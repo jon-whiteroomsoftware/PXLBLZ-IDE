@@ -1,0 +1,51 @@
+{
+  "issue": 1038,
+  "boundary": "Pure Transition placement eligibility shared by Transition edits, ordinary Clip duplicate and Group occurrence move or linked duplicate",
+  "invariants": [
+    "Accepted placement candidates satisfy the known RL08-RL10 topology domain; public prepareShowV2ForCompile independently qualifies the selected fixtures without claiming general source eligibility.",
+    "Eligibility observes the complete effective choreography after Group materialization, including definition-local Transition windows and held child timing.",
+    "An unrelated Clip start or end at or inside a positive Layer Transition window refuses atomically; choreography wholly outside the window remains eligible.",
+    "Fade and Motion transitions refuse unrelated contributors that span the complete positive window.",
+    "Independent overlapping positive Transition windows refuse; adjacent non-overlapping windows retain eligibility.",
+    "Refused edits return the exact input record and empty affected collections."
+  ],
+  "partitions": [
+    "Ordinary Transition window versus materialized Group Transition window.",
+    "Ordinary Clip duplicate versus Group move versus linked Group duplicate.",
+    "Exact review interior [200,300) within [100,400), plus unrelated contributor ending exactly at the window start, ending one millisecond inside, starting one millisecond inside, or starting exactly at the window end.",
+    "Boundary contributor versus complete spanning contributor.",
+    "Participant Layer versus an unrelated contributor on another Layer.",
+    "Overlapping positive windows versus choreography adjacent outside the positive window."
+  ],
+  "sequences": [
+    "Construct a valid ordinary crossfade preimage, force the duplicate candidate independently, observe public preparation refusal, then require editShowClipV2 to refuse the same placement without mutation.",
+    "Move and duplicate a Group child into an ordinary Transition window, independently force and reopen each candidate, observe public preparation refusal, then require the Group owner to refuse.",
+    "Move and duplicate a Group child into a materialized definition-local Transition window on a separate destination Layer, then compare owner refusal with public preparation.",
+    "Insert independent positive Transitions in separate Zones at the same time and compare the shared RL10 refusal with public preparation's overlap refusal.",
+    "Keep simultaneous Restart coalescing isolated from positive Transition overlap by using a definition without a local Transition."
+  ],
+  "oracles": [
+    "prepareShowV2ForCompile on serialized and reopened independently forced candidates.",
+    "validateShowRecordV2 proves the forced topology is structurally valid before compiler eligibility decides.",
+    "Owner result status/code, original record identity and complete empty affected collections on refusal.",
+    "Existing Transition, Clip and Group focused suites preserve nominal accepted edits and generated artifact behavior."
+  ],
+  "tddEvidence": [
+    "The four exact and one-millisecond Clip window partitions initially returned changed even though public preparation refused each forced candidate.",
+    "Group move and linked duplicate initially returned changed for both ordinary and materialized Group Transition windows while public preparation refused the independently forced candidates.",
+    "After the shared validator was connected, all 166 focused Transition, Clip and Group owner tests passed; the seven adjacent owner/preparation suites passed 374 tests, TypeScript and targeted lint passed, and parity matched 47 inventoried records."
+  ],
+  "mutationEvidence": [
+    "Omitting Group materialization made both materialized-window Group move and duplicate regressions return changed.",
+    "Using strict endpoint comparisons made both exact-window-endpoint Clip duplicate regressions return changed.",
+    "Bypassing the Clip owner check made both one-millisecond interior regressions and the exact review [200,300) regression return changed.",
+    "Bypassing the Group owner check made both ordinary-window move and duplicate regressions return changed.",
+    "Bypassing RL10 overlap changed the known simultaneous-window refusal from RL10 to RL09, failing the rule-classification regression.",
+    "The established Show-authoring mutation qualification killed all 166 inventoried mutants with no survivors, timeout or errors."
+  ],
+  "residualGaps": [
+    "This slice does not widen compiler render targets, scheduling or source eligibility; RL08-RL10 remain explicit bounded refusals.",
+    "It does not change Transition persistence, Group materialization identities, schema, lowering, UI, store adoption or commands.",
+    "The coordinator owns native review, authoritative final suites, landing and integrated #1038 publication."
+  ]
+}

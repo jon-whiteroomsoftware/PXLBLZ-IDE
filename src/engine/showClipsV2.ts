@@ -2,6 +2,7 @@ import { validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './show
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { validateClipLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { editShowClipPropertyTracksV2, findNewShowInstancePropertyTrackConflictV2 } from './showPropertyAnimationV2'
+import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
 
 export interface ShowClipDuplicateTrackIdentityV2 {
   trackId: string
@@ -26,7 +27,7 @@ export type ShowClipEditIntentV2 =
       startMs: number
       identities: ShowClipDuplicateIdentityPlanV2
     }
-export type ShowClipEditRefusalV2 = 'invalid-record' | 'missing-clip' | 'invalid-intent' | 'unsupported-topology' | 'invalid-result'
+export type ShowClipEditRefusalV2 = 'invalid-record' | 'missing-clip' | 'invalid-intent' | 'unsupported-topology' | 'compiler-ineligible' | 'invalid-result'
 export type ShowClipEditResultV2 =
   | { status: 'changed'; record: ShowRecordV2; affectedClipIds: string[]; affectedTrackIds: string[] }
   | { status: 'unchanged'; record: ShowRecordV2; affectedClipIds: []; affectedTrackIds: [] }
@@ -194,6 +195,8 @@ function duplicateShowClipV2(
       `Clip "${plan.clipId}" Zone is unavailable in Layout occurrence "${availabilityIssue.layoutOccurrenceId}".`,
     )
   }
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction.message)
   return {
     status: 'changed', record: next, affectedClipIds: [plan.clipId], affectedTrackIds: trackIds,
   }

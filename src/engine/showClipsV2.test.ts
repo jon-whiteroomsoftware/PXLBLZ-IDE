@@ -540,6 +540,48 @@ function addBoundGroupUse(source: ShowRecordV2, startMs: number) {
 }
 
 describe('v2 linked duplicate topology and consumer proof', () => {
+  it.each([
+    ['occupies the review fixture interior [200,300)', 200],
+    ['ends exactly when the window begins', 0],
+    ['ends one millisecond inside the window', 1],
+    ['starts one millisecond inside the window', 399],
+    ['starts exactly when the window ends', 400],
+  ] as const)('refuses a duplicate that %s, matching public compile preparation', (_partition, startMs) => {
+    const source = transitionWindowDuplicateRecord()
+    const before = structuredClone(source)
+    const intent = linkedDuplicateIntent(source, startMs)
+    if (startMs !== 200) intent.layerId = source.composition.layers.find(layer => layer.rank === 1)!.id
+    const forced = duplicateCandidateForPreparation(source, intent)
+
+    expect(prepareShowV2ForCompile(source, sourceLookup()).status).toBe('ready')
+    const prepared = prepareShowV2ForCompile(reopen(forced), sourceLookup())
+    expect(prepared).toMatchObject({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({ code: 'compiler-ineligible' })]),
+    })
+
+    const result = editShowClipV2(source, intent)
+    expect(result).toMatchObject({
+      status: 'refused', code: 'compiler-ineligible',
+      affectedClipIds: [], affectedTrackIds: [],
+    })
+    expect(result.record).toBe(source)
+    expect(source).toEqual(before)
+  })
+
+  it('accepts a duplicate adjacent to ordinary choreography outside a positive Transition window', () => {
+    const source = transitionWindowDuplicateRecord()
+    const intent = linkedDuplicateIntent(source, 500)
+    intent.layerId = source.composition.layers.find(layer => layer.rank === 1)!.id
+    const forced = duplicateCandidateForPreparation(source, intent)
+    expect(prepareShowV2ForCompile(reopen(forced), sourceLookup()).status).toBe('ready')
+
+    const result = editShowClipV2(source, intent)
+    expect(result.status, result.status === 'refused' ? result.message : undefined).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(prepareShowV2ForCompile(reopen(result.record), sourceLookup()).status).toBe('ready')
+  })
+
   it('accepts exact materialized-Group adjacency, counts the effective sharer, and refuses one-millisecond overlap', () => {
     const source = fixture()
     source.composition.showEndMs = 2_400
@@ -674,3 +716,61 @@ describe('v2 linked duplicate topology and consumer proof', () => {
     expect(Object.keys(duplicateMiddle.exports).filter(key => key.endsWith('_elapsed'))).toHaveLength(1)
   })
 })
+
+function sourceLookup() {
+  return { byCellId: {}, byPatternInstanceId: { instance: sourceCode }, stageDimension: 2 as const }
+}
+
+function transitionWindowDuplicateRecord(): ShowRecordV2 {
+  const source = fixture()
+  const outgoing = source.composition.clips[0]
+  outgoing.startMs = 0
+  outgoing.durationMs = 100
+  outgoing.appearance.keys = [{
+    ...structuredClone(outgoing.appearance.keys[0]), id: 'outgoing:appearance', timeMs: 0,
+  }]
+  source.composition.showEndMs = 700
+  source.composition.layoutOccurrences[0].durationMs = 700
+  source.composition.clips.push({
+    ...structuredClone(outgoing), id: 'incoming', startMs: 400,
+    appearance: {
+      keys: [{
+        ...structuredClone(outgoing.appearance.keys[0]), id: 'incoming:appearance', timeMs: 400,
+      }],
+    },
+  })
+  source.composition.transitions = [{
+    id: 'wide-crossfade', kind: 'crossfade', durationMs: 300,
+    easing: { curve: 'linear' }, crossfadePolicy: 'live-live', propertyRamps: [],
+    participants: [{
+      id: 'wide-crossfade:participant', zoneId: outgoing.zoneId, layerId: outgoing.layerId,
+      fromClipId: outgoing.id, toClipId: 'incoming',
+    }],
+  }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  return source
+}
+
+function duplicateCandidateForPreparation(
+  source: ShowRecordV2,
+  intent: Extract<ShowClipEditIntentV2, { kind: 'duplicate' }>,
+): ShowRecordV2 {
+  const candidate = structuredClone(source)
+  const clip = candidate.composition.clips.find(value => value.id === intent.clipId)!
+  const deltaMs = intent.startMs - clip.startMs
+  candidate.composition.clips.push({
+    ...structuredClone(clip),
+    id: intent.identities.clipId,
+    zoneId: intent.zoneId,
+    layerId: intent.layerId,
+    startMs: intent.startMs,
+    appearance: {
+      keys: clip.appearance.keys.map(key => ({
+        ...structuredClone(key),
+        id: intent.identities.appearanceKeyIdsBySourceId[key.id],
+        timeMs: key.timeMs + deltaMs,
+      })),
+    },
+  })
+  return candidate
+}

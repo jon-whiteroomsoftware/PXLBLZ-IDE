@@ -77,6 +77,11 @@ accepted; overlapping owners of one effective runtime target refuse. Restart
 events remain transient: move shifts the first-contribution event, duplicate
 adds an event on the same runtime, and simultaneous events use the existing
 coalescing rule. A hold extends choreography without creating another event.
+Move and linked duplicate also run the shared RL08–RL10 Transition-placement
+check after materializing all Groups. A materialized child entering an ordinary
+or definition-local positive Transition window, or a placement creating
+independent overlapping positive windows, refuses atomically as
+compiler-ineligible.
 
 Changed results contain only the persisted occurrence ID in
 `affectedGroupOccurrenceIds`; all other affected collections remain empty.
@@ -131,7 +136,8 @@ through the ordinary materialization and compile-preparation seams.
 The same tests reopen move, duplicate and Ungroup results, derive exact held child and
 Restart times, exercise Layout and effective-track refusals, and compare an
 independently authored oracle with generated Fast and Fidelity `.epe` output and
-replay state. Compile eligibility remains explicit through
+replay state. Group placement tests force ordinary and materialized Transition
+window conflicts and confirm the same refusals through
 `prepareShowV2ForCompile`; this edit owner does not widen the compiler.
 
 This owner covers Make Unique, occurrence move, linked duplicate and

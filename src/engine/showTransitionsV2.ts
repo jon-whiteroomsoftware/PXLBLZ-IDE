@@ -11,6 +11,7 @@ import {
   projectShowTransitionPropertyRampsV2,
   type ShowTransitionRampProjectionV2,
 } from './showPropertyAnimationV2'
+import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
 
 export interface ShowDerivedCutJunctionV2 {
   kind: 'cut'
@@ -115,8 +116,8 @@ export function editShowTransitionV2(
     next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !removedTrackIds.includes(track.id))
     const issue = validateShowRecordV2(next)[0]
     if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
-    const compilerRestriction = firstCompilerRestriction(next)
-    if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction)
+    const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+    if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction.message)
     return {
       status: 'changed', record: next,
       affectedClipIds: [clip.id],
@@ -146,8 +147,8 @@ export function editShowTransitionV2(
     ))
     const issue = validateShowRecordV2(next)[0]
     if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
-    const compilerRestriction = firstCompilerRestriction(next)
-    if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction)
+    const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+    if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction.message)
     return {
       status: 'changed', record: next, affectedClipIds: [], affectedTransitionIds: [current.id],
       affectedTrackIds: [], removedIds: [],
@@ -259,8 +260,8 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
     : candidate)
   const issue = validateShowRecordV2(next)[0]
   if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
-  const compilerRestriction = firstCompilerRestriction(next)
-  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const unavailable = firstUnavailableContributor(next, [...new Set([
     clip.id,
     ...affectedClipIds,
@@ -301,8 +302,8 @@ function resetTransitionWithProjectedPropertyRamps(
   next.composition.propertyTracks.push(...projectedTracks)
   const issue = validateShowRecordV2(next)[0]
   if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
-  const compilerRestriction = firstCompilerRestriction(next)
-  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   return {
     ...reset,
     record: next,
@@ -343,8 +344,8 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
     : candidate)
   const issue = validateShowRecordV2(next)[0]
   if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
-  const compilerRestriction = firstCompilerRestriction(next)
-  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const unavailable = firstUnavailableContributor(next, [...new Set([clip.id, ...endpoints.all])])
   if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
   return {
@@ -382,8 +383,8 @@ function commitShift(
   shiftWholeOutputWindows(record, next, moved, deltaMs, new Set(replacementById.keys()))
   const issue = validateShowRecordV2(next)[0]
   if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
-  const compilerRestriction = firstCompilerRestriction(next)
-  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction)
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const contributionAffected = new Set(moved)
   for (const transition of replacements) {
     transitionEndpoints(transition).all.forEach(id => contributionAffected.add(id))
@@ -556,46 +557,4 @@ function firstUnavailableContributor(record: ShowRecordV2, clipIds: readonly str
   return issue
     ? `Clip "${issue.entityId}" contributes while Zone "${issue.zoneId}" is unavailable in Layout occurrence "${issue.layoutOccurrenceId}".`
     : null
-}
-
-function firstCompilerRestriction(record: ShowRecordV2): string | null {
-  const clipsById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
-  const windows = record.composition.transitions.map(transition => {
-    const endpoints = transitionEndpoints(transition)
-    const startMs = transition.wholeOutput?.startMs
-      ?? (() => {
-        const from = clipsById.get(endpoints.from[0])!
-        return from.startMs + from.durationMs
-      })()
-    return { transition, endpoints, startMs, endMs: startMs + transition.durationMs }
-  })
-  for (const [index, left] of windows.entries()) {
-    if (windows.slice(index + 1).some(right => left.startMs < right.endMs && right.startMs < left.endMs)) {
-      return 'RL10: independent overlapping positive Transition windows require compiler render-target widening.'
-    }
-    if (left.transition.wholeOutput) continue
-    const owned = new Set(left.endpoints.all)
-    const participantZones = new Set(left.transition.participants.map(participant => participant.zoneId))
-    const unrelated = record.composition.clips.filter(clip => !owned.has(clip.id))
-    const boundaryInside = unrelated.some(clip => {
-      const clipEndMs = clip.startMs + clip.durationMs
-      if (participantZones.has(clip.zoneId)) {
-        const touches = clipEndMs >= left.startMs && clip.startMs <= left.endMs
-        const spans = clip.startMs < left.startMs && clipEndMs > left.endMs
-        return touches && !spans
-      }
-      return (clip.startMs > left.startMs && clip.startMs <= left.endMs)
-        || (clipEndMs > left.startMs && clipEndMs <= left.endMs)
-    })
-    if (boundaryInside) {
-      return 'RL09: an unrelated Clip cannot start or stop at or inside a Layer Transition window.'
-    }
-    const unrelatedSpansWindow = unrelated.some(clip => (
-      clip.startMs < left.startMs && clip.startMs + clip.durationMs > left.endMs
-    ))
-    if (unrelatedSpansWindow && (left.transition.kind === 'fade-color' || left.transition.kind === 'motion')) {
-      return 'RL08: Fade and Motion Layer Transitions cannot pass over unrelated contributing Clips.'
-    }
-  }
-  return null
 }

@@ -8,6 +8,7 @@ import {
 } from './showCompositionV2'
 import { groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
+import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
 
 export interface ShowGroupUniqueIdentityPlanV2 {
   definitionId: string
@@ -57,6 +58,7 @@ export type ShowGroupEditRefusalV2 =
   | 'invalid-identity-plan'
   | 'invalid-occurrence-id'
   | 'invalid-placement'
+  | 'compiler-ineligible'
   | 'invalid-result'
 
 export interface ShowGroupEditAffectedV2 {
@@ -206,6 +208,8 @@ export function moveShowGroupOccurrenceV2(
   next.composition.groupOccurrences[next.composition.groupOccurrences.findIndex(value => value.id === occurrence.id)] = edited
   const resultIssue = validateGroupEditResult(next)
   if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refuseGroupEdit(record, 'compiler-ineligible', compilerRestriction.message)
   return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [occurrence.id] }
 }
 
@@ -242,6 +246,8 @@ export function duplicateShowGroupOccurrenceV2(
   next.composition.groupOccurrences.push(duplicate)
   const resultIssue = validateGroupEditResult(next)
   if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refuseGroupEdit(record, 'compiler-ineligible', compilerRestriction.message)
   return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [duplicate.id] }
 }
 

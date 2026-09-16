@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { LIBRARIES } from '../pixelblaze/libs'
-import { convertibleV1Show } from '../test/showV2TracerFixture'
+import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { compileShow } from './showCompiler'
@@ -8,6 +8,7 @@ import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import {
   parseProvisionalShowRecordV2,
   serializeProvisionalShowRecordV2,
+  validateShowRecordV2,
   type ShowGroupDefinitionV2,
   type ShowGroupOccurrenceV2,
   type ShowRecordV2,
@@ -126,6 +127,71 @@ function placementOf(
     translationY: occurrence.translationY,
     ...overrides,
   }
+}
+
+function transitionLookup() {
+  return {
+    byCellId: {},
+    byPatternInstanceId: { 'out-instance': code, 'in-instance': code },
+    stageDimension: 2 as const,
+  }
+}
+
+function linkedLookup() {
+  return {
+    byCellId: {},
+    byPatternInstanceId: { instance: code, 'group:["group","child"]': code },
+    stageDimension: 2 as const,
+  }
+}
+
+function ordinaryTransitionGroupRecord(): ShowRecordV2 {
+  const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const record = converted.record
+  const overlay = record.composition.layers.find(layer => layer.rank === 1)!
+  const outgoing = record.composition.clips.find(clip => clip.id === 'out')!
+  record.composition.groupDefinitions = [{
+    id: 'placement-group',
+    name: 'Placement group',
+    patternInstances: [{
+      ...structuredClone(record.composition.patternInstances.find(instance => instance.id === outgoing.instanceId)!),
+      id: 'child',
+    }],
+    layers: [{ id: 'local-layer', name: 'Local', rank: 0 }],
+    clips: [{
+      id: 'child-clip',
+      instanceId: 'child',
+      layerId: 'local-layer',
+      startMs: 0,
+      durationMs: 100,
+      entryPolicy: outgoing.entryPolicy,
+      zoneSampleMode: outgoing.zoneSampleMode,
+      appearance: {
+        keys: [{
+          ...structuredClone(outgoing.appearance.keys[0]),
+          id: 'child-appearance',
+          timeMs: 0,
+        }],
+      },
+    }],
+    transitions: [],
+    propertyTracks: [],
+  }]
+  record.composition.groupOccurrences = [{
+    id: 'group-use',
+    definitionId: 'placement-group',
+    layoutOccurrenceId: record.composition.layoutOccurrences[0].id,
+    zoneId: outgoing.zoneId,
+    startMs: 800,
+    translationX: 0,
+    translationY: 0,
+    holds: [],
+    instanceBindings: { child: outgoing.instanceId },
+    layerBindings: [{ definitionLayerId: 'local-layer', layerId: overlay.id }],
+  }]
+  expect(validateShowRecordV2(record)).toEqual([])
+  return record
 }
 
 it('makes one held linked occurrence unique while preserving effective runtime identity and every authored payload', () => {
@@ -593,6 +659,81 @@ it('duplicates a held occurrence as a linked shell without minting runtime or an
   })
 })
 
+it.each(['move', 'duplicate'] as const)('refuses Group %s when a materialized child enters an ordinary Transition window', operation => {
+  const record = ordinaryTransitionGroupRecord()
+  const before = structuredClone(record)
+  const source = record.composition.groupOccurrences[0]
+  const placement = placementOf(source, { startMs: 450 })
+  const candidate = structuredClone(record)
+  candidate.composition.groupOccurrences[0] = { ...candidate.composition.groupOccurrences[0], ...structuredClone(placement) }
+  if (operation === 'duplicate') {
+    candidate.composition.groupOccurrences.push({
+      ...candidate.composition.groupOccurrences[0], id: 'group-copy',
+    })
+    candidate.composition.groupOccurrences[0] = structuredClone(record.composition.groupOccurrences[0])
+  }
+  expect(prepareShowV2ForCompile(record, transitionLookup()).status).toBe('ready')
+  expect(prepareShowV2ForCompile(reopen(candidate), transitionLookup())).toMatchObject({
+    status: 'refused',
+    issues: expect.arrayContaining([expect.objectContaining({ code: 'compiler-ineligible' })]),
+  })
+
+  const result = operation === 'move'
+    ? moveShowGroupOccurrenceV2(record, {
+        kind: 'move-occurrence', occurrenceId: source.id, ...placement,
+      })
+    : duplicateShowGroupOccurrenceV2(record, {
+        kind: 'duplicate-occurrence', occurrenceId: source.id, newOccurrenceId: 'group-copy', ...placement,
+      })
+  expect(result).toMatchObject({ status: 'refused', code: 'compiler-ineligible' })
+  expect(result.record).toBe(record)
+  expectEmptyAffected(result)
+  expect(record).toEqual(before)
+})
+
+it.each(['move', 'duplicate'] as const)('refuses Group %s when its child enters a materialized Group Transition window', operation => {
+  const record = linkedRecord()
+  record.composition.groupDefinitions[0].propertyTracks = []
+  record.composition.groupDefinitions[0].clips[0].appearance.keys = [
+    record.composition.groupDefinitions[0].clips[0].appearance.keys[0],
+  ]
+  const before = structuredClone(record)
+  const source = record.composition.groupOccurrences[1]
+  const rank = Math.max(...record.composition.layers.map(layer => layer.rank)) + 1
+  record.composition.layers.push({ id: 'collision-oracle-layer', zoneId: source.zoneId, name: 'Oracle', rank })
+  before.composition.layers = structuredClone(record.composition.layers)
+  const placement = placementOf(source, {
+    startMs: 350,
+    layerBindings: source.layerBindings.map(binding => ({ ...binding, layerId: 'collision-oracle-layer' })),
+  })
+  const candidate = structuredClone(record)
+  candidate.composition.groupOccurrences[1] = { ...candidate.composition.groupOccurrences[1], ...structuredClone(placement) }
+  if (operation === 'duplicate') {
+    candidate.composition.groupOccurrences.push({
+      ...candidate.composition.groupOccurrences[1], id: 'group-copy',
+    })
+    candidate.composition.groupOccurrences[1] = structuredClone(record.composition.groupOccurrences[1])
+  }
+  const preparedBefore = prepareShowV2ForCompile(record, linkedLookup())
+  expect(preparedBefore.status, JSON.stringify(preparedBefore)).toBe('ready')
+  expect(prepareShowV2ForCompile(reopen(candidate), linkedLookup())).toMatchObject({
+    status: 'refused',
+    issues: expect.arrayContaining([expect.objectContaining({ code: 'compiler-ineligible' })]),
+  })
+
+  const result = operation === 'move'
+    ? moveShowGroupOccurrenceV2(record, {
+        kind: 'move-occurrence', occurrenceId: source.id, ...placement,
+      })
+    : duplicateShowGroupOccurrenceV2(record, {
+        kind: 'duplicate-occurrence', occurrenceId: source.id, newOccurrenceId: 'group-copy', ...placement,
+      })
+  expect(result).toMatchObject({ status: 'refused', code: 'compiler-ineligible' })
+  expect(result.record).toBe(record)
+  expectEmptyAffected(result)
+  expect(record).toEqual(before)
+})
+
 it.each([
   ['unsafe start', (_record: ShowRecordV2, placement: ShowGroupOccurrencePlacementV2) => { placement.startMs = Number.MAX_SAFE_INTEGER + 1 }],
   ['negative start', (_record: ShowRecordV2, placement: ShowGroupOccurrencePlacementV2) => { placement.startMs = -1 }],
@@ -737,6 +878,9 @@ it('refuses an overlapping linked duplicate of an effective instance track but a
 
 it('preserves explicit runtime authority and coalesces simultaneous linked Restart entries', () => {
   const record = linkedRecord()
+  // This case owns Restart coalescing. Simultaneous positive Transition
+  // windows are independently compiler-ineligible under RL10.
+  record.composition.groupDefinitions[0].transitions = []
   const source = record.composition.groupOccurrences[0]
   source.instanceBindings = { child: 'instance' }
   record.composition.groupOccurrences[1].instanceBindings = { child: 'instance' }

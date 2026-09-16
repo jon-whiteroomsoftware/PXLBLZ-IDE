@@ -44,7 +44,11 @@ Pattern instance or attached Transition is copied. Duplicate validates ordinary
 and materialized-Group occupancy, Layout availability and the complete result;
 half-open adjacency is accepted while overlap refuses atomically. A duplicated
 Restart entry therefore derives a second event that resets the same shared
-runtime.
+runtime. Before exposing the candidate, duplicate also applies the shared
+RL08–RL10 Transition-placement check to the complete materialized choreography.
+An unrelated duplicate whose start or end is at or inside a positive Transition
+window refuses as compiler-ineligible; choreography wholly outside the window
+retains ordinary half-open placement behavior.
 
 ## Exact Property curves and activation
 
@@ -170,7 +174,9 @@ Single-Zone independent sampling is equivalent to span sampling for this route.
 results, serialized/reopened records, held-change boundaries, Restart ownership,
 invalid intents, exact caller identity plans, every Clip Property target,
 ordinary/materialized-Group collision refusal, attached Transition preservation,
-animation ownership, and routed Layout availability.
+animation ownership, routed Layout availability, and exact/one-millisecond
+Transition-window boundaries against the independent public compile-preparation
+oracle.
 Reopened records compile through the preparation seam and run in Fast and Precise
 modes. Linked duplicate proves its nonlinear copied track and second Restart on
 one generated shared runtime. Split preserves frames and private state through

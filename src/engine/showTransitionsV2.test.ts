@@ -530,6 +530,21 @@ describe('v2 Transition ownership', () => {
     })
     const current = fadeSource.composition.transitions[0]
     const { crossfadePolicy: _crossfadePolicy, ...base } = current
+    const forcedFade = structuredClone(fadeSource)
+    forcedFade.composition.transitions[0] = { ...base, kind: 'fade-color', color: '#204060' }
+    const topologyLookup = {
+      byCellId: {},
+      byPatternInstanceId: {
+        'out-instance': 'export function render2D(index, x, y) { rgb(1, 0, 0) }',
+        'in-instance': 'export function render2D(index, x, y) { rgb(0, 0, 1) }',
+      },
+      stageDimension: 2 as const,
+    }
+    expect(prepareShowV2ForCompile(fadeSource, topologyLookup).status).toBe('ready')
+    expect(prepareShowV2ForCompile(reopen(forcedFade), topologyLookup)).toMatchObject({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({ code: 'compiler-ineligible' })]),
+    })
     const fadeBefore = structuredClone(fadeSource)
     const fade = editShowTransitionV2(fadeSource, {
       kind: 'update-transition', transition: { ...base, kind: 'fade-color', color: '#204060' },
@@ -589,6 +604,26 @@ describe('v2 Transition ownership', () => {
     expect(overlapping).toMatchObject({ status: 'refused', code: 'compiler-ineligible', message: expect.stringContaining('RL10') })
     expect(overlapping.record).toBe(first.record)
     expect(first.record).toEqual(overlapBefore)
+    const forcedOverlap = structuredClone(first.record)
+    const forcedIncoming = forcedOverlap.composition.clips.find(clip => clip.id === 'in-b')!
+    forcedIncoming.startMs += 200
+    forcedIncoming.appearance.keys.forEach(key => { key.timeMs += 200 })
+    forcedOverlap.composition.transitions.push({
+      id: 'second', kind: 'crossfade', durationMs: 200, easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+      participants: [participant('zone-b', 'layer:zone-b:main', 'out-b', 'in-b')], propertyRamps: [],
+    })
+    const overlapLookup = {
+      ...topologyLookup,
+      byPatternInstanceId: Object.fromEntries(
+        forcedOverlap.composition.patternInstances.map(instance => [
+          instance.id, 'export function render2D(index, x, y) { rgb(1, 1, 1) }',
+        ]),
+      ),
+    }
+    expect(prepareShowV2ForCompile(reopen(forcedOverlap), overlapLookup)).toMatchObject({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({ code: 'unsupported-transition-overlap' })]),
+    })
   })
 
   it('updates settings and applies connected trailing and leading Clip resize rules', () => {
