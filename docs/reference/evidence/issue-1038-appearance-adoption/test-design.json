@@ -1,6 +1,6 @@
 {
   "issue": 1038,
-  "base": "fb8352636dc14758aaca5b7c586f0e044774095b",
+  "base": "e39ca09050f73d998931746740b22a8eefe16ff9",
   "specification": {
     "path": "docs/plans/scene-retirement-specification.md",
     "commit": "70812ae64c919ff1dcb15e019125bd3b6bad7b4b",
@@ -46,20 +46,26 @@
   ],
   "qualification": {
     "focused": {
-      "files": 10,
-      "tests": 161,
-      "result": "passed"
+      "files": 13,
+      "tests": 200,
+      "result": "passed",
+      "scope": "appearance model/admission/component/completion/native artifacts; Layer and timing adjacent capture/admission; landed Property CRUD/curve/validation/boundary owners"
     },
-    "typescript": "passed",
-    "scopedLint": "passed",
+    "typescript": "passed on final base",
+    "scopedLint": "passed on final base",
     "locators": "no new stale (0 known, 55 unverifiable)",
-    "parity": "47/47",
+    "parity": "47/47 on final base",
     "semanticMutations": {
       "killed": 6,
       "total": 6,
       "restoredExactly": true
     },
-    "browser": "pending final-base capture; isolated Layer runtime released, no new runtime allocated",
-    "finalSuites": "coordinator-owned; not submitted by implementation worker"
+    "browser": "Diagnostic acceptance passed on4c744: eight actual Worker writes, history/reload/cold reopen, Fast/Precise Stage captures, 1024/390 keyboard/overflow and zero errors; final rebased committed capture pending.",
+    "finalSuites": "coordinator-owned; not submitted by implementation worker",
+    "rebase": {
+      "sourceTip": "2e4830acb2883bd6e96fb66cc51ddb998c6766b2",
+      "sourcePatchEquivalent": true,
+      "parentGate": "coordinator-owned; frozen stacked base until landing"
+    }
   }
 }
