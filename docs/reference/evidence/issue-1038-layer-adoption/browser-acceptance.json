@@ -1,0 +1,41 @@
+{
+  "phase": "pre-commit acceptance; screenshots deferred until finalbase",
+  "fixture": "e2e/fixtures/showV2LayerManagement.json",
+  "showEndMs": 30000,
+  "writes": 6,
+  "operations": [
+    "add top",
+    "rename",
+    "adjacent full-order stacking",
+    "complete ordinary+used/unused held Group Layer reassignment/removal",
+    "Undo",
+    "Redo",
+    "provider reload",
+    "native record/artifact reopen"
+  ],
+  "errors": [],
+  "overflow": [
+    {
+      "width": 1024,
+      "elements": []
+    },
+    {
+      "width": 390,
+      "elements": []
+    }
+  ],
+  "rendererModes": [
+    "Fast",
+    "Precise"
+  ],
+  "rendererFailures": [
+    [],
+    []
+  ],
+  "keyboard": "Zone select -> persisted Layer select -> Tab -> Layer name at1024/390",
+  "sourcePrivateState": "independently expected Fast/Precise EPE stacking/Restart state tested in showV2LayerAdmission.test.ts",
+  "oracleCorrections": [
+    "advanceTo(0) is an unpainted buffer; delivered artifact oracle uses positive rendered steps.",
+    "Compiled recipe may include compilerOwnedEmpty black gap placements; nonempty authored runtime consumers counted independently. No compiler behavior changed."
+  ]
+}

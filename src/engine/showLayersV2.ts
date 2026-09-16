@@ -55,7 +55,7 @@ export type ShowLayerEditResultV2 =
       message: string
     } & ShowLayerEditAffectedV2)
 
-type LayerReference =
+export type LayerReference =
   | { kind: 'clip'; key: string; clipId: string }
   | { kind: 'group-layer-binding'; key: string; groupOccurrenceId: string; definitionLayerId: string }
   | { kind: 'transition-participant'; key: string; transitionId: string; participantId: string }
@@ -105,7 +105,8 @@ function layerReferenceKey(reassignment: ShowLayerReassignmentV2): string {
   return layerReferenceKeyParts('transition-participant', reassignment.transitionId, reassignment.participantId)
 }
 
-function layerReferences(record: ShowRecordV2, layerId: string): LayerReference[] {
+/** Exact authored ownership references used by complete Layer removal plans. */
+export function layerReferences(record: ShowRecordV2, layerId: string): LayerReference[] {
   const clips: LayerReference[] = record.composition.clips
     .filter(clip => clip.layerId === layerId)
     .map(clip => ({ kind: 'clip', key: layerReferenceKeyParts('clip', clip.id), clipId: clip.id }))

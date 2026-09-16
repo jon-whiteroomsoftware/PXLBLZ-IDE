@@ -11,6 +11,7 @@ import { createShowClipV2, type CreateShowClipIntentV2, type ShowClipCreationRes
 import { editShowClipTemporalV2, type ShowClipTemporalIntentV2, type ShowClipTemporalResultV2 } from '@/engine/showClipTemporalV2'
 import { insertShowTimeV2, type ShowInsertTimeIntentV2, type ShowTimelineEditResultV2, type ShowTimelineEditAffectedV2 } from '@/engine/showTimelineV2'
 import { editShowLayoutIntervalsV2, type ShowLayoutEditIntentV2, type ShowLayoutEditResultV2 } from '@/engine/showLayoutIntervalsV2'
+import { editShowLayerV2, type ShowLayerEditIntentV2, type ShowLayerEditResultV2, type ShowLayerEditAffectedV2 } from '@/engine/showLayersV2'
 export interface ShowV2PilotPreparedCapture {
   readonly record: ShowRecordV2
   readonly dependencies: ShowPreparedStageDependenciesV2
@@ -54,11 +55,13 @@ type Command =
   | { owner: 'create-clip'; intent: CreateShowClipIntentV2 }
   | { owner: 'clip-temporal'; intent: ShowClipTemporalIntentV2 }
   | { owner: 'insert-time'; intent: ShowInsertTimeIntentV2 }
+  | { owner: 'layer'; intent: ShowLayerEditIntentV2 }
   | { owner: 'set-show-end'; intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
 type OwnerResult<C extends Command> = C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
   : C extends { owner: 'clip-temporal' } ? ShowClipTemporalResultV2
   : C extends { owner: 'insert-time' } ? ShowTimelineEditResultV2
+  : C extends { owner: 'layer' } ? ShowLayerEditResultV2
   : C extends { owner: 'set-show-end' } ? ShowLayoutEditResultV2
   : ShowTransitionEditResultV2
 type CheckedOutcome<R> =
@@ -93,9 +96,11 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
         ? editShowClipTemporalV2(current, structuredClone(command.intent))
         : command.owner === 'insert-time'
           ? insertShowTimeV2(current, structuredClone(command.intent))
-          : command.owner === 'set-show-end'
-            ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
-            : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
+          : command.owner === 'layer'
+            ? editShowLayerV2(current, structuredClone(command.intent))
+            : command.owner === 'set-show-end'
+              ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
+              : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
   if (result.status === 'refused') return { status: 'refused', source: 'owner', result }
   if (result.status === 'unchanged') return { status: 'unchanged', result }
   const { capture } = request
@@ -215,4 +220,46 @@ export async function admitShowV2PilotSetShowEnd(request: ShowV2PilotSetShowEndR
   if (!exactIntentFields(request.intent, ['kind', 'showEndMs']) || request.intent.kind !== 'set-show-end') return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one explicit Show End operation.', ...endEffects() }
   const outcome = await admitPreparedEdit({ ...request, owner: 'set-show-end' as const })
   return presentOwnerOutcome(outcome, endEffects('result' in outcome ? outcome.result : undefined))
+}
+
+function validLayerIntent(intent: unknown): intent is ShowLayerEditIntentV2 {
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return false
+  const value = intent as Record<string, unknown>
+  const text = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0
+  if (value.kind === 'add') {
+    if (!exactIntentFields(value, ['kind', 'layer']) || !exactIntentFields(value.layer, ['id', 'zoneId', 'name', 'rank'])) return false
+    const layer = value.layer as Record<string, unknown>
+    return text(layer.id) && text(layer.zoneId) && text(layer.name) && typeof layer.rank === 'number' && Number.isSafeInteger(layer.rank) && layer.rank >= 0
+  }
+  if (value.kind === 'rename') return exactIntentFields(value, ['kind', 'zoneId', 'layerId', 'name']) && text(value.zoneId) && text(value.layerId) && text(value.name)
+  if (value.kind === 'reorder') return exactIntentFields(value, ['kind', 'zoneId', 'layerIds']) && text(value.zoneId) && Array.isArray(value.layerIds) && Array.from(value.layerIds).every(text)
+  if (value.kind !== 'remove' || !text(value.zoneId) || !text(value.layerId)) return false
+  if (exactIntentFields(value, ['kind', 'zoneId', 'layerId'])) return true
+  if (!exactIntentFields(value, ['kind', 'zoneId', 'layerId', 'reassignments']) || !Array.isArray(value.reassignments)) return false
+  return Array.from(value.reassignments).every(plan => {
+    if (!plan || typeof plan !== 'object' || Array.isArray(plan)) return false
+    const entry = plan as Record<string, unknown>
+    if (!text(entry.layerId)) return false
+    if (entry.kind === 'clip') return exactIntentFields(entry, ['kind', 'clipId', 'layerId']) && text(entry.clipId)
+    if (entry.kind === 'group-layer-binding') return exactIntentFields(entry, ['kind', 'groupOccurrenceId', 'definitionLayerId', 'layerId']) && text(entry.groupOccurrenceId) && text(entry.definitionLayerId)
+    return entry.kind === 'transition-participant' && exactIntentFields(entry, ['kind', 'transitionId', 'participantId', 'layerId']) && text(entry.transitionId) && text(entry.participantId)
+  })
+}
+function layerEffects(result?: ShowLayerEditAffectedV2): ShowLayerEditAffectedV2 {
+  return result ? {
+    affectedClipIds: result.affectedClipIds, affectedInstanceIds: result.affectedInstanceIds, affectedTransitionIds: result.affectedTransitionIds,
+    affectedTrackIds: result.affectedTrackIds, affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedLayoutOccurrenceIds: result.affectedLayoutOccurrenceIds,
+    affectedGroupDefinitionIds: result.affectedGroupDefinitionIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, affectedLayerIds: result.affectedLayerIds,
+    affectedMarkerIds: result.affectedMarkerIds, removedIds: result.removedIds, discardedControlTargets: result.discardedControlTargets,
+  } : {
+    affectedClipIds: [], affectedInstanceIds: [], affectedTransitionIds: [], affectedTrackIds: [], affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [],
+    affectedGroupDefinitionIds: [], affectedGroupOccurrenceIds: [], affectedLayerIds: [], affectedMarkerIds: [], removedIds: [], discardedControlTargets: [],
+  }
+}
+export type ShowV2PilotLayerEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowLayerEditIntentV2 }
+export type ShowV2PilotLayerEditOutcome = PilotOwnerOutcome<ShowLayerEditResultV2, ShowLayerEditAffectedV2>
+export async function admitShowV2PilotLayerEdit(request: ShowV2PilotLayerEditRequest): Promise<ShowV2PilotLayerEditOutcome> {
+  if (!validLayerIntent(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-request', message: 'Give one complete explicit Layer edit.', ...layerEffects() }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'layer' as const })
+  return presentOwnerOutcome(outcome, layerEffects('result' in outcome ? outcome.result : undefined))
 }

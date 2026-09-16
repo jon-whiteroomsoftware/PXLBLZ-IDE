@@ -1,0 +1,52 @@
+{
+  "issue": 1038,
+  "base": "265b73378b33b2c1971aed96ae231cd4349805b9",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+    "proofRows": [
+      "LAYERS",
+      "ROUTE",
+      "FAILURE",
+      "SHARING",
+      "RESTART",
+      "PARITY"
+    ]
+  },
+  "invariants": [
+    "Layer owner semantics unchanged; one authored reference projection drives owner and complete explicit editor plans.",
+    "Strict closed runtime ingress before typed owner; no malformed fallthrough removal.",
+    "Changed action preserves prepared capability, adopts/history/saves once; no-op/refusal preserves identity and empty twelve collections.",
+    "Capture binds exact provider before retained callback invocation; completion never overwrites newer selection/feedback.",
+    "Layer order changes stacking only; Group definitions/holds and shared runtime/private Restart state remain exact."
+  ],
+  "partitions": [
+    "Ready versus validated empty; named empty Layers; sparse reorder no-op; checked top allocation/overflow/fresh-ID failure.",
+    "Ordinary Clip, used and unused Group bindings, authored Transition participants; incomplete plan and held overlap499 versus half-open adjacency500.",
+    "Runtime null/unknown/extra/missing/nested invalid/holey arrays; malformed commands refuse before preparation/adoption.",
+    "Captured record/revision/provider/route replacement; own rollback versus superseded Pattern/Map/Library/profile/provider/route/unmount completion.",
+    "Fast/Precise red-blue compiled stacking and held shared runtime/Restart; full lifecycle empty remove/add/rename/remove."
+  ],
+  "sequences": [
+    "Explicit selection/draft/cancel/no-op -> zero history/writes.",
+    "Add top -> rename -> adjacent full-order reorder -> complete three-reference reassignment/removal -> Undo/Redo -> provider reload/native reopen.",
+    "Durable A -> optimistic B failure -> rollback A -> retry C; parent providerA->B retained Layer and Marker callbacks refuse -> fresh legitimate capture saves."
+  ],
+  "oracles": [
+    "Actual provider/store record, exact history/write counts and immutable original/empty affected sets.",
+    "Native EPE importer + reopened Fast/Precise frames and private exports against independent literal stacking/reassignment record, not extracted validation logic.",
+    "Real isolated authenticated Worker route30-second fixture, keyboard at1440/1024/390, errors[] and overflow[], actual Stage Fast/Precise captures."
+  ],
+  "residualGaps": [
+    "No Group creation, appearance/Property authoring, compiler/schema widening or production activation.",
+    "Worker focused/browser results are not authoritative final-suite evidence; coordinator owns final review/suites/landing."
+  ],
+  "qualification": {
+    "focused": "10 affected files140/140 pass; source restored after semantic mutants.",
+    "static": "Project TypeScript and scoped ESLint pass; locator check reports no new stale locators (0 known stale,55 unverifiable).",
+    "browser": "Dirty acceptance probe: six deliberate writes, Undo/Redo/reload, exact native record, Fast/Precise Stage captures,1024/390 keyboard, errors[]/overflow[]. Fresh committed-tip screenshots still required.",
+    "mutations": "Five semantic mutants killed by consumer assertions; all exact original source restored. See mutation-evidence.json. Obsolete feedback uses DOM matcher Error; semantic failure explicitly classified.",
+    "parity": "Restored-source parity47/47 passes.",
+    "hooks": "Explicit staged check passes203 tests/23files plus project TypeScript. New Layer component unmapped-layout advisory justified by real parent, authenticated Shows flow and1440/1024/390 controls/keyboard checks; fresh own browser proof still required. Normal source commit hooks run separately."
+  }
+}

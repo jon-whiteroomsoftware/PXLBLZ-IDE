@@ -873,6 +873,12 @@ scheduler and isolated Pattern members.
 
 ## 19. Show domain model and persistence
 
+The opt-in native v2 workspace now exposes explicit Layer add, rename, stacking
+and complete authored reassignment/removal. Its thin controls use the existing
+pure Layer owner and captured prepared adoption/history/save path. See
+[Native v2 Layer management](contracts/show-v2-layer-management.md) for command
+ingress, unused Group bindings, held occupancy and stale-provider ownership.
+
 `ShowRecord.composition` (`ShowCompositionV1`) holds the editor's Clips,
 Layers, Groups, Markers, explicit Show End, and Property animation; the
 record's Scenes, Zones, boundary Transitions, and routing layouts remain the

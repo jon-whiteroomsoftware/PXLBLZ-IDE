@@ -7,6 +7,7 @@ import { isValidatedEmptyShowV2 } from '@/engine/showMarkerRouteModel'
 import { admitShowV2PilotTransitionResize, type ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
 import { ShowV2ClipTimingEditor, ShowV2TimelineRows } from './ShowV2ClipTimingEditor'
+import { ShowV2LayerEditor } from './ShowV2LayerEditor'
 import { buildShowV2TimelineEditorModel, selectedShowOrdinaryClipV2 } from '@/engine/showV2TimelineEditorModel'
 import { qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
 import { prepareShowStageV2 } from '@/engine/showPreparedStageV2'
@@ -49,11 +50,12 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
       ?? maps.find(map => map.id === record?.stageMapId && (map.generator !== 'custom' || (map.points?.length ?? 0) > 0))
     return selected && (selected.dim === 2 || selected.dim === 3) ? resolveMap(selected.id, maps) : null
   }, [record?.stageMapId, maps])
+  const provider = getPersonalContentProvider()
   const editCapture = useMemo(() => {
     if (!record) return null
     const dependencies = { patterns, maps, libraries, profiles, stageMap }
-    return { record, dependencies, prepared: prepareShowStageV2(record, dependencies) }
-  }, [record, patterns, maps, libraries, profiles, stageMap])
+    return { record, dependencies, prepared: prepareShowStageV2(record, dependencies), provider }
+  }, [record, patterns, maps, libraries, profiles, stageMap, provider])
   const preview = editCapture?.prepared ?? null
   const timingModel = useMemo(() => editCapture ? buildShowV2TimelineEditorModel(editCapture) : { sources: [], rows: [] }, [editCapture])
   const selectedClip = record ? selectedShowOrdinaryClipV2(record, selectedClipId) : null
@@ -63,6 +65,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
     return () => { activeEditCapture.current = null }
   }, [editCapture, showId])
   const isCurrentEditCapture = () => Boolean(editCapture && activeEditCapture.current === editCapture
+    && getPersonalContentProvider() === editCapture.provider
     && useShowStore.getState().showV2Pilots[showId] === editCapture.record
     && usePatternStore.getState().userPatterns === editCapture.dependencies.patterns
     && useMapStore.getState().userMaps === editCapture.dependencies.maps
@@ -190,6 +193,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
             </div>
           )}
           {editCapture && <ShowV2ClipTimingEditor key={`timing:${editCapture.record.id}`} capture={editCapture} sources={timingModel.sources} selectedClipId={selectedClip?.id ?? ''} onSelectClip={setSelectedClipId} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
+          {editCapture && <ShowV2LayerEditor key={`layers:${editCapture.record.id}`} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2MarkerEditor key={editCapture.record.id} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           <div className="mt-7 flex flex-wrap gap-2">
             <Button size="xs" variant="outline" disabled={!history?.past.length} onClick={() => void runHistory('undo')}>Undo</Button>

@@ -1,0 +1,45 @@
+{
+  "mutants": [
+    {
+      "name": "unchecked-ingress",
+      "file": "src/store/showV2PreparedEditAdmission.ts",
+      "oracle": "malformed runtime",
+      "exitCode": 1,
+      "killed": true,
+      "originalSha256": "abd1f026d8daf7bde1a50cf83d03415da3a9abdf69c3f1d5cbfa70bc0cfc6944"
+    },
+    {
+      "name": "omit-group-binding-ui",
+      "file": "src/engine/showV2LayerEditorModel.ts",
+      "oracle": "complete authored reference",
+      "exitCode": 1,
+      "killed": true,
+      "originalSha256": "a748e61252d3d5b444ec44f896e7d8b39babf7f3b793dec5144e50bc90dd7bac"
+    },
+    {
+      "name": "stale-provider-at-submit",
+      "file": "src/components/ShowV2RoutePilot.tsx",
+      "oracle": "retained parent",
+      "exitCode": 1,
+      "killed": true,
+      "originalSha256": "a4847b019e6598f484992321b30b60fb562c54029ff65376d3e1dfb01a6ac2cd"
+    },
+    {
+      "name": "obsolete-save-feedback",
+      "file": "src/components/ShowV2LayerEditor.tsx",
+      "oracle": "suppresses obsolete",
+      "exitCode": 1,
+      "killed": true,
+      "originalSha256": "86f89c58ebff2bf794366a6a7850ab481197f8183868d217eadc00683875f14a"
+    },
+    {
+      "name": "wrong-top-rank",
+      "file": "src/engine/showV2LayerEditorModel.ts",
+      "oracle": "empty named Layers",
+      "exitCode": 1,
+      "killed": true,
+      "originalSha256": "a748e61252d3d5b444ec44f896e7d8b39babf7f3b793dec5144e50bc90dd7bac"
+    }
+  ],
+  "sourceRestored": true
+}

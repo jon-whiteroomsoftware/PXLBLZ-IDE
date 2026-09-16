@@ -1,0 +1,23 @@
+# Native v2 Layer management
+
+The opt-in native Show workspace delegates Layer edits to `editShowLayerV2` through `admitShowV2PilotLayerEdit`. Canonical Scene-retirement specification §§8/9/12 governs Layer identity and reassignment; this contract describes adoption and controls. The existing pure Layer owner remains unchanged except its read-only `layerReferences` projection is public and shared with the editor model.
+
+## Commands and ownership
+
+The public typed wrapper admits a closed runtime command union: add, rename, full-order reorder, and remove with optional complete authored reassignment. Each object and nested Layer/reassignment has exact known fields. Nonblank identities/names, safe nonnegative integer ranks and dense arrays are checked before the typed owner. Missing/unknown fields, malformed objects and unknown command kinds return `invalid-request` with all twelve affected collections empty. The owner supplies structural, effective Group occupancy, Layout availability and known Transition placement validation; final prepared admission supplies supported artifact eligibility. Refusal never adopts a partial candidate.
+
+The editor explicitly selects a Zone and a persisted Layer, independently of Clip selection. Empty named Layers remain visible. Add requires explicit Zone/name and allocates one fresh Layer ID at checked maximum Zone rank plus one, or rank0 for an empty Zone. Allocation does not retry or normalize existing ranks. Rename changes only the name. Move up/down submits the complete Zone order, changing only stacking. An identical sparse order is a true no-op.
+
+Referenced removal displays one initially unselected same-Zone destination for every authored reference: ordinary Clip, Group occurrence/local Layer binding (including unused bindings), and top-level Transition participant. The UI uses the exact tuple identities returned by the owner. It never asks for transient materialized children or guesses a destination. Complete reassignment must also satisfy held Group contribution occupancy and attached Transition endpoints. Successful removal clears Layer selection. Cancel, selection, draft and no-op create no record adoption, history or provider write.
+
+## Capture, adoption and settlement
+
+A changed action prepares once using the captured dependency context, preserves ready→ready or structurally validated empty→empty capability, then uses the existing `updateShowV2Pilot` once. The wrapper returns the owner's exact twelve collections: Clip, instance, Transition, track, Layout definition/occurrence, Group definition/occurrence, Layer, Marker, removed IDs and discarded control targets. No-op/refusal retain original identity and empty affected collections. The engine owns all Layer semantics; the adapter creates no runtime, changes no animation and implements no queue/history algorithm.
+
+The parent route binds provider identity to its memoized outer capture alongside record, assets and route lifetime. Retained Layer and existing Marker/timing callbacks reject a provider switch even if record/dependencies stay identical, before any adoption/write. This shared guard repair applies to all editors using that capture; prepared engine bundles remain provider-free. Existing completion receipts still verify provider, revision, record, dependency and lifetime ownership. Only a current successful completion changes selection or publishes save feedback. An owned failed save displays the existing failure and current rolled-back name; obsolete settlements publish no stale feedback or selection.
+
+## Proof and scope
+
+Focused tests include malformed ingress, exact sparse no-op, empty Layer lifecycle, Group held occupancy through500ms (499 overlap versus500 adjacency), unused bindings, coherent Transition reassignment, stale captured parents, superseded completions and durable A/failed optimistic B/retry C. Native `.epe` exports reopen through `parseEpe`, then Fast/Precise replay delivers independently expected red/blue stacking and exact held Group shared-runtime/Restart state. The authenticated browser fixture uses a30-second Show and real Worker PUT/GET; it exercises add/rename/reorder/complete remove, Undo/Redo/reload, keyboard flow and Stage capture in both renderer modes.
+
+This slice excludes Group creation, Property/appearance authoring, temporal Layer retargeting and production-route activation. Existing preparation refusals remain explicit; no compiler or schema domain is widened. The coordinator owns exact committed-tip review and final suites. Evidence and layout mock-up: `docs/reference/evidence/issue-1038-layer-adoption/`.
