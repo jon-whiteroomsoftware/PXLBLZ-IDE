@@ -211,11 +211,16 @@ job. Only the head of an operation is sent. Delivery IDs are assigned at admissi
 sequences are assigned only when a job becomes sendable, so removing an unsent job
 cannot create a browser sequence gap.
 
-Terminal cancel has separate admission capacity. It discards unsent followers as
-`result_unavailable` and may follow the one sent head using the browser's existing
-cancel-after-sent check. The sent head then cannot release later ordinary work; a
-confirmed cancel makes its late reply unknown. Read and outcome queries never
-consume this terminal path.
+Terminal cancel has separate admission capacity. It discards unsent ordinary
+followers as `result_unavailable` and may follow the one sent head using the
+browser's existing cancel-after-sent check. At most one terminal-cancel job exists
+for an operation. Equivalent later cancels join that job without another waiter,
+delivery ID or sequence: an unkeyed join returns `pending`, while a keyed join
+shares the first cancel's retained exact result. Joined keys debit the aggregate
+identity-byte budget and the operation's 256-entry key bound. The sent head then
+cannot release later ordinary work; a confirmed cancel makes its late reply
+unknown. Read and outcome queries never consume this terminal path or infer a
+cancelled receipt.
 
 Operation identities are retained until the binding retires: at most256 operations
 and256 deliveries per operation, with a4 MiB aggregate encoded identity budget.

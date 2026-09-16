@@ -118,6 +118,17 @@ export class AgentRelay {
     const cancel = kind === 'cancel_edit'
     const commit = kind === 'commit_edit'
     if (operation.phase === 'terminal' || (operation.phase === 'committed' && !cancel)) return { code: 'finished', operationId: input.operationId }
+    const terminalCancel = cancel ? this.terminalCancel(input.operationId) : undefined
+    if (terminalCancel) {
+      if (canonicalJson(terminalCancel.message.payload) !== identity) return { code: 'invalid_payload', operationId: input.operationId }
+      if (input.idempotencyKey === undefined) return { code: 'pending', operationId: input.operationId }
+      if (operation.keys.size >= DELIVERY_LIMIT || this.identityBytes + identityBytes > IDENTITY_TOTAL_LIMIT) return { code: 'capacity', operationId: input.operationId, remedy: 'Query get_outcome; cancellation identity capacity is exhausted.' }
+      const record = terminalCancel.keyRecord ?? { identity, operationId: input.operationId, settled: false }
+      terminalCancel.keyRecord = record
+      operation.keys.set(input.idempotencyKey, record)
+      this.identityBytes += identityBytes
+      return this.retryResult(record, identity)
+    }
     const reservedIdentityBytes = cancel ? 0 : commit ? CANCEL_IDENTITY_BYTES : COMMIT_IDENTITY_BYTES + CANCEL_IDENTITY_BYTES
     if (this.identityBytes + identityBytes + reservedIdentityBytes > IDENTITY_TOTAL_LIMIT) return { code: 'capacity', operationId: input.operationId, remedy: cancel ? 'Query get_outcome; identity capacity is exhausted.' : 'Commit or cancel the operation.' }
     if (!cancel && this.ordinaryJobCount() >= ORDINARY_JOB_LIMIT) return { code: 'capacity', operationId: input.operationId, remedy: 'Wait for an admitted command, or cancel the operation.' }
@@ -249,8 +260,11 @@ export class AgentRelay {
       if (this.activeExternalOperation === job.message.operationId) this.activeExternalOperation = undefined
     }
   }
+  private terminalCancel(operationId: string) {
+    return [...this.jobs.values()].find(job => job.external && job.terminalCancel && job.message.operationId === operationId)
+  }
   private settleUnsent(operationId: string) {
-    for (const job of [...this.jobs.values()]) if (job.external && !job.sent && job.message.operationId === operationId) this.settle(job, { code: 'result_unavailable' })
+    for (const job of [...this.jobs.values()]) if (job.external && !job.terminalCancel && !job.sent && job.message.operationId === operationId) this.settle(job, { code: 'result_unavailable' })
   }
   private settleOperationJobs(operationId: string, except: Job) {
     for (const job of [...this.jobs.values()]) if (job !== except && !job.query && job.message.operationId === operationId) {

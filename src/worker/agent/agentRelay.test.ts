@@ -207,6 +207,83 @@ it('cancellation discards unsent followers, bypasses saturation behind a sent he
   expect(relay.take()).toEqual([])
 })
 
+it.each([false, true])('joins same-key, distinct-key, and unkeyed cancellation behind one terminal delivery (sent=%s)', async firstCancelSent => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const headCall = relay.dispatchExternal({ operationId, idempotencyKey: 'head', payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Head' } } })
+  const followerCall = relay.dispatchExternal({ operationId, idempotencyKey: 'follower', payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Follower' } } })
+  const [head] = relay.take()
+  const cancelA = relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-a', payload: { kind: 'cancel_edit' } })
+  expect(await followerCall).toEqual({ code: 'result_unavailable' })
+  let terminal = firstCancelSent ? relay.take()[0] : undefined
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-a', payload: { kind: 'cancel_edit' } })).toEqual({ code: 'pending', operationId })
+  const cancelB = relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-b', payload: { kind: 'cancel_edit' } })
+  const unkeyed = relay.dispatchExternal({ operationId, payload: { kind: 'cancel_edit' } })
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-a', payload: { kind: 'cancel_edit' } })).toEqual({ code: 'pending', operationId })
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-b', payload: { kind: 'cancel_edit', changed: true } })).toEqual({ code: 'identity_conflict', operationId })
+  if (!terminal) terminal = relay.take()[0]
+  expect(terminal.sequence).toBe(2)
+  expect((terminal.payload as { kind: string }).kind).toBe('cancel_edit')
+  expect(relay.take()).toEqual([])
+  expect(await cancelB).toEqual({ code: 'pending', operationId })
+  expect(await unkeyed).toEqual({ code: 'pending', operationId })
+  const cancelled = { code: 'outcome' as const, receipt: { status: 'cancelled' } }
+  expect(relay.reply(terminal, cancelled)).toBe(true)
+  expect(await cancelA).toEqual(cancelled)
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-a', payload: { kind: 'cancel_edit' } })).toEqual(cancelled)
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-b', payload: { kind: 'cancel_edit' } })).toEqual(cancelled)
+  expect(await headCall).toEqual({ code: 'result_unavailable' })
+  expect(relay.reply(head, { code: 'changed', changes: [] })).toBe(false)
+
+  const outcome = relay.query({ kind: 'get_outcome', operationId })
+  const [outcomeQuery] = relay.take()
+  relay.reply(outcomeQuery, cancelled)
+  expect(await outcome).toEqual(cancelled)
+  const unknown = relay.query({ kind: 'get_outcome', operationId })
+  const [unknownQuery] = relay.take()
+  relay.reply(unknownQuery, { code: 'unknown' })
+  expect(await unknown).toEqual({ code: 'unknown' })
+})
+
+it('bounds joined terminal-cancel identities by aggregate bytes and retires the one live delivery', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const encoded = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength
+  const beginBytes = encoded({ kind: 'begin_edit', intent: 'Rename the Show' })
+  const hugePayload = { kind: 'command', name: 'rename_show', arguments: { padding: 'x'.repeat(65_000) } }
+  let retainedIdentityBytes = beginBytes
+  for (let index = 0; index < 64; index += 1) {
+    const call = relay.dispatchExternal({ operationId, payload: hugePayload })
+    const [message] = relay.take()
+    relay.reply(message, { code: 'changed', changes: [] })
+    await call
+    retainedIdentityBytes += encoded(hugePayload)
+  }
+  const headPayload = { kind: 'command', name: 'rename_show', arguments: { name: 'Head' } }
+  const cancelPayload = { kind: 'cancel_edit' }
+  const fillerOverhead = encoded({ kind: 'command', name: 'rename_show', arguments: { padding: '' } })
+  const fillerBytes = 4_194_304 - retainedIdentityBytes - encoded(headPayload) - (2 * encoded(cancelPayload)) - 11
+  const fillerPayload = { kind: 'command', name: 'rename_show', arguments: { padding: 'x'.repeat(fillerBytes - fillerOverhead) } }
+  expect(encoded(fillerPayload)).toBe(fillerBytes)
+  const fillerCall = relay.dispatchExternal({ operationId, payload: fillerPayload })
+  const [filler] = relay.take()
+  relay.reply(filler, { code: 'changed', changes: [] })
+  await fillerCall
+
+  const headCall = relay.dispatchExternal({ operationId, payload: headPayload })
+  relay.take()
+  const cancelling = relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-root', payload: cancelPayload })
+  const [terminal] = relay.take()
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-alias', payload: cancelPayload })).toEqual({ code: 'pending', operationId })
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-over-budget', payload: cancelPayload })).toMatchObject({ code: 'capacity', operationId, remedy: expect.stringContaining('get_outcome') })
+  expect(relay.take()).toEqual([])
+  relay.end()
+  expect(await cancelling).toEqual({ code: 'connection_retired' })
+  expect(await headCall).toEqual({ code: 'connection_retired' })
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-alias', payload: cancelPayload })).toEqual({ code: 'retired' })
+  expect(relay.reply(terminal, { code: 'outcome', receipt: { status: 'cancelled' } })).toBe(false)
+})
+
 it('a terminal commit settles followers that were admitted before its result', async () => {
   const relay = new AgentRelay(scope, () => {})
   const operationId = await beginExternal(relay)
@@ -242,9 +319,21 @@ it('canonicalizes keyed command arguments and reserves commit plus post-commit c
   expect(commit.sequence).toBe(254)
   relay.reply(commit, { code: 'outcome', receipt: { status: 'pending' } })
   await committing
-  const cancelling = relay.dispatchExternal({ operationId, payload: { kind: 'cancel_edit' } })
+  const cancelling = relay.dispatchExternal({ operationId, idempotencyKey: 'final-cancel', payload: { kind: 'cancel_edit' } })
   const [cancel] = relay.take()
   expect(cancel.sequence).toBe(255)
-  relay.reply(cancel, { code: 'outcome', receipt: { status: 'cancelled' } })
-  await cancelling
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'final-cancel', payload: { kind: 'cancel_edit' } })).toEqual({ code: 'pending', operationId })
+  const joined = relay.dispatchExternal({ operationId, idempotencyKey: 'joined-cancel', payload: { kind: 'cancel_edit' } })
+  const unkeyed = relay.dispatchExternal({ operationId, payload: { kind: 'cancel_edit' } })
+  expect(await joined).toEqual({ code: 'pending', operationId })
+  expect(await unkeyed).toEqual({ code: 'pending', operationId })
+  for (let index = 0; index < 253; index += 1) {
+    expect(await relay.dispatchExternal({ operationId, idempotencyKey: `cancel-alias-${index}`, payload: { kind: 'cancel_edit' } })).toEqual({ code: 'pending', operationId })
+  }
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel-alias-overflow', payload: { kind: 'cancel_edit' } })).toMatchObject({ code: 'capacity', operationId, remedy: expect.stringContaining('get_outcome') })
+  expect(relay.take()).toEqual([])
+  const cancelled = { code: 'outcome' as const, receipt: { status: 'cancelled' } }
+  relay.reply(cancel, cancelled)
+  expect(await cancelling).toEqual(cancelled)
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'joined-cancel', payload: { kind: 'cancel_edit' } })).toEqual(cancelled)
 })
