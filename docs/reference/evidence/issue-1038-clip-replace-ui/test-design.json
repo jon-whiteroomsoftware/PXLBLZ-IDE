@@ -14,7 +14,7 @@
       "PARITY"
     ]
   },
-  "base": "6399856905cd8e1014de1dd0cc51d6aa311df7a5",
+  "base": "b004c39b876ba48f6d3449bb21e48b057d58010e",
   "invariants": [
     "Caller submits source identity and complete fresh identities only; captured bundle/Library metadata owns public sliders/name.",
     "One replacement/history/provider save; sole runtime retained, effective shared users fork only selected ordinary Clip.",
@@ -55,10 +55,10 @@
     "mutations": "3/3 focused semantic faults killed: ordinary-only effective count, retaining incompatible tracks, live metadata",
     "parity": "47 inventoried records matched",
     "locators": "0 stale/55 unverifiable",
-    "focused": "Final adapter base: five own files/30 tests passed; prior eight-file74-test sibling qualification preserved by patch-equivalent rebase.",
+    "focused": "Repaired finalbase seven files/90 tests passed: own30 plus adapter/Layout admission adjacents.",
     "static": "project TypeScript/scoped ESLint/diff-check passed",
-    "browser": "Actual committed-tip thirty-second route passed: five awaited durable writes, zero-write no-op/refusal, Undo/Redo/reload/cold reopen/artifact reopen, Fast/Precise visible captures, desktop/narrow1024/390 keyboard/bounds, zero browser errors; all images inspected.",
+    "browser": "Previous committed flow historical only; fresh repaired-base capture pending.",
     "layout": "Desktop and narrow1024/390 images inspected; keyboard focus/Escape and zero control overflow qualified inherited inspector layout.",
-    "integration": "Three-commit suffix range-diff equivalent after rebase onto append-only adapter repair; production unchanged."
+    "integration": "All five replacement suffix commits range-diff equivalent on repaired adapter base b004; continuous-flat multi-Layout refusal preserved."
   }
 }
