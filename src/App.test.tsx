@@ -24,6 +24,8 @@ import { showInitialState, useShowStore } from '@/store/showStore'
 import {
   initializePersonalContentProvider,
   resetPersonalContentProvider,
+  setPersonalContentProvider,
+  type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import { createDefaultShow } from '@/engine/showModel'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
@@ -38,6 +40,7 @@ import { EMPTY_REMEMBERED_STUDIO_PLACES, useStudioPlaceStore } from '@/store/stu
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { transitionV1Show } from '@/test/showV2TracerFixture'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 
 const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
@@ -152,6 +155,12 @@ function setStudioLocation(path = '/studio') {
   window.history.replaceState(null, '', path)
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
+  return { promise, resolve }
+}
+
 async function choosePlace(name: 'Patterns' | 'Shows' | 'Maps' | 'Controllers' | 'Mixins' | 'Libraries' | 'Docs' | 'API') {
   const trigger = screen.getByTestId('top-bar').querySelector<HTMLButtonElement>('[aria-haspopup="listbox"]')
   if (!trigger) throw new Error('Place control trigger not found')
@@ -207,6 +216,79 @@ describe('App smoke test', () => {
 
     expect(await screen.findByRole('heading', { name: 'V2 route qualification' })).toBeInTheDocument()
     expect(screen.getByText('V2 record opened in memory.')).toBeInTheDocument()
+  })
+
+  it('keeps the current pilot route when a retired Show open settles', async () => {
+    const sourceA = { ...transitionV1Show('crossfade'), id: 'pilot-route-a', name: 'Pilot route A' }
+    const sourceB = { ...transitionV1Show('crossfade'), id: 'pilot-route-b', name: 'Pilot route B' }
+    const convertedA = convertShowRecordV1ToV2(sourceA)
+    const convertedB = convertShowRecordV1ToV2(sourceB)
+    if (convertedA.status !== 'converted' || convertedB.status !== 'converted') throw new Error('conversion failed')
+    const delayedA = deferred<ShowRecordV2[]>()
+    const listShowDocumentsV2 = vi.fn()
+      .mockImplementationOnce(() => delayedA.promise)
+      .mockResolvedValue([structuredClone(convertedA.record), structuredClone(convertedB.record)])
+    setPersonalContentProvider({
+      id: 'pilot-route-race',
+      listShows: async () => [sourceA, sourceB],
+      listShowDocumentsV2,
+      setLastActive: async () => {},
+    } as unknown as PersonalContentProvider)
+    setStudioLocation(`/studio/shows/${sourceA.id}?show-v2-pilot=1`)
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [sourceA, sourceB], showsLoaded: true, activeShowId: sourceA.id })
+
+    render(<App />)
+    await waitFor(() => expect(listShowDocumentsV2).toHaveBeenCalledTimes(1))
+    act(() => {
+      void useShowStore.getState().openShow(sourceB.id)
+      useRouterStore.getState().navigate({
+        kind: 'studio',
+        entity: { kind: 'shows', id: sourceB.id },
+      })
+    })
+    expect(useShowStore.getState().activeShowId).toBe(sourceB.id)
+    await waitFor(() => expect(useShowStore.getState().showV2Pilots[sourceB.id]?.name).toBe(sourceB.name))
+
+    delayedA.resolve([structuredClone(convertedA.record), structuredClone(convertedB.record)])
+    await waitFor(() => expect(useShowStore.getState().showV2Pilots[sourceA.id]?.name).toBe(sourceA.name))
+    await act(async () => { await Promise.resolve() })
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'shows', id: sourceB.id },
+    })
+    expect(window.location.pathname).toBe(`/studio/shows/${sourceB.id}`)
+    expect(within(screen.getByTestId('editor-pane')).getByRole('button', {
+      name: `Rename show ${sourceB.name}`,
+    })).toBeInTheDocument()
+  })
+
+  it('keeps an explicit pilot route when the ordinary active Show is stale', async () => {
+    const sourceA = { ...transitionV1Show('crossfade'), id: 'pilot-active-a', name: 'Ordinary active A' }
+    const sourceB = { ...transitionV1Show('crossfade'), id: 'pilot-active-b', name: 'Explicit pilot B' }
+    const convertedB = convertShowRecordV1ToV2(sourceB)
+    if (convertedB.status !== 'converted') throw new Error(JSON.stringify(convertedB.issues))
+    setStudioLocation(`/studio/shows/${sourceB.id}?show-v2-pilot=1`)
+    seedSignedInWorkspace()
+    useShowStore.setState({
+      shows: [sourceA, sourceB],
+      showsLoaded: true,
+      activeShowId: sourceA.id,
+      showV2Pilots: { [sourceB.id]: convertedB.record },
+    })
+
+    render(<App />)
+    await act(async () => { await Promise.resolve() })
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'shows', id: sourceB.id },
+    })
+    expect(window.location.pathname).toBe(`/studio/shows/${sourceB.id}`)
+    expect(within(screen.getByTestId('editor-pane')).queryByRole('button', {
+      name: `Rename show ${sourceA.name}`,
+    })).not.toBeInTheDocument()
   })
 
   it.each([
@@ -548,6 +630,51 @@ describe('routing (#308)', () => {
     await user.type(within(editorPane).getByRole('textbox', { name: 'Show name' }), 'Night Show')
     await user.click(within(editorPane).getByRole('button', { name: 'Apply show name' }))
     expect(renameShow).toHaveBeenCalledWith(show.id, 'Night Show')
+  })
+
+  it('renames the pilot Show through v2 persistence and reloads the durable name', async () => {
+    const user = userEvent.setup()
+    const legacy = { ...transitionV1Show('crossfade'), id: 'show-v2-header', name: 'Legacy header name' }
+    const converted = convertShowRecordV1ToV2({ ...legacy, name: 'V2 header name' })
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    let persisted = structuredClone(converted.record)
+    const replaceShowV2 = vi.fn(async (_id: string, record: ShowRecordV2) => { persisted = structuredClone(record) })
+    const updateShow = vi.fn(async () => {})
+    setPersonalContentProvider({
+      id: 'pilot-header-rename',
+      listShows: async () => [legacy],
+      updateShow,
+      listShowDocumentsV2: async () => [structuredClone(persisted)],
+      replaceShowV2,
+    } as unknown as PersonalContentProvider)
+    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-pilot=1`)
+    seedSignedInWorkspace()
+    useShowStore.setState({
+      shows: [legacy],
+      showsLoaded: true,
+      activeShowId: legacy.id,
+      showV2Pilots: { [legacy.id]: converted.record },
+      showV2Histories: { [legacy.id]: { past: [], future: [] } },
+    })
+
+    render(<App />)
+    const editorPane = screen.getByTestId('editor-pane')
+    await user.click(within(editorPane).getByRole('button', { name: 'Rename show V2 header name' }))
+    await user.clear(within(editorPane).getByRole('textbox', { name: 'Show name' }))
+    await user.type(within(editorPane).getByRole('textbox', { name: 'Show name' }), 'Durable v2 name{Enter}')
+
+    await waitFor(() => expect(replaceShowV2).toHaveBeenCalledTimes(1))
+    expect(replaceShowV2.mock.calls[0][1].name).toBe('Durable v2 name')
+    expect(updateShow).not.toHaveBeenCalled()
+    expect(useShowStore.getState().showV2Pilots[legacy.id].name).toBe('Durable v2 name')
+    expect(useShowStore.getState().showV2Histories[legacy.id].past).toHaveLength(1)
+
+    act(() => useShowStore.setState(state => ({
+      showV2Pilots: { ...state.showV2Pilots, [legacy.id]: converted.record },
+    })))
+    await user.click(within(editorPane).getByRole('button', { name: 'Reload saved v2' }))
+    await waitFor(() => expect(useShowStore.getState().showV2Pilots[legacy.id].name).toBe('Durable v2 name'))
+    expect(within(editorPane).getByRole('button', { name: 'Rename show Durable v2 name' })).toBeInTheDocument()
   })
 
   it('renames a matching live Controller from the middle-pane title', async () => {

@@ -5,6 +5,7 @@
     "Transition edits publish one complete candidate through the existing Show persistence queue and generic history policy; refusal, no-op, unsupported persistence, failed save, and superseded failure never leave partial state.",
     "Every successful queued version-2 save advances the durable record/history baseline even when a newer optimistic candidate owns the visible record; a later current failure restores the newest completed save.",
     "Pilot open/reload reads serialize with the per-Show persistence queue and adopt only under the same provider, workspace generation, and document revision; retired reads and write settlements cannot repopulate a new workspace.",
+    "Pilot record loading does not own route selection; an explicit flagged Show URL remains authoritative when an earlier open settles, and header rename adopts one complete version-2 replacement through the existing history and persistence owner.",
     "Version-aware D1 and provider writers replace the complete version-2 record and read back the same validated bytes while keeping version-2 rows out of ordinary version-1 reads.",
     "Show-file export inventories every reachable ordinary or Group Pattern instance, custom Map, and transitive user Library; conflict remaps update all owners consistently before any import writes.",
     "Library conflict planning reserves every destination and bundled namespace, and propagates a transitive dependency remap to a fixed point before classifying any matching Library as reusable.",
@@ -18,6 +19,7 @@
     "Pilot flag absent/present; warm conversion from the ordinary Show list and cold reopen from a version-2-only row.",
     "Changed Transition duration, unchanged/refused edit, Undo/Redo, durable reload, current failed save, older failed save superseded by a newer accepted save, older successful save followed by a newer failed save, and provider without version-2 capability.",
     "Open/reload during hydration; reload during pending save success/failure; intervening changed/no-op edit; provider replacement during open/reload and during successful/failed old-workspace write settlement; failed read then retry.",
+    "Delayed pilot A open followed by ordinary selection and explicit navigation to B; Show creation begun while A is pending; stale ordinary active A with explicit pilot B; version-1 and version-2 names differing at header render; successful version-2 rename followed by provider reload.",
     "Ordinary version-1 API read/write versus opt-in version-2 GET/PUT/POST; matching and mismatched route/body versions; missing row and changed-row compare-and-swap.",
     "Ordinary and Group-owned Pattern references; built-in/user Pattern, custom/stock Map, direct/transitive Library, matching identity, conflicting identity, and missing dependency.",
     "Restart with scalar state in a user Library versus unsupported persistent array state in that same Library dependency.",
@@ -31,6 +33,9 @@
     "Queue writes A and B, complete A while B is optimistic, fail B, then confirm visible record/history and provider storage agree on durable A.",
     "Begin reload while save B is pending, settle B, then read and adopt provider B; repeat with failed B and preserve its rollback/failure state instead of adopting a stale read.",
     "Delay an open or reload from workspace A, install provider B and hydrate, then settle A and retry against B; repeat with successful and failed writes from A and suppress every retired settlement side effect.",
+    "Delay pilot open A, select and navigate to pilot B through the ordinary Show-list sequence, then settle A and retain B in the URL, route state, and rendered header.",
+    "Delay pilot open A, begin a new Show while its provider read is pending, then settle A and retain the newer creation state while caching A's record.",
+    "Render a pilot whose version-1 and version-2 names differ, rename it from the header, confirm one version-2 replacement and history entry, replace the visible cache with the old value, then reload the durable version-2 name without a version-1 patch.",
     "Adopt a #1035 delete-Clip result with a fresh replacement at the original boundary, save/reload it, and reopen its artifact without restoring the removed Transition identity.",
     "Resolve the pilot's stock and user Libraries once, prepare and compile a shared-instance Restart using that map, then replace the Library scalar with persistent array state and refuse before artifact publication.",
     "Apply migration 0028 to a disposable Miniflare D1 database, interrupt after its first version-2 replacement, resume the remaining inventory, roll back, and compare every restored source column.",
@@ -45,6 +50,7 @@
     "Provider calls and D1 rows decoded through production adapters, including complete record_json bytes and exclusion from ordinary reads.",
     "Whole store record/history/failure state, ordered persistence calls, and provider readback rather than helper internals.",
     "Provider call order plus complete pilot record/history/durable failure state across hydration, revision change, workspace replacement, retry, and stale write settlement.",
+    "Router state, browser pathname, rendered pilot header, version-2 provider replacement/readback, and whole-record history across route retirement and header rename.",
     "Reopened delete/re-add candidate with the original first Clip and Show End unchanged, no persisted Transition, and one identity-free derived Cut naming the fresh replacement.",
     "Reopened .pxlshow bundle, remapped import candidate, parsed .epe source/stamp, and compiled artifact source.",
     "Compiled Restart artifact with one shared runtime and no unresolved Library namespace; typed preparation refusal naming the Restart Clip and array-or-object-state for unsupported Library persistence.",
@@ -55,6 +61,6 @@
     "Production remains on version 1; this development-only pilot does not activate native version-2 creation, commands/MCP, stock Shows, or deployment.",
     "Restart compile preparation consumes the landed #1037 engine contract. The compatibility Stage preview and .epe metadata adapter still refuse Restart and Layout animation instead of dropping their transient compiler behavior; generic preview/export-metadata support remains later integration.",
     "The disposable Miniflare D1 rehearsal proves migration SQL, interrupted-write resume, and rollback with synthetic fixtures; the isolated personal workspace contained zero user rows before the authorized pilot seed, so no personal compatibility claim is made.",
-    "The candidate is rebased onto landed engine dependencies. Final committed-tip suites, Jon-authorized Astra Medium exact-range review, local-main landing, labels, and issue closure belong to the coordinator."
+    "The original pilot is landed. This corrective follow-up still requires fresh committed browser proof, focused checks, exact-range review, final committed-tip suites, and local-main landing by the coordinator. The closed issue remains closed."
   ]
 }

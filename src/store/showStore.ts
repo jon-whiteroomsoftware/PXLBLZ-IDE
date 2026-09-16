@@ -809,8 +809,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
           const history = { past: [], future: [] }
           lastPersistedShowV2Pilots.set(showId, { record, history })
           set(state => ({
-            activeShowId: showId,
-            showCreation: null,
             showV2Pilots: { ...state.showV2Pilots, [showId]: record },
             showV2Histories: { ...state.showV2Histories, [showId]: history },
           }))
@@ -831,8 +829,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
         const history = { past: [], future: [] }
         lastPersistedShowV2Pilots.set(showId, { record, history })
         set(state => ({
-          activeShowId: showId,
-          showCreation: null,
           showV2Pilots: { ...state.showV2Pilots, [showId]: record },
           showV2Histories: { ...state.showV2Histories, [showId]: history },
         }))

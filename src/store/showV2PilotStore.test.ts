@@ -39,7 +39,32 @@ describe('opt-in v2 Show route adoption', () => {
       status: 'ready',
       record: converted.record,
     })
-    expect(state().activeShowId).toBe(converted.record.id)
+    expect(state().activeShowId).toBeNull()
+    expect(state().showV2Pilots[converted.record.id]).toEqual(converted.record)
+  })
+
+  it('does not retire Show creation begun while a pilot open is pending', async () => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const delayedList = deferred<ShowRecordV2[]>()
+    const listShowDocumentsV2 = vi.fn(() => delayedList.promise)
+    setPersonalContentProvider({
+      id: 'v2-open-during-creation',
+      listShows: async () => [],
+      listShowDocumentsV2,
+    } as unknown as PersonalContentProvider)
+    useShowStore.setState({ activeShowId: 'previous-selection' })
+
+    const opening = state().openShowV2Pilot(converted.record.id)
+    await vi.waitFor(() => expect(listShowDocumentsV2).toHaveBeenCalledTimes(1))
+    state().beginShowCreation()
+    expect(state().showCreation).toEqual({ previousShowId: 'previous-selection' })
+
+    delayedList.resolve([structuredClone(converted.record)])
+    await expect(opening).resolves.toMatchObject({ status: 'ready' })
+
+    expect(state().showCreation).toEqual({ previousShowId: 'previous-selection' })
+    expect(state().activeShowId).toBe('previous-selection')
     expect(state().showV2Pilots[converted.record.id]).toEqual(converted.record)
   })
 

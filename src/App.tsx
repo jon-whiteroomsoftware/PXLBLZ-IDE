@@ -398,6 +398,7 @@ function StudioApp() {
   const showV2Pilots = useShowStore((s) => s.showV2Pilots)
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
+  const updateShowV2Pilot = useShowStore((s) => s.updateShowV2Pilot)
   const showCreation = useShowStore((s) => s.showCreation)
   const createNewShow = useShowStore((s) => s.createNewShow)
   const cancelShowCreation = useShowStore((s) => s.cancelShowCreation)
@@ -630,7 +631,8 @@ function StudioApp() {
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     } else if (
       activeShowId !== null &&
-      (current.entity === null || current.entity.kind === 'shows')
+      (current.entity === null || current.entity.kind === 'shows') &&
+      !(showV2PilotEnabled && current.entity?.kind === 'shows' && current.entity.id !== null)
     ) {
       const target: Route = { kind: 'studio', entity: { kind: 'shows', id: activeShowId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
@@ -643,7 +645,7 @@ function StudioApp() {
       const target: Route = { kind: 'studio', entity: { kind: 'libraries', id: targetId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     }
-  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, editingLibrary, navigate])
+  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, editingLibrary, navigate, showV2PilotEnabled])
 
   // Signed-out cold Studio goes through a one-time welcome/sign-in gate. A
   // pattern-detail handoff may carry an active built-in demo into Studio (#310),
@@ -825,10 +827,14 @@ function StudioApp() {
       ref.kind === 'stock' ? ref.id : userPatterns.find((pattern) => pattern.id === ref.id)?.name
     ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), compileLibrarySet))
   }, [compileLibrarySet, routedStockShow, routedStockShowDraft, selectedReferencePatterns, userPatterns])
-  const activeShow = routedStockShowOverride ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
   const pilotShowId = showV2PilotEnabled && showsLoaded && route.kind === 'studio' && route.entity?.kind === 'shows'
     ? route.entity.id
     : null
+  const activeShow = routedStockShowOverride ?? (
+    activeShowId && (pilotShowId === null || activeShowId === pilotShowId)
+      ? shows.find((show) => show.id === activeShowId)
+      : undefined
+  )
   const activeShowV2Pilot = pilotShowId ? showV2Pilots[pilotShowId] : undefined
   const activeShowEditor = activeShow ? (
     <ShowEditor
@@ -1315,10 +1321,16 @@ function StudioApp() {
                   <span className="show-header-title flex min-w-0 items-center gap-1.5">
                     <Film size={14} aria-hidden className="shrink-0 text-zinc-500" />
                     <InlineEntityTitle
-                      name={activeShow?.name ?? activeShowV2Pilot?.name ?? 'Shows'}
+                      name={activeShowV2Pilot?.name ?? activeShow?.name ?? 'Shows'}
                       noun="show"
-                      onRename={activeShow && !routedStockShow ? (nextName) => renameShow(activeShow.id, nextName) : undefined}
-                      takenNames={shows.filter((show) => show.id !== activeShow?.id).map((show) => show.name)}
+                      onRename={activeShowV2Pilot
+                        ? (nextName) => updateShowV2Pilot(activeShowV2Pilot.id, { ...activeShowV2Pilot, name: nextName })
+                        : activeShow && !routedStockShow
+                          ? (nextName) => renameShow(activeShow.id, nextName)
+                          : undefined}
+                      takenNames={shows
+                        .filter((show) => show.id !== (activeShowV2Pilot?.id ?? activeShow?.id))
+                        .map((show) => show.name)}
                     />
                     {routedStockShow?.note && (
                       <span ref={setShowHeaderGuideTarget} className="show-header-guide flex shrink-0 items-center" />

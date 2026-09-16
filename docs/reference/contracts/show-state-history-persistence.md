@@ -245,6 +245,14 @@ current. Workspace reload retires outstanding pilot reads and write settlements;
 an authorized old-provider write may finish, but cannot republish its record,
 history, durable baseline or failure into the new workspace.
 
+Pilot open adopts the record and history without selecting a route. While the
+flagged URL names a Show, that explicit route is authoritative over an ordinary
+active-Show selection, including a late open for a route the user has left.
+Ordinary Show-list selection remains one explicit open plus route navigation.
+The pilot header reads and renames the version-2 record through
+`updateShowV2Pilot`; it never sends a pilot rename through the version-1 sparse
+patch path.
+
 The remote provider addresses the explicit v2 collection with
 `show-version=2`; D1 stores the complete closed record in `record_json` and
 excludes that row from ordinary version-1 reads. Worker admission uses the same
