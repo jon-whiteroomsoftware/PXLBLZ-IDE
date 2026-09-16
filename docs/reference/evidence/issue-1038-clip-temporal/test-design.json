@@ -112,11 +112,11 @@
   ],
   "qualification": {
     "focused": "407/407 across10 affected temporal/Clip/Property/Insert/scalar/compiler/lowerer/Transition/v1-schema suites; range21cases include reopened1\u21928 hold and unchanged earlier/later outside-kernel playback in Fast/Precise; scalar19cases cover1\u21928/8\u21921 original/retained.",
-    "static": "Scoped ESLint/project tsc/diff-check pass; previous source checkpoint hook passed full source ESLint/project typecheck/reachability and263 mapped tests; final ordinary commit hook required.",
+    "static": "Scoped ESLint/project tsc/diff-check pass. Final source hook passed full source ESLint/project TypeScript/reachability/locator gates and139/139 staged mapped tests; preceding source hook passed263/263 mapped tests.",
     "parity": "47-record report unchanged",
     "faultSensitivity": "Prior6, range4 and selected-kernel locality1 named semantic faults killed by executed consumer checks; sources restored exactly.",
     "finalSuites": "Coordinator-owned; no worker submission",
-    "state": "Bounded temporal integration/range adapter scope complete and focused-qualified; coordinator owns finalbase integration, final suites/review/landing. Whole1038 remains broader."
+    "state": "Bounded temporal integration/range adapter scope complete, committed and focused-qualified; coordinator owns finalbase integration, final suites/review/landing. Whole1038 remains broader."
   },
   "residualGaps": [
     "Full1038 UI/store owner integration remains other slices; this candidate only pure Clip temporal plus bounded scalar adapter/emitter and edit-local range guard.",
