@@ -359,17 +359,17 @@ it('makes each complete chooser region one pointer button with its icon', () => 
   expect(useAgentDrawerStore.getState().state.connection?.kind).toBe('builtin')
 })
 
-it('keeps MCP setup untimed until Ready to connect and uses the approved generic copy', () => {
+it('keeps MCP setup untimed until Ready to connect and explains browser authorization', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' })
   render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
   fireEvent.click(screen.getByRole('button', { name: /Connect your agent with MCP/ }))
 
   expect(screen.getByRole('heading', { name: 'Connect your agent with MCP' })).toBeVisible()
-  expect(screen.getByText('Start authorization in your agent application. In the browser, sign in to PXLBLZ and allow the connection.')).toBeVisible()
+  expect(screen.getByText('Your client opens a browser tab for PXLBLZ sign-in and consent. The consent page shows your account and the application name.')).toBeVisible()
   expect(screen.getByText('Click Ready to connect and tell your agent “Connect to my Show in PXLBLZ.”')).toBeVisible()
   expect(useAgentDrawerStore.getState().state.armingUntil).toBeNull()
   expect(screen.getByRole('button', { name: 'Copy endpoint' })).toBeVisible()
-  expect(screen.queryByText(/Claude|Codex/)).toBeNull()
+  expect(screen.getByRole('radiogroup', { name: 'MCP client' })).toBeVisible()
 
   const ready = screen.getByRole('button', { name: 'Ready to connect' })
   expect(ready).toHaveClass('agent-button')
@@ -378,10 +378,70 @@ it('keeps MCP setup untimed until Ready to connect and uses the approved generic
   act(() => controller.dispatch({ type: 'connection', connection: null, armingUntil: Date.now() + 120_000, pendingCall: null, contactLost: false }))
   expect(useAgentDrawerStore.getState().state.armingUntil).not.toBeNull()
   expect(screen.getByRole('button', { name: 'Cancel connection attempt' })).toBeVisible()
+  expect(screen.getByText('Waiting for your agent to connect. This attempt stays open for two minutes for you, thirty seconds for an incoming call.')).toBeVisible()
 })
 
-it('reports endpoint copy success and failure without losing the selectable endpoint', async () => {
-  const writeText = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('denied'))
+it('shows and copies the pinned setup instruction for each MCP client', async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  controller.dispatch({ type: 'chooseExternal' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+
+  const endpoint = screen.getByText('https://app.test/mcp')
+  const claudeCode = screen.getByRole('radio', { name: 'Claude Code' })
+  const codex = screen.getByRole('radio', { name: 'Codex' })
+  const claudeAi = screen.getByRole('radio', { name: 'Claude.ai' })
+  const other = screen.getByRole('radio', { name: 'Other' })
+
+  expect(claudeCode).toBeChecked()
+  expect(screen.getByTestId('agent-client-instruction')).toHaveTextContent('claude mcp add --transport http pxlblz https://app.test/mcp')
+  fireEvent.click(screen.getByRole('button', { name: 'Copy Claude Code command' }))
+  expect(await screen.findByText('Claude Code command copied')).toBeVisible()
+  expect(writeText).toHaveBeenLastCalledWith('claude mcp add --transport http pxlblz https://app.test/mcp')
+
+  fireEvent.click(codex)
+  expect(codex).toBeChecked()
+  expect(screen.getByTestId('agent-client-instruction')).toHaveTextContent('codex mcp add pxlblz --url https://app.test/mcp')
+  fireEvent.click(screen.getByRole('button', { name: 'Copy Codex command' }))
+  expect(await screen.findByText('Codex command copied')).toBeVisible()
+  expect(writeText).toHaveBeenLastCalledWith('codex mcp add pxlblz --url https://app.test/mcp')
+
+  fireEvent.click(claudeAi)
+  expect(screen.getByTestId('agent-client-instruction')).toHaveTextContent('Customize → Connectors → + → Add custom connector → paste the endpoint')
+  fireEvent.click(screen.getByRole('button', { name: 'Copy endpoint for Claude.ai' }))
+  expect(await screen.findByText('Endpoint copied')).toBeVisible()
+  expect(writeText).toHaveBeenLastCalledWith('https://app.test/mcp')
+
+  fireEvent.click(other)
+  expect(other).toBeChecked()
+  expect(screen.queryByTestId('agent-client-instruction')).toBeNull()
+  expect(endpoint).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Copy endpoint' })).toBeVisible()
+})
+
+it('arrow-navigates the MCP client picker and keeps focus on the selected client', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' })
+  controller.dispatch({ type: 'chooseExternal' })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+
+  const claudeCode = screen.getByRole('radio', { name: 'Claude Code' })
+  claudeCode.focus()
+  fireEvent.keyDown(claudeCode, { key: 'ArrowLeft' })
+  expect(screen.getByRole('radio', { name: 'Other' })).toBeChecked()
+  expect(screen.getByRole('radio', { name: 'Other' })).toHaveFocus()
+  fireEvent.keyDown(screen.getByRole('radio', { name: 'Other' }), { key: 'ArrowRight' })
+  expect(claudeCode).toBeChecked()
+  expect(claudeCode).toHaveFocus()
+  fireEvent.keyDown(claudeCode, { key: 'ArrowUp' })
+  expect(screen.getByRole('radio', { name: 'Other' })).toBeChecked()
+  fireEvent.keyDown(screen.getByRole('radio', { name: 'Other' }), { key: 'ArrowDown' })
+  expect(claudeCode).toBeChecked()
+  expect(claudeCode).toHaveFocus()
+})
+
+it('reports endpoint and command copy failures without losing selectable source text', async () => {
+  const writeText = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error('denied'))
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
   controller.dispatch({ type: 'drawer', mode: 'open' })
   controller.dispatch({ type: 'chooseExternal' })
@@ -394,6 +454,11 @@ it('reports endpoint copy success and failure without losing the selectable endp
   fireEvent.click(screen.getByRole('button', { name: 'Copy endpoint' }))
   expect(await screen.findByText('Copy failed. Select the endpoint to copy it.')).toBeVisible()
   expect(screen.getByText('https://app.test/mcp')).toHaveClass('select-all')
+
+  fireEvent.click(screen.getByRole('radio', { name: 'Codex' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Copy Codex command' }))
+  expect(await screen.findByText('Copy failed. Select the command to copy it.')).toBeVisible()
+  expect(screen.getByText('codex mcp add pxlblz --url https://app.test/mcp')).toHaveClass('select-all')
 })
 
 it('always follows activity growth without moving input focus', () => {

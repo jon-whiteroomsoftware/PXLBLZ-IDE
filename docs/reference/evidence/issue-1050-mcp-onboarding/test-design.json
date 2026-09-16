@@ -1,0 +1,37 @@
+{
+  "invariants": [
+    "The canonical MCP endpoint remains visible and independently copyable for every client selection; selecting a client never changes the endpoint or the server contract.",
+    "Claude Code and Codex expose the exact pinned Streamable HTTP add commands, Claude.ai exposes the current Customize to Connectors path while copying the endpoint, and Other adds no duplicate client-specific instruction row.",
+    "The client picker is one labelled radio group with one checked and tabbable option; pointer selection and all four arrow keys update selection, wrap at both ends, and retain focus on the selected option.",
+    "Every copy action reports a visible status and writes the exact displayed command or endpoint; clipboard failure leaves the endpoint or command selectable and reports the matching manual-copy target.",
+    "Authorization copy identifies the browser sign-in and consent surface, while connection copy distinguishes the two-minute user arm from the thirty-second incoming-call decision window.",
+    "The existing agent authoring reference is a normal visible Docs catalog entry and the Feature Guide link opens that entry inside the Docs reader.",
+    "The complete setup controls remain visible, operable, and free of root overflow at 1280, 760, and 390 CSS pixels."
+  ],
+  "partitions": [
+    "Claude Code, Codex, Claude.ai, and Other client selections crossed with 1280x720 desktop, 760x720 compact, and 390x844 narrow viewports.",
+    "Endpoint copy, command copy, endpoint-for-Claude.ai copy, clipboard success, and clipboard failure.",
+    "Pointer selection, ArrowLeft and ArrowUp reverse movement, ArrowRight and ArrowDown forward movement, first-to-last wrap, and last-to-first wrap.",
+    "Untimed setup, two-minute armed state, thirty-second incoming-call wording, cancellation, and returned Ready state.",
+    "Feature Guide source link, direct Agent Authoring Reference route, visible catalog item, and current-entry state."
+  ],
+  "sequences": [
+    "[M1] Open an ordinary authenticated Show, open the Agent drawer by keyboard, choose external MCP, traverse all four clients at desktop, 760, and 390 widths, and for each assert selection, endpoint persistence, instruction visibility, copy payload, status, viewport bounds, and zero root overflow.",
+    "[M2] Focus Other, press ArrowRight, and assert that Claude Code becomes selected and focused; component coverage exercises both directions and both axes including wrap.",
+    "[M3] From the unarmed setup press Ready, assert focus moves to Cancel and both timers are stated, then cancel and assert focus returns to Ready without overflow.",
+    "[M4] Force a clipboard rejection for endpoint and client-command copies and assert the target-specific fallback message while the source text stays selectable.",
+    "[M5] Open the Feature Guide, activate its versioned Clip and Layer reference link, and assert the Agent Authoring Reference route, reader heading, visible catalog item, and current-page state."
+  ],
+  "oracles": [
+    "Rendered endpoint, exact command or path text, radio semantics, focus, copy status, and deterministic clipboard contents at the user-visible Agent drawer boundary.",
+    "Document scrollWidth minus clientWidth and scrollHeight minus clientHeight, element viewport assertions, and committed in-app-browser captures at all three required widths.",
+    "Browser URL, Docs reader heading, catalog link aria-current state, and a committed Docs route capture.",
+    "Focused React component and catalog tests, the authenticated Playwright flow, TypeScript project checking, and the UI-proof gate; coordinator-owned exact-tip suites and candidate review remain final gates."
+  ],
+  "residualGaps": [
+    "The local browser and component checks do not qualify interoperability with independently implemented Claude Code, Codex, or Claude.ai releases against a publicly reachable HTTPS endpoint.",
+    "Issue #1050 intentionally does not change OAuth, API, MCP routing, or client registration behavior; those contracts retain their existing evidence and qualification boundaries.",
+    "Client setup syntax is pinned to the official documentation and locally installed command help recorded in this packet on 2026-09-15; future client releases may require a documentation refresh.",
+    "The coordinator-owned authoritative committed-tip suites, cross-family candidate review, rebase, landing, and publication remain outside this worker's assignment."
+  ]
+}

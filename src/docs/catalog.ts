@@ -1,5 +1,6 @@
 import ecosystemPrimer from '../../docs/reference/Pixelblaze Ecosystem Primer.md?raw'
 import featureGuide from '../../docs/reference/PXLBLZ Feature Guide.md?raw'
+import agentAuthoringReference from '../../docs/reference/agent-clip-layer-authoring.md?raw'
 import keyboardShortcuts from '../../docs/reference/PXLBLZ Keyboard Shortcuts.md?raw'
 import understandingMaps from '../../docs/reference/Understanding Maps.md?raw'
 import optimizationGuide from '../../docs/guides/Optimizing Pixelblaze patterns.md?raw'
@@ -31,6 +32,7 @@ import showVisualToolkitEntityDetailUrl from '../../docs/screenshots/show-visual
 export type DocId =
   | 'ecosystem-primer'
   | 'feature-guide'
+  | 'agent-authoring-reference'
   | 'keyboard-shortcuts'
   | 'show-visual-toolkit'
   | 'optimization-guide'
@@ -91,6 +93,16 @@ export const USER_DOCS: UserDoc[] = [
     menuKicker: 'Using PXLBLZ',
     summary: 'Gallery, Studio authoring, preview, maps, Controllers, and Shows.',
     source: featureGuide,
+    assets: sharedAssets,
+  },
+  {
+    id: 'agent-authoring-reference',
+    path: 'docs/reference/agent-clip-layer-authoring.md',
+    title: 'Agent Authoring Reference',
+    menuLabel: 'Agent Authoring Reference',
+    menuKicker: 'Agent editing',
+    summary: 'Clip and Layer properties, timing rules, limits, and examples for agent-authored Show edits.',
+    source: agentAuthoringReference,
     assets: sharedAssets,
   },
   {

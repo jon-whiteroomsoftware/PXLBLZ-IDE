@@ -575,8 +575,9 @@ explanations. Each keeps the draft and disables Send. The UTC reset instant is
 shown in local time.
 
 **Connect your agent with MCP** opens untimed setup with the canonical endpoint.
-Add it to any remote MCP client that supports OAuth and authorize the application
-in the browser. Setup does not make the Show connectable. Select **Ready to
+Choose Claude Code, Codex, Claude.ai, or Other to copy the matching command or
+endpoint; the canonical endpoint stays available separately. Authorize the
+application in the browser. Setup does not make the Show connectable. Select **Ready to
 connect** when the client is ready; that makes this window available for two
 minutes. If an incoming call appears, choose **Answer** within 30 seconds or
 **Not now** to decline. Only one agent connection can use your account at a time;

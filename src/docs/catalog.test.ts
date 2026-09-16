@@ -16,6 +16,7 @@ describe('docs catalog', () => {
     expect(USER_DOCS.map((doc) => doc.id)).toEqual([
       'ecosystem-primer',
       'feature-guide',
+      'agent-authoring-reference',
       'keyboard-shortcuts',
       'show-visual-toolkit',
       'understanding-maps',
@@ -60,5 +61,17 @@ describe('docs catalog', () => {
     expect(resolveDocHref(guide!, '../../test/perf-harness/costs.md')).toBe(
       'https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/main/test/perf-harness/costs.md',
     )
+  })
+
+  it('resolves the Feature Guide agent-authoring link inside the app', () => {
+    const guide = getUserDoc('feature-guide')
+    expect(guide).not.toBeNull()
+    expect(resolveDocHref(guide!, 'agent-clip-layer-authoring.md')).toBe('#/docs/agent-authoring-reference')
+    expect(getUserDoc('agent-authoring-reference')).toMatchObject({
+      title: 'Agent Authoring Reference',
+      menuLabel: 'Agent Authoring Reference',
+      menuKicker: 'Agent editing',
+      path: 'docs/reference/agent-clip-layer-authoring.md',
+    })
   })
 })
