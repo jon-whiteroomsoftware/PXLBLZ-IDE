@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import native from '../../e2e/fixtures/showV2PreparedStage.json'
 import * as stage from '../engine/showPreparedStageV2'
 import * as compatibility from '../engine/showV2Pilot'
@@ -14,6 +14,7 @@ import { showInitialState, useShowStore } from './showStore'
 import { admitShowV2PilotMarkerEdit } from './showV2MarkerAdmission'
 
 beforeEach(() => { useShowStore.setState(showInitialState); resetPersonalContentProvider() })
+afterEach(() => resetPersonalContentProvider())
 
 let fixtureIndex = 0
 function setup(customize?: (record: ShowRecordV2, dependencies: stage.ShowPreparedStageDependenciesV2) => void) {

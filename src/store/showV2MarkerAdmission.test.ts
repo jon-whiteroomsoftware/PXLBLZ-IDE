@@ -1,9 +1,9 @@
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from '../engine/showRecordV1ToV2'
 import { prepareShowStageV2, type ShowPreparedStageDependenciesV2 } from '../engine/showPreparedStageV2'
 import { compileShowV2PilotArtifact } from '../engine/showV2Pilot'
-import { setPersonalContentProvider, type PersonalContentProvider } from '../engine/personalContentProvider'
+import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '../engine/personalContentProvider'
 import { showInitialState, useShowStore } from './showStore'
 import { admitShowV2PilotMarkerEdit, type ShowV2PilotMarkerEditRequest } from './showV2MarkerAdmission'
 import type { ShowRecordV2 } from '../engine/showCompositionV2'
@@ -17,7 +17,8 @@ function admit(request: ShowV2PilotMarkerEditRequest) {
   return admitShowV2PilotMarkerEdit({ ...request, capture: capture(record) })
 }
 
-beforeEach(() => useShowStore.setState(showInitialState))
+beforeEach(() => { useShowStore.setState(showInitialState); resetPersonalContentProvider() })
+afterEach(() => resetPersonalContentProvider())
 it('adopts one changed Marker with one history/save and reopens the same bytes without changing compiled playback', async () => {
   const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
   if (converted.status !== 'converted') throw new Error('Conversion failed')
@@ -25,7 +26,7 @@ it('adopts one changed Marker with one history/save and reopens the same bytes w
   record.id = 'marker-admission-changed'
   let saved = structuredClone(record)
   const replaceShowV2 = vi.fn(async (_id: string, next: typeof record) => { saved = structuredClone(next) })
-  setPersonalContentProvider({ id: 'marker-admission', listShowDocumentsV2: async () => [structuredClone(saved)], replaceShowV2 } as unknown as PersonalContentProvider)
+  setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'marker-admission', listShowDocumentsV2: async () => [structuredClone(saved)], replaceShowV2 })
   useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
   const before = compileShowV2PilotArtifact(record, { patterns: [], maps: [], libraries: [] }).code
   const result = await admit({ showId: record.id, baseRevision: 0, intent: { kind: 'add', marker: { id: 'marker', timeMs: 9000, name: 'Outro' } }, capture: capture(record), onAdopted: vi.fn(), isCurrent: () => true })
@@ -47,7 +48,7 @@ function setup() {
   record.composition.markers = [{ id: 'marker', timeMs: 0, name: 'Intro' }]
   let saved = structuredClone(record)
   const replaceShowV2 = vi.fn(async (_id: string, next: typeof record) => { saved = structuredClone(next) })
-  setPersonalContentProvider({ id: record.id, listShowDocumentsV2: async () => [structuredClone(saved)], replaceShowV2 } as unknown as PersonalContentProvider)
+  setPersonalContentProvider({ ...getPersonalContentProvider(), id: record.id, listShowDocumentsV2: async () => [structuredClone(saved)], replaceShowV2 })
   useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
   return { record, replaceShowV2, request: { showId: record.id, baseRevision: 0, intent: { kind: 'move' as const, markerId: 'marker', timeMs: 9000 }, capture: capture(record), onAdopted: vi.fn(), isCurrent: () => true } }
 }
@@ -59,7 +60,7 @@ it.each(['revision', 'route', 'dependencies-after-validation', 'provider-after-v
   const otherWrites = vi.fn(async () => {})
   if (partition === 'dependencies-after-validation') request.isCurrent = () => ++calls === 1
   if (partition === 'provider-after-validation') request.isCurrent = () => {
-    if (++calls === 2) setPersonalContentProvider({ id: 'replaced-provider', replaceShowV2: otherWrites } as unknown as PersonalContentProvider)
+    if (++calls === 2) setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'replaced-provider', replaceShowV2: otherWrites })
     return true
   }
   expect(await admit(request)).toMatchObject({ status: 'refused', code: 'stale-edit', affectedMarkerIds: [] })
@@ -71,7 +72,7 @@ it.each(['revision', 'route', 'dependencies-after-validation', 'provider-after-v
 it.each(['unchanged', 'unsafe-time', 'missing-marker', 'duplicate-marker', 'unsupported-provider', 'missing-source'] as const)('preserves the complete prior state and writes nothing for %s', async partition => {
   const { record, request, replaceShowV2 } = setup()
   if (partition === 'missing-source') record.composition.patternInstances[0].pattern = { kind: 'user', id: 'missing-source' }
-  if (partition === 'unsupported-provider') setPersonalContentProvider({ id: 'no-v2-write' } as PersonalContentProvider)
+  if (partition === 'unsupported-provider') setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'no-v2-write', replaceShowV2: undefined })
   const intent = partition === 'duplicate-marker' ? { kind: 'add' as const, marker: { id: 'marker', timeMs: 0 } } : { kind: 'move' as const, markerId: partition === 'missing-marker' ? 'absent' : 'marker', timeMs: partition === 'unchanged' ? 0 : partition === 'unsafe-time' ? 0.5 : 9000 }
   const before = structuredClone(record)
   const result = await admit({ ...request, intent })

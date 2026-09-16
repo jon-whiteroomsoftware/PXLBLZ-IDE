@@ -1,0 +1,22 @@
+{
+  "cause": "node project isolate:false shares activeProvider across files; ordinary Marker fixtures installed partial providers and did not restore ownership; openPattern resets stores but consumes provider.setLastActive",
+  "faultyTip": "441e745ab734150559d1d3bdbac17de5a3ea25c2",
+  "repair": "Complete default provider overrides; explicit unsupported-v2 override; reset provider before/after both Marker admission suites",
+  "orderedReproduction": {
+    "pass": 31,
+    "fail": 3,
+    "consumer": "src/store/openPattern.test.ts",
+    "error": "setLastActive is not a function"
+  },
+  "green": {
+    "pass": 34,
+    "fail": 0
+  },
+  "mutant": {
+    "name": "reintroduce-incomplete-unreleased-provider-fixtures",
+    "exit": 1,
+    "killed": true
+  },
+  "productAndUiChanged": false,
+  "coordinatorFinalGates": "pending new committed tip"
+}

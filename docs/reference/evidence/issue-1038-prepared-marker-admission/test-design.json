@@ -24,13 +24,15 @@
     "Native held/shared-Restart ready records versus real unsupported and explicit structurally valid empty.",
     "Safe revision, exact record, route/dependency/map/profile/provider invalidation before adoption.",
     "Own-current save, superseded save, current rollback and obsolete external replacement.",
-    "Dormant/equal-time/optional clearing and strict invalid/no-op Marker inputs."
+    "Dormant/equal-time/optional clearing and strict invalid/no-op Marker inputs.",
+    "Complete provider overrides and intentional unsupported-v2 capability, with shared-worker ownership cleanup."
   ],
   "sequences": [
     "Capture ready -> add dormant Marker -> one adoption -> save/reopen exact choreography/source.",
     "Add -> own adoption replaces parent capture -> resolve save -> saved status and new selection survive.",
     "Add -> adopt -> external replacement -> late completion -> no obsolete feedback.",
-    "Changed -> save failure -> durable rollback and own draft recovery; Undo/Redo/save/reopen."
+    "Changed -> save failure -> durable rollback and own draft recovery; Undo/Redo/save/reopen.",
+    "Shared node worker: prepared Marker -> ordinary Marker fixtures -> openPattern consumers; default provider restored after each owner test."
   ],
   "oracles": [
     "Native importer and compiled source/frame preserve choreography.",
@@ -48,6 +50,7 @@
     "focused": "77/77 across eight prepared Marker/Stage/native artifact files. Held Group, retained Layout and3D save/reopen and Fast/Precise consumers pass; own completion/external replacement/rollback/context matrices pass. Relevant authenticated ordinary+advanced flows2/2 PASS.",
     "static": "Final-base project TypeScript and scoped ESLint PASS; source parity47 unchanged. Original source21d18221 and rebased source0589ca4d are patch-equivalent (git range-diff =).",
     "browser": "Fresh committed-source0589ca4d desktop1440x1000 and narrow390x844 captures inspected. Add/name/time/color, dormant/equal-time, no-op/refusal, Undo/Redo, saved provider reload and remove produce exactly7 own Show PUTs. Native .pxlshow/.epe reopening and Fast/Precise125ms frames at17s PASS; console/capture/overflow errors empty. Relevant authenticated flows2/2 PASS on pinned base. See browser-result.json and .wrsp/ui-proof/1038-prepared-marker.json.",
-    "faultSensitivity": "Four consumer-killed named faults: removed final eligibility, duplicate current preparation, strict preimage-only completion, removed adopted-context completion. Exact original bytes restored; focused77 green."
+    "faultSensitivity": "Four consumer-killed named faults: removed final eligibility, duplicate current preparation, strict preimage-only completion, removed adopted-context completion. Exact original bytes restored; focused77 green.",
+    "providerFixtureRepair": "Authoritative441e full Vitest failed only3 downstream openPattern cases. Ordered isolate:false3-file reproduction:31 pass/3 fail with setLastActive missing. Complete provider defaults+overrides and before/after cleanup in both owning suites:34/34 green. Reintroducing original pollution mutant kills all3 downstream public consumers; repaired bytes restored. Focused77, TS/scoped lint green. Test-only appendix leaves product/UI/capture bytes unchanged; root owns new-tip suites/review."
   }
 }
