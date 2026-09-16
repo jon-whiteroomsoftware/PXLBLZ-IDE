@@ -211,11 +211,37 @@ export function moveShowGroupOccurrenceV2(
   }
   const next = structuredClone(record)
   next.composition.groupOccurrences[next.composition.groupOccurrences.findIndex(value => value.id === occurrence.id)] = edited
+  const affectedTrackIds: string[] = []
+  const affectedPropertyKeyIds: string[] = []
+  const deltaMs = intent.startMs - occurrence.startMs
+  if (deltaMs !== 0) {
+    const clips = materializeShowGroupsV2(record).composition.clips
+    const selectedClipIds = new Set(definition.clips.map(clip => `${occurrence.id}:${clip.id}`))
+    const uses = new Map<string, number>()
+    for (const clip of clips) uses.set(clip.instanceId, (uses.get(clip.instanceId) ?? 0) + 1)
+    const soleMovedInstances = new Set(clips
+      .filter(clip => selectedClipIds.has(clip.id) && uses.get(clip.instanceId) === 1)
+      .map(clip => clip.instanceId))
+    for (const track of next.composition.propertyTracks) {
+      if ((track.target.kind !== 'instance-control' && track.target.kind !== 'instance-time-scale')
+        || !soleMovedInstances.has(track.target.instanceId)) continue
+      const shiftedStartMs = track.activeStartMs + deltaMs
+      const shiftedEndMs = shiftedStartMs + track.activeDurationMs
+      const keyTimes = track.keyframes.map(key => key.timeMs + deltaMs)
+      if (![shiftedStartMs, shiftedEndMs, ...keyTimes].every(time => Number.isSafeInteger(time) && time >= 0)) {
+        return refuseGroupEdit(record, 'invalid-result', 'Shifted sole-user instance animation must remain a nonnegative safe time.')
+      }
+      track.activeStartMs = shiftedStartMs
+      track.keyframes.forEach((key, index) => { key.timeMs = keyTimes[index] })
+      affectedTrackIds.push(track.id)
+      affectedPropertyKeyIds.push(...track.keyframes.map(key => key.id))
+    }
+  }
   const resultIssue = validateGroupEditResult(next)
   if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refuseGroupEdit(record, 'compiler-ineligible', compilerRestriction.message)
-  return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [occurrence.id] }
+  return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [occurrence.id], affectedTrackIds, affectedPropertyKeyIds }
 }
 
 /** Add one linked Group occurrence without minting a definition, track, or runtime. */

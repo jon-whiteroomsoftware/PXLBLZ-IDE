@@ -1,0 +1,44 @@
+{
+  "issue": 1038,
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+  "proofRows": ["MODEL", "SHARING", "RESTART", "ACTIVATION", "CURVE", "CONTINUITY", "PARITY"],
+  "boundary": "moveShowGroupOccurrenceV2/duplicateShowGroupOccurrenceV2 -> complete Show reopen -> public preparation/compile -> native EPE import -> Fast/Precise replay",
+  "invariants": [
+    "The complete materialized preimage determines effective runtime user count, including future/invisible ordinary users and all Group child uses.",
+    "Move shifts only persisted top-level control/time-scale tracks whose sole effective Clip belongs to the selected occurrence, once by the placement delta.",
+    "Track/key identities, durations, values and nonlinear curve descriptors stay exact. Definition-local choreography, runtime payloads, holds and other occurrences stay unchanged.",
+    "Shared, unrelated and zero-use binding runtime tracks stay fixed; definition-local animation moves once through materialization; linked duplicate never copies or shifts global animation.",
+    "Changed outputs are unaliased; no-op/refusal keeps original identity with empty affected collections. Full candidate ownership, Layout and RL08–10 validation remain mandatory."
+  ],
+  "partitions": [
+    "Sole runtime child with held nonlinear Clip animation and Restart; both global control and time-scale owners shift activation and keys100ms.",
+    "Ordinary outside-before, future and invisible sharers; linked repeated occurrence; two selected children sharing one runtime even though both move.",
+    "Unused Group binding protects its payload/tracks but is not an effective Clip user; unrelated zero-use track stays fixed while used sole runtime tracks move.",
+    "Negative shifted activation and shifted end beyond ShowEnd refuse; another Group-owned target adjacent in the preimage overlaps after movement and refuses atomically.",
+    "Spatial-only movement, exact complete-placement no-op, linked duplicate, repeated key strings in distinct owners and existing Group Layout/Transition restrictions."
+  ],
+  "sequences": [
+    "Publicly admitted held preimage -> move -> literal independently authored full expected record -> codec/native EPE reopen -> exact output and exported state across entry, hold, activation/end boundaries and loop.",
+    "Shared preimage -> move only shell -> unchanged global track owners -> independently authored shared schedule replay; duplicate adds a shared Restart contribution without copying animation.",
+    "Admitted adjacent Group animation owners -> sole-user move creates overlap -> original whole record and empty affected sets retained."
+  ],
+  "oracles": [
+    "Public preparation independently admits the preimages and complete accepted outputs; generated native EPE is reopened by parseEpe and Precise re-emission.",
+    "Literal full expected graph and actual delivered Fast/Precise frames/nonempty exported state at exact boundaries/interiors/loop, rather than comparing only shifted track arrays.",
+    "Owner-scoped affected track/key IDs preserve repeated strings; source Show/intent and unrelated runtime/definition payloads remain exact, with deliberate changed-output mutation proving unaliasing.",
+    "Refused movement and exact no-op retain original record identity with every affected/hoisted/removal collection empty."
+  ],
+  "tddEvidence": [
+    "The initial fixture's missing authored sliderControl is corrected before meaningful admission evidence; no production change made for that unsupported fixture.",
+    "The admitted sole-user consumer then fails against existing move because global animation remains fixed. One complete preimage index and narrowly targeted top-level translation fixes it.",
+    "Focused four Group/Layout/property files168/168, project TypeScript/scoped ESLint and exact47 parity pass."
+  ],
+  "mutationEvidence": [
+    "Three focused faults are assertion-killed: omission of movement, selected-only sharing count and omission of time-scale movement. Public full-graph/consumer tests fail and original source is restored after each."
+  ],
+  "residualGaps": [
+    "Native Group creation and outside-span Clip animation representation remain a separate pending design decision; this correction chooses no new localization policy.",
+    "No runtime creation, definition edits, schema/compiler widening, UI/store/history or general source eligibility is implemented.",
+    "Coordinator supplies finalbase and owns native review, authoritative full suites and landing."
+  ]
+}

@@ -58,8 +58,15 @@ into an ordinary owner.
 Move preserves the selected occurrence ID, definition, runtime bindings, holds,
 and all definition-local choreography. It replaces only the complete placement.
 When the occurrence owns an explicit global `trackActivation`, the operation
-shifts its start by the placement delta and preserves its duration. It does not
-shift unrelated top-level instance tracks. An exact complete-placement match is
+shifts its start by the placement delta and preserves its duration. Using the
+complete materialized preimage, Move also shifts persisted top-level instance
+control/time-scale tracks whose runtime has exactly one effective Clip user,
+and that Clip belongs to the moved occurrence. Activation and key times shift
+once by the placement delta; duration, key IDs, values and retained curve
+descriptors remain unchanged. Future and invisible users count as sharing.
+Multi-user, unused-binding and unrelated runtime tracks remain fixed; definition-
+local animation moves through materialization without a second translation.
+An exact complete-placement match is
 an unchanged result with the original record identity.
 
 Linked duplicate copies the occurrence shell under the supplied fresh ID. It
@@ -83,8 +90,13 @@ or definition-local positive Transition window, or a placement creating
 independent overlapping positive windows, refuses atomically as
 compiler-ineligible.
 
-Changed results contain only the persisted occurrence ID in
-`affectedGroupOccurrenceIds`; all other affected collections remain empty.
+Changed results contain the persisted occurrence ID in
+`affectedGroupOccurrenceIds`. Move additionally reports shifted top-level track
+IDs in `affectedTrackIds` and their owner-scoped key IDs in
+`affectedPropertyKeyIds`, preserving repeated raw key strings across tracks.
+All other affected collections remain empty; duplicate never reports or copies
+global tracks. Invalid shifted activation/key times, full candidate ownership,
+Layout and placement restrictions refuse atomically with no affected IDs.
 Transient materialized child IDs are recomputable and are not reported as
 persisted edits.
 
