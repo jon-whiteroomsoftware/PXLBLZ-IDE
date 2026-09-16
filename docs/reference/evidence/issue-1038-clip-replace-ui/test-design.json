@@ -57,6 +57,7 @@
     "locators": "0 stale/55 unverifiable",
     "focused": "8 files/74 tests passed, including six native Fast/Precise same-input/later-entry/invisible-survivor cases",
     "static": "project TypeScript/scoped ESLint/diff-check passed",
-    "browser": "pending final committed-tip capture"
+    "browser": "pending final committed-tip capture",
+    "layout": "Compact panel inherits inspector layout; required final desktop/narrow keyboard/control-bound capture will qualify unmapped-layout-sensitive advisory."
   }
 }

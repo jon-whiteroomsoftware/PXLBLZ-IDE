@@ -35,4 +35,3 @@ it.each(['provider','dependency','unmount'] as const)('retained real parent repl
  if(partition==='unmount')view.unmount()
  expect(await submit()).toMatchObject({status:'refused',code:'stale-edit'});expect(write).not.toHaveBeenCalled();expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record);expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
 })
-
