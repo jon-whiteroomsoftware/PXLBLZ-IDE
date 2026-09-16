@@ -137,7 +137,8 @@
       "groupDefinitions": [],
       "groupOccurrences": []
     },
-    "updatedAt": 1
+    "updatedAt": 1,
+    "stageMapId": "plane"
   },
   "legacy": {
     "id": "recovery-visible-show-1038",
