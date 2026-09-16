@@ -1,0 +1,52 @@
+{
+  "status": "passed",
+  "sourceTip": "0a51ffd8e7e93c0ef3d2c132d9f485106eecd06c",
+  "writes": 5,
+  "linkedDuplicate": true,
+  "independent": true,
+  "explicitRejoin": true,
+  "heldGroupUsers": 2,
+  "effectiveInstanceTracksCopied": 3,
+  "undoRedo": true,
+  "durableColdReopen": true,
+  "noOpZeroWrites": true,
+  "invalidDraftZeroWrites": true,
+  "originalPayloadsAndGroupOwnersExact": true,
+  "captures": [
+    {
+      "mode": "Fast",
+      "frames": 2,
+      "deltaMs": 125,
+      "startMs": 23000,
+      "names": [
+        "sharing-Fast-00000.png",
+        "sharing-Fast-00001.png"
+      ],
+      "failures": []
+    },
+    {
+      "mode": "Precise",
+      "frames": 2,
+      "deltaMs": 125,
+      "startMs": 23000,
+      "names": [
+        "sharing-Precise-00000.png",
+        "sharing-Precise-00001.png"
+      ],
+      "failures": []
+    }
+  ],
+  "responsive": [
+    {
+      "width": 1024,
+      "keyboardFocused": true,
+      "overflow": []
+    },
+    {
+      "width": 390,
+      "keyboardFocused": true,
+      "overflow": []
+    }
+  ],
+  "errors": []
+}

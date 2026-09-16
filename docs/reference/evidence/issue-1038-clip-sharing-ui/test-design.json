@@ -53,7 +53,7 @@
   "residualGaps": [
     "Unhoisted Group-only runtime targets remain unavailable under the landed Rejoin owner; this UI does not extend authority.",
     "Existing named source/compiler eligibility refusals remain atomic before adoption; this slice does not widen them.",
-    "Committed real browser proof follows the immutable Group UI parent; final review/suites are coordinator-owned."
+    "Final review and authoritative suites remain coordinator-owned; actual browser proof is committed on the final Group parent."
   ],
   "qualification": {
     "focused": {
@@ -66,7 +66,28 @@
     "parity": "47 inventoried records exact",
     "mutation": "two semantic faults killed by behavioral assertions; mutation.json",
     "finalSuites": "coordinator-owned",
-    "browser": "Committed thirty-second flow; fresh final capture pending own isolated runtime. Group parent clean reviewed, coordinator owns landing/finals.",
+    "browser": {
+      "status": "passed",
+      "sourceTip": "0a51ffd8e7e93c0ef3d2c132d9f485106eecd06c",
+      "writes": 5,
+      "heldGroupUsers": 2,
+      "effectiveInstanceTracksCopied": 3,
+      "undoRedo": true,
+      "coldReopen": true,
+      "noOpZeroWrites": true,
+      "invalidDraftZeroWrites": true,
+      "renderers": [
+        "Fast",
+        "Precise"
+      ],
+      "widths": [
+        1440,
+        1024,
+        390
+      ],
+      "errors": 0,
+      "report": "browser-result.json"
+    },
     "fixture": "Actual30s browser preimage and duplicate/independent/Rejoin publicly prepare ready; independence copies clock plus both held Group-qualified control tracks.",
     "stackEquivalence": "Three source commits replay unchanged onto final Group591cb095; git range-diff entries all =."
   }

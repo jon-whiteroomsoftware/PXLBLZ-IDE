@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/clip-sharing-synthetic?show-v2-pilot=1&capture",
+  "operation": "Actual thirty-second ordinary Clip linked Duplicate \u2192 Make Pattern Independent \u2192 explicit Rejoin; five durable successful Show writes including Undo/Redo with D1 semantic readbacks, saved reload, cold reopen and .pxlshow/.epe reopen. Two linked held Group users and original payloads/owners stayed exact; independence copied clock plus both effective held Group-owned control tracks. Rejoin no-op and malformed fractional destination saved nothing. Visible stock-plane Stage captured at23seconds in Fast/Precise; desktop/narrow1024/390 keyboard and zero-overflow checks passed with zero browser errors. Repository Playwright separate synthetic context used the actual Worker/renderer without user-cookie changes. All three screenshots visually inspected.",
+  "captures": [
+    ".wrsp/ui-proof/1038-sharing-stage.png",
+    ".wrsp/ui-proof/1038-sharing-desktop.png",
+    ".wrsp/ui-proof/1038-sharing-narrow.png"
+  ],
+  "capturedAtCommit": "0a51ffd8e7e93c0ef3d2c132d9f485106eecd06c"
+}
