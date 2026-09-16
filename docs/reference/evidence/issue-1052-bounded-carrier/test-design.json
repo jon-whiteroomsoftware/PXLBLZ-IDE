@@ -1,0 +1,83 @@
+{
+  "issue": 1052,
+  "scope": "bound the projected whole-output split-position Property carrier to its Transition duration before Layout occurrence baseline filtering in prepareShowV2ForCompile",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "V2-EDIT-LAYOUT-TRANSITION",
+      "ACTIVATION",
+      "PARITY"
+    ]
+  },
+  "base": "8666d8890b1768d0da55268c62c44b540d5395bc",
+  "invariants": [
+    "A projected carrier duration lies in [0, transition.durationMs]; an authored duration longer than the Transition window is clamped to the window, never extended past it.",
+    "Only the upper bound is applied: authored 1ms and 99ms carriers stay exact and the legacy 100ms Scene Property minimum is not reintroduced.",
+    "A Layout occurrence split cut at or after the bounded carrier's exclusive end survives baseline filtering and changes delivered output at its authored time.",
+    "A Layout occurrence split cut strictly inside the bounded carrier is still suppressed, so the carrier keeps its positive half-open window.",
+    "No authored record is mutated by preparation; routingSwitches, routedSceneSequence, clips and every other recipe channel are unchanged by the bound.",
+    "The 47-record parity corpus stays byte-exact."
+  ],
+  "partitions": [
+    "Authored carrier duration 1, 99 (below the legacy minimum), 100 (at it), 200 (exactly the Transition window) and 500 (overlong, clamped to 200).",
+    "Occurrence baseline cut strictly inside the bounded window (500ms cut with a 200ms or 500ms authored carrier).",
+    "Occurrence baseline cut exactly at the bounded window's exclusive end (500ms cut with a 100ms authored carrier).",
+    "Occurrence baseline cut after the bounded window (800ms cut, every authored duration).",
+    "Delivered output sampled before (575, 600, 750, 799ms), at (800ms) and after (801, 875, 975ms) the later cut, in Fast and Precise."
+  ],
+  "sequences": [
+    "Three Layout occurrences (0-500 split .25, 500-800 split .75 on a changed Layout, 800-1000 split .25) without a Property carrier -> public reopen -> prepare -> premise: both occurrence cuts present and one routing switch at 500.",
+    "Same record plus one whole-output split-position Property ramp (from .25, target occurrence 'middle') at each authored duration -> public reopen -> prepare -> native .epe export/reopen -> Fast and Precise frames at the eight sampled times.",
+    "Same prepared output compared against an independently authored recipe carrying the bounded carrier plus the surviving occurrence cuts, and against the unbounded pre-repair recipe."
+  ],
+  "oracles": [
+    "Primary: Fast and Precise frames and immediately copied private member exports from the reopened public v2 record exported to native .epe and reparsed, compared against an independently authored existing-compiler recipe.",
+    "Delivered cut: the frame at 799ms equals the 750ms frame, the frame at 801ms differs from it, and 875/975ms hold the restored value.",
+    "Contrast: the pre-repair unbounded recipe (carrier 500ms, 800ms baseline suppressed) delivers different frames at 801 and 875ms in both fidelities.",
+    "Premise: the carrier-free prepared recipe independently shows both occurrence cuts and the single 500ms routing switch.",
+    "Secondary, asserted after the output oracles: the complete prepared recipe equals the independently authored one.",
+    "Immutability: the reopened record deep-equals its preimage after preparation.",
+    "Corpus: npm run show:v2-parity reports 47 inventoried records matching."
+  ],
+  "redEvidence": [
+    "Before the repair, 'bounds the whole-output split carrier to its Transition window and keeps the later occurrence cut (500)' fails first at the delivered-output oracle: reopened .epe Fast frame at 575ms is [0,0,0,0.7595,0.8012,0.9925] instead of the independently authored [0,0,0,0.7595,0.4086,0.9770], and the 800ms cut never returns split position to .25.",
+    "Before the repair the same case also fails the recipe oracle: carrier durationMs 500 with the atMs 800 baseline removed, versus the expected 200ms carrier plus the retained 800ms cut.",
+    "The 1, 99, 100 and 200ms parameterizations were green before the repair and stay green after it; they are preserved-behavior regression guards, not red evidence."
+  ],
+  "faults": [
+    {
+      "fault": "remove-upper-bound",
+      "mutation": "return { ...ramp, durationMs: property.durationMs ?? transition.durationMs }",
+      "status": "killed",
+      "killedBy": "bounds the whole-output split carrier to its Transition window and keeps the later occurrence cut (500)",
+      "oracle": "Reopened native .epe Fast/Precise frames precede the recipe assertion."
+    },
+    {
+      "fault": "reintroduce-legacy-100ms-minimum",
+      "mutation": "Math.min(Math.max(100, authoredDurationMs), Math.max(0, transitionDurationMs))",
+      "status": "killed",
+      "killedBy": "bounds the whole-output split carrier to its Transition window and keeps the later occurrence cut (1) and (99); also preserves explicit whole-output split carrier across interior Layout (1) and (99)",
+      "oracle": "Reopened native .epe Fast/Precise frames and recipe carrier duration."
+    }
+  ],
+  "results": {
+    "lint": "npm run lint PASS",
+    "typescript": "npx tsc -b --pretty false PASS (exit 0)",
+    "focused": "npx vitest run src/engine/showGlobalTransitionAdaptersV2.test.ts - 30/30 passed (25 inherited, 5 new)",
+    "adjacent": "npx vitest run src/engine/showLayoutTransitionPreparationV2.test.ts src/engine/showCompositionLoweringV2.test.ts - 144/144 passed",
+    "staged": "npm run test:staged PASS",
+    "parity": "npm run show:v2-parity - 47 inventoried records matched",
+    "full": "npm test - 11155 passed, 61 skipped, 1 failed: test/perf-harness/issue718.test.ts exceeded its 5000ms testTimeout under full-suite parallelism. Rerun in isolation PASS (8.05s). Unrelated to this seam; the authoritative committed-tip runner suites remain coordinator-owned."
+  },
+  "residualGaps": [
+    "The separately documented continuous-flat participant plus multiple-Layout refusal and the pre-existing edge-at-window-start 1/99 to 100ms coercion in showModel.ts clampPropertyDuration are untouched and remain unresolved #1038 work.",
+    "Frames qualify existing Fast/Precise arithmetic at 25ms replay steps. At exactly the 800ms cut the two fidelities can disagree because fixed-point elapsed lands just below the boundary; the test compares that sample against the independently authored recipe rather than asserting a regime, so no arbitrary-ms fixed-point equality is claimed.",
+    "Authored durations are compared without rounding; the projection clamps but does not round, so a fractional authored duration inside the window is retained exactly as before.",
+    "Final authoritative committed-tip suites and the exact corrective Fable High review are coordinator-owned."
+  ],
+  "sourceSha256": {
+    "src/engine/showCompositionLoweringV2.ts": "a493be205b32f38212c4eac52035c60e8a6ffa7355e06e95121cc0c1c8c48794",
+    "src/engine/showGlobalTransitionAdaptersV2.test.ts": "1110bb590ae6ea73f42484b44689c0bef169ff6bc8eb3ec0775d4c2065a7b60a"
+  }
+}

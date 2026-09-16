@@ -87,7 +87,13 @@ previously accepted whole-output or global-section recipe generation.
 An explicit whole-output split-position Property ramp continues across an interior
 Layout switch. The ramp retains its complete existing compiler representation;
 a simultaneous occurrence baseline cannot overwrite its positive half-open carrier.
-An occurrence cut outside that carrier remains present. Timed Layout transfer
+The projected carrier is bounded to `[0, transition.durationMs]` before occurrence
+baselines are filtered, the same upper bound `normalizePropertyTransitions` already
+applies to a Scene Property ramp. The v2 validator accepts a longer authored duration,
+so an overlong carrier ends at its Transition window end instead of running past it,
+and the occurrence cuts it would otherwise have swallowed keep their authored times.
+An occurrence cut outside the bounded carrier, including one exactly at its exclusive
+end, remains present and reaches delivered output. Timed Layout transfer
 identity, duration, easing and direction remain independent of contributor schedules.
 No authored record is mutated, no runtime is cloned or reset implicitly, and no
 compiler, emitter or persisted schema is widened.
@@ -106,7 +112,8 @@ output at their persisted global boundary. The 47-record parity corpus stays exa
 
 Newly admitted global whole-output recipes retain authored Property ramp durations
 1, 99 and 100ms directly, bypassing the legacy Scene Property minimum in this
-transient projection. Independent raw compiler recipes and native reopened
+transient projection. Only the upper Transition-window bound applies, so these short
+carriers stay exact while an overlong one is clamped to its window. Independent raw compiler recipes and native reopened
 Fast/Precise output qualify the mapping. Previously admitted edge-at-window-start
 records retain their existing source bytes, including the pre-existing 1/99-to-100ms
 coercion in `showModel.ts`'s `clampPropertyDuration`. That older coercion remains

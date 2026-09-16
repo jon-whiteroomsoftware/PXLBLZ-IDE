@@ -130,8 +130,10 @@ export function prepareShowV2ForCompile(
         const transition = context.record.composition.transitions.find(candidate => candidate.wholeOutput?.startMs === ramp.atMs
           && candidate.propertyRamps.some(property => property.target.kind === 'layout-occurrence-split-position'))!
         const property = transition.propertyRamps.find(candidate => candidate.target.kind === 'layout-occurrence-split-position')!
-        // Newly supported global recipes retain authored duration without the legacy Scene Property minimum.
-        return { ...ramp, durationMs: property.durationMs ?? transition.durationMs }
+        // Newly supported global recipes retain authored duration without the legacy Scene Property
+        // minimum, but keep the existing Transition-window upper bound so a later Layout occurrence
+        // cut outside the bounded carrier still reaches the output.
+        return { ...ramp, durationMs: boundedCarrierDurationMs(property.durationMs ?? transition.durationMs, transition.durationMs) }
       })
       const baselines = occurrences.slice(1).map((occurrence, index) => ({ atMs: occurrence.startMs,
         from: occurrences[index].parameters.splitPosition ?? 0.5, to: occurrence.parameters.splitPosition ?? 0.5,
@@ -301,6 +303,19 @@ function resolveAndLowerShowV2(
     return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior.')
   }
   return { context: resolved, lowered }
+}
+
+/**
+ * Bound a projected whole-output Property carrier to `[0, transition.durationMs]`.
+ *
+ * `normalizePropertyTransitions` already caps a Scene Property ramp at its Transition
+ * duration. The validator accepts a longer authored duration, so the projection applies
+ * the same upper bound before Layout occurrence baselines are filtered; an unbounded
+ * carrier would otherwise swallow a later authored occurrence cut. The legacy 100ms
+ * lower bound is deliberately not reintroduced: 1ms and 99ms carriers stay exact.
+ */
+function boundedCarrierDurationMs(authoredDurationMs: number, transitionDurationMs: number): number {
+  return Math.min(Math.max(0, authoredDurationMs), Math.max(0, transitionDurationMs))
 }
 
 function refuse(
