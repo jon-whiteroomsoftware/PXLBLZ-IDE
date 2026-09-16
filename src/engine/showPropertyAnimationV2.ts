@@ -1,4 +1,4 @@
-import { repeatScaleSourceIsInRangeV2, repeatScaleTrackSourceIsInRangeV2 } from './showRepeatScaleEditEligibilityV2'
+import { repeatScaleSourceIsInRangeV2, repeatScaleHoldSourceIsInRangeV2 } from './showRepeatScaleEditEligibilityV2'
 import { validateShowRecordV2, type ShowClipV2, type ShowPropertyKeyframeV2, type ShowPropertyTrackV2, type ShowRecordV2 } from './showCompositionV2'
 import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
 import { findShowInstancePropertyTrackConflictsV2, propertyTrackIntervalsOverlap, sameShowInstancePropertyTargetV2 } from './showPropertyTrackConflictsV2'
@@ -200,7 +200,7 @@ export function insertTimeInShowPropertyTracksV2(
   atMs: number,
   durationMs: number,
 ): ShowInsertPropertyTimeResultV2 {
-  const outsideRepeat = record.composition.propertyTracks.find(track => track.activeStartMs < atMs && atMs < track.activeStartMs + track.activeDurationMs && !repeatScaleTrackSourceIsInRangeV2(track))
+  const outsideRepeat = record.composition.propertyTracks.find(track => track.activeStartMs < atMs && atMs < track.activeStartMs + track.activeDurationMs && !repeatScaleHoldSourceIsInRangeV2(track, atMs))
   if (outsideRepeat) return { status: 'refused', propertyTracks: record.composition.propertyTracks, affectedTrackIds: [], message: `Holding repeat-scale track "${outsideRepeat.id}" requires its complete source curve to stay within 1–8.` }
   return insertTimeInPropertyTracksV2(record.composition.propertyTracks, record.composition.showEndMs, atMs, durationMs)
 }

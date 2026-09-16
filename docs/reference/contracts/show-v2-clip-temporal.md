@@ -76,6 +76,10 @@ retained inside samples cannot hide outside source coefficients. Insert Time and
 zero Reset projection refuse atomically, preserving original records and empty
 affected collections. Existing decode/playback, unaffected and whole-source-shift
 edits retain their admission; no global validator range restriction is introduced.
+A hold checks the kernel it splits, including its complete retained source. Exact-key,
+before-first and after-last holds check the constant held value. Earlier untouched
+and later whole-shifted kernels retain existing playback even when their source is
+outside that range.
 The reusable pure range predicate solves Back and Bezier derivative extrema; it
 never samples or approximates endpoint equality.
 No emitter range, compiler source domain, RL08–RL10 or schema is widened.

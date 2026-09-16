@@ -108,3 +108,61 @@ it.each(['fast', 'fidelity'] as const)('reopened admitted1→8 Insert Time holds
     expect(frame.exports[`${artifact.summary.clips[0].prefix}_elapsed`], `clock@${time}`).toBe(time * (fidelity === 'fast' ? 1 : 65536))
   }
 })
+
+it.each([
+  { name: 'earlier untouched outside kernel', at: 750, keys: [[0, 0.5], [250, 2], [1000, 3]] },
+  { name: 'later whole-shifted outside kernel', at: 125, keys: [[0, 2], [250, 3], [1000, 8.5]] },
+  { name: 'before first key', at: 125, keys: [[250, 2], [1000, 8.5]] },
+  { name: 'after last key', at: 750, keys: [[0, 0.5], [250, 2]] },
+  { name: 'exact key before outside shifted kernel', at: 250, keys: [[0, 2], [250, 3], [1000, 8.5]] },
+])('preserves admitted $name while holding only its selected in-range source', ({ at, keys }) => {
+  const source = fixture(2, 3)
+  source.composition.propertyTracks[0].keyframes = keys.map(([timeMs, value], index) => ({ id: `key:${index}`, timeMs, value, easing: { curve: 'quadratic', direction: 'in' } }))
+  const lookup = { byCellId: {}, byPatternInstanceId: { instance: 'export function render2D(i,x,y){rgb(x,y,0)}' }, stageDimension: 2 as const }
+  expect(prepareShowV2ForCompile(source, lookup, { libraries: LIBRARIES }).status).toBe('ready')
+  const next = insertShowTimeV2(source, { atMs: at, durationMs: 125 })
+  expect(next.status).toBe('changed')
+  expect(prepareShowV2ForCompile(next.record, lookup, { libraries: LIBRARIES }).status).toBe('ready')
+  expect(insertTimeInShowPropertyTracksV2(source, at, 125).status).toBe('changed')
+  for (const key of source.composition.propertyTracks[0].keyframes) {
+    const mapped = next.record.composition.propertyTracks[0].keyframes.find(candidate => candidate.id === key.id)!
+    expect(mapped.value).toBe(key.value)
+    expect(mapped.timeMs).toBe(key.timeMs < at ? key.timeMs : key.timeMs + 125)
+  }
+})
+
+it.each(['fast', 'fidelity'] as const)('reopened%s playback preserves untouched outside kernels before and after an exact-key hold', async fidelity => {
+  const { compileShow } = await import('./showCompiler')
+  const { createFastReplayRuntime } = await import('./fastReplay')
+  const { buildShowEpeExport } = await import('./showEpeExport')
+  const { parseEpe } = await import('./epeImport')
+  const { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2 } = await import('./showCompositionV2')
+  for (const partition of [
+    { at: 750, values: [0.5, 2, 3], expected: (t: number) => t < 250 ? 1 + (t / 250) ** 2 : 2 + ((t - 250) / 750) ** 2 },
+    { at: 250, values: [2, 3, 8.5], expected: (t: number) => t < 250 ? 2 + (t / 250) ** 2 : 3 + 5 * ((t - 250) / 750) ** 2 },
+  ]) {
+    const source = fixture(2, 3)
+    source.composition.propertyTracks[0].keyframes = [0, 250, 1000].map((timeMs, index) => ({ id: `key:${index}`, timeMs, value: partition.values[index], easing: { curve: 'quadratic', direction: 'in' } }))
+    const lookup = { byCellId: {}, byPatternInstanceId: { instance: 'export function render2D(i,x,y){rgb(x,y,0)}' }, stageDimension: 2 as const }
+    const before = prepareShowV2ForCompile(source, lookup, { libraries: LIBRARIES })
+    const next = insertShowTimeV2(source, { atMs: partition.at, durationMs: 125 })
+    expect(next.status).toBe('changed')
+    const opened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(next.record))
+    if (opened.status !== 'opened') throw new Error('Reopen refused')
+    const after = prepareShowV2ForCompile(opened.record, lookup, { libraries: LIBRARIES })
+    if (before.status !== 'ready' || after.status !== 'ready') throw new Error('Preparation refused')
+    for (const [recipe, held] of [[before.recipe, false], [after.recipe, true]] as const) {
+      const artifact = compileShow(recipe, LIBRARIES)
+      const epe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'local-range', stampedAt: '2026-09-16T00:00:00Z' }).text)
+      const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.125, 0.25], pos: [0.125, 0.25] }] })
+      for (const time of [125, 250, 375, 500, 625, 750, 875]) {
+        const original = !held || time < partition.at ? time : time < partition.at + 125 ? partition.at : time - 125
+        // Existing playback clamps original endpoints; unaffected kernels keep that behavior.
+        const expected = 0.125 * partition.expected(original) % 1
+        const actual = runtime.advanceTo(time, { stepMs: 125, forceFullIntermediateRender: true }).frame[0]
+        expect(Math.abs(actual - expected), `${partition.at}/${held}@${time}`).toBeLessThan(fidelity === 'fast' ? 1e-12 : 5 / 65536)
+        expect(Math.floor(actual * 255), `${partition.at}/${held} display@${time}`).toBe(Math.floor(expected * 255))
+      }
+    }
+  }
+})

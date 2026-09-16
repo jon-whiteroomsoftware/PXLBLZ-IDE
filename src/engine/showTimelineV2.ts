@@ -2,7 +2,7 @@ import { validateShowRecordV2, type ShowClipV2, type ShowPropertyTargetV2, type 
 import { insertTimeInPropertyTracksV2 } from './showPropertyTrackTimeMappingV2'
 import { groupOccurrenceDuration, groupOccurrenceLocalTimeAtV2, materializeShowGroupsV2 } from './showGroupsV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
-import { repeatScaleTrackSourceIsInRangeV2 } from './showRepeatScaleEditEligibilityV2'
+import { repeatScaleHoldSourceIsInRangeV2 } from './showRepeatScaleEditEligibilityV2'
 import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
 
 export interface ShowInsertTimeIntentV2 { atMs: number; durationMs: number }
@@ -71,7 +71,7 @@ export function insertShowTimeV2(record: ShowRecordV2, intent: ShowInsertTimeInt
   if (visual) return refuse('visual-transition-window', `Insert Time is strictly inside visual Transition "${visual.id}".`)
   const transfer = record.composition.layoutOccurrences.find(occurrence => occurrence.incomingTransfer && occurrence.startMs < atMs && atMs < occurrence.startMs + occurrence.incomingTransfer.durationMs)
   if (transfer) return refuse('layout-transfer-window', `Insert Time is strictly inside Layout transfer "${transfer.incomingTransfer!.id}".`)
-  const outsideRepeat = effective.composition.propertyTracks.find(track => track.activeStartMs < atMs && atMs < track.activeStartMs + track.activeDurationMs && !repeatScaleTrackSourceIsInRangeV2(track))
+  const outsideRepeat = effective.composition.propertyTracks.find(track => track.activeStartMs < atMs && atMs < track.activeStartMs + track.activeDurationMs && !repeatScaleHoldSourceIsInRangeV2(track, atMs))
   if (outsideRepeat) return refuse('property-mapping', `Holding repeat-scale track "${outsideRepeat.id}" requires its complete source curve to stay within 1–8.`)
   const mappedTracks = insertTimeInPropertyTracksV2(record.composition.propertyTracks, record.composition.showEndMs, atMs, durationMs)
   if (mappedTracks.status === 'refused') return refuse('property-mapping', mappedTracks.message)

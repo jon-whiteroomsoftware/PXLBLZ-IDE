@@ -22,7 +22,7 @@
     "Layout coverage, ShowEnd and RL08\u2013RL10 guard complete contribution, not nominal rectangles.",
     "Scalar sample channel preserves exact retained in-range curves, activation, baseline and source bytes of prior paths; no compiler/schema domain widening.",
     "Results are complete/unaliased; nested raw-key affected arrays preserve owner-scoped multiplicity.",
-    "Actual repeat hold/projection checks full original source range and exact easing extrema; outside retained coefficients cannot hide behind inside samples. Existing decode/whole-source shifts are unchanged."
+    "Actual repeat hold checks only its split kernel and that entire original source range, including exact easing extrema; exact-key/before-first/after-last holds check the held constant. Unaffected earlier/later kernels retain existing playback. Projections check their complete source; outside retained coefficients cannot hide behind inside samples."
   ],
   "partitions": [
     "Rigid chains, both-edge trim, leading zero/negative, trailing ripple, whole-output endpoint sets and common-window refusal.",
@@ -33,7 +33,8 @@
     "Nonlinear original2\u21924, retained descriptor, held endpoint outside key extrema, baseline cuts during activation/restoration, positive carrier overlap versus exact adjacency.",
     "Reopened artifacts loop, selected displayed8-bit samples and state; fine \u00b11ms numeric evaluator probes retained; no-hold47-byte corpus.",
     "Repeat boundaries1/8 ascending/descending; tiny outside endpoints; raw source outside with retained values inside; Back/Bezier extrema; Reset outside from/to, complete source-shift and ended activation preservation.",
-    "Public temporal dispatch preserves complete changed/no-op/refusal effects, including missing-target refusal and explicit zero Reset projection intent."
+    "Public temporal dispatch preserves complete changed/no-op/refusal effects, including missing-target refusal and explicit zero Reset projection intent.",
+    "Earlier untouched outside kernel, later whole-shifted outside kernel, before-first/after-last constant and exact-key hold; admitted preimage/result through both edit owners and reopened Fast/Precise artifacts."
   ],
   "oracles": [
     "Provisional codec reopen, complete v2 validator/availability and shared placement validator.",
@@ -49,7 +50,8 @@
     "Retained nonlinear sample proof failed0.01875 at375ms in both modes when sample emitter rescaled endpoints instead of reading descriptor.",
     "Effective Group split track identity collision initially refused valid result; qualified fresh suffix corrected this.",
     "Outgoing Clip ramp retained selected target until explicit right retarget regression/repair.",
-    "Range predicate initially absent; exact public connected dispatch red refused unsupported-topology before wiring; missing-target dispatch red omitted\u00a79 empty collections before early owner delegation."
+    "Range predicate initially absent; exact public connected dispatch red refused unsupported-topology before wiring; missing-target dispatch red omitted\u00a79 empty collections before early owner delegation.",
+    "Five selected-source locality cases failed under track-wide range scanning, then passed after only the actually split kernel was checked; two reopened Fast/Precise consumer cases preserve original endpoint-clamped playback of untouched outside kernels."
   ],
   "mutationEvidence": [
     {
@@ -101,15 +103,20 @@
       "name": "easing-overshoot-range-hidden",
       "exitCode": 1,
       "killed": true
+    },
+    {
+      "name": "unaffected-repeat-kernel-blocks-hold",
+      "exitCode": 1,
+      "killed": true
     }
   ],
   "qualification": {
-    "focused": "400/400 across10 affected temporal/Clip/Property/Insert/scalar/compiler/lowerer/Transition/v1-schema suites; range14cases include reopened1\u21928 Insert hold and scalar19cases cover1\u21928/8\u21921 original/retained Fast/Precise.",
-    "static": "Scoped ESLint/project tsc/diff-check pass; final ordinary commit hook follows.",
+    "focused": "407/407 across10 affected temporal/Clip/Property/Insert/scalar/compiler/lowerer/Transition/v1-schema suites; range21cases include reopened1\u21928 hold and unchanged earlier/later outside-kernel playback in Fast/Precise; scalar19cases cover1\u21928/8\u21921 original/retained.",
+    "static": "Scoped ESLint/project tsc/diff-check pass; previous source checkpoint hook passed full source ESLint/project typecheck/reachability and263 mapped tests; final ordinary commit hook required.",
     "parity": "47-record report unchanged",
-    "faultSensitivity": "Prior6 and new4 named semantic faults killed by executed consumer checks, sources restored.",
+    "faultSensitivity": "Prior6, range4 and selected-kernel locality1 named semantic faults killed by executed consumer checks; sources restored exactly.",
     "finalSuites": "Coordinator-owned; no worker submission",
-    "state": "Bounded temporal integration/range adapter scope complete; source commit gate pending; coordinator owns final suites/review/landing."
+    "state": "Bounded temporal integration/range adapter scope complete and focused-qualified; coordinator owns finalbase integration, final suites/review/landing. Whole1038 remains broader."
   },
   "residualGaps": [
     "Full1038 UI/store owner integration remains other slices; this candidate only pure Clip temporal plus bounded scalar adapter/emitter and edit-local range guard.",

@@ -35,14 +35,20 @@ export function repeatScaleSourceIsInRangeV2(from: number, to: number, easing: S
   return inRange(from + delta * min) && inRange(from + delta * max)
 }
 
-/** Used only for edits cutting/holding repeat animation, never persisted admission. */
-export function repeatScaleTrackSourceIsInRangeV2(track: ShowPropertyTrackV2): boolean {
+/** Inspect only the kernel a hold splits; whole-shifted sources retain existing playback. */
+export function repeatScaleHoldSourceIsInRangeV2(track: ShowPropertyTrackV2, atMs: number): boolean {
   if (track.target.kind !== 'show-repeat-scale') return true
-  if (track.keyframes.some(key => !inRange(key.value))) return false
-  return track.keyframes.every((left, index, keys) => {
-    const segment = left.curveSegment
-    if (segment) return repeatScaleSourceIsInRangeV2(segment.baseValue, segment.baseValue + segment.deltaValue, segment.easing)
-    const right = keys[index + 1]
-    return !right || repeatScaleSourceIsInRangeV2(left.value, right.value, left.easing)
-  })
+  const keys = [...track.keyframes].sort((a, b) => a.timeMs - b.timeMs)
+  const exact = keys.find(key => key.timeMs === atMs)
+  if (exact) return inRange(exact.value)
+  const rightIndex = keys.findIndex(key => key.timeMs > atMs)
+  if (rightIndex === 0) return inRange(keys[0].value)
+  if (rightIndex === -1) return keys.length > 0 && inRange(keys[keys.length - 1].value)
+  const left = keys[rightIndex - 1]
+  const right = keys[rightIndex]
+  if (!inRange(left.value) || !inRange(right.value)) return false
+  const segment = left.curveSegment
+  return segment
+    ? repeatScaleSourceIsInRangeV2(segment.baseValue, segment.baseValue + segment.deltaValue, segment.easing)
+    : repeatScaleSourceIsInRangeV2(left.value, right.value, left.easing)
 }
