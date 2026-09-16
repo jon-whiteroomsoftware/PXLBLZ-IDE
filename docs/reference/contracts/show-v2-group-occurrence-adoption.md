@@ -63,6 +63,8 @@ preimage and candidate; it does not establish a compiler limit. The explicit
 [counterexample](../evidence/issue-1038-group-occurrence-ui/preparation-restriction.json)
 and typed zero-write refusal remain. Browser repeated Layout proof uses an admitted
 Cut-linked Group; single-Layout positive internal Transitions stay in native proof.
-Actual browser qualification follows committed shared source.
+Actual committed-source browser qualification records ten durable writes, visible
+Fast/Precise output, narrow keyboard/layout checks and empty Undo/Redo/reload in
+[browser evidence](../evidence/issue-1038-group-occurrence-ui/browser-result.json).
 No definition editing, Pattern replacement, new Group format, compiler change,
 production activation or downstream ticket belongs to this owner.

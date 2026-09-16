@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/group-occurrence-ui?show-v2-pilot=1&capture",
+  "operation": "Thirty-second Group occurrence workflow: Insert Time creates local hold; incomplete Layer binding refuses zero writes; explicit Move, linked Duplicate across repeated Layout, Make Unique retains runtime, Ungroup/reopen native artifacts; Undo/Ungroup then both Deletes to validated empty, Undo/Redo/reload. Ten durable writes, one shared runtime and retained dormant definitions/global track. Visible stock-plane Fast/Precise plus narrow keyboard/layout and empty capability.",
+  "captures": [
+    ".wrsp/ui-proof/1038-group-occurrences-desktop-fast.png",
+    ".wrsp/ui-proof/1038-group-occurrences-desktop-precise.png",
+    ".wrsp/ui-proof/1038-group-occurrences-narrow.png",
+    ".wrsp/ui-proof/1038-group-occurrences-empty.png"
+  ],
+  "capturedAtCommit": "d10877be362b7c14b1da75f07153d410ef99a8e5"
+}

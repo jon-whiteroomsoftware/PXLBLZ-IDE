@@ -1,0 +1,19 @@
+{
+  "commit": "d10877be362b7c14b1da75f07153d410ef99a8e5",
+  "runtime": "managed isolated1038:5212",
+  "user": "synthetic local-agent-15",
+  "fallback": "repository Playwright synthetic context; established IAB isolated-auth limitation",
+  "writes": 10,
+  "showEndMs": 31000,
+  "patternInstances": 1,
+  "groupDefinitions": 2,
+  "groupOccurrences": 0,
+  "ordinaryClips": 0,
+  "errors": [],
+  "captures": [
+    ".wrsp/ui-proof/1038-group-occurrences-desktop-fast.png",
+    ".wrsp/ui-proof/1038-group-occurrences-desktop-precise.png",
+    ".wrsp/ui-proof/1038-group-occurrences-narrow.png",
+    ".wrsp/ui-proof/1038-group-occurrences-empty.png"
+  ]
+}
