@@ -31,7 +31,8 @@
     "Qualified refused record -> existing remove unused Layer -> fully ready candidate.",
     "Qualified capture -> mutate original source -> candidate uses immutable captured source.",
     "Changed recovery -> provider save failure -> original durable record/history rollback.",
-    "Changed recovery -> own receipt -> external provider replacement -> superseded settlement."
+    "Changed recovery -> own receipt -> external provider replacement -> superseded settlement.",
+    "Ready route capture -> Stage consumes exact bundle -> native qualification consumes same bundle -> one capture/compile and no history/save; record/dependency replacement suppresses obsolete qualification."
   ],
   "oracles": [
     "Public capture/preparation and complete validator classify each partition.",
@@ -51,6 +52,7 @@
     "static": "Pinned finalbase full-project TypeScript and scoped ESLint pass; diff-check clean; all47 inventoried parity records match exactly. Final fixture hooks pass authenticated coverage20/20 and locator gates.",
     "faultSensitivity": "Five named semantic mutations killed; exact production bytes restored.",
     "browser": "PASS at aa4fbcfaef4b28d3a37cfe45750457eaa04b9133 on isolated1038:5212/local-agent15, actual Worker+renderer. Qualified/refused preimage -> existing remove unused Layer -> one save; Undo refused/no runtime; Redo+provider reload ready; native artifacts reopen. Exactly3writes, zero selection/no-op writes, console/page errors0, desktop1440/narrow390 overflow0 and keyboard flow. Fast/Precise visible native frames inspected; stock-plane independent colors/control/time qualified.",
-    "browserProvenance": "In-app backend discovered and own probe opened; inherited signed-in identity could not access isolated synthetic D1 and exposed a settings FK overlay. No isolated auth-context API available. Root-approved repository Playwright separate synthetic context used; no Jon cookies/content touched. Earlier enabled-artifact control and generic empty-sample fixture failures preserved in /tmp logs and repaired before final proof."
+    "browserProvenance": "In-app backend discovered and own probe opened; inherited signed-in identity could not access isolated synthetic D1 and exposed a settings FK overlay. No isolated auth-context API available. Root-approved repository Playwright separate synthetic context used; no Jon cookies/content touched. Earlier enabled-artifact control and generic empty-sample fixture failures preserved in /tmp logs and repaired before final proof.",
+    "integrationRepair": "Authoritative56d8 full suite:10807pass/1 stale spy failure (prepareShowStageV2 expected1, actualroute uses qualified capture). Test-only append migrates to captureShowStageEditV2, extracts capture.prepared, asserts exactsame bundle references Stage/qualifier, one actualcompile/capture and no history/adoption/save. Failing test plus adjacent5files45tests green; production/UI bytes unchanged and committed UIproofancestor retained. Root owns newtipfinals."
   }
 }

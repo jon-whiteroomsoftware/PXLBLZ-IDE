@@ -2,8 +2,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '@/engine/personalContentProvider'
 import { ShowV2RoutePilot } from './ShowV2RoutePilot'
+import { ShowStagePreview } from './ShowStagePreview'
 import * as qualification from '@/engine/showV2Pilot'
 import * as stagePreparation from '@/engine/showPreparedStageV2'
+import * as showCompiler from '@/engine/showCompiler'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { convertibleV1Show } from '@/test/showV2TracerFixture'
 import { showInitialState, useShowStore } from '@/store/showStore'
@@ -12,7 +14,7 @@ import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 
-vi.mock('./ShowStagePreview', () => ({ ShowStagePreview: () => <div aria-label="prepared stage" /> }))
+vi.mock('./ShowStagePreview', () => ({ ShowStagePreview: vi.fn(() => <div aria-label="prepared stage" />) }))
 
 beforeEach(() => {
   resetPersonalContentProvider()
@@ -33,19 +35,31 @@ function open() {
 
 it('qualifies the same ready bundle displayed by Stage without history/save or a second capture', async () => {
   const { record, update } = open()
-  const prepare = vi.spyOn(stagePreparation, 'prepareShowStageV2')
+  const prepare = vi.spyOn(stagePreparation, 'captureShowStageEditV2')
+  const compile = vi.spyOn(showCompiler, 'compileShow')
   const qualify = vi.spyOn(qualification, 'qualifyShowV2PilotArtifacts').mockResolvedValue({ importedShow: record, pxlshowBytes: new Uint8Array(3), epeText: '', epeSource: '' })
   try {
     render(<ShowV2RoutePilot showId={record.id} />)
     expect(prepare).toHaveBeenCalledOnce()
-    const captured = prepare.mock.results[0].value
+    const capture = prepare.mock.results[0].value
+    expect(capture.inputCapture.status).toBe('qualified')
+    const captured = capture.prepared
     if (captured.status !== 'ready') throw new Error('Stage fixture refused')
+    const stageCalls = vi.mocked(ShowStagePreview).mock.calls
+    const displayed = stageCalls[stageCalls.length - 1]?.[0]
+    expect(displayed?.kind).toBe('prepared-v2')
+    if (displayed?.kind !== 'prepared-v2') throw new Error('Stage bundle missing')
+    expect(displayed.bundle).toBe(captured.bundle)
+    expect(compile).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: 'Reopen artifacts' }))
     expect(await screen.findByText('Reopened .pxlshow v2 and .epe (3 bytes).')).toBeInTheDocument()
     expect(qualify).toHaveBeenCalledWith(captured.bundle, { appVersion: 'v2-route-pilot' })
+    expect(qualify.mock.calls[0][0]).toBe(captured.bundle)
+    expect(compile).toHaveBeenCalledOnce()
     expect(prepare).toHaveBeenCalledOnce()
     expect(update).not.toHaveBeenCalled()
-  } finally { prepare.mockRestore(); qualify.mockRestore() }
+    expect(useShowStore.getState().showV2Histories[record.id]).toBeUndefined()
+  } finally { prepare.mockRestore(); compile.mockRestore(); qualify.mockRestore() }
 })
 
 it('does not publish an obsolete qualification after record replacement and a newer completion', async () => {
