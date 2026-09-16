@@ -1,0 +1,56 @@
+{
+  "issue": 1038,
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+  "proofRows": [
+    "MODEL",
+    "SHARING",
+    "RESTART",
+    "ACTIVATION",
+    "CONTINUITY",
+    "PARITY"
+  ],
+  "boundary": "createShowClipV2 -> versioned Show reopen -> public preparation/compile -> actual EPE import -> reopened Fast/Precise replay against independently authored expected Shows",
+  "invariants": [
+    "Canonical source identity selects runtime: sole existing is reused, multiple require explicit matching choice, zero permits explicit first setup; equal code under different references is never coalesced.",
+    "Default Group authority hoists under the same effective runtime ID. All existing payloads, controls, animation, Groups and routing stay unchanged; no implicit independence, track copying or hidden runtime.",
+    "Exact caller Clip/key/first-instance IDs and complete initial appearance are mandatory; malformed, extraneous, colliding or unsafe setup refuses atomically without clamp, inferred destination or ShowEnd extension.",
+    "One complete candidate validates ordinary/materialized-held Group occupancy, all contribution Layout coverage and shared RL08\u201310 rules; accepted supported preimages still prepare.",
+    "Input Show/setup stay exact and changed nested output is unaliased; refusal retains original record identity and empty affected/hoisted/removal collections.",
+    "Shared Restart retains the existing runtime and its reset semantics; first new source uses the existing continuous invalidation policy, reuse/hoist preserve lifecycle."
+  ],
+  "partitions": [
+    "Empty and occupied Show; unused top-level source; sole/multiple effective source matches; explicit source mismatch; stale Group template versus authoritative bound top-level source; same-ID Group-default hoist; unused slot in actual occurrence versus dormant definition with no occurrence.",
+    "Safe interval versus negative/fractional/zero/unsafe/past-End; explicit Zone/Layer and foreign Zone-owned Layer; available versus disappearing Layout crossing; ordinary and held Group half-open adjacency/1ms overlap.",
+    "Complete appearance versus absent/partial/extra/wrong-time keys; blank/duplicate/colliding ordinary, definition-local and occurrence-qualified Clip/key/track/runtime identities; malformed/extraneous setup and invalid persisted preimage.",
+    "Ordinary and materialized Group crossfade windows: unrelated wholly outside, exact endpoints,1ms interiors, starts/stops and strictly spanning contributor; unrelated spanning Fade refusal from admitted preimage.",
+    "Continue/Restart, retained Group nonlinear instance animation, independent source identity with identical code, missing code final admission, Fast versus Precise and loop crossing."
+  ],
+  "sequences": [
+    "Empty -> create complete first Clip/runtime -> actual compile/EPE reopen -> add opacity animation -> delete Clip through existing Transition owner -> reopen empty -> readd using retained sole runtime -> exact fresh expected graph/output with no resurrected opacity animation.",
+    "Held Group default sharing -> ordinary Restart creation -> same-ID hoist -> derive reset entries at100/200 -> reopen/compile/EPE -> exact independently authored runtime/control/animation schedule; source Group preserved.",
+    "Admitted ordinary/Group Transition preimage -> exact caller placement -> accepted result independently prepares or refuses with exact input/empty affected collections.",
+    "Two source-identical existing runtimes -> ambiguous request refuses -> explicit chosen runtime reuses; same code under different source references -> explicit first runtime remains distinct -> delivered replay matches independent expected Show."
+  ],
+  "oracles": [
+    "Full original Show/intent equality; complete output schema validation and versioned reopening; deliberate mutation of changed output verifies nested unaliasing.",
+    "Literal source/runtime/Clip/appearance identities and exact preparation provenance; no new runtime in Group hoist and one shared clock/reset authority across consumers.",
+    "Actual EPE parse source equality and regenerated Precise code; delivered frames and nonempty exported state exactly equal independently authored expected Show at entry/hold/activation/end\u00b11ms, interiors and loop.",
+    "Public preparation is independent eligibility oracle for valid window preimages and accepted placements; no comparison only to extracted validator output.",
+    "Structurally accepted missing-source candidate remains immutable while final preparation explicitly refuses; editable empty capability projection remains distinct from raw compiler behavior."
+  ],
+  "tddEvidence": [
+    "First explicit creation consumer fails absent module; minimal first-setup owner makes the valid tracer green. Complete effects array fixes the malformed initial appearance fixture before consumer qualification.",
+    "Sole existing source consumer initially refuses and fresh-first-with-existing initially changes; authoritative source matching/reuse fixes both assertion-level reds.",
+    "Consumer fixture correction adds schema-valid opacity endpoints for deletion and uses documented preparation provenance/restart.events; no production widening made to satisfy invalid fixture or compiler-summary assumptions.",
+    "Focused83 cases pass, including independent reopened Fast/Precise empty/delete/readd, Group sharing/Restart and equal-code/different-reference artifacts."
+  ],
+  "mutationEvidence": [
+    "Eight scoped public-oracle faults are assertion-killed: source-kind matching, fresh-first despite existing, implicit multiple selection, ordinary-only runtime index, missing globally fresh identity, skipped Transition rules, input aliasing and shifted shared animation. Owned module restored after each; no sibling source edits.",
+    "Restored-source focused83/83; six adjacent files323/323 (completed five241 plus actual Group edit sibling82); project TypeScript/scopedlint, explicit staged83/TypeScript and exact47 parity pass. No repeated completed-file submission for unmatched historical Group filename; coordinator owns final suites."
+  ],
+  "residualGaps": [
+    "UI, placement planner, source/dependency resolution and final adoption/history are separate adapters; no browser/provider proof claimed by this pure engine slice.",
+    "Native Group creation and initial occurrence orchestration are not implemented here; instance reuse cannot be generalized from ordinary creation to duplication.",
+    "Coordinator supplies exact final integration base and owns native review, authoritative full suites and landing; full1038 remains partial."
+  ]
+}

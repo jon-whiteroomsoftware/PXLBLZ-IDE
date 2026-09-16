@@ -308,3 +308,57 @@ bijection preserves repeated references, constants, operations, control flow and
 ordering. It does not normalize authored names or values. Exact source payload,
 controls, authored tracks, Group owners and runtime replay accompany this bounded
 generated-source comparison. UI and Group-definition Replace remain separate.
+
+## Native ordinary Clip creation
+
+`createShowClipV2(record, intent)` accepts `kind: 'create-clip'`, a structured
+`patternReference`, a complete ordinary Clip placement without `instanceId`, and
+either `{ kind: 'existing', instanceId? }` or `{ kind: 'first', instance }` runtime
+setup. Placement includes an explicit Zone, Layer, safe integer start/duration,
+entry policy and sampling, plus exactly one complete appearance key at Clip start.
+The caller supplies fresh Clip/key IDs and, for first setup, a fresh runtime ID and
+authoritative payload matching the requested source reference. The engine never
+infers a destination, clamps time, extends Show End or creates a Layer/Transition.
+
+Canonical §4 governs allocation. A sole existing source-identity runtime is reused;
+multiple runtimes require an explicit matching ID; zero matches permits first
+setup. Equal code under different Pattern references does not coalesce instances.
+Existing unused top-level records and effective Group bindings count as runtime
+choices. Dormant definitions with no occurrences supply no runtime choice, while
+their derived default IDs remain reserved. A default-bound Group choice can be
+hoisted under the same effective ID to supply the ordinary Clip's top-level record;
+its authoritative payload, animation and Group owners stay unchanged. Hoisting
+creates a record, not a runtime. Explicit bindings use top-level authority rather
+than stale template payloads. Reuse/hoist never copies or moves instance tracks.
+
+First setup applies the existing source-change continuous lifecycle policy. Reuse
+and same-ID hoist preserve lifecycle, controls, time/evaluation configuration and
+every existing owner. Shared Restart uses the new Clip's explicit entry policy:
+it can reset every consumer of that same runtime, without implicitly creating an
+independent Pattern. Creation adds no attached Transition.
+
+The owner validates the persisted preimage and complete candidate, including
+materialized held Group occupancy, complete Layout contribution coverage and the
+shared RL08–RL10 placement restrictions. Missing/foreign routing, malformed setup,
+unsafe/overlapping placement and blank, colliding or extraneous identity fields
+refuse atomically. Exact half-open adjacency is accepted. Source lookup/dependency
+and complete program admission remain at the trusted caller boundary; structurally
+accepted creation is not a claim that missing or unsupported source compiles.
+
+Results preserve existing Clip status/record vocabulary and add
+`affectedInstanceIds`, `affectedAppearanceKeyIds`, `affectedKeyframeIds`,
+`hoistedInstanceIds` and `removedIds`. A change reports the new Clip, its initial
+appearance key and selected runtime; the hoisted collection identifies same-ID
+record additions only. Track/keyframe/removal collections are empty. Refusal
+returns original record identity with all affected/hoisted/removal collections
+empty. A creation request always creates content; reusing a prior request's IDs
+refuses. Changed record and nested setup data are unaliased from both inputs.
+
+[Creation consumers](../../../src/engine/showClipCreationV2.test.ts) reopen Shows
+and actual `.epe` programs in Fast/Precise, comparing independently authored empty
+add/delete/readd, Group sharing/Restart and different-reference same-code Shows.
+Deletion retains explicit dormant runtime setup but clears removed Clip animation;
+readding holds its new complete appearance and does not restore deleted effects.
+Public preparation independently checks ordinary/materialized Group positive
+windows, endpoints and interior contributors. UI/planner/history and native Show
+export metadata integration remain separate slices.
