@@ -10,7 +10,7 @@ export function isHeldRepeatScaleTrack(track: ShowPropertyTrackV2, showEndMs: nu
 }
 
 export function repeatScaleAt(record: ShowRecordV2, timeMs: number): number {
-  const track = record.composition.propertyTracks.find(track => track.target.kind === 'show-repeat-scale')
+  const track = record.composition.propertyTracks.find(track => isHeldRepeatScaleTrack(track, record.composition.showEndMs))
   const keys = track?.keyframes.filter(key => key.timeMs <= timeMs) ?? []
   return keys[keys.length - 1]?.value ?? record.composition.sampleRemap.repeatScale
 }

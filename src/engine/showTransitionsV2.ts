@@ -453,7 +453,7 @@ function refusedResult(
   }
 }
 
-function transitionEndpoints(transition: ShowTransitionV2): { from: string[]; to: string[]; all: string[] } {
+export function transitionEndpoints(transition: ShowTransitionV2): { from: string[]; to: string[]; all: string[] } {
   const from = transition.wholeOutput?.fromClipIds ?? transition.participants.map(participant => participant.fromClipId)
   const to = transition.wholeOutput?.toClipIds ?? transition.participants.map(participant => participant.toClipId)
   return { from, to, all: [...new Set([...from, ...to])] }
@@ -486,7 +486,7 @@ function insertEndpointsAreExact(
   })
 }
 
-function connectedComponent(record: ShowRecordV2, seeds: readonly string[]): string[] {
+export function connectedComponent(record: ShowRecordV2, seeds: readonly string[]): string[] {
   const connected = new Set(seeds)
   let changed = true
   while (changed) {
@@ -505,7 +505,7 @@ function connectedComponent(record: ShowRecordV2, seeds: readonly string[]): str
   return [...connected].sort()
 }
 
-function downstreamClosure(record: ShowRecordV2, seeds: readonly string[]): string[] {
+export function downstreamClosure(record: ShowRecordV2, seeds: readonly string[]): string[] {
   const downstream = new Set(seeds)
   let changed = true
   while (changed) {
@@ -525,6 +525,14 @@ function downstreamClosure(record: ShowRecordV2, seeds: readonly string[]): stri
     }
   }
   return [...downstream].sort()
+}
+
+export function applyShowTransitionClipShiftV2(source: ShowRecordV2, next: ShowRecordV2, clipIds: readonly string[], deltaMs: number, excludedTransitionIds: readonly string[] = []): string[] {
+  const moved = new Set(clipIds)
+  shiftClips(next, clipIds, deltaMs)
+  const affectedTrackIds = shiftOwnedTracks(source, next.composition.propertyTracks, moved, deltaMs)
+  shiftWholeOutputWindows(source, next, moved, deltaMs, new Set(excludedTransitionIds))
+  return affectedTrackIds
 }
 
 function shiftOwnedTracks(

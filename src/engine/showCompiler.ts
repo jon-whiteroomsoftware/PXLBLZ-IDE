@@ -10116,10 +10116,19 @@ function emitSampleRemappingRuntime(propertyRamps: ShowSamplePropertyRampsRecipe
       const atS = ramp.atMs / 1000
       const durationS = Math.max(1, durationMs) / 1000
       const progress = `clamp((__pxlblz_show_elapsed_s - ${atS}) / ${durationS}, 0, 1)`
-      const mix = emitShowEasingExpression(ramp.easing, progress)
+      const segment = ramp.curveSegment
+      const mix = emitShowEasingExpression(
+        segment?.easing ?? ramp.easing,
+        segment
+          ? `(${segment.elapsedOffsetMs / 1_000} + __pxlblz_show_elapsed_s - ${atS}) / ${segment.sourceDurationMs / 1_000}`
+          : progress,
+      )
+      const value = segment
+        ? `${segment.baseValue} + ${segment.deltaValue} * ${mix}`
+        : `${from} * (1 - ${mix}) + ${to} * ${mix}`
       return `  if (__pxlblz_show_elapsed_s >= ${atS}) {
     __pxlblz_show_sample_repeat_scale = ${to}
-    if (__pxlblz_show_elapsed_s < ${(ramp.atMs + durationMs) / 1000}) __pxlblz_show_sample_repeat_scale = ${from} * (1 - ${mix}) + ${to} * ${mix}
+    if (__pxlblz_show_elapsed_s < ${(ramp.atMs + durationMs) / 1000}) __pxlblz_show_sample_repeat_scale = ${value}
   }`
     }),
   ]

@@ -1,6 +1,5 @@
 import { restrictShowPropertyTrackV2 } from './showPropertyTrackTimeMappingV2'
 import { groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
-import { applyShowEasing } from './showEasing'
 import { lowerPropertyTarget } from './showV2ValueConversion'
 import { isHeldRepeatScaleTrack, repeatScaleAt, scalarBoundaryRamps } from './showV2ScalarProperties'
 import type {
@@ -17,7 +16,7 @@ import type {
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { validateShowComposition } from './showCompositionModel'
 import { compileShow, ShowRestartEligibilityError, type ShowRecipe } from './showCompiler'
-import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
+import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
 import {
   validateShowRecordV2,
   type ShowClipV2,
@@ -25,6 +24,7 @@ import {
   type ShowRecordV2,
 } from './showCompositionV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
+import { lowerShowScalarPropertyTracksV2 } from './showScalarPropertyTrackLoweringV2'
 
 export interface LoweredShowCompositionV2 {
   show: ShowRecord
@@ -113,6 +113,9 @@ export function prepareShowV2ForCompile(
     return { status: 'refused', ...refuse('unsupported-property-target', layoutPropertyRamps.path, layoutPropertyRamps.message) }
   }
   if (layoutPropertyRamps.value) recipe.routingPropertyRamps = layoutPropertyRamps.value
+  const repeatPropertyRamps = lowerRepeatScaleTracks(context.record, recipe.samplePropertyRamps)
+  if (repeatPropertyRamps.status === 'refused') return { status: 'refused', ...refuse('unsupported-property-target', repeatPropertyRamps.path, repeatPropertyRamps.message) }
+  if (repeatPropertyRamps.value) recipe.samplePropertyRamps = repeatPropertyRamps.value
   const expectedInstances = [...new Set(Object.values(context.runtimeInstanceIdByClipId))].sort()
   const representedInstances = recipe.clips.filter(clip => !clip.compilerOwnedEmpty)
     .map(clip => lowered.lookup.instanceIdByCellId?.[clip.id] ?? clip.id).sort()
@@ -199,6 +202,9 @@ export function lowerShowCompositionV2ForCompile(
   if (record.composition.propertyTracks.some(track => track.target.kind === 'layout-occurrence-split-position')) {
     throw new Error('Show composition v2 Layout split-position animation requires prepareShowV2ForCompile so its transient routing ramps cannot be dropped.')
   }
+  if (record.composition.propertyTracks.some(track => track.target.kind === 'show-repeat-scale' && !isHeldRepeatScaleTrack(track, record.composition.showEndMs))) {
+    throw new Error('Show composition v2 Repeat-scale animation requires prepareShowV2ForCompile so its transient sample ramps cannot be dropped.')
+  }
   const resolved = resolveAndLowerShowV2(record, lookup)
   if ('issues' in resolved) {
     throw new Error(resolved.issues.map(issue => `Show composition v2 ${issue.path}: ${issue.message}`).join('; '))
@@ -260,7 +266,6 @@ function refuse(
 }
 
 type RoutingPropertyRamps = NonNullable<ShowRecipe['routingPropertyRamps']>
-type RoutingPropertyRamp = RoutingPropertyRamps['splitPosition']['ramps'][number]
 
 function lowerLayoutSplitPositionTracks(
   record: ShowRecordV2,
@@ -305,88 +310,9 @@ function lowerLayoutSplitPositionTracks(
     }
   }
 
-  const baseline = structuredClone(source.splitPosition)
-  const positiveCarrier = baseline.ramps.find(ramp => ramp.durationMs > 0 && tracks.some(track => (
-    ramp.atMs < track.activeStartMs + track.activeDurationMs
-    && track.activeStartMs < ramp.atMs + ramp.durationMs
-  )))
-  if (positiveCarrier) {
-    return {
-      status: 'refused',
-      path: 'composition.propertyTracks',
-      message: 'Layout split-position animation overlaps an existing positive routing Property ramp.',
-    }
-  }
-  const retainedBase = baseline.ramps.filter(ramp => !tracks.some(track => (
-    ramp.durationMs === 0
-    && ramp.atMs >= track.activeStartMs
-    && ramp.atMs < track.activeStartMs + track.activeDurationMs
-  )))
-  const authored: RoutingPropertyRamp[] = []
-  for (const track of tracks) {
-    const keys = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs)
-    const baselineAtStart = evaluateRoutingSplitPosition(baseline, track.activeStartMs)
-    authored.push({
-      atMs: track.activeStartMs,
-      from: baselineAtStart,
-      to: keys[0].value,
-      durationMs: 0,
-      easing: { curve: 'linear' },
-    })
-    for (const [index, left] of keys.slice(0, -1).entries()) {
-      const right = keys[index + 1]
-      authored.push({
-        atMs: left.timeMs,
-        from: left.value,
-        to: right.value,
-        durationMs: right.timeMs - left.timeMs,
-        easing: structuredClone(left.easing),
-        ...(left.curveSegment ? { curveSegment: structuredClone(left.curveSegment) } : {}),
-      })
-    }
-    const activeEndMs = track.activeStartMs + track.activeDurationMs
-    if (activeEndMs < record.composition.showEndMs) {
-      authored.push({
-        atMs: activeEndMs,
-        from: evaluateShowPropertyTrackV2(track, activeEndMs - 1) ?? keys[keys.length - 1].value,
-        to: evaluateRoutingSplitPosition(baseline, activeEndMs),
-        durationMs: 0,
-        easing: { curve: 'linear' },
-      })
-    }
-  }
-  const ramps = [...retainedBase, ...authored]
-    .map((ramp, index) => ({ ramp, index }))
-    .sort((left, right) => left.ramp.atMs - right.ramp.atMs || left.index - right.index)
-    .map(({ ramp }) => ramp)
-  const atZero = tracks.find(track => track.activeStartMs === 0)
-  return {
-    status: 'ready',
-    value: {
-      splitPosition: {
-        initial: atZero ? evaluateShowPropertyTrackV2(atZero, 0)! : baseline.initial,
-        ramps,
-      },
-    },
-  }
-}
-
-function evaluateRoutingSplitPosition(source: RoutingPropertyRamps['splitPosition'], atMs: number): number {
-  let value = source.initial
-  for (const ramp of source.ramps) {
-    if (atMs < ramp.atMs) continue
-    value = ramp.to
-    if (ramp.durationMs <= 0 || atMs >= ramp.atMs + ramp.durationMs) continue
-    const segment = ramp.curveSegment
-    const progress = segment
-      ? (segment.elapsedOffsetMs + atMs - ramp.atMs) / segment.sourceDurationMs
-      : (atMs - ramp.atMs) / ramp.durationMs
-    const easing = segment?.easing ?? ramp.easing
-    value = segment
-      ? segment.baseValue + segment.deltaValue * applyShowEasing(easing, progress)
-      : ramp.from + (ramp.to - ramp.from) * applyShowEasing(easing, progress)
-  }
-  return value
+  const mapped = lowerShowScalarPropertyTracksV2(tracks, record.composition.showEndMs, structuredClone(source.splitPosition))
+  if (mapped.status === 'refused') return { status: 'refused', path: 'composition.propertyTracks', message: 'Layout split-position animation overlaps an existing positive routing Property ramp.' }
+  return { status: 'ready', value: { splitPosition: mapped.value } }
 }
 
 function resolveShowV2CompileContext(
@@ -434,16 +360,17 @@ function resolveShowV2CompileContext(
     return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'lowering requires section-scoped positive-Transition property-track activation evidence before compilation.')
   }
   const unsupportedTargetIndex = composition.propertyTracks.findIndex(track => (
-    track.target.kind === 'show-repeat-scale' && !isHeldRepeatScaleTrack(track, composition.showEndMs)
+    track.target.kind === 'show-repeat-scale' && track.keyframes.some(key => key.value <= 0)
   ))
   if (unsupportedTargetIndex >= 0) {
     return refuse(
       'unsupported-property-target',
       `composition.propertyTracks[${unsupportedTargetIndex}].target`,
-      `property target "${composition.propertyTracks[unsupportedTargetIndex].target.kind}" requires direct compiler support.`,
+      'Repeat-scale animation values must be positive.',
     )
   }
-  if (composition.propertyTracks.filter(track => track.target.kind === 'show-repeat-scale').length > 1) {
+  const repeatTracks = composition.propertyTracks.filter(track => track.target.kind === 'show-repeat-scale')
+  if (repeatTracks.length > 1 && repeatTracks.every(track => isHeldRepeatScaleTrack(track, composition.showEndMs))) {
     return refuse('unsupported-property-target', 'composition.propertyTracks', 'Only one global held repeat-scale target is admitted.')
   }
   for (const [index, track] of composition.propertyTracks.entries()) {
@@ -524,7 +451,7 @@ function globalSectionBoundaries(record: ShowRecordV2): number[] {
     ...composition.transitions.flatMap(transition => transition.wholeOutput ? [transition.wholeOutput.startMs, transition.wholeOutput.startMs + transition.durationMs] : []),
     ...composition.clips.flatMap(clip => clip.appearance.keys.slice(1).map(key => key.timeMs)),
     ...composition.propertyTracks.flatMap(track => track.target.kind === 'show-repeat-scale'
-      ? track.keyframes.map(key => key.timeMs)
+      ? isHeldRepeatScaleTrack(track, composition.showEndMs) ? track.keyframes.map(key => key.timeMs) : []
       : [track.activeStartMs, track.activeStartMs + track.activeDurationMs]),
   ])].filter(timeMs => timeMs >= 0 && timeMs <= composition.showEndMs)
     .sort((left, right) => left - right)
@@ -1122,4 +1049,17 @@ function stripV2TransitionFields(
 ): Omit<ShowLayerTransition, 'id' | 'fromPlacementId' | 'toPlacementId' | 'kind'> {
   const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _propertyRamps, ...settings } = structuredClone(transition)
   return settings
+}
+
+function lowerRepeatScaleTracks(record: ShowRecordV2, source: ShowRecipe['samplePropertyRamps']): { status: 'ready'; value?: NonNullable<ShowRecipe['samplePropertyRamps']> } | { status: 'refused'; path: string; message: string } {
+  const all = record.composition.propertyTracks.filter(track => track.target.kind === 'show-repeat-scale')
+  const tracks = all.filter(track => !isHeldRepeatScaleTrack(track, record.composition.showEndMs)).sort((a, b) => a.activeStartMs - b.activeStartMs || a.id.localeCompare(b.id))
+  if (!tracks.length) return { status: 'ready', ...(source ? { value: source } : {}) }
+  for (const track of tracks) {
+    if (track.keyframes.some(key => key.value <= 0)) return { status: 'refused', path: 'composition.propertyTracks', message: 'Repeat-scale animation values must be positive.' }
+    if (all.some(other => other !== track && track.activeStartMs < other.activeStartMs + other.activeDurationMs && other.activeStartMs < track.activeStartMs + track.activeDurationMs)) return { status: 'refused', path: 'composition.propertyTracks', message: 'Repeat-scale animation activation overlaps another owner.' }
+  }
+  const mapped = lowerShowScalarPropertyTracksV2(tracks, record.composition.showEndMs, source?.repeatScale ?? { initial: record.composition.sampleRemap.repeatScale, ramps: [] })
+  if (mapped.status === 'refused') return { ...mapped, path: 'composition.propertyTracks' }
+  return { status: 'ready', value: { repeatScale: mapped.value } }
 }
