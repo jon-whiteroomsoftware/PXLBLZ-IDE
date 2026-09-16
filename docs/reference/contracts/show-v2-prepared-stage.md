@@ -32,9 +32,11 @@ late real replay completions after record/dimension/navigation/unmount changes.
 Fine authored boundaries remain separate from existing 60Hz runtime step
 association: a binary-safe later-window interior frame proves mask behavior.
 
-This slice changes preview only. Marker admission and artifact qualification
-retain their current narrower contracts; native v2 EPE export and advanced edit
-admission are separate integrations. Empty content remains editable/saveable
+The ready bundle owns recursively frozen data-only Pattern, Map, Library and
+profile snapshots alongside its frozen authored record. These assets feed both
+preparation and [native artifact qualification](show-v2-native-artifact-qualification.md).
+Original references remain eligibility tokens only. Marker admission and advanced
+edit admission retain their separate narrower contracts. Empty content remains editable/saveable
 with preview/export unavailable until content is added. No compiler, schema,
 runtime-domain or Controller delivery expansion is introduced.
 
@@ -44,3 +46,10 @@ existing transport capture in both fidelities and checks narrow playback access.
 Prepared Group and Layout-split consumer tests retain their native animation
 through codec and generated-source reopen. Browser proof records the actual
 committed UI source identity; isolated synthetic contexts preserve user cookies.
+
+The prepared map path intentionally retains the existing Stage mapping from
+`point.pos ?? point.sample` into both display and runtime channels. This slice
+preserves legacy Stage behavior; it does not establish general sample/position
+independence. `maps/types.ts`, `maps/sourceMap.ts`, `resolveLayout.test.ts` and
+`shim.test.ts` define and test that wider distinction. A coordinate correction
+remains separate parity work.

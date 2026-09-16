@@ -56,6 +56,7 @@ also compares both artifacts with 1 ms steps. Precise clock accumulation can shi
 an activation relative to wall-clock arithmetic with repeated 1 ms steps; the
 adapter preserves that existing behavior and does not alter the scheduler.
 
-The pure adapter is additive. `showV2Pilot.ts`, prepared Stage preview and route
-adoption remain a separate integration slice. No UI,
-provider, persistence, schema or emitter behavior changes here.
+The pure adapter is additive and now feeds [native pilot artifact qualification](show-v2-native-artifact-qualification.md)
+from the same captured artifact displayed by prepared Stage. Route edit admission
+remains a separate contract. The exporter itself makes no UI, provider,
+persistence, schema or emitter change.

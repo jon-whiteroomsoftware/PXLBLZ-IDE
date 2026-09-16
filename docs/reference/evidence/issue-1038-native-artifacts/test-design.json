@@ -1,0 +1,59 @@
+{
+  "issue": 1038,
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+    "sections": [
+      "9"
+    ],
+    "proofRows": [
+      "CURVE",
+      "SHARING",
+      "RESTART",
+      "GROUP-HOLD",
+      "INSERT",
+      "LAYOUT-END",
+      "ROUTE",
+      "FAILURE",
+      "PARITY"
+    ]
+  },
+  "base": "67de72bd7e5e6ca536927984fe36169cbf248c57",
+  "invariants": [
+    "One owned immutable record/assets capture produces the Stage artifact and both native portable files.",
+    "Original dependency references serve eligibility only; no semantic reread or second compile occurs.",
+    "Stale qualification has no status publication, history, adoption or save effect."
+  ],
+  "partitions": [
+    "Ordinary continuous Show and exact authored/native source importer reopening.",
+    "Held repeat curve with shared Restart; held authoritative Group; retained Layout split curve in Fast and Precise.",
+    "Trusted scalar Library full-reset state; missing source/unsupported Library and portable custom-map refusals.",
+    "Nested caller mutation during delayed serialization versus owned frozen data.",
+    "Record, Pattern, Map/dimension, Library, profile, provider, navigation, unmount and newer-operation retirement."
+  ],
+  "sequences": [
+    "Capture -> mutate caller assets -> qualify -> reopen exact authored file and native source.",
+    "Capture -> start delayed serialization -> replace source/control/map/options -> resume -> import-plan against owned assets.",
+    "Qualify old bundle -> replace visible record -> qualify new bundle -> complete new then old; retain current status.",
+    "Reopen advanced authored bytes -> capture -> qualify -> execute both source artifacts at 125ms boundaries/interiors across hold, Restart, Layout and loop."
+  ],
+  "oracles": [
+    "Versioned .pxlshow importer equality with captured authored record and captured dependency bytes.",
+    "Native EPE importer exact compiled source inclusion and Fast/Precise frame/export equality.",
+    "Independent original quadratic formulas and exact shared scalar/Library restart state.",
+    "Zero compile/direct-lower/legacy-export calls after capture, and zero history/save calls.",
+    "Actual desktop/narrow opt-in route capture with native Reopen artifacts and existing transport/fidelity controls."
+  ],
+  "residualGaps": [
+    "Full #1038 remains incomplete: advanced Marker admission and Transition/other edit UI are separate.",
+    "Inherited Stage sample-from-position mapping is behavior-preserving, not generic sample/position independence.",
+    "Preview-ready records still require complete portable dependency inventory for artifact qualification.",
+    "Coordinator owns exact-tip final suites, native candidate review and landing."
+  ],
+  "qualification": {
+    "focused": "106/106 passed across seven native/Stage/pilot/store/component focused files; nine native artifact tests and eleven route qualification tests.",
+    "static": "Project TypeScript and scoped ESLint passed without warnings; source parity corpus47 unchanged.",
+    "browser": "Pending fresh committed desktop/narrow own-runtime proof.",
+    "faultSensitivity": "Four consumer-killed semantic faults: async identity-asset planner reread, second compilation, obsolete success publication, mutable owned nested assets. Original bytes restored; focused106 green again."
+  }
+}

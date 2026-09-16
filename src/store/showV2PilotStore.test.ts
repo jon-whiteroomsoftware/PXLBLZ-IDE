@@ -3,6 +3,7 @@ import { transitionV1Show } from '../test/showV2TracerFixture'
 import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from '../engine/showTransitionsV2'
 import { convertShowRecordV1ToV2 } from '../engine/showRecordV1ToV2'
 import { qualifyShowV2PilotArtifacts } from '../engine/showV2Pilot'
+import { prepareShowStageV2 } from '../engine/showPreparedStageV2'
 import { cloneValidShowRecordV2 } from '../engine/showDocument'
 import { setPersonalContentProvider, type PersonalContentProvider } from '../engine/personalContentProvider'
 import type { ShowRecordV2 } from '../engine/showCompositionV2'
@@ -487,7 +488,9 @@ describe('opt-in v2 Show route adoption', () => {
       expect.objectContaining({ kind: 'cut', atMs: 400, fromClipId: 'out', toClipId: 'replacement' }),
     ])
 
-    const artifacts = await qualifyShowV2PilotArtifacts(reopened!, { patterns: [], maps: [], libraries: [] })
+    const prepared = prepareShowStageV2(reopened!, { patterns: [], maps: [], libraries: [], profiles: [], stageMap: null })
+    if (prepared.status !== 'ready') throw new Error('Persisted Show preparation refused')
+    const artifacts = await qualifyShowV2PilotArtifacts(prepared.bundle)
     expect(artifacts.importedShow.composition.transitions).toEqual([])
     expect(projectShowTransitionJunctionsV2(artifacts.importedShow)).toEqual([
       expect.objectContaining({ kind: 'cut', atMs: 400, fromClipId: 'out', toClipId: 'replacement' }),

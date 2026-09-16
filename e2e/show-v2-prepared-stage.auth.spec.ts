@@ -7,7 +7,7 @@ const native = JSON.parse(readFileSync(new URL('./fixtures/showV2PreparedStage.j
 
 test('native prepared Stage retains hold/Restart and later Layout through fidelity, playback and narrow controls', async ({ page }) => {
   const pattern = { id: 'prepared-stage-pattern', name: 'Stage Voice', src: 'export var elapsed=0; export function beforeRender(delta){elapsed+=delta} export function render2D(i,x,y){rgb(x,y,elapsed/1000)}', controls: {}, updatedAt: 1 }
-  const map = { id: 'prepared-stage-map', name: 'Stage Grid', dim: 2, generator: 'custom', points: Array.from({ length: 256 }, (_, i) => [(i % 16) / 15, Math.floor(i / 16) / 15]), normalizeMode: 'contain', updatedAt: 1 }
+  const map = { id: 'prepared-stage-map', name: 'Stage Grid', dim: 2, generator: 'custom', params: {}, points: Array.from({ length: 256 }, (_, i) => [(i % 16) / 15, Math.floor(i / 16) / 15]), normalizeMode: 'contain', updatedAt: 1 }
   const source = convertibleV1Show()
   source.id = native.id
   source.name = native.name
@@ -22,6 +22,8 @@ test('native prepared Stage retains hold/Restart and later Layout through fideli
   const stage = page.getByTestId('show-stage-preview')
   await expect(stage).toBeVisible()
   await expect(stage).toContainText('Stage Grid')
+  await page.getByRole('button', { name: 'Reopen artifacts' }).click()
+  await expect(page.getByTestId('show-v2-route-pilot')).toContainText(/Reopened \.pxlshow v2 and \.epe/)
   await page.waitForFunction(() => Boolean(window.__pxlblzShow))
   expect(await page.evaluate(() => window.__pxlblzShow!.loopDurationMs())).toBe(31_000)
   await stage.getByRole('button', { name: 'Pause Show preview' }).click()

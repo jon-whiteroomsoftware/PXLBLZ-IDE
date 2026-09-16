@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { ShowStagePreview } from './ShowStagePreview'
@@ -49,6 +50,13 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
     return prepareShowStageV2(record, { patterns, maps, libraries, profiles, stageMap })
   }, [record, patterns, maps, libraries, profiles])
 
+  const qualificationGeneration = useRef(0)
+  useLayoutEffect(() => {
+    const generation = qualificationGeneration
+    generation.current++
+    return () => { generation.current++ }
+  }, [preview, showId])
+
   const resize = async (durationMs: number) => {
     if (!record || !transition) return
     const result = editShowTransitionV2(record, { kind: 'resize-transition', transitionId: transition.id, durationMs })
@@ -75,12 +83,25 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
   }
 
   const qualifyArtifacts = async () => {
-    if (!record) return
+    if (preview?.status !== 'ready' || !record) return
+    const captured = preview.bundle
+    const dependencies = captured.identity.dependencies
+    const generation = ++qualificationGeneration.current
+    const provider = getPersonalContentProvider()
+    const isCurrent = () => qualificationGeneration.current === generation
+      && captured.identity.record === record
+      && useShowStore.getState().showV2Pilots[showId] === record
+      && usePatternStore.getState().userPatterns === dependencies.patterns
+      && useMapStore.getState().userMaps === dependencies.maps
+      && useLibraryStore.getState().userLibraries === dependencies.libraries
+      && useControllerProfileStore.getState().profiles === dependencies.profiles
+      && getPersonalContentProvider() === provider
+    if (!isCurrent()) return
     try {
-      const result = await qualifyShowV2PilotArtifacts(record, { patterns, maps, libraries }, { appVersion: 'v2-route-pilot' })
-      setStatus(`Reopened .pxlshow v2 and .epe (${result.pxlshowBytes.byteLength} bytes).`)
+      const result = await qualifyShowV2PilotArtifacts(captured, { appVersion: 'v2-route-pilot' })
+      if (isCurrent()) setStatus(`Reopened .pxlshow v2 and .epe (${result.pxlshowBytes.byteLength} bytes).`)
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Artifact qualification failed.')
+      if (isCurrent()) setStatus(error instanceof Error ? error.message : 'Artifact qualification failed.')
     }
   }
 

@@ -3,7 +3,8 @@ import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef, ShowRecor
 import { prepareShowV2ForCompile, lowerShowCompositionV2ForCompile } from './showCompositionLoweringV2'
 import type { ShowRecordV2 } from './showCompositionV2'
 import { compileShow } from './showCompiler'
-import { buildShowEpeExport } from './showEpeExport'
+import { buildShowEpeExportV2 } from './showEpeExportV2'
+import type { ShowPreparedStageBundleV2 } from './showPreparedStageV2'
 import { parseEpe } from './epeImport'
 import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } from './showFileBundle'
 import { applyShowImportPlanV2, planShowImportV2 } from './showImportPlanV2'
@@ -17,7 +18,6 @@ export interface ShowV2PilotAssets {
 }
 
 export interface ShowV2PilotArtifacts {
-  previewShow: ShowRecord
   importedShow: ShowRecordV2
   pxlshowBytes: Uint8Array
   epeText: string
@@ -37,18 +37,18 @@ export function compileShowV2PilotArtifact(record: ShowRecordV2, assets: ShowV2P
 }
 
 export async function qualifyShowV2PilotArtifacts(
-  record: ShowRecordV2,
-  assets: ShowV2PilotAssets,
+  captured: ShowPreparedStageBundleV2,
   options: { appVersion: string; exportedAt?: string } = { appVersion: 'v2-route-pilot' },
 ): Promise<ShowV2PilotArtifacts> {
-  const lookup = sourceLookup(record, assets.patterns)
-  const artifact = compileShowV2PilotArtifact(record, assets)
-  const previewShow = lowerShowCompositionV2ForCompile(record, lookup).show
-  const epe = buildShowEpeExport(previewShow, artifact.code, { stampedAt: options.exportedAt })
+  const { record, assets, artifact } = captured
+  const capturedOptions = { ...options }
+  // Construct authored bytes and native metadata from one capture before any await.
+  const file = buildShowFileBundle(record, assets, capturedOptions)
+  const epe = buildShowEpeExportV2(record, artifact.code, { userMaps: assets.maps, stampedAt: capturedOptions.exportedAt })
+  if (epe.status === 'refused') throw new Error(epe.message)
   const reopenedEpe = parseEpe(epe.text)
   if (!reopenedEpe.src.includes(artifact.code)) throw new Error('The reopened .epe did not contain the compiled Show.')
 
-  const file = buildShowFileBundle(record, assets, options)
   const pxlshowBytes = await serializeShowFileBundle(file.bundle)
   const reopened = await parseShowFileBundle(pxlshowBytes, { acceptV2: true })
   if (reopened.version !== 2) throw new Error('The reopened Show file was not version 2.')
@@ -58,7 +58,7 @@ export async function qualifyShowV2PilotArtifacts(
     showNames: [record.name],
   }, { createId: () => `v2-pilot-import-${nextId++}`, now: record.updatedAt + 1 })
   const importedShow = applyShowImportPlanV2(plan).show
-  return { previewShow, importedShow, pxlshowBytes, epeText: epe.text, epeSource: reopenedEpe.src }
+  return { importedShow, pxlshowBytes, epeText: epe.text, epeSource: reopenedEpe.src }
 }
 
 function sourceLookup(record: ShowRecordV2, patterns: readonly PatternRecord[]) {

@@ -4,7 +4,15 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { parseEpe } from './epeImport'
 import { parseShowFileBundle } from './showFileBundle'
-import { compileShowV2PilotArtifact, qualifyShowV2PilotArtifacts } from './showV2Pilot'
+import { compileShowV2PilotArtifact, qualifyShowV2PilotArtifacts, type ShowV2PilotAssets } from './showV2Pilot'
+import { prepareShowStageV2 } from './showPreparedStageV2'
+import type { ShowRecordV2 } from './showCompositionV2'
+
+function capture(record: ShowRecordV2, assets: ShowV2PilotAssets) {
+  const prepared = prepareShowStageV2(record, { ...assets, profiles: [], stageMap: null })
+  if (prepared.status !== 'ready') throw new Error(prepared.status === 'refused' ? prepared.message : 'Empty Show')
+  return prepared.bundle
+}
 
 function libraryRestartFixture(librarySource: string) {
   const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade', 'live-live'))
@@ -39,7 +47,7 @@ it('reopens edited v2 .pxlshow and compiled .epe through the ordinary importers'
   const edited = editShowTransitionV2(converted.record, { kind: 'resize-transition', transitionId, durationMs: 100 })
   if (edited.status !== 'changed') throw new Error(JSON.stringify(edited))
 
-  const artifacts = await qualifyShowV2PilotArtifacts(edited.record, { patterns: [], maps: [], libraries: [] }, {
+  const artifacts = await qualifyShowV2PilotArtifacts(capture(edited.record, { patterns: [], maps: [], libraries: [] }), {
     appVersion: '1044-test', exportedAt: '2026-09-15T00:00:00.000Z',
   })
 
@@ -58,10 +66,7 @@ it.each([
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
   converted.record.composition.patternInstances[0].pattern = pattern
 
-  await expect(qualifyShowV2PilotArtifacts(
-    converted.record,
-    { patterns: [], maps: [], libraries: [] },
-  )).rejects.toThrow('requires exact Pattern source')
+  expect(prepareShowStageV2(converted.record, { patterns: [], maps: [], libraries: [], profiles: [], stageMap: null })).toMatchObject({ status: 'refused', message: expect.stringContaining('requires exact Pattern source') })
 })
 
 it('compiles a Restart artifact whose Library owns restorable scalar state', () => {
@@ -77,6 +82,5 @@ it('compiles a Restart artifact whose Library owns restorable scalar state', () 
 it('refuses Library-backed persistent state through the pilot preparation boundary', async () => {
   const fixture = libraryRestartFixture('var state\nfunction next() { state = array(2); return state[0] }')
 
-  await expect(qualifyShowV2PilotArtifacts(fixture.record, fixture.assets))
-    .rejects.toThrow(/composition\.clips\[1\].*array-or-object-state/)
+  expect(prepareShowStageV2(fixture.record, { ...fixture.assets, profiles: [], stageMap: null })).toMatchObject({ status: 'refused', message: expect.stringMatching(/composition\.clips\[1\].*array-or-object-state/) })
 })
