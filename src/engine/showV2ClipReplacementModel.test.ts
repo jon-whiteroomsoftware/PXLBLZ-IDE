@@ -40,3 +40,12 @@ it('resolves stock and captured Library-dependent personal sources through actua
  expect(resolveCapturedShowPatternReplacementV2(capture,{kind:'stock',id:'LumaStripes'}).status).toBe('ready')
  expect(resolveCapturedShowPatternReplacementV2(capture,{kind:'stock',id:'not-a-stock-pattern'}).status).toBe('refused')
 })
+it('qualifies exact committed browser sources and all replacement states before capture',async()=>{
+ const {clipReplaceRecord,clipReplacePatterns}=await import('../../e2e/fixtures/showV2ClipReplace')
+ const dependencies={patterns:clipReplacePatterns,maps:[],libraries:[],profiles:[],stageMap:null};let record=structuredClone(clipReplaceRecord),n=0
+ for(const reference of [{kind:'user' as const,id:'replacement-other'},{kind:'stock' as const,id:'LumaStripes'}]){
+  const capture=captureShowStageEditV2(record,dependencies);expect(capture.prepared.status).toBe('ready');const plan=createShowV2ClipReplacementIntent(capture,'voice',reference,()=>`qualified-${++n}`);if(plan.status!=='ready')throw Error(plan.message)
+  const resolved=resolveCapturedShowPatternReplacementV2(capture,reference);if(resolved.status!=='ready')throw Error(resolved.message)
+  const result=editShowClipV2(record,{kind:'replace-pattern',clipId:'voice',replacement:resolved.replacement,...(plan.intent.independence?{independence:plan.intent.independence}:{})});expect(result.status).toBe('changed');record=result.record;const prepared=captureShowStageEditV2(record,dependencies).prepared;expect(prepared.status,JSON.stringify(prepared)).toBe('ready')
+ }
+})
