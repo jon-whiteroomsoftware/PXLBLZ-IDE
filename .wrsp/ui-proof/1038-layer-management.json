@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/layer-management-synthetic?show-v2-pilot=1&capture",
+  "operation": "Native Layer management on an isolated authenticated30-second synthetic Show: explicit add at top, rename, full-order adjacent stacking, complete ordinary/used+unused held Group binding reassignment/removal, Undo/Redo => six own PUTs. Provider reload/native pxlshow/epe reopen add no writes; selection/cancel/same-name no-op add none. Actual Stage Fast/Precise23s captures pass;1440 desktop,1024 and390 keyboard selection/Tab-to-name, errors[] and overflow[]. Five images visually inspected; narrow fields/buttons use actual separate scrolling in the existing short inspector, with a zero-write cold reopen. IAB connects but lacks supported isolated authenticated-session ingress; announced repository Playwright fallback uses a separate managed synthetic account and actual Worker/renderer without touching the user session or main5174.",
+  "captures": [
+    ".wrsp/ui-proof/1038-layer-management-stage.png",
+    ".wrsp/ui-proof/1038-layer-management-desktop.png",
+    ".wrsp/ui-proof/1038-layer-management-reassignment.png",
+    ".wrsp/ui-proof/1038-layer-management-narrow.png",
+    ".wrsp/ui-proof/1038-layer-management-narrow-controls.png"
+  ],
+  "capturedAtCommit": "fd508be30faf490908328c516debde7eb2289222"
+}
