@@ -1,4 +1,4 @@
-import { validateShowRecordV2, type ShowClipAppearanceKeyV2, type ShowClipAppearanceValueV2, type ShowPropertyTargetV2, type ShowRecordV2 } from './showCompositionV2'
+import { validateShowRecordV2, type ShowClipAppearanceKeyV2, type ShowClipAppearanceValueV2, type ShowClipV2, type ShowPropertyTargetV2, type ShowRecordV2 } from './showCompositionV2'
 import type { ShowClipEffect, ShowClipTransform, ShowClipViewport, ShowClipPresentation, ShowClipBlink, ShowPlacementView } from './personalContentRecords'
 import type { ShowClipEditRefusalV2, ShowClipEditResultV2 } from './showClipsV2'
 import type { ShowTimelineEditAffectedV2 } from './showTimelineV2'
@@ -29,6 +29,7 @@ export type ShowClipAppearanceEditIntentV2 = Target & (
   | ({ kind: 'update-effect'; parameter: string; value: number | string } & EffectTarget)
   | ({ kind: 'duplicate-effect'; newEffectId: string } & EffectTarget)
   | ({ kind: 'reorder-effect'; targetEffectId: string; targetEffectKind: ShowClipEffect['kind']; edge: 'before' | 'after' } & EffectTarget)
+  | ({ kind: 'remove-effect' } & EffectTarget)
 )
 export type ShowClipAppearanceEditResultV2 = ShowClipEditResultV2 & ShowTimelineEditAffectedV2
 
@@ -77,6 +78,9 @@ export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipA
       || typeof intent.newEffectId !== 'string' || !intent.newEffectId.trim()
       || selectedKeys.some(key => !exactEffect(key.value.effects ?? [], intent.effectId, intent.effectKind))
       || clip.appearance.keys.some(key => key.value.effects?.some(effect => effect.id === intent.newEffectId))) return refuse('invalid-intent', 'Supply a fresh Effect ID and the exact source in every selected held stack.')
+  } else if (intent.kind === 'remove-effect') {
+    if (!exact(intent, [...targetFields, 'kind', 'effectId', 'effectKind'])
+      || selectedKeys.some(key => !exactEffect(key.value.effects ?? [], intent.effectId, intent.effectKind))) return refuse('invalid-intent', 'The exact Effect must exist in every selected held stack.')
   } else if (intent.kind === 'reorder-effect') {
     if (!exact(intent, [...targetFields, 'kind', 'effectId', 'effectKind', 'targetEffectId', 'targetEffectKind', 'edge'])
       || !['before', 'after'].includes(intent.edge) || selectedKeys.some(key => {
@@ -103,6 +107,8 @@ export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipA
     } else if (intent.kind === 'update-effect') {
       const effect = key.value.effects!.find(effect => effect.id === intent.effectId)!
       Object.assign(effect, effectParameterPatch(effect, intent.parameter, intent.value)!)
+    } else if (intent.kind === 'remove-effect') {
+      key.value.effects = key.value.effects!.filter(effect => effect.id !== intent.effectId)
     } else if (intent.kind === 'duplicate-effect') {
       const effects = key.value.effects!
       const index = effects.findIndex(effect => effect.id === intent.effectId)
@@ -120,6 +126,21 @@ export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipA
     }
     if (JSON.stringify(key.value) !== before) affectedAppearanceKeyIds.push(key.id)
   }
+  // Legacy `remove_clip_effect` pruned every Scene Property track whose
+  // placement-effect target no longer resolved on that logical Clip
+  // (`pruneRemovedEffectPropertyTracks`). The v2 cascade is exactly that, read
+  // per appearance span: a Clip-owned track naming this Effect is removed when
+  // any span intersecting its activation no longer carries the Effect. Nothing
+  // else is touched; a surviving Transition ramp refuses below instead.
+  const removedTracks = intent.kind !== 'remove-effect' ? [] : next.composition.propertyTracks.filter(track => {
+    const target = track.target
+    if (target.kind !== 'clip-effect' || target.clipId !== clip.id || target.effectId !== intent.effectId || target.effectKind !== intent.effectKind) return false
+    const activeEndMs = track.activeStartMs + track.activeDurationMs
+    return appearanceSpans(materializeShowGroupsV2(next), edited).some(span => span.startMs < activeEndMs && span.endMs > track.activeStartMs
+      && !exactEffect(span.effects, intent.effectId, intent.effectKind))
+  })
+  const removedTrackIds = removedTracks.map(track => track.id).sort()
+  if (removedTrackIds.length) next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !removedTrackIds.includes(track.id))
   const resultIssue = validateShowRecordV2(next)[0]
   if (resultIssue) return refuse('invalid-result', `${resultIssue.path}: ${resultIssue.message}`)
   const referenceIssue = effectReferenceIssue(next)
@@ -129,7 +150,19 @@ export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipA
   const restriction = firstShowTransitionPlacementRestrictionV2(next)
   if (restriction) return refuse('compiler-ineligible', restriction.message)
   if (!affectedAppearanceKeyIds.length) return { status: 'unchanged', record, ...empty }
-  return { status: 'changed', record: next, ...empty, affectedClipIds: [clip.id], affectedAppearanceKeyIds }
+  return { status: 'changed', record: next, ...empty, affectedClipIds: [clip.id], affectedAppearanceKeyIds,
+    affectedTrackIds: removedTrackIds, removedIds: removedTrackIds,
+    affectedPropertyKeyIds: removedTracks.flatMap(track => track.keyframes.map(keyframe => keyframe.id)).sort() }
+}
+
+/** Held spans of one Clip, the first inheriting its incoming contribution. */
+function appearanceSpans(effective: ShowRecordV2, clip: ShowClipV2): Array<{ startMs: number; endMs: number; effects: ShowClipEffect[] }> {
+  const contribution = clipContributionInterval(effective, clip)
+  return clip.appearance.keys.map((key, index) => ({
+    startMs: index === 0 ? contribution.startMs : key.timeMs,
+    endMs: clip.appearance.keys[index + 1]?.timeMs ?? contribution.endMs,
+    effects: key.value.effects ?? [],
+  }))
 }
 
 function applyAppearance(value: ShowClipAppearanceValueV2, patch: ShowClipAppearancePatchV2): void {
@@ -246,12 +279,9 @@ function effectReferenceIssue(record: ShowRecordV2): string | undefined {
     if (target.kind !== 'clip-effect') return undefined
     const clip = clips.get(target.clipId)
     if (!clip) return `${owner} targets a missing Clip Effect.`
-    const contribution = clipContributionInterval(effective, clip)
-    for (const [index, key] of clip.appearance.keys.entries()) {
-      const spanStartMs = index === 0 ? contribution.startMs : key.timeMs
-      const spanEndMs = clip.appearance.keys[index + 1]?.timeMs ?? contribution.endMs
-      if (spanStartMs >= endMs || spanEndMs <= startMs) continue
-      const effect = exactEffect(key.value.effects ?? [], target.effectId, target.effectKind)
+    for (const span of appearanceSpans(effective, clip)) {
+      if (span.startMs >= endMs || span.endMs <= startMs) continue
+      const effect = exactEffect(span.effects, target.effectId, target.effectKind)
       const descriptor = effect && showClipEffectParameters(effect).find(parameter => parameter.id === target.parameterId)
       if (!effect || descriptor?.kind !== 'number' || typeof showClipEffectParameterValue(effect, target.parameterId) !== 'number') {
         return `${owner} targets an unavailable numeric parameter "${target.parameterId}" on Clip "${clip.id}" Effect "${target.effectId}".`

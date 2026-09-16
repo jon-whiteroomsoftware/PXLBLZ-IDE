@@ -378,6 +378,7 @@ function validAppearanceIntentShape(intent: unknown): intent is ShowClipAppearan
   if (value.kind === 'appearance') return exactIntentFields(value, [...fields, 'patch']) && object(value.patch)
   if (value.kind === 'add-effect') return exactIntentFields(value, [...fields, 'effect']) && object(value.effect) && text(value.effect.id) && text(value.effect.kind)
   if (!text(value.effectId) || !text(value.effectKind)) return false
+  if (value.kind === 'remove-effect') return exactIntentFields(value, [...fields, 'effectId', 'effectKind'])
   if (value.kind === 'update-effect') return exactIntentFields(value, [...fields, 'effectId', 'effectKind', 'parameter', 'value']) && text(value.parameter) && ['number', 'string'].includes(typeof value.value)
   if (value.kind === 'duplicate-effect') return exactIntentFields(value, [...fields, 'effectId', 'effectKind', 'newEffectId']) && text(value.newEffectId)
   return value.kind === 'reorder-effect' && exactIntentFields(value, [...fields, 'effectId', 'effectKind', 'targetEffectId', 'targetEffectKind', 'edge']) && text(value.targetEffectId) && text(value.targetEffectKind) && typeof value.edge === 'string' && ['before', 'after'].includes(value.edge)
