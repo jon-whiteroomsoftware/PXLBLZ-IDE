@@ -135,5 +135,12 @@
     "preservedTip": "aceba4b0003ec2bb5346885ca1e14625b11cce8f",
     "rebasedSourceTip": "6a47de0f57f5c1d149e60310c6564ce1fd433802",
     "evidence": "git range-diff: all4 suffix commits =; canonical spec diff only accepted repeat-range\u00a76/7 additions, preserving landed Marker\u00a79/Group\u00a76"
-  }
+  },
+  "sequences": [
+    "Reopen a valid preimage, apply one public connected Move or atomic two-edge Trim/Extend transaction, reopen the complete candidate, prepare and compare independent Fast/Precise frames/state/PRNG while preserving unrelated effective Group users.",
+    "Resize leading edge to zero with a complete explicit Reset ramp projection plan and simultaneous trailing cascade; reopen projected animation and generated artifacts. Missing/extraneous/colliding/wrong-partition plans return the identical preimage and empty effects.",
+    "Split an incoming/outgoing connected Clip, reopen both partitions, derive entry events and inspect generated replay: incoming/Restart stays left, outgoing/Clip ramp retargets right, same runtime continues and Group-projected IDs remain reserved.",
+    "Prepare repeat animation before insertion, insert125ms into a selected kernel or exact/constant boundary, reopen .pxlshow and .epe, compare fine evaluator boundaries and actual Fast/Precise playback through hold/resume/loop; untouched earlier and shifted later outside kernels retain existing playback.",
+    "Attempt an out-of-range actual hold or Reset projection against an admitted preimage; assert atomic refusal, then shift its complete source or insert after activation and retain admission. Execute named semantic faults, observe failing consumers, restore exact source and re-run green."
+  ]
 }
