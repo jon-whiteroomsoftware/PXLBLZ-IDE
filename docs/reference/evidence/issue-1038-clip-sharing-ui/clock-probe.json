@@ -1,0 +1,17 @@
+{
+  "classification": "Stopped optional direct constant-clock/count probe; original candidate-versus-independent-record state oracle remains exact and unchanged.",
+  "observations": {
+    "fast": {
+      "at100Calls": 1,
+      "at300Calls": 2
+    },
+    "precise": {
+      "at100ElapsedFixed": 6554000,
+      "at300ElapsedFixed": 6554600
+    }
+  },
+  "reason": "A uniform one/two-call expectation ignored Restart-boundary invocation; Precise compiled section time conversion also differs between these steps. These measurements do not prove a product defect. No compiler change, tolerance widening or claimed constant elapsed/count equality was made.",
+  "retainedOracle": "Exact full private exports and frames versus independently authored linked, independent and rejoined records in both renderers; one versus two versus one compiled runtime members.",
+  "qualifiedInteriorOracle": "Two visible sharing consumers at250\u2192375ms, one binary-exact125ms interior frame afterRestart200/beforeboundary400: calls delta1 Fast /65536 Precise. First exported scalar read before second advance because FastReplayResult.exports is a live getter.",
+  "restartOracle": "Public derived events assert source0/copy200; Independence moves selected0 initializer to newruntime, source200 initializer remains. Full imported-EPE private exports match independent records at every frame."
+}

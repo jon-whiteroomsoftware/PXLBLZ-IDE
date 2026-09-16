@@ -2,6 +2,7 @@ import { expect, it } from 'vitest'
 import { propertyEditGroupRecord } from '../test/showV2PropertyEditsFixture'
 import { captureShowStageEditV2 } from './showPreparedStageV2'
 import { createShowV2LinkedDuplicateIntent, createShowV2IndependentIntent, createShowV2RejoinIntent } from './showV2ClipSharingEditorModel'
+import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
 import { editShowClipV2 } from './showClipsV2'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
@@ -37,15 +38,24 @@ it.each(['fast','fidelity'] as const)('sharing UI plans preserve held Group user
  const expectedCopy=structuredClone(original);expectedCopy.composition.clips.push({...structuredClone(clip),id:'copy-1',startMs:200,appearance:{keys:[{...structuredClone(clip.appearance.keys[0]),id:'copy-2',timeMs:200}]}})
  expectedCopy.composition.propertyTracks.push({id:'copy-3',target:{kind:'clip-view',clipId:'copy-1',property:'brightness'},activeStartMs:200,activeDurationMs:200,keyframes:[{id:'copy-4',timeMs:200,value:.2,easing:{curve:'quadratic',direction:'in'}},{id:'copy-5',timeMs:400,value:.8,easing:{curve:'linear'}}]})
  expect(copied.record).toEqual(expectedCopy)
+ expect(deriveShowRestartEventsV2(copied.record)).toMatchObject({status:'derived',events:[{instanceId:'instance',atMs:0,clipIds:['clip']},{instanceId:'instance',atMs:200,clipIds:['copy-1']}]})
  n=0;const plan=createShowV2IndependentIntent(capture(copied.record),'clip',()=>`independent-${++n}`);if(plan.status!=='ready')throw Error('independent plan')
  const independent=editShowClipV2(copied.record,plan.intent);expect(independent.status).toBe('changed')
  const expectedIndependent=structuredClone(expectedCopy);expectedIndependent.composition.executionModel='continuous';expectedIndependent.composition.clips[0].instanceId='independent-1';expectedIndependent.composition.patternInstances.push({...structuredClone(original.composition.patternInstances[0]),id:'independent-1'})
  expectedIndependent.composition.propertyTracks.push({id:'independent-2',target:{kind:'instance-control',instanceId:'independent-1',exportName:'sliderGain'},activeStartMs:0,activeDurationMs:1000,keyframes:[{id:'independent-3',timeMs:0,value:.4,easing:{curve:'sine',direction:'in-out'}},{id:'independent-4',timeMs:1000,value:.8,easing:{curve:'linear'}}]})
  expect(independent.record).toEqual(expectedIndependent)
+ expect(deriveShowRestartEventsV2(independent.record)).toMatchObject({status:'derived',events:[{instanceId:'independent-1',atMs:0,clipIds:['clip']},{instanceId:'instance',atMs:200,clipIds:['copy-1']}]})
  const rejoinPlan=createShowV2RejoinIntent(capture(independent.record),'clip','instance');if(rejoinPlan.status!=='ready')throw Error('Rejoin plan')
  const rejoined=editShowClipV2(independent.record,rejoinPlan.intent);expect(rejoined.status).toBe('changed');const expectedRejoined=structuredClone(expectedCopy);expectedRejoined.composition.executionModel='continuous';expect(rejoined.record).toEqual(expectedRejoined)
  for(const [actual,expected,runtimes] of [[copied.record,expectedCopy,1],[independent.record,expectedIndependent,2],[rejoined.record,expectedRejoined,1]] as const){
   expect(actual.composition.groupDefinitions).toEqual(before.composition.groupDefinitions);expect(actual.composition.groupOccurrences).toEqual(before.composition.groupOccurrences)
+  const activeShared=materializeShowGroupsV2(actual).composition.clips.filter(clip=>clip.instanceId==='instance'&&clip.startMs<=250&&clip.startMs+clip.durationMs>=375);expect(activeShared).toHaveLength(2)
+  const counter=runtime(actual,fidelity),prefix=counter.artifact.summary.clips.find(member=>member.id==='instance')!.prefix
+  const first=counter.replay.advanceTo(250,{stepMs:125,forceFullIntermediateRender:true}),firstCount=Number(first.exports[`${prefix}_calls`])
+  const second=counter.replay.advanceTo(375,{stepMs:125,forceFullIntermediateRender:true})
+  // These consecutive 125-ms frames sit inside two visible sharing users,
+  // strictly after Restart200 and before the next contributor boundary400.
+  expect(Number(second.exports[`${prefix}_calls`])-firstCount).toBe(fidelity==='fast'?1:65536)
   const a=runtime(actual,fidelity),b=runtime(expected,fidelity);expect(a.artifact.summary.clips).toHaveLength(runtimes)
   for(const atMs of [0,100,200,300,400,500,600,900]){const result=a.replay.advanceTo(atMs,{stepMs:100,forceFullIntermediateRender:true}),wanted=b.replay.advanceTo(atMs,{stepMs:100,forceFullIntermediateRender:true});expect(result.frame).toEqual(wanted.frame);expect(Object.keys(result.exports).length).toBeGreaterThan(0);expect(result.exports).toEqual(wanted.exports)}
  }
