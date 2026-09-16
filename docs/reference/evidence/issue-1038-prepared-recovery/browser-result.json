@@ -1,0 +1,69 @@
+{
+  "commit": "aa4fbcfaef4b28d3a37cfe45750457eaa04b9133",
+  "writes": 3,
+  "showEndMs": 30000,
+  "operations": [
+    "zero-write selection/no-op",
+    "remove unused Layer",
+    "Undo restores refusal/no runtime",
+    "Redo ready",
+    "provider reload",
+    "native artifacts reopened"
+  ],
+  "errors": [],
+  "overflow": [
+    {
+      "width": 1440,
+      "elements": []
+    },
+    {
+      "width": 390,
+      "elements": []
+    }
+  ],
+  "renders": [
+    {
+      "mode": "Fast",
+      "result": {
+        "frames": 2,
+        "deltaMs": 125,
+        "startMs": 5000,
+        "names": [
+          "prepared-recovery-Fast-00000.png",
+          "prepared-recovery-Fast-00001.png"
+        ],
+        "failures": []
+      }
+    },
+    {
+      "mode": "Precise",
+      "result": {
+        "frames": 2,
+        "deltaMs": 125,
+        "startMs": 5000,
+        "names": [
+          "prepared-recovery-Precise-00000.png",
+          "prepared-recovery-Precise-00001.png"
+        ],
+        "failures": []
+      }
+    }
+  ],
+  "sourceUnchanged": [
+    {
+      "id": "instance",
+      "pattern": {
+        "kind": "user",
+        "id": "recovery-visible-voice-1038"
+      },
+      "patternName": "TestPattern1D",
+      "time": {
+        "timeScale": 1,
+        "timeOffsetMs": 0
+      },
+      "controlTargets": {
+        "sliderGain": 0.4
+      }
+    }
+  ]
+}

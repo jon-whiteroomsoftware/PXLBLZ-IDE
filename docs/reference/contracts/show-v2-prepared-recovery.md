@@ -36,6 +36,9 @@ The opt-in route constructs one qualified capture. Existing Layer controls may
 submit typed edits from that context; complete candidate eligibility still decides.
 The visible recovery proof removes an unused overlay from a valid independently
 sampled multi-Zone Show, recovering the already-supported flat preparation path.
+The existing artifact control is available only for ready preparation. The
+30-second proof uses the trusted stock plane for its 2D split samples; generic
+strips retain their existing empty sample coordinates.
 No temporary recovery control, arbitrary candidate callback, compiler/schema/domain
 expansion, second save queue or production route cutover is added.
 

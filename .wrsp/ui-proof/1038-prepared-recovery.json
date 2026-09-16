@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/recovery-visible-show-1038?show-v2-pilot=1",
+  "operation": "Qualified source-refused Show -> existing unused-Layer removal -> one save -> Undo restores refusal -> Redo/reload ready -> native artifacts reopened; desktop/narrow keyboard and both renderer modes.",
+  "captures": [
+    ".wrsp/ui-proof/1038-prepared-recovery-desktop.png",
+    ".wrsp/ui-proof/1038-prepared-recovery-narrow.png"
+  ],
+  "capturedAtCommit": "aa4fbcfaef4b28d3a37cfe45750457eaa04b9133"
+}
