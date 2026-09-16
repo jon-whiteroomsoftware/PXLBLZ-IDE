@@ -592,6 +592,10 @@ returns from unconnected setup to the chooser. Once either agent is connected,
 forgetting external authorization. Switching remains disabled until active,
 saving, or unknown work resolves.
 
+Once connected, an external agent can list the stock and personal Pattern
+identities accepted by Show commands, including their exported control metadata,
+and the existing Controller-profile identities with any last-known pixel count.
+
 A small green dot beside the owned agent name indicates the ordinary connected
 state. Contact loss and active work keep their existing text status instead.
 

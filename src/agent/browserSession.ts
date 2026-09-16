@@ -77,6 +77,17 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
       const value = payload.kind === 'read_show' ? admission.getShow() : admission.getEditorFocus()
       result = value === undefined ? { code: 'unavailable' } : { code: 'read', [payload.kind === 'read_show' ? 'show' : 'context']: value }
       if (new TextEncoder().encode(JSON.stringify(result)).byteLength > 1_048_576) result = { code: 'result_too_large' }
+    } else if (payload?.kind === 'list_patterns') {
+      const query = typeof (payload as { query?: unknown }).query === 'string' ? (payload as { query: string }).query : undefined
+      const requestedKind = (payload as { patternKind?: unknown }).patternKind
+      const patternKind = requestedKind === 'stock' || requestedKind === 'user' ? requestedKind : undefined
+      const patterns = admission.getPatterns({ ...(query !== undefined ? { query } : {}), ...(patternKind ? { kind: patternKind } : {}) })
+      result = patterns === undefined ? { code: 'unavailable' } : { code: 'read', patterns }
+      if (new TextEncoder().encode(JSON.stringify(result)).byteLength > 1_048_576) result = { code: 'result_too_large' }
+    } else if (payload?.kind === 'list_controller_profiles') {
+      const controllerProfiles = admission.getControllerProfiles()
+      result = controllerProfiles === undefined ? { code: 'unavailable' } : { code: 'read', controller_profiles: controllerProfiles }
+      if (new TextEncoder().encode(JSON.stringify(result)).byteLength > 1_048_576) result = { code: 'result_too_large' }
     } else {
       result = executor.deliver(delivery)
       emit({ type: 'delivery', delivery, result, request: executor.getRequest(delivery.operationId) })

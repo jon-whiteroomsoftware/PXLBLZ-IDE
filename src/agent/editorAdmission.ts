@@ -8,8 +8,14 @@ import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useLibraryStore } from '@/store/libraryStore'
 import { useMapStore, STOCK_MAPS } from '@/store/mapStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import {
+  projectAgentControllerProfiles,
+  projectAgentPatterns,
+  type AgentPatternDiscoveryFilter,
+} from '@/engine/agentDiscovery'
 export type AgentApplyPhase = 'admitted' | 'adopted' | 'settled' | 'rejected' | 'failed'
 export type AgentAdmissionObserver = (request: ShowEditRequest, phase: AgentApplyPhase, show: ShowRecord | undefined, historyDepth: number) => void
 import { captureAgentShowSnapshot } from '@/engine/agentShowSnapshot'
@@ -124,6 +130,22 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     source: (ref: { kind: string; id: string }) => ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : usePatternStore.getState().userPatterns.find(pattern => pattern.id === ref.id)?.src,
     libraries: { ...LIBRARIES, ...Object.fromEntries(useLibraryStore.getState().userLibraries.map(library => [library.name, library.src])) },
   })
+  const capturePatternMetadata = () => {
+    const patterns = usePatternStore.getState()
+    const libraries = useLibraryStore.getState()
+    const stock = Object.freeze({ ...DEMOS })
+    const personal = Object.freeze(Object.fromEntries(patterns.userPatterns.map(pattern => [pattern.id, pattern.src])))
+    return {
+      loaded: patterns.patternsLoaded && libraries.librariesLoaded,
+      sources: [
+        ...Object.entries(stock).map(([id, source]) => ({ kind: 'stock' as const, id, name: id, source })),
+        ...patterns.userPatterns.map(pattern => ({ kind: 'user' as const, id: pattern.id, name: pattern.name, source: personal[pattern.id] })),
+      ],
+      stock,
+      personal,
+      libraries: Object.freeze({ ...LIBRARIES, ...Object.fromEntries(libraries.userLibraries.map(library => [library.name, library.src])) }),
+    }
+  }
   let stops: Array<() => void> = []
   const close = () => {
     if (retired) return
@@ -213,12 +235,20 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     onClose(listener: () => void) { if (retired) listener(); else listeners.add(listener); return () => { listeners.delete(listener) } },
     getShow() { return available() ? structuredClone(store().resolveEditableShow(showId)) : undefined },
     getEditorFocus() { return available() ? structuredClone(getContext()) : undefined },
+    getPatterns(filter: AgentPatternDiscoveryFilter = {}) {
+      if (!available()) return undefined
+      const captured = capturePatternMetadata()
+      return captured.loaded ? projectAgentPatterns(captured.sources, captured.libraries, filter) : undefined
+    },
+    getControllerProfiles() {
+      if (!available()) return undefined
+      const profiles = useControllerProfileStore.getState()
+      return profiles.profilesLoaded ? projectAgentControllerProfiles(profiles.profiles) : undefined
+    },
     /** Immutable browser-owned source metadata for a private command sequence. */
     captureCommandContext() {
       if (!available()) return undefined
-      const stock = Object.freeze({ ...DEMOS })
-      const personal = Object.freeze(Object.fromEntries(usePatternStore.getState().userPatterns.map(pattern => [pattern.id, pattern.src])))
-      const libraries = Object.freeze({ ...LIBRARIES, ...Object.fromEntries(useLibraryStore.getState().userLibraries.map(library => [library.name, library.src])) })
+      const { stock, personal, libraries } = capturePatternMetadata()
       return {
         commandContext: {
           source: (ref: { kind: string; id: string }) => ref.kind === 'stock' ? stock[resolveStockPatternId(ref.id)] : personal[ref.id],

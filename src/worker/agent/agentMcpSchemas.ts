@@ -36,6 +36,26 @@ const issue = z.object({
   availableRange: z.object({ startMs: z.number(), endMs: z.number() }).strict().optional(),
 }).strict()
 
+const exportedControl = z.discriminatedUnion('kind', [
+  z.object({ export_name: z.string(), kind: z.literal('slider'), min: z.literal(0), max: z.literal(1) }).strict(),
+  z.object({ export_name: z.string(), kind: z.literal('toggle') }).strict(),
+  z.object({ export_name: z.string(), kind: z.literal('hsvPicker') }).strict(),
+  z.object({ export_name: z.string(), kind: z.literal('rgbPicker') }).strict(),
+])
+
+const discoveredPattern = z.object({
+  kind: z.enum(['stock', 'user']),
+  id: z.string(),
+  name: z.string(),
+  exported_controls: z.array(exportedControl),
+}).strict()
+
+const discoveredControllerProfile = z.object({
+  id: z.string(),
+  name: z.string(),
+  pixel_count: z.number().int().positive().optional(),
+}).strict()
+
 const payload = {
   call_id: z.string().optional(),
   binding_id: z.string().optional(),
@@ -47,6 +67,8 @@ const payload = {
   context: z.record(z.unknown()).optional(),
   receipt: z.record(z.unknown()).optional(),
   commands: z.array(z.record(z.unknown())).optional(),
+  patterns: z.array(discoveredPattern).optional(),
+  controller_profiles: z.array(discoveredControllerProfile).optional(),
   changes: z.array(change).optional(),
   issues: z.array(issue).optional(),
   connection_notice: connectionNotice.optional(),

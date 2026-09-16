@@ -127,9 +127,10 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   expect(initialization).toMatchObject({ result: { capabilities: { tools: {}, resources: {} }, instructions: expect.stringContaining('clip-layer-authoring/v1') } })
   expect(initialization.result.capabilities.resources.listChanged).not.toBe(true)
   const listing = await rpc('tools/list')
-  const tools = (await listing.json() as { result: { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] }; outputSchema?: object }> } }).result.tools
-  expect(tools.map(tool => tool.name).sort()).toEqual(['get_connection', 'list_commands', 'read_show', 'get_context', 'begin_edit', 'commit_edit', 'get_outcome', 'cancel_edit', ...SHOW_COMMANDS.map(command => command.name)].sort())
+  const tools = (await listing.json() as { result: { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] }; outputSchema?: object; annotations?: { readOnlyHint?: boolean } }> } }).result.tools
+  expect(tools.map(tool => tool.name).sort()).toEqual(['get_connection', 'list_commands', 'list_patterns', 'list_controller_profiles', 'read_show', 'get_context', 'begin_edit', 'commit_edit', 'get_outcome', 'cancel_edit', ...SHOW_COMMANDS.map(command => command.name)].sort())
   for (const tool of tools) expect(tool.outputSchema, tool.name).toMatchObject({ type: 'object' })
+  for (const name of ['list_patterns', 'list_controller_profiles']) expect(tools.find(tool => tool.name === name)?.annotations?.readOnlyHint).toBe(true)
   const addClip = tools.find(tool => tool.name === 'add_clip')!.inputSchema
   expect(addClip.properties).toMatchObject({ layer: {}, overlay_layer_index: {} })
   expect(addClip.required).not.toContain('layer')
@@ -341,6 +342,20 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   const connected = await (await rpc('get_connection')).json() as { result: { structuredContent: { code: string; binding_id: string } } }
   expect(connected.result.structuredContent.code).toBe('bound')
   const bindingId = connected.result.structuredContent.binding_id
+  const listing = rpc('list_patterns', { binding_id: bindingId, query: 'personal', kind: 'user' })
+  const discovery = await (await channel({ type: 'receive', ...own })).json() as { deliveries: Array<{ operationId: string; deliveryId: string; payload: unknown }> }
+  expect(discovery.deliveries).toEqual([expect.objectContaining({ payload: { kind: 'list_patterns', query: 'personal', patternKind: 'user' } })])
+  const personalPattern = {
+    kind: 'user', id: 'personal-runtime', name: 'Personal runtime Pattern',
+    exported_controls: [{ export_name: 'sliderAmount', kind: 'slider', min: 0, max: 1 }],
+  }
+  await channel({
+    type: 'reply', ...own, bindingId,
+    operationId: discovery.deliveries[0].operationId,
+    deliveryId: discovery.deliveries[0].deliveryId,
+    result: { code: 'read', patterns: [personalPattern] },
+  })
+  expect(await (await listing).json()).toMatchObject({ result: { structuredContent: { code: 'read', patterns: [personalPattern] } } })
   expect(await (await rpc('read_show', { binding_id: 'old-binding' })).json()).toMatchObject({ result: { structuredContent: { code: 'binding_moved', show_id: showId } } })
   const initialRead = rpc('read_show', { binding_id: bindingId })
   const initialReadReceive = await (await channel({ type: 'receive', ...own })).json() as { deliveries: Array<{ operationId: string; deliveryId: string }> }

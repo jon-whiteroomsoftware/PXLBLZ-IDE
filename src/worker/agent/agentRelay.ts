@@ -8,7 +8,10 @@ export type ExternalAgentDeliveryInput =
   | { operationId: string; idempotencyKey?: string; payload: unknown }
 export type AgentRelayScope = WindowIdentity & { bindingId: string }
 export type AgentRelayMessage = AgentDelivery & WindowIdentity
-export type AgentEditorQuery = { kind: 'read_show' | 'get_context' } | { kind: 'get_outcome'; operationId: string }
+export type AgentEditorQuery =
+  | { kind: 'read_show' | 'get_context' | 'list_controller_profiles' }
+  | { kind: 'list_patterns'; query?: string; patternKind?: 'stock' | 'user' }
+  | { kind: 'get_outcome'; operationId: string }
 
 const ORDINARY_JOB_LIMIT = 10
 const QUERY_JOB_LIMIT = 8

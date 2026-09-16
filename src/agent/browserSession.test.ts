@@ -12,6 +12,8 @@ function setup(initialConnection: AgentWindowConnection = bound, options: { dela
   const admission = {
     sessionId: 'session', available: () => true, onClose: vi.fn(() => () => {}), close: vi.fn(),
     getShow: () => structuredClone(show), getEditorFocus: () => ({}),
+    getPatterns: vi.fn((): Array<{ kind: string; id: string; name: string; exported_controls: never[] }> | undefined => [{ kind: 'user', id: 'personal', name: 'Personal', exported_controls: [] }]),
+    getControllerProfiles: vi.fn((): Array<{ id: string; name: string; pixel_count?: number }> | undefined => [{ id: 'profile', name: 'Profile', pixel_count: 256 }]),
     captureCommandContext: () => ({ commandContext: { source: () => undefined }, retainedBytes: 1 }),
     beginRequest: vi.fn(() => ({ request, show: structuredClone(show), context: {} })),
     applyShow: vi.fn(() => ({ status: 'waiting', request })), cancel: vi.fn(() => ({ status: 'cancelled', request })),
@@ -117,6 +119,33 @@ it('returns a near-limit context unchanged and explicitly refuses oversized cont
   expect(calls.filter(call => call.type === 'reply').slice(-1)[0]!.result).toEqual({ code: 'result_too_large' })
   vi.spyOn(admission, 'getShow').mockReturnValue({ ...showCommandFixture(), name: 'x'.repeat(1_048_576) })
   await deliver({ kind: 'read_show' }, 2)
+  expect(calls.filter(call => call.type === 'reply').slice(-1)[0]!.result).toEqual({ code: 'result_too_large' })
+  expect(admission.beginRequest).not.toHaveBeenCalled()
+  session.close()
+})
+
+it('routes both discovery queries through admission, preserves filters, and refuses unavailable or oversized results', async () => {
+  const { session, admission, deliver, calls } = setup()
+  await session.ready
+
+  await deliver({ kind: 'list_patterns', query: 'aurora', patternKind: 'user' }, 0)
+  expect(admission.getPatterns).toHaveBeenCalledWith({ query: 'aurora', kind: 'user' })
+  expect(calls.filter(call => call.type === 'reply').slice(-1)[0]!.result).toEqual({
+    code: 'read', patterns: [{ kind: 'user', id: 'personal', name: 'Personal', exported_controls: [] }],
+  })
+
+  await deliver({ kind: 'list_controller_profiles' }, 1)
+  expect(admission.getControllerProfiles).toHaveBeenCalledOnce()
+  expect(calls.filter(call => call.type === 'reply').slice(-1)[0]!.result).toEqual({
+    code: 'read', controller_profiles: [{ id: 'profile', name: 'Profile', pixel_count: 256 }],
+  })
+
+  admission.getPatterns.mockReturnValueOnce(undefined)
+  await deliver({ kind: 'list_patterns' }, 2)
+  expect(calls.filter(call => call.type === 'reply').slice(-1)[0]!.result).toEqual({ code: 'unavailable' })
+
+  admission.getControllerProfiles.mockReturnValueOnce([{ id: 'profile', name: 'x'.repeat(1_048_576) }])
+  await deliver({ kind: 'list_controller_profiles' }, 3)
   expect(calls.filter(call => call.type === 'reply').slice(-1)[0]!.result).toEqual({ code: 'result_too_large' })
   expect(admission.beginRequest).not.toHaveBeenCalled()
   session.close()

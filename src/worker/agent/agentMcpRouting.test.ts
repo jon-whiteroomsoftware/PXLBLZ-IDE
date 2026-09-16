@@ -109,9 +109,12 @@ it('publishes an output schema for every dynamic tool without advertising resour
   }
   expect(initialized.result.capabilities.resources?.listChanged).not.toBe(true)
 
-  const listed = await (await request(env, 'tools/list')).json() as { result: { tools: Array<{ name: string; outputSchema?: object }> } }
-  expect(listed.result.tools).toHaveLength(SHOW_COMMANDS.length + 8)
+  const listed = await (await request(env, 'tools/list')).json() as { result: { tools: Array<{ name: string; outputSchema?: object; annotations?: { readOnlyHint?: boolean; openWorldHint?: boolean } }> } }
+  expect(listed.result.tools).toHaveLength(SHOW_COMMANDS.length + 10)
   for (const tool of listed.result.tools) expect(tool.outputSchema, tool.name).toMatchObject({ type: 'object' })
+  for (const name of ['list_patterns', 'list_controller_profiles']) {
+    expect(listed.result.tools.find(tool => tool.name === name)?.annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
+  }
 })
 
 it('publishes the complete external edit protocol in the initialization instructions', async () => {
@@ -175,6 +178,31 @@ it('keeps public success and error results schema-valid, distinguishable, and by
   const noEditor = await call({ fetch: vi.fn().mockResolvedValue(Response.json({ code: 'retirement_unconfirmed' })) }, 'read_show', { binding_id: 'retired-binding' })
   validate('read_show', noEditor, true)
 
+  const patternOwner = { fetch: vi.fn()
+    .mockResolvedValueOnce(Response.json({ code: 'bound', claim, binding: claim }))
+    .mockResolvedValueOnce(Response.json({ code: 'read', patterns: [
+      { kind: 'stock', id: 'Aurora', name: 'Aurora', exported_controls: [{ export_name: 'sliderSpeed', kind: 'slider', min: 0, max: 1 }, { export_name: 'toggleMirror', kind: 'toggle' }] },
+      { kind: 'user', id: 'personal', name: 'Personal', exported_controls: [] },
+    ] })) }
+  const patterns = await call(patternOwner, 'list_patterns', { binding_id: 'binding', query: 'aur', kind: 'stock' })
+  validate('list_patterns', patterns, false)
+  expect(JSON.stringify(patterns.structuredContent)).not.toContain('source')
+  expect(await (patternOwner.fetch.mock.calls[1][0] as Request).clone().json()).toMatchObject({
+    type: 'relay-query', query: { kind: 'list_patterns', query: 'aur', patternKind: 'stock' },
+  })
+
+  const profiles = await call({ fetch: vi.fn()
+    .mockResolvedValueOnce(Response.json({ code: 'bound', claim, binding: claim }))
+    .mockResolvedValueOnce(Response.json({ code: 'read', controller_profiles: [{ id: 'profile', name: 'Profile', pixel_count: 256 }, { id: 'unknown', name: 'Unknown' }] })) },
+  'list_controller_profiles', { binding_id: 'binding' })
+  validate('list_controller_profiles', profiles, false)
+
+  const unavailablePatterns = await call({ fetch: vi.fn()
+    .mockResolvedValueOnce(Response.json({ code: 'bound', claim, binding: claim }))
+    .mockResolvedValueOnce(Response.json({ code: 'unavailable' })) },
+  'list_patterns', { binding_id: 'binding' })
+  validate('list_patterns', unavailablePatterns, true)
+
   const changed = await call({ fetch: vi.fn()
     .mockResolvedValueOnce(Response.json({ code: 'changed', changes: [{ command: 'rename_show', targetId: 'show', description: 'Renamed Show', before: 'Old', after: 'New', details: { source: 'agent' } }] })) },
   'rename_show', { binding_id: 'binding', operation_id: 'op', idempotency_key: 'change', name: 'New' })
@@ -205,6 +233,8 @@ it('keeps public success and error results schema-valid, distinguishable, and by
   expect(validators.get('rename_show')!({ code: 'changed', changes: [{ description: 'Missing command' }] })).toBe(false)
   expect(validators.get('rename_show')!({ code: 'refused', issues: [{ code: 'invalid-argument' }] })).toBe(false)
   expect(validators.get('begin_edit')!({ code: 'binding_moved', connection_notice: { code: 'binding_moved', show_id: 'show-2' } })).toBe(false)
+  expect(validators.get('list_patterns')!({ code: 'read', patterns: [{ kind: 'user', id: 'one', name: 'One', exported_controls: [{ export_name: 'toggleX', kind: 'toggle', min: 0 }] }] })).toBe(false)
+  expect(validators.get('list_controller_profiles')!({ code: 'read', controller_profiles: [{ id: 'one', name: 'One', map_id: 'stale-map' }] })).toBe(false)
 })
 
 it('publishes server-owned identity schemas and rejects legacy delivery fields', async () => {

@@ -83,8 +83,9 @@ methods, and the resource authorization server derived from the exact configured
 token endpoint.
 
 The MCP SDK serves stateless JSON initialization and stable `tools/list` metadata:
-`get_connection`, `list_commands`, `read_show`, `get_context`, `begin_edit`, all
-canonical `SHOW_COMMANDS`, `commit_edit`, `get_outcome` and `cancel_edit`. Listing
+`get_connection`, `list_commands`, `list_patterns`, `list_controller_profiles`,
+`read_show`, `get_context`, `begin_edit`, all canonical `SHOW_COMMANDS`,
+`commit_edit`, `get_outcome` and `cancel_edit`. Listing
 metadata neither claims an account slot nor reads Show contents. There is no GET
 event stream, DELETE session, durable MCP session or tools-list notification.
 Initialization therefore does not advertise resource-list changes. Every listed
@@ -96,6 +97,20 @@ new canonical commands on the same result contract without copying schemas into
 the command registry. Discovery marks exactly `list_commands`, `read_show`,
 `get_context` and `get_outcome` with `readOnlyHint: true`. `get_connection`
 claims the account slot, so it is not read-only; no mutation advertises the hint.
+
+The two discovery tools require the current browser binding and remain read-only.
+`list_patterns` projects every stock and signed-account personal Pattern as its
+actual `stock` or `user` reference identity, display name and authored exported
+control names/kinds. Sliders alone publish the command range `0–1`; picker and
+toggle exports are metadata only, and saved control values or the Studio's `0.5`
+fallback are never called Pattern defaults. The optional case-insensitive `query`
+matches ids or names, while `kind` selects `stock` or `user`. Source and Library
+text never leave the browser. The exact captured source/Library graph must inspect
+successfully; unknown metadata returns `unavailable` instead of an incomplete
+catalogue. `list_controller_profiles` projects existing profile ids, names and an
+optional last-known `pixel_count`. It never turns an installed-map observation or
+push fingerprint into a current map id, reads hardware, or changes mutation
+validation. Both results use the relay's existing 1 MiB bound without truncation.
 
 `get_connection` uses the validated grant/client identity to claim the account
 slot. An armed editor binds immediately; otherwise the call waits the full

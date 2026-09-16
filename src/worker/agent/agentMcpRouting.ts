@@ -91,6 +91,33 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
       return output(toolResult(resolved))
     })
   }
+  server.registerTool('list_patterns', {
+    description: 'List stock and signed-account personal Pattern identities with authored exported control metadata. Slider ranges are normalized 0–1; source is never returned.',
+    inputSchema: z.object({ ...binding, query: z.string().max(128).optional(), kind: z.enum(['stock', 'user']).optional() }).strict(),
+    outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.read,
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  }, async ({ binding_id, query, kind }) => {
+    const ownership = await owned(binding_id)
+    if (!ownership.identity) return output(ownership.result!)
+    return output({
+      ...await queryAgentEditor(env, grant.accountId, ownership.identity, {
+        kind: 'list_patterns',
+        ...(query !== undefined ? { query } : {}),
+        ...(kind ? { patternKind: kind } : {}),
+      }),
+      ...notice(ownership.resolved),
+    })
+  })
+  server.registerTool('list_controller_profiles', {
+    description: 'List existing Controller-profile identities and optional last-known pixel counts. Does not read live hardware or claim an installed map.',
+    inputSchema: z.object({ ...binding }).strict(),
+    outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.read,
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  }, async ({ binding_id }) => {
+    const ownership = await owned(binding_id)
+    if (!ownership.identity) return output(ownership.result!)
+    return output({ ...await queryAgentEditor(env, grant.accountId, ownership.identity, { kind: 'list_controller_profiles' }), ...notice(ownership.resolved) })
+  })
   const registerMutation = (name: string, description: string, fields: Record<string, z.ZodTypeAny>, payload: (args: Record<string, unknown>) => unknown) => {
     if (Object.keys(fields).some(key => key in operation)) throw new Error('Canonical command collides with transport identity')
     server.registerTool(name, { description, inputSchema: z.object({ ...operation, ...fields }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async args => {
