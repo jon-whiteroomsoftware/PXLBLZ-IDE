@@ -1,0 +1,79 @@
+{
+  "issue": 1038,
+  "specificationCommit": "ab8f502acbd248e6a671a673eba71345fc97958a",
+  "proofRows": [
+    "MODEL",
+    "LAYOUT-END",
+    "CHAPTERS"
+  ],
+  "boundary": "Pure general v2 Marker add/move/update/remove; chapter role/projection stays1040",
+  "invariants": [
+    "Only markers change; choreography, Show End, runtime payloads, compiler recipe/source and updatedAt remain exact.",
+    "Times remain nonnegative safe integer milliseconds including dormant guides beyond Show End; equal-time markers stay distinct and order deterministically by time/id.",
+    "Explicit identities are stable; only optional name/color fields can clear with undefined; no generated clocks/IDs/clamping or chapter role inference.",
+    "Changed candidate is complete, unaliased, validated and reopened; no-op/refusal returns original identity and empty affected collections.",
+    "Removing the final Marker retains the required empty v2 markers array; only selected affectedMarkerIds/removedIds are reported."
+  ],
+  "partitions": [
+    "Add at equal-time peers and dormant MAX_SAFE_INTEGER; duplicate identity, empty ID, missing target and malformed object/operation.",
+    "Move before/after peers and beyond Show End; negative/fractional/infinite/unsafe/missing required times.",
+    "Update name/color/time together, empty string, explicit optional field clearing and clearing an already absent field.",
+    "Strict unsupported intent/patch fields including identity rewrite and role:chapter; empty patch; malformed marker/null intent.",
+    "Remove selected first/final Marker; invalid duplicated and unsafe dormant preimages.",
+    "Exact move/update no-op identity; full deep unaliasing and unchanged unrelated arrays.",
+    "Fast/Precise compiler recipe, fixed-provenance .epe reopened source, frames and exported state unchanged through CRUD sequence."
+  ],
+  "sequences": [
+    "Add dormant guide, move into equal-time peers, clear optional name/update color, remove; serialize/reopen after each and recover exact original record.",
+    "Update time and optional fields, clear remaining optional field, then apply identical/no-op clear and retain original identity.",
+    "Remove all markers successively and reopen required empty array.",
+    "Prepare/compile both original and each reopened edit with trusted Libraries, reopen fixed-stamp .epe, compare Fast/Fidelity frames and exports across loop boundaries."
+  ],
+  "oracles": [
+    "Complete validateShowRecordV2 and provisional serialize/parse reopen.",
+    "Exact projected equality after replacing only markers; exact updatedAt and original input identity for no-op/refusal.",
+    "Mutate changed nested choreography and Marker arrays to prove no alias to preimage.",
+    "Exact ordered Marker identities/times and absent optional object properties after clearing.",
+    "All common affected collections, including removal IDs and required final empty storage.",
+    "Exact preparation result/recipe, generated compiler code, deterministic reopened .epe source and matched Fast/Fidelity frames/state."
+  ],
+  "tddEvidence": [
+    "Focused suite initially failed because showMarkersV2 owner did not exist.",
+    "Initial implementation passed25semantic cases; export consumer fixture was corrected to compare provenance-stamped source against a fixed-stamp preimage .epe and supply required runtime map points.",
+    "Expanded safe dormant preimage coverage passes28of28; no schema or runtime changes were required."
+  ],
+  "residualGaps": [
+    "Chapter role/projection remains1040; Marker CRUD commands/UI/store/history/save adoption and Set Show End wrappers remain separate owners.",
+    "Coordinator owns committed-tip final suites, native review, landing, issue progress and publication."
+  ],
+  "proofSubset": "Marker intent/codec and dormant guides/unchanged general-Marker playback only; chapter projection and Show End editing remain other owners.",
+  "mutationEvidence": [
+    {
+      "name": "optional-field-clear",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "dormant-time-not-clamped",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "required-empty-array",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "no-op-original-identity",
+      "exitCode": 1,
+      "killed": true
+    }
+  ],
+  "qualification": {
+    "focused": "28/28 Marker cases;85/85 with frozen Insert Time consumers",
+    "static": "Scoped ESLint, project tsc and git diff --check pass",
+    "parity": "47-record committed report unchanged",
+    "faultSensitivity": "4/4 named faults killed with source restored",
+    "finalSuites": "Coordinator-owned; not submitted by worker"
+  }
+}
