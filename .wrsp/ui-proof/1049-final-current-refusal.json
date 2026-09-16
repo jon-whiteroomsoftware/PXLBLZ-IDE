@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1049",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-refusal-proof-1049",
+  "operation": "A real codex-cli 0.153.4 OAuth MCP client read the live Show, accepted a Stage-map removal, received an isError/refused empty rename, corrected it in the same private operation, and committed to applied/saved. Inspected desktop and 390px captures show one working row with the interim issue and no terminal or unread outcome; saved and reopened captures confirm both accepted edits persisted on the final current source stack.",
+  "captures": [
+    ".wrsp/ui-proof/1049-final-current-refusal-interim-desktop.png",
+    ".wrsp/ui-proof/1049-final-current-refusal-interim-narrow-390.png",
+    ".wrsp/ui-proof/1049-final-current-refusal-saved.png",
+    ".wrsp/ui-proof/1049-final-current-refusal-reopened.png"
+  ],
+  "capturedAtCommit": "e58ed17174740ded66d5ce65753afcd0a06a90ff"
+}

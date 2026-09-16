@@ -1,0 +1,104 @@
+{
+  "client": "codex-cli 0.153.4",
+  "callerIdentity": "Issue 1049 real Codex client (codex-cli 0.153.4)",
+  "clientPath": "codex app-server mcpServer/tool/call",
+  "candidate": "e58ed17174740ded66d5ce65753afcd0a06a90ff",
+  "protocolQualification": "Current OAuth bearer grant; #1048 relay-assigned operation, delivery, and sequence identity",
+  "serverConfigured": true,
+  "connection": {
+    "code": "bound",
+    "show_id": "agent-refusal-proof-1049"
+  },
+  "readShow": {
+    "code": "read"
+  },
+  "operationId": "71f914e1-969a-4b44-b3f3-e39b80f3ff95",
+  "begin": "begun",
+  "acceptedBeforeRefusal": {
+    "tool": "set_stage_map",
+    "code": "changed",
+    "changes": [
+      {
+        "command": "set_stage_map",
+        "targetId": "agent-refusal-proof-1049",
+        "description": "The Show has no stage map."
+      }
+    ]
+  },
+  "badCommand": {
+    "tool": "rename_show",
+    "isError": true,
+    "code": "refused",
+    "issues": [
+      {
+        "code": "invalid-argument",
+        "message": "The Show name cannot be empty."
+      }
+    ],
+    "textMatchesStructured": true
+  },
+  "correctedCommand": {
+    "tool": "rename_show",
+    "code": "changed",
+    "changes": [
+      {
+        "command": "rename_show",
+        "targetId": "agent-refusal-proof-1049",
+        "description": "Show renamed from \"Agent refusal proof 1049 original\" to \"Agent refusal proof 1049 saved\"."
+      }
+    ],
+    "textMatchesStructured": true
+  },
+  "commit": {
+    "code": "outcome",
+    "textMatchesStructured": true
+  },
+  "savedReceipt": {
+    "status": "applied",
+    "settlement": "saved"
+  },
+  "browser": {
+    "interim": {
+      "operationId": "71f914e1-969a-4b44-b3f3-e39b80f3ff95",
+      "phase": "working",
+      "issue": "The Show name cannot be empty.",
+      "dataOutcome": null,
+      "unreadOutcomes": 0
+    },
+    "saved": {
+      "operationId": "71f914e1-969a-4b44-b3f3-e39b80f3ff95",
+      "outcome": "saved",
+      "acceptedChange": "The Show has no stage map.",
+      "correctedRename": "Agent refusal proof 1049 saved",
+      "unreadOutcomes": 0
+    },
+    "reopened": {
+      "route": "/PXLBLZ-IDE/studio/shows/agent-refusal-proof-1049",
+      "name": "Agent refusal proof 1049 saved",
+      "stageMapId": null,
+      "outputMapId": "plane"
+    },
+    "captures": [
+      {
+        "path": ".wrsp/ui-proof/1049-final-current-refusal-interim-desktop.png",
+        "bytes": 207418,
+        "sha256": "42eafa78a90de8b57f70659a8555f652066601d3f852ab4bbc485bc6e68f614d"
+      },
+      {
+        "path": ".wrsp/ui-proof/1049-final-current-refusal-interim-narrow-390.png",
+        "bytes": 32886,
+        "sha256": "b064b2589bbae656c7765fdee0e2bb99c11cf0dba0087b9e81a0018be8b3d32a"
+      },
+      {
+        "path": ".wrsp/ui-proof/1049-final-current-refusal-saved.png",
+        "bytes": 102914,
+        "sha256": "3389f997c56c8f8b7a214a1afb56542e2fe87df5d0dc42e7770e59fbb5d7ab2f"
+      },
+      {
+        "path": ".wrsp/ui-proof/1049-final-current-refusal-reopened.png",
+        "bytes": 85519,
+        "sha256": "afde495eb7c20147812a70affdcd1ae387c87bc1b87c1af76895723b8bce37fa"
+      }
+    ]
+  }
+}
