@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1049",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-refusal-proof-1049",
+  "operation": "A real codex-cli0.153.4 OAuth MCP client used relay-assigned operation, delivery, and sequence identity to read the Show, accept a Stage-map removal, receive an isError/refused empty rename, correct it in the same private operation, and commit to applied/saved. Authenticated browser assertions and inspected desktop and 390px captures show one working row with the interim issue and no terminal/unread outcome; saved and reopened captures confirm both accepted edits persisted.",
+  "captures": [
+    ".wrsp/ui-proof/1049-refusal-server-identity-interim-desktop.png",
+    ".wrsp/ui-proof/1049-refusal-server-identity-interim-narrow-390.png",
+    ".wrsp/ui-proof/1049-refusal-server-identity-saved.png",
+    ".wrsp/ui-proof/1049-refusal-server-identity-reopened.png"
+  ],
+  "capturedAtCommit": "fa5bacc8f9fca3e9c87e49d66935cda3ab7afc32"
+}
