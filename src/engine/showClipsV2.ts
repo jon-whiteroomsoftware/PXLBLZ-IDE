@@ -1,7 +1,7 @@
 import { validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './showCompositionV2'
-import { materializeShowGroupsV2 } from './showGroupsV2'
+import { materializeShowGroupsV2, effectiveShowInstanceUseCountV2, groupRuntimeBindings } from './showGroupsV2'
 import { validateClipLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
-import { editShowClipPropertyTracksV2, findNewShowInstancePropertyTrackConflictV2 } from './showPropertyAnimationV2'
+import { copyShowInstancePropertyTracksV2, editShowClipPropertyTracksV2, findNewShowInstancePropertyTrackConflictV2, type CopyShowInstancePropertyTracksIntentV2 } from './showPropertyAnimationV2'
 import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
 
 export interface ShowClipDuplicateTrackIdentityV2 {
@@ -15,7 +15,20 @@ export interface ShowClipDuplicateIdentityPlanV2 {
   clipTrackIdentitiesBySourceTrackId: Readonly<Record<string, ShowClipDuplicateTrackIdentityV2>>
 }
 
+export interface ShowIndependentInstancePlanV2 {
+  instanceId: string
+  identitiesBySourceTrackId: CopyShowInstancePropertyTracksIntentV2['identitiesBySourceTrackId']
+}
+
+export interface ShowClipIdentityAffectedV2 {
+  affectedInstanceIds?: string[]
+  affectedKeyframeIds?: string[]
+  removedIds?: string[]
+}
+
 export type ShowClipEditIntentV2 =
+  | { kind: 'make-independent'; clipId: string; independence: ShowIndependentInstancePlanV2 }
+  | { kind: 'rejoin'; clipId: string; targetInstanceId: string }
   | { kind: 'move'; clipId: string; startMs: number }
   | { kind: 'trim' | 'extend'; clipId: string; startMs: number; endMs: number }
   | { kind: 'split'; clipId: string; atMs: number; rightClipId: string }
@@ -28,15 +41,18 @@ export type ShowClipEditIntentV2 =
       identities: ShowClipDuplicateIdentityPlanV2
     }
 export type ShowClipEditRefusalV2 = 'invalid-record' | 'missing-clip' | 'invalid-intent' | 'unsupported-topology' | 'compiler-ineligible' | 'invalid-result'
-export type ShowClipEditResultV2 =
+export type ShowClipEditResultV2 = ShowClipIdentityAffectedV2 & (
   | { status: 'changed'; record: ShowRecordV2; affectedClipIds: string[]; affectedTrackIds: string[] }
   | { status: 'unchanged'; record: ShowRecordV2; affectedClipIds: []; affectedTrackIds: [] }
   | { status: 'refused'; record: ShowRecordV2; code: ShowClipEditRefusalV2; message: string; affectedClipIds: []; affectedTrackIds: [] }
+)
 
 /** Additive v2 engine owner. Adoption, history and saving remain caller-owned. */
 export function editShowClipV2(record: ShowRecordV2, intent: ShowClipEditIntentV2): ShowClipEditResultV2 {
   const refuse = (code: ShowClipEditRefusalV2, message: string): ShowClipEditResultV2 => ({
     status: 'refused', record, code, message, affectedClipIds: [], affectedTrackIds: [],
+    ...(intent.kind === 'make-independent' || intent.kind === 'rejoin'
+      ? { affectedInstanceIds: [], affectedKeyframeIds: [], removedIds: [] } : {}),
   })
   const invalid = validateShowRecordV2(record)[0]
   if (invalid) return refuse('invalid-record', `${invalid.path}: ${invalid.message}`)
@@ -44,6 +60,7 @@ export function editShowClipV2(record: ShowRecordV2, intent: ShowClipEditIntentV
   const index = composition.clips.findIndex(clip => clip.id === intent.clipId)
   if (index < 0) return refuse('missing-clip', `Clip "${intent.clipId}" does not exist.`)
   const clip = composition.clips[index]
+  if (intent.kind === 'make-independent' || intent.kind === 'rejoin') return editShowClipIdentityV2(record, clip, intent)
   if (intent.kind === 'duplicate') return duplicateShowClipV2(record, clip, intent, refuse)
   const oldEnd = clip.startMs + clip.durationMs
   const start = intent.kind === 'split' ? clip.startMs : intent.startMs
@@ -200,6 +217,76 @@ function duplicateShowClipV2(
   return {
     status: 'changed', record: next, affectedClipIds: [plan.clipId], affectedTrackIds: trackIds,
   }
+}
+
+function editShowClipIdentityV2(
+  record: ShowRecordV2,
+  clip: ShowClipV2,
+  intent: Extract<ShowClipEditIntentV2, { kind: 'make-independent' | 'rejoin' }>,
+): ShowClipEditResultV2 {
+  const empty = { affectedClipIds: [] as [], affectedTrackIds: [] as [], affectedInstanceIds: [], affectedKeyframeIds: [], removedIds: [] }
+  const refuse = (message: string, code: ShowClipEditRefusalV2 = 'invalid-intent'): ShowClipEditResultV2 => ({ status: 'refused', record, code, message, ...empty })
+  const unchanged = (): ShowClipEditResultV2 => ({ status: 'unchanged', record, ...empty })
+  const source = record.composition.patternInstances.find(instance => instance.id === clip.instanceId)!
+  const next = structuredClone(record)
+  const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
+  let affectedInstanceIds: string[]
+  let affectedTrackIds: string[] = []
+  let affectedKeyframeIds: string[] = []
+  let removedIds: string[] = []
+  if (intent.kind === 'make-independent') {
+    if (effectiveShowInstanceUseCountV2(record, source.id) === 1) return unchanged()
+    const raw: unknown = intent.independence
+    if (!isRecord(raw) || !exactKeys(raw, ['instanceId', 'identitiesBySourceTrackId'])
+      || typeof raw.instanceId !== 'string' || !raw.instanceId.trim()
+      || !isRecord(raw.identitiesBySourceTrackId)) return refuse('Independence requires a fresh instance and complete track identity plan.')
+    const plan = intent.independence
+    const effective = materializeShowGroupsV2(record)
+    if (effective.composition.patternInstances.some(instance => instance.id === plan.instanceId)) return refuse('The independent runtime identity is already owned.')
+    for (const identity of Object.values(plan.identitiesBySourceTrackId)) {
+      const value: unknown = identity
+      if (!isRecord(value) || !exactKeys(value, ['trackId', 'keyframeIdsBySourceId'])
+        || typeof value.trackId !== 'string' || !isRecord(value.keyframeIdsBySourceId)
+        || Object.values(value.keyframeIdsBySourceId).some(id => typeof id !== 'string')) {
+        return refuse('Every copied track requires an exact track and key identity plan.')
+      }
+    }
+    next.composition.patternInstances.push({ ...structuredClone(source), id: plan.instanceId })
+    const copied = copyShowInstancePropertyTracksV2(next, { fromInstanceId: source.id, toInstanceId: plan.instanceId,
+      placementDeltaMs: 0, identitiesBySourceTrackId: plan.identitiesBySourceTrackId })
+    if (copied.status === 'refused') return refuse(copied.message)
+    next.composition.propertyTracks = copied.propertyTracks
+    edited.instanceId = plan.instanceId
+    next.composition.executionModel = 'continuous'
+    affectedInstanceIds = [plan.instanceId]
+    affectedTrackIds = copied.copiedTrackIds
+    affectedKeyframeIds = next.composition.propertyTracks.filter(track => affectedTrackIds.includes(track.id)).flatMap(track => track.keyframes.map(key => key.id))
+  } else {
+    if (typeof intent.targetInstanceId !== 'string' || !intent.targetInstanceId.trim()) return refuse('Rejoin requires an explicit existing runtime identity.')
+    if (intent.targetInstanceId === source.id) return unchanged()
+    const target = record.composition.patternInstances.find(instance => instance.id === intent.targetInstanceId)
+    if (!target || target.pattern.kind !== source.pattern.kind || target.pattern.id !== source.pattern.id) return refuse('Rejoin requires an existing instance with the same structured Pattern source identity.')
+    edited.instanceId = target.id
+    affectedInstanceIds = [target.id, source.id]
+    const remainsBound = groupRuntimeBindings(next).some(binding => binding.runtimeId === source.id)
+    const remainsRampTarget = next.composition.transitions.some(transition => transition.propertyRamps.some(ramp => (
+      'instanceId' in ramp.target && ramp.target.instanceId === source.id
+    )))
+    if (effectiveShowInstanceUseCountV2(next, source.id) === 0 && !remainsBound && !remainsRampTarget) {
+      const removedTracks = next.composition.propertyTracks.filter(track => 'instanceId' in track.target && track.target.instanceId === source.id)
+      affectedTrackIds = removedTracks.map(track => track.id)
+      affectedKeyframeIds = removedTracks.flatMap(track => track.keyframes.map(key => key.id))
+      next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !affectedTrackIds.includes(track.id))
+      next.composition.patternInstances = next.composition.patternInstances.filter(instance => instance.id !== source.id)
+      removedIds = [source.id, ...affectedTrackIds, ...affectedKeyframeIds]
+      next.composition.executionModel = 'continuous'
+    }
+  }
+  const invalid = validateShowRecordV2(next)[0]
+  if (invalid) return refuse(`${invalid.path}: ${invalid.message}`, 'invalid-result')
+  const restriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (restriction) return refuse(`${restriction.rule}: ${restriction.message}`, 'compiler-ineligible')
+  return { status: 'changed', record: next, affectedClipIds: [clip.id], affectedTrackIds, affectedInstanceIds, affectedKeyframeIds, removedIds }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

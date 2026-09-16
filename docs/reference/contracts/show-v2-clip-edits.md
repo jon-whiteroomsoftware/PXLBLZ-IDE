@@ -1,7 +1,7 @@
 # Additive v2 Clip edit contract
 
-`editShowClipV2(record, intent)` supplies immutable held-appearance and Property
-animation edits for the provisional v2 engine. It is not connected to production
+`editShowClipV2(record, intent)` supplies immutable held-appearance, Property
+animation and ordinary runtime-identity edits for the provisional v2 engine. It is not connected to production
 commands, the editor, history, or persistence. Those callers must not treat its
 existence as v2 rollout.
 Accepted product behavior is recorded in the
@@ -12,8 +12,10 @@ Accepted product behavior is recorded in the
 A changed result contains an unaliased, fully validated replacement plus affected
 Clip and animation-track IDs. A refused or unchanged result returns the original
 record by reference and empty affected lists. The input never changes. Timestamps,
-Show End, unrelated choreography, Pattern instance identity and source remain
-unchanged; the adoption owner controls timestamps, history and saving.
+Show End and unrelated choreography remain unchanged; the adoption owner controls
+timestamps, history and saving. Temporal edits and linked duplicate preserve
+Pattern instance identity and source. The explicit identity operations below
+own their named runtime cascade.
 
 Move translates held keys and Clip-owned animation by the requested delta.
 Instance animation translates only for a sole Clip user; shared-instance,
@@ -203,3 +205,43 @@ edge resize.
 UI, durable provider writes, actual Undo/Redo integration and full Insert Time
 orchestration are not proven here. Generated Restart replay is proved at the
 reopened `.epe` consumer in both Fast and Fidelity modes.
+
+## Ordinary Pattern independence and explicit Rejoin
+
+`make-independent` targets one ordinary Clip and receives `independence` with a
+fresh `instanceId` and the copy helper's exact `identitiesBySourceTrackId` map.
+A sole effective Clip user is unchanged; sharing includes invisible materialized
+Group children. The changed operation clones the complete source instance payload,
+rebinds only the selected Clip, and copies all effective instance-control and
+time-scale tracks at placement delta zero. Group-qualified source track/key IDs
+are the caller's map keys. Copies become ordinary destination tracks; source
+payload, tracks, Group definitions/bindings/holds, appearance, Clip animation,
+entry policy and attached Transitions remain fixed. Adding a runtime sets the
+required execution lifecycle to `continuous`.
+
+`rejoin` requires an explicit existing top-level `targetInstanceId` with the same
+structured Pattern source identity (`kind` and `id`). Display names do not establish
+compatibility. A current-target request is unchanged. The selected Clip uses the
+target's state, clock, controls and tracks; source animation is never merged.
+If another ordinary or Group Clip, any Group runtime slot (including an unused
+explicit or stable-default binding), or a Transition Property ramp references the
+source, its payload and tracks stay. Otherwise Rejoin removes source instance
+tracks and their keys before collecting the source instance and sets `continuous`.
+
+Identity results add `affectedInstanceIds`, `affectedKeyframeIds` and `removedIds`
+to the existing Clip/track result. Independence reports the created instance and
+copied tracks/keys. Rejoin reports the source and target runtime identities plus
+any collected tracks/keys; `removedIds` contains only collected owners. Identity
+no-op/refusal returns original record identity and all five affected lists empty.
+Existing temporal and duplicate result objects retain their shape. Complete
+preimage/candidate validation and the shared bounded Transition-placement check
+apply; there is no blanket one-Layout, no-Group or no-Transition restriction.
+
+[Identity tests](../../../src/engine/showClipIdentityV2.test.ts) reopen the record
+and generated `.epe`, prove Group-owned controls and clocks in Fast/Fidelity,
+isolate a second user's Restart after independence, and restore target sharing
+through Rejoin. Exact held nonlinear projection is checked through the Property
+evaluator. The held fixture's preparation refusal for activation crossing derived
+appearance sections is present before and after independence; it is an explicit
+unsupported-preimage case, not successful compiler evidence. UI, Replace and
+Group-definition identity edits remain separate slices.

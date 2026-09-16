@@ -1,0 +1,49 @@
+{
+  "issue": 1038,
+  "specificationCommit": "b532a9061215c8d6e6d0e7cf109630bdc54e93ae",
+  "proofRows": ["SHARING", "RESTART", "ACTIVATION"],
+  "boundary": "editShowClipV2 ordinary make-independent and explicit rejoin",
+  "invariants": [
+    "Only explicit Independence adds a fresh runtime; sole effective Clip use and current-target Rejoin are unchanged.",
+    "Sharing and identity freshness include materialized invisible Group Clip uses and every Group runtime slot.",
+    "Independence preserves the complete source payload, every other user, Group definitions/bindings/holds, Clip appearance/animation/entry policy and Transition attachment.",
+    "All effective source-runtime control and clock animation copies under exact caller identities without shifting global placement time.",
+    "Explicit compatible Rejoin uses target state/tracks without animation merge and never collects source state referenced by a Clip, Group runtime slot or Transition ramp.",
+    "Changed results validate, reopen and have no aliases to the input. Refused/no-op results retain original identity and empty affected lists."
+  ],
+  "partitions": [
+    "Ordinary shared users, invisible bound Group user, sole user, and no source animation.",
+    "Authored top-level plus occurrence-qualified Group control/time-scale tracks, including retained nonlinear hold descriptors and translated occurrence time.",
+    "Missing/extraneous/malformed plans, blank/owned runtime/track/key IDs, within-track and cross-copy key/track collisions, and effective Group identity collisions.",
+    "Compatible explicit target versus absent/non-top-level target, different source kind/id, and equal display name with different source identity.",
+    "Source retained by ordinary/Group Clip use, unused explicit slot, unused stable-default slot or Transition Property ramp versus complete orphan collection.",
+    "Half-open activation at Group start/end, nonlinear midpoint, clock activation boundaries, attached crossfade endpoints, and shared Restart at 500ms."
+  ],
+  "sequences": [
+    "Shared ordinary Clip -> Independence -> serialize/reopen -> Rejoin -> serialize/reopen: runtime counts 1 -> 2 -> 1 and exact original source tracks restored.",
+    "An invisible Group animates the ordinary source runtime; Independence copies its effective global-time animation into the selected runtime while Group authors remain unchanged.",
+    "Shared Restart at 500ms resets selected output at 600ms before independence; independence isolates selected output; Rejoin restores the target reset and scalar state.",
+    "Rejoin the source's final Clip while an unused Group slot or Transition ramp still references its state; retain the complete payload and tracks."
+  ],
+  "oracles": [
+    "Full validateShowRecordV2 and provisional record serialization/import.",
+    "Public prepareShowV2ForCompile followed by compiled .epe export/import and Fast/Fidelity runtime replay on admitted Group and Restart fixtures.",
+    "Independent numeric control midpoint, exact copied private-clock exports with matching continuous lifecycle, and Restart output (.1 shared versus .6 independent at 600ms), then exact target replay after Rejoin.",
+    "Exact Property evaluator and retained descriptor comparison for hold-mapped nonlinear animation.",
+    "Whole preimage equality, original identity on refusal/no-op, unchanged unrelated authored owners and exact affected/removed identities."
+  ],
+  "tddEvidence": [
+    "Initial ordinary payload-copy and explicit Rejoin tests both failed before the new intent branches existed.",
+    "The Transition-ramp obligation regression failed when orphan collection removed the still-referenced source; the complete reference guard repairs it.",
+    "The focused identity suite passes 41 cases; seven identity and adjacent owner/preparation suites pass 403 tests. Project TypeScript, scoped lint and the 47-record parity inventory pass."
+  ],
+  "mutationEvidence": [
+    "Eight owner semantic mutants fail explicit assertions: ordinary-only sharing, defaulting copied clock configuration, dropping Group-derived copies, forgetting unused Group bindings or Transition ramps, ignoring the explicit Rejoin target, retaining orphan state, and omitting cast invalidation.",
+    "The established adjacent Show-authoring mutation qualification kills 166/166 inventoried mutants with no survivors, timeout or errors. These mapped adjacent mutants supplement the eight direct identity-owner mutants."
+  ],
+  "residualGaps": [
+    "A held Group instance track crossing hold-generated appearance sections is an unsupported preparation preimage; public preparation refuses both original and independent records with unsupported-track-activation. The admitted no-hold Group consumer proves copied control/clock output; held mapping is evaluator evidence only.",
+    "This slice does not add Replace, Group-definition identity edits, schema/compiler changes, UI, commands or store adoption.",
+    "The coordinator owns native review, authoritative final suites, landing and whole-issue implementation state."
+  ]
+}
