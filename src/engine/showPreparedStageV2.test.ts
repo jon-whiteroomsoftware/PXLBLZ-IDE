@@ -100,3 +100,48 @@ it.each(['fast', 'fidelity'] as const)('reopened prepared%s artifact keeps share
     expect(frame.exports[`${prefix}_elapsed`]).toBe(elapsed * (fidelity === 'fast' ? 1 : 65536))
   }
 })
+
+
+it.each(['fast', 'fidelity'] as const)('prepared%s held Group uses authoritative runtime source and retained local curve', fidelity => {
+  const record = fixture()
+  const original = record.composition.clips[0]
+  const { zoneId: _zone, ...child } = structuredClone(original)
+  record.composition.clips = []
+  record.composition.showEndMs = 1125
+  record.composition.layoutOccurrences[0].durationMs = 1125
+  record.composition.groupDefinitions = [{ id: 'group', name: 'Held', patternInstances: [{ ...structuredClone(record.composition.patternInstances[0]), id: 'slot', pattern: { kind: 'user', id: 'stale-copy' } }], layers: [{ id: 'local', name: 'Local', rank: 0 }], clips: [{ ...child, instanceId: 'slot', layerId: 'local' }], transitions: [], propertyTracks: [{ id: 'brightness', target: { kind: 'clip-view', clipId: child.id, property: 'brightness' }, activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'a', timeMs: 0, value: 0.2, easing: { curve: 'quadratic', direction: 'in' } }, { id: 'b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] }] }]
+  record.composition.groupOccurrences = [{ id: 'held', definitionId: 'group', zoneId: original.zoneId, layoutOccurrenceId: record.composition.layoutOccurrences[0].id, startMs: 0, translationX: 0, translationY: 0, layerBindings: [{ definitionLayerId: 'local', layerId: original.layerId }], instanceBindings: { slot: record.composition.patternInstances[0].id }, holds: [{ id: 'pause', localTimeMs: 250, durationMs: 125 }] }]
+  const opened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(record))
+  if (opened.status !== 'opened') throw new Error('Codec reopen refused')
+  const result = prepareShowStageV2(opened.record, dependencies())
+  if (result.status !== 'ready') throw new Error(result.status === 'refused' ? result.message : 'Unexpected empty')
+  const runtime = createFastReplayRuntime({ ...result.bundle.artifact, code: parseEpe(JSON.stringify({ id: 'held-stage', name: 'Held Stage', sources: { main: result.bundle.artifact.code }, preview: '' })).src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.125, 0.25], pos: [0.125, 0.25] }] })
+  for (const time of [125, 250, 375, 500, 625]) {
+    const local = time < 250 ? time : time < 375 ? 250 : time - 125
+    const frame = runtime.advanceTo(time, { stepMs: 125, forceFullIntermediateRender: true })
+    expect(frame.frame[0]).toBeCloseTo(0.125 * (0.2 + 0.6 * (local / 1000) ** 2), fidelity === 'fast' ? 12 : 4)
+  }
+})
+
+
+it.each(['fast', 'fidelity'] as const)('prepared%s native Layout split keeps retained descriptor output', fidelity => {
+  const record = fixture()
+  record.zones.push({ ...structuredClone(record.zones[0]), id: 'right', name: 'Right' })
+  record.composition.layers.push({ ...structuredClone(record.composition.layers[0]), id: 'right-layer', zoneId: 'right' })
+  record.composition.patternInstances.push({ ...structuredClone(record.composition.patternInstances[0]), id: 'right-instance' })
+  record.composition.clips.push({ ...structuredClone(record.composition.clips[0]), id: 'right-clip', zoneId: 'right', layerId: 'right-layer', instanceId: 'right-instance' })
+  record.zoneLayouts[0].logical = { kind: 'split', axis: 'x', zoneIds: ['zone', 'right'] }
+  record.composition.layoutOccurrences[0].parameters.splitPosition = 0.25
+  const easing = { curve: 'quadratic', direction: 'in' } as const
+  const source = (time: number) => 0.2 + 0.6 * ((time + 500) / 2000) ** 2
+  record.composition.propertyTracks = [{ id: 'split', target: { kind: 'layout-occurrence-split-position', layoutOccurrenceId: record.composition.layoutOccurrences[0].id }, activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'a', timeMs: 0, value: source(0), easing, curveSegment: { baseValue: 0.2, deltaValue: 0.6, easing, sourceDurationMs: 2000, elapsedOffsetMs: 500 } }, { id: 'b', timeMs: 1000, value: source(1000), easing: { curve: 'hold', at: 1 } }] }]
+  const result = prepareShowStageV2(record, dependencies())
+  if (result.status !== 'ready') throw new Error(result.status === 'refused' ? result.message : 'Unexpected empty')
+  const runtime = createFastReplayRuntime({ ...result.bundle.artifact, code: parseEpe(JSON.stringify({ id: 'layout-stage', name: 'Layout Stage', sources: { main: result.bundle.artifact.code }, preview: '' })).src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.4, 0.25], pos: [0.4, 0.25] }] })
+  for (const time of [125, 250, 375, 500, 625, 750]) {
+    const split = source(time)
+    const expected = 0.4 < split ? 0.4 / split : (0.4 - split) / (1 - split)
+    const frame = runtime.advanceTo(time, { stepMs: 125, forceFullIntermediateRender: true })
+    expect(frame.frame[0]).toBeCloseTo(expected, fidelity === 'fast' ? 12 : 3)
+  }
+})

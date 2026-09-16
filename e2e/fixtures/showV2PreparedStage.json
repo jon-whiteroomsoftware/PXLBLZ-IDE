@@ -1,0 +1,250 @@
+{
+  "version": 2,
+  "id": "prepared-stage-synthetic",
+  "name": "Prepared Stage",
+  "zones": [
+    {
+      "id": "zone",
+      "name": "Main",
+      "nominalPixelCount": 256
+    }
+  ],
+  "zoneLayouts": [
+    {
+      "id": "layout",
+      "name": "Opening",
+      "zones": [
+        {
+          "zoneId": "zone",
+          "ranges": [
+            {
+              "start": 0,
+              "end": 127
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "later",
+      "name": "Later",
+      "zones": [
+        {
+          "zoneId": "zone",
+          "ranges": [
+            {
+              "start": 128,
+              "end": 255
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stageMapId": "prepared-stage-map",
+  "outputContract": {
+    "version": 1,
+    "kind": "installation",
+    "outputMapId": "prepared-stage-map",
+    "pixelCount": 256,
+    "resolution": "fixed"
+  },
+  "composition": {
+    "version": 2,
+    "executionModel": "continuous",
+    "showEndMs": 31000,
+    "sampleRemap": {
+      "repeatScale": 1
+    },
+    "patternInstances": [
+      {
+        "id": "instance",
+        "pattern": {
+          "kind": "user",
+          "id": "prepared-stage-pattern"
+        },
+        "patternName": "TestPattern1D",
+        "time": {
+          "timeScale": 1,
+          "timeOffsetMs": 0
+        }
+      }
+    ],
+    "layers": [
+      {
+        "id": "layer:zone:main",
+        "zoneId": "zone",
+        "name": "Main",
+        "rank": 0
+      },
+      {
+        "id": "layer:zone:overlay:1",
+        "zoneId": "zone",
+        "name": "Atmosphere",
+        "rank": 1
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip",
+        "instanceId": "instance",
+        "zoneId": "zone",
+        "layerId": "layer:zone:main",
+        "startMs": 0,
+        "durationMs": 16000,
+        "entryPolicy": "continue",
+        "zoneSampleMode": "span",
+        "appearance": {
+          "keys": [
+            {
+              "id": "clip:appearance:1",
+              "timeMs": 0,
+              "value": {
+                "opacity": 1,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 1
+                },
+                "effects": []
+              }
+            },
+            {
+              "id": "clip:appearance:hold:7500",
+              "timeMs": 7500,
+              "value": {
+                "opacity": 1,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 1
+                },
+                "effects": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "restart",
+        "instanceId": "instance",
+        "zoneId": "zone",
+        "layerId": "layer:zone:main",
+        "startMs": 16000,
+        "durationMs": 15000,
+        "entryPolicy": "restart",
+        "zoneSampleMode": "span",
+        "appearance": {
+          "keys": [
+            {
+              "id": "clip:appearance:1",
+              "timeMs": 16000,
+              "value": {
+                "opacity": 1,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 1
+                },
+                "effects": []
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "layoutOccurrences": [
+      {
+        "id": "opening",
+        "layoutId": "layout",
+        "startMs": 0,
+        "durationMs": 16000,
+        "parameters": {}
+      },
+      {
+        "id": "later",
+        "layoutId": "later",
+        "startMs": 16000,
+        "durationMs": 15000,
+        "parameters": {}
+      }
+    ],
+    "propertyTracks": [
+      {
+        "id": "repeat",
+        "target": {
+          "kind": "show-repeat-scale"
+        },
+        "activeStartMs": 0,
+        "activeDurationMs": 31000,
+        "keyframes": [
+          {
+            "id": "a",
+            "timeMs": 0,
+            "value": 2,
+            "easing": {
+              "curve": "quadratic",
+              "direction": "in"
+            },
+            "curveSegment": {
+              "baseValue": 2,
+              "deltaValue": 2,
+              "easing": {
+                "curve": "quadratic",
+                "direction": "in"
+              },
+              "sourceDurationMs": 30000,
+              "elapsedOffsetMs": 0
+            }
+          },
+          {
+            "id": "repeat:hold:7500",
+            "timeMs": 7500,
+            "value": 2.125,
+            "easing": {
+              "curve": "linear"
+            }
+          },
+          {
+            "id": "repeat:resume:8500",
+            "timeMs": 8500,
+            "value": 2.125,
+            "easing": {
+              "curve": "quadratic",
+              "direction": "in"
+            },
+            "curveSegment": {
+              "baseValue": 2,
+              "deltaValue": 2,
+              "easing": {
+                "curve": "quadratic",
+                "direction": "in"
+              },
+              "sourceDurationMs": 30000,
+              "elapsedOffsetMs": 7500
+            }
+          },
+          {
+            "id": "b",
+            "timeMs": 31000,
+            "value": 4,
+            "easing": {
+              "curve": "linear"
+            }
+          }
+        ]
+      }
+    ],
+    "markers": [
+      {
+        "id": "scene-marker:scene-a",
+        "timeMs": 0,
+        "name": "Opening"
+      }
+    ],
+    "groupDefinitions": [],
+    "groupOccurrences": []
+  },
+  "updatedAt": 1
+}

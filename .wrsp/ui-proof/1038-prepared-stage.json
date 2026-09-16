@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/prepared-stage-synthetic?show-v2-pilot=1&capture",
+  "operation": "Opened native 31-second held animation/shared Restart Show with actual 256-pixel map, played/paused and drove transport reset/pre-roll/live capture at 17 seconds in Fast and Precise into later Layout. Inspected desktop 1440x1000 and narrow 390x844 after existing drawer visibility completed; no console errors or overflowing controls. IAB was available but lacked documented isolated-cookie admission; declared separate-context repo Playwright preserved the user session.",
+  "captures": [
+    ".wrsp/ui-proof/1038-prepared-stage-desktop.png",
+    ".wrsp/ui-proof/1038-prepared-stage-narrow.png"
+  ],
+  "capturedAtCommit": "1a4124439d13d2b8ca328a91eabb50be1560e67d"
+}

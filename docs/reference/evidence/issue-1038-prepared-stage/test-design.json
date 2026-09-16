@@ -1,6 +1,6 @@
 {
   "issue": 1038,
-  "specificationCommit": "5a206eac2650a936fad58969a8ebbf8bf1353d92",
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
   "implementationBase": "9357bc2e5577d5eb4cde8ff54af350c1c6a40dd6",
   "proofRows": [
     "CURVE",
@@ -23,6 +23,7 @@
   "partitions": [
     "Fast/Precise held original nonlinear repeat curve and advancing Pattern state.",
     "Shared same-runtime Restart after codec reopen; exact prepared recipe/artifact and source reopened through EPE importer.",
+    "Native held Group uses authoritative bound payload and exact translated materialization; native retained nonlinear Layout split reaches generated Fast/Precise coordinates.",
     "Actual2D/3D map/pixel context and Layout active at zero not array-first; missing/invalid/empty distinct.",
     "Later physical Layout compiler frame reaches actual renderer unmasked; hidden inoperative solo/guides.",
     "Delayed real reconstruction after record, dependency/dimension, navigation and unmount replacement; captured stamp unaffected by mutation of original reference token.",
@@ -32,7 +33,8 @@
     "Capture native record/dependencies, publicly prepare/compile once, mount existing Stage, seek into later Layout and compare actual renderer packed frame against independent replay in both modes.",
     "Reopen held authored record/generated source and advance across hold/resume and shared Restart using binary-exact125ms arithmetic steps.",
     "Hold initial reconstruction completion, replace captured record/dimension or navigate/unmount, complete current replay then old replay and assert no old publication.",
-    "Drive committed opt-in route desktop/narrow through playback, seek, fidelity and capture, inspect screenshots/console/keyboard and record exact committed identity."
+    "Drive committed opt-in route desktop/narrow through playback, seek, fidelity and capture, inspect screenshots/console/keyboard and record exact committed identity.",
+    "Persist synthetic native 31-second held/Restart/Layout bytes, hydrate opt-in route, publicly prepare one bundle, play/pause, switch Fast to Precise, reset/pre-roll/live-capture at 17 seconds, resize and tuck existing drawer, verify reachable narrow playback controls and zero serious errors in reusable authenticated Playwright."
   ],
   "oracles": [
     "Public prepareShowV2ForCompile exact recipe/provenance and compileShow artifact equality.",
@@ -47,9 +49,9 @@
     "Coordinator owns final suites/native review/landing."
   ],
   "qualification": {
-    "focused": "62/62 across4 prepared/legacy/pilot files; pure bundle8 and prepared renderer/publication6 qualify exact source and delayed identity.",
-    "static": "Scoped ESLint/project TypeScript/diff-check PASS; ordinary source hook runs at checkpoint.",
-    "browser": "Pending committed desktop/narrow IAB-first proof.",
+    "focused": "66/66 across 4 prepared/legacy/pilot files; pure bundle 12, prepared renderer/publication 6 and legacy/pilot 48. Focused authenticated native Stage Playwright 1/1 PASS.",
+    "static": "Project TypeScript/scoped ESLint/diff-check PASS; source checkpoint ordinary hook full lint/typecheck/coverage/locators and mapped 62 PASS. Final evidence hook follows.",
+    "browser": "PASS committed UI source1a4124439d13d2b8ca328a91eabb50be1560e67d: isolated synthetic account local-agent15 desktop 1440x1000 and narrow 390x844; transport capture 17s after hold/Restart/later Layout,2 Fast + 2 Precise 125ms frames; console errors[] and control overflows[]. Images .wrsp/ui-proof/1038-prepared-stage-desktop.png and1038-prepared-stage-narrow.png. IAB backend discovered/documented; documented session has no isolated cookie admission, so declared repo Playwright separate-context fallback preserves user session. Actual drawer visibility completion precedes narrow capture.",
     "faultSensitivity": [
       {
         "name": "prepared-initial-mask",

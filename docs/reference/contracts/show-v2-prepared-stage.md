@@ -37,3 +37,10 @@ retain their current narrower contracts; native v2 EPE export and advanced edit
 admission are separate integrations. Empty content remains editable/saveable
 with preview/export unavailable until content is added. No compiler, schema,
 runtime-domain or Controller delivery expansion is introduced.
+
+The committed authenticated Stage flow hydrates a synthetic 31-second Show with
+a held repeat curve, shared Restart and changing physical Layout, then uses the
+existing transport capture in both fidelities and checks narrow playback access.
+Prepared Group and Layout-split consumer tests retain their native animation
+through codec and generated-source reopen. Browser proof records the actual
+committed UI source identity; isolated synthetic contexts preserve user cookies.
