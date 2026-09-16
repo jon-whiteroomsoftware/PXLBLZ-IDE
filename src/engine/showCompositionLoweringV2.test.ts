@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads'
 import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import { parseEpe } from './epeImport'
+import { fx } from './fixedpoint'
 import { nativeDimension } from './loadPattern'
 import { createFxShim, createShim } from './shim'
 import { buildShowEpeExport } from './showEpeExport'
@@ -116,8 +117,9 @@ async function runGeneratedRestartProgress(
   source: string,
   sampleBinding: string,
   elapsedBinding: string,
+  fidelity: 'fast' | 'fidelity' = 'fast',
 ): Promise<{
-  elapsedSeconds: number
+  elapsed: number
   randomCalls: number
   lastRandom: number
   sample: number
@@ -125,47 +127,55 @@ async function runGeneratedRestartProgress(
 }> {
   const workerSource = `
     const { parentPort, workerData } = require('node:worker_threads')
-    const pixelCount = 1
-    const floor = Math.floor
-    const ceil = Math.ceil
-    const round = Math.round
-    const trunc = Math.trunc
-    const abs = Math.abs
-    const min = Math.min
-    const max = Math.max
-    const sqrt = Math.sqrt
-    const pow = Math.pow
-    const sin = Math.sin
-    const cos = Math.cos
-    const atan2 = Math.atan2
-    const frac = value => value - Math.trunc(value)
-    const mod = (value, divisor) => value - Math.floor(value / divisor) * divisor
-    const clamp = (value, low = 0, high = 1) => Math.min(high, Math.max(low, value))
-    const mix = (left, right, amount) => left + (right - left) * amount
-    const wave = value => 0.5 + Math.sin(value * Math.PI * 2) * 0.5
-    const triangle = value => 1 - Math.abs((value % 1) * 2 - 1)
-    const array = length => Array(Math.floor(length)).fill(0)
+    const SCALE = 65536
+    const fx = Object.fromEntries(workerData.fxMethods.map(([name, source]) => [
+      name,
+      eval('(' + source.replace(/^[^(]+/, 'function') + ')'),
+    ]))
+    const encode = workerData.fidelity === 'fidelity' ? fx.fromFloat : value => value
+    const decode = workerData.fidelity === 'fidelity' ? fx.toFloat : value => value
+    const wrap = fn => (...args) => encode(fn(...args.map(decode)))
+    const pixelCount = encode(1)
+    const floor = wrap(Math.floor)
+    const ceil = wrap(Math.ceil)
+    const round = wrap(Math.round)
+    const trunc = wrap(Math.trunc)
+    const abs = wrap(Math.abs)
+    const min = wrap(Math.min)
+    const max = wrap(Math.max)
+    const sqrt = wrap(Math.sqrt)
+    const pow = wrap(Math.pow)
+    const sin = wrap(Math.sin)
+    const cos = wrap(Math.cos)
+    const atan2 = wrap(Math.atan2)
+    const frac = wrap(value => value - Math.trunc(value))
+    const mod = wrap((value, divisor) => value - Math.floor(value / divisor) * divisor)
+    const clamp = wrap((value, low = 0, high = 1) => Math.min(high, Math.max(low, value)))
+    const mix = wrap((left, right, amount) => left + (right - left) * amount)
+    const wave = wrap(value => 0.5 + Math.sin(value * Math.PI * 2) * 0.5)
+    const triangle = wrap(value => 1 - Math.abs((value % 1) * 2 - 1))
+    const array = length => Array(Math.floor(decode(length))).fill(0)
     let randomState = workerData.randomSeed >>> 0
     let randomCalls = 0
     let lastRandom = 0
-    function random(maximum = 1) {
+    function random(maximum = encode(1)) {
       randomState = (randomState + 0x6D2B79F5) >>> 0
       let value = randomState
       value = Math.imul(value ^ (value >>> 15), value | 1)
       value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
       randomCalls = randomCalls + 1
-      lastRandom = (((value ^ (value >>> 14)) >>> 0) / 4294967296) * maximum
+      lastRandom = encode((((value ^ (value >>> 14)) >>> 0) / 4294967296) * decode(maximum))
       return lastRandom
     }
     let captured = [0, 0, 0]
-    function rgb(red, green, blue) { captured = [red, green, blue] }
+    function rgb(red, green, blue) { captured = [decode(red), decode(green), decode(blue)] }
     function hsv(hue, saturation, value) { rgb(value, value, value) }
     function time() { return 0 }
     eval(workerData.source.replace(/\\bexport\\s+/g, ''))
-    beforeRender(670)
-    render(0)
+    beforeRender(encode(670))
+    render(encode(0))
     parentPort.postMessage({
-      elapsedSeconds: eval(workerData.elapsedBinding),
+      elapsed: eval(workerData.elapsedBinding),
       randomCalls,
       lastRandom,
       sample: eval(workerData.sampleBinding),
@@ -174,7 +184,14 @@ async function runGeneratedRestartProgress(
   `
   const worker = new Worker(workerSource, {
     eval: true,
-    workerData: { source, sampleBinding, elapsedBinding, randomSeed: 1037 },
+    workerData: {
+      source,
+      sampleBinding,
+      elapsedBinding,
+      randomSeed: 1037,
+      fidelity,
+      fxMethods: Object.entries(fx).map(([name, implementation]) => [name, implementation.toString()]),
+    },
   })
 
   return await new Promise((resolve, reject) => {
@@ -726,13 +743,39 @@ describe('lowerShowCompositionV2ForCompile', () => {
       artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
       artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
     )
-    expect(result.elapsedSeconds).toBeCloseTo(0.07, 12)
+    expect(result.elapsed).toBeCloseTo(0.07, 12)
     // One slice precedes the first event, each of the next six events crosses
     // a tail/head loop boundary, and the final 20 ms is one ordinary slice.
     expect(result.randomCalls).toBe(14)
     expect(result.lastRandom).toBe(seededRandomDraw('fast', 14))
     expect(result.sample).toBe(result.lastRandom)
     expect(result.pixel).toBeCloseTo(result.lastRandom, 12)
+  })
+
+  it('executes the generated Precise artifact through 6.7 short Restart loops', { timeout: 5_000 }, async () => {
+    const artifact = restartSchedulerArtifact('continuous', [50], false, 100)
+    const prefix = artifact.summary.clips[0].prefix
+    const sampleName = `${prefix}_sample`
+    const elapsedName = '__pxlblz_show_elapsed_s'
+    const result = await runGeneratedRestartProgress(
+      artifact.fxCode,
+      artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
+      artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
+      'fidelity',
+    )
+    const deltaSeconds = fx.div(fx.fromFloat(670), fx.fromFloat(1000))
+    const loopDuration = fx.fromFloat(0.1)
+    const expectedElapsed = fx.sub(deltaSeconds, fx.mul(fx.fromFloat(6), loopDuration))
+    // The 16.16 clock rounds 670 ms to 43,909 ticks and 100 ms to 6,554
+    // ticks. Six complete loops therefore leave exactly 4,585 ticks.
+    expect(deltaSeconds).toBe(43_909)
+    expect(loopDuration).toBe(6_554)
+    expect(expectedElapsed).toBe(4_585)
+    expect(result.elapsed).toBe(expectedElapsed)
+    expect(result.randomCalls).toBe(14)
+    expect(result.lastRandom).toBe(fx.fromFloat(seededRandomDraw('fidelity', 14)))
+    expect(result.sample).toBe(result.lastRandom)
+    expect(result.pixel).toBe(fx.toFloat(result.lastRandom))
   })
 
   it.each((['fast', 'fidelity'] as const).flatMap(fidelity => ([
