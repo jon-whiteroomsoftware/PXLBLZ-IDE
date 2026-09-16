@@ -1,0 +1,48 @@
+{
+  "issue": 1038,
+  "specCommit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+  "proofRows": [
+    "MODEL",
+    "SHARING",
+    "RESTART",
+    "GROUP-HOLD",
+    "LAYOUT-END",
+    "ROUTE",
+    "FAILURE"
+  ],
+  "invariants": [
+    "Only persisted selected occurrence IDs are editable; children remain projection.",
+    "Move/duplicate submit complete exact placement and existing containing Layout identity.",
+    "Shared runtime, holds, bindings and authoritative payloads follow existing owners.",
+    "One checked preparation/adoption/history/save; refused/no-op/stale requests write nothing.",
+    "Only final-content Delete may adopt separately validated empty capability."
+  ],
+  "partitions": [
+    "Linked held versus sole occurrence; explicit placement and incomplete/colliding identities.",
+    "All five existing Group actions; absent selected owner and uncovered start.",
+    "Current save, failure/retry, supersession and stale source/provider/revision/route/dependencies.",
+    "Nonempty and final-content deletion; independent native Fast and Precise reopened schedules."
+  ],
+  "sequences": [
+    "Held occurrence -> Move -> serialize/reopen and exact runtime/bindings.",
+    "Linked occurrence -> Make Unique -> unchanged other occurrence/global authority.",
+    "Selected occurrence -> Ungroup/Delete -> retained definitions/payloads.",
+    "Panel explicit select -> placement -> Move; each typed action; failed save -> retry; pending -> obsolete completion.",
+    "Real route: Insert Time -> Move -> Duplicate -> Make Unique -> Ungroup/Delete -> Undo/Redo -> save/cold reload."
+  ],
+  "oracles": [
+    "Public existing owners plus v2 parser validate complete materialized timing and references.",
+    "Actual typed admission/store/provider effects count exactly one write/history and fifteen affected collections.",
+    "Reopened native Fast/Precise artifact frames and immediately read private exports match independent schedules.",
+    "Fresh desktop/narrow real route captures inspect visible Stage, keyboard, no overflow and errors."
+  ],
+  "residualGaps": [
+    "Shared admission/Route integration and actual browser proof pending first model/panel checkpoint.",
+    "Inherited section arithmetic and prepared Stage sample-from-pos are unchanged boundaries, not repaired here."
+  ],
+  "qualification": {
+    "model": "8 public consumer cases green",
+    "panel": "7/7 typed panel cases green; NumberField apply/Enter semantics",
+    "browser": "Pending shared-source finalbase and exclusive runtime release"
+  }
+}
