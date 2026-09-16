@@ -3,6 +3,7 @@ import { showCommandFixture } from '../test/showCommandFixture'
 import { MAX_AGENT_DELIVERY_RESULT_BYTES } from './agentDeliveryJournal'
 import { createAgentPrivateExecutor, type PrivateEditOwner } from './agentPrivateExecutor'
 import type { ShowEditRequest } from './showEditAdmission'
+import { applyShowCommand } from './showCommands/registry'
 
 describe('browser private edit executor', () => {
   const scope = { bindingId: 'binding', sessionId: 'session' }
@@ -78,13 +79,58 @@ describe('browser private edit executor', () => {
     expect(owner.apply).not.toHaveBeenCalled()
   })
 
-  it('a refused command discards preceding private changes atomically', () => {
+  it('keeps accepted changes byte-identical through refusal, correction, and commit', () => {
+    const { owner, send, current } = setup()
+    const before = structuredClone(current())
+    const rename = { kind: 'command', name: 'rename_show', arguments: { name: 'Renamed Show' } }
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, rename).code).toBe('changed')
+    const refusal = send(2, { ...resize, arguments: { clip_id: 'missing', duration_ms: 9000 } })
+    expect(refusal.code).toBe('refused')
+    expect(current()).toEqual(before)
+    expect(owner.complete).not.toHaveBeenCalled()
+    expect(send(3, { ...resize, arguments: { clip_id: 'clip-a', duration_ms: 8000 } }).code).toBe('changed')
+    expect(send(4, { kind: 'commit_edit' })).toMatchObject({ code: 'outcome' })
+    const expectedRename = applyShowCommand(before, 'rename_show', rename.arguments)
+    if (!expectedRename.ok) throw new Error('fixture rename refused')
+    const expectedResize = applyShowCommand(expectedRename.record, 'resize_clip', { clip_id: 'clip-a', duration_ms: 8000 })
+    if (!expectedResize.ok) throw new Error('fixture resize refused')
+    expect({ ...current(), updatedAt: before.updatedAt }).toEqual({ ...expectedResize.record, updatedAt: before.updatedAt })
+    expect(owner.apply).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a refusal-only operation open for empty commit or cancellation', () => {
+    const committed = setup()
+    committed.send(0, begin)
+    expect(committed.send(1, { ...resize, arguments: { clip_id: 'missing', duration_ms: 9000 } }).code).toBe('refused')
+    expect(committed.send(2, { kind: 'commit_edit' })).toMatchObject({
+      code: 'outcome',
+      receipt: { status: 'completed', completion: 'nothing-applied' },
+    })
+    expect(committed.owner.apply).not.toHaveBeenCalled()
+
+    const cancelled = setup()
+    cancelled.send(0, begin)
+    expect(cancelled.send(1, { ...resize, arguments: { clip_id: 'missing', duration_ms: 9000 } }).code).toBe('refused')
+    expect(cancelled.send(2, { kind: 'cancel_edit' })).toMatchObject({ code: 'outcome', receipt: { status: 'cancelled' } })
+    expect(cancelled.owner.apply).not.toHaveBeenCalled()
+  })
+
+  it('counts a refused mutation attempt against exact-resize Retry qualification', () => {
     const { owner, send } = setup()
-    send(0, begin); send(1, resize)
-    expect(send(2, { ...resize, arguments: { clip_id: 'missing', duration_ms: 9000 } }).code).toBe('refused')
-    expect(send(3, { kind: 'commit_edit' }).code).toBe('finished')
-    expect(owner.apply).not.toHaveBeenCalled()
-    expect(owner.complete).toHaveBeenCalledWith(expect.anything(), 'refused')
+    send(0, begin)
+    expect(send(1, { ...resize, arguments: { clip_id: 'missing', duration_ms: 9000 } }).code).toBe('refused')
+    expect(send(2, resize).code).toBe('changed')
+    send(3, { kind: 'commit_edit' })
+    expect(owner.apply).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined)
+  })
+
+  it.each(['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 'service-refused', 'service-failed'] as const)('keeps explicit %s whole-turn completion terminal', completion => {
+    const { owner, send } = setup()
+    send(0, begin)
+    expect(send(1, { kind: 'complete_edit', completion })).toMatchObject({ code: 'outcome' })
+    expect(owner.complete).toHaveBeenCalledWith(expect.anything(), completion)
+    expect(send(2, resize).code).toBe('finished')
   })
 
   it('queries the surviving owner receipt after reply-cache loss without applying again', () => {

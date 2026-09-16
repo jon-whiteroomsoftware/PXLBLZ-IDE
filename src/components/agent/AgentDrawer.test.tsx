@@ -276,6 +276,19 @@ it('shows one provisional response at the request edge and advances it through w
   expect(line).toHaveTextContent('Shortened CometLoom to 29 seconds. 1:34–2:03 · 29 seconds')
 })
 
+it('shows interim command issues on the same still-working activity entry', () => {
+  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'agentBinds', name: 'Codex' })
+  controller.dispatch({ type: 'beginEdit', id: 'one', intent: 'Resize the opening Clip' })
+  controller.dispatch({ type: 'commandRefused', id: 'one', issues: ['Clip missing.', 'Use clip-a.'] })
+  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
+  const line = screen.getByTestId('agent-chat-line')
+  expect(line).toHaveTextContent('Thinking')
+  expect(line).toHaveTextContent('Clip missing.')
+  expect(line).toHaveTextContent('Use clip-a.')
+  expect(line).not.toHaveAttribute('data-outcome')
+  expect(screen.getAllByTestId('agent-chat-line')).toHaveLength(1)
+})
+
 it('renders a direct thinking request once until its operation row arrives', () => {
   controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
   controller.dispatch({ type: 'thinking', id: 'one' })

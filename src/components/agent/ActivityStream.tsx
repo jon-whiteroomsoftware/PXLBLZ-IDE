@@ -29,7 +29,7 @@ export function ActivityStream({ state, retry, busy = false }: { state: AgentDra
   const response = (line: AgentLine): string[] => {
     if (!line.operationId) return []
     if (!line.outcome) {
-      if (line.phase === 'thinking' || line.phase === 'working') return ['Thinking']
+      if (line.phase === 'thinking' || line.phase === 'working') return ['Thinking', ...(line.interimIssues ?? [])]
       if (line.phase === 'waiting') return ['Waiting for you to finish']
       return []
     }

@@ -24,7 +24,7 @@ const payloadSchema = z.discriminatedUnion('kind', [
 ])
 interface Operation {
   request: ShowEditRequest
-  private?: { show: ShowRecord; commandContext: ShowCommandContext; changes: ShowCommandChange[]; commandCount: number; resize?: AgentResizeIntent }
+  private?: { show: ShowRecord; commandContext: ShowCommandContext; changes: ShowCommandChange[]; commandAttempts: number; resize?: AgentResizeIntent }
 }
 
 /** One browser-owned private candidate; the injected owner is existing admission. */
@@ -66,7 +66,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
         owner.complete(captured.request, 'service-refused')
         return { code: 'result_too_large' }
       }
-      operation.private = { show: captured.show, commandContext: captured.commandContext, changes: [], commandCount: 0 }
+      operation.private = { show: captured.show, commandContext: captured.commandContext, changes: [], commandAttempts: 0 }
       active = delivery.operationId
       return begun
     }
@@ -77,10 +77,10 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
     }
     if (!operation.private) return { code: 'finished' }
     if (payload.kind === 'command') {
+      operation.private.commandAttempts += 1
       const result = applyShowCommand(operation.private.show, payload.name, payload.arguments, operation.private.commandContext)
       if (!result.ok) {
-        finish(delivery.operationId, operation)
-        owner.complete(operation.request, 'refused')
+        operation.private.resize = undefined
         return { code: 'refused', issues: result.issues }
       }
       if (new TextEncoder().encode(JSON.stringify({ show: result.record, changes: [...operation.private.changes, ...result.changes] })).byteLength > 1_048_576) {
@@ -88,8 +88,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
         owner.complete(operation.request, 'service-refused')
         return { code: 'result_too_large' }
       }
-      operation.private.commandCount += 1
-      operation.private.resize = operation.private.commandCount === 1 && payload.name === 'resize_clip'
+      operation.private.resize = operation.private.commandAttempts === 1 && payload.name === 'resize_clip'
         ? { clipId: payload.arguments.clip_id as string, durationMs: payload.arguments.duration_ms as number } : undefined
       operation.private.show = result.record
       operation.private.changes.push(...result.changes)

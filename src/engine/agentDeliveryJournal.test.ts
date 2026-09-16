@@ -14,6 +14,16 @@ describe('binding-scoped delivery journal', () => {
     expect(journal.admit(delivery(0, { kind: 'begin_edit', intent: 'other' }))).toEqual({ code: 'identity_conflict' })
   })
 
+  it('caches a refused command delivery while admitting its correction at the next sequence', () => {
+    const journal = createDeliveryJournal(scope)
+    const refused = delivery(0, { kind: 'command', name: 'resize_clip', arguments: { clip_id: 'missing', duration_ms: 9000 } })
+    expect(journal.admit(refused)).toEqual({ code: 'accepted' })
+    const result = { code: 'refused', issues: [{ code: 'not-found', message: 'Clip not found.' }] }
+    expect(journal.complete('op', 'd0', result)).toBe(true)
+    expect(journal.admit(refused)).toEqual({ code: 'known', result })
+    expect(journal.admit(delivery(1, { kind: 'command', name: 'resize_clip', arguments: { clip_id: 'clip-a', duration_ms: 9000 } }))).toEqual({ code: 'accepted' })
+  })
+
   it('refuses gaps, concurrent execution, and reused sequence under another ID', () => {
     const journal = createDeliveryJournal(scope)
     expect(journal.admit(delivery(1))).toEqual({ code: 'out_of_order' })

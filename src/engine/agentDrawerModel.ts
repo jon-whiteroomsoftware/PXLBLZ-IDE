@@ -18,6 +18,7 @@ export interface AgentLine {
   replyOnRefusal?: boolean
   retryable?: boolean
   calls?: string[]
+  interimIssues?: string[]
 }
 export interface AgentDrawerState {
   drawer: AgentDrawerMode
@@ -62,6 +63,7 @@ export type AgentDrawerEvent =
   | { type: 'beginEdit'; id: string; intent: string; retryOf?: string }
   | { type: 'waiting'; id: string }
   | { type: 'call'; id: string; name: string }
+  | { type: 'commandRefused'; id: string; issues: string[] }
   | { type: 'retryStarted'; id: string }
   | { type: 'touch'; targetId: string }
   | { type: 'outcome'; id: string; outcome: AgentOutcome; changes?: AgentChange[]; reason?: string; retryable?: boolean; refusedTargets?: string[]; band?: AgentDrawerState['band'] }
@@ -159,6 +161,14 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
         } : line),
       }
     }
+    case 'commandRefused': {
+      if (state.request?.id !== event.id || event.issues.length === 0) return state
+      return {
+        ...state,
+        request: { id: event.id, phase: 'working' },
+        stream: state.stream.map(line => line.operationId === event.id ? { ...line, phase: 'working', interimIssues: [...event.issues] } : line),
+      }
+    }
     case 'retryStarted': return { ...state, stream: state.stream.map(line => line.operationId === event.id ? { ...line, retryable: false } : line) }
     case 'touch': return { ...state, highlights: state.highlights.filter(id => id !== event.targetId), refusedTargets: state.refusedTargets.filter(id => id !== event.targetId) }
     case 'manualEdit': case 'undo': return { ...state, ...clearHighlights }
@@ -175,7 +185,7 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
         ...(clears ? clearHighlights : {}),
         request: state.request?.id === event.id && event.outcome !== 'unknown' ? null : state.request,
         announcement: { text: previous.text, outcome: event.outcome },
-        stream: state.stream.map(line => line === previous ? { ...line, outcome: event.outcome, phase: undefined, changes, reason: event.reason, retryable: event.retryable ?? false } : line),
+        stream: state.stream.map(line => line === previous ? { ...line, outcome: event.outcome, phase: undefined, changes, reason: event.reason, retryable: event.retryable ?? false, interimIssues: undefined } : line),
         unread: state.drawer === 'tucked' ? [...new Set([...state.unread, event.id])] : state.unread,
         ...((event.outcome === 'applied' || event.outcome === 'saved' || event.outcome === 'draft') && (!previous.outcome || previous.outcome === 'unknown') ? { highlights: event.band ? [] : [...new Set((changes ?? []).map(change => change.targetId))], highlightPhase: 'flash' as const, highlightOperation: event.id, band: event.band ?? null, refusedTargets: [] } : {}),
         ...(event.outcome === 'not-applied' ? { refusedTargets: event.refusedTargets ?? [] } : {}),

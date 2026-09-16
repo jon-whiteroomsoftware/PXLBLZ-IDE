@@ -17,6 +17,19 @@ interface ArmIntent { generation: number; accepted: boolean; acceptedUntil: numb
 const ALLOWANCE_RESET_GRACE_MS = 50
 const ALLOWANCE_RESET_RETRY_MIN_MS = 1000
 const ALLOWANCE_RESET_RETRY_LIMIT = 4
+const MAX_INTERIM_ISSUES = 3
+const MAX_INTERIM_ISSUE_CHARS = 160
+
+function boundedInterimIssues(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap(issue => {
+    const message = issue && typeof issue === 'object' && typeof (issue as { message?: unknown }).message === 'string'
+      ? (issue as { message: string }).message.trim()
+      : ''
+    if (!message) return []
+    return [message.length > MAX_INTERIM_ISSUE_CHARS ? `${message.slice(0, MAX_INTERIM_ISSUE_CHARS - 1)}…` : message]
+  }).slice(0, MAX_INTERIM_ISSUES)
+}
 
 /** Thin session presentation. Channel/executor owns work; admission owns outcomes. */
 export function createProductionDrawerController(api: Admission, showId: string, channel: DrawerChannelPort, builtin: (command: Record<string, unknown>) => Promise<Result>, initialAllowance?: AgentMessageAllowance): AgentDrawerControllerPort {
@@ -224,6 +237,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
     const operation = operations.get(id)
     if (operation && payload.kind === 'command') {
       emit({ type: 'call', id, name: payload.name ?? 'command' })
+      if (event.result.code === 'refused') emit({ type: 'commandRefused', id, issues: boundedInterimIssues(event.result.issues) })
       if (event.result.code === 'changed' && Array.isArray(event.result.changes)) {
         for (const rawChange of event.result.changes) {
           if (!rawChange || typeof rawChange !== 'object') continue

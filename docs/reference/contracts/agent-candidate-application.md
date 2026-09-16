@@ -697,8 +697,20 @@ No second adoption owner or diagnostic grammar is introduced.
 `src/engine/agentPrivateExecutor.ts` keeps one private candidate per binding,
 serializes relay-assigned canonical command deliveries with session-scoped
 immutable identity,
-and delegates apply/complete/cancel/outcome to that admission. True command
-refusal discards the whole private candidate. Cached response loss preserves
+and delegates apply/complete/cancel/outcome to that admission. A domain-command
+refusal returns its issues while retaining the private candidate and earlier
+accepted changes. Both built-in and external clients may correct the command
+within that operation, then commit or cancel. Every attempted domain command,
+including a refusal, counts against single-resize Retry qualification. Explicit
+whole-turn completion, commit/admission refusal, service/result-size failure,
+cancellation and retirement retain their existing terminal ownership.
+
+The activity entry stays working after a command refusal and shows at most three
+issue messages, each bounded to 160 characters. It acquires neither a final
+outcome nor an unread completion until settlement; settlement clears the interim
+issues. These messages report private validation, not editor adoption or saving.
+
+Cached response loss preserves
 identity tombstones and uses the surviving admission receipt for outcome
 recovery, never automatic application replay. The production browser session
 receives commands from the bounded account relay for both transports. Cancel

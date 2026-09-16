@@ -43,7 +43,7 @@ export async function runBuiltinTurn(deps: TurnDependencies, prompt: string): Pr
       }
       if (!SHOW_COMMANDS.some(command => command.name === call.name) || !args || typeof args !== 'object' || Array.isArray(args)) return complete('incomplete')
       const result = await deps.deliver({ kind: 'command', name: call.name, arguments: args })
-      if (result.code !== 'changed' && result.code !== 'noop') return result
+      if (result.code !== 'changed' && result.code !== 'noop' && result.code !== 'refused') return result
       input.push(...response.output, { type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) })
     }
     return complete('incomplete')

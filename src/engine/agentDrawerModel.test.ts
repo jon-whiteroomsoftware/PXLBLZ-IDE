@@ -54,6 +54,21 @@ describe('agent drawer activity projection', () => {
     expect(transitionAgentDrawer(requestOnly, { type: 'waiting', id: 'orphan' })).toBe(requestOnly)
   })
 
+  it('keeps interim command refusal on the working entry without an outcome or unread event', () => {
+    let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
+    state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'one', intent: 'Resize the opening' })
+    state = transitionAgentDrawer(state, { type: 'commandRefused', id: 'one', issues: ['Clip missing.', 'Use clip-a.'] })
+    expect(state.request).toEqual({ id: 'one', phase: 'working' })
+    expect(state.stream[0]).toMatchObject({ phase: 'working', interimIssues: ['Clip missing.', 'Use clip-a.'] })
+    expect(state.stream[0].outcome).toBeUndefined()
+    expect(state.unread).toEqual([])
+    expect(state.announcement).toBeUndefined()
+
+    state = transitionAgentDrawer(state, { type: 'outcome', id: 'one', outcome: 'saved', changes: [{ targetId: 'clip-a', description: 'Resized.' }] })
+    expect(state.stream[0]).toMatchObject({ outcome: 'saved', interimIssues: undefined })
+    expect(state.unread).toEqual(['one'])
+  })
+
   it('counts changed outcomes once per operation while tucked, then counts a later rollback after reading', () => {
     let state = transitionAgentDrawer(createAgentDrawerState(), { type: 'chooseBuiltin' })
     state = transitionAgentDrawer(state, { type: 'beginEdit', id: 'one', intent: 'Shorten the opening' })

@@ -343,6 +343,41 @@ it('attributes only successful owned changes once and keeps Send disabled while 
   f.controller.dispatch({ type: 'draft', text: 'Next request' }); f.controller.submit()
   expect(f.builtin).not.toHaveBeenCalled()
 })
+it('projects bounded interim command issues on the working entry until final settlement', () => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'external', agentName: 'Codex' } })
+  const request = { operationId: 'binding:op', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: ['clip'] }
+  const emit = (deliveryId: string, sequence: number, payload: unknown, result: PrivateEditResult) => f.emit({
+    type: 'delivery',
+    delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId, sequence, payload },
+    result,
+    request,
+  })
+  f.setReceipt({ request, status: 'pending' })
+  emit('begin', 0, { kind: 'begin_edit', intent: 'Resize' }, { code: 'begun' })
+  emit('bad', 1, { kind: 'command', name: 'resize_clip', arguments: { clip_id: 'missing', duration_ms: 1000 } }, {
+    code: 'refused',
+    issues: Array.from({ length: 10 }, (_, index) => ({ code: `issue-${index}`, message: `${index}: ${'x'.repeat(300)}` })),
+  })
+  const interim = useAgentDrawerStore.getState().state
+  expect(interim.request).toEqual({ id: 'op', phase: 'working' })
+  const interimLine = interim.stream.find(line => line.operationId === 'op')
+  expect(interimLine?.outcome).toBeUndefined()
+  expect(interimLine).toMatchObject({
+    interimIssues: [expect.stringMatching(/^0: x{156}…$/), expect.stringMatching(/^1: x{156}…$/), expect.stringMatching(/^2: x{156}…$/)],
+  })
+  expect(interim.unread).toEqual([])
+
+  emit('good', 2, { kind: 'command', name: 'resize_clip', arguments: { clip_id: 'clip', duration_ms: 1000 } }, {
+    code: 'changed', changes: [{ command: 'resize_clip', targetId: 'clip', description: 'Clip resized' }],
+  })
+  const receipt = { request, status: 'applied', settlement: 'saved' }
+  f.setReceipt(receipt)
+  emit('commit', 3, { kind: 'commit_edit' }, { code: 'outcome', receipt })
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'op')).toMatchObject({
+    outcome: 'saved', interimIssues: undefined, changes: [{ targetId: 'clip', description: 'Clip resized' }],
+  })
+})
 it('registers the returned qualified Retry operation and tracks saving without replacing failure or draft', async () => {
   const f = fixture()
   f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
