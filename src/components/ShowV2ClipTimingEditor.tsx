@@ -16,6 +16,7 @@ import { useShowStore } from '@/store/showStore'
 type TimingCommand = { owner: 'create'; intent: CreateShowClipIntentV2 } | { owner: 'clip'; intent: ShowClipTemporalIntentV2 }
   | { owner: 'insert'; intent: ShowInsertTimeIntentV2 } | { owner: 'end'; intent: { kind: 'set-show-end'; showEndMs: number } }
 const selectStyle = 'mt-1 block w-full min-w-0 rounded-sm border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-200'
+const timingButtonStyle = 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800'
 export function ShowV2ClipTimingEditor({ capture, sources, selectedClipId, onSelectClip, isCurrentCapture, isCurrentCompletion, onStatus }: {
   capture: ShowV2PilotPreparedCapture; sources: ShowV2TimelineSourceChoice[]; selectedClipId: string; onSelectClip: (id: string) => void
   isCurrentCapture: () => boolean; isCurrentCompletion: (receipt: ShowV2PilotAdoptionReceipt, phase: 'saved' | 'save-failed') => boolean; onStatus: (status: string) => void
@@ -83,7 +84,7 @@ export function ShowV2ClipTimingEditor({ capture, sources, selectedClipId, onSel
   }
   const available = capture.prepared.status !== 'refused'
   return <div className="mt-7 space-y-5" data-testid="show-v2-clip-timing">
-    <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-medium">Clips</h2><Button size="xs" variant="outline" disabled={busy || !available} onClick={() => setAdding(true)}>Add Clip</Button></div>
+    <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-medium">Clips</h2><Button size="xs" variant="outline" disabled={busy || !available} onClick={() => setAdding(true)} className={timingButtonStyle}>Add Clip</Button></div>
     {adding && <div className="space-y-3">
       <PatternCombobox ariaLabel="Clip Pattern" value={sourceKey} disabled={busy} options={sources.map(source => ({ value: source.key, label: source.label, group: source.group }))} onChange={key => { const next = sources.find(source => source.key === key)!; setSourceKey(key); setRuntimeChoice(next.runtimeIds.length === 0 ? 'first' : next.runtimeIds.length === 1 ? `runtime:${next.runtimeIds[0]}` : '') }} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -92,14 +93,14 @@ export function ShowV2ClipTimingEditor({ capture, sources, selectedClipId, onSel
       </div>
       {source && <label className="block text-xs text-zinc-500">Runtime<select aria-label="Clip runtime" value={runtimeChoice} disabled={busy} className={selectStyle} onChange={event => setRuntimeChoice(event.target.value)}>{source.runtimeIds.length > 1 && <option value="">Select runtime</option>}{source.runtimeIds.length === 0 ? <option value="first">First runtime</option> : source.runtimeIds.map(id => <option key={id} value={`runtime:${id}`}>{id}</option>)}</select></label>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><NumberField label="New Clip start" value={createStart} disabled={busy} step={1} suffix="ms" variant="editor" onChange={setCreateStart}/><NumberField label="New Clip duration" value={createDuration} disabled={busy} step={1} suffix="ms" variant="editor" onChange={setCreateDuration}/></div>
-      <div className="flex flex-wrap gap-2"><Button size="xs" variant="outline" disabled={busy || !source || !runtimeChoice} onClick={() => void add()}>Add</Button><Button size="xs" variant="outline" disabled={busy} onClick={() => setAdding(false)}>Cancel</Button></div>
+      <div className="flex flex-wrap gap-2"><Button size="xs" variant="outline" disabled={busy || !source || !runtimeChoice} onClick={() => void add()} className={timingButtonStyle}>Add</Button><Button size="xs" variant="outline" disabled={busy} onClick={() => setAdding(false)} className={timingButtonStyle}>Cancel</Button></div>
     </div>}
     {clip && <div key={`${clip.id}:${clip.startMs}:${clip.durationMs}:${fieldReset}`} className="space-y-3">
       <div className="truncate text-sm">{sources.find(source => source.runtimeIds.includes(clip.instanceId))?.name ?? clip.id}</div>
       <NumberField label="Clip start" value={clip.startMs} disabled={busy || !available} step={1} suffix="ms" variant="editor" onChange={startMs => void submit({ owner: 'clip', intent: { kind: 'move', clipId: clip.id, startMs } })}/>
       <ClipTimingBounds startMs={clip.startMs} endMs={clip.startMs + clip.durationMs} disabled={busy || !available} onBounds={(kind, startMs, endMs) => { void submit({ owner: 'clip', intent: { kind, clipId: clip.id, startMs, endMs } }) }} onSplit={split}/>
     </div>}
-    <div className="space-y-3"><h2 className="text-sm font-medium">Insert Time</h2><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><NumberField label="Insert at" value={insertAt} disabled={busy || !available} step={1} suffix="ms" variant="editor" onChange={setInsertAt}/><NumberField label="Insert duration" value={insertDuration} disabled={busy || !available} step={1} suffix="ms" variant="editor" onChange={setInsertDuration}/></div><Button size="xs" variant="outline" disabled={busy || !available} onClick={() => void submit({ owner: 'insert', intent: { atMs: insertAt, durationMs: insertDuration } })}>Insert Time</Button></div>
+    <div className="space-y-3"><h2 className="text-sm font-medium">Insert Time</h2><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><NumberField label="Insert at" value={insertAt} disabled={busy || !available} step={1} suffix="ms" variant="editor" onChange={setInsertAt}/><NumberField label="Insert duration" value={insertDuration} disabled={busy || !available} step={1} suffix="ms" variant="editor" onChange={setInsertDuration}/></div><Button size="xs" variant="outline" disabled={busy || !available} onClick={() => void submit({ owner: 'insert', intent: { atMs: insertAt, durationMs: insertDuration } })} className={timingButtonStyle}>Insert Time</Button></div>
     <div key={`end:${fieldReset}`}><NumberField label="Show End" value={record.composition.showEndMs} disabled={busy || !available} step={1} suffix="ms" variant="editor" onChange={showEndMs => void submit({ owner: 'end', intent: { kind: 'set-show-end', showEndMs } })}/></div>
   </div>
 }
@@ -109,8 +110,8 @@ function ClipTimingBounds({ startMs, endMs, disabled, onBounds, onSplit }: { sta
   const [splitAt, setSplitAt] = useState(startMs)
   return <>
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><NumberField label="Bounds start" value={start} disabled={disabled} step={1} suffix="ms" variant="editor" onChange={setStart}/><NumberField label="Bounds end" value={end} disabled={disabled} step={1} suffix="ms" variant="editor" onChange={setEnd}/></div>
-    <div className="flex flex-wrap gap-2">{(['trim', 'extend'] as const).map(kind => <Button key={kind} size="xs" variant="outline" disabled={disabled} onClick={() => onBounds(kind, start, end)}>{kind === 'trim' ? 'Trim' : 'Extend'}</Button>)}</div>
-    <NumberField label="Split at" value={splitAt} disabled={disabled} step={1} suffix="ms" variant="editor" onChange={setSplitAt}/><Button size="xs" variant="outline" disabled={disabled} onClick={() => onSplit(splitAt)}>Split</Button>
+    <div className="flex flex-wrap gap-2">{(['trim', 'extend'] as const).map(kind => <Button key={kind} size="xs" variant="outline" disabled={disabled} onClick={() => onBounds(kind, start, end)} className={timingButtonStyle}>{kind === 'trim' ? 'Trim' : 'Extend'}</Button>)}</div>
+    <NumberField label="Split at" value={splitAt} disabled={disabled} step={1} suffix="ms" variant="editor" onChange={setSplitAt}/><Button size="xs" variant="outline" disabled={disabled} onClick={() => onSplit(splitAt)} className={timingButtonStyle}>Split</Button>
   </>
 }
 export function ShowV2TimelineRows({ rows, showEndMs, selectedClipId, onSelectClip }: { rows: ShowV2TimelineRow[]; showEndMs: number; selectedClipId: string; onSelectClip: (id: string) => void }) {
