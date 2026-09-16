@@ -344,6 +344,10 @@ unsafe/overlapping placement and blank, colliding or extraneous identity fields
 refuse atomically. Exact half-open adjacency is accepted. Source lookup/dependency
 and complete program admission remain at the trusted caller boundary; structurally
 accepted creation is not a claim that missing or unsupported source compiles.
+Layout coverage includes every existing ordinary Clip and materialized Group
+contribution, even when the new Clip's explicit destination is available. An
+existing contribution that outlives its Zone causes atomic refusal; ending exactly
+at the Layout switch remains valid.
 
 Results preserve existing Clip status/record vocabulary and add
 `affectedInstanceIds`, `affectedAppearanceKeyIds`, `affectedKeyframeIds`,

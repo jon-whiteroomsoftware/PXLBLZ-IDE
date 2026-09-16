@@ -1,0 +1,37 @@
+{
+  "issue": 1038,
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+  "proofRows": ["MODEL", "CONTINUITY", "LAYOUT-END", "PARITY"],
+  "boundary": "createShowClipV2 -> complete Show reopen -> public preparation -> compiled EPE import -> Fast/Precise replay",
+  "invariants": [
+    "Creation validates Layout coverage for every ordinary and materialized Group contribution in the complete candidate, rather than only the new Clip.",
+    "An available new destination cannot hide an existing unavailable contribution; refusal preserves original record identity and empty affected/hoisted/removal collections.",
+    "Exact half-open boundaries remain accepted without changing existing routing, runtime, appearance, Group or animation owners."
+  ],
+  "partitions": [
+    "Existing ordinary Clip ends 1ms before, exactly at, 1ms after or well after its Zone disappears at200ms; the new Clip occupies a distinct available Zone from200 to500ms.",
+    "Persisted structural validation accepts each preimage, while public preparation independently distinguishes the admitted and unavailable contribution schedules.",
+    "Existing creation cases retain new-Clip unavailable routing refusal, held Group occupancy, Transition windows, malformed identity refusal and repeated-ID refusal."
+  ],
+  "sequences": [
+    "Structurally valid preimage -> exact caller creation -> accepted reopened graph and EPE replay, or typed refusal with unchanged complete input and intent."
+  ],
+  "oracles": [
+    "Public preparation validates the preimage's actual contribution availability, independently of the creation owner.",
+    "Accepted records equal independently authored complete expected Shows; actual imported EPE frames and exported state match in Fast/Precise at boundaries, interiors and loop.",
+    "Refused records retain original identity, full input/intent equality and every affected/hoisted/removal collection empty."
+  ],
+  "tddEvidence": [
+    "The first 1ms-overrun regression fails against landed creation: result is changed despite public preparation refusing the unavailable existing ordinary Clip.",
+    "The existing whole-Show availability validator repairs the defect without a new algorithm or signature change.",
+    "The diagnostic assertion uses the existing validator's complete contribution interval, not an invented clipped missing interval.",
+    "Focused creation/Layout100/100, project TypeScript, scoped lint and exact47 parity pass."
+  ],
+  "mutationEvidence": [
+    "Restoring new-Clip-only availability kills both 201ms and1000ms public rejection assertions; the 199/200ms accepted cases remain green. Correct source restored."
+  ],
+  "residualGaps": [
+    "Source/dependency eligibility, UI, store/history and browser proof remain separate owners; no general compiler-domain expansion is claimed.",
+    "Stage owns the next landing; coordinator supplies final rebase base and owns exact-suffix review, authoritative full suites and landing."
+  ]
+}

@@ -304,6 +304,46 @@ it('one continuous new Clip crosses available Layout occurrences but refuses a d
   emptyAffected(result)
 })
 
+it.each([199, 200, 201, 1000])('validates existing ordinary Clip availability when creating in another Zone (existing end %s)', endMs => {
+  const record = fixture()
+  record.zones.push({ id: 'other-zone', name: 'Other', nominalPixelCount: 16 })
+  record.composition.layers.push({ id: 'other-layer', zoneId: 'other-zone', name: 'Other', rank: 0 })
+  record.zoneLayouts.push({ id: 'second-layout', name: 'Later', zones: [], logical: { kind: 'single', zoneIds: ['other-zone'] } })
+  record.composition.layoutOccurrences[0].durationMs = 200
+  record.composition.layoutOccurrences.push({ id: 'second-use', layoutId: 'second-layout', startMs: 200, durationMs: 800, parameters: {} })
+  record.composition.clips[0].durationMs = endMs
+  const requested = intent(record)
+  requested.runtime = { kind: 'existing' }
+  requested.clip.zoneId = 'other-zone'
+  requested.clip.layerId = 'other-layer'
+  requested.clip.startMs = 200
+  requested.clip.appearance.keys[0].timeMs = 200
+  expect(validateShowRecordV2(record)).toEqual([])
+  expect(prepare(record).status).toBe(endMs <= 200 ? 'ready' : 'refused')
+  const before = structuredClone(record)
+  const beforeIntent = structuredClone(requested)
+  const result = createShowClipV2(record, requested)
+  if (endMs <= 200) {
+    expect(result.status, JSON.stringify(result)).toBe('changed')
+    const expected = structuredClone(before)
+    expected.composition.clips.push({ ...structuredClone(beforeIntent.clip), instanceId: 'instance' })
+    expect(reopen(result.record)).toEqual(expected)
+    for (const fidelity of ['fast', 'fidelity'] as const) compareDelivered(result.record, expected, fidelity)
+    expect(record).toEqual(before)
+    expect(requested).toEqual(beforeIntent)
+    return
+  }
+  expect(result.status, JSON.stringify(result)).toBe('refused')
+  if (result.status !== 'refused') throw new Error('Expected full-candidate routing refusal')
+  expect(result.code).toBe('invalid-result')
+  expect(result.message).toContain('Zone zone is unavailable in Layout second-layout')
+  expect(result.message).toContain(`[0, ${endMs})`)
+  expect(result.record).toBe(record)
+  expect(record).toEqual(before)
+  expect(requested).toEqual(beforeIntent)
+  emptyAffected(result)
+})
+
 it.each([
   ['negative start', (i: CreateShowClipIntentV2) => { i.clip.startMs = -1; i.clip.appearance.keys[0].timeMs = -1 }],
   ['fractional start', (i: CreateShowClipIntentV2) => { i.clip.startMs = 1.5; i.clip.appearance.keys[0].timeMs = 1.5 }],

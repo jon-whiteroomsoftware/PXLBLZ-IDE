@@ -2,7 +2,7 @@ import { validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './show
 import type { ShowPatternInstance, ShowPatternRef } from './personalContentRecords'
 import type { ShowClipEditRefusalV2, ShowClipEditResultV2 } from './showClipsV2'
 import { materializeShowGroupsV2, defaultGroupRuntimeIdV2 } from './showGroupsV2'
-import { validateClipLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
+import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
 
 export interface CreateShowClipIntentV2 {
@@ -71,7 +71,7 @@ export function createShowClipV2(record: ShowRecordV2, intent: CreateShowClipInt
   next.composition.clips.push({ ...structuredClone(clip), instanceId: instance.id })
   const resultIssue = validateShowRecordV2(next)[0]
   if (resultIssue) return refuse('invalid-result', `${resultIssue.path}: ${resultIssue.message}`)
-  const availability = validateClipLayoutAvailabilityV2(next, [clip.id])[0]
+  const availability = validateShowLayoutAvailabilityV2(next)[0]
   if (availability) return refuse('invalid-result', `Zone ${availability.zoneId} is unavailable in Layout ${availability.layoutId} during [${availability.startMs}, ${availability.endMs}).`)
   const restriction = firstShowTransitionPlacementRestrictionV2(next)
   if (restriction) return refuse('compiler-ineligible', restriction.message)
