@@ -113,6 +113,37 @@ it.each([false, true])('allows only terminal cancel behind a sent command, with 
   expect(relay.take()).toEqual([])
   relay.end(); browser.retire()
 })
+it('treats a trusted cancel saving receipt as explicit terminal recovery', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  const original = relay.dispatch(delivery(0, { kind: 'begin_edit' }))
+  const [first] = relay.take()
+  const cancelling = relay.dispatch(delivery(1, { kind: 'cancel_edit' }))
+  const [cancel] = relay.take()
+  const saving = { code: 'outcome' as const, receipt: { status: 'applied', settlement: 'saving' } }
+
+  expect(relay.reply(cancel, saving)).toBe(true)
+  expect(await cancelling).toEqual(saving)
+  expect(relay.reply(first, { code: 'changed' })).toBe(false)
+  expect(await original).toEqual({ code: 'result_unavailable' })
+  expect(await relay.dispatch(delivery(1, { kind: 'cancel_edit' }))).toEqual(saving)
+  expect(relay.take()).toEqual([])
+})
+it.each([
+  { label: 'non-outcome receipt-shaped metadata', result: { code: 'unknown', receipt: { status: 'applied', settlement: 'saving' } } },
+  { label: 'a null receipt', result: { code: 'outcome', receipt: null } },
+])('does not recover a trusted cancel from $label', async ({ result }) => {
+  const relay = new AgentRelay(scope, () => {})
+  const original = relay.dispatch(delivery(0, { kind: 'begin_edit' }))
+  const [first] = relay.take()
+  const cancelling = relay.dispatch(delivery(1, { kind: 'cancel_edit' }))
+  const [cancel] = relay.take()
+  const malformed = result as unknown as Parameters<AgentRelay['reply']>[1]
+
+  expect(relay.reply(cancel, malformed)).toBe(true)
+  expect(await cancelling).toEqual(malformed)
+  expect(relay.reply(first, { code: 'changed' })).toBe(true)
+  expect(await original).toEqual({ code: 'changed' })
+})
 
 async function beginExternal(relay: AgentRelay, key = 'begin-key', intent = 'Rename the Show') {
   await primeExternal(relay)
@@ -323,6 +354,76 @@ it.each([
   expect(cancel.sequence).toBe(2)
   expect(relay.reply(cancel, cancelResult)).toBe(true)
   expect(await cancelling).toEqual(cancelResult)
+  expect(relay.take()).toEqual([])
+})
+
+it.each([
+  { label: 'pending', receipt: { status: 'pending' }, cancelReceipt: { status: 'cancelled' } },
+  { label: 'waiting', receipt: { status: 'waiting' }, cancelReceipt: { status: 'cancelled' } },
+  { label: 'saving', receipt: { status: 'applied', settlement: 'saving' }, cancelReceipt: { status: 'applied', settlement: 'saving' } },
+])('keeps terminal cancellation admissible after a $label outcome query', async ({ receipt, cancelReceipt }) => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const committing = relay.dispatchExternal({ operationId, payload: { kind: 'commit_edit' } })
+  const [commit] = relay.take()
+  relay.reply(commit, { code: 'outcome', receipt })
+  await committing
+
+  const querying = relay.query({ kind: 'get_outcome', operationId })
+  const [query] = relay.take()
+  expect((query.payload as { kind: string }).kind).toBe('get_outcome')
+  relay.reply(query, { code: 'outcome', receipt })
+  expect(await querying).toEqual({ code: 'outcome', receipt })
+
+  const cancelling = relay.dispatchExternal({ operationId, idempotencyKey: 'cancel', payload: { kind: 'cancel_edit' } })
+  const [cancel] = relay.take()
+  expect((cancel.payload as { kind: string }).kind).toBe('cancel_edit')
+  const cancelResult = { code: 'outcome' as const, receipt: cancelReceipt }
+  expect(relay.reply(cancel, cancelResult)).toBe(true)
+  expect(await cancelling).toEqual(cancelResult)
+})
+
+it('does not tombstone an already-sent cancel when an outcome query still reports saving', async () => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const saving = { code: 'outcome' as const, receipt: { status: 'applied', settlement: 'saving' } }
+  const committing = relay.dispatchExternal({ operationId, payload: { kind: 'commit_edit' } })
+  const [commit] = relay.take()
+  relay.reply(commit, saving)
+  await committing
+
+  const cancelling = relay.dispatchExternal({ operationId, idempotencyKey: 'cancel', payload: { kind: 'cancel_edit' } })
+  const [cancel] = relay.take()
+  const querying = relay.query({ kind: 'get_outcome', operationId })
+  const [query] = relay.take()
+  relay.reply(query, saving)
+  expect(await querying).toEqual(saving)
+  expect(relay.reply(cancel, saving)).toBe(true)
+  expect(await cancelling).toEqual(saving)
+})
+
+it.each([
+  { label: 'saved', receipt: { status: 'applied', settlement: 'saved' } },
+  { label: 'rolled back', receipt: { status: 'applied', settlement: 'rolled-back' } },
+  { label: 'superseded', receipt: { status: 'applied', settlement: 'superseded' } },
+  { label: 'draft', receipt: { status: 'applied', settlement: 'draft' } },
+  { label: 'refused', receipt: { status: 'refused', reason: 'revision-conflict' } },
+  { label: 'cancelled', receipt: { status: 'cancelled' } },
+  { label: 'completed', receipt: { status: 'completed', completion: 'service-failed' } },
+  { label: 'retired', receipt: { status: 'retired' } },
+])('terminalizes an operation after a $label outcome query', async ({ receipt }) => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const committing = relay.dispatchExternal({ operationId, payload: { kind: 'commit_edit' } })
+  const [commit] = relay.take()
+  relay.reply(commit, { code: 'outcome', receipt: { status: 'applied', settlement: 'saving' } })
+  await committing
+
+  const querying = relay.query({ kind: 'get_outcome', operationId })
+  const [query] = relay.take()
+  relay.reply(query, { code: 'outcome', receipt })
+  expect(await querying).toEqual({ code: 'outcome', receipt })
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'cancel', payload: { kind: 'cancel_edit' } })).toEqual({ code: 'finished', operationId })
   expect(relay.take()).toEqual([])
 })
 

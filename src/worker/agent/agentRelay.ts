@@ -194,10 +194,8 @@ export class AgentRelay {
     if (job.external) this.recordExternalReply(job, bounded)
     const query = job.message.payload as AgentEditorQuery | { kind: string }
     if (job.query && query.kind === 'read_show' && bounded.code === 'read') this.externalReadReady = true
-    const receipt = bounded.receipt as { status?: string } | undefined
     const recoveredOperationId = job.query && query.kind === 'get_outcome' ? (query as AgentEditorQuery & { kind: 'get_outcome' }).operationId : !job.query && query.kind === 'cancel_edit' ? job.message.operationId : undefined
-    const recovered = recoveredOperationId !== undefined && bounded.code === 'outcome'
-      && receipt && ['applied', 'refused', 'cancelled', 'completed', 'retired'].includes(receipt.status ?? '')
+    const recovered = recoveredOperationId !== undefined && terminalOutcome(bounded, !job.query && query.kind === 'cancel_edit')
     if (recovered) {
       this.settleOperationJobs(recoveredOperationId, job)
       const operation = this.operations.get(recoveredOperationId)
@@ -321,10 +319,15 @@ function validId(value: unknown): value is string { return typeof value === 'str
 function payloadKind(payload: unknown): string | undefined {
   return typeof payload === 'object' && payload !== null && typeof (payload as { kind?: unknown }).kind === 'string' ? (payload as { kind: string }).kind : undefined
 }
-function terminalOutcome(result: PrivateEditResult): boolean {
-  const receipt = result.receipt as { status?: unknown; settlement?: unknown } | undefined
-  if (receipt?.status === 'applied' && receipt.settlement === 'saving') return false
-  return result.code === 'outcome' && receipt !== undefined && ['applied', 'refused', 'cancelled', 'completed', 'retired'].includes(String(receipt.status))
+function terminalOutcome(result: PrivateEditResult, explicitCancel = false): boolean {
+  const rawReceipt = result.receipt
+  if (result.code !== 'outcome' || typeof rawReceipt !== 'object' || rawReceipt === null) return false
+  const receipt = rawReceipt as { status?: unknown; settlement?: unknown }
+  // A cancel reply completes that delivery even when it truthfully reports a
+  // commit already saving. A passive saving observation leaves cancellation
+  // available until a later terminal receipt is observed.
+  if (receipt.status === 'applied' && receipt.settlement === 'saving') return explicitCancel
+  return ['applied', 'refused', 'cancelled', 'completed', 'retired'].includes(String(receipt.status))
 }
 /** JSON identity with stable object-key order; no coercion of invalid values. */
 function canonicalJson(value: unknown): string {
