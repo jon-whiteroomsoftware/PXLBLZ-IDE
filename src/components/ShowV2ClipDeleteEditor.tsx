@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { planShowV2ClipDeleteRampProjections } from '@/engine/showV2TransitionEditorModel'
 import type { ShowV2PilotPreparedCapture, ShowV2PilotAdoptionReceipt, ShowV2PilotClipDeleteIntent, ShowV2PilotClipDeleteOutcome } from '@/store/showV2PreparedEditAdmission'
 export interface ShowV2ClipDeleteSubmission {
   intent: ShowV2PilotClipDeleteIntent
@@ -24,11 +26,17 @@ export function ShowV2ClipDeleteEditor({ clipId, capture, submitClipDelete, isCu
   const available = ordinary && (capture.inputCapture?.status === 'qualified' || (!capture.inputCapture && capture.prepared.status !== 'refused'))
   const remove = async () => {
     if (pending.current || !available || !isCurrentCapture()) return
-    pending.current = true; setBusy(true)
     const selectedId = clipId
+    // Surviving boundary ramps become independent tracks before their carrier leaves.
+    const projections = planShowV2ClipDeleteRampProjections(capture.record, selectedId, () => newPersonalContentId())
+    if (projections.status === 'refused') { if (isCurrentCapture()) onStatus(projections.message); return }
+    pending.current = true; setBusy(true)
     const adopted: { current: ShowV2PilotAdoptionReceipt | null } = { current: null }
     try {
-      const outcome = await submitClipDelete({ intent: { kind: 'delete-clip', clipId: selectedId }, isCurrent: () => live.current && isCurrentCapture(), onAdopted: receipt => { adopted.current = receipt } })
+      const outcome = await submitClipDelete({
+        intent: { kind: 'delete-clip', clipId: selectedId, ...(projections.plans.length > 0 ? { propertyRampProjections: projections.plans } : {}) },
+        isCurrent: () => live.current && isCurrentCapture(), onAdopted: receipt => { adopted.current = receipt },
+      })
       const current = outcome.status === 'applied' ? adopted.current !== null && outcome.settlement === 'saved' && isCurrentCompletion(adopted.current, 'saved') : isCurrentCapture()
       if (!live.current || !current) return
       if (outcome.status === 'applied') { onDeleted(selectedId); onStatus('Clip deleted.') }

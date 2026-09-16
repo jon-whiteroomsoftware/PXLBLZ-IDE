@@ -1,0 +1,83 @@
+{
+  "issue": 1038,
+  "scope": "Transition inspector/timeline completion through the real route, plus Property-ramp projection before carrier removal",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "sections": ["5", "6 (property-only boundary carriers)", "9"],
+    "proofRows": ["TRANSITION", "DELETE-READD", "ACTIVATION", "RESTART", "ROUTE", "FAILURE", "PARITY"]
+  },
+  "base": "8666d8890b1768d0da55268c62c44b540d5395bc",
+  "invariants": [
+    "Cut is the absence of a Transition at exact integer adjacency; the derived junction projection mints no identity and a 1 ms gap offers none.",
+    "Insert ripples the incoming connected closure later by the duration exactly once per Clip; outgoing timing, unrelated Clips, Show End, Markers, Layout occurrences and Show-wide animation stay fixed.",
+    "A settings edit keeps Transition identity, endpoints, duration, whole-output window and Property ramps, and leaves every Clip time unchanged.",
+    "Reset to Cut deletes the Transition and moves incoming contributors and connected successors earlier by its duration only.",
+    "Surviving Transition propertyRamps are projected into independently activated tracks, retaining value, easing, activation interval and time mapping, before the visual carrier is removed by Clip deletion or Reset.",
+    "Identity is never allocated inside the pure owner: track, keyframe, Transition and participant identities come from explicit caller plans and refuse on conflict.",
+    "Refusal and no-op return the original record identity with empty affected collections and produce no preparation, history, timestamp or save.",
+    "Restart fires at first contribution: attaching or resizing an incoming Transition moves the trigger with the contribution window, not with the nominal Clip start."
+  ],
+  "partitions": [
+    "junction scope: participant (one Zone/Layer) versus whole-output (every boundary contributor), exact adjacency versus 1 ms gap",
+    "Layer topology: Main Layer, overlay Layer, one Zone, two Zones, converging chain into a shared whole-output boundary",
+    "kinds: crossfade (live-live and snapshot-live), fade-color, wipe, dither, portal, motion",
+    "carrier targets: show-repeat-scale (projected), layout-occurrence-split-position (projected), clip-owned ramp on the deleted Clip (removed with its target), unprojectable target (refused)",
+    "delete plans: no carrier, exactly matching plans, missing plan, plan naming a retained Transition, projection the #1037 owner refuses",
+    "admission: malformed intent (extra field, Cut kind, nonpositive duration, caller-authored ramp), missing identity, inexact endpoints, compiler-ineligible, stale record/provider replacement",
+    "route lifetime: pending double submit, stale capture, failed save rollback and retry, obsolete completion"
+  ],
+  "sequences": [
+    "derived Cut -> Insert -> settings (kind change) -> existing duration resize -> Undo -> Redo -> Reset to Cut -> reload saved v2 -> page reload -> native artifact reopen",
+    "whole-output Insert across two Zones -> resize -> Reset, each contributor moved once",
+    "Cut -> Insert -> trailing resize of the outgoing Clip -> Reset, tracking the derived Restart event",
+    "two-Clip Show -> delete second Clip -> re-add at the exact boundary and at a 1 ms gap",
+    "carrier Transition -> Reset with derived projections -> reopened record; carrier Transition -> delete a contributor Clip with projection plans"
+  ],
+  "oracles": [
+    "Reopened .pxlshow v2 through parseProvisionalShowRecordV2 and the real file bundle importer; exact Clip start/duration, Transition settings, track values, easing and activation.",
+    "Real closed admission through the store: one prepareShowStageV2 call, one provider write, one history entry, exact affected collections, and provider readback of the persisted composition.",
+    "Fast and Precise fastReplay frames and exports at named times compared against an independently prepared expected record; identical generated artifact code.",
+    "deriveShowRestartEventsV2 event times before and after attach, resize and Reset.",
+    "Authenticated route: pre-registered successful PUT count with semantic readback after every visible action, plus captured Fast/Precise frames on the running Stage.",
+    "Zero-write refusal: RL08 compiler refusal surfaced in the route with no PUT and unchanged persisted bytes."
+  ],
+  "redEvidence": [
+    "Clip deletion with a surviving carrier refused as unsupported-property-carrier before the projection owner was consumed (3 of 6 cases red).",
+    "Missing showV2TransitionEditorModel module (12 cases).",
+    "Missing admitShowV2PilotTransitionEdit wrapper (10 cases).",
+    "Missing ShowV2TransitionEditor component and pilot mount (9 cases).",
+    "Converging-chain whole-output Insert first red on Show End overflow before the fixture reserved tail room."
+  ],
+  "faults": [
+    "Removing the projection from the deletion candidate (use the preimage record) killed by 'projects a surviving global scalar ramp into an independently activated track'.",
+    "Removing the missing-plan guard killed by 'refuses atomically when a removed carrier has no projection plan'.",
+    "Changing the settings plan duration by one millisecond killed by the model and admission identity/timing cases.",
+    "Widening projected activation by one millisecond killed by the model and admission Reset activation cases.",
+    "Allowing a caller-authored ramp on an Insert intent killed by the admission 'authored ramp' partition."
+  ],
+  "residualGaps": [
+    "Resizing a Transition that carries Property ramps stays an adapter-only refusal: no accepted ramp re-timing semantics exist, and the owner refuses atomically rather than guessing one.",
+    "Reset and delete projection planning covers only the two global scalar ramp targets that conversion produces and lowering accepts; any other ramp target refuses by name rather than inventing a destination value.",
+    "A projected layout-occurrence-split-position track whose activation would start before its owning occurrence refuses through the record validator; this is a representation limit of the occurrence-scoped activation rule, not a compiler limit.",
+    "RL08, RL09 and RL10 remain bounded compiler refusals and are surfaced unchanged; the route exercises RL08 as a real zero-write refusal.",
+    "The directed-cycle guard in the pure owner is unreachable from a validated record (a cycle cannot satisfy exact endpoint adjacency); reachable invalid topology is proved instead.",
+    "Continuous-flat participant Transitions with multiple Layouts keep their existing atomic refusal; this slice neither repairs nor widens it.",
+    "Final authoritative committed-tip suites and Fable High review remain coordinator-owned."
+  ],
+  "guardClassification": {
+    "adapterOnly": [
+      "unsupported-property-carrier on resize-transition and on reset-to-cut without a plan",
+      "unsupported-property-carrier on delete-clip without a complete plan",
+      "planShowV2TransitionRampProjections refusal for non-scalar ramp targets"
+    ],
+    "boundedCompilerLimit": ["RL08", "RL09", "RL10"]
+  },
+  "results": {
+    "focused": "59 tests across 7 files passed: showTransitionsV2RampCarrier (6), showTransitionsV2Completion (8), showV2TransitionEditorModel (12), showTransitionsV2 (11), showV2TransitionEditAdmission (10), ShowV2TransitionEditor (9), showV2TransitionsRouteFixture (1).",
+    "staged": "npm run test:staged passed on rerun; one unrelated timeout in scripts/wrsp-ui-proof-gate.test.ts under parallel load passed in isolation.",
+    "parity": "npm run show:v2-parity matched 47 inventoried records.",
+    "static": "npx tsc -b and npm run lint passed; one advisory unmapped-layout-sensitive-change for the new component, justified by the 1024/390 overflow and keyboard checks in the authenticated spec.",
+    "e2e": "npx tsx scripts/run-authenticated-playwright.ts e2e/show-v2-transitions.auth.spec.ts passed: six awaited durable writes, one zero-write RL08 refusal, Undo/Redo, reload, cold reopen, native artifact reopen, Fast/Precise captures, desktop and 390px keyboard and bounds checks, zero browser errors."
+  }
+}

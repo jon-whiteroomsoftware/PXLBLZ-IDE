@@ -22,6 +22,12 @@ export interface ShowDerivedCutJunctionV2 {
   toClipId: string
 }
 
+/** One removed carrier's complete ramp projection plan; identities come from the caller. */
+export interface ShowTransitionCarrierRampProjectionPlanV2 {
+  transitionId: string
+  projections: readonly ShowTransitionRampProjectionV2[]
+}
+
 export type ShowTransitionEditIntentV2 =
   | { kind: 'insert'; transition: ShowTransitionV2 }
   | { kind: 'update-transition'; transition: ShowTransitionV2 }
@@ -30,7 +36,7 @@ export type ShowTransitionEditIntentV2 =
   | { kind: 'resize-trailing'; clipId: string; endMs: number }
   | { kind: 'resize-leading'; clipId: string; startMs: number }
   | { kind: 'reset-to-cut'; transitionId: string; propertyRampProjections?: readonly ShowTransitionRampProjectionV2[] }
-  | { kind: 'delete-clip'; clipId: string }
+  | { kind: 'delete-clip'; clipId: string; propertyRampProjections?: readonly ShowTransitionCarrierRampProjectionPlanV2[] }
 
 export type ShowTransitionEditRefusalV2 =
   | 'invalid-record'
@@ -103,14 +109,31 @@ export function editShowTransitionV2(
     const removedTransitions = record.composition.transitions.filter(transition => (
       transitionEndpoints(transition).all.includes(clip.id)
     ))
-    if (removedTransitions.some(transition => transition.propertyRamps.length > 0)) {
-      return refuse('unsupported-property-carrier', `Deleting Clip "${clip.id}" would remove Transition property ramps that require the #1037 projection owner.`)
+    const carrierIds = removedTransitions.filter(transition => transition.propertyRamps.length > 0).map(transition => transition.id)
+    const plans = intent.propertyRampProjections ?? []
+    if (plans.length !== carrierIds.length
+      || new Set(plans.map(plan => plan.transitionId)).size !== plans.length
+      || plans.some(plan => !carrierIds.includes(plan.transitionId))) {
+      return refuse('unsupported-property-carrier', `Deleting Clip "${clip.id}" needs one complete Property-ramp projection plan for each removed carrier Transition (${carrierIds.join(', ') || 'none'}).`)
+    }
+    // Project every removed carrier's ramps on the preimage, before the visual record leaves.
+    let projected = record
+    const projectedTrackIds: string[] = []
+    for (const plan of plans) {
+      const result = projectShowTransitionPropertyRampsV2(projected, plan.transitionId, plan.projections)
+      if (result.status !== 'changed') {
+        return refuse('unsupported-property-carrier', result.status === 'refused'
+          ? result.message
+          : `Transition "${plan.transitionId}" Property ramps were not projected.`)
+      }
+      projected = result.record
+      projectedTrackIds.push(...result.affectedTrackIds)
     }
     const removedTransitionIds = removedTransitions.map(transition => transition.id)
-    const removedTrackIds = record.composition.propertyTracks
+    const removedTrackIds = projected.composition.propertyTracks
       .filter(track => 'clipId' in track.target && track.target.clipId === clip.id)
       .map(track => track.id)
-    const next = structuredClone(record)
+    const next = structuredClone(projected)
     next.composition.clips = next.composition.clips.filter(candidate => candidate.id !== clip.id)
     next.composition.transitions = next.composition.transitions.filter(transition => !removedTransitionIds.includes(transition.id))
     next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !removedTrackIds.includes(track.id))
@@ -122,7 +145,7 @@ export function editShowTransitionV2(
       status: 'changed', record: next,
       affectedClipIds: [clip.id],
       affectedTransitionIds: removedTransitionIds.sort(),
-      affectedTrackIds: removedTrackIds.sort(),
+      affectedTrackIds: [...new Set([...projectedTrackIds, ...removedTrackIds])].sort(),
       removedIds: [clip.id, ...removedTransitionIds, ...removedTrackIds].sort(),
     }
   }
@@ -210,7 +233,9 @@ export function editShowTransitionV2(
     if (intent.kind === 'reset-to-cut' && intent.propertyRampProjections) {
       return resetTransitionWithProjectedPropertyRamps(record, transition, intent.propertyRampProjections)
     }
-    return refuse('unsupported-property-carrier', `Transition "${transition.id}" has property ramps that require the #1037 projection owner.`)
+    // Reset consumes an explicit projection plan; resizing a boundary carrier window
+    // remains an adapter-only guard with no accepted ramp re-timing semantics.
+    return refuse('unsupported-property-carrier', `Transition "${transition.id}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
   }
   if (intent.kind === 'resize-transition' && intent.durationMs === 0) {
     return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })

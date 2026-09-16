@@ -1,12 +1,12 @@
-# Show v2 checked Transition resize admission
+# Show v2 checked Transition admission
 
 The opt-in `ShowV2RoutePilot` keeps its existing Transition duration control and
 minimum1ms. It calls `admitShowV2PilotTransitionResize`, using the same parent
 prepared capture, trusted profile/map/assets and current/completion callbacks as
 [Marker admission](show-v2-marker-route.md). Production v1 routing is unchanged.
 
-`showV2PreparedEditAdmission.ts` owns a private closed dispatch and exactly two
-public typed wrappers: general Marker edits and `resize-transition`. It accepts
+`showV2PreparedEditAdmission.ts` owns a private closed dispatch and public typed
+wrappers, originally general Marker edits and `resize-transition`. It accepts
 no caller candidate or transformation callback. The Marker compatibility module
 preserves its existing request types, outcome codes and controls. Resize returns
 complete Clip/Transition/track/removed IDs and distinguishes typed pure-owner
@@ -48,6 +48,73 @@ changed/no-op/refusal, Undo/Redo, save/reload, native reopening and narrow contr
 [Test design](../evidence/issue-1038-transition-admission/test-design.json) owns the
 proof packet. Full editor adoption, other commands and production cutover remain
 outside this slice. Existing Stage sample-from-position behavior is unchanged.
+
+## Transition Insert, settings and Reset to Cut (#1038)
+
+The pilot mounts `ShowV2TransitionEditor` beside its existing duration control.
+The panel selects one derived Cut junction or one existing Transition and calls
+`admitShowV2PilotTransitionEdit`, the third public typed wrapper on the same
+private closed dispatch. Its `transition-edit` command accepts exactly `insert`,
+`update-transition` and `reset-to-cut`; a caller candidate, a `delete-clip`
+smuggled through this wrapper, a stored Cut kind, a nonpositive duration or a
+caller-authored `propertyRamps` array on an Insert refuses before any owner call,
+preparation, history or save. Unknown Transition fields stay with the record
+validator, which the pure owner already runs on its complete candidate.
+
+`showV2TransitionEditorModel.ts` is the pure route model. It projects selectable
+junctions from `projectShowTransitionJunctionsV2` — exact integer adjacency only,
+so a 1 ms gap offers nothing — and adds a whole-output junction at each boundary
+time where every ending and starting Clip meets exactly and none spans it. Kind
+options come from the existing visual-toolkit catalogue for the Stage dimension
+with the Cut variant excluded, and `showTransitionChangesForPresentation` supplies
+each kind's complete authored settings, so a kind change drops the previous kind's
+parameters instead of persisting dead fields. `planShowV2TransitionEdit` allocates
+fresh Transition and participant identity through a caller-supplied generator and
+refuses a conflict; the pure owner allocates nothing. Insert preserves outgoing
+timing and ripples the incoming connected closure once; a settings edit keeps
+identity, endpoints, duration, whole-output window and ramps; Reset deletes the
+Transition and moves incoming contributors and connected successors earlier.
+Collision, Show End, Zone availability and compiler eligibility refuse atomically
+through the existing owner, with no silent Show End extension.
+
+## Property-ramp projection before carrier removal (#1038)
+
+Specification §6 requires surviving Transition `propertyRamps` to become
+independently activated tracks before their visual carrier leaves the record. The
+earlier "requires the #1037 projection owner" refusals are retired.
+`reset-to-cut` already consumed an explicit projection plan; `delete-clip` now
+takes `propertyRampProjections`, one complete plan per removed carrier Transition,
+and projects them on the preimage through `projectShowTransitionPropertyRampsV2`
+before removing the Clip, its Transitions and its Clip-owned tracks. A projected
+track whose target is the deleted Clip is removed with that target and reported in
+both `affectedTrackIds` and `removedIds`; every other projected track survives.
+A missing, duplicated or foreign plan, and any projection the #1037 owner refuses,
+refuses the whole deletion atomically with the original record identity.
+
+`planShowV2TransitionRampProjections` derives plans for the route from the record:
+activation is exactly the ramp window, and the destination value is the held
+repeat scale at the boundary or the incoming occurrence's split position. Those
+are the two global scalar targets conversion produces and lowering accepts; any
+other ramp target refuses by name rather than inventing a destination value. The
+Clip delete panel builds its plan the same way, so deleting a carrier contributor
+through the route no longer refuses. Derived compiler ramps are unchanged.
+
+Guard classification: `unsupported-property-carrier` on a ramp-carrying
+`resize-transition`, on `reset-to-cut` without a plan, on `delete-clip` without a
+complete plan, and the planner's non-scalar-target refusal are adapter-only
+guards — no accepted ramp re-timing or destination semantics exist for them yet.
+RL08, RL09 and RL10 remain bounded compiler refusals and are surfaced unchanged;
+the authenticated flow exercises RL08 as a real zero-write route refusal.
+Continuous-flat participant Transitions with multiple Layouts keep their existing
+atomic refusal, unrepaired and unwidened by this slice.
+
+[Public admission tests](../../../src/store/showV2TransitionEditAdmission.test.ts),
+[route model tests](../../../src/engine/showV2TransitionEditorModel.test.ts),
+[carrier tests](../../../src/engine/showTransitionsV2RampCarrier.test.ts),
+[topology partitions](../../../src/engine/showTransitionsV2Completion.test.ts),
+[panel tests](../../../src/components/ShowV2TransitionEditor.test.tsx) and the
+[authenticated flow](../../../e2e/show-v2-transitions.auth.spec.ts) own this proof;
+the packet is [issue-1038-transition-route](../evidence/issue-1038-transition-route/test-design.json).
 
 ## Ordinary Clip deletion adoption (#1038)
 

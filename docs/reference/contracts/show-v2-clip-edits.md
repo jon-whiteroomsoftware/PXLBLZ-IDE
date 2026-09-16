@@ -101,7 +101,10 @@ or deletes that carrier. The caller supplies fresh identities, the retained end
 value and activation end; an incomplete or conflicting projection refuses with
 the original record. The Transition reset owner invokes this projection before
 removing the carrier, then performs the visual edit without shifting the new
-tracks. Connected edge resize delegates nonlinear restriction to the same exact
+tracks. Ordinary Clip deletion does the same for every removed carrier Transition,
+taking one complete plan each and dropping only a projected track whose target is
+the deleted Clip; see the [Transition route contract](show-v2-transition-route.md).
+Connected edge resize delegates nonlinear restriction to the same exact
 curve owner.
 
 ## Current admission domain

@@ -64,6 +64,7 @@ type Command =
   | { owner: 'create-group'; intent: CreateShowGroupFromSelectionIntentV2 }
   | { owner: 'marker'; intent: ShowMarkerEditIntentV2 }
   | { owner: 'transition-resize'; intent: ShowV2PilotTransitionResizeIntent }
+  | { owner: 'transition-edit'; intent: ShowV2PilotTransitionEditIntent }
   | { owner: 'create-clip'; intent: CreateShowClipIntentV2 }
   | { owner: 'clip-temporal'; intent: ShowClipTemporalIntentV2 }
   | { owner: 'clip-sharing'; intent: ShowV2PilotClipSharingIntent }
@@ -191,6 +192,46 @@ export async function admitShowV2PilotTransitionResize(request: ShowV2PilotTrans
   if (outcome.status === 'unchanged') return { status: 'unchanged', ...resizeEmpty() }
   const { affectedClipIds, affectedTransitionIds, affectedTrackIds, removedIds } = outcome.result
   return { status: 'applied', settlement: outcome.settlement, affectedClipIds, affectedTransitionIds, affectedTrackIds, removedIds }
+}
+export type ShowV2PilotTransitionEditIntent = Extract<ShowTransitionEditIntentV2, { kind: 'insert' | 'update-transition' | 'reset-to-cut' }>
+export type ShowV2PilotTransitionEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotTransitionEditIntent }
+export type ShowV2PilotTransitionEditOutcome = PilotOwnerOutcome<ShowTransitionEditResultV2, ResizeAffected>
+function validTransitionEditIntent(intent: unknown): intent is ShowV2PilotTransitionEditIntent {
+  const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
+  if (!object(intent)) return false
+  if (intent.kind === 'reset-to-cut') {
+    if (!text(intent.transitionId)) return false
+    if (exactIntentFields(intent, ['kind', 'transitionId'])) return true
+    if (!exactIntentFields(intent, ['kind', 'transitionId', 'propertyRampProjections']) || !Array.isArray(intent.propertyRampProjections)) return false
+    return intent.propertyRampProjections.every(projection => (
+      exactIntentFields(projection, ['rampIndex', 'trackId', 'startKeyId', 'endKeyId', 'activeEndMs', 'toValue']) && object(projection)
+      && typeof projection.rampIndex === 'number' && Number.isSafeInteger(projection.rampIndex) && projection.rampIndex >= 0
+      && text(projection.trackId) && text(projection.startKeyId) && text(projection.endKeyId)
+      && typeof projection.activeEndMs === 'number' && Number.isSafeInteger(projection.activeEndMs) && projection.activeEndMs >= 0
+      && typeof projection.toValue === 'number' && Number.isFinite(projection.toValue)
+    ))
+  }
+  if (intent.kind !== 'insert' && intent.kind !== 'update-transition') return false
+  if (!exactIntentFields(intent, ['kind', 'transition']) || !object(intent.transition)) return false
+  const transition = intent.transition
+  // Structure, references, timing and unknown fields stay with the record validator.
+  if (!text(transition.id) || !text(transition.kind) || transition.kind === 'cut'
+    || typeof transition.durationMs !== 'number' || !Number.isSafeInteger(transition.durationMs) || transition.durationMs <= 0
+    || !Array.isArray(transition.participants) || !Array.isArray(transition.propertyRamps)) return false
+  // A fresh insert never authors a boundary carrier through this surface.
+  return intent.kind !== 'insert' || transition.propertyRamps.length === 0
+}
+export async function admitShowV2PilotTransitionEdit(request: ShowV2PilotTransitionEditRequest): Promise<ShowV2PilotTransitionEditOutcome> {
+  if (!validTransitionEditIntent(request.intent)) {
+    return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one complete explicit Transition Insert, settings or Reset operation.', ...resizeEmpty() }
+  }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'transition-edit' as const })
+  const result = 'result' in outcome ? outcome.result : undefined
+  const effects: ResizeAffected = result && result.status !== 'refused'
+    ? { affectedClipIds: result.affectedClipIds, affectedTransitionIds: result.affectedTransitionIds, affectedTrackIds: result.affectedTrackIds, removedIds: result.removedIds }
+    : resizeEmpty()
+  return presentOwnerOutcome(outcome, effects)
 }
 export type ShowV2PilotCreateClipRequest = ShowV2PilotPreparedEditContext & { intent: CreateShowClipIntentV2 }
 type CreateEffects = Pick<ShowClipCreationResultV2, 'affectedClipIds' | 'affectedTrackIds' | 'affectedInstanceIds' | 'affectedAppearanceKeyIds' | 'affectedKeyframeIds' | 'hoistedInstanceIds' | 'removedIds'>
@@ -424,8 +465,21 @@ export async function admitShowV2PilotGroupOccurrenceEdit(request: ShowV2PilotGr
   const result = 'result' in outcome ? outcome.result : undefined
   return presentOwnerOutcome(outcome, { ...timelineEffects(result), hoistedInstanceIds: result?.hoistedInstanceIds ?? [] })
 }
+/** Deletion may carry one complete ramp projection plan for each removed carrier. */
+function validClipDeleteIntent(intent: unknown): intent is ShowV2PilotClipDeleteIntent {
+  const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  if (!object(intent) || intent.kind !== 'delete-clip' || typeof intent.clipId !== 'string' || !intent.clipId.trim()) return false
+  if (exactIntentFields(intent, ['kind', 'clipId'])) return true
+  if (!exactIntentFields(intent, ['kind', 'clipId', 'propertyRampProjections']) || !Array.isArray(intent.propertyRampProjections)) return false
+  return intent.propertyRampProjections.every(plan => (
+    exactIntentFields(plan, ['transitionId', 'projections']) && object(plan)
+    && typeof plan.transitionId === 'string' && plan.transitionId.trim().length > 0
+    && Array.isArray(plan.projections)
+    && validTransitionEditIntent({ kind: 'reset-to-cut', transitionId: plan.transitionId, propertyRampProjections: plan.projections })
+  ))
+}
 export async function admitShowV2PilotClipDelete(request: ShowV2PilotClipDeleteRequest): Promise<ShowV2PilotClipDeleteOutcome> {
-  if (!exactIntentFields(request.intent, ['kind', 'clipId']) || request.intent.kind !== 'delete-clip' || typeof request.intent.clipId !== 'string' || !request.intent.clipId.trim()) {
+  if (!validClipDeleteIntent(request.intent)) {
     return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Choose one ordinary Clip to delete.', ...timelineEffects() }
   }
   const outcome = await admitPreparedEdit({ ...request, owner: 'delete-clip' as const })
