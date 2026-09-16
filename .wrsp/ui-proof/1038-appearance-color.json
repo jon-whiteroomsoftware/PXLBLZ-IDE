@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/appearance-color-synthetic?show-v2-pilot=1&capture",
+  "operation": "Opened a uniform authored Color-map shadow RGB [.1,.2,.3]: untouched hex display/Enter saved nothing and D1 held keys stayed exact. Deliberately entered #224466 once, verified exactly one Show write, unchanged highlight RGB/Group/property owners, durable cold reopen and disabled untouched Apply; actual Fast/Precise Stage frames and 1024/390 scope-to-time keyboard/overflow checks passed with zero browser errors. Pinned repository Playwright separate synthetic context used the same Worker/renderer without user-cookie changes.",
+  "captures": [
+    ".wrsp/ui-proof/1038-appearance-color-stage.png",
+    ".wrsp/ui-proof/1038-appearance-color-desktop.png",
+    ".wrsp/ui-proof/1038-appearance-color-narrow.png"
+  ],
+  "capturedAtCommit": "fece4f1c023e51071f2df01bdc084a6acf0fe071"
+}
