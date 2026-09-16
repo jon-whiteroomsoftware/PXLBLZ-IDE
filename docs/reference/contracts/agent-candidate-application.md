@@ -702,8 +702,11 @@ refusal discards the whole private candidate. Cached response loss preserves
 identity tombstones and uses the surviving admission receipt for outcome
 recovery, never automatic application replay. The production browser session
 receives commands from the bounded account relay for both transports. Cancel
-after commit still reaches the retained admission request during input waiting;
-an already-adopted save remains intact. Local end retires synchronously before
+after commit still reaches the retained admission request during input waiting,
+and an already-adopted save remains intact. A pending, waiting or applied/saving
+commit result tombstones every unsent ordinary follower as `result_unavailable`;
+its keyed retry resolves that tombstone, and relay delivery admits only the
+retained terminal cancel. Local end retires synchronously before
 network cleanup; remote grant retirement and loss of the relay's volatile
 identity ledger are confirmed only after the browser acknowledges retirement.
 After account-owner recreation, an exact trusted built-in identity inspection
@@ -711,7 +714,12 @@ recreates its volatile relay because the built-in transport retains the immutabl
 caller-owned delivery envelope and the browser journal independently rejects
 replay. External clients instead retire the old binding and obtain a fresh
 server-owned identity ledger; their old keys never recreate work.
-Unsent relay followers never reach this executor, while a sent unknown head can
-only be followed by terminal cancel. Capture capacity is checked before retaining
-a new or retry request. See the OAuth/MCP and rendezvous contracts for client-key
-scope, queue limits, transport identity and revocation acknowledgement.
+Unsent ordinary followers after commit never reach this executor, while a sent
+unknown head can only be followed by terminal cancel. Capture capacity measures
+the complete observable `begun` result, including its status, operation, and
+revision wrapper, with the delivery journal's canonical byte oracle before
+retaining private or active candidate state. Oversize capture records terminal
+`service-refused`, latches capacity for that binding, and requires retirement
+plus a fresh executor before another candidate can begin. See the OAuth/MCP and
+rendezvous contracts for client-key scope, queue limits, transport identity and
+revocation acknowledgement.

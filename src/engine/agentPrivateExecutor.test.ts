@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { showCommandFixture } from '../test/showCommandFixture'
+import { MAX_AGENT_DELIVERY_RESULT_BYTES } from './agentDeliveryJournal'
 import { createAgentPrivateExecutor, type PrivateEditOwner } from './agentPrivateExecutor'
 import type { ShowEditRequest } from './showEditAdmission'
 
@@ -103,6 +104,47 @@ describe('browser private edit executor', () => {
     executor.retire()
     expect(send(2, { kind: 'commit_edit' }).code).toBe('retired')
     expect(owner.apply).not.toHaveBeenCalled()
+  })
+
+  it('refuses a begun result whose complete observable envelope exceeds the journal limit', () => {
+    const specifiedResultBytes = 1_048_576
+    expect(MAX_AGENT_DELIVERY_RESULT_BYTES).toBe(specifiedResultBytes)
+    const show = showCommandFixture()
+    const emptyView = { show, context: { padding: '' } }
+    const emptyViewBytes = new TextEncoder().encode(JSON.stringify(emptyView)).byteLength
+    const context = { padding: 'x'.repeat(specifiedResultBytes - 16 - emptyViewBytes) }
+    expect(new TextEncoder().encode(JSON.stringify({ show, context })).byteLength).toBe(specifiedResultBytes - 16)
+    expect(new TextEncoder().encode(JSON.stringify({ code: 'begun', operationId: 'op', baseRevision: 0, show, context })).byteLength).toBeGreaterThan(specifiedResultBytes)
+
+    let receipt: unknown
+    const request: ShowEditRequest = { ...scope, showId: show.id, operationId: 'binding:op', payloadKey: 'intent', referenceContext: '{}', targets: [show.id], baseRevision: 0 }
+    const owner: PrivateEditOwner = {
+      capture: vi.fn(() => ({ request, show: structuredClone(show), context, commandContext: { source: () => undefined }, retainedBytes: 1000 })),
+      apply: vi.fn(),
+      complete: vi.fn((_request, completion) => (receipt = { status: 'completed', completion })),
+      cancel: vi.fn(() => ({ status: 'cancelled' })),
+      outcome: vi.fn(() => receipt),
+    }
+    const executor = createAgentPrivateExecutor(scope, owner)
+    const delivery = { ...scope, operationId: 'op', deliveryId: 'd0', sequence: 0, payload: begin }
+
+    expect(executor.deliver(delivery)).toEqual({ code: 'result_too_large' })
+    expect(executor.deliver(delivery)).toEqual({ code: 'result_too_large' })
+    expect(owner.capture).toHaveBeenCalledTimes(1)
+    expect(owner.complete).toHaveBeenCalledTimes(1)
+    expect(owner.complete).toHaveBeenCalledWith(request, 'service-refused')
+    expect(executor.getOutcome('op')).toEqual({ code: 'outcome', receipt: { status: 'completed', completion: 'service-refused' } })
+    expect(executor.deliver({ ...scope, operationId: 'next', deliveryId: 'next', sequence: 0, payload: begin })).toEqual({ code: 'capacity' })
+
+    executor.retire()
+    const freshScope = { bindingId: 'fresh-binding', sessionId: 'fresh-session' }
+    const freshRequest: ShowEditRequest = { ...request, ...freshScope, operationId: 'fresh-binding:fresh' }
+    const freshOwner: PrivateEditOwner = {
+      ...owner,
+      capture: vi.fn(() => ({ request: freshRequest, show: structuredClone(show), context: {}, commandContext: { source: () => undefined }, retainedBytes: 1000 })),
+    }
+    const fresh = createAgentPrivateExecutor(freshScope, freshOwner)
+    expect(fresh.deliver({ ...freshScope, operationId: 'fresh', deliveryId: 'fresh', sequence: 0, payload: begin }).code).toBe('begun')
   })
 })
 it('expires cached results without permitting an old delivery to execute again', () => {

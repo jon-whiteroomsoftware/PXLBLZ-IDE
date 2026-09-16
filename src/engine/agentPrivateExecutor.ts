@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { AgentResizeIntent } from './agentResizeProtocol'
-import { createDeliveryJournal, type AgentDelivery, type DeliveryScope } from './agentDeliveryJournal'
+import { createDeliveryJournal, MAX_AGENT_DELIVERY_RESULT_BYTES, measureAgentDeliveryResultBytes, type AgentDelivery, type DeliveryScope } from './agentDeliveryJournal'
 import type { ShowRecord } from './personalContentRecords'
 import type { ShowEditCompletion, ShowEditRequest } from './showEditAdmission'
 import { applyShowCommand, type ShowCommandChange, type ShowCommandContext } from './showCommands/registry'
@@ -58,15 +58,17 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
       operation = { request: captured.request }
       operations.set(delivery.operationId, operation)
       const viewBytes = new TextEncoder().encode(JSON.stringify({ show: captured.show, context: captured.context })).byteLength
+      const begun: PrivateEditResult = { code: 'begun', operationId: delivery.operationId, baseRevision: captured.request.baseRevision, show: structuredClone(captured.show), context: structuredClone(captured.context) }
+      const begunBytes = measureAgentDeliveryResultBytes(begun)
       retainedCaptureBytes += Math.max(viewBytes, captured.retainedBytes)
-      if (!Number.isSafeInteger(captured.retainedBytes) || captured.retainedBytes < 0 || viewBytes > 1_048_576 || retainedCaptureBytes > 16_777_216) {
+      if (!Number.isSafeInteger(captured.retainedBytes) || captured.retainedBytes < 0 || begunBytes === undefined || begunBytes > MAX_AGENT_DELIVERY_RESULT_BYTES || retainedCaptureBytes > 16_777_216) {
         captureCapacityReached = true
         owner.complete(captured.request, 'service-refused')
         return { code: 'result_too_large' }
       }
       operation.private = { show: captured.show, commandContext: captured.commandContext, changes: [], commandCount: 0 }
       active = delivery.operationId
-      return { code: 'begun', operationId: delivery.operationId, baseRevision: captured.request.baseRevision, show: structuredClone(captured.show), context: structuredClone(captured.context) }
+      return begun
     }
     if (!operation) return { code: 'unknown' }
     if (payload.kind === 'cancel_edit') {

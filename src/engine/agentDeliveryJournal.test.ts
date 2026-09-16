@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDeliveryJournal } from './agentDeliveryJournal'
+import { createDeliveryJournal, MAX_AGENT_DELIVERY_RESULT_BYTES, measureAgentDeliveryResultBytes } from './agentDeliveryJournal'
 
 describe('binding-scoped delivery journal', () => {
   const scope = { bindingId: 'binding', sessionId: 'session' }
@@ -55,6 +55,23 @@ describe('binding-scoped delivery journal', () => {
     journal.admit(delivery(2))
     expect(journal.complete('op', 'd2', 'too large')).toBe(false)
     expect(journal.admit(delivery(2))).toEqual({ code: 'unknown' })
+  })
+
+  it('uses the complete canonical result boundary inclusively', () => {
+    const journal = createDeliveryJournal(scope)
+    const envelopeOverhead = measureAgentDeliveryResultBytes({ value: '' })
+    expect(envelopeOverhead).toBeTypeOf('number')
+    const atLimit = { value: 'x'.repeat(MAX_AGENT_DELIVERY_RESULT_BYTES - envelopeOverhead!) }
+    const overLimit = { value: `${atLimit.value}x` }
+    expect(measureAgentDeliveryResultBytes(atLimit)).toBe(MAX_AGENT_DELIVERY_RESULT_BYTES)
+    expect(measureAgentDeliveryResultBytes(overLimit)).toBe(MAX_AGENT_DELIVERY_RESULT_BYTES + 1)
+
+    journal.admit(delivery())
+    expect(journal.complete('op', 'd0', atLimit)).toBe(true)
+    expect(journal.admit(delivery())).toEqual({ code: 'known', result: atLimit })
+    journal.admit(delivery(1))
+    expect(journal.complete('op', 'd1', overLimit)).toBe(false)
+    expect(journal.admit(delivery(1))).toEqual({ code: 'unknown' })
   })
 
   it('retirement rejects old scope and late completion cannot resurrect work', () => {

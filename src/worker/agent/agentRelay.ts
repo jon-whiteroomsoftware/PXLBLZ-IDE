@@ -167,7 +167,9 @@ export class AgentRelay {
     for (const [operationId, operation] of this.operations) {
       const jobs = [...this.jobs.values()].filter(job => job.external && job.message.operationId === operationId)
       const sent = jobs.find(job => job.sent)
-      const next = sent ? jobs.find(job => !job.sent && job.terminalCancel) : jobs.find(job => !job.sent)
+      const next = sent
+        ? jobs.find(job => !job.sent && job.terminalCancel)
+        : jobs.find(job => !job.sent && (operation.phase !== 'committed' || job.terminalCancel))
       if (!next) continue
       next.message.sequence = operation.nextSequence
       const admission = this.journal.admit(next.message, sent?.message.deliveryId)
@@ -250,6 +252,7 @@ export class AgentRelay {
       operation.phase = result.code === 'begun' ? 'active' : 'terminal'
     } else if (kind === 'commit_edit') {
       operation.phase = terminalOutcome(result) ? 'terminal' : 'committed'
+      if (operation.phase === 'committed') this.settleUnsent(job.message.operationId)
     } else if (kind === 'cancel_edit') {
       operation.phase = 'terminal'
     } else if (!['changed', 'noop', 'unchanged'].includes(result.code)) {
@@ -319,7 +322,8 @@ function payloadKind(payload: unknown): string | undefined {
   return typeof payload === 'object' && payload !== null && typeof (payload as { kind?: unknown }).kind === 'string' ? (payload as { kind: string }).kind : undefined
 }
 function terminalOutcome(result: PrivateEditResult): boolean {
-  const receipt = result.receipt as { status?: unknown } | undefined
+  const receipt = result.receipt as { status?: unknown; settlement?: unknown } | undefined
+  if (receipt?.status === 'applied' && receipt.settlement === 'saving') return false
   return result.code === 'outcome' && receipt !== undefined && ['applied', 'refused', 'cancelled', 'completed', 'retired'].includes(String(receipt.status))
 }
 /** JSON identity with stable object-key order; no coercion of invalid values. */

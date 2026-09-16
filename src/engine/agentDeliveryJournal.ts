@@ -10,6 +10,13 @@ export type DeliveryAdmission =
   | { code: 'accepted' | 'pending' | 'unknown' | 'identity_conflict' | 'out_of_order' | 'busy' | 'capacity' | 'retired' | 'invalid_payload' }
 interface Entry { identity: string; sequence: number; pending: boolean; result?: { value: unknown; bytes: number } }
 
+export const MAX_AGENT_DELIVERY_RESULT_BYTES = 1_048_576
+
+/** Exact byte oracle used before a result crosses the delivery journal boundary. */
+export function measureAgentDeliveryResultBytes(result: unknown): number | undefined {
+  try { return new TextEncoder().encode(canonicalJson(result)).byteLength } catch { return undefined }
+}
+
 /** Session-local identity owner. Dropping result bytes never drops a tombstone. */
 export function createDeliveryJournal(scope: DeliveryScope, limits: { operations: number; deliveries: number; identityBytes?: number; resultBytes?: number } = { operations: 256, deliveries: 256 }) {
   const { bindingId, sessionId } = scope
@@ -52,10 +59,10 @@ export function createDeliveryJournal(scope: DeliveryScope, limits: { operations
       const entry = operations.get(operationId)?.get(deliveryId)
       if (retired || !entry?.pending) return false
       entry.pending = false
-      let bytes: number
-      try { bytes = new TextEncoder().encode(canonicalJson(result)).byteLength } catch { return false }
+      const bytes = measureAgentDeliveryResultBytes(result)
+      if (bytes === undefined) return false
       const cap = limits.resultBytes ?? 4_194_304
-      if (bytes > 1_048_576 || bytes > cap) return false
+      if (bytes > MAX_AGENT_DELIVERY_RESULT_BYTES || bytes > cap) return false
       for (const old of cached) {
         if (resultBytes + bytes <= cap) break
         resultBytes -= old.result?.bytes ?? 0

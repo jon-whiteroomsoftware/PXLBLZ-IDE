@@ -298,6 +298,34 @@ it('a terminal commit settles followers that were admitted before its result', a
   expect(relay.take()).toEqual([])
 })
 
+it.each([
+  { label: 'pending', commitResult: { code: 'outcome' as const, receipt: { status: 'pending' } }, cancelResult: { code: 'outcome' as const, receipt: { status: 'cancelled' } } },
+  { label: 'waiting', commitResult: { code: 'outcome' as const, receipt: { status: 'waiting' } }, cancelResult: { code: 'outcome' as const, receipt: { status: 'cancelled' } } },
+  { label: 'saving', commitResult: { code: 'outcome' as const, receipt: { status: 'applied', settlement: 'saving' } }, cancelResult: { code: 'outcome' as const, receipt: { status: 'applied', settlement: 'saving' } } },
+])('a $label commit result tombstones queued ordinary work and preserves terminal cancel', async ({ commitResult, cancelResult }) => {
+  const relay = new AgentRelay(scope, () => {})
+  const operationId = await beginExternal(relay)
+  const committing = relay.dispatchExternal({ operationId, idempotencyKey: 'commit', payload: { kind: 'commit_edit' } })
+  const followerPayload = { kind: 'command', name: 'rename_show', arguments: { name: 'Too late' } }
+  const follower = relay.dispatchExternal({ operationId, idempotencyKey: 'late-command', payload: followerPayload })
+  const [commit] = relay.take()
+  expect((commit.payload as { kind: string }).kind).toBe('commit_edit')
+
+  expect(relay.reply(commit, commitResult)).toBe(true)
+  expect(await committing).toEqual(commitResult)
+  expect(await follower).toEqual({ code: 'result_unavailable' })
+  expect(await relay.dispatchExternal({ operationId, idempotencyKey: 'late-command', payload: followerPayload })).toEqual({ code: 'result_unavailable' })
+  expect(relay.take()).toEqual([])
+
+  const cancelling = relay.dispatchExternal({ operationId, idempotencyKey: 'cancel', payload: { kind: 'cancel_edit' } })
+  const [cancel] = relay.take()
+  expect((cancel.payload as { kind: string }).kind).toBe('cancel_edit')
+  expect(cancel.sequence).toBe(2)
+  expect(relay.reply(cancel, cancelResult)).toBe(true)
+  expect(await cancelling).toEqual(cancelResult)
+  expect(relay.take()).toEqual([])
+})
+
 it('canonicalizes keyed command arguments and reserves commit plus post-commit cancellation within 256 deliveries', async () => {
   const relay = new AgentRelay(scope, () => {})
   const operationId = await beginExternal(relay)
