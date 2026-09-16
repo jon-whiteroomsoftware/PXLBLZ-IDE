@@ -1,6 +1,6 @@
 {
   "issue": 1038,
-  "base": "4b11cf326b5498dec7a3832712d7fc941cff8fea",
+  "base": "a1fd6f73ad7153eda6c62547c62a7bb1252ea439",
   "specification": {
     "path": "docs/plans/scene-retirement-specification.md",
     "commit": "70812ae64c919ff1dcb15e019125bd3b6bad7b4b",
@@ -66,6 +66,9 @@
     "parity": {
       "records": 47,
       "result": "matched"
-    }
+    },
+    "sourceCheckpoint": "b74890a5ecd74050106644f806d9af1779a00870",
+    "finalbase": "Property three-commit suffix range-diff identical on recovery test-only repaired base; committed capture follows exact final metadata.",
+    "browserProof": ".wrsp/ui-proof/1038-properties.json"
   }
 }
