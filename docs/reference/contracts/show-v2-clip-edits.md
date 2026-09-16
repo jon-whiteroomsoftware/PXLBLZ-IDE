@@ -462,3 +462,33 @@ cache compiler refusal are explicit classification tests, not output-preservatio
 coverage. The exact candidate-versus-authored-key replay oracle is separate from
 the measured one-LSB Precise unsplit-versus-sectioned opacity discrepancy recorded
 in the slice's evidence; no unsplit byte-exact claim or widened oracle is made.
+
+
+## Native ordinary Clip sharing inspector
+
+The opt-in v2 route exposes linked Duplicate, Make Pattern Independent and
+explicit Rejoin for the selected ordinary Clip. Duplicate requires a chosen
+Zone, matching Layer and integer start; no destination or Rejoin target is
+inferred. Rejoin offers only compatible authored top-level instances, including
+instances bound by Groups; unhoisted Group defaults remain unavailable under
+this owner's current target contract. Sharing counts include all effective
+Group, future and invisible Clip users.
+
+The pure editor model allocates each required fresh identity exactly once from
+the qualified captured graph. It builds complete copied Clip/appearance/track/key
+maps for Duplicate and effective instance-track/key maps for independence.
+The thin panel submits only these closed intents. Shared prepared admission
+checks their outer and nested shape before delegating to `editShowClipV2`, then
+owns complete candidate preparation, provider/revision/dependency/lifetime checks,
+one adoption/history/save, rollback and superseded completion.
+
+The adapter reports fourteen canonical affected collections. Existing identity
+owner reports, including removed property keys, remain exact; Duplicate adds
+appearance/property key IDs only from reported newly created Clip/track owners
+absent from the captured preimage. Refusal and no-op report empty effects and
+produce no save/history transition. Numeric draft values are neither clamped nor
+rounded, and identity allocation never retries on a collision.
+
+Evidence: `evidence/issue-1038-clip-sharing-ui/test-design.json` and its native
+imported-EPE Fast/Precise tests, model/panel tests and retained real Route callback
+regressions. Final browser proof is recorded on the committed final stack.

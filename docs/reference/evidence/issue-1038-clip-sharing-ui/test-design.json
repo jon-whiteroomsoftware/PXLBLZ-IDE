@@ -34,7 +34,9 @@
   "sequences": [
     "linked duplicate \u2192 independent \u2192 explicit Rejoin",
     "pending double submission \u2192 unmount \u2192 settlement",
-    "record replacement \u2192 reset explicit destination/target"
+    "record replacement \u2192 reset explicit destination/target",
+    "Real retained Route callback \u2192 provider/dependency/lifetime replacement \u2192 stale refusal without writes/history.",
+    "Failed sharing save \u2192 exact durable rollback/failure \u2192 retry; adopted save \u2192 provider replacement \u2192 superseded settlement."
   ],
   "oracles": [
     "Model identity maps are consumed by the public edit owner and reopened structural validation.",
@@ -46,19 +48,23 @@
     "missing independence model export",
     "missing Rejoin model export"
   ],
-  "base": "0fd353c75797f2ef3652a541c59aa3c5086aebb5",
+  "base": "918b8b951ddbc37e89ecfa3146473618e86696b7",
   "residualGaps": [
     "Unhoisted Group-only runtime targets remain unavailable under the landed Rejoin owner; this UI does not extend authority.",
-    "Shared admission/Route integration and committed browser proof remain pending the immutable Group UI stack."
+    "Existing named source/compiler eligibility refusals remain atomic before adoption; this slice does not widen them.",
+    "Committed real browser proof follows the immutable Group UI parent; final review/suites are coordinator-owned."
   ],
   "qualification": {
     "focused": {
-      "files": 5,
-      "tests": 126,
+      "files": 8,
+      "tests": 67,
       "result": "passed",
-      "scope": "sharing model/panel/imported native artifacts and adjacent Clip owners"
+      "scope": "sharing model/panel/native artifacts, real parent/admission and Group/Property/Route siblings"
     },
-    "static": "project TypeScript and scoped lint passed",
-    "finalSuites": "coordinator-owned"
+    "static": "project TypeScript/scoped lint/diff-check and locator gate passed",
+    "parity": "47 inventoried records exact",
+    "mutation": "two semantic faults killed by behavioral assertions; mutation.json",
+    "finalSuites": "coordinator-owned",
+    "browser": "pending immutable Group proof finalbase/runtime release"
   }
 }

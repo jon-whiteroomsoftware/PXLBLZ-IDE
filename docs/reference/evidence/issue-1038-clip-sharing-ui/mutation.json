@@ -1,0 +1,16 @@
+{
+  "semanticFaults": [
+    {
+      "mutant": "independence-ignores-group-users",
+      "result": "killed",
+      "exit": 1,
+      "oracle": "behavioral assertion"
+    },
+    {
+      "mutant": "duplicate-omits-new-appearance-keys",
+      "result": "killed",
+      "exit": 1,
+      "oracle": "behavioral assertion"
+    }
+  ]
+}

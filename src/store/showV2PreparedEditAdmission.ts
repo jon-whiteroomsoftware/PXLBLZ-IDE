@@ -1,3 +1,4 @@
+import { editShowClipV2, type ShowClipEditIntentV2, type ShowClipEditResultV2 } from '@/engine/showClipsV2'
 import { editShowMarkerV2, type ShowMarkerEditIntentV2 } from '@/engine/showMarkersV2'
 import { prepareShowStageV2, prepareShowStageFromCapturedInputsV2, type ShowPreparedStageInputCaptureResultV2, type ShowPreparedStageDependenciesV2, type ShowPreparedStageResultV2 } from '@/engine/showPreparedStageV2'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
@@ -60,6 +61,7 @@ type Command =
   | { owner: 'transition-resize'; intent: ShowV2PilotTransitionResizeIntent }
   | { owner: 'create-clip'; intent: CreateShowClipIntentV2 }
   | { owner: 'clip-temporal'; intent: ShowClipTemporalIntentV2 }
+  | { owner: 'clip-sharing'; intent: ShowV2PilotClipSharingIntent }
   | { owner: 'insert-time'; intent: ShowInsertTimeIntentV2 }
   | { owner: 'layer'; intent: ShowLayerEditIntentV2 }
   | { owner: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
@@ -69,6 +71,7 @@ type OwnerResult<C extends Command> = C extends { owner: 'create-group' } ? Show
   : C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
   : C extends { owner: 'clip-temporal' } ? ShowClipTemporalResultV2
+  : C extends { owner: 'clip-sharing' } ? ShowClipEditResultV2
   : C extends { owner: 'insert-time' } ? ShowTimelineEditResultV2
   : C extends { owner: 'layer' } ? ShowLayerEditResultV2
   : C extends { owner: 'appearance' } ? ShowClipAppearanceEditResultV2
@@ -105,7 +108,9 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
       ? editShowMarkerV2(current, structuredClone(command.intent))
       : command.owner === 'create-clip'
         ? createShowClipV2(current, structuredClone(command.intent))
-        : command.owner === 'clip-temporal'
+        : command.owner === 'clip-sharing'
+        ? editShowClipV2(current, structuredClone(command.intent))
+      : command.owner === 'clip-temporal'
           ? editShowClipTemporalV2(current, structuredClone(command.intent))
           : command.owner === 'insert-time'
             ? insertShowTimeV2(current, structuredClone(command.intent))
@@ -324,4 +329,43 @@ export type ShowV2PilotPropertyEditOutcome = PilotOwnerOutcome<ShowPropertyEditR
 export async function admitShowV2PilotPropertyEdit(request: ShowV2PilotPropertyEditRequest): Promise<ShowV2PilotPropertyEditOutcome> {
   const outcome = await admitPreparedEdit({ ...request, owner: 'property' as const })
   return presentOwnerOutcome(outcome, timelineEffects('result' in outcome ? outcome.result : undefined))
+}
+
+export type ShowV2PilotClipSharingIntent = Extract<ShowClipEditIntentV2, { kind: 'duplicate' | 'make-independent' | 'rejoin' }>
+export type ShowV2PilotClipSharingRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotClipSharingIntent }
+export type ShowV2PilotClipSharingOutcome = PilotOwnerOutcome<ShowClipEditResultV2, ShowTimelineEditAffectedV2>
+function validSharingIntentShape(intent: unknown): intent is ShowV2PilotClipSharingIntent {
+  const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
+  const identities = (value: unknown): boolean => object(value) && Object.entries(value).every(([key, id]) => text(key) && text(id))
+  const tracks = (value: unknown): boolean => object(value) && Object.entries(value).every(([key, plan]) => text(key) && exactIntentFields(plan, ['trackId', 'keyframeIdsBySourceId']) && object(plan) && text(plan.trackId) && identities(plan.keyframeIdsBySourceId))
+  if (!object(intent) || !text(intent.clipId)) return false
+  if (intent.kind === 'rejoin') return exactIntentFields(intent, ['kind', 'clipId', 'targetInstanceId']) && text(intent.targetInstanceId)
+  if (intent.kind === 'make-independent') return exactIntentFields(intent, ['kind', 'clipId', 'independence']) && exactIntentFields(intent.independence, ['instanceId', 'identitiesBySourceTrackId']) && object(intent.independence) && text(intent.independence.instanceId) && tracks(intent.independence.identitiesBySourceTrackId)
+  return intent.kind === 'duplicate' && exactIntentFields(intent, ['kind', 'clipId', 'zoneId', 'layerId', 'startMs', 'identities']) && text(intent.zoneId) && text(intent.layerId)
+    && typeof intent.startMs === 'number' && Number.isSafeInteger(intent.startMs) && intent.startMs >= 0
+    && exactIntentFields(intent.identities, ['clipId', 'appearanceKeyIdsBySourceId', 'clipTrackIdentitiesBySourceTrackId']) && object(intent.identities) && text(intent.identities.clipId)
+    && identities(intent.identities.appearanceKeyIdsBySourceId) && tracks(intent.identities.clipTrackIdentitiesBySourceTrackId)
+}
+function sharingEffects(before: ShowRecordV2, intent: ShowV2PilotClipSharingIntent, result?: ShowClipEditResultV2): ShowTimelineEditAffectedV2 {
+  const effects = timelineEffects()
+  if (!result) return effects
+  effects.affectedClipIds = result.affectedClipIds
+  effects.affectedInstanceIds = result.affectedInstanceIds ?? []
+  effects.affectedTrackIds = result.affectedTrackIds
+  effects.affectedPropertyKeyIds = result.affectedKeyframeIds ?? []
+  effects.removedIds = result.removedIds ?? []
+  effects.discardedControlTargets = result.discardedControlTargets ?? []
+  // Duplicate's legacy local result reports created Clip/track IDs. Derive only
+  // those new owners' exact keys; never diff or scan unrelated held owners.
+  if (intent.kind === 'duplicate' && result.status === 'changed') {
+    effects.affectedAppearanceKeyIds = result.affectedClipIds.filter(id => !before.composition.clips.some(clip => clip.id === id)).flatMap(id => result.record.composition.clips.find(clip => clip.id === id)?.appearance.keys.map(key => key.id) ?? [])
+    effects.affectedPropertyKeyIds = result.affectedTrackIds.filter(id => !before.composition.propertyTracks.some(track => track.id === id)).flatMap(id => result.record.composition.propertyTracks.find(track => track.id === id)?.keyframes.map(key => key.id) ?? [])
+  }
+  return effects
+}
+export async function admitShowV2PilotClipSharingEdit(request: ShowV2PilotClipSharingRequest): Promise<ShowV2PilotClipSharingOutcome> {
+  if (!validSharingIntentShape(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one complete explicit Clip sharing operation.', ...timelineEffects() }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'clip-sharing' as const })
+  return presentOwnerOutcome(outcome, sharingEffects(request.capture.record, request.intent, 'result' in outcome ? outcome.result : undefined))
 }
