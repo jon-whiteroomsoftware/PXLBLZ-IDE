@@ -53,6 +53,8 @@
     "static": "project TypeScript/scoped ESLint/diff-check passed",
     "parity": "47 inventoried records matched",
     "locators": "0 stale;55 unverifiable, passed",
-    "browser": "pending fresh committed source capture"
+    "browser": "Actual thirty-second committed5483 source flow:5durablewrites with matching successful PUT and D1 readback, linked delete/UndoRedo/reload/coldreopen/final empty/dormant reuse, visible Fast/Precise at23s,1024/390keyboard/overflow0/errors0; all three screenshots inspected.",
+    "hooks": "Normal source hooks passed lint/TS/focused tests; contrast-only8/8 component tests passed.",
+    "layout": "New compact action inherits existing inspector layout; actual1024/390 control bounds and keyboard focus qualified the unmapped-layout-sensitive advisory."
   }
 }

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/clip-delete-synthetic?show-v2-pilot=1&capture",
+  "operation": "Actual thirty-second ordinary linked Clip deletion \u2192 Undo/Redo \u2192 saved reload/cold reopen \u2192 final validated empty with preview/artifacts unavailable \u2192 Add existing Pattern reusing dormant runtime without deleted appearance/Clip animation. Five successful durable writes awaited matching PUT responses and D1 semantic readbacks. Visible stock-plane Stage at23s in Fast/Precise; desktop empty/narrow1024/390 keyboard and zero-overflow checks passed with zero browser errors. All three images inspected, including corrected Delete contrast. Repository Playwright separate synthetic context used the actual Worker/renderer without user-cookie changes.",
+  "captures": [
+    ".wrsp/ui-proof/1038-delete-empty.png",
+    ".wrsp/ui-proof/1038-delete-stage.png",
+    ".wrsp/ui-proof/1038-delete-narrow.png"
+  ],
+  "capturedAtCommit": "5483a41da3f7d69aff863cb728705c760b02bc33"
+}

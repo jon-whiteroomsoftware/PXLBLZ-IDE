@@ -1,0 +1,192 @@
+{
+  "status": "passed",
+  "sourceTip": "5483a41da3f7d69aff863cb728705c760b02bc33",
+  "durationMs": 30000,
+  "writes": 5,
+  "linkedDeletion": true,
+  "undoRedo": true,
+  "durableReloadColdReopen": true,
+  "validatedEmpty": true,
+  "emptyPreviewExportUnavailable": true,
+  "dormantRuntimeReused": true,
+  "deletedAppearanceTracksDidNotReturn": true,
+  "showEndMs": 30000,
+  "saved": {
+    "version": 2,
+    "id": "clip-delete-synthetic",
+    "name": "Clip Deletion",
+    "zones": [
+      {
+        "id": "zone",
+        "name": "Main",
+        "nominalPixelCount": 16
+      },
+      {
+        "id": "right",
+        "name": "Right",
+        "nominalPixelCount": 16
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "layout",
+        "name": "Full",
+        "zones": [],
+        "logical": {
+          "kind": "split",
+          "axis": "x",
+          "zoneIds": [
+            "zone",
+            "right"
+          ]
+        }
+      }
+    ],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 16,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "deterministic-loop",
+      "showEndMs": 30000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "instance",
+          "pattern": {
+            "kind": "user",
+            "id": "deletion-voice"
+          },
+          "patternName": "Deletion Voice",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          },
+          "controlTargets": {
+            "sliderGain": 0.4
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:zone:main",
+          "zoneId": "zone",
+          "name": "Main",
+          "rank": 0
+        },
+        {
+          "id": "layer:zone:overlay:1",
+          "zoneId": "zone",
+          "name": "Atmosphere",
+          "rank": 1
+        },
+        {
+          "id": "right-main",
+          "zoneId": "right",
+          "name": "Right",
+          "rank": 0
+        }
+      ],
+      "clips": [
+        {
+          "id": "63bc7723-92c9-4563-85ee-2d973b51fab8",
+          "zoneId": "zone",
+          "layerId": "layer:zone:main",
+          "startMs": 0,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "757611fa-2e37-497b-8e74-e17dac5e9b27",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          },
+          "instanceId": "instance"
+        }
+      ],
+      "transitions": [],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "layout",
+          "startMs": 0,
+          "durationMs": 30000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [],
+      "markers": [
+        {
+          "id": "scene-marker:scene-a",
+          "timeMs": 0,
+          "name": "Opening"
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 1789594632500,
+    "stageMapId": "plane"
+  },
+  "captures": [
+    {
+      "mode": "Fast",
+      "frames": 2,
+      "deltaMs": 125,
+      "startMs": 23000,
+      "names": [
+        "delete-Fast-00000.png",
+        "delete-Fast-00001.png"
+      ],
+      "failures": []
+    },
+    {
+      "mode": "Precise",
+      "frames": 2,
+      "deltaMs": 125,
+      "startMs": 23000,
+      "names": [
+        "delete-Precise-00000.png",
+        "delete-Precise-00001.png"
+      ],
+      "failures": []
+    }
+  ],
+  "responsive": [
+    {
+      "width": 1024,
+      "keyboardFocused": true,
+      "overflow": []
+    },
+    {
+      "width": 390,
+      "keyboardFocused": true,
+      "overflow": []
+    }
+  ],
+  "errors": []
+}
