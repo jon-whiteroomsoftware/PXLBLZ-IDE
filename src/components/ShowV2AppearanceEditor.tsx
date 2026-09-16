@@ -27,9 +27,9 @@ export function ShowV2AppearanceEditor({ clipId, capture, isCurrentCapture, isCu
   const [parameterValue, setParameterValue] = useState<string | null>(null), [targetId, setTargetId] = useState(''), [edge, setEdge] = useState<'before' | 'after' | ''>('')
   const pending = useRef(false), live = useRef(true)
   useLayoutEffect(() => { live.current = true; return () => { live.current = false } }, [])
-  const [draftContext, setDraftContext] = useState({ record, scope, time })
-  if (draftContext.record !== record || draftContext.scope !== scope || draftContext.time !== time) {
-    setDraftContext({ record, scope, time }); setDirty({}); setParameterValue(null); setTargetId('')
+  const [draftContext, setDraftContext] = useState({ record, clipId, scope, time })
+  if (draftContext.record !== record || draftContext.clipId !== clipId || draftContext.scope !== scope || draftContext.time !== time) {
+    setDraftContext({ record, clipId, scope, time }); setDirty({}); setParameterValue(null); setTargetId('')
   }
   const atMs = time.trim() ? Number(time) : NaN
   const model = scope ? buildShowV2AppearanceEditorModel(record, clipId, scope, atMs) : null
@@ -93,7 +93,7 @@ export function ShowV2AppearanceEditor({ clipId, capture, isCurrentCapture, isCu
     </form>
     <label className="block text-xs text-zinc-400">Effect<select aria-label="Selected Effect" className={fieldStyle} disabled={!available} value={source?.effect.id ?? ''} onChange={event => { setEffectId(event.target.value); setParameterId(''); setParameterValue(null); setTargetId('') }}><option value="">Choose Effect</option>{model?.effects.map(({ effect }) => <option key={effect.id} value={effect.id}>{effect.kind} · {effect.id}</option>)}</select></label>
     {source && <>
-      <form className="space-y-3" onSubmit={event => { event.preventDefault(); if (available && parameter) {
+      <form className="space-y-3" onSubmit={event => { event.preventDefault(); if (available && parameter && (parameter.descriptor.kind !== 'color' || parameterValue !== null)) {
         const raw = parameterValue ?? display(parameter.value)
         void submit({ kind: 'update-effect', effectId: source.effect.id, effectKind: source.effect.kind, parameter: parameter.descriptor.id,
           value: parameter.descriptor.kind === 'color' ? raw : raw.trim() ? Number(raw) : NaN })
@@ -103,7 +103,7 @@ export function ShowV2AppearanceEditor({ clipId, capture, isCurrentCapture, isCu
           {parameter && <label className="text-xs text-zinc-400">Value<input aria-label="Effect value" className={fieldStyle} disabled={busy} type="text" inputMode={parameter.descriptor.kind === 'color' ? 'text' : 'decimal'}
             value={parameterValue ?? display(parameter.value)} placeholder={parameter.value.kind === 'mixed' ? 'Mixed' : undefined} onChange={event => setParameterValue(event.target.value)} /></label>}
         </div>
-        <div className="flex flex-wrap gap-2"><Button type="submit" size="xs" variant="outline" className={buttonStyle} disabled={!available || !parameter || parameterValue === null && parameter.value.kind === 'mixed'}>Apply parameter</Button>
+        <div className="flex flex-wrap gap-2"><Button type="submit" size="xs" variant="outline" className={buttonStyle} disabled={!available || !parameter || parameterValue === null && (parameter.descriptor.kind === 'color' || parameter.value.kind === 'mixed')}>Apply parameter</Button>
           <Button type="button" size="xs" variant="outline" className={buttonStyle} disabled={!available} onClick={() => { if (!pending.current) void submit({ kind: 'duplicate-effect', effectId: source.effect.id, effectKind: source.effect.kind, newEffectId: newPersonalContentId() }) }}>Duplicate Effect</Button></div>
       </form>
       <form className="space-y-3" onSubmit={event => { event.preventDefault(); if (available && target && edge) void submit({ kind: 'reorder-effect', effectId: source.effect.id, effectKind: source.effect.kind, targetEffectId: target.effect.id, targetEffectKind: target.effect.kind, edge }) }}>

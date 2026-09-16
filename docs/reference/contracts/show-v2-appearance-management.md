@@ -54,3 +54,16 @@ EPE consumers; authenticated thirty-second UI fixture covers explicit mixed
 patches, held insertion, Effect operations, history, reload/cold reopen and
 keyboard/desktop/narrow views. Fresh final-base browser capture and coordinator
 review/final suites are recorded separately in the evidence packet.
+
+## Exact color drafts
+
+Shadow/highlight Color-map mixed detection compares the persisted RGB channel
+tuples before converting a uniform value to its 8-bit display color. Distinct
+authored channels remain mixed even when their rounded hex strings match. A color
+parameter requires an explicit dirty draft before submission: merely opening or
+applying its lossy display cannot replace exact authored channels. Direct form
+submission has the same guard. Changing Clip, scope/time, Effect/parameter or the
+current record clears that draft; a deliberate color edit still delegates to the
+unchanged numeric/Effect owner and prepared adoption. Numeric untouched no-op
+behavior stays unchanged. The [corrective packet](../evidence/issue-1038-appearance-color/test-design.json)
+records all six channel partitions and actual zero-write versus explicit-save proof.

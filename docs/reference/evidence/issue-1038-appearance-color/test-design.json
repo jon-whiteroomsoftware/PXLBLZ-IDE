@@ -1,0 +1,48 @@
+{
+  "issue": 1038,
+  "base": "422c5c5046182a718b67081fd2c776072030c734",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "70812ae64c919ff1dcb15e019125bd3b6bad7b4b",
+    "proofRows": [
+      "ROUTE",
+      "FAILURE",
+      "SHARING",
+      "PARITY"
+    ]
+  },
+  "invariants": [
+    "Exact persisted shadow/highlight RGB channels determine uniform versus mixed; lossy 8-bit display never determines authored equality.",
+    "Untouched color display cannot be submitted even through form Enter/submission; original exact values, record identity, history and writes remain unchanged.",
+    "Explicit dirty color draft updates only requested whole-Clip/selected-time scope; selection/scope/time/record reset clears dirty state. Numeric descriptor behavior remains unchanged."
+  ],
+  "partitions": [
+    "Every shadow/highlight R/G/B channel; values distinct but rounded to same hex; uniform and mixed held stacks; selected-time projection.",
+    "Disabled untouched uniform/mixed color versus deliberate color draft; direct form submission; color parameter/Effect/scope changes; recaptured saved record."
+  ],
+  "sequences": [
+    "Open uniform color -> untouched Apply/direct form submit -> zero write/history/exact RGB; deliberate hex draft -> one save -> unchanged highlight/source input -> dirty reset.",
+    "Open mixed color -> Mixed placeholder/disabled submission -> exact per-span RGB and no writes; change scope/parameter/Effect -> prior draft retired."
+  ],
+  "oracles": [
+    "Public read-only model exact authored tuple equality before display conversion.",
+    "Actual component using real prepared admission/provider/store: zero writes/history and exact input identity versus one explicit changed adoption.",
+    "Actual Worker/browser synthetic context, durable reload and desktop/narrow inspected captures, plus existing native EPE Fast/Precise artifact consumers."
+  ],
+  "residualGaps": [
+    "Existing named native preparation restrictions remain unresolved; no compiler/domain expansion.",
+    "Final review/full suites coordinator-owned."
+  ],
+  "qualification": {
+    "red": "6 failed/15 passed on valid admitted fixtures, before repair",
+    "focused": {
+      "files": 5,
+      "tests": 78,
+      "result": "passed"
+    },
+    "browser": "pending fresh committed source capture",
+    "finalSuites": "coordinator-owned",
+    "typescript": "passed",
+    "scopedLint": "passed"
+  }
+}

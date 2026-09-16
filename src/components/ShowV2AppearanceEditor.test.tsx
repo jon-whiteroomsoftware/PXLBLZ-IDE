@@ -10,13 +10,14 @@ import { ShowV2AppearanceEditor } from './ShowV2AppearanceEditor'
 import * as identity from '@/engine/personalContentMetadata'
 beforeEach(() => { resetPersonalContentProvider(); useShowStore.setState(showInitialState) })
 afterEach(() => { resetPersonalContentProvider(); vi.restoreAllMocks() })
-function setup(mixed = false) {
+function setup(mixed = false, color?: 'uniform' | 'mixed') {
   const c = convertShowRecordV1ToV2(convertibleV1Show()); if (c.status !== 'converted') throw Error('fixture')
   const record = c.record; record.composition.transitions = []; record.composition.clips = record.composition.clips.slice(0, 1)
   const clip = record.composition.clips[0], first = clip.appearance.keys[0]
   first.value.effects = [{ id: 'hue', kind: 'hue', turns: .2 }]
   if (mixed) clip.appearance.keys = [0, 400].map((timeMs, index) => ({ id: `key-${index}`, timeMs,
     value: { ...structuredClone(first.value), opacity: index ? .8 : .2, view: { mirror: Boolean(index), phase: .1, brightness: index ? .7 : .3 } } }))
+  if (color) for (const [index,key] of clip.appearance.keys.entries()) key.value.effects = [{id:'map',kind:'color-map',amount:1,shadowR:color==='mixed' && index ? .101 : .1,shadowG:.2,shadowB:.3,highlightR:.4,highlightG:.5,highlightB:.6}]
   for (const instance of record.composition.patternInstances) instance.pattern = { kind: 'user', id: 'voice' }
   const dependencies = { patterns: [{ id: 'voice', name: 'Voice', src: 'export function render2D(i,x,y){rgb(x,y,0)}', controls: {}, updatedAt: 1 }], maps: [], libraries: [], profiles: [], stageMap: null }
   const write = vi.fn(async () => {})
@@ -107,4 +108,42 @@ it('keeps numeric string drafts, reset and same-value submission free of silent 
   fireEvent.click(screen.getByRole('button', { name: 'Apply appearance' }))
   expect(await screen.findByText('Supply finite supported appearance fields.')).toBeInTheDocument()
   expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record); expect(write).not.toHaveBeenCalled()
+})
+
+
+it('never submits an untouched lossy color display; explicit color draft changes the intended held scope once',async()=>{
+ const {record,clip,write}=setup(false,'uniform')
+ fireEvent.change(screen.getByLabelText('Appearance scope'),{target:{value:'whole-clip'}})
+ fireEvent.change(screen.getByLabelText('Selected Effect'),{target:{value:'map'}})
+ fireEvent.change(screen.getByLabelText('Effect parameter'),{target:{value:'shadowColor'}})
+ expect(screen.getByLabelText('Effect value')).toHaveValue('#1a334d')
+ expect(screen.getByRole('button',{name:'Apply parameter'})).toBeDisabled()
+ fireEvent.submit(screen.getByRole('button',{name:'Apply parameter'}).closest('form')!)
+ await new Promise(resolve=>setTimeout(resolve,0))
+ expect(write).not.toHaveBeenCalled();expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record)
+ expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
+ fireEvent.change(screen.getByLabelText('Effect value'),{target:{value:'#224466'}})
+ fireEvent.click(screen.getByRole('button',{name:'Apply parameter'}));await waitFor(()=>expect(write).toHaveBeenCalledTimes(1))
+ const current=useShowStore.getState().showV2Pilots[record.id]
+ expect(current.composition.clips[0].appearance.keys[0].value.effects?.[0]).toMatchObject({shadowR:34/255,shadowG:68/255,shadowB:102/255,highlightR:.4,highlightG:.5,highlightB:.6})
+ expect(clip.appearance.keys[0].value.effects?.[0]).toHaveProperty('shadowR',.1)
+ expect(screen.getByRole('button',{name:'Apply parameter'})).toBeDisabled()
+})
+it.each(['scope','parameter','Effect'] as const)('clears explicit color dirty state when changing %s',partition=>{
+ setup(false,'uniform');fireEvent.change(screen.getByLabelText('Appearance scope'),{target:{value:'whole-clip'}});fireEvent.change(screen.getByLabelText('Selected Effect'),{target:{value:'map'}});fireEvent.change(screen.getByLabelText('Effect parameter'),{target:{value:'shadowColor'}})
+ fireEvent.change(screen.getByLabelText('Effect value'),{target:{value:'#224466'}})
+ if(partition==='scope'){fireEvent.change(screen.getByLabelText('Appearance scope'),{target:{value:'selected-time'}});fireEvent.change(screen.getByLabelText('Appearance time'),{target:{value:'200'}})}
+ if(partition==='parameter')fireEvent.change(screen.getByLabelText('Effect parameter'),{target:{value:'highlightColor'}})
+ if(partition==='Effect'){fireEvent.change(screen.getByLabelText('Selected Effect'),{target:{value:''}});fireEvent.change(screen.getByLabelText('Selected Effect'),{target:{value:'map'}});fireEvent.change(screen.getByLabelText('Effect parameter'),{target:{value:'shadowColor'}})}
+ expect(screen.getByRole('button',{name:'Apply parameter'})).toBeDisabled()
+})
+
+it('keeps rounded-to-the-same-hex mixed RGB channels exact without any submission',()=>{
+ const {record,clip,write}=setup(true,'mixed'),before=structuredClone(record)
+ fireEvent.change(screen.getByLabelText('Appearance scope'),{target:{value:'whole-clip'}});fireEvent.change(screen.getByLabelText('Selected Effect'),{target:{value:'map'}});fireEvent.change(screen.getByLabelText('Effect parameter'),{target:{value:'shadowColor'}})
+ expect(screen.getByLabelText('Effect value')).toHaveAttribute('placeholder','Mixed')
+ expect(screen.getByRole('button',{name:'Apply parameter'})).toBeDisabled()
+ fireEvent.submit(screen.getByRole('button',{name:'Apply parameter'}).closest('form')!)
+ expect(write).not.toHaveBeenCalled();expect(record).toEqual(before);expect(clip.appearance.keys.map(key=>(key.value.effects?.[0] as {shadowR:number}).shadowR)).toEqual([.1,.101])
+ expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
 })

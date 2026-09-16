@@ -49,3 +49,14 @@ it('does not coerce empty drafts to zero and refuses colliding fresh key without
   expect(createShowV2AppearanceTarget(record, clip.id, 'selected-time', '200', allocate).status).toBe('refused')
   expect(allocate).toHaveBeenCalledTimes(1)
 })
+
+it.each(['shadowR','shadowG','shadowB','highlightR','highlightG','highlightB'] as const)('compares exact authored %s before lossy hex display', channel => {
+ const prefix=channel.startsWith('shadow')?'shadow':'highlight'
+ const {record,clip}=fixture()
+ for(const [index,key] of clip.appearance.keys.entries())key.value.effects=[{id:'map',kind:'color-map',amount:1,shadowR:.1,shadowG:.2,shadowB:.3,highlightR:.1,highlightG:.2,highlightB:.3,...{[channel]:index ? (channel.endsWith('R') ? .101 : channel.endsWith('G') ? .201 : .301) : (channel.endsWith('R') ? .1 : channel.endsWith('G') ? .2 : .3)}}]
+ const model=buildShowV2AppearanceEditorModel(record,clip.id,'whole-clip')
+ expect(model?.effects[0].parameters.find(p=>p.descriptor.id===`${prefix}Color`)?.value).toEqual({kind:'mixed'})
+ const selected=buildShowV2AppearanceEditorModel(record,clip.id,'selected-time',400)
+ expect(selected?.effects[0].parameters.find(p=>p.descriptor.id===`${prefix}Color`)?.value.kind).toBe('uniform')
+ expect(clip.appearance.keys[1].value.effects?.[0]).toHaveProperty(channel,channel.endsWith('R') ? .101 : channel.endsWith('G') ? .201 : .301)
+})

@@ -13,6 +13,18 @@ type AppearanceTarget = Pick<Extract<ShowClipAppearanceEditIntentV2, { scope: 'w
 function authored<T>(values: readonly T[]): ShowV2AuthoredValue<T> {
   return values.every(value => value === values[0]) ? { kind: 'uniform', value: values[0] } : { kind: 'mixed' }
 }
+/** RGB display conversion is lossy; compare persisted channel tuples first. */
+function authoredEffectParameter(effects: readonly ShowClipEffect[], parameterId: string): ShowV2AuthoredValue<ReturnType<typeof showClipEffectParameterValue>> {
+  const first = effects[0]
+  if (first.kind === 'color-map' && (parameterId === 'shadowColor' || parameterId === 'highlightColor')) {
+    const channels = (effect: ShowClipEffect) => effect.kind !== 'color-map' ? []
+      : parameterId === 'shadowColor' ? [effect.shadowR, effect.shadowG, effect.shadowB] : [effect.highlightR, effect.highlightG, effect.highlightB]
+    const tuple = channels(first)
+    if (!effects.every(effect => channels(effect).every((value, index) => value === tuple[index]))) return { kind: 'mixed' }
+    return { kind: 'uniform', value: showClipEffectParameterValue(first, parameterId) }
+  }
+  return authored(effects.map(effect => showClipEffectParameterValue(effect, parameterId)))
+}
 /** Read authored held values only; no animation evaluation or first-span fallback. */
 export function buildShowV2AppearanceEditorModel(record: ShowRecordV2, clipId: string, scope: ShowV2AppearanceScope, atMs?: number) {
   const clip = record.composition.clips.find(clip => clip.id === clipId)
@@ -29,7 +41,7 @@ export function buildShowV2AppearanceEditorModel(record: ShowRecordV2, clipId: s
     if (matches.some(match => !match)) return []
     return [{ effect: structuredClone(effect), stage: showClipEffectStage(effect),
       parameters: showClipEffectParameters(effect).map(descriptor => ({ descriptor,
-        value: authored(matches.map(match => showClipEffectParameterValue(match!, descriptor.id))) })) }]
+        value: authoredEffectParameter(matches as ShowClipEffect[], descriptor.id) })) }]
   })
   return { clipId, fields: { opacity: authored(values.map(value => value.opacity)),
     brightness: authored(values.map(value => value.view.brightness)), phase: authored(values.map(value => value.view.phase)),
