@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1048",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-identity-proof-1048",
+  "operation": "Installed codex-cli0.153.4 app-server MCP client read the live Show, recovered the same server-minted operation from duplicate keyed begin calls, sent ten independent add_marker requests before awaiting any response, and committed after all ten returned changed. The real editor receipt reached applied/saved. The established authenticated Playwright fixture navigated away and reopened the Show, asserting ten named visible Marker handles, ten persisted unique IDs and expected times; the capture opens Parallel marker10 details. Actual-workerd tests separately own exact sequence and forced-pending partitions. Synthetic owned test account only; no model inference or simulated save responses.",
+  "captures": [
+    ".wrsp/ui-proof/1048-parallel-saved.png",
+    ".wrsp/ui-proof/1048-parallel-reopened.png"
+  ],
+  "capturedAtCommit": "79364b1b7fa9bb1539933f39915656e97ba18028"
+}

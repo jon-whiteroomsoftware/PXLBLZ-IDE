@@ -1,0 +1,33 @@
+{
+  "issue": 1048,
+  "oracle": "Public MCP schemas/results, account-owner responses, and browser-received immutable envelopes",
+  "invariants": [
+    "Only the relay assigns operation, delivery, and sequence identity for public external mutations.",
+    "A client key is lookup-only within its binding/operation scope; canonical identity mismatch fails closed.",
+    "At most one ordinary delivery per operation is sent, and relay admission order becomes contiguous browser sequence order.",
+    "Owner recreation with persisted binding state but no volatile relay retires that binding before dispatch.",
+    "The 256-delivery lifecycle always reserves commit and post-commit cancellation after 253 ordinary commands."
+  ],
+  "partitions": [
+    "begin key empty/overlong; intent empty/whitespace/newline/overlong; legacy public identity fields",
+    "same key with same/canonically reordered/different payload while pending/known/expired/completed",
+    "different begin key while active; key reuse in later operation and fresh binding",
+    "ten ordinary calls, eleventh refusal, query at saturation, cancel at saturation",
+    "sent head, unsent followers, cancel, late head reply, retirement",
+    "begin + 253 ordinary + commit + cancel; domain refusal terminal behavior",
+    "persisted old binding after actual Durable Object eviction; fresh reconnect/read/new operation",
+    "browser duplicate/conflict/gap guard and built-in caller-owned envelope regression"
+  ],
+  "fault_oracles": [
+    "Any duplicate browser delivery, noncontiguous sequence, or post-cancel late execution fails.",
+    "Any keyed retry that creates a second envelope fails.",
+    "Any old-generation dispatch after owner eviction fails.",
+    "Any ordinary capacity state that cannot still cancel fails."
+  ],
+  "proof": [
+    "Same-catalogue in-process tools/list byte census",
+    "Miniflare/workerd authenticated parallel calls and keyed retry",
+    "Miniflare unsafe durable-object eviction transcript",
+    "Real MCP client parallel call transcript coordinated separately"
+  ]
+}
