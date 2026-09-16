@@ -1,0 +1,64 @@
+{
+  "issue": 1038,
+  "scope": "Ordinary linked Clip duplicate, explicit Make Pattern Independent and explicit Rejoin UI/adoption",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "SHARING",
+      "RESTART",
+      "ACTIVATION",
+      "ROUTE",
+      "FAILURE",
+      "PARITY"
+    ]
+  },
+  "invariants": [
+    "Duplicate retains runtime identity and copies only Clip-owned appearance/animation with complete once-allocated fresh identities.",
+    "Independence counts all effective Group/future/invisible Clip users and copies all effective instance animation; other owners remain exact.",
+    "Rejoin selects an explicit owner-admitted compatible top-level instance; no implicit target, hoist, animation merge or payload overwrite.",
+    "Raw invalid destination drafts, stale captures and pending operations cannot write or retry identity allocation.",
+    "Prepared admission is closed and reports exact fourteen affected collections; existing history, provider and receipt settlement remain authoritative."
+  ],
+  "partitions": [
+    "ordinary/shared/held Group effective users",
+    "sole independence no-op",
+    "exact adjacency versus collision",
+    "blank/foreign/unsafe destinations",
+    "fresh/missing/colliding identities",
+    "nonlinear Clip and instance tracks",
+    "top-level Group-bound targets versus unhoisted defaults",
+    "pending/unmounted/stale/record-replaced panel",
+    "Fast and Precise imported native EPE"
+  ],
+  "sequences": [
+    "linked duplicate \u2192 independent \u2192 explicit Rejoin",
+    "pending double submission \u2192 unmount \u2192 settlement",
+    "record replacement \u2192 reset explicit destination/target"
+  ],
+  "oracles": [
+    "Model identity maps are consumed by the public edit owner and reopened structural validation.",
+    "Native EPE opens through parseEpe and replays exact frames and nonempty private exports against independently authored records in both modes.",
+    "Component requests are closed typed intents; no candidate callbacks or guessed target defaults."
+  ],
+  "redEvidence": [
+    "missing duplicate model export",
+    "missing independence model export",
+    "missing Rejoin model export"
+  ],
+  "base": "0fd353c75797f2ef3652a541c59aa3c5086aebb5",
+  "residualGaps": [
+    "Unhoisted Group-only runtime targets remain unavailable under the landed Rejoin owner; this UI does not extend authority.",
+    "Shared admission/Route integration and committed browser proof remain pending the immutable Group UI stack."
+  ],
+  "qualification": {
+    "focused": {
+      "files": 5,
+      "tests": 126,
+      "result": "passed",
+      "scope": "sharing model/panel/imported native artifacts and adjacent Clip owners"
+    },
+    "static": "project TypeScript and scoped lint passed",
+    "finalSuites": "coordinator-owned"
+  }
+}
