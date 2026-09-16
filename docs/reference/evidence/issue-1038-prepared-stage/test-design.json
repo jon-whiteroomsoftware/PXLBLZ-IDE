@@ -1,7 +1,7 @@
 {
   "issue": 1038,
   "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
-  "implementationBase": "9357bc2e5577d5eb4cde8ff54af350c1c6a40dd6",
+  "implementationBase": "44a4c9d4c5a70404cfdd6ddc17368f97f81bd8e9",
   "proofRows": [
     "CURVE",
     "ACTIVATION",
@@ -50,8 +50,8 @@
   ],
   "qualification": {
     "focused": "66/66 across 4 prepared/legacy/pilot files; pure bundle 12, prepared renderer/publication 6 and legacy/pilot 48. Focused authenticated native Stage Playwright 1/1 PASS.",
-    "static": "Project TypeScript/scoped ESLint/diff-check PASS; source checkpoint ordinary hook full lint/typecheck/coverage/locators and mapped 62 PASS. Final evidence hook follows.",
-    "browser": "PASS committed UI source1a4124439d13d2b8ca328a91eabb50be1560e67d: isolated synthetic account local-agent15 desktop 1440x1000 and narrow 390x844; transport capture 17s after hold/Restart/later Layout,2 Fast + 2 Precise 125ms frames; console errors[] and control overflows[]. Images .wrsp/ui-proof/1038-prepared-stage-desktop.png and1038-prepared-stage-narrow.png. IAB backend discovered/documented; documented session has no isolated cookie admission, so declared repo Playwright separate-context fallback preserves user session. Actual drawer visibility completion precedes narrow capture.",
+    "static": "Exact rebased focused66/66 PASS; patch-equivalent source/proof commits verified by range-diff. Prior project TypeScript/scoped ESLint/parity47 PASS and ordinary source/evidence hooks passed. Final qualification hook mapped141+12 layout PASS; rebased browser proof refreshed for ancestry.",
+    "browser": "PASS committed UI source75010c13d22a4831664df6b789986a979e5f1467: isolated synthetic account local-agent15 desktop 1440x1000 and narrow 390x844; transport capture 17s after hold/Restart/later Layout,2 Fast + 2 Precise 125ms frames; console errors[] and control overflows[]. Images .wrsp/ui-proof/1038-prepared-stage-desktop.png and1038-prepared-stage-narrow.png. IAB backend discovered/documented; documented session has no isolated cookie admission, so declared repo Playwright separate-context fallback preserves user session. Actual drawer visibility completion precedes narrow capture.",
     "faultSensitivity": [
       {
         "name": "prepared-initial-mask",
