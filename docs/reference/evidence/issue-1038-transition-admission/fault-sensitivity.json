@@ -1,0 +1,32 @@
+[
+  {
+    "name": "final-eligibility",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "name": "duplicate-current-preparation",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "name": "hidden-command",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "name": "obsolete-completion",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "name": "preimage-only-completion",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "name": "restore-direct-resize-bypass",
+    "exit": 1,
+    "killed": true
+  }
+]

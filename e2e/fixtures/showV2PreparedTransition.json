@@ -1,0 +1,268 @@
+{
+  "version": 2,
+  "id": "prepared-transition-synthetic",
+  "name": "Prepared Transition",
+  "zones": [
+    {
+      "id": "zone",
+      "name": "Main",
+      "nominalPixelCount": 256
+    }
+  ],
+  "zoneLayouts": [
+    {
+      "id": "layout",
+      "name": "Full",
+      "zones": [
+        {
+          "zoneId": "zone",
+          "ranges": [
+            {
+              "start": 0,
+              "end": 255
+            }
+          ]
+        }
+      ],
+      "logical": {
+        "kind": "single",
+        "zoneIds": [
+          "zone"
+        ]
+      }
+    }
+  ],
+  "stageMapId": "prepared-transition-map",
+  "outputContract": {
+    "version": 1,
+    "kind": "installation",
+    "outputMapId": "prepared-transition-map",
+    "pixelCount": 256,
+    "resolution": "fixed"
+  },
+  "composition": {
+    "version": 2,
+    "executionModel": "continuous",
+    "showEndMs": 31000,
+    "sampleRemap": {
+      "repeatScale": 1
+    },
+    "patternInstances": [
+      {
+        "id": "out-instance",
+        "pattern": {
+          "kind": "user",
+          "id": "prepared-transition-pattern"
+        },
+        "patternName": "Outgoing",
+        "time": {
+          "timeScale": 1,
+          "timeOffsetMs": 0
+        }
+      },
+      {
+        "id": "in-instance",
+        "pattern": {
+          "kind": "user",
+          "id": "prepared-transition-pattern"
+        },
+        "patternName": "Incoming",
+        "time": {
+          "timeScale": 1,
+          "timeOffsetMs": 0
+        }
+      }
+    ],
+    "layers": [
+      {
+        "id": "layer:zone:main",
+        "zoneId": "zone",
+        "name": "Main",
+        "rank": 0
+      },
+      {
+        "id": "layer:zone:overlay:1",
+        "zoneId": "zone",
+        "name": "Atmosphere",
+        "rank": 1
+      }
+    ],
+    "clips": [
+      {
+        "id": "out",
+        "instanceId": "out-instance",
+        "zoneId": "zone",
+        "layerId": "layer:zone:main",
+        "startMs": 0,
+        "durationMs": 13000,
+        "entryPolicy": "continue",
+        "zoneSampleMode": "span",
+        "appearance": {
+          "keys": [
+            {
+              "id": "out:appearance:1",
+              "timeMs": 0,
+              "value": {
+                "opacity": 1,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 1
+                },
+                "effects": []
+              }
+            },
+            {
+              "id": "out:appearance:hold:7500",
+              "timeMs": 7500,
+              "value": {
+                "opacity": 1,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 1
+                },
+                "effects": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "in",
+        "instanceId": "in-instance",
+        "zoneId": "zone",
+        "layerId": "layer:zone:main",
+        "startMs": 15000,
+        "durationMs": 16000,
+        "entryPolicy": "restart",
+        "zoneSampleMode": "span",
+        "appearance": {
+          "keys": [
+            {
+              "id": "in:appearance:1",
+              "timeMs": 15000,
+              "value": {
+                "opacity": 1,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 1
+                },
+                "effects": []
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "id": "transition-crossfade",
+        "kind": "crossfade",
+        "durationMs": 2000,
+        "easing": {
+          "curve": "sine",
+          "direction": "in-out"
+        },
+        "crossfadePolicy": "snapshot-live",
+        "participants": [],
+        "propertyRamps": [],
+        "wholeOutput": {
+          "startMs": 13000,
+          "fromClipIds": [
+            "out"
+          ],
+          "toClipIds": [
+            "in"
+          ]
+        }
+      }
+    ],
+    "layoutOccurrences": [
+      {
+        "id": "layout-occurrence:1",
+        "layoutId": "layout",
+        "startMs": 0,
+        "durationMs": 31000,
+        "parameters": {}
+      }
+    ],
+    "propertyTracks": [
+      {
+        "id": "repeat",
+        "target": {
+          "kind": "show-repeat-scale"
+        },
+        "activeStartMs": 0,
+        "activeDurationMs": 31000,
+        "keyframes": [
+          {
+            "id": "first",
+            "timeMs": 0,
+            "value": 2,
+            "easing": {
+              "curve": "quadratic",
+              "direction": "in"
+            },
+            "curveSegment": {
+              "baseValue": 2,
+              "deltaValue": 2,
+              "easing": {
+                "curve": "quadratic",
+                "direction": "in"
+              },
+              "sourceDurationMs": 30000,
+              "elapsedOffsetMs": 0
+            }
+          },
+          {
+            "id": "repeat:hold:7500",
+            "timeMs": 7500,
+            "value": 2.125,
+            "easing": {
+              "curve": "linear"
+            }
+          },
+          {
+            "id": "repeat:resume:8500",
+            "timeMs": 8500,
+            "value": 2.125,
+            "easing": {
+              "curve": "quadratic",
+              "direction": "in"
+            },
+            "curveSegment": {
+              "baseValue": 2,
+              "deltaValue": 2,
+              "easing": {
+                "curve": "quadratic",
+                "direction": "in"
+              },
+              "sourceDurationMs": 30000,
+              "elapsedOffsetMs": 7500
+            }
+          },
+          {
+            "id": "last",
+            "timeMs": 31000,
+            "value": 4,
+            "easing": {
+              "curve": "linear"
+            }
+          }
+        ]
+      }
+    ],
+    "markers": [
+      {
+        "id": "scene-marker:scene-a",
+        "timeMs": 0,
+        "name": "Opening"
+      }
+    ],
+    "groupDefinitions": [],
+    "groupOccurrences": []
+  },
+  "updatedAt": 1
+}

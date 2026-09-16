@@ -44,3 +44,9 @@ Parent supplies a stable resolved-map context and exact profile inputs. Marker
 controls do not independently choose dimensionality or sources. Store stamping
 creates a new record identity; the parent normally captures that new identity
 for Stage. No artifact caching/rebinding or second history/save owner is added.
+
+
+The compatibility module now delegates to the private closed prepared-admission
+core shared with [typed Transition resize](show-v2-transition-route.md). General
+Marker requests, outcome vocabulary, visible controls and receipt settlement are
+unchanged; callers cannot submit arbitrary replacement candidates or transforms.

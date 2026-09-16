@@ -1,0 +1,52 @@
+{
+  "issue": 1038,
+  "base": "c6e3da523f1776155063567668251bb6a9726bad",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+    "proofRows": [
+      "ROUTE",
+      "FAILURE",
+      "SHARING",
+      "RESTART",
+      "GROUP-HOLD",
+      "INSERT",
+      "LAYOUT-END",
+      "PARITY"
+    ]
+  },
+  "invariants": [
+    "Closed typed Marker/resize wrappers alone produce candidates; one existing history/save owner.",
+    "Exact prepared capture and final revision/provider/route/dependency checks prevent stale adoption.",
+    "Own receipt preserves current completion and retires external replacement."
+  ],
+  "partitions": [
+    "Ready participant/whole-output, advanced animation/Restart and explicit empty versus real refusal.",
+    "No-op/invalid command/duration/topology/carrier and all stale context identities.",
+    "Own saved, rollback, superseded and provider recovery."
+  ],
+  "sequences": [
+    "Capture -> resize -> one adoption/save -> Undo/Redo -> reload/native reopen.",
+    "Resize -> own capture replacement -> saved feedback; external replacement -> suppress obsolete feedback.",
+    "Marker compatibility -> empty/save/reopen and failed-save retry."
+  ],
+  "oracles": [
+    "Public persisted record/native imported file and Fast/Precise frame against expected choreography.",
+    "Exact history/revision/PUT/factory counts and empty effects on refusal.",
+    "Real route duration/draft/status through deferred save and desktop/narrow flows."
+  ],
+  "residualGaps": [
+    "Full editor/cutover/other commands are excluded.",
+    "Existing pure Property carrier/source/compiler refusals remain unchanged.",
+    "Inherited Stage sample-from-position behavior unchanged; coordinator final gates.",
+    "Participant visual Transition with global scalar animation remains existing preparation refusal; admitted global scalar proof uses whole-output scope."
+  ],
+  "qualification": {
+    "focused": "109/109 in10 files with maxWorkers2; unchanged existing5s timeout passed after contention removed. /tmp/issue-1038-transition-final-focused-green.log",
+    "static": "Project TypeScript and scoped ESLint passed. /tmp/issue-1038-transition-qualified-tsc.log; /tmp/issue-1038-transition-qualified-lint.log",
+    "parity": "47 inventoried source-byte records match. /tmp/issue-1038-transition-parity.log",
+    "authenticated": "3/3 focused real-browser Transition/Marker/Stage flows passed. /tmp/issue-1038-transition-authenticated-final.log",
+    "mutations": "6/6 named semantic mutants killed; source restored. fault-sensitivity.json",
+    "browser": "Fresh committed-source desktop/narrow proof follows source checkpoint; not yet claimed."
+  }
+}

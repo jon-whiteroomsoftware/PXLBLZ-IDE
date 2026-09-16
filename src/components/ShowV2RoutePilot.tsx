@@ -4,9 +4,8 @@ import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { ShowStagePreview } from './ShowStagePreview'
 import { isValidatedEmptyShowV2 } from '@/engine/showMarkerRouteModel'
-import type { ShowV2PilotMarkerAdoptionReceipt } from '@/store/showV2MarkerAdmission'
+import { admitShowV2PilotTransitionResize, type ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
-import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import { qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
 import { prepareShowStageV2 } from '@/engine/showPreparedStageV2'
 import { useShowStore } from '@/store/showStore'
@@ -20,7 +19,6 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
   const history = useShowStore(state => state.showV2Histories[showId])
   const failure = useShowStore(state => state.showV2SaveFailure?.showId === showId ? state.showV2SaveFailure : null)
   const open = useShowStore(state => state.openShowV2Pilot)
-  const update = useShowStore(state => state.updateShowV2Pilot)
   const undo = useShowStore(state => state.undoShowV2Pilot)
   const redo = useShowStore(state => state.redoShowV2Pilot)
   const reload = useShowStore(state => state.reloadShowV2Pilot)
@@ -48,31 +46,31 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
       ?? maps.find(map => map.id === record?.stageMapId && (map.generator !== 'custom' || (map.points?.length ?? 0) > 0))
     return selected && (selected.dim === 2 || selected.dim === 3) ? resolveMap(selected.id, maps) : null
   }, [record?.stageMapId, maps])
-  const markerCapture = useMemo(() => {
+  const editCapture = useMemo(() => {
     if (!record) return null
     const dependencies = { patterns, maps, libraries, profiles, stageMap }
     return { record, dependencies, prepared: prepareShowStageV2(record, dependencies) }
   }, [record, patterns, maps, libraries, profiles, stageMap])
-  const preview = markerCapture?.prepared ?? null
-  const activeMarkerCapture = useRef(markerCapture)
+  const preview = editCapture?.prepared ?? null
+  const activeEditCapture = useRef(editCapture)
   useLayoutEffect(() => {
-    activeMarkerCapture.current = markerCapture
-    return () => { activeMarkerCapture.current = null }
-  }, [markerCapture, showId])
-  const isCurrentMarkerCapture = () => Boolean(markerCapture && activeMarkerCapture.current === markerCapture
-    && useShowStore.getState().showV2Pilots[showId] === markerCapture.record
-    && usePatternStore.getState().userPatterns === markerCapture.dependencies.patterns
-    && useMapStore.getState().userMaps === markerCapture.dependencies.maps
-    && useLibraryStore.getState().userLibraries === markerCapture.dependencies.libraries
-    && useControllerProfileStore.getState().profiles === markerCapture.dependencies.profiles)
-  const isCurrentMarkerCompletion = (receipt: ShowV2PilotMarkerAdoptionReceipt, phase: 'saved' | 'save-failed') => {
-    const active = activeMarkerCapture.current
-    if (!markerCapture || !active || active.record.id !== showId || receipt.showId !== showId
-      || active.dependencies.stageMap !== markerCapture.dependencies.stageMap
-      || usePatternStore.getState().userPatterns !== markerCapture.dependencies.patterns
-      || useMapStore.getState().userMaps !== markerCapture.dependencies.maps
-      || useLibraryStore.getState().userLibraries !== markerCapture.dependencies.libraries
-      || useControllerProfileStore.getState().profiles !== markerCapture.dependencies.profiles
+    activeEditCapture.current = editCapture
+    return () => { activeEditCapture.current = null }
+  }, [editCapture, showId])
+  const isCurrentEditCapture = () => Boolean(editCapture && activeEditCapture.current === editCapture
+    && useShowStore.getState().showV2Pilots[showId] === editCapture.record
+    && usePatternStore.getState().userPatterns === editCapture.dependencies.patterns
+    && useMapStore.getState().userMaps === editCapture.dependencies.maps
+    && useLibraryStore.getState().userLibraries === editCapture.dependencies.libraries
+    && useControllerProfileStore.getState().profiles === editCapture.dependencies.profiles)
+  const isCurrentEditCompletion = (receipt: ShowV2PilotAdoptionReceipt, phase: 'saved' | 'save-failed') => {
+    const active = activeEditCapture.current
+    if (!editCapture || !active || active.record.id !== showId || receipt.showId !== showId
+      || active.dependencies.stageMap !== editCapture.dependencies.stageMap
+      || usePatternStore.getState().userPatterns !== editCapture.dependencies.patterns
+      || useMapStore.getState().userMaps !== editCapture.dependencies.maps
+      || useLibraryStore.getState().userLibraries !== editCapture.dependencies.libraries
+      || useControllerProfileStore.getState().profiles !== editCapture.dependencies.profiles
       || getPersonalContentProvider() !== receipt.provider) return false
     const state = useShowStore.getState()
     return phase === 'saved'
@@ -87,18 +85,39 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
     return () => { generation.current++ }
   }, [preview, showId])
 
+  const resizePending = useRef<{ showId: string } | null>(null)
+  const [resizeBusyShowId, setResizeBusyShowId] = useState<string | null>(null)
+  const resizeBusy = resizeBusyShowId === showId
+  const [resizeFieldReset, setResizeFieldReset] = useState(0)
   const resize = async (durationMs: number) => {
-    if (!record || !transition) return
-    const result = editShowTransitionV2(record, { kind: 'resize-transition', transitionId: transition.id, durationMs })
-    if (result.status !== 'changed') {
-      setStatus(result.status === 'unchanged' ? 'Transition is unchanged.' : result.message)
-      return
-    }
+    if (!editCapture || !transition || resizePending.current?.showId === showId) return
+    const operation = { showId }
+    resizePending.current = operation
+    setResizeBusyShowId(showId)
+    const adoption: { current: ShowV2PilotAdoptionReceipt | null } = { current: null }
     try {
-      await update(showId, result.record)
-      setStatus(`Saved v2 Transition at ${durationMs} ms.`)
+      const outcome = await admitShowV2PilotTransitionResize({
+        showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0,
+        capture: editCapture, intent: { kind: 'resize-transition', transitionId: transition.id, durationMs },
+        isCurrent: isCurrentEditCapture, onAdopted: receipt => { adoption.current = receipt },
+      })
+      const current = outcome.status === 'applied'
+        ? adoption.current !== null && outcome.settlement === 'saved' && isCurrentEditCompletion(adoption.current, 'saved')
+        : isCurrentEditCapture()
+      if (!current) return
+      if (outcome.status === 'refused') setResizeFieldReset(value => value + 1)
+      setStatus(outcome.status === 'refused' ? outcome.message : outcome.status === 'unchanged' ? 'Transition is unchanged.' : `Saved v2 Transition at ${durationMs} ms.`)
     } catch (error) {
-      setStatus(error instanceof Error ? `Save failed: ${error.message}` : 'Save failed.')
+      const current = adoption.current ? isCurrentEditCompletion(adoption.current, 'save-failed') : isCurrentEditCapture()
+      if (current) {
+        setResizeFieldReset(value => value + 1)
+        setStatus(error instanceof Error ? `Save failed: ${error.message}` : 'Save failed.')
+      }
+    } finally {
+      if (resizePending.current === operation) {
+        resizePending.current = null
+        setResizeBusyShowId(null)
+      }
     }
   }
 
@@ -152,7 +171,9 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
             <div className="mt-7">
               <div className="w-44">
                 <NumberField
+                  key={`${transition.id}:${resizeFieldReset}`}
                   label="Transition duration"
+                  disabled={resizeBusy}
                   value={transition.durationMs}
                   min={1}
                   step={1}
@@ -163,7 +184,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
               </div>
             </div>
           )}
-          {markerCapture && <ShowV2MarkerEditor key={markerCapture.record.id} capture={markerCapture} isCurrentCapture={isCurrentMarkerCapture} isCurrentCompletion={isCurrentMarkerCompletion} onStatus={setStatus} />}
+          {editCapture && <ShowV2MarkerEditor key={editCapture.record.id} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           <div className="mt-7 flex flex-wrap gap-2">
             <Button size="xs" variant="outline" disabled={!history?.past.length} onClick={() => void runHistory('undo')}>Undo</Button>
             <Button size="xs" variant="outline" disabled={!history?.future.length} onClick={() => void runHistory('redo')}>Redo</Button>
