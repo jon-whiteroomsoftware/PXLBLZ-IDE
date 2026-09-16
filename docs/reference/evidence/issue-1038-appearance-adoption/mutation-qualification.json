@@ -1,0 +1,59 @@
+{
+  "mutants": [
+    {
+      "name": "mixed-first-span",
+      "file": "src/engine/showV2AppearanceEditorModel.ts",
+      "tests": [
+        "src/engine/showV2AppearanceEditorModel.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "flatten-mirror",
+      "file": "src/engine/showV2AppearanceEditorModel.ts",
+      "tests": [
+        "src/components/ShowV2AppearanceEditor.test.tsx"
+      ],
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "remint-retained-key",
+      "file": "src/engine/showV2AppearanceEditorModel.ts",
+      "tests": [
+        "src/engine/showV2AppearanceEditorModel.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "partial-effect-intersection",
+      "file": "src/engine/showV2AppearanceEditorModel.ts",
+      "tests": [
+        "src/engine/showV2AppearanceEditorModel.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "skip-closed-ingress",
+      "file": "src/store/showV2PreparedEditAdmission.ts",
+      "tests": [
+        "src/store/showV2AppearanceAdmission.test.ts"
+      ],
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "obsolete-feedback",
+      "file": "src/components/ShowV2AppearanceEditor.tsx",
+      "tests": [
+        "src/components/ShowV2AppearanceCompletion.test.tsx"
+      ],
+      "exitCode": 1,
+      "killed": true
+    }
+  ],
+  "restoredExactly": true
+}

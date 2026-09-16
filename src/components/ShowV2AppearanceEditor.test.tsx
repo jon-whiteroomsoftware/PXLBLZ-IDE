@@ -1,0 +1,110 @@
+import { useMemo, useState } from 'react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { convertibleV1Show } from '@/test/showV2TracerFixture'
+import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
+import { prepareShowStageV2 } from '@/engine/showPreparedStageV2'
+import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '@/engine/personalContentProvider'
+import { showInitialState, useShowStore } from '@/store/showStore'
+import { ShowV2AppearanceEditor } from './ShowV2AppearanceEditor'
+import * as identity from '@/engine/personalContentMetadata'
+beforeEach(() => { resetPersonalContentProvider(); useShowStore.setState(showInitialState) })
+afterEach(() => { resetPersonalContentProvider(); vi.restoreAllMocks() })
+function setup(mixed = false) {
+  const c = convertShowRecordV1ToV2(convertibleV1Show()); if (c.status !== 'converted') throw Error('fixture')
+  const record = c.record; record.composition.transitions = []; record.composition.clips = record.composition.clips.slice(0, 1)
+  const clip = record.composition.clips[0], first = clip.appearance.keys[0]
+  first.value.effects = [{ id: 'hue', kind: 'hue', turns: .2 }]
+  if (mixed) clip.appearance.keys = [0, 400].map((timeMs, index) => ({ id: `key-${index}`, timeMs,
+    value: { ...structuredClone(first.value), opacity: index ? .8 : .2, view: { mirror: Boolean(index), phase: .1, brightness: index ? .7 : .3 } } }))
+  for (const instance of record.composition.patternInstances) instance.pattern = { kind: 'user', id: 'voice' }
+  const dependencies = { patterns: [{ id: 'voice', name: 'Voice', src: 'export function render2D(i,x,y){rgb(x,y,0)}', controls: {}, updatedAt: 1 }], maps: [], libraries: [], profiles: [], stageMap: null }
+  const write = vi.fn(async () => {})
+  setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'appearance-editor', replaceShowV2: write })
+  useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
+  function Harness() {
+    const current = useShowStore(state => state.showV2Pilots[record.id]); const [status, setStatus] = useState('')
+    const capture = useMemo(() => ({ record: current, dependencies, prepared: prepareShowStageV2(current, dependencies) }), [current])
+    return <><ShowV2AppearanceEditor clipId={clip.id} capture={capture} isCurrentCapture={() => useShowStore.getState().showV2Pilots[record.id] === current}
+      isCurrentCompletion={(receipt, phase) => phase === 'saved' ? useShowStore.getState().showV2Pilots[record.id] === receipt.record : useShowStore.getState().showV2SaveFailure?.record === receipt.record}
+      onStatus={setStatus} /><output>{status}</output></>
+  }
+  render(<Harness />); return { record, clip, write }
+}
+it('requires explicit scope and submits only dirty brightness while mixed opacity/mirror stay exact', async () => {
+  const { record, clip, write } = setup(true)
+  expect(screen.getByLabelText('Appearance scope')).toHaveValue('')
+  expect(screen.getByRole('button', { name: 'Apply appearance' })).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('Appearance scope'), { target: { value: 'whole-clip' } })
+  expect(screen.getByLabelText('Clip opacity')).toHaveAttribute('placeholder', 'Mixed')
+  expect(screen.getByLabelText('Clip mirror')).toHaveValue('')
+  fireEvent.change(screen.getByLabelText('View brightness'), { target: { value: '.5' } })
+  expect(write).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Apply appearance' }))
+  expect(await screen.findByText('Appearance saved.')).toBeInTheDocument(); expect(write).toHaveBeenCalledTimes(1)
+  const keys = useShowStore.getState().showV2Pilots[record.id].composition.clips[0].appearance.keys
+  expect(keys.map(key => key.value.opacity)).toEqual([.2, .8]); expect(keys.map(key => key.value.view.mirror)).toEqual([false, true])
+  expect(keys.map(key => key.value.view.brightness)).toEqual([.5, .5]); expect(keys.map(key => [key.id, key.timeMs])).toEqual(clip.appearance.keys.map(key => [key.id, key.timeMs]))
+})
+it('inserts a complete interior held key and excludes exact end without saving', async () => {
+  const { record, clip, write } = setup(true)
+  fireEvent.change(screen.getByLabelText('Appearance scope'), { target: { value: 'selected-time' } })
+  fireEvent.change(screen.getByLabelText('Appearance time'), { target: { value: '200' } })
+  fireEvent.change(screen.getByLabelText('Clip opacity'), { target: { value: '.6' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Apply appearance' }))
+  expect(await screen.findByText('Appearance saved.')).toBeInTheDocument()
+  const key = useShowStore.getState().showV2Pilots[record.id].composition.clips[0].appearance.keys[1]
+  expect(key.id).not.toBe(clip.appearance.keys[0].id); expect(key.timeMs).toBe(200)
+  expect(key.value).toEqual({ ...clip.appearance.keys[0].value, opacity: .6 })
+  fireEvent.change(screen.getByLabelText('Appearance time'), { target: { value: '1000' } })
+  expect(screen.getByRole('button', { name: 'Apply appearance' })).toBeDisabled(); expect(write).toHaveBeenCalledTimes(1)
+})
+it('uses explicit Effect/parameter and target controls for update/duplicate/reorder', async () => {
+  const { record, write } = setup()
+  fireEvent.change(screen.getByLabelText('Appearance scope'), { target: { value: 'whole-clip' } })
+  fireEvent.change(screen.getByLabelText('Selected Effect'), { target: { value: 'hue' } })
+  fireEvent.change(screen.getByLabelText('Effect parameter'), { target: { value: 'turns' } })
+  fireEvent.change(screen.getByLabelText('Effect value'), { target: { value: '.4' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Apply parameter' })); expect(await screen.findByText('Appearance saved.')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Duplicate Effect' })); await waitFor(() => expect(write).toHaveBeenCalledTimes(2))
+  const effects = useShowStore.getState().showV2Pilots[record.id].composition.clips[0].appearance.keys[0].value.effects!
+  expect(effects.map(effect => effect.kind === 'hue' ? effect.turns : NaN)).toEqual([.4, .4])
+  expect(effects[1].id).not.toBe('hue')
+  fireEvent.change(screen.getByLabelText('Effect order target'), { target: { value: effects[1].id } })
+  fireEvent.change(screen.getByLabelText('Effect order edge'), { target: { value: 'after' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Move Effect' })); await waitFor(() => expect(write).toHaveBeenCalledTimes(3))
+  expect(useShowStore.getState().showV2Pilots[record.id].composition.clips[0].appearance.keys[0].value.effects?.map(effect => effect.id)).toEqual([effects[1].id, 'hue'])
+})
+
+it('allocates one key and one Effect identity for an interior add and supports color descriptors without clamping', async () => {
+  const { record, write } = setup()
+  const allocate = vi.spyOn(identity, 'newPersonalContentId').mockReturnValueOnce('new-color').mockReturnValueOnce('new-held')
+  fireEvent.change(screen.getByLabelText('Appearance scope'), { target: { value: 'selected-time' } })
+  fireEvent.change(screen.getByLabelText('Appearance time'), { target: { value: '200' } })
+  fireEvent.change(screen.getByLabelText('New Effect kind'), { target: { value: 'effect:output:color-map' } })
+  expect(allocate).not.toHaveBeenCalled(); expect(write).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Add Effect' })); expect(await screen.findByText('Appearance saved.')).toBeInTheDocument()
+  expect(allocate).toHaveBeenCalledTimes(2)
+  const key = useShowStore.getState().showV2Pilots[record.id].composition.clips[0].appearance.keys[1]
+  expect(key.id).toBe('new-held'); expect(key.value.effects?.[1]).toMatchObject({ id: 'new-color', kind: 'color-map' })
+  fireEvent.change(screen.getByLabelText('Selected Effect'), { target: { value: 'new-color' } })
+  fireEvent.change(screen.getByLabelText('Effect parameter'), { target: { value: 'shadowColor' } })
+  fireEvent.change(screen.getByLabelText('Effect value'), { target: { value: '#224466' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Apply parameter' })); await waitFor(() => expect(write).toHaveBeenCalledTimes(2))
+  expect(allocate).toHaveBeenCalledTimes(2)
+  expect(useShowStore.getState().showV2Pilots[record.id].composition.clips[0].appearance.keys[1].value.effects?.[1]).toMatchObject({ shadowR: 34 / 255, shadowG: 68 / 255, shadowB: 102 / 255 })
+})
+
+it('keeps numeric string drafts, reset and same-value submission free of silent normalization or writes', async () => {
+  const { record, write } = setup()
+  fireEvent.change(screen.getByLabelText('Appearance scope'), { target: { value: 'whole-clip' } })
+  fireEvent.change(screen.getByLabelText('Clip opacity'), { target: { value: '-' } })
+  expect(screen.getByLabelText('Clip opacity')).toHaveValue('-')
+  fireEvent.click(screen.getByRole('button', { name: 'Reset appearance' })); expect(write).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Apply appearance' }))
+  expect(await screen.findByText('Appearance is unchanged.')).toBeInTheDocument(); expect(write).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('Clip opacity'), { target: { value: '2' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Apply appearance' }))
+  expect(await screen.findByText('Supply finite supported appearance fields.')).toBeInTheDocument()
+  expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record); expect(write).not.toHaveBeenCalled()
+})

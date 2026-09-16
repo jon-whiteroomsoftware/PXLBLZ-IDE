@@ -1,0 +1,65 @@
+{
+  "issue": 1038,
+  "base": "fb8352636dc14758aaca5b7c586f0e044774095b",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "70812ae64c919ff1dcb15e019125bd3b6bad7b4b",
+    "proofRows": [
+      "ROUTE",
+      "FAILURE",
+      "SHARING",
+      "RESTART",
+      "ACTIVATION",
+      "CURVE",
+      "PARITY"
+    ]
+  },
+  "invariants": [
+    "Independent dirty fields never flatten mixed held values; only ordinary Clip targets and explicit whole-Clip/selected-time scopes.",
+    "Existing key identity retained, interior complete authored key seeded; each required fresh identity allocated once, no per-span allocation/retries.",
+    "Closed typed operation/scope/identity ingress delegates numeric/Effect validation to unchanged owner; exactly fourteen affected collections.",
+    "One prepared ready-to-ready adoption/history/save; malformed, unsupported, stale and no-op requests preserve current identity and write nothing.",
+    "Shared provider/capture/receipt lifetime guards prevent retained callbacks and superseded completions from publishing into new state."
+  ],
+  "partitions": [
+    "Uniform/mixed fields; dirty subset; absent scope/time/target; start/existing key/interior/end/outside contribution.",
+    "All Effect families/number/color descriptor kinds; exact common ID-kind intersection; source missing/kind mismatch; per-span duplicate values; explicit same-stage reorder.",
+    "Malformed outer/null/extra/scope/key/identity/edge shape; finite/unknown/domain checks by owner; identity collision without retry.",
+    "Record/revision/assets/provider/route/Clip change; own save rollback versus obsolete completion; pending duplicate submission; no-op unchanged identity.",
+    "Independent literal held-key native EPE Fast/Precise output/state; sharing/Restart; named opposite-order, participant and cache preparation refusals remain atomic."
+  ],
+  "sequences": [
+    "Scope/time/dirty draft -> cancel/no-op -> zero writes; whole independent patch -> interior held edit -> next-key boundary.",
+    "Effect add -> parameter update -> duplicate -> explicit reorder -> Undo/Redo -> durable reload/cold native reopen.",
+    "ProviderA retained callback -> providerB refusal -> fresh capture success; save failure -> owned rollback/retry; supersession -> no obsolete status."
+  ],
+  "oracles": [
+    "Actual current provider/store record, exact history/write counts and complete fourteen collection result.",
+    "Imported native EPE Fast/Precise frames and exports compared exactly with independently authored full keys, not unsplit numeric association.",
+    "Final-base isolated authenticated thirty-second route, keyboard/1440/1024/390 natural scrolling, errors/overflow and committed Stage captures."
+  ],
+  "residualGaps": [
+    "Opposite held Effect order runtime-sharing, participant property and static cache restrictions are unresolved integration cases, not accepted permanent product limits.",
+    "Precise unsplit numeric section association can differ by one LSB; retain landed measured evidence, no tolerance widening.",
+    "Measured neutral saturation/contrast Fast arithmetic residual is asserted exactly with positive-channel/Precise/private-state partitions; no tolerance widening.",
+    "Final-base browser/artifact route proof and coordinator review/final suites pending."
+  ],
+  "qualification": {
+    "focused": {
+      "files": 10,
+      "tests": 161,
+      "result": "passed"
+    },
+    "typescript": "passed",
+    "scopedLint": "passed",
+    "locators": "no new stale (0 known, 55 unverifiable)",
+    "parity": "47/47",
+    "semanticMutations": {
+      "killed": 6,
+      "total": 6,
+      "restoredExactly": true
+    },
+    "browser": "pending final-base capture; isolated Layer runtime released, no new runtime allocated",
+    "finalSuites": "coordinator-owned; not submitted by implementation worker"
+  }
+}

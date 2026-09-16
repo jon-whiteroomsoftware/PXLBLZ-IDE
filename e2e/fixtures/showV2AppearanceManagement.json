@@ -1,0 +1,304 @@
+{
+  "version": 2,
+  "id": "appearance-management-synthetic",
+  "name": "Appearance Management",
+  "zones": [
+    {
+      "id": "zone",
+      "name": "Main",
+      "nominalPixelCount": 16
+    }
+  ],
+  "zoneLayouts": [
+    {
+      "id": "layout",
+      "name": "Full",
+      "zones": [],
+      "logical": {
+        "kind": "single",
+        "zoneIds": [
+          "zone"
+        ]
+      }
+    }
+  ],
+  "outputContract": {
+    "version": 1,
+    "kind": "portable-2d",
+    "referenceMapId": "appearance-management-map",
+    "referencePixelCount": 16,
+    "compatibility": {
+      "dimensions": [
+        2
+      ],
+      "mapClass": "continuous-surface",
+      "resolution": "variable"
+    }
+  },
+  "composition": {
+    "version": 2,
+    "executionModel": "deterministic-loop",
+    "showEndMs": 30000,
+    "sampleRemap": {
+      "repeatScale": 1
+    },
+    "patternInstances": [
+      {
+        "id": "instance",
+        "pattern": {
+          "kind": "user",
+          "id": "appearance-voice"
+        },
+        "patternName": "Appearance Voice",
+        "time": {
+          "timeScale": 1,
+          "timeOffsetMs": 0
+        },
+        "controlTargets": {}
+      },
+      {
+        "id": "blue-runtime",
+        "pattern": {
+          "kind": "user",
+          "id": "appearance-voice"
+        },
+        "patternName": "Appearance Voice",
+        "time": {
+          "timeScale": 1,
+          "timeOffsetMs": 0
+        },
+        "controlTargets": {}
+      }
+    ],
+    "layers": [
+      {
+        "id": "layer:zone:main",
+        "zoneId": "zone",
+        "name": "Main",
+        "rank": 0
+      },
+      {
+        "id": "layer:zone:overlay:1",
+        "zoneId": "zone",
+        "name": "Atmosphere",
+        "rank": 1
+      }
+    ],
+    "clips": [
+      {
+        "id": "voice",
+        "instanceId": "instance",
+        "zoneId": "zone",
+        "layerId": "layer:zone:main",
+        "startMs": 0,
+        "durationMs": 10000,
+        "entryPolicy": "continue",
+        "zoneSampleMode": "span",
+        "appearance": {
+          "keys": [
+            {
+              "id": "voice-key-0",
+              "timeMs": 0,
+              "value": {
+                "opacity": 0.9,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 0.8
+                },
+                "effects": [
+                  {
+                    "id": "hue",
+                    "kind": "hue",
+                    "turns": 0.1
+                  }
+                ]
+              }
+            },
+            {
+              "id": "voice-key-1",
+              "timeMs": 6000,
+              "value": {
+                "opacity": 0.6,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 0.8
+                },
+                "effects": [
+                  {
+                    "id": "hue",
+                    "kind": "hue",
+                    "turns": 0.2
+                  }
+                ]
+              }
+            },
+            {
+              "id": "voice-key-2",
+              "timeMs": 9000,
+              "value": {
+                "opacity": 0.8,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 0.8
+                },
+                "effects": [
+                  {
+                    "id": "hue",
+                    "kind": "hue",
+                    "turns": 0.1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "layoutOccurrences": [
+      {
+        "id": "layout-occurrence:1",
+        "layoutId": "layout",
+        "startMs": 0,
+        "durationMs": 30000,
+        "parameters": {}
+      }
+    ],
+    "propertyTracks": [
+      {
+        "id": "clock",
+        "target": {
+          "kind": "instance-time-scale",
+          "instanceId": "instance"
+        },
+        "activeStartMs": 0,
+        "activeDurationMs": 10000,
+        "keyframes": [
+          {
+            "id": "clock-first",
+            "timeMs": 0,
+            "value": 2,
+            "easing": {
+              "curve": "quadratic",
+              "direction": "in"
+            }
+          },
+          {
+            "id": "clock-last",
+            "timeMs": 10000,
+            "value": 4,
+            "easing": {
+              "curve": "linear"
+            }
+          }
+        ]
+      }
+    ],
+    "markers": [
+      {
+        "id": "scene-marker:scene-a",
+        "timeMs": 0,
+        "name": "Opening"
+      }
+    ],
+    "groupDefinitions": [
+      {
+        "id": "held-voice",
+        "name": "Held Voice",
+        "patternInstances": [
+          {
+            "id": "local-voice",
+            "pattern": {
+              "kind": "user",
+              "id": "appearance-voice"
+            },
+            "patternName": "Appearance Voice",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            },
+            "controlTargets": {}
+          }
+        ],
+        "layers": [
+          {
+            "id": "local-layer",
+            "name": "Voice",
+            "rank": 0
+          },
+          {
+            "id": "unused-local",
+            "name": "Unused slot",
+            "rank": 1
+          }
+        ],
+        "clips": [
+          {
+            "id": "child",
+            "instanceId": "local-voice",
+            "layerId": "local-layer",
+            "startMs": 0,
+            "durationMs": 4000,
+            "entryPolicy": "restart",
+            "zoneSampleMode": "span",
+            "appearance": {
+              "keys": [
+                {
+                  "id": "child-key",
+                  "timeMs": 0,
+                  "value": {
+                    "opacity": 1,
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "effects": []
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "transitions": [],
+        "propertyTracks": []
+      }
+    ],
+    "groupOccurrences": [
+      {
+        "id": "held-use",
+        "definitionId": "held-voice",
+        "layoutOccurrenceId": "layout-occurrence:1",
+        "zoneId": "zone",
+        "startMs": 20000,
+        "layerBindings": [
+          {
+            "definitionLayerId": "local-layer",
+            "layerId": "layer:zone:overlay:1"
+          },
+          {
+            "definitionLayerId": "unused-local",
+            "layerId": "layer:zone:overlay:1"
+          }
+        ],
+        "instanceBindings": {
+          "local-voice": "instance"
+        },
+        "translationX": 0,
+        "translationY": 0,
+        "holds": [
+          {
+            "id": "held-beat",
+            "localTimeMs": 2000,
+            "durationMs": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "updatedAt": 1,
+  "stageMapId": "appearance-management-map"
+}

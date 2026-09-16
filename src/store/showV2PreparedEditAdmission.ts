@@ -12,6 +12,7 @@ import { editShowClipTemporalV2, type ShowClipTemporalIntentV2, type ShowClipTem
 import { insertShowTimeV2, type ShowInsertTimeIntentV2, type ShowTimelineEditResultV2, type ShowTimelineEditAffectedV2 } from '@/engine/showTimelineV2'
 import { editShowLayoutIntervalsV2, type ShowLayoutEditIntentV2, type ShowLayoutEditResultV2 } from '@/engine/showLayoutIntervalsV2'
 import { editShowLayerV2, type ShowLayerEditIntentV2, type ShowLayerEditResultV2, type ShowLayerEditAffectedV2 } from '@/engine/showLayersV2'
+import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2, type ShowClipAppearanceEditResultV2 } from '@/engine/showClipAppearanceEditsV2'
 export interface ShowV2PilotPreparedCapture {
   readonly record: ShowRecordV2
   readonly dependencies: ShowPreparedStageDependenciesV2
@@ -56,12 +57,14 @@ type Command =
   | { owner: 'clip-temporal'; intent: ShowClipTemporalIntentV2 }
   | { owner: 'insert-time'; intent: ShowInsertTimeIntentV2 }
   | { owner: 'layer'; intent: ShowLayerEditIntentV2 }
+  | { owner: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
   | { owner: 'set-show-end'; intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
 type OwnerResult<C extends Command> = C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
   : C extends { owner: 'clip-temporal' } ? ShowClipTemporalResultV2
   : C extends { owner: 'insert-time' } ? ShowTimelineEditResultV2
   : C extends { owner: 'layer' } ? ShowLayerEditResultV2
+  : C extends { owner: 'appearance' } ? ShowClipAppearanceEditResultV2
   : C extends { owner: 'set-show-end' } ? ShowLayoutEditResultV2
   : ShowTransitionEditResultV2
 type CheckedOutcome<R> =
@@ -98,9 +101,11 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
           ? insertShowTimeV2(current, structuredClone(command.intent))
           : command.owner === 'layer'
             ? editShowLayerV2(current, structuredClone(command.intent))
-            : command.owner === 'set-show-end'
-              ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
-              : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
+            : command.owner === 'appearance'
+              ? editShowClipAppearanceV2(current, structuredClone(command.intent))
+              : command.owner === 'set-show-end'
+                ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
+                : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
   if (result.status === 'refused') return { status: 'refused', source: 'owner', result }
   if (result.status === 'unchanged') return { status: 'unchanged', result }
   const { capture } = request
@@ -262,4 +267,31 @@ export async function admitShowV2PilotLayerEdit(request: ShowV2PilotLayerEditReq
   if (!validLayerIntent(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-request', message: 'Give one complete explicit Layer edit.', ...layerEffects() }
   const outcome = await admitPreparedEdit({ ...request, owner: 'layer' as const })
   return presentOwnerOutcome(outcome, layerEffects('result' in outcome ? outcome.result : undefined))
+}
+export type ShowV2PilotAppearanceEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowClipAppearanceEditIntentV2 }
+export type ShowV2PilotAppearanceEditOutcome = PilotOwnerOutcome<ShowClipAppearanceEditResultV2, ShowTimelineEditAffectedV2>
+function validAppearanceIntentShape(intent: unknown): intent is ShowClipAppearanceEditIntentV2 {
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return false
+  const value = intent as Record<string, unknown>
+  const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
+  const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  if (!text(value.clipId)) return false
+  const fields = ['kind', 'clipId', 'scope']
+  if (value.scope === 'selected-time') {
+    if (typeof value.atMs !== 'number' || !Number.isSafeInteger(value.atMs) || !exactIntentFields(value.keyIdentity, ['kind', 'appearanceKeyId'])) return false
+    const identity = value.keyIdentity as Record<string, unknown>
+    if (typeof identity.kind !== 'string' || !['retain', 'insert'].includes(identity.kind) || !text(identity.appearanceKeyId)) return false
+    fields.push('atMs', 'keyIdentity')
+  } else if (value.scope !== 'whole-clip') return false
+  if (value.kind === 'appearance') return exactIntentFields(value, [...fields, 'patch']) && object(value.patch)
+  if (value.kind === 'add-effect') return exactIntentFields(value, [...fields, 'effect']) && object(value.effect) && text(value.effect.id) && text(value.effect.kind)
+  if (!text(value.effectId) || !text(value.effectKind)) return false
+  if (value.kind === 'update-effect') return exactIntentFields(value, [...fields, 'effectId', 'effectKind', 'parameter', 'value']) && text(value.parameter) && ['number', 'string'].includes(typeof value.value)
+  if (value.kind === 'duplicate-effect') return exactIntentFields(value, [...fields, 'effectId', 'effectKind', 'newEffectId']) && text(value.newEffectId)
+  return value.kind === 'reorder-effect' && exactIntentFields(value, [...fields, 'effectId', 'effectKind', 'targetEffectId', 'targetEffectKind', 'edge']) && text(value.targetEffectId) && text(value.targetEffectKind) && typeof value.edge === 'string' && ['before', 'after'].includes(value.edge)
+}
+export async function admitShowV2PilotAppearanceEdit(request: ShowV2PilotAppearanceEditRequest): Promise<ShowV2PilotAppearanceEditOutcome> {
+  if (!validAppearanceIntentShape(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one complete appearance operation with explicit scope and identities.', ...timelineEffects() }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'appearance' as const })
+  return presentOwnerOutcome(outcome, timelineEffects('result' in outcome ? outcome.result : undefined))
 }

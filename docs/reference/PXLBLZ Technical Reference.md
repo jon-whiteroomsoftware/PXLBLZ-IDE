@@ -879,6 +879,12 @@ pure Layer owner and captured prepared adoption/history/save path. See
 [Native v2 Layer management](contracts/show-v2-layer-management.md) for command
 ingress, unused Group bindings, held occupancy and stale-provider ownership.
 
+The same captured workspace now offers ordinary Clip opacity/View and Effect
+add/update/duplicate/reorder with explicit whole-Clip or selected-time scope.
+Mixed values produce independent dirty patches. See
+[Native v2 appearance management](contracts/show-v2-appearance-management.md)
+for exact identities, prepared admission and named integration restrictions.
+
 `ShowRecord.composition` (`ShowCompositionV1`) holds the editor's Clips,
 Layers, Groups, Markers, explicit Show End, and Property animation; the
 record's Scenes, Zones, boundary Transitions, and routing layouts remain the
