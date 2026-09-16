@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1048",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-identity-proof-1048",
+  "operation": "After the post-commit follower and complete-result capacity follow-ups were rebased onto current main, a real codex-cli0.153.4 OAuth MCP client called read_show, recovered one relay-assigned operation from two same-key begin calls, sent ten independent keyed marker commands before awaiting any result, and committed all ten to applied/saved. Inspected saved and reopened captures show all ten timeline markers; the reopened marker-10 dialog and API record confirm ten persisted markers with unique IDs.",
+  "captures": [
+    ".wrsp/ui-proof/1048-parallel-saved-followup.png",
+    ".wrsp/ui-proof/1048-parallel-reopened-followup.png"
+  ],
+  "capturedAtCommit": "13992d36c20b4dfb23214446ee681f29c34bd69b"
+}
