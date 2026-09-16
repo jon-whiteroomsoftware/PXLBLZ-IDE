@@ -66,9 +66,7 @@ it.each([1, 2])('preserves %i Layout transfers starting with whole-output visual
     const preimage = structuredClone(changed)
     const result = prepareShowV2ForCompile(changed, lookup)
     expect(changed).toEqual(preimage)
-    if (atMs > 400 && atMs <= 600) {
-      expect(result, `Layout edge ${atMs}`).toMatchObject({ status: 'refused', issues: [{ code: 'unsupported-layout-occurrences' }] })
-    } else {
+    {
       expect(result.status, `Layout edge ${atMs}`).toBe('ready')
       if (result.status === 'ready') {
         expect(result.recipe.routingSwitches).toEqual([{ ...v1Recipe.routingSwitches![0], atMs }, ...v1Recipe.routingSwitches!.slice(1)])

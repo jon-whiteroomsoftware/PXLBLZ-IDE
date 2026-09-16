@@ -1,0 +1,57 @@
+{
+  "issue": 1038,
+  "specCommit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+  "proofRows": [
+    "V2-EDIT-LAYOUT-TRANSITION",
+    "LAYOUT-END",
+    "SHARING",
+    "RESTART"
+  ],
+  "invariants": [
+    "Global repeat-scale animation and Layout switches leave contributor/runtime schedules unchanged.",
+    "Retained source kernels, half-open activation/restoration and timed transfer metadata stay exact.",
+    "Previously admitted source bytes remain identical; authored content is immutable.",
+    "Conflicts and unavailable contribution Zones refuse atomically; direct legacy-shaped API cannot discard richer transient semantics."
+  ],
+  "partitions": [
+    "Participant ordinary, retained, descriptor-free held and retained-with-held-easing repeat tracks.",
+    "Whole-output Layout switch at425/500/575/600, instant/timed transfer, scalar carrier end/interior.",
+    "Distinct/shared cast and authored Restart at first contribution400.",
+    "Same-Layout already-admitted scalar boundaries versus actual end definition switches.",
+    "Public codec/native EPE, direct typed refusal, overlapping scalar ownership and disappearing Zone.",
+    "Authored whole-output carrier durations1/99/100/200 on newly admitted interior routing; pre-existing edge-at-start coercion separately preserved byte-exact.",
+    "OneZone continuous span/independent sampling with actual repeat tracks forces transition route; wholeOutput forces global-sections despite static rank0 opacity1 Clips."
+  ],
+  "sequences": [
+    "Independently authored existing compiler repeat channel -> native Fast/Precise output/state -> public preparation comparison.",
+    "Independently authored whole-output global switch -> native output/state -> public interior/end projection.",
+    "Converted whole-output byte parity -> explicit participant scope -> independent held split/repeat target schedule -> native EPE reopening.",
+    "Saved shared runtime + Restart -> global repeat track -> prepare once -> immediate frame/state snapshots.",
+    "Same persisted scalar records -> base/suffix public preparation -> compare1/99/100 classifications/source hashes -> new interior mapping versus independent raw native recipe."
+  ],
+  "oracles": [
+    "Reopened native EPE frames and immediately cloned private exports match independently authored scalar/switch schedules in both fidelities.",
+    "Initial independent recipes change visible output while member advancement remains identical.",
+    "Exact runtime count and first-contribution Restart event; no input mutation.",
+    "Existing source equality assertions and47-record parity; atomic ownership/availability refusal and typed direct error.",
+    "New interior scalar carrier duration1/99/100 remains exact; old ready edge-at-start source SHA256 identical to base despite its named unresolved legacy coercion.",
+    "OneZone continuous route/state/scalar/switch equality uses the already-admitted routed baseline with identical authored sampling; it does not claim invalid flat-independent/span equivalence."
+  ],
+  "residualGaps": [
+    "Unrelated pre-existing source/representation guards remain enforced; no claim of compiler widening or full issue1038 completion.",
+    "Native frames qualify existing Fast/Precise arithmetic at25ms replay steps; no arbitrary-ms fixed-point state equality claim.",
+    "Pre-existing legacy edge-at-window-start Property duration1/99\u2192100 coercion remains unresolved1038 work at requested pause; primary normalizer and same-record base/suffix witness committed. Not a compiler limit or universal duration-preservation claim.",
+    "Continuousflat participant+multipleLayout remains explicit prior-domain refusal and unresolved sampling/routing obligation at requested pause; b004 guard and real zero-write admission oracle preserved. Not a compiler limit or universal support claim."
+  ],
+  "qualification": {
+    "red": "Existing compiler premises4/4 pass while2 public adapter domains refuse original guards; retained-with-held-easing additional red18pass/1fail.",
+    "focused": "Finalbase240/240 across9 affected/native suites on pinned49df; own25 native/public cases, inherited Layout32 and actual Layout admission28 cases included.",
+    "static": "Finalbase full-project TypeScript, assigned ESLint and diffcheck PASS.",
+    "parity": "Finalbase47/47 exact source bytes, corpus unchanged.",
+    "faults": "Four finalbase native faults killed against exact restored producer SHA256 in fault-sensitivity.json.",
+    "rebase": "Single47c961 suffix only from e9 onto49df. All3 owned test payloads byte-identical; lowerer exact checkpoint bytes plus inherited b004 refusal. Sole contract conflict retains both qualified-route and scalar/whole-output clauses. Rebase editor stripped leading # subject; final own unreviewed amend restores issue-bearing original commit metadata."
+  },
+  "baseCommit": "49df1b4f7ade6a83e720c14de101ae21625f424d",
+  "historicalCheckpoint": "47c961b6c5878c3fd58c84410a7f416fe43deb42",
+  "sourceSha256": "18eadac02b0af8a9f7d8aa248d63402581a2efd8c5f014db4f29fdea6558c5c4"
+}

@@ -1,0 +1,33 @@
+{
+  "baseCommit": "49df1b4f7ade6a83e720c14de101ae21625f424d",
+  "baseline": "25/25 own native/public cases; 240/240 affected/native on pinned replacement parent.",
+  "faults": [
+    {
+      "fault": "drop-participant-repeat-channel",
+      "status": "killed",
+      "oracle": "Native reopened Fast/Precise frame/private snapshot equality precedes recipe metadata assertions.",
+      "log": "/tmp/issue-1038-global-transition-pinned-fault-drop-participant-repeat-channel.log"
+    },
+    {
+      "fault": "drop-whole-output-global-switch",
+      "status": "killed",
+      "oracle": "Native reopened Fast/Precise frame/private snapshot equality precedes recipe metadata assertions.",
+      "log": "/tmp/issue-1038-global-transition-pinned-fault-drop-whole-output-global-switch.log"
+    },
+    {
+      "fault": "overwrite-positive-scalar-carrier",
+      "status": "killed",
+      "oracle": "Native reopened Fast/Precise frame/private snapshot equality precedes recipe metadata assertions.",
+      "log": "/tmp/issue-1038-global-transition-pinned-fault-overwrite-positive-scalar-carrier.log"
+    },
+    {
+      "fault": "normalize-new-short-carrier",
+      "status": "killed",
+      "oracle": "Native reopened Fast/Precise frame/private snapshot equality precedes recipe metadata assertions.",
+      "log": "/tmp/issue-1038-global-transition-pinned-fault-normalize-new-short-carrier.log"
+    }
+  ],
+  "restored": "Exact producer bytes",
+  "sourceSha256": "18eadac02b0af8a9f7d8aa248d63402581a2efd8c5f014db4f29fdea6558c5c4",
+  "historicalCheckpointSourceSha256": "a17bcf09b8340caa6da3946bb0c02c6c7d408f0222f80182bb5b34a2ff4c7995"
+}

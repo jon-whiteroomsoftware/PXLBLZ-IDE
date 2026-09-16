@@ -1,0 +1,483 @@
+{
+  "baseCommit": "6399856905cd8e1014de1dd0cc51d6aa311df7a5",
+  "pinnedSuffixParent": "e9f3ed19d116f3409ac534e7fe50ebe1bf61963e",
+  "producerSha256": "a17bcf09b8340caa6da3946bb0c02c6c7d408f0222f80182bb5b34a2ff4c7995",
+  "reproduction": "showGlobalTransitionAdaptersV2.test.ts fixture(true); first Layout splitPosition.25, incoming changed-definition Layout splitPosition.75 begins400 or500; whole-output window400..600; explicit quadratic-in split Property ramp starts400 with duration1/99/100. Same complete records passed to base and suffix public preparation.",
+  "primaryCause": "src/engine/showModel.ts:2861 clampPropertyDuration returns Math.max(100, Math.round(durationMs)) on the existing legacy Scene path.",
+  "classification": "Previously admitted edge-at-start400 retains pre-existing1/99\u2192100 coercion and byte-identical source: unresolved1038 work at requested pause, not a compiler limit or universal exact short-carrier guarantee. Newly admitted interior-edge500 projection retains exact authored1/99/100 in existing compiler recipe; independent native Fast/Precise frame/private-state tests pass.",
+  "beforeRepair": [
+    {
+      "revision": "base",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 1,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ]
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 99,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ]
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 100,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ]
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 1,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "An interior Layout edge inside a whole-output window requires separate preservation proof."
+        }
+      ]
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 99,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "An interior Layout edge inside a whole-output window requires separate preservation proof."
+        }
+      ]
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 100,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "An interior Layout edge inside a whole-output window requires separate preservation proof."
+        }
+      ]
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 1,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ]
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 99,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ]
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 100,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ]
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 1,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        },
+        {
+          "atMs": 500,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 0,
+          "easing": {
+            "curve": "linear"
+          }
+        }
+      ]
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 99,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        },
+        {
+          "atMs": 500,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 0,
+          "easing": {
+            "curve": "linear"
+          }
+        }
+      ]
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 100,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        },
+        {
+          "atMs": 500,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 0,
+          "easing": {
+            "curve": "linear"
+          }
+        }
+      ]
+    }
+  ],
+  "afterRepair": [
+    {
+      "revision": "base",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 1,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ],
+      "sourceSha256": "e138ced4767a8ec95fb623d62c045fa3f8d220b31b70e3a83e59903ee16052aa"
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 99,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ],
+      "sourceSha256": "e138ced4767a8ec95fb623d62c045fa3f8d220b31b70e3a83e59903ee16052aa"
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 100,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ],
+      "sourceSha256": "e138ced4767a8ec95fb623d62c045fa3f8d220b31b70e3a83e59903ee16052aa"
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 1,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "An interior Layout edge inside a whole-output window requires separate preservation proof."
+        }
+      ]
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 99,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "An interior Layout edge inside a whole-output window requires separate preservation proof."
+        }
+      ]
+    },
+    {
+      "revision": "base",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 100,
+      "status": "refused",
+      "issues": [
+        {
+          "code": "unsupported-layout-occurrences",
+          "path": "composition.layoutOccurrences",
+          "message": "An interior Layout edge inside a whole-output window requires separate preservation proof."
+        }
+      ]
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 1,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ],
+      "sourceSha256": "e138ced4767a8ec95fb623d62c045fa3f8d220b31b70e3a83e59903ee16052aa"
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 99,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ],
+      "sourceSha256": "e138ced4767a8ec95fb623d62c045fa3f8d220b31b70e3a83e59903ee16052aa"
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 400,
+      "authoredDurationMs": 100,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        }
+      ],
+      "sourceSha256": "e138ced4767a8ec95fb623d62c045fa3f8d220b31b70e3a83e59903ee16052aa"
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 1,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 1,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        },
+        {
+          "atMs": 500,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 0,
+          "easing": {
+            "curve": "linear"
+          }
+        }
+      ],
+      "sourceSha256": "3f154bd3cf7e2caedc5687165afb2e8705e187f6ece240e6d99a25f7d4814e2b"
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 99,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 99,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        },
+        {
+          "atMs": 500,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 0,
+          "easing": {
+            "curve": "linear"
+          }
+        }
+      ],
+      "sourceSha256": "9d0c9a37e5686099bb0da26dce752b80588ede9bd60c63e458115b586e74b319"
+    },
+    {
+      "revision": "suffix",
+      "layoutAtMs": 500,
+      "authoredDurationMs": 100,
+      "status": "ready",
+      "ramps": [
+        {
+          "atMs": 400,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 100,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          }
+        },
+        {
+          "atMs": 500,
+          "from": 0.25,
+          "to": 0.75,
+          "durationMs": 0,
+          "easing": {
+            "curve": "linear"
+          }
+        }
+      ],
+      "sourceSha256": "e799f03fea853bbc5ab2af7329a76da77f71816542a819e83f699a005b53a503"
+    }
+  ],
+  "finalQualification": {
+    "baseCommit": "49df1b4f7ade6a83e720c14de101ae21625f424d",
+    "sourceSha256": "18eadac02b0af8a9f7d8aa248d63402581a2efd8c5f014db4f29fdea6558c5c4",
+    "ownPatchEquivalence": "Exact checkpoint producer plus inherited continuousflat refusal; no duration/sampling producer changes during finalbase rebase. Historical before/after rows and source hashes retained as captured.",
+    "nativeCases": "Finalbase25/25 own cases; raw1/99/100/200 carrier native output/state exact in Fast/Precise."
+  }
+}

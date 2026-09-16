@@ -90,7 +90,7 @@ interface ResolvedLowering {
 export class ShowV2PreparedRecipeRequiredError extends Error {
   readonly code = 'requires-prepared-recipe' as const
   constructor() {
-    super('Show composition v2 participant Transitions with multiple Layout occurrences require prepareShowV2ForCompile so global Layout switches and scalar baselines cannot be dropped.')
+    super('Show composition v2 global Transition routing or scalar animation requires prepareShowV2ForCompile so its complete transient recipe cannot be dropped.')
     this.name = 'ShowV2PreparedRecipeRequiredError'
   }
 }
@@ -116,27 +116,46 @@ export function prepareShowV2ForCompile(
     }
   }
   const recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
-  if (context.route === 'transition' && context.record.composition.layoutOccurrences.length > 1) {
+  if (needsGlobalLayoutRecipe(context.record, context.route)) {
     const occurrences = [...context.record.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
     recipe.routingSwitches = occurrences.flatMap((occurrence, index) => index > 0 && (occurrence.incomingTransfer || occurrence.layoutId !== occurrences[index - 1].layoutId)
       ? [{ atMs: occurrence.startMs, layoutId: occurrence.layoutId, durationMs: occurrence.incomingTransfer?.durationMs ?? 0,
           easing: structuredClone(occurrence.incomingTransfer?.easing ?? { curve: 'linear' as const }),
           direction: occurrence.incomingTransfer?.direction ?? 'forward' as const }] : [])
     if (recipe.routingPropertyRamps) {
+      const carriers = recipe.routingPropertyRamps.splitPosition.ramps.filter(ramp => context.record.composition.transitions.some(transition => (
+        transition.wholeOutput?.startMs === ramp.atMs
+        && transition.propertyRamps.some(property => property.target.kind === 'layout-occurrence-split-position')
+      ))).map(ramp => {
+        const transition = context.record.composition.transitions.find(candidate => candidate.wholeOutput?.startMs === ramp.atMs
+          && candidate.propertyRamps.some(property => property.target.kind === 'layout-occurrence-split-position'))!
+        const property = transition.propertyRamps.find(candidate => candidate.target.kind === 'layout-occurrence-split-position')!
+        // Newly supported global recipes retain authored duration without the legacy Scene Property minimum.
+        return { ...ramp, durationMs: property.durationMs ?? transition.durationMs }
+      })
+      const baselines = occurrences.slice(1).map((occurrence, index) => ({ atMs: occurrence.startMs,
+        from: occurrences[index].parameters.splitPosition ?? 0.5, to: occurrence.parameters.splitPosition ?? 0.5,
+        durationMs: 0, easing: { curve: 'linear' as const } }))
+        .filter(ramp => !carriers.some(carrier => ramp.atMs >= carrier.atMs && ramp.atMs < carrier.atMs + carrier.durationMs))
       recipe.routingPropertyRamps = { splitPosition: {
         initial: occurrences[0].parameters.splitPosition ?? 0.5,
-        ramps: occurrences.slice(1).map((occurrence, index) => ({ atMs: occurrence.startMs,
-          from: occurrences[index].parameters.splitPosition ?? 0.5, to: occurrence.parameters.splitPosition ?? 0.5,
-          durationMs: 0, easing: { curve: 'linear' as const } })),
+        ramps: [...baselines, ...carriers].sort((left, right) => left.atMs - right.atMs),
       } }
     }
+  }
+  if (context.route === 'transition') {
+    const held = context.record.composition.propertyTracks.find(track => isHeldRepeatScaleTrack(track, context.record.composition.showEndMs) && track.keyframes.every(key => key.curveSegment === undefined))
+    if (held) recipe.samplePropertyRamps = { repeatScale: {
+      initial: held.keyframes[0].value,
+      ramps: held.keyframes.slice(1).map((key, index) => ({ atMs: key.timeMs, from: held.keyframes[index].value, to: key.value, durationMs: 0, easing: { curve: 'linear' as const } })),
+    } }
   }
   const layoutPropertyRamps = lowerLayoutSplitPositionTracks(context.record, recipe.routingPropertyRamps)
   if (layoutPropertyRamps.status === 'refused') {
     return { status: 'refused', ...refuse('unsupported-property-target', layoutPropertyRamps.path, layoutPropertyRamps.message) }
   }
   if (layoutPropertyRamps.value) recipe.routingPropertyRamps = layoutPropertyRamps.value
-  const repeatPropertyRamps = lowerRepeatScaleTracks(context.record, recipe.samplePropertyRamps)
+  const repeatPropertyRamps = lowerRepeatScaleTracks(context.record, recipe.samplePropertyRamps, context.route)
   if (repeatPropertyRamps.status === 'refused') return { status: 'refused', ...refuse('unsupported-property-target', repeatPropertyRamps.path, repeatPropertyRamps.message) }
   if (repeatPropertyRamps.value) recipe.samplePropertyRamps = repeatPropertyRamps.value
   const expectedInstances = [...new Set(Object.values(context.runtimeInstanceIdByClipId))].sort()
@@ -232,7 +251,8 @@ export function lowerShowCompositionV2ForCompile(
   if ('issues' in resolved) {
     throw new Error(resolved.issues.map(issue => `Show composition v2 ${issue.path}: ${issue.message}`).join('; '))
   }
-  if (resolved.context.route === 'transition' && resolved.context.record.composition.layoutOccurrences.length > 1) {
+  if (needsGlobalLayoutRecipe(resolved.context.record, resolved.context.route)
+    || (resolved.context.route === 'transition' && resolved.context.record.composition.propertyTracks.some(track => track.target.kind === 'show-repeat-scale'))) {
     throw new ShowV2PreparedRecipeRequiredError()
   }
   return resolved.lowered
@@ -352,12 +372,6 @@ function resolveShowV2CompileContext(
   if (wholeOutput && composition.transitions.some(transition => !transition.wholeOutput)) {
     return refuse('unsupported-transition-participants', 'composition.transitions', 'Mixed whole-output and Layer scopes require separate preservation proof.')
   }
-  if (!wholeOutput && composition.transitions.length > 0 && composition.propertyTracks.some(track => track.target.kind === 'show-repeat-scale')) {
-    return refuse('unsupported-transition-property-track', 'composition.transitions', 'Global scalar changes require whole-output preservation scope.')
-  }
-  if (composition.transitions.some(transition => transition.wholeOutput && composition.layoutOccurrences.some(occurrence => occurrence.startMs > transition.wholeOutput!.startMs && occurrence.startMs < transition.wholeOutput!.startMs + transition.durationMs))) {
-    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'An interior Layout edge inside a whole-output window requires separate preservation proof.')
-  }
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
     return refuse('unsupported-groups', 'composition.groupDefinitions', 'lowering requires Group materialization evidence before compilation.')
   }
@@ -381,6 +395,7 @@ function resolveShowV2CompileContext(
   }
   if (!wholeOutput && composition.transitions.length > 0 && composition.propertyTracks.some(track => (
     track.target.kind !== 'layout-occurrence-split-position'
+    && track.target.kind !== 'show-repeat-scale'
     && (track.activeStartMs !== 0 || track.activeDurationMs !== composition.showEndMs)
   ))) {
     return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'lowering requires section-scoped positive-Transition property-track activation evidence before compilation.')
@@ -469,6 +484,17 @@ function resolveShowV2CompileContext(
     },
     runtimeInstanceIdByClipId: Object.fromEntries(composition.clips.map(clip => [clip.id, clip.instanceId])),
   }
+}
+
+function needsGlobalLayoutRecipe(record: ShowRecordV2, route: PreparationRoute): boolean {
+  return (route === 'transition' && record.composition.layoutOccurrences.length > 1)
+    || record.composition.transitions.some(transition => transition.wholeOutput && [...record.composition.layoutOccurrences]
+      .sort((left, right) => left.startMs - right.startMs).some((occurrence, index, ordered) => (
+        occurrence.startMs > transition.wholeOutput!.startMs
+        && (occurrence.startMs < transition.wholeOutput!.startMs + transition.durationMs
+          || (occurrence.startMs === transition.wholeOutput!.startMs + transition.durationMs
+            && (occurrence.incomingTransfer !== undefined || occurrence.layoutId !== ordered[index - 1]?.layoutId)))
+      )))
 }
 
 function globalSectionBoundaries(record: ShowRecordV2): number[] {
@@ -590,7 +616,7 @@ function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowC
       kind: transition.kind,
     }
   })
-  const propertyTracks = composition.propertyTracks.filter(track => track.target.kind !== 'layout-occurrence-split-position').map(track => ({
+  const propertyTracks = composition.propertyTracks.filter(track => track.target.kind !== 'layout-occurrence-split-position' && track.target.kind !== 'show-repeat-scale').map(track => ({
     ...stripV2PropertyTrackActivation(track),
     target: lowerPropertyTarget(track.target),
   }))
@@ -993,7 +1019,7 @@ function buildLoweredShow(
     const boundary = record.composition.transitions.find(transition => transition.wholeOutput?.startMs === cursor)
     cursor += boundary?.durationMs ?? 0
   }
-  const transitions: ShowRecord['transitions'] = context.route === 'transition' && record.composition.layoutOccurrences.length > 1 ? [] : [...record.composition.layoutOccurrences].sort((a, b) => a.startMs - b.startMs).filter((occurrence, index, ordered) => index > 0 && (occurrence.incomingTransfer || occurrence.layoutId !== ordered[index - 1].layoutId)).map(occurrence => ({
+  const transitions: ShowRecord['transitions'] = needsGlobalLayoutRecipe(record, context.route) ? [] : [...record.composition.layoutOccurrences].sort((a, b) => a.startMs - b.startMs).filter((occurrence, index, ordered) => index > 0 && (occurrence.incomingTransfer || occurrence.layoutId !== ordered[index - 1].layoutId)).map(occurrence => ({
     id: occurrence.incomingTransfer?.id ?? `routing:${occurrence.id}`,
     afterSceneId: sceneEnds.get(occurrence.startMs)!, kind: 'routing', layoutId: occurrence.layoutId,
     durationMs: occurrence.incomingTransfer?.durationMs ?? 0,
@@ -1133,9 +1159,9 @@ function stripV2TransitionFields(
   return settings
 }
 
-function lowerRepeatScaleTracks(record: ShowRecordV2, source: ShowRecipe['samplePropertyRamps']): { status: 'ready'; value?: NonNullable<ShowRecipe['samplePropertyRamps']> } | { status: 'refused'; path: string; message: string } {
+function lowerRepeatScaleTracks(record: ShowRecordV2, source: ShowRecipe['samplePropertyRamps'], route: PreparationRoute): { status: 'ready'; value?: NonNullable<ShowRecipe['samplePropertyRamps']> } | { status: 'refused'; path: string; message: string } {
   const all = record.composition.propertyTracks.filter(track => track.target.kind === 'show-repeat-scale')
-  const tracks = all.filter(track => !isHeldRepeatScaleTrack(track, record.composition.showEndMs)).sort((a, b) => a.activeStartMs - b.activeStartMs || a.id.localeCompare(b.id))
+  const tracks = all.filter(track => !isHeldRepeatScaleTrack(track, record.composition.showEndMs) || (route === 'transition' && track.keyframes.some(key => key.curveSegment !== undefined))).sort((a, b) => a.activeStartMs - b.activeStartMs || a.id.localeCompare(b.id))
   if (!tracks.length) return { status: 'ready', ...(source ? { value: source } : {}) }
   for (const track of tracks) {
     if (track.keyframes.some(key => key.value <= 0)) return { status: 'refused', path: 'composition.propertyTracks', message: 'Repeat-scale animation values must be positive.' }

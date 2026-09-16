@@ -115,23 +115,26 @@ it.each(['repeat', 'split'] as const)('preserves changed %s targets across a vis
   if (reopened.status !== 'opened') return
   const participant = prepareShowV2ForCompile(reopened.record, lookup)
   expect(converted.record).toEqual(before)
-  if (property === 'repeat') {
-    expect(participant.status).toBe('refused')
-    return
-  }
   expect(participant.status, participant.status === 'refused' ? JSON.stringify(participant.issues) : '').toBe('ready')
   if (participant.status !== 'ready') return
   // The accepted participant schedule is unchanged by independently supplied global scalar values.
   const neutral = structuredClone(reopened.record)
-  for (const occurrence of neutral.composition.layoutOccurrences) occurrence.parameters.splitPosition = .5
-  neutral.composition.propertyTracks = neutral.composition.propertyTracks.filter(track => track.target.kind !== 'layout-occurrence-split-position')
+  if (property === 'split') for (const occurrence of neutral.composition.layoutOccurrences) occurrence.parameters.splitPosition = .5
+  else neutral.composition.sampleRemap.repeatScale = 1
+  neutral.composition.propertyTracks = neutral.composition.propertyTracks.filter(track => track.target.kind !== (property === 'split' ? 'layout-occurrence-split-position' : 'show-repeat-scale'))
   const neutralPrepared = prepareShowV2ForCompile(neutral, lookup)
   expect(neutralPrepared.status).toBe('ready')
   if (neutralPrepared.status !== 'ready') return
-  expect(reopened.record.composition.layoutOccurrences[1].startMs).toBe(700)
+  if (property === 'split') expect(reopened.record.composition.layoutOccurrences[1].startMs).toBe(700)
+  else expect(reopened.record.composition.propertyTracks.find(track => track.target.kind === 'show-repeat-scale')!.keyframes[1].timeMs).toBe(700)
   const intended = structuredClone(neutralPrepared.recipe)
-  intended.routingPropertyRamps = { splitPosition: { initial: .25, ramps: [{ atMs: 700, from: .25, to: .75, durationMs: 0, easing: { curve: 'linear' } }] } }
-  expect(participant.recipe.routingPropertyRamps).toEqual(intended.routingPropertyRamps)
+  if (property === 'split') {
+    intended.routingPropertyRamps = { splitPosition: { initial: .25, ramps: [{ atMs: 700, from: .25, to: .75, durationMs: 0, easing: { curve: 'linear' } }] } }
+    expect(participant.recipe.routingPropertyRamps).toEqual(intended.routingPropertyRamps)
+  } else {
+    intended.samplePropertyRamps = { repeatScale: { initial: 1, ramps: [{ atMs: 700, from: 1, to: 4, durationMs: 0, easing: { curve: 'linear' } }] } }
+    expect(participant.recipe.samplePropertyRamps).toEqual(intended.samplePropertyRamps)
+  }
   for (const fidelity of ['fast', 'fidelity'] as const) {
     const actual = scalarFrames(participant.recipe, fidelity, reopened.record)
     expect(actual).toEqual(scalarFrames(intended, fidelity))
