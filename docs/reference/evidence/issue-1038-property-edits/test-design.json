@@ -54,9 +54,10 @@
   "qualification": {
     "red": "Initial public complete-add counterexample red\u2192green; retained equal-value reauthor red\u2192green; malformed non-data intents3 red\u2192green; final-data target field-order no-op red\u2192green. Initial test-only fixed-point import corrected before native qualification.",
     "focused": "169/8 own CRUD, nine-family native EPE, shared animation/Groups and schema drift coverage tests pass.",
-    "static": "Full project TypeScript and scoped ESLint pass; normal commit hooks follow scoped checkpoint.",
+    "static": "Full project TypeScript/scoped ESLint pass. Normal source hooks full lint/authenticated coverage+locator gates/typecheck and staged137/6 pass; post-commit issue notification141 followed successful commit, no bypass.",
     "parity": "47 inventoried records match unchanged committed report.",
     "faultSensitivity": "7 named semantic mutants killed; sourceRestored=true in fault-sensitivity.json.",
-    "inheritedReproduction": "Public native reopen original/materialized validates[]; emitted/evaluator199=.5/200=.15/201=.1502002 while exact authored boundary expected.5; hold mapper199=.1535 and hold250=.325. /tmp/issue-1038-property-hold-reproduction.mts."
+    "inheritedReproduction": "Public native reopen original/materialized validates[]; emitted/evaluator199=.5/200=.15/201=.1502002 while exact authored boundary expected.5; hold mapper199=.1535 and hold250=.325. /tmp/issue-1038-property-hold-reproduction.mts.",
+    "sourceCheckpoint": "27e9e65a4e6d80dea79f4285dfaa2a8e213704f7"
   }
 }
