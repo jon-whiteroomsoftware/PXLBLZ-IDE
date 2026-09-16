@@ -342,7 +342,7 @@
           }
         ],
         "instanceBindings": {
-          "local-voice": "instance"
+          "local-voice": "blue-runtime"
         },
         "translationX": 0,
         "translationY": 0,
@@ -371,7 +371,7 @@
           }
         ],
         "instanceBindings": {
-          "local-voice": "instance"
+          "local-voice": "blue-runtime"
         },
         "translationX": 0.2,
         "translationY": 0,

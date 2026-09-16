@@ -1,0 +1,25 @@
+{
+  "failedSetup": {
+    "showEditWrites": 0,
+    "incorrectTargetId": "clip",
+    "actualTargetId": "voice",
+    "unusedRuntimePreparationRefusal": "composition.patternInstances[0]: requires exact Pattern source for instance \"blue-runtime\".",
+    "classification": "Preimage preparation limit; no product/compiler repair or bypass."
+  },
+  "correctedSetup": {
+    "preparedReady": true,
+    "linkedBaselines": [
+      {
+        "occurrenceId": "held-use",
+        "runtimeId": "blue-runtime",
+        "value": 0.4
+      },
+      {
+        "occurrenceId": "late-held-use",
+        "runtimeId": "blue-runtime",
+        "value": 0.4
+      }
+    ],
+    "change": "Restore both linked occurrences to the existing blue-runtime; preserve two runtime payloads and linked-use coverage."
+  }
+}

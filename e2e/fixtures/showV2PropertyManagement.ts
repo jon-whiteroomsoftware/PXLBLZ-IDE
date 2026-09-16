@@ -15,7 +15,7 @@ export async function exerciseShowV2PropertyManagement(page:Page){
  const readSaved=async()=>{const response=await page.request.get('/api/shows?show-version=2');expect(response.ok()).toBe(true);const record=(await response.json()).shows.find(record=>record.id===legacy.id);expect(record).toBeDefined();return record}
  const waitWrites=async(count:number)=>expect.poll(()=>writes).toBe(count)
  await editor.getByLabel('Property owner').selectOption('show');await editor.getByRole('button',{name:'New track',exact:true}).click()
- const target={kind:'clip-view',clipId:'clip',property:'brightness'}
+ const target={kind:'clip-view',clipId:'voice',property:'brightness'}
  await editor.getByLabel('Property target').selectOption(JSON.stringify(target));await editor.getByLabel('Property activation start').fill('0');await editor.getByLabel('Property activation duration').fill('10000')
  for(const [index,time,value] of [[1,'0','.25'],[2,'10000','.75']] as const){await editor.getByLabel(`New key ${index} time`).fill(time);await editor.getByLabel(`New key ${index} value`).fill(value);await editor.getByLabel(`New key ${index} curve`).selectOption(index===1?'quadratic':'linear')}
  await editor.getByLabel('New key 1 direction').selectOption('in');await editor.getByRole('button',{name:'Create track',exact:true}).click();await expect(route).toContainText('Property saved.');await waitWrites(1)
@@ -25,7 +25,7 @@ export async function exerciseShowV2PropertyManagement(page:Page){
  await editor.getByLabel('Property key').selectOption(middle.id);await editor.getByLabel('Property key time').fill('4500');await editor.getByLabel('Property key value').fill('.6');await editor.getByLabel('Key curve').selectOption('cubic-bezier')
  for(const [name,value] of [['Control 1 X','.2'],['Control 1 Y','.3'],['Control 2 X','.8'],['Control 2 Y','.7']] as const)await editor.getByLabel(`Key ${name}`).fill(value)
  await editor.getByRole('button',{name:'Apply key',exact:true}).click();await waitWrites(3);await expect(editor.getByRole('button',{name:'Apply track',exact:true})).toBeEnabled()
- await editor.getByLabel('Property target').selectOption(JSON.stringify({kind:'clip-opacity',clipId:'clip'}));await editor.getByLabel('Property activation duration').fill('11000');await editor.getByRole('button',{name:'Apply track',exact:true}).click();await waitWrites(4);await expect(editor.getByRole('button',{name:'Apply track',exact:true})).toBeEnabled()
+ await editor.getByLabel('Property target').selectOption(JSON.stringify({kind:'clip-opacity',clipId:'voice'}));await editor.getByLabel('Property activation duration').fill('11000');await editor.getByRole('button',{name:'Apply track',exact:true}).click();await waitWrites(4);await expect(editor.getByRole('button',{name:'Apply track',exact:true})).toBeEnabled()
  await editor.getByLabel('Property key').selectOption(middle.id);await editor.getByRole('button',{name:'Remove key',exact:true}).click();await waitWrites(5);await expect(editor.getByRole('button',{name:'Remove track',exact:true})).toBeEnabled()
  await editor.getByRole('button',{name:'Remove track',exact:true}).click();await waitWrites(6);await expect(editor.getByLabel('Property track')).toHaveValue('')
  saved=await readSaved();expect(saved.composition.propertyTracks).toEqual(propertyManagementRecord.composition.propertyTracks)
