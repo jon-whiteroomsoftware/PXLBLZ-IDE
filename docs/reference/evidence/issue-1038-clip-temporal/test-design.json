@@ -1,7 +1,7 @@
 {
   "issue": 1038,
-  "specificationCommit": "7abcb65238e7ec782f2a3da8d72dc5618da05904",
-  "implementationBase": "7abcb65238e7ec782f2a3da8d72dc5618da05904",
+  "specificationCommit": "5a206eac2650a936fad58969a8ebbf8bf1353d92",
+  "implementationBase": "5a206eac2650a936fad58969a8ebbf8bf1353d92",
   "proofRows": [
     "TRANSITION",
     "V2-EDIT-WHOLE-OUTPUT",
@@ -124,12 +124,12 @@
     }
   ],
   "qualification": {
-    "focused": "Repair finalbase:531/531 across13 affected/adjacent files; ClipTemporal49 and RepeatScale21 include first-review contribution storage/typed-refusal and actual scalar ramp/cut output. Existing admitted connected Split artifacts and 21 range/19 original scalar matrix cases retained.",
-    "static": "Repair scoped ESLint/project tsc/diff-check pass; ordinary source hook required. Previous source139 and263 mapped hook gates passed.",
+    "focused": "Finalbase552/552 across14 affected/adjacent files, including21 landed Group-deletion cases. ClipTemporal49 and RepeatScale21 retain first-review contribution storage/typed-refusal and actual baseline output; existing admitted connected Split artifacts remain passing.",
+    "static": "Finalbase scoped ESLint/project tsc/diff-check pass. Prior repair source hook passed full ESLint, project TypeScript, reachability/locator gates and144/144 mapped tests; this finalbase qualification commit is evidence-only.",
     "parity": "47-record report unchanged",
     "faultSensitivity": "Prior11 plus exact reviewed nominal-contribution and baseline-ramp suppression faults killed (13 total); exact source restored.",
     "finalSuites": "Coordinator-owned; no worker submission",
-    "state": "First blocking review repaired within unchanged lineage on7ab; no lowerer/compiler expansion. Coordinator owns matching final suites/review/landing; whole1038 remains broader."
+    "state": "First blocking review repaired within unchanged lineage, suffix rebased onto landed Group deletion5a206. Coordinator owns matching final suites, second native review and landing; whole1038 remains broader."
   },
   "residualGaps": [
     "Full1038 UI/store owner integration remains other slices; this candidate only pure Clip temporal plus bounded scalar adapter/emitter and edit-local range guard.",
@@ -145,10 +145,10 @@
   },
   "acceptedAmendment": "Jon2026-09-16: edit-local refusal of out-of-range1\u20138 animated repeat source holds/restrictions/projections; canonical\u00a76/7 amended in this suffix.",
   "finalbaseReconciliation": {
-    "previousBase": "93d9cc76749b0c4213a46b8574863d0770d480e9",
-    "preservedTip": "aceba4b0003ec2bb5346885ca1e14625b11cce8f",
-    "rebasedSourceTip": "6a47de0f57f5c1d149e60310c6564ce1fd433802",
-    "evidence": "git range-diff: all4 suffix commits =; canonical spec diff only accepted repeat-range\u00a76/7 additions, preserving landed Marker\u00a79/Group\u00a76"
+    "previousBase": "7abcb65238e7ec782f2a3da8d72dc5618da05904",
+    "preservedTip": "e149e95812021995cf9a63020b74a668bca858ce",
+    "rebasedSourceTip": "4da4aa85cd0db6bf2b7d20d49cade3f88406d098",
+    "evidence": "All7 suffix patches = in git range-diff; no source conflict or change. Landed Marker\u00a79, Group\u00a76 and Group-deletion policy preserved; first P1 review lineage unchanged."
   },
   "sequences": [
     "Reopen a valid preimage, apply one public connected Move or atomic two-edge Trim/Extend transaction, reopen the complete candidate, prepare and compare independent Fast/Precise frames/state/PRNG while preserving unrelated effective Group users.",
