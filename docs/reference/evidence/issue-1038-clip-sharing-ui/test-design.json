@@ -49,7 +49,7 @@
     "missing independence model export",
     "missing Rejoin model export"
   ],
-  "base": "918b8b951ddbc37e89ecfa3146473618e86696b7",
+  "base": "591cb095f52a5690a64f4723d3bafd3c3d9816f2",
   "residualGaps": [
     "Unhoisted Group-only runtime targets remain unavailable under the landed Rejoin owner; this UI does not extend authority.",
     "Existing named source/compiler eligibility refusals remain atomic before adoption; this slice does not widen them.",
@@ -66,7 +66,8 @@
     "parity": "47 inventoried records exact",
     "mutation": "two semantic faults killed by behavioral assertions; mutation.json",
     "finalSuites": "coordinator-owned",
-    "browser": "pending immutable Group proof finalbase/runtime release",
-    "fixture": "Actual30s browser preimage and duplicate/independent/Rejoin publicly prepare ready; independence copies clock plus both held Group-qualified control tracks."
+    "browser": "Committed thirty-second flow; fresh final capture pending own isolated runtime. Group parent clean reviewed, coordinator owns landing/finals.",
+    "fixture": "Actual30s browser preimage and duplicate/independent/Rejoin publicly prepare ready; independence copies clock plus both held Group-qualified control tracks.",
+    "stackEquivalence": "Three source commits replay unchanged onto final Group591cb095; git range-diff entries all =."
   }
 }
