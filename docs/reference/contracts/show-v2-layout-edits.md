@@ -99,5 +99,8 @@ Fast and Fidelity frames with the public Property evaluator.
 Group occurrence-local holds are defined by the
 [Group hold contract](show-v2-group-holds.md). This owner consumes their
 materialized contribution, so extended occurrence duration and child projection
-receive the same complete availability checks. Production Undo/Redo,
-provider readback, `.pxlshow`/`.epe` route proof and UI remain integration work.
+receive the same complete availability checks. The native opt-in
+[Layout occurrence inspector](show-v2-layout-occurrence-adoption.md) adopts existing
+definition selection, switch move/removal and Make Unique through checked history,
+provider readback and native artifact reopening. Production activation remains
+outside this additive owner.

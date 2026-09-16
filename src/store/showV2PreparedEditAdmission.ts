@@ -57,6 +57,7 @@ export type ShowV2PilotTransitionResizeOutcome =
   | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & ResizeEmpty)
   | ({ status: 'refused'; source: 'transition'; code: ShowTransitionEditRefusalV2; message: string } & ResizeEmpty)
 type Command =
+  | { owner: 'layout-occurrence'; intent: ShowV2PilotLayoutOccurrenceIntent }
   | { owner: 'delete-clip'; intent: ShowV2PilotClipDeleteIntent }
   | { owner: 'group-occurrence'; intent: ShowV2PilotGroupOccurrenceEditIntent }
   | { owner: 'create-group'; intent: CreateShowGroupFromSelectionIntentV2 }
@@ -73,7 +74,8 @@ type Command =
 export type ShowV2PilotClipDeleteIntent = Extract<ShowTransitionEditIntentV2, { kind: 'delete-clip' }>
 export type ShowV2PilotClipDeleteRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotClipDeleteIntent }
 export type ShowV2PilotClipDeleteOutcome = PilotOwnerOutcome<ShowTransitionEditResultV2, ShowTimelineEditAffectedV2>
-type OwnerResult<C extends Command> = C extends { owner: 'group-occurrence' } ? ShowGroupEditResultV2
+type OwnerResult<C extends Command> = C extends { owner: 'layout-occurrence' } ? ShowLayoutEditResultV2
+  : C extends { owner: 'group-occurrence' } ? ShowGroupEditResultV2
   : C extends { owner: 'create-group' } ? ShowGroupCreateResultV2
   : C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
@@ -109,29 +111,31 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
   if (!provider.replaceShowV2) return refuse('unsupported-provider', 'The active provider does not support v2 Shows.')
   const command: Command = request
-  const result = (command.owner === 'group-occurrence'
-    ? groupOccurrenceOwnerResult(current, structuredClone(command.intent))
-    : command.owner === 'create-group'
-      ? createShowGroupFromSelectionV2(current, structuredClone(command.intent))
-    : command.owner === 'marker'
-      ? editShowMarkerV2(current, structuredClone(command.intent))
-      : command.owner === 'create-clip'
-        ? createShowClipV2(current, structuredClone(command.intent))
-        : command.owner === 'clip-sharing'
-        ? editShowClipV2(current, structuredClone(command.intent))
-      : command.owner === 'clip-temporal'
-          ? editShowClipTemporalV2(current, structuredClone(command.intent))
-          : command.owner === 'insert-time'
-            ? insertShowTimeV2(current, structuredClone(command.intent))
-            : command.owner === 'layer'
-              ? editShowLayerV2(current, structuredClone(command.intent))
-              : command.owner === 'appearance'
-                ? editShowClipAppearanceV2(current, structuredClone(command.intent))
-                : command.owner === 'property'
-                  ? editShowPropertyV2(current, command.propertyOwner, command.intent)
-                  : command.owner === 'set-show-end'
-                    ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
-                    : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
+  const result = (command.owner === 'layout-occurrence'
+    ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
+    : command.owner === 'group-occurrence'
+        ? groupOccurrenceOwnerResult(current, structuredClone(command.intent))
+        : command.owner === 'create-group'
+          ? createShowGroupFromSelectionV2(current, structuredClone(command.intent))
+        : command.owner === 'marker'
+          ? editShowMarkerV2(current, structuredClone(command.intent))
+          : command.owner === 'create-clip'
+            ? createShowClipV2(current, structuredClone(command.intent))
+            : command.owner === 'clip-sharing'
+            ? editShowClipV2(current, structuredClone(command.intent))
+          : command.owner === 'clip-temporal'
+              ? editShowClipTemporalV2(current, structuredClone(command.intent))
+              : command.owner === 'insert-time'
+                ? insertShowTimeV2(current, structuredClone(command.intent))
+                : command.owner === 'layer'
+                  ? editShowLayerV2(current, structuredClone(command.intent))
+                  : command.owner === 'appearance'
+                    ? editShowClipAppearanceV2(current, structuredClone(command.intent))
+                    : command.owner === 'property'
+                      ? editShowPropertyV2(current, command.propertyOwner, command.intent)
+                      : command.owner === 'set-show-end'
+                        ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
+                        : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
   if (result.status === 'refused') return { status: 'refused', source: 'owner', result }
   if (result.status === 'unchanged') return { status: 'unchanged', result }
   const { capture } = request
@@ -435,4 +439,27 @@ export async function admitShowV2PilotClipDelete(request: ShowV2PilotClipDeleteR
     effects.affectedPropertyKeyIds = result.affectedTrackIds.filter(id => result.removedIds.includes(id)).flatMap(id => request.capture.record.composition.propertyTracks.find(track => track.id === id)?.keyframes.map(key => key.id) ?? [])
   }
   return presentOwnerOutcome(outcome, effects)
+}
+export type ShowV2PilotLayoutOccurrenceIntent = Extract<ShowLayoutEditIntentV2, { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' }>
+type LayoutOccurrenceEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedTrackIds' | 'removedLayoutOccurrenceIds'>
+export type ShowV2PilotLayoutOccurrenceRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotLayoutOccurrenceIntent }
+export type ShowV2PilotLayoutOccurrenceOutcome = PilotOwnerOutcome<ShowLayoutEditResultV2, LayoutOccurrenceEffects>
+function layoutOccurrenceEffects(result?: ShowLayoutEditResultV2): LayoutOccurrenceEffects {
+  return result ? { affectedClipIds: result.affectedClipIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedLayoutOccurrenceIds: result.affectedLayoutOccurrenceIds, affectedTrackIds: result.affectedTrackIds, removedLayoutOccurrenceIds: result.removedLayoutOccurrenceIds }
+    : { affectedClipIds: [], affectedGroupOccurrenceIds: [], affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedTrackIds: [], removedLayoutOccurrenceIds: [] }
+}
+function validLayoutOccurrenceIntent(intent: unknown): intent is ShowV2PilotLayoutOccurrenceIntent {
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return false
+  const value = intent as Record<string, unknown>
+  const text = (input: unknown): input is string => typeof input === 'string' && input.trim().length > 0
+  if (!text(value.occurrenceId)) return false
+  if (value.kind === 'move') return exactIntentFields(value, ['kind', 'occurrenceId', 'startMs']) && typeof value.startMs === 'number' && Number.isSafeInteger(value.startMs)
+  if (value.kind === 'remove') return exactIntentFields(value, ['kind', 'occurrenceId'])
+  if (value.kind === 'select-layout') return exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId']) && text(value.layoutId)
+  return value.kind === 'make-unique' && exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId', 'name']) && text(value.layoutId) && text(value.name)
+}
+export async function admitShowV2PilotLayoutOccurrenceEdit(request: ShowV2PilotLayoutOccurrenceRequest): Promise<ShowV2PilotLayoutOccurrenceOutcome> {
+  if (!validLayoutOccurrenceIntent(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one complete explicit Layout occurrence edit.', ...layoutOccurrenceEffects() }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'layout-occurrence' as const })
+  return presentOwnerOutcome(outcome, layoutOccurrenceEffects('result' in outcome ? outcome.result : undefined))
 }

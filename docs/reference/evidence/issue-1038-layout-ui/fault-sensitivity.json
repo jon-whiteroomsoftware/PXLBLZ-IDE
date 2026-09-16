@@ -1,0 +1,24 @@
+{
+  "baseline": "8/8 public model tests pass",
+  "faults": [
+    {
+      "fault": "round-authored-time",
+      "status": "killed",
+      "oracle": "public model -> existing Layout owner -> selected persisted coverage and exact time/identity",
+      "log": "/tmp/issue-1038-layout-fault-round-authored-time.log"
+    },
+    {
+      "fault": "edit-first-occurrence",
+      "status": "killed",
+      "oracle": "public model -> existing Layout owner -> selected persisted coverage and exact time/identity",
+      "log": "/tmp/issue-1038-layout-fault-edit-first-occurrence.log"
+    },
+    {
+      "fault": "accept-conflicting-definition-id",
+      "status": "killed",
+      "oracle": "public model -> existing Layout owner -> selected persisted coverage and exact time/identity",
+      "log": "/tmp/issue-1038-layout-fault-accept-conflicting-definition-id.log"
+    }
+  ],
+  "restored": "exact source bytes"
+}

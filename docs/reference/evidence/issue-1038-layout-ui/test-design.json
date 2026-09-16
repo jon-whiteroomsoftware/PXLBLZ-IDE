@@ -1,0 +1,46 @@
+{
+  "issue": 1038,
+  "specCommit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+  "proofRows": [
+    "LAYOUT-END",
+    "SHARING",
+    "GROUP-HOLD",
+    "ROUTE",
+    "FAILURE"
+  ],
+  "invariants": [
+    "Only persisted Layout occurrences are edited; first starts at0 and ordered coverage remains exact.",
+    "Unique clones only the Layout definition; existing content/runtime/holds/global tracks remain fixed.",
+    "Owner track/transfer/Zone refusals are atomic; final source preparation is mandatory.",
+    "One checked history/adoption/save; stale/no-op/refusal zero writes; receipt-aware completion."
+  ],
+  "partitions": [
+    "Initial/noninitial/sole/repeated occurrence; existing definition and fresh conflicting identity.",
+    "Move/select/unique/remove; exact no-op and malformed/foreign intent.",
+    "Owned track and incoming transfer protection; held Group and spanning ordinary Clip.",
+    "Record/revision/provider/route/dependency staleness; rollback retry and superseded completion.",
+    "Reopened native Fast/Precise artifact and actual desktop/narrow thirty-second route."
+  ],
+  "sequences": [
+    "Repeated definition -> select existing -> Make Unique -> move switch -> remove -> Show End -> Undo/Redo -> save/provider reload.",
+    "Explicit draft -> save failure -> retry; pending request -> external replacement.",
+    "Each existing owner action -> pxlshow/EPE reopen -> independent shared clock/Restart/native frames."
+  ],
+  "oracles": [
+    "Complete owner effects and record, immutable input and codec validation.",
+    "Actual typed admission/store/provider one prepare/history/write and exact six effect collections.",
+    "Immediately-read native private exports follow independent125ms clock schedule; before/after frames exact.",
+    "Actual route visible Fast/Precise output, all controls, keyboard/narrow overflow and empty capability."
+  ],
+  "residualGaps": [
+    "Fresh committed browser proof and final static qualification pending source integration.",
+    "Existing positive Layer Transition plus repeated Layout adapter restriction remains separately classified; no compiler-domain widening."
+  ],
+  "qualification": {
+    "focused": "129/129 across8 own/shared compatibility suites; own43/43 including native Fast/Precise allfour-action matrices",
+    "static": "Full project TypeScript and assigned ESLint pass",
+    "parity": "47/47 inventoried records source-byte exact",
+    "faults": "Three semantic model faults killed; exact source bytes restored",
+    "browser": "Actual30s held Group/repeated Layout fixture public qualified+ready; fresh committed source capture pending deletion finalbase/runtime release"
+  }
+}
