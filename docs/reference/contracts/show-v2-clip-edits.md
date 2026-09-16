@@ -366,3 +366,44 @@ readding holds its new complete appearance and does not restore deleted effects.
 Public preparation independently checks ordinary/materialized Group positive
 windows, endpoints and interior contributors. UI/planner/history and native Show
 export metadata integration remain separate slices.
+
+## Ordinary whole-Clip appearance authoring
+
+`editShowClipAppearanceV2` is a pure ordinary-Clip owner with explicit
+`scope: 'whole-clip'`. It patches finite opacity/View fields and optional
+transform, aperture, presentation and blink components, or adds, updates,
+duplicates and reorders Effects. It preserves all held appearance key IDs/times,
+unrequested span values, runtime payloads and numeric animation. Component `null`
+removes an optional component; nested aperture `null` removes only optional
+fields. Required fields cannot be removed. Unknown, nonfinite and out-of-domain
+inputs refuse before normalization. Existing unrelated values are never normalized.
+
+Effect identity is Clip-scoped. Add/duplicate require a caller-supplied nonblank ID
+unused in every selected held stack; the exact ID is reused across its keys.
+Update/duplicate/reorder require the exact source ID and kind in every stack.
+Duplicate inserts each span's own source value immediately after its source and
+keeps animation attached to the original. Reorder requires an explicit same-stage
+target ID/kind and before/after position in every stack, preserving other stage
+slots. No guessed partial operation, Effect removal or animation cascade exists.
+
+The complete candidate must pass raw/materialized ownership, Layout availability,
+RL08–RL10 placement and numeric Effect target/Transition-ramp descriptor checks.
+Invalid target kind/parameter or unavailable Effect refuses without projection or
+deletion. Numeric curves, activation and authored keys remain exact. The result
+uses existing Clip status/record vocabulary plus canonical affected collections:
+only the changed Clip and actually changed appearance key IDs are reported.
+No-op/refusal returns the original record identity and empty affected collections;
+changed output is deeply unaliased from both inputs.
+
+[Appearance consumers](../../../src/engine/showClipAppearanceEditsV2.test.ts)
+reopen native Shows and actual `.epe` artifacts in Fast/Precise against literal
+independently authored records, covering every Effect family, parameter aliases,
+colors, shared ordinary/held Group users and admitted nonlinear Effect animation.
+Per-span varying Effect values and valid numeric Transition Effect ramps are
+preserved structurally; participant Effect ramps currently refuse final
+preparation as an existing unsupported ramp family. Final preparation
+eligibility is a separate caller boundary: the current global-section adapter
+assigns one logical placement identity to varying held View/Effect presentation,
+which an existing legacy logical-segment validator refuses. This pre-existing
+adapter limitation is a separate prerequisite for full native held-appearance
+adoption; this owner neither widens compilation nor claims those artifacts ready.

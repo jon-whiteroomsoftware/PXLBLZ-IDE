@@ -1,0 +1,46 @@
+{
+  "issue": 1038,
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+  "proofRows": ["MODEL", "SHARING", "ACTIVATION", "CURVE", "CONTINUITY", "PARITY"],
+  "boundary": "editShowClipAppearanceV2 -> native record codec -> public preparation -> actual native EPE importer -> Fast/Precise replay",
+  "invariants": [
+    "Explicit whole-Clip static edits retain every held appearance key identity/time, runtime owner and numeric track activation/key/curve descriptor.",
+    "Caller Effect identities are Clip-scoped and fresh across every selected held stack; exact source and same-stage reorder destination ID/kind are required in all spans.",
+    "Duplicate copies each span's own source value immediately after the source without copying or retargeting animation; unrequested values and other stage slots remain exact.",
+    "Finite supported inputs are checked before normalizers; explicit null removes optional components/fields only. Full candidate ownership, Layout, RL08–10 and numeric Effect target/ramp descriptors remain mandatory.",
+    "Original Show/intent remain immutable; changed output is unaliased, affected appearance keys report actual changes only, and no-op/refusal retains original identity with empty canonical affected collections."
+  ],
+  "partitions": [
+    "Twenty-two supported Effect families with nonneutral literal values, whole-Clip opacity/View and optional appearance components, numeric aliases, RGB and color descriptors, rounded integer parameters.",
+    "Admitted single-key nonlinear numeric Effect animation, nonlinear shared instance animation, ordinary and held Group shared runtime users with same-ID Effects in separate scopes.",
+    "Span-varying source values and partial Effect activation preserved structurally, duplicate original animation ownership, valid numeric Transition Effect ramps preserved and invalid descriptors refused.",
+    "Missing/mismatched source in later stacks; caller ID collision only in final stack; blank IDs, unknown kinds/fields, nonfinite/out-of-domain values, cross-stage/missing/mismatched reorder targets and unknown edge.",
+    "Explicit optional component/nested field removals, forbidden required removals, exact satisfied update/reorder and empty patch no-ops, mixed changed/unchanged spans with only changed key IDs affected."
+  ],
+  "sequences": [
+    "Publicly admitted preimage -> whole-Clip edit -> independently authored literal full expected record -> native codec/EPE reopen -> exact Fast/Precise delivered frames and nonempty exported state at entries, held-key boundaries, activation interiors/end and loop.",
+    "Shared ordinary or held Group contribution -> selected Clip Effect edit -> other Clip/Group/runtime/track owners exact -> independently authored full expected schedule replay.",
+    "Malformed intent, late-span identity mismatch or invalid numeric target -> atomic original record/intent and empty affected sets; mixed span edit -> exact changed-key reporting -> no-op retains original identity."
+  ],
+  "oracles": [
+    "Literal independently authored full expected graph, actual provisional Show codec, parseEpe source identity and Precise re-emission rather than expected values computed by the edit helper.",
+    "Actual delivered Fast/Precise frames and exported runtime state; original inputs and unrelated owners exact, deliberate nested changed-output mutation proves unaliasing.",
+    "Public preparation admits supported preimages before artifact claims. Structurally valid unsupported preimages have separate preservation-only assertions, never a compiler eligibility claim.",
+    "Original identity and every affected/removal/discarded collection empty on refusal/no-op; only actual changed key IDs on mixed spans."
+  ],
+  "tddEvidence": [
+    "Initial finite whole-Clip owner test fails on missing module before the minimal owner; admitted whole-Clip opacity/View and progressively added Effect consumers pass.",
+    "Existing invalid numeric Effect parameter initially returns changed; observational materialized descriptor validation fixes atomic refusal.",
+    "Fixture source-level refusals are checked before claims: varying held View/Effects hit existing logical-placement presentation identity restriction; participant Effect ramp hits unsupported-transition-property-ramp. Those fixtures claim structural preservation only.",
+    "Focused appearance and five adjacent files265/265, scoped lint/project TypeScript and exact47 parity pass."
+  ],
+  "mutationEvidence": [
+    "Five scoped semantic faults are assertion-killed: edit only first held key, omit Effect update, duplicate first span value, inspect freshness only first stack, and skip numeric Effect target validation. Original source is restored after every fault."
+  ],
+  "residualGaps": [
+    "Native held differing View/Effect adapter eligibility remains a separately tracked prerequisite for full #1038 adoption. No legacy logical-segment validator/compiler widening occurs in this owner.",
+    "Participant Effect Transition ramp preparation is unsupported in the preimage; preserved valid ramps and invalid descriptor refusal are structural evidence only.",
+    "No Effect removal, selected-time scope, Group-definition edits, UI/store/history, runtime/track edits or general source eligibility is implemented.",
+    "Coordinator supplies finalbase and owns native Astra Medium review, authoritative final suites and landing; this packet does not mark whole #1038 implemented."
+  ]
+}
