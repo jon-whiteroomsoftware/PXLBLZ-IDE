@@ -1,6 +1,6 @@
 {
   "issue": 1038,
-  "base": "265b73378b33b2c1971aed96ae231cd4349805b9",
+  "base": "fb8352636dc14758aaca5b7c586f0e044774095b",
   "specification": {
     "path": "docs/plans/scene-retirement-specification.md",
     "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
@@ -58,6 +58,7 @@
     "parity": "47 inventoried records match unchanged committed report.",
     "faultSensitivity": "7 named semantic mutants killed; sourceRestored=true in fault-sensitivity.json.",
     "inheritedReproduction": "Public native reopen original/materialized validates[]; emitted/evaluator199=.5/200=.15/201=.1502002 while exact authored boundary expected.5; hold mapper199=.1535 and hold250=.325. /tmp/issue-1038-property-hold-reproduction.mts.",
-    "sourceCheckpoint": "27e9e65a4e6d80dea79f4285dfaa2a8e213704f7"
+    "sourceCheckpoint": "174fe905",
+    "finalbase": "Exact Layer candidate fb8352636dc14758aaca5b7c586f0e044774095b; both original CRUD commits patch-equivalent by git range-diff. Focused169/8, full project TypeScript, scoped ESLint and unchanged parity47 all exit0; no UI path change or runtime."
   }
 }
