@@ -1,0 +1,86 @@
+{
+  "client": "codex-cli 0.153.4",
+  "clientPath": "codex app-server mcpServer/tool/call",
+  "candidate": "e404b13d24cbff483a8b6b5df27f0909b503dda7",
+  "callerIdentity": "Issue 1051 final real Codex client (codex-cli 0.153.4)",
+  "protocolQualification": "Final #1048 identity: server-minted operation, delivery, and sequence identity with current OAuth bearer grant",
+  "serverConfigured": true,
+  "connection": {
+    "code": "bound",
+    "show_id": "agent-discovery-final-proof-1051"
+  },
+  "list_patterns": {
+    "code": "read",
+    "count": 101,
+    "kindFilter": "stock",
+    "sourceFieldPresent": false,
+    "textMatchesStructured": true
+  },
+  "list_controller_profiles": {
+    "code": "read",
+    "count": 0,
+    "textMatchesStructured": true
+  },
+  "read_show": {
+    "code": "read",
+    "textMatchesStructured": true
+  },
+  "actualPattern": {
+    "kind": "stock",
+    "id": "CometLoom",
+    "name": "CometLoom",
+    "exportedControlCount": 4
+  },
+  "operation": {
+    "operation_id": "f987b2f2-23cf-4874-b571-c7aa31680523",
+    "assignedBy": "begin_edit response"
+  },
+  "commands": {
+    "begin_edit": {
+      "code": "begun",
+      "textMatchesStructured": true
+    },
+    "create_layers": {
+      "code": "changed",
+      "textMatchesStructured": true
+    },
+    "create_clips": {
+      "code": "changed",
+      "textMatchesStructured": true
+    },
+    "commit_edit": {
+      "code": "outcome",
+      "textMatchesStructured": true
+    }
+  },
+  "savedReceipt": {
+    "status": "applied",
+    "settlement": "saved"
+  },
+  "errors": [],
+  "browser": {
+    "saved": {
+      "operationId": "f987b2f2-23cf-4874-b571-c7aa31680523",
+      "outcome": "saved",
+      "activityChangeCount": 2,
+      "unreadOutcomes": 0
+    },
+    "reopened": {
+      "route": "/PXLBLZ-IDE/studio/shows/agent-discovery-final-proof-1051",
+      "uiPatternButton": "Select CometLoom",
+      "persistedPatternRef": true
+    },
+    "captures": [
+      {
+        "path": ".wrsp/ui-proof/1051-final-discovery-saved.png",
+        "bytes": 219493,
+        "sha256": "873dfe9a98b3b250514bfafc73f6f68383c20106442994ba2a4d2e6c78d17964"
+      },
+      {
+        "path": ".wrsp/ui-proof/1051-final-discovery-reopened.png",
+        "bytes": 206937,
+        "sha256": "3ebee3981031b8403cad290c1aacd3702693266d7a72cd49eb16435594f8d133"
+      }
+    ]
+  }
+}

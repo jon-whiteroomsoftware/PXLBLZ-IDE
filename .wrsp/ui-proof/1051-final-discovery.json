@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1051",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-discovery-final-proof-1051",
+  "operation": "Real codex-cli 0.153.4 discovered the returned stock CometLoom identity, listed Controller profiles, freshly read the live Show, began with server-minted identity, created one Layer and Clip, and committed to applied/saved. Authenticated browser/API reopening retained the returned Pattern reference. Both images inspected; synthetic owned test account only; no model inference or hosted deployment. Separate from Scene #1041/#1039 proof.",
+  "captures": [
+    ".wrsp/ui-proof/1051-final-discovery-saved.png",
+    ".wrsp/ui-proof/1051-final-discovery-reopened.png"
+  ],
+  "capturedAtCommit": "e404b13d24cbff483a8b6b5df27f0909b503dda7"
+}
