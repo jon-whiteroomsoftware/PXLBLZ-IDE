@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/prepared-stage-synthetic?show-v2-pilot=1&capture",
+  "operation": "Prepared Marker admission on the existing advanced31-second held-repeat/shared-Restart Stage. Add/select/name/time/color, dormant45000ms, equal-time no-op, fractional refusal, Undo/Redo, saved provider reload and remove preserve choreography and produce exactly7 own Show PUTs. Native .pxlshow/.epe reopening succeeds; Fast/Precise transport captures at17seconds pass. Desktop1440x1000 and narrow390x844 including scroll-accessible Marker/artifact controls inspected; no console errors or horizontal overflow. IAB was connected but lacked documented isolated-cookie admission; declared separate-context repo Playwright preserved the user session. Existing paused-canvas readback was refreshed through the existing transport capture before the auxiliary narrow image.",
+  "captures": [
+    ".wrsp/ui-proof/1038-prepared-marker-desktop.png",
+    ".wrsp/ui-proof/1038-prepared-marker-narrow.png",
+    ".wrsp/ui-proof/1038-prepared-marker-narrow-controls.png"
+  ],
+  "capturedAtCommit": "0589ca4dbf5dfba590ac2b62fd656d83be4c9ed9"
+}

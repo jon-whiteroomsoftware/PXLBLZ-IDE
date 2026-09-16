@@ -1,6 +1,6 @@
 {
   "issue": 1038,
-  "base": "f3db71228f34989d5b615b9c4640197b251c66ed",
+  "base": "c925301a8fd7520aacf84e11a6789a9c24b79f9c",
   "specification": {
     "path": "docs/plans/scene-retirement-specification.md",
     "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
@@ -46,8 +46,8 @@
   ],
   "qualification": {
     "focused": "77/77 across eight prepared Marker/Stage/native artifact files. Held Group, retained Layout and3D save/reopen and Fast/Precise consumers pass; own completion/external replacement/rollback/context matrices pass. Relevant authenticated ordinary+advanced flows2/2 PASS.",
-    "static": "Scoped ESLint and source parity47 PASS; project TypeScript repaired synthetic optional reference-map type and rerun.",
-    "browser": "Pending fresh committed desktop/narrow proof.",
+    "static": "Final-base project TypeScript and scoped ESLint PASS; source parity47 unchanged. Original source21d18221 and rebased source0589ca4d are patch-equivalent (git range-diff =).",
+    "browser": "Fresh committed-source0589ca4d desktop1440x1000 and narrow390x844 captures inspected. Add/name/time/color, dormant/equal-time, no-op/refusal, Undo/Redo, saved provider reload and remove produce exactly7 own Show PUTs. Native .pxlshow/.epe reopening and Fast/Precise125ms frames at17s PASS; console/capture/overflow errors empty. Relevant authenticated flows2/2 PASS on pinned base. See browser-result.json and .wrsp/ui-proof/1038-prepared-marker.json.",
     "faultSensitivity": "Four consumer-killed named faults: removed final eligibility, duplicate current preparation, strict preimage-only completion, removed adopted-context completion. Exact original bytes restored; focused77 green."
   }
 }
