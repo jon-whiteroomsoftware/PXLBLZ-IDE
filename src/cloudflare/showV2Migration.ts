@@ -1,7 +1,9 @@
 import {
+  D1_SHOW_MIGRATION_CAS_COLUMNS,
+  D1_SHOW_MIGRATION_SOURCE_COLUMNS,
   replaceD1ShowV2IfCurrent,
   showRecordFromRow,
-  type D1ShowRow,
+  type D1ShowMigrationSourceRow,
 } from './shows'
 import {
   migrationSourceHash,
@@ -21,11 +23,7 @@ export interface D1ShowV2MigrationDatabaseLike {
   prepare(sql: string): D1ShowV2MigrationStatementLike
 }
 
-interface D1ShowV2MigrationRow extends D1ShowRow {
-  user_id: string
-  routing_switches_json: string
-  created_at: number
-}
+type D1ShowV2MigrationRow = D1ShowMigrationSourceRow
 
 interface D1ShowV2MigrationOutcomeRow {
   show_id: string
@@ -35,12 +33,7 @@ interface D1ShowV2MigrationOutcomeRow {
   detail_json: string | null
 }
 
-const SHOW_COLUMNS = `
-  user_id, id, name, scenes_json, zones_json, cells_json, target_controller_profile_id,
-  created_at, updated_at, stage_map_id, routing_layouts_json, routing_switches_json,
-  transitions_json, output_contract_json, composition_json, output_effects_json,
-  import_metadata_json, record_json
-`
+const SHOW_COLUMNS = D1_SHOW_MIGRATION_SOURCE_COLUMNS.join(', ')
 
 export function createD1ShowV2MigrationStore(
   db: D1ShowV2MigrationDatabaseLike,
@@ -126,13 +119,14 @@ export function createD1ShowV2MigrationStore(
       return backup.source_hash === sourceHash ? 'ready' : 'conflicting-source'
     },
 
-    writeV2: async (id, sourceHash, record) => {
-      const current = await readRow(id)
-      if (!current || migrationSourceHash(current) !== sourceHash) return 'changed-source'
-      const written = await replaceD1ShowV2IfCurrent(db, userId, id, record, {
-        updatedAt: current.updated_at,
-        recordJson: current.record_json ?? null,
-      })
+    writeV2: async (source, sourceHash, record) => {
+      const expected = source.sourceRow as D1ShowV2MigrationRow
+      if (
+        expected.user_id !== userId
+        || expected.id !== source.id
+        || migrationSourceHash(expected) !== sourceHash
+      ) return 'changed-source'
+      const written = await replaceD1ShowV2IfCurrent(db, userId, source.id, record, expected)
       return written ? 'written' : 'changed-source'
     },
 
@@ -195,7 +189,8 @@ export function createD1ShowV2MigrationStore(
               routing_layouts_json = ?, routing_switches_json = ?, transitions_json = ?,
               output_contract_json = ?, composition_json = ?, output_effects_json = ?,
               import_metadata_json = ?, record_json = ?
-          WHERE user_id = ? AND id = ? AND updated_at = ? AND record_json IS ?
+          WHERE user_id = ? AND id = ?
+            AND ${D1_SHOW_MIGRATION_CAS_COLUMNS.map(column => `${column} IS ?`).join(' AND ')}
         `)
         .bind(
           original.name,
@@ -216,8 +211,7 @@ export function createD1ShowV2MigrationStore(
           original.record_json,
           userId,
           id,
-          current.updated_at,
-          current.record_json ?? null,
+          ...D1_SHOW_MIGRATION_CAS_COLUMNS.map(column => current[column] ?? null),
         )
         .run()
       if (result.meta?.changes === 0) {

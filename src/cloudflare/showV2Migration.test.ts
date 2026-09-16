@@ -1,7 +1,14 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
-import { createD1Show, showRecordFromRow, type D1DatabaseShowsLike, type D1ShowRow } from './shows'
+import {
+  D1_SHOW_MIGRATION_CAS_COLUMNS,
+  D1_SHOW_MIGRATION_SOURCE_COLUMNS,
+  createD1Show,
+  showRecordFromRow,
+  type D1DatabaseShowsLike,
+  type D1ShowRow,
+} from './shows'
 import { createD1ShowV2MigrationStore, type D1ShowV2MigrationDatabaseLike } from './showV2Migration'
 import { rehearseShowV2Migration, rollbackShowV2Migration } from '../engine/showV2Migration'
 
@@ -36,6 +43,18 @@ beforeEach(() => {
 })
 
 afterEach(() => sqlite.close())
+
+it('keeps migration inventory, backup hashes, and atomic writes on the complete persisted source row', () => {
+  expect(D1_SHOW_MIGRATION_SOURCE_COLUMNS).toEqual([
+    'user_id', 'id', 'name', 'scenes_json', 'zones_json', 'cells_json',
+    'target_controller_profile_id', 'created_at', 'updated_at', 'stage_map_id',
+    'routing_layouts_json', 'routing_switches_json', 'transitions_json',
+    'output_contract_json', 'composition_json', 'output_effects_json',
+    'import_metadata_json', 'record_json',
+  ])
+  expect(['user_id', 'id', ...D1_SHOW_MIGRATION_CAS_COLUMNS])
+    .toEqual(D1_SHOW_MIGRATION_SOURCE_COLUMNS)
+})
 
 it('rehearses a real D1-shaped row, records its versioned outcome, and restores every source column', async () => {
   const userId = 'github:migration-test'

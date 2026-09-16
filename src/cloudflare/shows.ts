@@ -39,6 +39,35 @@ export interface D1ShowRow {
   updated_at: number
 }
 
+export interface D1ShowMigrationSourceRow extends D1ShowRow {
+  user_id: string
+  created_at: number
+  routing_switches_json: string
+}
+
+export const D1_SHOW_MIGRATION_SOURCE_COLUMNS = [
+  'user_id',
+  'id',
+  'name',
+  'scenes_json',
+  'zones_json',
+  'cells_json',
+  'target_controller_profile_id',
+  'created_at',
+  'updated_at',
+  'stage_map_id',
+  'routing_layouts_json',
+  'routing_switches_json',
+  'transitions_json',
+  'output_contract_json',
+  'composition_json',
+  'output_effects_json',
+  'import_metadata_json',
+  'record_json',
+] as const satisfies readonly (keyof D1ShowMigrationSourceRow)[]
+
+export const D1_SHOW_MIGRATION_CAS_COLUMNS = D1_SHOW_MIGRATION_SOURCE_COLUMNS.slice(2)
+
 export interface D1UnreadableShow {
   id: string
   name: string
@@ -138,7 +167,7 @@ export async function replaceD1ShowV2IfCurrent(
   userId: string,
   id: string,
   record: ShowDocument,
-  expected: { updatedAt: number; recordJson: string | null },
+  expected: D1ShowMigrationSourceRow,
 ): Promise<boolean> {
   return writeD1ShowV2(db, userId, id, record, expected)
 }
@@ -148,7 +177,7 @@ async function writeD1ShowV2(
   userId: string,
   id: string,
   record: ShowDocument,
-  expected?: { updatedAt: number; recordJson: string | null },
+  expected?: D1ShowMigrationSourceRow,
 ): Promise<boolean> {
   if (!isShowRecordV2(record) || record.id !== id) {
     throw new Error('A version-2 Show replacement must match the requested identity.')
@@ -163,7 +192,7 @@ async function writeD1ShowV2(
           target_controller_profile_id = ?, stage_map_id = ?, output_contract_json = ?,
           import_metadata_json = ?, updated_at = ?
       WHERE user_id = ? AND id = ?
-      ${expected ? 'AND updated_at = ? AND record_json IS ?' : ''}
+      ${expected ? `AND ${D1_SHOW_MIGRATION_CAS_COLUMNS.map(column => `${column} IS ?`).join(' AND ')}` : ''}
     `)
     .bind(
       validated.name,
@@ -182,7 +211,7 @@ async function writeD1ShowV2(
       validated.updatedAt,
       userId,
       id,
-      ...(expected ? [expected.updatedAt, expected.recordJson] : []),
+      ...(expected ? D1_SHOW_MIGRATION_CAS_COLUMNS.map(column => expected[column] ?? null) : []),
     )
     .run()
   return expected ? result.meta?.changes === 1 : result.meta?.changes !== 0

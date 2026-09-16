@@ -4,10 +4,12 @@
     "A version-1 flat or composition Show converts explicitly to one validated version-2 record; a stored version-2 record cold-opens without passing through a version-1 normalizer.",
     "Transition edits publish one complete candidate through the existing Show persistence queue and generic history policy; refusal, no-op, unsupported persistence, failed save, and superseded failure never leave partial state.",
     "Every successful queued version-2 save advances the durable record/history baseline even when a newer optimistic candidate owns the visible record; a later current failure restores the newest completed save.",
+    "Pilot open/reload reads serialize with the per-Show persistence queue and adopt only under the same provider, workspace generation, and document revision; retired reads and write settlements cannot repopulate a new workspace.",
     "Version-aware D1 and provider writers replace the complete version-2 record and read back the same validated bytes while keeping version-2 rows out of ordinary version-1 reads.",
     "Show-file export inventories every reachable ordinary or Group Pattern instance, custom Map, and transitive user Library; conflict remaps update all owners consistently before any import writes.",
     "Library conflict planning reserves every destination and bundled namespace, and propagates a transitive dependency remap to a fixed point before classifying any matching Library as reusable.",
     "Migration inventory hashes and snapshots the source row before conversion, binds conversion and legacy rollback to that immutable backup generation, records typed refusals for later source hashes, reopens written bytes, resumes safely, and restores every source column without overwriting repaired legacy data.",
+    "Migration conversion and rollback compare every persisted source column from the exact inventoried or observed row in the atomic write, so sparse concurrent edits survive even when updated_at and record_json do not change.",
     "Preview and .epe qualification compile through the version-2 preparation boundary; .pxlshow and .epe proof reopens through their actual importers.",
     "Restart preparation and final compilation consume the same resolved stock-and-user Library map, so admitted scalar state and refused persistent state cannot receive different eligibility answers."
   ],
@@ -15,10 +17,11 @@
     "Version-1 flat, version-1 composition, already-version-2, invalid/unknown version, and missing dependency inputs.",
     "Pilot flag absent/present; warm conversion from the ordinary Show list and cold reopen from a version-2-only row.",
     "Changed Transition duration, unchanged/refused edit, Undo/Redo, durable reload, current failed save, older failed save superseded by a newer accepted save, older successful save followed by a newer failed save, and provider without version-2 capability.",
+    "Open/reload during hydration; reload during pending save success/failure; intervening changed/no-op edit; provider replacement during open/reload and during successful/failed old-workspace write settlement; failed read then retry.",
     "Ordinary version-1 API read/write versus opt-in version-2 GET/PUT/POST; matching and mismatched route/body versions; missing row and changed-row compare-and-swap.",
     "Ordinary and Group-owned Pattern references; built-in/user Pattern, custom/stock Map, direct/transitive Library, matching identity, conflicting identity, and missing dependency.",
     "Restart with scalar state in a user Library versus unsupported persistent array state in that same Library dependency.",
-    "Convertible, already-version-2, undecodable, concurrently changed, interrupted-after-write, repeated, refused-then-repaired, rollback-then-edited, and changed-between-rollback-read-and-write migration rows.",
+    "Convertible, already-version-2, undecodable, concurrently changed, interrupted-after-write, repeated, refused-then-repaired, rollback-then-edited, and changed-between-read-and-write migration rows; non-null content and nullable fields with unchanged updated_at/record_json.",
     "Matching direct Library with a conflicting transitive dependency, multi-hop matching dependents of that conflict, retained bundled names adjacent to an allocated conflict copy, and incomplete dependency graph."
   ],
   "sequences": [
@@ -26,11 +29,14 @@
     "Reload the browser at the saved Show route after the ordinary version-1 list excludes its row; cold-open the stored version-2 record and repeat artifact qualification.",
     "Queue an older write and a newer write, fail the older operation, then confirm the newer candidate and history remain authoritative.",
     "Queue writes A and B, complete A while B is optimistic, fail B, then confirm visible record/history and provider storage agree on durable A.",
+    "Begin reload while save B is pending, settle B, then read and adopt provider B; repeat with failed B and preserve its rollback/failure state instead of adopting a stale read.",
+    "Delay an open or reload from workspace A, install provider B and hydrate, then settle A and retry against B; repeat with successful and failed writes from A and suppress every retired settlement side effect.",
     "Adopt a #1035 delete-Clip result with a fresh replacement at the original boundary, save/reload it, and reopen its artifact without restoring the removed Transition identity.",
     "Resolve the pilot's stock and user Libraries once, prepare and compile a shared-instance Restart using that map, then replace the Library scalar with persistent array state and refuse before artifact publication.",
     "Apply migration 0028 to a disposable Miniflare D1 database, interrupt after its first version-2 replacement, resume the remaining inventory, roll back, and compare every restored source column.",
     "Inventory an undecodable source A, retain its backup, repair the legacy row to B, and refuse rehearsal and rollback without changing B or backup A; repeat after convert, rollback, and edit.",
     "Read a migrated row for rollback, inject a concurrent row-version edit before the restore UPDATE, and refuse the compare-and-swap while preserving that edit.",
+    "Inventory and snapshot a legacy row, inject sparse name and nullable Stage Map edits before conversion UPDATE without changing updated_at or record_json, and record a typed changed-source refusal while preserving the exact edited row; repeat between rollback read and restore UPDATE.",
     "Plan C to matching A to conflicting B, propagate B's remap through A and C, apply the plan, compile and replay the imported value; then import bundled Pulse and Pulse2 beside conflicting destination Pulse and allocate Pulse3.",
     "Inventory an undecodable row and a source changed after inventory; record independent refusals while leaving both source rows recoverable."
   ],
@@ -38,10 +44,11 @@
     "The committed opt-in browser route: visible version-2 format, edited Transition duration, working Stage preview, saved Undo/Redo/reload status, and importer reopen status after a cold browser reload.",
     "Provider calls and D1 rows decoded through production adapters, including complete record_json bytes and exclusion from ordinary reads.",
     "Whole store record/history/failure state, ordered persistence calls, and provider readback rather than helper internals.",
+    "Provider call order plus complete pilot record/history/durable failure state across hydration, revision change, workspace replacement, retry, and stale write settlement.",
     "Reopened delete/re-add candidate with the original first Clip and Show End unchanged, no persisted Transition, and one identity-free derived Cut naming the fresh replacement.",
     "Reopened .pxlshow bundle, remapped import candidate, parsed .epe source/stamp, and compiled artifact source.",
     "Compiled Restart artifact with one shared runtime and no unresolved Library namespace; typed preparation refusal naming the Restart Clip and array-or-object-state for unsupported Library persistence.",
-    "Actual Miniflare D1 rows for immutable source-generation backup, typed mismatch outcome, repaired-row preservation, interrupted-write recovery, compare-and-swap refusal with concurrent edit preserved, complete restored source columns, and absent outcome after rollback.",
+    "Actual Miniflare D1 rows for immutable source-generation backup, typed mismatch outcome, repaired-row preservation, interrupted-write recovery, full-row compare-and-swap refusal with sparse content/nullable edits preserved byte-for-byte, complete restored source columns, and absent outcome after rollback.",
     "Applied import plan, rewritten Pattern and Library sources, allocated namespace inventory, and compiled replay red channel 0.25 rather than the conflicting destination value 0.75."
   ],
   "residualGaps": [

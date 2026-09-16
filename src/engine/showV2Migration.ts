@@ -23,7 +23,7 @@ export interface ShowV2MigrationStore {
   inventory(): Promise<ShowV2MigrationSource[]>
   outcome(id: string): Promise<ShowV2MigrationOutcome | undefined>
   snapshot(source: ShowV2MigrationSource, sourceHash: string): Promise<'ready' | 'conflicting-source'>
-  writeV2(id: string, sourceHash: string, record: ShowDocument): Promise<'written' | 'changed-source'>
+  writeV2(source: ShowV2MigrationSource, sourceHash: string, record: ShowDocument): Promise<'written' | 'changed-source'>
   read(id: string): Promise<ShowDocument>
   record(outcome: ShowV2MigrationOutcome): Promise<void>
   restore(id: string): Promise<void>
@@ -80,7 +80,7 @@ export async function rehearseShowV2Migration(store: ShowV2MigrationStore): Prom
       continue
     }
     const candidate = cloneValidShowRecordV2(converted.record)
-    if (await store.writeV2(source.id, sourceHash, candidate) === 'changed-source') {
+    if (await store.writeV2(source, sourceHash, candidate) === 'changed-source') {
       const outcome = { id: source.id, sourceHash, sourceVersion: 1, status: 'refused', detail: 'Source changed after inventory.' } as const
       await store.record(outcome)
       outcomes.push(outcome)

@@ -238,7 +238,12 @@ record/history pair; every successful queued write advances that pair even while
 a newer optimistic candidate owns the visible record. A superseded failure cannot
 replace a newer accepted candidate. Providers without the version-2 replacement
 capability refuse before optimistic adoption. Reload obtains and validates stored
-version-2 bytes and starts a fresh session history.
+version-2 bytes and starts a fresh session history. Pilot open and reload join the
+per-Show persistence queue, wait for current workspace hydration, and adopt only
+while their captured provider, workspace generation and document revision remain
+current. Workspace reload retires outstanding pilot reads and write settlements;
+an authorized old-provider write may finish, but cannot republish its record,
+history, durable baseline or failure into the new workspace.
 
 The remote provider addresses the explicit v2 collection with
 `show-version=2`; D1 stores the complete closed record in `record_json` and
@@ -251,8 +256,11 @@ source column during rollback. One immutable backup generation owns each Show
 rehearsal. A later legacy source hash refuses conversion until that backup is
 explicitly resolved; rollback likewise refuses to overwrite a changed legacy
 row whose hash no longer matches its backup. The restore write also compares
-the observed row version so an edit between rollback validation and replacement
-is preserved and reported as a refusal.
+the complete observed persisted row with null-safe column predicates. Conversion
+uses the exact inventoried row that supplied the source hash and backup. Therefore
+a sparse content or nullable-field edit between validation and replacement is
+preserved and reported as a refusal even when its writer leaves `updated_at` and
+`record_json` unchanged.
 
 Version-2 bundle import reserves destination and bundled Library namespaces
 before allocating conflict copies. A matching Library is reusable only when its

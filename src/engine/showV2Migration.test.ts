@@ -27,17 +27,17 @@ function memoryMigrationStore(initial: ShowDocument[]) {
       const { migrationSourceHash } = await import('./showV2Migration')
       return migrationSourceHash(backups.get(source.id)) === sourceHash ? 'ready' : 'conflicting-source'
     },
-    writeV2: async (id, sourceHash, record) => {
-      const current = documents.get(id)!
+    writeV2: async (source, sourceHash, record) => {
+      const current = documents.get(source.id)!
       const inventory: ShowV2MigrationSource = {
-        id,
+        id: source.id,
         sourceVersion: 'version' in current && current.version === 2 ? 2 : 1,
         document: current,
         sourceRow: current,
       }
       const { migrationSourceHash } = await import('./showV2Migration')
       if (migrationSourceHash(inventory.sourceRow) !== sourceHash) return 'changed-source'
-      documents.set(id, structuredClone(record))
+      documents.set(source.id, structuredClone(record))
       if (interruptAfterWrite) { interruptAfterWrite = false; throw new Error('interrupted') }
       return 'written'
     },

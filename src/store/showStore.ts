@@ -134,6 +134,7 @@ let showsHydration: Promise<void> | null = null
 // could replay one.
 const lastPersistedShowRecords = new Map<string, { record: ShowRecord; history: ShowHistory }>()
 const lastPersistedShowV2Pilots = new Map<string, { record: ShowRecordV2; history: ShowV2History }>()
+let showV2WorkspaceGeneration = 0
 
 // Advance the durable baseline for a completed write, but never behind the
 // latest ordering stamp observed by this client. An equal stamp means
@@ -344,6 +345,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     fallback: { record: ShowRecordV2; history: ShowV2History },
   ): Promise<void> => {
     const provider = getPersonalContentProvider()
+    const workspaceGeneration = showV2WorkspaceGeneration
     if (!provider.replaceShowV2) throw new Error('The active personal-content provider does not support v2 Shows.')
     const validated = cloneValidShowRecordV2(replacement)
     const adopted = { ...validated, updatedAt: nextShowOrderingStamp(fallback.record.updatedAt) }
@@ -355,8 +357,10 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     }))
     try {
       await queueShowPersistence(id, () => provider.replaceShowV2!(id, adopted))
+      if (showV2WorkspaceGeneration !== workspaceGeneration || getPersonalContentProvider() !== provider) return
       advanceDurableShowV2Baseline(id, adopted, history)
     } catch (cause) {
+      if (showV2WorkspaceGeneration !== workspaceGeneration || getPersonalContentProvider() !== provider) return
       let rolledBack = false
       set(state => {
         if (state.showV2Pilots[id]?.updatedAt !== adopted.updatedAt) return state
@@ -605,6 +609,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     // Pilot documents are provider-owned personal content. Retire them before
     // a workspace reload so a same-id record from the previous account cannot
     // satisfy the next route before its provider has been consulted.
+    showV2WorkspaceGeneration += 1
     lastPersistedShowV2Pilots.clear()
     set({ showV2Pilots: {}, showV2Histories: {}, showV2SaveFailure: null })
     const hydration = (async () => {
@@ -777,11 +782,52 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
 
     openShowV2Pilot: async (showId) => {
       const provider = getPersonalContentProvider()
-      const stored = provider.listShowDocumentsV2
-        ? (await provider.listShowDocumentsV2()).find(record => record.id === showId)
-        : undefined
-      if (stored) {
-        const record = cloneValidShowRecordV2(stored)
+      const workspaceGeneration = showV2WorkspaceGeneration
+      const hydration = showsHydration
+      if (hydration) await hydration
+      if (showV2WorkspaceGeneration !== workspaceGeneration || getPersonalContentProvider() !== provider) {
+        return {
+          status: 'refused',
+          issues: [{ code: 'invalid-v1', path: 'id', message: `Show "${showId}" changed while opening.` }],
+        }
+      }
+      const revision = get().showRevisions[showId] ?? 0
+      let result: Awaited<ReturnType<ShowState['openShowV2Pilot']>> | undefined
+      await queueShowPersistence(showId, async () => {
+        const readIsCurrent = () => (
+          showV2WorkspaceGeneration === workspaceGeneration
+          && getPersonalContentProvider() === provider
+          && (get().showRevisions[showId] ?? 0) === revision
+        )
+        if (!readIsCurrent()) return
+        const stored = provider.listShowDocumentsV2
+          ? (await provider.listShowDocumentsV2()).find(record => record.id === showId)
+          : undefined
+        if (!readIsCurrent()) return
+        if (stored) {
+          const record = cloneValidShowRecordV2(stored)
+          const history = { past: [], future: [] }
+          lastPersistedShowV2Pilots.set(showId, { record, history })
+          set(state => ({
+            activeShowId: showId,
+            showCreation: null,
+            showV2Pilots: { ...state.showV2Pilots, [showId]: record },
+            showV2Histories: { ...state.showV2Histories, [showId]: history },
+          }))
+          result = { status: 'ready', record }
+          return
+        }
+        const source = get().resolveEditableShow(showId)
+        if (!source) {
+          result = { status: 'refused', issues: [{ code: 'invalid-v1', path: 'id', message: `Show "${showId}" is unavailable.` }] }
+          return
+        }
+        const converted = convertShowRecordV1ToV2(source)
+        if (converted.status === 'refused') {
+          result = converted
+          return
+        }
+        const record = cloneValidShowRecordV2(converted.record)
         const history = { past: [], future: [] }
         lastPersistedShowV2Pilots.set(showId, { record, history })
         set(state => ({
@@ -790,22 +836,12 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
           showV2Pilots: { ...state.showV2Pilots, [showId]: record },
           showV2Histories: { ...state.showV2Histories, [showId]: history },
         }))
-        return { status: 'ready', record }
+        result = { status: 'ready', record }
+      })
+      return result ?? {
+        status: 'refused',
+        issues: [{ code: 'invalid-v1', path: 'id', message: `Show "${showId}" changed while opening.` }],
       }
-      const source = get().resolveEditableShow(showId)
-      if (!source) return { status: 'refused', issues: [{ code: 'invalid-v1', path: 'id', message: `Show "${showId}" is unavailable.` }] }
-      const converted = convertShowRecordV1ToV2(source)
-      if (converted.status === 'refused') return converted
-      const record = cloneValidShowRecordV2(converted.record)
-      const history = { past: [], future: [] }
-      lastPersistedShowV2Pilots.set(showId, { record, history })
-      set(state => ({
-        activeShowId: showId,
-        showCreation: null,
-        showV2Pilots: { ...state.showV2Pilots, [showId]: record },
-        showV2Histories: { ...state.showV2Histories, [showId]: history },
-      }))
-      return { status: 'ready', record }
     },
 
     updateShowV2Pilot: async (showId, next) => {
@@ -847,13 +883,29 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     reloadShowV2Pilot: async (showId) => {
       const provider = getPersonalContentProvider()
       if (!provider.listShowDocumentsV2) return null
-      const stored = (await provider.listShowDocumentsV2()).find(record => record.id === showId)
-      if (!stored) return null
-      const record = cloneValidShowRecordV2(stored)
-      const history = { past: [], future: [] }
-      lastPersistedShowV2Pilots.set(showId, { record, history })
-      set(state => ({ showV2Pilots: { ...state.showV2Pilots, [showId]: record }, showV2Histories: { ...state.showV2Histories, [showId]: history }, showV2SaveFailure: null }))
-      return record
+      const workspaceGeneration = showV2WorkspaceGeneration
+      const revision = get().showRevisions[showId] ?? 0
+      let reloaded: ShowRecordV2 | null = null
+      await queueShowPersistence(showId, async () => {
+        if (
+          showV2WorkspaceGeneration !== workspaceGeneration
+          || getPersonalContentProvider() !== provider
+          || (get().showRevisions[showId] ?? 0) !== revision
+        ) return
+        const stored = (await provider.listShowDocumentsV2!()).find(record => record.id === showId)
+        if (
+          !stored
+          || showV2WorkspaceGeneration !== workspaceGeneration
+          || getPersonalContentProvider() !== provider
+          || (get().showRevisions[showId] ?? 0) !== revision
+        ) return
+        const record = cloneValidShowRecordV2(stored)
+        const history = { past: [], future: [] }
+        lastPersistedShowV2Pilots.set(showId, { record, history })
+        set(state => ({ showV2Pilots: { ...state.showV2Pilots, [showId]: record }, showV2Histories: { ...state.showV2Histories, [showId]: history }, showV2SaveFailure: null }))
+        reloaded = record
+      })
+      return reloaded
     },
 
   updateStageMap: async (showId, stageMapId) => {

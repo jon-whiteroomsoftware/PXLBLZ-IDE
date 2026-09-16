@@ -149,20 +149,51 @@ it('uses real D1 for interrupted resume, rollback, and immutable backup generati
   expect((await readRows(typedDb, repairedUserId)).find(row => row.id === rolledBackSource.id))
     .toEqual(editedAfterRollback)
 
+  const conversionRaceUserId = 'github:issue-1044-conversion-race'
+  const conversionRaceSource = { ...convertibleV1Show(), id: 'conversion-race', updatedAt: 350 }
+  await createD1Show(typedDb, conversionRaceUserId, conversionRaceSource, 35)
+  const conversionRaceBefore = (await readRows(typedDb, conversionRaceUserId))[0]
+  expect(conversionRaceBefore.stage_map_id).toBeNull()
+  const conversionRaceStore = createD1ShowV2MigrationStore(
+    databaseWithShowWriteRace(
+      migrationDb,
+      conversionRaceUserId,
+      conversionRaceSource.id,
+      'Concurrent conversion edit',
+      'concurrent-map',
+    ),
+    conversionRaceUserId,
+    () => 789,
+  )
+  await expect(rehearseShowV2Migration(conversionRaceStore)).resolves.toEqual([
+    expect.objectContaining({
+      id: conversionRaceSource.id,
+      status: 'refused',
+      detail: 'Source changed after inventory.',
+    }),
+  ])
+  expect((await readRows(typedDb, conversionRaceUserId))[0]).toEqual({
+    ...conversionRaceBefore,
+    name: 'Concurrent conversion edit',
+    stage_map_id: 'concurrent-map',
+  })
+
   const racedSource = { ...convertibleV1Show(), id: 'raced-source', updatedAt: 400 }
   await createD1Show(typedDb, repairedUserId, racedSource, 40)
   await expect(rehearseShowV2Migration(repairedStore)).resolves.toEqual(expect.arrayContaining([
     expect.objectContaining({ id: racedSource.id, status: 'converted' }),
   ]))
+  const convertedBeforeRace = (await readRows(typedDb, repairedUserId))
+    .find(row => row.id === racedSource.id)
   const racingStore = createD1ShowV2MigrationStore(
-    databaseWithRestoreRace(migrationDb, repairedUserId, racedSource.id),
+    databaseWithShowWriteRace(migrationDb, repairedUserId, racedSource.id, 'Concurrent rollback edit'),
     repairedUserId,
     () => 790,
   )
   await expect(rollbackShowV2Migration(racingStore, [racedSource.id]))
     .rejects.toThrow('changed during migration rollback')
   expect((await readRows(typedDb, repairedUserId)).find(row => row.id === racedSource.id))
-    .toMatchObject({ name: 'Concurrent edit', updated_at: 999 })
+    .toEqual({ ...convertedBeforeRace, name: 'Concurrent rollback edit' })
 }, 15_000)
 
 const SHOW_COLUMNS = `
@@ -201,10 +232,12 @@ async function executeSql(db: D1ShowV2MigrationDatabaseLike, sql: string): Promi
   }
 }
 
-function databaseWithRestoreRace(
+function databaseWithShowWriteRace(
   db: D1ShowV2MigrationDatabaseLike,
   userId: string,
   id: string,
+  name: string,
+  stageMapId?: string,
 ): D1ShowV2MigrationDatabaseLike {
   let injected = false
   return {
@@ -221,10 +254,16 @@ function databaseWithRestoreRace(
         async run() {
           if (!injected && sql.includes('SET name = ?, scenes_json = ?')) {
             injected = true
-            await db.prepare(`
-              UPDATE personal_shows SET name = ?, updated_at = ?
-              WHERE user_id = ? AND id = ?
-            `).bind('Concurrent edit', 999, userId, id).run()
+            const update = stageMapId
+              ? db.prepare(`
+                  UPDATE personal_shows SET name = ?, stage_map_id = ?
+                  WHERE user_id = ? AND id = ?
+                `).bind(name, stageMapId, userId, id)
+              : db.prepare(`
+                  UPDATE personal_shows SET name = ?
+                  WHERE user_id = ? AND id = ?
+                `).bind(name, userId, id)
+            await update.run()
           }
           return bound.run()
         },
