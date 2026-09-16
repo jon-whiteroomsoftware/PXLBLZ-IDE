@@ -58,8 +58,14 @@ activation still refuses; RL08–10, source eligibility and Restart limits remai
 unchanged. The participant route coalesces exactly structurally equal complete
 appearance values only for animated targets that previously refused multi-key
 projection. Persisted keys remain exact; actual field or floating differences
-remain honest unsupported divergence. Previously admitted exact single-section tracks retain their original
-identities and endpoint representation, preserving generated source bytes.
+remain honest unsupported divergence. For continuous multi-Zone independent
+sampling, complete equal appearance values can also recover the existing flat
+route where routed sampling previously refused. This ignores redundant keys only
+in transient eligibility/lowering; persisted appearance IDs/times/values stay exact.
+Previously admitted routed records keep their route and bytes. Preservation requires
+a ready preimage: simultaneous multi-Zone shared flat runtimes retain their existing
+`unsupported-runtime-sharing` refusal. Previously admitted exact single-section
+tracks retain their original identities and endpoint representation, preserving generated source bytes.
 
 ## Atomic result and proof
 

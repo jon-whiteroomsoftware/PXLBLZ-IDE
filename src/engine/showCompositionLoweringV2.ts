@@ -445,15 +445,18 @@ function resolveShowV2CompileContext(
   // otherwise flat-compatible already has an equivalent global-section
   // lowering, so select it only for the Restart-bearing case; ordinary flat
   // records retain their existing representation and bytes.
-  const flatEligible = composition.executionModel === 'continuous'
-    && !composition.clips.some(clip => clip.entryPolicy === 'restart')
-    && canLowerToFlat(record)
   const unsupportedRoutedSampling = composition.clips.some(clip => (
     clip.zoneSampleMode !== 'span'
     // With one Zone, independent and span address the same complete domain;
     // the existing global-section emitter therefore preserves the flat result.
     && !(record.zones.length === 1 && clip.zoneSampleMode === 'independent')
   ))
+  const flatEligible = composition.executionModel === 'continuous'
+    && !composition.clips.some(clip => clip.entryPolicy === 'restart')
+    // Exact redundant keys may recover the existing flat sampling route only
+    // where routed sampling previously refused. Existing routed admissions keep
+    // their representation and generated source bytes.
+    && (canLowerToFlat(record) || (unsupportedRoutedSampling && canLowerToFlat(record, true)))
   if (unsupportedRoutedSampling && !flatEligible) {
     return refuse('unsupported-zone-sampling', 'composition.clips', 'lowering requires repeat-mode Clip sampling evidence before compilation.')
   }
@@ -826,7 +829,7 @@ function lowerPropertyTargetForSection(
   }
 }
 
-function canLowerToFlat(record: ShowRecordV2): boolean {
+function canLowerToFlat(record: ShowRecordV2, allowEqualAppearanceSegments = false): boolean {
   if (record.composition.transitions.some(transition => transition.wholeOutput)) return false
   const composition = record.composition
   const wholeBoundary = composition.transitions.every(transition => {
@@ -838,7 +841,7 @@ function canLowerToFlat(record: ShowRecordV2): boolean {
   return wholeBoundary
     && composition.propertyTracks.every(track => track.target.kind === 'layout-occurrence-split-position')
     && composition.layers.every(layer => layer.rank === 0)
-    && composition.clips.every(clip => clip.appearance.keys.length === 1 && clip.appearance.keys[0].value.opacity === 1)
+    && composition.clips.every(clip => (clip.appearance.keys.length === 1 || (allowEqualAppearanceSegments && clip.appearance.keys.every(key => structurallyEqualAppearance(key.value, clip.appearance.keys[0].value)))) && clip.appearance.keys[0].value.opacity === 1)
     && composition.clips.every(clip => clip.zoneSampleMode === 'independent')
 }
 

@@ -1,0 +1,71 @@
+{
+  "issue": 1038,
+  "specificationCommit": "ab8f502acbd248e6a671a673eba71345fc97958a",
+  "proofRows": [
+    "INSERT",
+    "SHARING",
+    "GROUP-HOLD",
+    "CURVE",
+    "PARITY"
+  ],
+  "boundary": "Advisory corrective on reviewed InsertTime ab8: equivalent complete appearance flat sampling eligibility and changed held-Independence consumer contract",
+  "reviewReceipt": "ab8f502acbd2-4bd5208e49fce581ac7a22b66f0fa379deda4ef68005ae86b841f86c10ad1a8a",
+  "invariants": [
+    "A ready continuous multi-Zone independent sampling preimage stays ready after insertion adds structurally equal complete appearance keys.",
+    "Only exact structural equality of complete appearance values admits redundant segments; each material field and tiny float difference remains honest unsupported sampling.",
+    "Persisted authored appearance keys/IDs/times/values and instance payloads remain exact; coalescing is transient existing flat route eligibility/lowering only.",
+    "Prior admitted routes/source bytes and all compiler/emitter/RL08\u201310/Restart/source domains remain unchanged.",
+    "Ready-before is the preservation premise; simultaneous independent multi-Zone shared runtimes already refused retain unsupported-runtime-sharing before/after.",
+    "Held Group Independence now uses exact section intersections and prepares both preimage and copy; nonlinear held controls, time-scale, owners and state remain preserved."
+  ],
+  "partitions": [
+    "Exact native one Clip/two Zones and admitted distinct instances/two Zones; fresh equivalent held keys through persisted reopen.",
+    "Each complete appearance family: opacity, view tiny float, presentation, blink, transform, aperture, effects; exact differences still refuse.",
+    "Pre-existing shared simultaneous flat runtime duplication refusal remains unchanged with runtime ID/count preserved.",
+    "Held sine control curve and linear time-scale through p-1,p,p+d-1,p+d/resumed region; original Group definition/occurrence owners remain exact.",
+    "Explicit continuous lifecycle isolates copied animation preservation from accepted cast lifecycle invalidation.",
+    "Fast/Fidelity reopened .epe source, output and exports versus independently authored one-key extended Clip record and preimage/copy respectively."
+  ],
+  "sequences": [
+    "Prepare native-equivalent preimage ready, Insert100ms at500, serialize/reopen, prepare/compile/reopen .epe, compare expected exact static flat choreography across hold and loop boundaries.",
+    "Prepare simultaneous shared preimage refusal, Insert, reopen and retain same typed refusal and runtime use count.",
+    "Make Independent on held Group-shared ordinary Clip, reopen, evaluate held/resume keys and execute both generated artifacts with unchanged Group owners/clock output."
+  ],
+  "oracles": [
+    "Complete v2 validator plus provisional codec reopen and exact immutable authored preimage.",
+    "Public prepare route continuous-flat, logical runtime cardinality and effective instance-use count.",
+    "Exact generated source and frames/exports versus manually authored same-duration static one-key expected record, proving no semantic sampling change.",
+    "Explicit elapsed100ms through inserted playback in both runtime modes with trusted lookup/Libraries.",
+    "Public Property boundary/interior arithmetic plus exact Fast/Fidelity output and copied elapsed state in reopened held-Independence consumers.",
+    "Unchanged47-record parity report and existing section/lifecycle/source/closed-schema owner tests."
+  ],
+  "tddEvidence": [
+    "Distinct admitted multi-Zone preimage prepared ready but insertion failed unsupported-zone-sampling before equivalent static-key flat eligibility was added.",
+    "Shared-domain probe was refused before insertion with unsupported-runtime-sharing; this exposed a pre-existing domain boundary rather than licensing compiler widening.",
+    "Corrective sampling10cases and held-Group identity42cases pass52of52; old refusal assertion is retained as strengthened reopened consumer evidence under the newly admitted adapter contract."
+  ],
+  "residualGaps": [
+    "Simultaneous shared independent multi-Zone flat runtime remains a pre-existing explicit preparation refusal, not a promise widened by this correction.",
+    "Marker CRUD is separately frozen5f0e9b6 and awaits one coordinator-supplied finalbase rebase; no frozen tree changed.",
+    "Coordinator owns exact suffix native review, finaltip suites, covered-chain landing, issue updates and publication."
+  ],
+  "mutationEvidence": [
+    {
+      "name": "recover-equal-flat-sampling",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "require-complete-exact-value",
+      "exitCode": 1,
+      "killed": true
+    }
+  ],
+  "qualification": {
+    "focused": "331/331 across9 affected files; sampling10, identity42",
+    "static": "Scoped ESLint, project tsc and git diff --check pass",
+    "parity": "47-record committed report unchanged without source-byte waiver",
+    "faultSensitivity": "2/2 sampling seam faults killed; sources restored",
+    "finalSuites": "Coordinator-owned; no worker submission"
+  }
+}

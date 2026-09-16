@@ -241,7 +241,8 @@ apply; there is no blanket one-Layout, no-Group or no-Transition restriction.
 and generated `.epe`, prove Group-owned controls and clocks in Fast/Fidelity,
 isolate a second user's Restart after independence, and restore target sharing
 through Rejoin. Exact held nonlinear projection is checked through the Property
-evaluator. The held fixture's preparation refusal for activation crossing derived
-appearance sections is present before and after independence; it is an explicit
-unsupported-preimage case, not successful compiler evidence. UI, Replace and
+evaluator and reopened Fast/Fidelity output/state. The exact section-restriction
+adapter admits both the held preimage and its independent copy; controls, clock
+animation and Group owners remain preserved. Both consumer records use explicit
+continuous lifecycle to isolate this preservation from cast lifecycle invalidation. UI, Replace and
 Group-definition identity edits remain separate slices.

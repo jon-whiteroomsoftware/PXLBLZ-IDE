@@ -152,16 +152,32 @@ describe('ordinary Clip runtime identity', () => {
     expect(next.composition.groupOccurrences).toEqual(source.composition.groupOccurrences)
   })
 
-  it('keeps the existing held activation compiler refusal explicit for both the unsupported preimage and its copy', () => {
+  it.each(['fast', 'fidelity'] as const)('reopens admitted held Group Independence with preserved animation and state in %s', fidelity => {
     const source = groupFixture()
+    // Independence invalidates cast lifecycle; isolate animation preservation
+    // with the explicit continuous lifecycle shared by both consumer records.
+    source.composition.executionModel = 'continuous'
+    const before = structuredClone(source)
     const result = editShowClipV2(source, independent(source))
     if (result.status !== 'changed') throw new Error('Independence failed')
-    const lookup = { byCellId: {}, byPatternInstanceId: { instance: controlCode, independent: controlCode }, stageDimension: 2 as const }
-    for (const record of [source, result.record]) {
-      expect(prepareShowV2ForCompile(reopen(record), lookup, { libraries: LIBRARIES })).toMatchObject({ status: 'refused',
-        issues: [{ code: 'unsupported-track-activation', message: expect.stringContaining('use:local-control') }],
-      })
+    const next = reopen(result.record)
+    expect(next.composition.groupDefinitions).toEqual(source.composition.groupDefinitions)
+    expect(next.composition.groupOccurrences).toEqual(source.composition.groupOccurrences)
+    const original = runtime(source, fidelity)
+    const copied = runtime(next, fidelity)
+    const originalPrefix = original.artifact.summary.clips.find(member => member.id === 'instance')!.prefix
+    const independentPrefix = copied.artifact.summary.clips.find(member => member.id === 'independent')!.prefix
+    const track = next.composition.propertyTracks.find(track => track.id === 'copy:use:local-control')!
+    for (const atMs of [299, 300, 399, 400]) expect(evaluateShowPropertyTrackV2(track, atMs)).toBeCloseTo(atMs === 299 ? 0.2 + 0.6 * (1 - Math.cos(Math.PI * 199 / 400)) / 2 : 0.5, 12)
+    expect(evaluateShowPropertyTrackV2(track, 600)).toBeUndefined()
+    for (const atMs of [0, 99, 100, 299, 300, 350, 399, 400, 401, 599, 600, 700, 799, 800, 999]) {
+      const a = original.replay.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
+      const b = copied.replay.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
+      expect(Array.from(b.frame), `held frame ${atMs}`).toEqual(Array.from(a.frame))
+      expect(b.exports[`${independentPrefix}_elapsed`], `held copied clock ${atMs}`).toEqual(a.exports[`${originalPrefix}_elapsed`])
     }
+    expect(source).toEqual(before)
+    expect(result.affectedTrackIds).toEqual(['copy:top-speed', 'copy:use:local-control', 'copy:use:local-speed'])
   })
 
   it.each(['fast', 'fidelity'] as const)('preserves Group-owned control and clock animation on the independent ordinary Clip in %s reopened .epe', fidelity => {
