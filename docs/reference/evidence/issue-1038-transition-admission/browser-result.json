@@ -1,0 +1,46 @@
+{
+  "sourceCommit": "6022af157e28da30fb0472faafdfc480b4e50376",
+  "sourceId": "prepared-transition-synthetic",
+  "ready": true,
+  "writeCount": 3,
+  "fast": {
+    "frames": 2,
+    "deltaMs": 125,
+    "startMs": 17000,
+    "names": [
+      "issue1038-transition-fast-00000.png",
+      "issue1038-transition-fast-00001.png"
+    ],
+    "failures": []
+  },
+  "precise": {
+    "frames": 2,
+    "deltaMs": 125,
+    "startMs": 17000,
+    "names": [
+      "issue1038-transition-precise-00000.png",
+      "issue1038-transition-precise-00001.png"
+    ],
+    "failures": []
+  },
+  "narrow": {
+    "frames": 1,
+    "deltaMs": 125,
+    "startMs": 17000,
+    "names": [
+      "issue1038-transition-narrow-00000.png"
+    ],
+    "failures": []
+  },
+  "errors": [],
+  "overflows": [],
+  "desktop": [
+    1440,
+    1000
+  ],
+  "narrowViewport": [
+    390,
+    844
+  ],
+  "provenance": "IAB connected; no documented isolated-cookie admission. Declared repoPlaywright isolated synthetic context, same product Stage renderer."
+}
