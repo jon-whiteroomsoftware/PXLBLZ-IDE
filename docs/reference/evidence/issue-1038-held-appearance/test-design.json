@@ -1,0 +1,43 @@
+{
+  "issue": 1038,
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+  "proofRows": ["MODEL", "SHARING", "RESTART", "ACTIVATION", "CURVE", "CONTINUITY", "PARITY"],
+  "boundary": "native record codec -> prepareShowV2ForCompile -> compileShow -> actual native EPE exporter/importer -> Fast/Precise replay",
+  "invariants": [
+    "Equal contiguous normalized presentation signatures share one placement cache; a changed or recurring presentation starts a new run while retaining one runtime/private state.",
+    "Layout, property and opacity-only held boundaries inside a run preserve cache/cadence; Restart remains attached only to authored true Clip entry.",
+    "One explicit Clip/section identity map emits placements and projects Clip-property targets; deterministic full-domain root/descendant reservation prevents collisions.",
+    "Uniform admitted IDs, recipe/source/EPE bytes, participant Transition lowering, persisted graph and existing compiler eligibility remain unchanged."
+  ],
+  "partitions": [
+    "Freeze across Layout boundaries, supported Strobe cadence across Layout/property-derived boundaries, recurring A-to-B-to-A View and Freeze-to-Live-to-Freeze modes, held Effect changes.",
+    "Opacity-only held changes inside a divergent Freeze run; normalized/canonical property-order equivalence with opacity/transform/aperture differences in uniform cases.",
+    "Exact nonlinear Clip-opacity curve restriction across presentation runs, held materialized Group overlay with shared private runtime, global whole-output incoming/outgoing windows.",
+    "Authored other Clip IDs colliding with a run root or required descendant, with selected Clip-view animation that must remain attached to its exact mapped placements.",
+    "Formerly admitted uniform Live/Freeze/Strobe and participant Transition recipes, generated sources and actual EPE bytes against the pinned f3db7122 adapter."
+  ],
+  "sequences": [
+    "Admit independently authored adjacent-run oracle, reopen source graph, prepare/compile/export/reopen actual EPE, compare exact frames and nonempty exported state at entries, 1ms boundaries, cache refresh, nonlinear interiors and loop.",
+    "After sequential replay, create fresh reopened EPE runtimes and replay cold to earlier target times; source graph stays exact and the represented runtime cast remains one.",
+    "Run old public adapter on uniform fixtures before introducing the map, retain exact recipe/source/EPE SHA256 digests, restore mutable source and requalify identical delivered bytes."
+  ],
+  "oracles": [
+    "Independent adjacent Clip schedules share one source runtime, preserve only the first authored Restart and describe each intended presentation cache without calling the identity helper.",
+    "Literal independently restricted nonlinear kernel descriptors and expected per-run tracks; actual native EPE importer plus Precise re-emission deliver exact frames/private exported state.",
+    "Byte-exact original uniform and participant Transition artifacts, complete native codec/validation, represented runtime cast and immutable original graph."
+  ],
+  "tddEvidence": [
+    "First red: independent Freeze adjacent-run preimage prepares ready; the held native preimage refuses compiler-ineligible logical presentation identity. Contiguous run identities repair public preparation and delivered output.",
+    "Collision consumers retain independent per-Clip numeric tracks in the expected schedule, preserving actual wrapper binding semantics rather than substituting static View values.",
+    "Fifteen reopened EPE consumer/byte cases and five focused dependency files286/286 pass; project TypeScript and scoped lint pass."
+  ],
+  "mutationEvidence": [
+    "Five scoped semantic faults are assertion-killed, with source restored after every fault: split divergent caches at every section changes actual Freeze frames; merge noncontiguous equal signatures loses admitted logical topology; include opacity in signatures changes original bytes/cache ownership; guess original Clip property IDs loses exact numeric targets; reserve roots without descendants permits a duplicate placement ID."
+  ],
+  "residualGaps": [
+    "Existing Strobe eligibility rejects scenes carrying ordinary numeric tracks; the supported carrier-only boundary oracle does not claim that unsupported preimage. Freeze whole-output capacity is unchanged; its admitted contribution oracle uses Live presentation.",
+    "Sequential and fresh cold EPE replay do not prove snapshot restore. snapshot-reproduction.md records pre-existing getRuntimeState ReferenceErrors on independent and byte-identical original sources in both modes; checkpoint repair is separate integration work.",
+    "No legacy validator/compiler widening, participant Transition emission changes, source policy changes, persisted/runtime identity allocation or UI/store changes occur here.",
+    "Coordinator supplies finalbase and owns native Astra Medium review, authoritative final suites and landing; this bounded adapter does not complete whole issue1038."
+  ]
+}

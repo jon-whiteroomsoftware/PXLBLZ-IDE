@@ -946,7 +946,7 @@ function resolveLogicalPlacementSegments(
   return segments
 }
 
-function placementPresentationSignature(
+export function placementPresentationSignature(
   placement: ShowMainPlacement | ShowOverlayPlacement,
 ): string {
   const {

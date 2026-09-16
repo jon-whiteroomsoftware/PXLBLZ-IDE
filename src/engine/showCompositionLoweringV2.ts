@@ -14,7 +14,7 @@ import type {
   ShowZoneComposition,
 } from './personalContentRecords'
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
-import { validateShowComposition } from './showCompositionModel'
+import { placementPresentationSignature, validateShowComposition } from './showCompositionModel'
 import { compileShow, ShowRestartEligibilityError, type ShowRecipe } from './showCompiler'
 import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
 import {
@@ -595,6 +595,7 @@ function lowerGlobalClipsToSections(
   const { record, lookup } = context
   const composition = record.composition
   const sections = derivedSections(record)
+  const placementIdentities = globalPlacementIdentities(context, sections)
   const trackIds = new Set(composition.propertyTracks.map(track => track.id))
   const keyIds = new Set(composition.propertyTracks.flatMap(track => track.keyframes.map(key => key.id)))
   const freshTransientId = (used: Set<string>, seed: string): string => {
@@ -644,7 +645,7 @@ function lowerGlobalClipsToSections(
       const mainLayer = layers.find(layer => layer.rank === 0)
       const main = composition.clips
         .filter(clip => clip.zoneId === zone.id && clip.layerId === mainLayer?.id && overlaps(clip, section))
-        .map(clip => lowerClipSection(context, clip, section, false))
+        .map(clip => lowerClipSection(context, clip, section, false, placementIdentities))
       const overlays: ShowOverlayLayer[] = layers
         .filter(layer => layer.rank > 0)
         .sort((left, right) => right.rank - left.rank || left.id.localeCompare(right.id))
@@ -654,7 +655,7 @@ function lowerGlobalClipsToSections(
           placements: [
             ...composition.clips
               .filter(clip => clip.zoneId === zone.id && clip.layerId === layer.id && overlaps(clip, section))
-              .map(clip => lowerClipSection(context, clip, section, true)),
+              .map(clip => lowerClipSection(context, clip, section, true, placementIdentities)),
           ],
         }))
       return { zoneId: zone.id, main, overlays }
@@ -662,7 +663,7 @@ function lowerGlobalClipsToSections(
     const propertyTracks = (sectionTracks.get(section.id) ?? [])
       .map(track => ({
         ...stripV2PropertyTrackActivation(track),
-        target: lowerPropertyTargetForSection(track.target, composition.clips, section),
+        target: lowerPropertyTargetForSection(track.target, composition.clips, section, placementIdentities),
         keyframes: track.keyframes.map(keyframe => ({
           ...structuredClone(keyframe),
           timeMs: keyframe.timeMs - section.startMs,
@@ -701,26 +702,79 @@ function lowerGlobalClipsToSections(
 }
 
 type DerivedSection = { id: string; startMs: number; endMs: number }
+type PlacementIdentity = Pick<ShowMainPlacement, 'id' | 'logicalClipId'>
+type GlobalPlacementIdentities = Map<string, Map<string, PlacementIdentity>>
+
+/** Presentation caches span a contiguous run, independently of shared runtime state. */
+function globalPlacementIdentities(context: ResolvedShowV2CompileContext, sections: DerivedSection[]): GlobalPlacementIdentities {
+  const clips = context.record.composition.clips
+  const authoredIds = new Set(clips.map(clip => clip.id))
+  const reservedIds = new Set<string>()
+  const identities: GlobalPlacementIdentities = new Map(clips.map(clip => [clip.id, new Map()]))
+  const runsByClip = clips.map(clip => {
+    const runs: Array<{ signature: string; sections: DerivedSection[] }> = []
+    for (const section of sections.filter(section => overlaps(clip, section))) {
+      const appearance = heldAppearance(clip, Math.max(clip.startMs, section.startMs))
+      const signature = placementPresentationSignature({ id: clip.id, instanceId: runtimeInstanceId(context, clip), startMs: 0, durationMs: 1,
+        view: appearance.view, ...(appearance.presentation !== undefined ? { presentation: appearance.presentation } : {}),
+        ...(appearance.blink !== undefined ? { blink: appearance.blink } : {}),
+        ...((appearance.effects?.length ?? 0) > 0 ? { effects: appearance.effects } : {}) })
+      const previous = runs[runs.length - 1]
+      if (previous?.signature === signature) previous.sections.push(section)
+      else runs.push({ signature, sections: [section] })
+    }
+    return { clip, runs }
+  })
+  // Reserve all unchanged emissions before allocating divergent owners.
+  for (const { clip, runs } of runsByClip.filter(owner => owner.runs.length === 1)) {
+    for (const section of runs[0].sections) {
+      const id = Math.max(clip.startMs, section.startMs) === clip.startMs ? clip.id : `${clip.id}--span-${section.id}`
+      identities.get(clip.id)!.set(section.id, { id, ...(id === clip.id ? {} : { logicalClipId: clip.id }) })
+      reservedIds.add(id)
+    }
+  }
+  for (const { clip, runs } of runsByClip.filter(owner => owner.runs.length > 1)) {
+    runs.forEach((run, runIndex) => {
+      const runStartMs = Math.max(clip.startMs, run.sections[0].startMs)
+      const keyIndex = clip.appearance.keys.reduce((found, key, index) => key.timeMs <= runStartMs ? index : found, 0)
+      const seed = runIndex === 0 ? clip.id : `${clip.id}--appearance-${keyIndex}`
+      let rootId = seed, suffix = 2
+      const idsForRoot = () => run.sections.map((section, index) => index === 0 ? rootId : `${rootId}--span-${section.id}`)
+      while (idsForRoot().some(id => reservedIds.has(id) || (authoredIds.has(id) && !(runIndex === 0 && id === clip.id)))) rootId = `${seed}:${suffix++}`
+      run.sections.forEach((section, index) => {
+        const id = index === 0 ? rootId : `${rootId}--span-${section.id}`
+        identities.get(clip.id)!.set(section.id, { id, ...(index === 0 ? {} : { logicalClipId: rootId }) })
+        reservedIds.add(id)
+      })
+    })
+  }
+  return identities
+}
+
+function globalPlacementIdentity(identities: GlobalPlacementIdentities, clipId: string, sectionId: string): PlacementIdentity {
+  const identity = identities.get(clipId)?.get(sectionId)
+  if (!identity) throw new Error(`No derived placement identity for Clip "${clipId}" in section "${sectionId}".`)
+  return identity
+}
 
 function overlaps(clip: ShowClipV2, section: DerivedSection): boolean {
   return clip.startMs < section.endMs && clip.startMs + clip.durationMs > section.startMs
 }
 
-function lowerClipSection(context: ResolvedShowV2CompileContext, clip: ShowClipV2, section: DerivedSection, overlay: false): ShowMainPlacement
-function lowerClipSection(context: ResolvedShowV2CompileContext, clip: ShowClipV2, section: DerivedSection, overlay: true): ShowOverlayPlacement
+function lowerClipSection(context: ResolvedShowV2CompileContext, clip: ShowClipV2, section: DerivedSection, overlay: false, identities: GlobalPlacementIdentities): ShowMainPlacement
+function lowerClipSection(context: ResolvedShowV2CompileContext, clip: ShowClipV2, section: DerivedSection, overlay: true, identities: GlobalPlacementIdentities): ShowOverlayPlacement
 function lowerClipSection(
   context: ResolvedShowV2CompileContext,
   clip: ShowClipV2,
   section: DerivedSection,
   overlay: boolean,
+  identities: GlobalPlacementIdentities,
 ): ShowMainPlacement | ShowOverlayPlacement {
   const segmentStartMs = Math.max(clip.startMs, section.startMs)
   const segmentEndMs = Math.min(clip.startMs + clip.durationMs, section.endMs)
-  const id = segmentStartMs === clip.startMs ? clip.id : `${clip.id}--span-${section.id}`
   const appearance = heldAppearance(clip, segmentStartMs)
   const placement: ShowMainPlacement = {
-    id,
-    ...(id === clip.id ? {} : { logicalClipId: clip.id }),
+    ...globalPlacementIdentity(identities, clip.id, section.id),
     instanceId: runtimeInstanceId(context, clip),
     startMs: segmentStartMs - section.startMs,
     durationMs: segmentEndMs - segmentStartMs,
@@ -743,6 +797,7 @@ function lowerPropertyTargetForSection(
   target: ShowPropertyTargetV2,
   clips: ShowClipV2[],
   section: DerivedSection,
+  identities: GlobalPlacementIdentities,
 ): ShowPropertyAnimationTarget {
   if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') return structuredClone(target)
   if (target.kind === 'layout-occurrence-split-position' || target.kind === 'show-repeat-scale') {
@@ -753,9 +808,7 @@ function lowerPropertyTargetForSection(
   if (!clip || !overlaps(clip, section)) {
     throw new Error(`Show composition v2 property target Clip "${clipId}" is outside its derived section.`)
   }
-  const placementId = Math.max(clip.startMs, section.startMs) === clip.startMs
-    ? clip.id
-    : `${clip.id}--span-${section.id}`
+  const placementId = globalPlacementIdentity(identities, clip.id, section.id).id
   if (target.kind === 'clip-opacity') return { kind: 'placement-opacity', placementId }
   if (target.kind === 'clip-view') return { kind: 'placement-view', placementId, property: target.property }
   if (target.kind === 'clip-transform') return { kind: 'placement-transform', placementId, property: target.property }
