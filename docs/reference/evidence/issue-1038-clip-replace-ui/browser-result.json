@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "sourceTip": "ad61318684f1730ac35d31a9979b993f78575e73",
+  "sourceTip": "49822317816cd92dcfdf8cf89db6dc0701e33b0b",
   "durationMs": 30000,
   "writes": 5,
   "sameSourceNoOpZeroWrites": true,
