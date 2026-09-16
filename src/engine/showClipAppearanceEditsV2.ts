@@ -1,4 +1,4 @@
-import { validateShowRecordV2, type ShowClipAppearanceValueV2, type ShowPropertyTargetV2, type ShowRecordV2 } from './showCompositionV2'
+import { validateShowRecordV2, type ShowClipAppearanceKeyV2, type ShowClipAppearanceValueV2, type ShowPropertyTargetV2, type ShowRecordV2 } from './showCompositionV2'
 import type { ShowClipEffect, ShowClipTransform, ShowClipViewport, ShowClipPresentation, ShowClipBlink, ShowPlacementView } from './personalContentRecords'
 import type { ShowClipEditRefusalV2, ShowClipEditResultV2 } from './showClipsV2'
 import type { ShowTimelineEditAffectedV2 } from './showTimelineV2'
@@ -19,7 +19,9 @@ export interface ShowClipAppearancePatchV2 {
   presentation?: ShowClipPresentation | null
   blink?: ShowClipBlink | null
 }
+export type ShowClipAppearanceKeyIdentityV2 = { kind: 'retain' | 'insert'; appearanceKeyId: string }
 type Target = { clipId: string; scope: 'whole-clip' }
+  | { clipId: string; scope: 'selected-time'; atMs: number; keyIdentity: ShowClipAppearanceKeyIdentityV2 }
 type EffectTarget = { effectId: string; effectKind: ShowClipEffect['kind'] }
 export type ShowClipAppearanceEditIntentV2 = Target & (
   | { kind: 'appearance'; patch: ShowClipAppearancePatchV2 }
@@ -30,7 +32,7 @@ export type ShowClipAppearanceEditIntentV2 = Target & (
 )
 export type ShowClipAppearanceEditResultV2 = ShowClipEditResultV2 & ShowTimelineEditAffectedV2
 
-/** Whole-Clip static authoring only; retained animation and runtime owners stay authored. */
+/** Explicit held-value authoring; retained animation and runtime owners stay authored. */
 export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipAppearanceEditIntentV2): ShowClipAppearanceEditResultV2 {
   const empty = { affectedClipIds: [] as [], affectedInstanceIds: [], affectedTransitionIds: [], affectedTrackIds: [] as [],
     affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedGroupDefinitionIds: [], affectedGroupOccurrenceIds: [],
@@ -38,36 +40,60 @@ export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipA
   const refuse = (code: ShowClipEditRefusalV2, message: string): ShowClipAppearanceEditResultV2 => ({ status: 'refused', record, code, message, ...empty })
   const invalid = validateShowRecordV2(record)[0]
   if (invalid) return refuse('invalid-record', `${invalid.path}: ${invalid.message}`)
-  if (!object(intent) || intent.scope !== 'whole-clip' || typeof intent.clipId !== 'string' || !intent.clipId.length) return refuse('invalid-intent', 'Give an ordinary Clip and explicit whole-Clip scope.')
+  if (!object(intent) || !['whole-clip', 'selected-time'].includes(intent.scope) || typeof intent.clipId !== 'string' || !intent.clipId.length) return refuse('invalid-intent', 'Give an ordinary Clip and explicit appearance scope.')
   const clip = record.composition.clips.find(candidate => candidate.id === intent.clipId)
   if (!clip) return refuse('missing-clip', `Clip "${intent.clipId}" does not exist.`)
-  if (intent.kind === 'appearance' && (!exact(intent, ['clipId', 'scope', 'kind', 'patch']) || !validAppearancePatch(intent.patch))) return refuse('invalid-intent', 'Supply finite supported appearance fields.')
+  const targetFields = intent.scope === 'whole-clip' ? ['clipId', 'scope'] : ['clipId', 'scope', 'atMs', 'keyIdentity']
+  let selectedKeys: ShowClipAppearanceKeyV2[] = clip.appearance.keys
+  if (intent.scope === 'selected-time') {
+    if (!Number.isSafeInteger(intent.atMs) || intent.atMs < clip.startMs || intent.atMs >= clip.startMs + clip.durationMs
+      || !exact(intent.keyIdentity, ['kind', 'appearanceKeyId']) || typeof intent.keyIdentity.appearanceKeyId !== 'string') {
+      return refuse('invalid-intent', 'Select an integer time inside the Clip bar, before its end, with an exact held-key identity plan.')
+    }
+    const existing = clip.appearance.keys.find(key => key.timeMs === intent.atMs)
+    if (intent.keyIdentity.kind === 'retain') {
+      if (!existing || existing.id !== intent.keyIdentity.appearanceKeyId) return refuse('invalid-intent', 'Retain the exact appearance key at the selected time.')
+      selectedKeys = [existing]
+    } else if (intent.keyIdentity.kind === 'insert') {
+      if (existing || !intent.keyIdentity.appearanceKeyId.trim() || clip.appearance.keys.some(key => key.id === intent.keyIdentity.appearanceKeyId)) {
+        return refuse('invalid-intent', 'Insert one fresh appearance key at the selected interior time.')
+      }
+      const held = [...clip.appearance.keys].reverse().find(key => key.timeMs < intent.atMs)!
+      selectedKeys = [{ id: intent.keyIdentity.appearanceKeyId, timeMs: intent.atMs, value: held.value }]
+    } else return refuse('invalid-intent', 'Use an explicit retain or insert appearance key plan.')
+  }
+  if (intent.kind === 'appearance' && (!exact(intent, [...targetFields, 'kind', 'patch']) || !validAppearancePatch(intent.patch))) return refuse('invalid-intent', 'Supply finite supported appearance fields.')
   if (intent.kind === 'add-effect') {
-    if (!exact(intent, ['clipId', 'scope', 'kind', 'effect']) || !validEffect(intent.effect)) return refuse('invalid-intent', 'Supply one complete Effect with finite supported values.')
+    if (!exact(intent, [...targetFields, 'kind', 'effect']) || !validEffect(intent.effect)) return refuse('invalid-intent', 'Supply one complete Effect with finite supported values.')
     if (clip.appearance.keys.some(key => key.value.effects?.some(effect => effect.id === intent.effect.id))) return refuse('invalid-intent', 'The new Effect ID must be unused in every held stack of this Clip.')
   } else if (intent.kind === 'update-effect') {
-    if (!exact(intent, ['clipId', 'scope', 'kind', 'effectId', 'effectKind', 'parameter', 'value'])
-      || clip.appearance.keys.some(key => {
+    if (!exact(intent, [...targetFields, 'kind', 'effectId', 'effectKind', 'parameter', 'value'])
+      || selectedKeys.some(key => {
         const effects = (key.value.effects ?? []).filter(effect => effect.id === intent.effectId)
         return effects.length !== 1 || effects[0].kind !== intent.effectKind || !effectParameterPatch(effects[0], intent.parameter, intent.value)
-      })) return refuse('invalid-intent', 'The exact Effect and finite supported parameter must exist in every held stack.')
+      })) return refuse('invalid-intent', 'The exact Effect and finite supported parameter must exist in every selected held stack.')
   } else if (intent.kind === 'duplicate-effect') {
-    if (!exact(intent, ['clipId', 'scope', 'kind', 'effectId', 'effectKind', 'newEffectId'])
+    if (!exact(intent, [...targetFields, 'kind', 'effectId', 'effectKind', 'newEffectId'])
       || typeof intent.newEffectId !== 'string' || !intent.newEffectId.trim()
-      || clip.appearance.keys.some(key => !exactEffect(key.value.effects ?? [], intent.effectId, intent.effectKind)
-        || key.value.effects?.some(effect => effect.id === intent.newEffectId))) return refuse('invalid-intent', 'Supply a fresh Effect ID and the exact source in every held stack.')
+      || selectedKeys.some(key => !exactEffect(key.value.effects ?? [], intent.effectId, intent.effectKind))
+      || clip.appearance.keys.some(key => key.value.effects?.some(effect => effect.id === intent.newEffectId))) return refuse('invalid-intent', 'Supply a fresh Effect ID and the exact source in every selected held stack.')
   } else if (intent.kind === 'reorder-effect') {
-    if (!exact(intent, ['clipId', 'scope', 'kind', 'effectId', 'effectKind', 'targetEffectId', 'targetEffectKind', 'edge'])
-      || !['before', 'after'].includes(intent.edge) || clip.appearance.keys.some(key => {
+    if (!exact(intent, [...targetFields, 'kind', 'effectId', 'effectKind', 'targetEffectId', 'targetEffectKind', 'edge'])
+      || !['before', 'after'].includes(intent.edge) || selectedKeys.some(key => {
         const source = exactEffect(key.value.effects ?? [], intent.effectId, intent.effectKind)
         const target = exactEffect(key.value.effects ?? [], intent.targetEffectId, intent.targetEffectKind)
         return !source || !target || showClipEffectStage(source) !== showClipEffectStage(target)
-      })) return refuse('invalid-intent', 'Give exact source and same-stage destination Effects in every held stack.')
+      })) return refuse('invalid-intent', 'Give exact source and same-stage destination Effects in every selected held stack.')
   } else if (intent.kind !== 'appearance') return refuse('invalid-intent', 'Unsupported appearance operation.')
   const next = structuredClone(record)
   const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
+  if (intent.scope === 'selected-time' && intent.keyIdentity.kind === 'insert') {
+    edited.appearance.keys.push(structuredClone(selectedKeys[0]))
+    edited.appearance.keys.sort((left, right) => left.timeMs - right.timeMs)
+  }
   const affectedAppearanceKeyIds: string[] = []
   for (const key of edited.appearance.keys) {
+    if (intent.scope === 'selected-time' && key.id !== intent.keyIdentity.appearanceKeyId) continue
     const before = JSON.stringify(key.value)
     if (intent.kind === 'appearance') applyAppearance(key.value, intent.patch)
     else if (intent.kind === 'add-effect') {

@@ -404,9 +404,61 @@ independently authored records, covering every Effect family, parameter aliases,
 colors, shared ordinary/held Group users and admitted nonlinear Effect animation.
 Per-span varying Effect values and valid numeric Transition Effect ramps are
 preserved structurally; participant Effect ramps currently refuse final
-preparation as an existing unsupported ramp family. Final preparation
-eligibility is a separate caller boundary: the current global-section adapter
-assigns one logical placement identity to varying held View/Effect presentation,
-which an existing legacy logical-segment validator refuses. This pre-existing
-adapter limitation is a separate prerequisite for full native held-appearance
-adoption; this owner neither widens compilation nor claims those artifacts ready.
+preparation as an existing unsupported ramp family. Final preparation and
+compilation eligibility remain separate caller boundaries. The landed
+global-section adapter preserves presentation-owner runs for differing held
+View/Effect values while keeping shared private runtime identity. Opposing Effect
+orders can still require legacy recipe variants, which native preparation refuses
+to admit as additional runtimes. This remains unresolved representation work,
+not an accepted product limitation. Keyed instance controls can also make
+Freeze/Strobe compilation unavailable under the existing static-cache restriction.
+This owner neither widens compilation nor claims those artifacts ready.
+
+## Ordinary selected-time appearance authoring
+
+The same five operation bodies accept `scope: 'selected-time'`, an integer
+`atMs` within the nominal Clip interval, and one exact caller key plan:
+`keyIdentity: { kind: 'retain' | 'insert', appearanceKeyId: string }`.
+Retain requires the exact existing key ID at that time, including Clip start.
+Insert requires a nonblank ID fresh in this Clip's key namespace and a time
+without an existing key. Foreign Clip/Group key IDs do not collide with this
+namespace. Contributing-only selections outside the nominal key interval remain
+invalid selected-time requests, including exact Clip end and incoming/outgoing
+Transition contribution outside the bar. They refuse atomically without mapping
+to another key time or expanding schema. Whole-Clip application remains available.
+
+The selected authored complete held value supplies every unrequested field,
+optional absence and ordered Effect. Numeric animation is not sampled or baked
+into that value. A changed insertion creates one complete key that holds until
+the next authored key, or through the last held span. Existing keys retain
+their ID/time; other keys and values remain exact. Same-value edits return the
+original record with empty affected collections and never insert a redundant
+key, after validating the explicit plan and complete candidate. Equal neighboring
+keys are not merged. Whole-Clip application remains explicit and unchanged.
+
+Update/duplicate/reorder require the exact source and reorder target only in
+the selected stack. Add/duplicate freshness still quantifies over every held
+stack in the selected Clip. Duplicate copies this selected stack's authored
+value, keeps animation attached to the original ID, and never copies animation.
+Reorder preserves other-stage positions. Changed results report only the Clip
+and actually changed retained/new key, with no runtime, animation or Transition
+changes and deeply unaliased output.
+
+Full contribution-aware Effect target validation includes incoming/outgoing
+participant and whole-output intervals. Editing the first nominal key also
+changes its inherited pre-start contribution; editing the final held span also
+changes its inherited post-end contribution. No outside-nominal key is created.
+Complete raw/materialized ownership, Layout, RL08–RL10 and numeric descriptor/ramp
+checks remain observational. Structural success is not prepared admission:
+divergent participant appearance with endpoint animation can still produce named
+`unsupported-transition-property-track` refusal at the caller's final boundary.
+No source compilation, ramp projection, implicit track removal, Effect removal
+or Group-definition authoring occurs inside this pure owner.
+
+[Selected-time consumers](../../../src/engine/showClipAppearanceSelectedTimeV2.test.ts)
+reopen native Shows and actual native EPE in Fast/Precise against independently
+authored complete-key schedules. Opposite-order preparation refusal and keyed
+cache compiler refusal are explicit classification tests, not output-preservation
+coverage. The exact candidate-versus-authored-key replay oracle is separate from
+the measured one-LSB Precise unsplit-versus-sectioned opacity discrepancy recorded
+in the slice's evidence; no unsplit byte-exact claim or widened oracle is made.

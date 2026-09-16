@@ -1,0 +1,32 @@
+[
+  {
+    "fault": "modify-neighboring-held-keys",
+    "exitCode": 1,
+    "assertionKilled": true,
+    "target": "inserts one complete selected-time"
+  },
+  {
+    "fault": "seed-partial-held-value",
+    "exitCode": 1,
+    "assertionKilled": true,
+    "target": "duplicates the selected authored value"
+  },
+  {
+    "fault": "check-effect-freshness-only-selected-stack",
+    "exitCode": 1,
+    "assertionKilled": true,
+    "target": "rejects selected source/kind/stage"
+  },
+  {
+    "fault": "retire-authored-retained-identity",
+    "exitCode": 1,
+    "assertionKilled": true,
+    "target": "retains the authored key at nominal"
+  },
+  {
+    "fault": "adopt-redundant-inserted-key",
+    "exitCode": 1,
+    "assertionKilled": true,
+    "target": "keeps no-op selected value/key identity"
+  }
+]

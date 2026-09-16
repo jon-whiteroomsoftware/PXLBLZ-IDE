@@ -1,0 +1,1489 @@
+{
+  "atMs": 250,
+  "observations": [
+    {
+      "kind": "preimage",
+      "record": {
+        "version": 2,
+        "id": "convertible",
+        "name": "Convertible",
+        "zones": [
+          {
+            "id": "zone",
+            "name": "Main",
+            "nominalPixelCount": 16
+          }
+        ],
+        "zoneLayouts": [
+          {
+            "id": "layout",
+            "name": "Full",
+            "zones": [],
+            "logical": {
+              "kind": "single",
+              "zoneIds": [
+                "zone"
+              ]
+            }
+          }
+        ],
+        "outputContract": {
+          "version": 1,
+          "kind": "portable-2d",
+          "referenceMapId": "plane",
+          "referencePixelCount": 16,
+          "compatibility": {
+            "dimensions": [
+              2
+            ],
+            "mapClass": "continuous-surface",
+            "resolution": "variable"
+          }
+        },
+        "composition": {
+          "version": 2,
+          "executionModel": "continuous",
+          "showEndMs": 1000,
+          "sampleRemap": {
+            "repeatScale": 1
+          },
+          "patternInstances": [
+            {
+              "id": "instance",
+              "pattern": {
+                "kind": "stock",
+                "id": "TestPattern1D"
+              },
+              "patternName": "TestPattern1D",
+              "time": {
+                "timeScale": 1,
+                "timeOffsetMs": 0
+              },
+              "controlTargets": {
+                "sliderLevel": 0.2
+              }
+            }
+          ],
+          "layers": [
+            {
+              "id": "layer:zone:main",
+              "zoneId": "zone",
+              "name": "Main",
+              "rank": 0
+            }
+          ],
+          "clips": [
+            {
+              "id": "clip",
+              "instanceId": "instance",
+              "zoneId": "zone",
+              "layerId": "layer:zone:main",
+              "startMs": 0,
+              "durationMs": 1000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "appearance-0",
+                    "timeMs": 0,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  },
+                  {
+                    "id": "appearance-1",
+                    "timeMs": 400,
+                    "value": {
+                      "opacity": 0.8,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0.2,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  },
+                  {
+                    "id": "appearance-2",
+                    "timeMs": 800,
+                    "value": {
+                      "opacity": 0.6,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0.4,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "transitions": [],
+          "layoutOccurrences": [
+            {
+              "id": "layout-occurrence:1",
+              "layoutId": "layout",
+              "startMs": 0,
+              "durationMs": 1000,
+              "parameters": {}
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "level",
+              "target": {
+                "kind": "instance-control",
+                "instanceId": "instance",
+                "exportName": "sliderLevel"
+              },
+              "activeStartMs": 0,
+              "activeDurationMs": 1000,
+              "keyframes": [
+                {
+                  "id": "level-first",
+                  "timeMs": 0,
+                  "value": 0.2,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "level-last",
+                  "timeMs": 1000,
+                  "value": 0.6,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "opacity-animation",
+              "target": {
+                "kind": "clip-opacity",
+                "clipId": "clip"
+              },
+              "activeStartMs": 100,
+              "activeDurationMs": 200,
+              "keyframes": [
+                {
+                  "id": "opacity-first",
+                  "timeMs": 100,
+                  "value": 0.2,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "opacity-last",
+                  "timeMs": 300,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            }
+          ],
+          "markers": [
+            {
+              "id": "scene-marker:scene-a",
+              "timeMs": 0,
+              "name": "Opening"
+            }
+          ],
+          "groupDefinitions": [],
+          "groupOccurrences": []
+        },
+        "updatedAt": 1
+      },
+      "recipe": {
+        "clips": [
+          {
+            "id": "instance",
+            "source": "export var level=.2; export var elapsed=0; export function sliderLevel(v){level=v} export function beforeRender(delta){elapsed+=delta} export function render2D(index,x,y){rgb(level+x/4,elapsed/2000,y/2)}",
+            "adaptation": {
+              "brightness": 1,
+              "phase": 0,
+              "timeScale": 1,
+              "mirror": false,
+              "timeOffsetMs": 0
+            },
+            "controlTargets": {
+              "sliderLevel": 0.2
+            }
+          }
+        ],
+        "routedSceneSequence": {
+          "scenes": [
+            {
+              "holdMs": 100,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:0",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level-first@v2-section:0",
+                      "timeMs": 0,
+                      "value": 0.2,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 0
+                      }
+                    },
+                    {
+                      "id": "level:boundary:100@v2-section:0",
+                      "timeMs": 100,
+                      "value": 0.2097886967409693,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 1,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ],
+              "transitionOut": {
+                "kind": "cut",
+                "durationMs": 0,
+                "easing": {
+                  "curve": "linear"
+                }
+              }
+            },
+            {
+              "holdMs": 200,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:1",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level:boundary:100@v2-section:1",
+                      "timeMs": 0,
+                      "value": 0.2097886967409693,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 100
+                      }
+                    },
+                    {
+                      "id": "level:boundary:300@v2-section:1",
+                      "timeMs": 200,
+                      "value": 0.2824429495415054,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "opacity-animation",
+                  "target": {
+                    "kind": "placement-opacity",
+                    "placementId": "clip--span-v2-section:1"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "opacity-first",
+                      "timeMs": 0,
+                      "value": 0.2,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "opacity-last",
+                      "timeMs": 200,
+                      "value": 0.5,
+                      "easing": {
+                        "curve": "linear"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip--span-v2-section:1",
+                  "logicalClipId": "clip",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 1,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ],
+              "transitionOut": {
+                "kind": "cut",
+                "durationMs": 0,
+                "easing": {
+                  "curve": "linear"
+                }
+              }
+            },
+            {
+              "holdMs": 100,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:2",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level:boundary:300@v2-section:2",
+                      "timeMs": 0,
+                      "value": 0.2824429495415054,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 300
+                      }
+                    },
+                    {
+                      "id": "level:boundary:400@v2-section:2",
+                      "timeMs": 100,
+                      "value": 0.3381966011250105,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip--span-v2-section:2",
+                  "logicalClipId": "clip",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 1,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ],
+              "transitionOut": {
+                "kind": "cut",
+                "durationMs": 0,
+                "easing": {
+                  "curve": "linear"
+                }
+              }
+            },
+            {
+              "holdMs": 400,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:3",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level:boundary:400@v2-section:3",
+                      "timeMs": 0,
+                      "value": 0.3381966011250105,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 400
+                      }
+                    },
+                    {
+                      "id": "level:boundary:800@v2-section:3",
+                      "timeMs": 400,
+                      "value": 0.5618033988749895,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip--appearance-1",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 0.8,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0.2,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ],
+              "transitionOut": {
+                "kind": "cut",
+                "durationMs": 0,
+                "easing": {
+                  "curve": "linear"
+                }
+              }
+            },
+            {
+              "holdMs": 200,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:4",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level:boundary:800@v2-section:4",
+                      "timeMs": 0,
+                      "value": 0.5618033988749895,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 800
+                      }
+                    },
+                    {
+                      "id": "level-last@v2-section:4",
+                      "timeMs": 200,
+                      "value": 0.6,
+                      "easing": {
+                        "curve": "linear"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip--appearance-2",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 0.6,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0.4,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "zones": [
+          {
+            "id": "zone",
+            "name": "Main",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 15
+              }
+            ]
+          }
+        ],
+        "routingLayouts": [
+          {
+            "id": "layout",
+            "name": "Full",
+            "zones": [
+              {
+                "id": "layout:zone",
+                "name": "Main",
+                "ranges": []
+              }
+            ],
+            "logical": {
+              "kind": "single",
+              "zoneNames": [
+                "Main"
+              ]
+            }
+          }
+        ],
+        "routingSwitches": [],
+        "loopDurationMs": 1000,
+        "outputEffects": []
+      },
+      "source": "var __pxlblz_K = array(2000)\nvar __pxlblz_L = array(2000)\nvar __pxlblz_M = array(2000)\nvar __pxlblz_a = 0\nvar __pxlblz_D = 0\nvar __pxlblz_k = pixelCount\nvar __pxlblz_j = 1\nvar __pxlblz_y = 0\nvar __pxlblz_t = 1\nvar __pxlblz_x = 0\nvar __pxlblz_f = 0.2\nvar __pxlblz_n = 0\nvar __pxlblz_m = 0\nvar __pxlblz_l = 0\nfunction __pxlblz_I() { __pxlblz_n = 0; __pxlblz_m = 0; __pxlblz_l = 0 }\nfunction __pxlblz_G(r, g, b) { __pxlblz_n = r; __pxlblz_m = g; __pxlblz_l = b }\nfunction __pxlblz_u(delta) {\n  __pxlblz_H(__pxlblz_f)\n  var scaledDelta = delta * __pxlblz_t\n  __pxlblz_D = __pxlblz_D + scaledDelta\n\n  __pxlblz_F(scaledDelta)\n  \n}\nfunction __pxlblz_J() { rgb(__pxlblz_n, __pxlblz_m, __pxlblz_l) }\n\nvar __pxlblz_E=.2; var __pxlblz_C=0; function __pxlblz_H(v){__pxlblz_E=v} function __pxlblz_F(delta){__pxlblz_C+=delta} function __pxlblz_z(index,x,y){__pxlblz_G(__pxlblz_E+x/4,__pxlblz_C/2000,y/2)}\n\nvar __pxlblz_i = 0\n\nvar __pxlblz_w = 0\n\nvar __pxlblz_v = 0\nexport function beforeRender(delta) {\n  __pxlblz_a = (__pxlblz_a + delta / 1000) % 1\n  __pxlblz_w = 0\n\n  if (__pxlblz_a < 0.1) {\n    __pxlblz_i = 0\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_f = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_f = ((((__pxlblz_a - 0) * 1000 + 0)) <= 0 ? 0.2 : ((((__pxlblz_a - 0) * 1000 + 0)) < 100 ? (0.2 + (0.39999999999999997) * ((0 + ((((__pxlblz_a - 0) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (0 + ((((__pxlblz_a - 0) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (0 + ((((__pxlblz_a - 0) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.2097886967409693))\n    __pxlblz_u(delta)\n  } else if (__pxlblz_a < 0.3) {\n    __pxlblz_i = 1\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_f = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_f = ((((__pxlblz_a - 0.1) * 1000 + 0)) <= 0 ? 0.2097886967409693 : ((((__pxlblz_a - 0.1) * 1000 + 0)) < 200 ? (0.2 + (0.39999999999999997) * ((100 + ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (100 + ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (100 + ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.2824429495415054))\n    __pxlblz_u(delta)\n  } else if (__pxlblz_a < 0.4) {\n    __pxlblz_i = 2\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_f = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_f = ((((__pxlblz_a - 0.3) * 1000 + 0)) <= 0 ? 0.2824429495415054 : ((((__pxlblz_a - 0.3) * 1000 + 0)) < 100 ? (0.2 + (0.39999999999999997) * ((300 + ((((__pxlblz_a - 0.3) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (300 + ((((__pxlblz_a - 0.3) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (300 + ((((__pxlblz_a - 0.3) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.3381966011250105))\n    __pxlblz_u(delta)\n  } else if (__pxlblz_a < 0.8) {\n    __pxlblz_i = 3\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_f = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_f = ((((__pxlblz_a - 0.4) * 1000 + 0)) <= 0 ? 0.3381966011250105 : ((((__pxlblz_a - 0.4) * 1000 + 0)) < 400 ? (0.2 + (0.39999999999999997) * ((400 + ((((__pxlblz_a - 0.4) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (400 + ((((__pxlblz_a - 0.4) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (400 + ((((__pxlblz_a - 0.4) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.5618033988749895))\n    __pxlblz_u(delta)\n  } else if (__pxlblz_a < 1) {\n    __pxlblz_i = 4\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_f = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_f = ((((__pxlblz_a - 0.8) * 1000 + 0)) <= 0 ? 0.5618033988749895 : ((((__pxlblz_a - 0.8) * 1000 + 0)) < 200 ? (0.2 + (0.39999999999999997) * ((800 + ((((__pxlblz_a - 0.8) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (800 + ((((__pxlblz_a - 0.8) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (800 + ((((__pxlblz_a - 0.8) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.6))\n    __pxlblz_u(delta)\n  }\n  __pxlblz_v = ceil(sqrt(pixelCount))\n}\n\nexport function render2D(index, x, y) {\n  if (__pxlblz_i == 0 || __pxlblz_i == 2) {\n    if (__pxlblz_w == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_v\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d\n        var __pxlblz_c\n        var __pxlblz_b\n        __pxlblz_j = 1\n        __pxlblz_y = 0\n        __pxlblz_x = 0\n        __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n        __pxlblz_d = __pxlblz_n\n        __pxlblz_c = __pxlblz_m\n        __pxlblz_b = __pxlblz_l\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  } else if (__pxlblz_i == 1) {\n    if (__pxlblz_w == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_v\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d = 0\n        var __pxlblz_c = 0\n        var __pxlblz_b = 0\n        var __pxlblz_o = ((((__pxlblz_a - 0.1) * 1000 + 0)) <= 0 ? 0.2 : ((((__pxlblz_a - 0.1) * 1000 + 0)) < 200 ? (0.2 + (0.3) * (((((__pxlblz_a - 0.1) * 1000 + 0)) - 0) / 200 < 0.5 ? 0.5 * (1 - cos((2 * ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0) / 200) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0) / 200)) * PI / 2)))) : 0.5))\n        if (__pxlblz_o > 0) {\n          __pxlblz_j = 1\n          __pxlblz_y = 0\n          __pxlblz_x = 0\n          __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n          if (__pxlblz_o == 1) {\n            __pxlblz_d = __pxlblz_n\n            __pxlblz_c = __pxlblz_m\n            __pxlblz_b = __pxlblz_l\n          } else {\n            __pxlblz_d = __pxlblz_n * __pxlblz_o + __pxlblz_d * (1 - __pxlblz_o)\n            __pxlblz_c = __pxlblz_m * __pxlblz_o + __pxlblz_c * (1 - __pxlblz_o)\n            __pxlblz_b = __pxlblz_l * __pxlblz_o + __pxlblz_b * (1 - __pxlblz_o)\n          }\n        }\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  } else if (__pxlblz_i == 3) {\n    if (__pxlblz_w == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_v\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d = 0\n        var __pxlblz_c = 0\n        var __pxlblz_b = 0\n        __pxlblz_j = 1\n        __pxlblz_y = 0.2\n        __pxlblz_x = 0\n        __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n        __pxlblz_d = __pxlblz_n * (0.8) + __pxlblz_d * (1 - (0.8))\n        __pxlblz_c = __pxlblz_m * (0.8) + __pxlblz_c * (1 - (0.8))\n        __pxlblz_b = __pxlblz_l * (0.8) + __pxlblz_b * (1 - (0.8))\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  } else if (__pxlblz_i == 4) {\n    if (__pxlblz_w == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_v\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d = 0\n        var __pxlblz_c = 0\n        var __pxlblz_b = 0\n        __pxlblz_j = 1\n        __pxlblz_y = 0.4\n        __pxlblz_x = 0\n        __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n        __pxlblz_d = __pxlblz_n * (0.6) + __pxlblz_d * (1 - (0.6))\n        __pxlblz_c = __pxlblz_m * (0.6) + __pxlblz_c * (1 - (0.6))\n        __pxlblz_b = __pxlblz_l * (0.6) + __pxlblz_b * (1 - (0.6))\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  }\n  rgb(0, 0, 0)\n}\n\n",
+      "fixedSource": "var __pxlblz_K = array(131072000);\nvar __pxlblz_L = array(131072000);\nvar __pxlblz_M = array(131072000);\nvar __pxlblz_a = 0;\nvar __pxlblz_D = 0;\nvar __pxlblz_k = pixelCount;\nvar __pxlblz_j = 65536;\nvar __pxlblz_y = 0;\nvar __pxlblz_t = 65536;\nvar __pxlblz_x = 0;\nvar __pxlblz_f = 13107;\nvar __pxlblz_n = 0;\nvar __pxlblz_m = 0;\nvar __pxlblz_l = 0;\nfunction __pxlblz_I() {\n__pxlblz_n = 0;\n__pxlblz_m = 0;\n__pxlblz_l = 0;\n}\nfunction __pxlblz_G(r, g, b) {\n__pxlblz_n = r;\n__pxlblz_m = g;\n__pxlblz_l = b;\n}\nfunction __pxlblz_u(delta) {\n__pxlblz_H(__pxlblz_f);\nvar scaledDelta = fx.mul(delta, __pxlblz_t);\n__pxlblz_D = fx.add(__pxlblz_D, scaledDelta);\n__pxlblz_F(scaledDelta);\n}\nfunction __pxlblz_J() {\nrgb(__pxlblz_n, __pxlblz_m, __pxlblz_l);\n}\nvar __pxlblz_E = 13107;\nvar __pxlblz_C = 0;\nfunction __pxlblz_H(v) {\n__pxlblz_E = v;\n}\nfunction __pxlblz_F(delta) {\n__pxlblz_C = fx.add(__pxlblz_C, delta);\n}\nfunction __pxlblz_z(index, x, y) {\n__pxlblz_G(fx.add(__pxlblz_E, fx.div(x, 262144)), fx.div(__pxlblz_C, 131072000), fx.div(y, 131072));\n}\nvar __pxlblz_i = 0;\nvar __pxlblz_w = 0;\nvar __pxlblz_v = 0;\nfunction beforeRender(delta) {\n__pxlblz_a = fx.mod(fx.add(__pxlblz_a, fx.div(delta, 65536000)), 65536);\n__pxlblz_w = 0;\nif (fx.lt(__pxlblz_a, 6554)) {\n__pxlblz_i = 0;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_f = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_f = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 0) ? 13107 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 6553600) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(0, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(0, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(0, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 13749));\n__pxlblz_u(delta);\n} else if (fx.lt(__pxlblz_a, 19661)) {\n__pxlblz_i = 65536;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_f = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_f = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0) ? 13749 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 13107200) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(6553600, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(6553600, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(6553600, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 18510));\n__pxlblz_u(delta);\n} else if (fx.lt(__pxlblz_a, 26214)) {\n__pxlblz_i = 131072;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_f = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_f = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 0) ? 18510 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 6553600) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(19660800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(19660800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(19660800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 22164));\n__pxlblz_u(delta);\n} else if (fx.lt(__pxlblz_a, 52429)) {\n__pxlblz_i = 196608;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_f = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_f = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 0) ? 22164 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 26214400) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(26214400, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(26214400, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(26214400, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 36818));\n__pxlblz_u(delta);\n} else if (fx.lt(__pxlblz_a, 65536)) {\n__pxlblz_i = 262144;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_f = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_f = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 0) ? 36818 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 13107200) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(52428800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(52428800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(52428800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 39322));\n__pxlblz_u(delta);\n}\n__pxlblz_v = ceil(sqrt(pixelCount));\n}\nfunction render2D(index, x, y) {\nif ((fx.eq(__pxlblz_i, 0) || fx.eq(__pxlblz_i, 131072))) {\nif (fx.eq(__pxlblz_w, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_v;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d;\nvar __pxlblz_c;\nvar __pxlblz_b;\n__pxlblz_j = 65536;\n__pxlblz_y = 0;\n__pxlblz_x = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\n__pxlblz_d = __pxlblz_n;\n__pxlblz_c = __pxlblz_m;\n__pxlblz_b = __pxlblz_l;\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n} else if (fx.eq(__pxlblz_i, 65536)) {\nif (fx.eq(__pxlblz_w, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_v;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d = 0;\nvar __pxlblz_c = 0;\nvar __pxlblz_b = 0;\nvar __pxlblz_o = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0) ? 13107 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 13107200) ? fx.add(13107, fx.mul(19661, (fx.lt(fx.div(fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0), 13107200), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0)), 13107200), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0), 13107200))), PI), 131072)))))))) : 32768));\nif (fx.gt(__pxlblz_o, 0)) {\n__pxlblz_j = 65536;\n__pxlblz_y = 0;\n__pxlblz_x = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\nif (fx.eq(__pxlblz_o, 65536)) {\n__pxlblz_d = __pxlblz_n;\n__pxlblz_c = __pxlblz_m;\n__pxlblz_b = __pxlblz_l;\n} else {\n__pxlblz_d = fx.add(fx.mul(__pxlblz_n, __pxlblz_o), fx.mul(__pxlblz_d, fx.sub(65536, __pxlblz_o)));\n__pxlblz_c = fx.add(fx.mul(__pxlblz_m, __pxlblz_o), fx.mul(__pxlblz_c, fx.sub(65536, __pxlblz_o)));\n__pxlblz_b = fx.add(fx.mul(__pxlblz_l, __pxlblz_o), fx.mul(__pxlblz_b, fx.sub(65536, __pxlblz_o)));\n}\n}\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n} else if (fx.eq(__pxlblz_i, 196608)) {\nif (fx.eq(__pxlblz_w, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_v;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d = 0;\nvar __pxlblz_c = 0;\nvar __pxlblz_b = 0;\n__pxlblz_j = 65536;\n__pxlblz_y = 13107;\n__pxlblz_x = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\n__pxlblz_d = fx.add(fx.mul(__pxlblz_n, 52429), fx.mul(__pxlblz_d, fx.sub(65536, 52429)));\n__pxlblz_c = fx.add(fx.mul(__pxlblz_m, 52429), fx.mul(__pxlblz_c, fx.sub(65536, 52429)));\n__pxlblz_b = fx.add(fx.mul(__pxlblz_l, 52429), fx.mul(__pxlblz_b, fx.sub(65536, 52429)));\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n} else if (fx.eq(__pxlblz_i, 262144)) {\nif (fx.eq(__pxlblz_w, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_v;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d = 0;\nvar __pxlblz_c = 0;\nvar __pxlblz_b = 0;\n__pxlblz_j = 65536;\n__pxlblz_y = 26214;\n__pxlblz_x = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\n__pxlblz_d = fx.add(fx.mul(__pxlblz_n, 39322), fx.mul(__pxlblz_d, fx.sub(65536, 39322)));\n__pxlblz_c = fx.add(fx.mul(__pxlblz_m, 39322), fx.mul(__pxlblz_c, fx.sub(65536, 39322)));\n__pxlblz_b = fx.add(fx.mul(__pxlblz_l, 39322), fx.mul(__pxlblz_b, fx.sub(65536, 39322)));\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n}\nrgb(0, 0, 0);\n}",
+      "modes": [
+        {
+          "fidelity": "fast",
+          "frame": [
+            0.14643305826175854,
+            0.0570082521472478,
+            0.1140165042944956,
+            0.20344131040900634,
+            0.0570082521472478,
+            0.1140165042944956
+          ],
+          "exports": {
+            "__pxlblz_show_elapsed_s": 0.25000000000000017,
+            "__pxlblz_show_mix": 0,
+            "__pxlblz_show_c0_elapsed_ms": 250,
+            "__pxlblz_show_c0_pixelCount": 0,
+            "__pxlblz_show_c0_adapt_brightness": 0,
+            "__pxlblz_show_c0_adapt_phase": 0,
+            "__pxlblz_show_c0_adapt_timeScale": 1,
+            "__pxlblz_show_c0_adapt_mirror": 0,
+            "__pxlblz_show_c0_control_sliderLevel": 0.2585786437626906,
+            "__pxlblz_show_c0_r": 0,
+            "__pxlblz_show_c0_g": 0,
+            "__pxlblz_show_c0_b": 0,
+            "__pxlblz_show_c0_level": 0.2585786437626906,
+            "__pxlblz_show_c0_elapsed": 250
+          }
+        },
+        {
+          "fidelity": "fidelity",
+          "frame": [
+            0.147705078125,
+            0.0573577880859375,
+            0.1147308349609375,
+            0.205078125,
+            0.0573577880859375,
+            0.1147308349609375
+          ],
+          "exports": {
+            "__pxlblz_show_elapsed_s": 16500,
+            "__pxlblz_show_mix": 0,
+            "__pxlblz_show_c0_elapsed_ms": 16384000,
+            "__pxlblz_show_c0_pixelCount": 0,
+            "__pxlblz_show_c0_adapt_brightness": 0,
+            "__pxlblz_show_c0_adapt_phase": 0,
+            "__pxlblz_show_c0_adapt_timeScale": 65536,
+            "__pxlblz_show_c0_adapt_mirror": 0,
+            "__pxlblz_show_c0_control_sliderLevel": 16997,
+            "__pxlblz_show_c0_r": 0,
+            "__pxlblz_show_c0_g": 0,
+            "__pxlblz_show_c0_b": 0,
+            "__pxlblz_show_c0_level": 16997,
+            "__pxlblz_show_c0_elapsed": 16384000
+          }
+        }
+      ]
+    },
+    {
+      "kind": "candidate",
+      "record": {
+        "version": 2,
+        "id": "convertible",
+        "name": "Convertible",
+        "zones": [
+          {
+            "id": "zone",
+            "name": "Main",
+            "nominalPixelCount": 16
+          }
+        ],
+        "zoneLayouts": [
+          {
+            "id": "layout",
+            "name": "Full",
+            "zones": [],
+            "logical": {
+              "kind": "single",
+              "zoneIds": [
+                "zone"
+              ]
+            }
+          }
+        ],
+        "outputContract": {
+          "version": 1,
+          "kind": "portable-2d",
+          "referenceMapId": "plane",
+          "referencePixelCount": 16,
+          "compatibility": {
+            "dimensions": [
+              2
+            ],
+            "mapClass": "continuous-surface",
+            "resolution": "variable"
+          }
+        },
+        "composition": {
+          "version": 2,
+          "executionModel": "continuous",
+          "showEndMs": 1000,
+          "sampleRemap": {
+            "repeatScale": 1
+          },
+          "patternInstances": [
+            {
+              "id": "instance",
+              "pattern": {
+                "kind": "stock",
+                "id": "TestPattern1D"
+              },
+              "patternName": "TestPattern1D",
+              "time": {
+                "timeScale": 1,
+                "timeOffsetMs": 0
+              },
+              "controlTargets": {
+                "sliderLevel": 0.2
+              }
+            }
+          ],
+          "layers": [
+            {
+              "id": "layer:zone:main",
+              "zoneId": "zone",
+              "name": "Main",
+              "rank": 0
+            }
+          ],
+          "clips": [
+            {
+              "id": "clip",
+              "instanceId": "instance",
+              "zoneId": "zone",
+              "layerId": "layer:zone:main",
+              "startMs": 0,
+              "durationMs": 1000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "appearance-0",
+                    "timeMs": 0,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  },
+                  {
+                    "id": "selected-200",
+                    "timeMs": 200,
+                    "value": {
+                      "opacity": 0.7,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  },
+                  {
+                    "id": "appearance-1",
+                    "timeMs": 400,
+                    "value": {
+                      "opacity": 0.8,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0.2,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  },
+                  {
+                    "id": "appearance-2",
+                    "timeMs": 800,
+                    "value": {
+                      "opacity": 0.6,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0.4,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "transitions": [],
+          "layoutOccurrences": [
+            {
+              "id": "layout-occurrence:1",
+              "layoutId": "layout",
+              "startMs": 0,
+              "durationMs": 1000,
+              "parameters": {}
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "level",
+              "target": {
+                "kind": "instance-control",
+                "instanceId": "instance",
+                "exportName": "sliderLevel"
+              },
+              "activeStartMs": 0,
+              "activeDurationMs": 1000,
+              "keyframes": [
+                {
+                  "id": "level-first",
+                  "timeMs": 0,
+                  "value": 0.2,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "level-last",
+                  "timeMs": 1000,
+                  "value": 0.6,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "opacity-animation",
+              "target": {
+                "kind": "clip-opacity",
+                "clipId": "clip"
+              },
+              "activeStartMs": 100,
+              "activeDurationMs": 200,
+              "keyframes": [
+                {
+                  "id": "opacity-first",
+                  "timeMs": 100,
+                  "value": 0.2,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "opacity-last",
+                  "timeMs": 300,
+                  "value": 0.5,
+                  "easing": {
+                    "curve": "linear"
+                  }
+                }
+              ]
+            }
+          ],
+          "markers": [
+            {
+              "id": "scene-marker:scene-a",
+              "timeMs": 0,
+              "name": "Opening"
+            }
+          ],
+          "groupDefinitions": [],
+          "groupOccurrences": []
+        },
+        "updatedAt": 1
+      },
+      "recipe": {
+        "clips": [
+          {
+            "id": "instance",
+            "source": "export var level=.2; export var elapsed=0; export function sliderLevel(v){level=v} export function beforeRender(delta){elapsed+=delta} export function render2D(index,x,y){rgb(level+x/4,elapsed/2000,y/2)}",
+            "adaptation": {
+              "brightness": 1,
+              "phase": 0,
+              "timeScale": 1,
+              "mirror": false,
+              "timeOffsetMs": 0
+            },
+            "controlTargets": {
+              "sliderLevel": 0.2
+            }
+          }
+        ],
+        "routedSceneSequence": {
+          "scenes": [
+            {
+              "holdMs": 100,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:0",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level-first@v2-section:0",
+                      "timeMs": 0,
+                      "value": 0.2,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 0
+                      }
+                    },
+                    {
+                      "id": "level:boundary:100@v2-section:0",
+                      "timeMs": 100,
+                      "value": 0.2097886967409693,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 1,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ],
+              "transitionOut": {
+                "kind": "cut",
+                "durationMs": 0,
+                "easing": {
+                  "curve": "linear"
+                }
+              }
+            },
+            {
+              "holdMs": 100,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:1",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level:boundary:100@v2-section:1",
+                      "timeMs": 0,
+                      "value": 0.2097886967409693,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 100
+                      }
+                    },
+                    {
+                      "id": "level:boundary:200@v2-section:1",
+                      "timeMs": 100,
+                      "value": 0.2381966011250105,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "opacity-animation@v2-section:1",
+                  "target": {
+                    "kind": "placement-opacity",
+                    "placementId": "clip--span-v2-section:1"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "opacity-first@v2-section:1",
+                      "timeMs": 0,
+                      "value": 0.2,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.3,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 200,
+                        "elapsedOffsetMs": 0
+                      }
+                    },
+                    {
+                      "id": "opacity-animation:boundary:200@v2-section:1",
+                      "timeMs": 100,
+                      "value": 0.35,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip--span-v2-section:1",
+                  "logicalClipId": "clip",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 1,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ],
+              "transitionOut": {
+                "kind": "cut",
+                "durationMs": 0,
+                "easing": {
+                  "curve": "linear"
+                }
+              }
+            },
+            {
+              "holdMs": 100,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:2",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level:boundary:200@v2-section:2",
+                      "timeMs": 0,
+                      "value": 0.2381966011250105,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 200
+                      }
+                    },
+                    {
+                      "id": "level:boundary:300@v2-section:2",
+                      "timeMs": 100,
+                      "value": 0.2824429495415054,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "opacity-animation@v2-section:2",
+                  "target": {
+                    "kind": "placement-opacity",
+                    "placementId": "clip--span-v2-section:2"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "opacity-animation:boundary:200@v2-section:2",
+                      "timeMs": 0,
+                      "value": 0.35,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.3,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 200,
+                        "elapsedOffsetMs": 100
+                      }
+                    },
+                    {
+                      "id": "opacity-last@v2-section:2",
+                      "timeMs": 100,
+                      "value": 0.5,
+                      "easing": {
+                        "curve": "linear"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip--span-v2-section:2",
+                  "logicalClipId": "clip",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 0.7,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ],
+              "transitionOut": {
+                "kind": "cut",
+                "durationMs": 0,
+                "easing": {
+                  "curve": "linear"
+                }
+              }
+            },
+            {
+              "holdMs": 100,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:3",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level:boundary:300@v2-section:3",
+                      "timeMs": 0,
+                      "value": 0.2824429495415054,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 300
+                      }
+                    },
+                    {
+                      "id": "level:boundary:400@v2-section:3",
+                      "timeMs": 100,
+                      "value": 0.3381966011250105,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip--span-v2-section:3",
+                  "logicalClipId": "clip",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 0.7,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ],
+              "transitionOut": {
+                "kind": "cut",
+                "durationMs": 0,
+                "easing": {
+                  "curve": "linear"
+                }
+              }
+            },
+            {
+              "holdMs": 400,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:4",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level:boundary:400@v2-section:4",
+                      "timeMs": 0,
+                      "value": 0.3381966011250105,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 400
+                      }
+                    },
+                    {
+                      "id": "level:boundary:800@v2-section:4",
+                      "timeMs": 400,
+                      "value": 0.5618033988749895,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip--appearance-2",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 0.8,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0.2,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ],
+              "transitionOut": {
+                "kind": "cut",
+                "durationMs": 0,
+                "easing": {
+                  "curve": "linear"
+                }
+              }
+            },
+            {
+              "holdMs": 200,
+              "localTimeOffsetMs": 0,
+              "propertyTracks": [
+                {
+                  "id": "level@v2-section:5",
+                  "target": {
+                    "kind": "instance-control",
+                    "instanceId": "instance",
+                    "exportName": "sliderLevel"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "level:boundary:800@v2-section:5",
+                      "timeMs": 0,
+                      "value": 0.5618033988749895,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      },
+                      "curveSegment": {
+                        "baseValue": 0.2,
+                        "deltaValue": 0.39999999999999997,
+                        "easing": {
+                          "curve": "sine",
+                          "direction": "in-out"
+                        },
+                        "sourceDurationMs": 1000,
+                        "elapsedOffsetMs": 800
+                      }
+                    },
+                    {
+                      "id": "level-last@v2-section:5",
+                      "timeMs": 200,
+                      "value": 0.6,
+                      "easing": {
+                        "curve": "linear"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "placements": [
+                {
+                  "placementId": "clip--appearance-3",
+                  "zoneName": "Main",
+                  "clipId": "instance",
+                  "stackOrder": 0,
+                  "opacity": 0.6,
+                  "timeScale": 1,
+                  "brightness": 1,
+                  "phase": 0.4,
+                  "mirror": false,
+                  "controlTargets": {
+                    "sliderLevel": 0.2
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "zones": [
+          {
+            "id": "zone",
+            "name": "Main",
+            "ranges": [
+              {
+                "start": 0,
+                "end": 15
+              }
+            ]
+          }
+        ],
+        "routingLayouts": [
+          {
+            "id": "layout",
+            "name": "Full",
+            "zones": [
+              {
+                "id": "layout:zone",
+                "name": "Main",
+                "ranges": []
+              }
+            ],
+            "logical": {
+              "kind": "single",
+              "zoneNames": [
+                "Main"
+              ]
+            }
+          }
+        ],
+        "routingSwitches": [],
+        "loopDurationMs": 1000,
+        "outputEffects": []
+      },
+      "source": "var __pxlblz_K = array(2000)\nvar __pxlblz_L = array(2000)\nvar __pxlblz_M = array(2000)\nvar __pxlblz_a = 0\nvar __pxlblz_D = 0\nvar __pxlblz_k = pixelCount\nvar __pxlblz_j = 1\nvar __pxlblz_x = 0\nvar __pxlblz_t = 1\nvar __pxlblz_w = 0\nvar __pxlblz_i = 0.2\nvar __pxlblz_o = 0\nvar __pxlblz_n = 0\nvar __pxlblz_m = 0\nfunction __pxlblz_I() { __pxlblz_o = 0; __pxlblz_n = 0; __pxlblz_m = 0 }\nfunction __pxlblz_G(r, g, b) { __pxlblz_o = r; __pxlblz_n = g; __pxlblz_m = b }\nfunction __pxlblz_y(delta) {\n  __pxlblz_H(__pxlblz_i)\n  var scaledDelta = delta * __pxlblz_t\n  __pxlblz_D = __pxlblz_D + scaledDelta\n\n  __pxlblz_F(scaledDelta)\n  \n}\nfunction __pxlblz_J() { rgb(__pxlblz_o, __pxlblz_n, __pxlblz_m) }\n\nvar __pxlblz_E=.2; var __pxlblz_C=0; function __pxlblz_H(v){__pxlblz_E=v} function __pxlblz_F(delta){__pxlblz_C+=delta} function __pxlblz_z(index,x,y){__pxlblz_G(__pxlblz_E+x/4,__pxlblz_C/2000,y/2)}\n\nvar __pxlblz_l = 0\n\nvar __pxlblz_v = 0\n\nvar __pxlblz_u = 0\nexport function beforeRender(delta) {\n  __pxlblz_a = (__pxlblz_a + delta / 1000) % 1\n  __pxlblz_v = 0\n\n  if (__pxlblz_a < 0.1) {\n    __pxlblz_l = 0\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_i = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_i = ((((__pxlblz_a - 0) * 1000 + 0)) <= 0 ? 0.2 : ((((__pxlblz_a - 0) * 1000 + 0)) < 100 ? (0.2 + (0.39999999999999997) * ((0 + ((((__pxlblz_a - 0) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (0 + ((((__pxlblz_a - 0) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (0 + ((((__pxlblz_a - 0) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.2097886967409693))\n    __pxlblz_y(delta)\n  } else if (__pxlblz_a < 0.2) {\n    __pxlblz_l = 1\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_i = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_i = ((((__pxlblz_a - 0.1) * 1000 + 0)) <= 0 ? 0.2097886967409693 : ((((__pxlblz_a - 0.1) * 1000 + 0)) < 100 ? (0.2 + (0.39999999999999997) * ((100 + ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (100 + ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (100 + ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.2381966011250105))\n    __pxlblz_y(delta)\n  } else if (__pxlblz_a < 0.3) {\n    __pxlblz_l = 2\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_i = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_i = ((((__pxlblz_a - 0.2) * 1000 + 0)) <= 0 ? 0.2381966011250105 : ((((__pxlblz_a - 0.2) * 1000 + 0)) < 100 ? (0.2 + (0.39999999999999997) * ((200 + ((((__pxlblz_a - 0.2) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (200 + ((((__pxlblz_a - 0.2) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (200 + ((((__pxlblz_a - 0.2) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.2824429495415054))\n    __pxlblz_y(delta)\n  } else if (__pxlblz_a < 0.4) {\n    __pxlblz_l = 3\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_i = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_i = ((((__pxlblz_a - 0.3) * 1000 + 0)) <= 0 ? 0.2824429495415054 : ((((__pxlblz_a - 0.3) * 1000 + 0)) < 100 ? (0.2 + (0.39999999999999997) * ((300 + ((((__pxlblz_a - 0.3) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (300 + ((((__pxlblz_a - 0.3) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (300 + ((((__pxlblz_a - 0.3) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.3381966011250105))\n    __pxlblz_y(delta)\n  } else if (__pxlblz_a < 0.8) {\n    __pxlblz_l = 4\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_i = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_i = ((((__pxlblz_a - 0.4) * 1000 + 0)) <= 0 ? 0.3381966011250105 : ((((__pxlblz_a - 0.4) * 1000 + 0)) < 400 ? (0.2 + (0.39999999999999997) * ((400 + ((((__pxlblz_a - 0.4) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (400 + ((((__pxlblz_a - 0.4) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (400 + ((((__pxlblz_a - 0.4) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.5618033988749895))\n    __pxlblz_y(delta)\n  } else if (__pxlblz_a < 1) {\n    __pxlblz_l = 5\n    __pxlblz_B = -1\n    __pxlblz_A = 0\n     __pxlblz_k = max(1, floor(pixelCount / 1))\n    __pxlblz_i = 0.2\n    __pxlblz_j = 1\n    __pxlblz_t = 1\n    __pxlblz_i = ((((__pxlblz_a - 0.8) * 1000 + 0)) <= 0 ? 0.5618033988749895 : ((((__pxlblz_a - 0.8) * 1000 + 0)) < 200 ? (0.2 + (0.39999999999999997) * ((800 + ((((__pxlblz_a - 0.8) * 1000 + 0)) - 0)) / 1000 < 0.5 ? 0.5 * (1 - cos((2 * (800 + ((((__pxlblz_a - 0.8) * 1000 + 0)) - 0)) / 1000) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (800 + ((((__pxlblz_a - 0.8) * 1000 + 0)) - 0)) / 1000)) * PI / 2)))) : 0.6))\n    __pxlblz_y(delta)\n  }\n  __pxlblz_u = ceil(sqrt(pixelCount))\n}\n\nexport function render2D(index, x, y) {\n  if (__pxlblz_l == 0) {\n    if (__pxlblz_v == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_u\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d\n        var __pxlblz_c\n        var __pxlblz_b\n        __pxlblz_j = 1\n        __pxlblz_x = 0\n        __pxlblz_w = 0\n        __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n        __pxlblz_d = __pxlblz_o\n        __pxlblz_c = __pxlblz_n\n        __pxlblz_b = __pxlblz_m\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  } else if (__pxlblz_l == 1) {\n    if (__pxlblz_v == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_u\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d = 0\n        var __pxlblz_c = 0\n        var __pxlblz_b = 0\n        var __pxlblz_f = ((((__pxlblz_a - 0.1) * 1000 + 0)) <= 0 ? 0.2 : ((((__pxlblz_a - 0.1) * 1000 + 0)) < 100 ? (0.2 + (0.3) * ((0 + ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0)) / 200 < 0.5 ? 0.5 * (1 - cos((2 * (0 + ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0)) / 200) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (0 + ((((__pxlblz_a - 0.1) * 1000 + 0)) - 0)) / 200)) * PI / 2)))) : 0.35))\n        if (__pxlblz_f > 0) {\n          __pxlblz_j = 1\n          __pxlblz_x = 0\n          __pxlblz_w = 0\n          __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n          if (__pxlblz_f == 1) {\n            __pxlblz_d = __pxlblz_o\n            __pxlblz_c = __pxlblz_n\n            __pxlblz_b = __pxlblz_m\n          } else {\n            __pxlblz_d = __pxlblz_o * __pxlblz_f + __pxlblz_d * (1 - __pxlblz_f)\n            __pxlblz_c = __pxlblz_n * __pxlblz_f + __pxlblz_c * (1 - __pxlblz_f)\n            __pxlblz_b = __pxlblz_m * __pxlblz_f + __pxlblz_b * (1 - __pxlblz_f)\n          }\n        }\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  } else if (__pxlblz_l == 2) {\n    if (__pxlblz_v == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_u\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d = 0\n        var __pxlblz_c = 0\n        var __pxlblz_b = 0\n        var __pxlblz_f = ((((__pxlblz_a - 0.2) * 1000 + 0)) <= 0 ? 0.35 : ((((__pxlblz_a - 0.2) * 1000 + 0)) < 100 ? (0.2 + (0.3) * ((100 + ((((__pxlblz_a - 0.2) * 1000 + 0)) - 0)) / 200 < 0.5 ? 0.5 * (1 - cos((2 * (100 + ((((__pxlblz_a - 0.2) * 1000 + 0)) - 0)) / 200) * PI / 2)) : 1 - 0.5 * (1 - cos((2 * (1 - (100 + ((((__pxlblz_a - 0.2) * 1000 + 0)) - 0)) / 200)) * PI / 2)))) : 0.5))\n        if (__pxlblz_f > 0) {\n          __pxlblz_j = 1\n          __pxlblz_x = 0\n          __pxlblz_w = 0\n          __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n          if (__pxlblz_f == 1) {\n            __pxlblz_d = __pxlblz_o\n            __pxlblz_c = __pxlblz_n\n            __pxlblz_b = __pxlblz_m\n          } else {\n            __pxlblz_d = __pxlblz_o * __pxlblz_f + __pxlblz_d * (1 - __pxlblz_f)\n            __pxlblz_c = __pxlblz_n * __pxlblz_f + __pxlblz_c * (1 - __pxlblz_f)\n            __pxlblz_b = __pxlblz_m * __pxlblz_f + __pxlblz_b * (1 - __pxlblz_f)\n          }\n        }\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  } else if (__pxlblz_l == 3) {\n    if (__pxlblz_v == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_u\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d = 0\n        var __pxlblz_c = 0\n        var __pxlblz_b = 0\n        __pxlblz_j = 1\n        __pxlblz_x = 0\n        __pxlblz_w = 0\n        __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n        __pxlblz_d = __pxlblz_o * (0.7) + __pxlblz_d * (1 - (0.7))\n        __pxlblz_c = __pxlblz_n * (0.7) + __pxlblz_c * (1 - (0.7))\n        __pxlblz_b = __pxlblz_m * (0.7) + __pxlblz_b * (1 - (0.7))\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  } else if (__pxlblz_l == 4) {\n    if (__pxlblz_v == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_u\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d = 0\n        var __pxlblz_c = 0\n        var __pxlblz_b = 0\n        __pxlblz_j = 1\n        __pxlblz_x = 0.2\n        __pxlblz_w = 0\n        __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n        __pxlblz_d = __pxlblz_o * (0.8) + __pxlblz_d * (1 - (0.8))\n        __pxlblz_c = __pxlblz_n * (0.8) + __pxlblz_c * (1 - (0.8))\n        __pxlblz_b = __pxlblz_m * (0.8) + __pxlblz_b * (1 - (0.8))\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  } else if (__pxlblz_l == 5) {\n    if (__pxlblz_v == 0) {\n      var __pxlblz_p = 0\n      var __pxlblz_r = clamp(x, 0, 1)\n      var __pxlblz_s = clamp(y, 0, 1)\n      if (__pxlblz_p == 0) {\n        var __pxlblz_e = __pxlblz_u\n        var __pxlblz_g = __pxlblz_r\n        var __pxlblz_h = __pxlblz_s\n        var __pxlblz_q = min(pixelCount - 1, floor(__pxlblz_h * __pxlblz_e) * __pxlblz_e + floor(__pxlblz_g * __pxlblz_e))\n        var __pxlblz_d = 0\n        var __pxlblz_c = 0\n        var __pxlblz_b = 0\n        __pxlblz_j = 1\n        __pxlblz_x = 0.4\n        __pxlblz_w = 0\n        __pxlblz_k = pixelCount\n        __pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h)\n        __pxlblz_d = __pxlblz_o * (0.6) + __pxlblz_d * (1 - (0.6))\n        __pxlblz_c = __pxlblz_n * (0.6) + __pxlblz_c * (1 - (0.6))\n        __pxlblz_b = __pxlblz_m * (0.6) + __pxlblz_b * (1 - (0.6))\n        rgb(__pxlblz_d, __pxlblz_c, __pxlblz_b)\n        return\n      }\n    }\n  }\n  rgb(0, 0, 0)\n}\n\n",
+      "fixedSource": "var __pxlblz_K = array(131072000);\nvar __pxlblz_L = array(131072000);\nvar __pxlblz_M = array(131072000);\nvar __pxlblz_a = 0;\nvar __pxlblz_D = 0;\nvar __pxlblz_k = pixelCount;\nvar __pxlblz_j = 65536;\nvar __pxlblz_x = 0;\nvar __pxlblz_t = 65536;\nvar __pxlblz_w = 0;\nvar __pxlblz_i = 13107;\nvar __pxlblz_o = 0;\nvar __pxlblz_n = 0;\nvar __pxlblz_m = 0;\nfunction __pxlblz_I() {\n__pxlblz_o = 0;\n__pxlblz_n = 0;\n__pxlblz_m = 0;\n}\nfunction __pxlblz_G(r, g, b) {\n__pxlblz_o = r;\n__pxlblz_n = g;\n__pxlblz_m = b;\n}\nfunction __pxlblz_y(delta) {\n__pxlblz_H(__pxlblz_i);\nvar scaledDelta = fx.mul(delta, __pxlblz_t);\n__pxlblz_D = fx.add(__pxlblz_D, scaledDelta);\n__pxlblz_F(scaledDelta);\n}\nfunction __pxlblz_J() {\nrgb(__pxlblz_o, __pxlblz_n, __pxlblz_m);\n}\nvar __pxlblz_E = 13107;\nvar __pxlblz_C = 0;\nfunction __pxlblz_H(v) {\n__pxlblz_E = v;\n}\nfunction __pxlblz_F(delta) {\n__pxlblz_C = fx.add(__pxlblz_C, delta);\n}\nfunction __pxlblz_z(index, x, y) {\n__pxlblz_G(fx.add(__pxlblz_E, fx.div(x, 262144)), fx.div(__pxlblz_C, 131072000), fx.div(y, 131072));\n}\nvar __pxlblz_l = 0;\nvar __pxlblz_v = 0;\nvar __pxlblz_u = 0;\nfunction beforeRender(delta) {\n__pxlblz_a = fx.mod(fx.add(__pxlblz_a, fx.div(delta, 65536000)), 65536);\n__pxlblz_v = 0;\nif (fx.lt(__pxlblz_a, 6554)) {\n__pxlblz_l = 0;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_i = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_i = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 0) ? 13107 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 6553600) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(0, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(0, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(0, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 0), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 13749));\n__pxlblz_y(delta);\n} else if (fx.lt(__pxlblz_a, 13107)) {\n__pxlblz_l = 65536;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_i = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_i = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0) ? 13749 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 6553600) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(6553600, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(6553600, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(6553600, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 15610));\n__pxlblz_y(delta);\n} else if (fx.lt(__pxlblz_a, 19661)) {\n__pxlblz_l = 131072;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_i = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_i = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 0) ? 15610 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 6553600) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(13107200, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(13107200, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(13107200, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 18510));\n__pxlblz_y(delta);\n} else if (fx.lt(__pxlblz_a, 26214)) {\n__pxlblz_l = 196608;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_i = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_i = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 0) ? 18510 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 6553600) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(19660800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(19660800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(19660800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 19661), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 22164));\n__pxlblz_y(delta);\n} else if (fx.lt(__pxlblz_a, 52429)) {\n__pxlblz_l = 262144;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_i = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_i = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 0) ? 22164 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 26214400) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(26214400, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(26214400, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(26214400, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 26214), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 36818));\n__pxlblz_y(delta);\n} else if (fx.lt(__pxlblz_a, 65536)) {\n__pxlblz_l = 327680;\n__pxlblz_B = (-(65536)|0);\n__pxlblz_A = 0;\n__pxlblz_k = max(65536, floor(fx.div(pixelCount, 65536)));\n__pxlblz_i = 13107;\n__pxlblz_j = 65536;\n__pxlblz_t = 65536;\n__pxlblz_i = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 0) ? 36818 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 13107200) ? fx.add(13107, fx.mul(26214, (fx.lt(fx.div(fx.add(52428800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 0)), 65536000), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(52428800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 0))), 65536000), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(52428800, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 52429), 65536000), 0), 0)), 65536000))), PI), 131072)))))))) : 39322));\n__pxlblz_y(delta);\n}\n__pxlblz_u = ceil(sqrt(pixelCount));\n}\nfunction render2D(index, x, y) {\nif (fx.eq(__pxlblz_l, 0)) {\nif (fx.eq(__pxlblz_v, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_u;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d;\nvar __pxlblz_c;\nvar __pxlblz_b;\n__pxlblz_j = 65536;\n__pxlblz_x = 0;\n__pxlblz_w = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\n__pxlblz_d = __pxlblz_o;\n__pxlblz_c = __pxlblz_n;\n__pxlblz_b = __pxlblz_m;\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n} else if (fx.eq(__pxlblz_l, 65536)) {\nif (fx.eq(__pxlblz_v, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_u;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d = 0;\nvar __pxlblz_c = 0;\nvar __pxlblz_b = 0;\nvar __pxlblz_f = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0) ? 13107 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 6553600) ? fx.add(13107, fx.mul(19661, (fx.lt(fx.div(fx.add(0, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0)), 13107200), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(0, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0))), 13107200), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(0, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 6554), 65536000), 0), 0)), 13107200))), PI), 131072)))))))) : 22938));\nif (fx.gt(__pxlblz_f, 0)) {\n__pxlblz_j = 65536;\n__pxlblz_x = 0;\n__pxlblz_w = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\nif (fx.eq(__pxlblz_f, 65536)) {\n__pxlblz_d = __pxlblz_o;\n__pxlblz_c = __pxlblz_n;\n__pxlblz_b = __pxlblz_m;\n} else {\n__pxlblz_d = fx.add(fx.mul(__pxlblz_o, __pxlblz_f), fx.mul(__pxlblz_d, fx.sub(65536, __pxlblz_f)));\n__pxlblz_c = fx.add(fx.mul(__pxlblz_n, __pxlblz_f), fx.mul(__pxlblz_c, fx.sub(65536, __pxlblz_f)));\n__pxlblz_b = fx.add(fx.mul(__pxlblz_m, __pxlblz_f), fx.mul(__pxlblz_b, fx.sub(65536, __pxlblz_f)));\n}\n}\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n} else if (fx.eq(__pxlblz_l, 131072)) {\nif (fx.eq(__pxlblz_v, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_u;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d = 0;\nvar __pxlblz_c = 0;\nvar __pxlblz_b = 0;\nvar __pxlblz_f = (fx.lte(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 0) ? 22938 : (fx.lt(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 6553600) ? fx.add(13107, fx.mul(19661, (fx.lt(fx.div(fx.add(6553600, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 0)), 13107200), 32768) ? fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.div(fx.mul(131072, fx.add(6553600, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 0))), 13107200), PI), 131072)))) : fx.sub(65536, fx.mul(32768, fx.sub(65536, cos(fx.div(fx.mul(fx.mul(131072, fx.sub(65536, fx.div(fx.add(6553600, fx.sub(fx.add(fx.mul(fx.sub(__pxlblz_a, 13107), 65536000), 0), 0)), 13107200))), PI), 131072)))))))) : 32768));\nif (fx.gt(__pxlblz_f, 0)) {\n__pxlblz_j = 65536;\n__pxlblz_x = 0;\n__pxlblz_w = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\nif (fx.eq(__pxlblz_f, 65536)) {\n__pxlblz_d = __pxlblz_o;\n__pxlblz_c = __pxlblz_n;\n__pxlblz_b = __pxlblz_m;\n} else {\n__pxlblz_d = fx.add(fx.mul(__pxlblz_o, __pxlblz_f), fx.mul(__pxlblz_d, fx.sub(65536, __pxlblz_f)));\n__pxlblz_c = fx.add(fx.mul(__pxlblz_n, __pxlblz_f), fx.mul(__pxlblz_c, fx.sub(65536, __pxlblz_f)));\n__pxlblz_b = fx.add(fx.mul(__pxlblz_m, __pxlblz_f), fx.mul(__pxlblz_b, fx.sub(65536, __pxlblz_f)));\n}\n}\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n} else if (fx.eq(__pxlblz_l, 196608)) {\nif (fx.eq(__pxlblz_v, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_u;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d = 0;\nvar __pxlblz_c = 0;\nvar __pxlblz_b = 0;\n__pxlblz_j = 65536;\n__pxlblz_x = 0;\n__pxlblz_w = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\n__pxlblz_d = fx.add(fx.mul(__pxlblz_o, 45875), fx.mul(__pxlblz_d, fx.sub(65536, 45875)));\n__pxlblz_c = fx.add(fx.mul(__pxlblz_n, 45875), fx.mul(__pxlblz_c, fx.sub(65536, 45875)));\n__pxlblz_b = fx.add(fx.mul(__pxlblz_m, 45875), fx.mul(__pxlblz_b, fx.sub(65536, 45875)));\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n} else if (fx.eq(__pxlblz_l, 262144)) {\nif (fx.eq(__pxlblz_v, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_u;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d = 0;\nvar __pxlblz_c = 0;\nvar __pxlblz_b = 0;\n__pxlblz_j = 65536;\n__pxlblz_x = 13107;\n__pxlblz_w = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\n__pxlblz_d = fx.add(fx.mul(__pxlblz_o, 52429), fx.mul(__pxlblz_d, fx.sub(65536, 52429)));\n__pxlblz_c = fx.add(fx.mul(__pxlblz_n, 52429), fx.mul(__pxlblz_c, fx.sub(65536, 52429)));\n__pxlblz_b = fx.add(fx.mul(__pxlblz_m, 52429), fx.mul(__pxlblz_b, fx.sub(65536, 52429)));\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n} else if (fx.eq(__pxlblz_l, 327680)) {\nif (fx.eq(__pxlblz_v, 0)) {\nvar __pxlblz_p = 0;\nvar __pxlblz_r = clamp(x, 0, 65536);\nvar __pxlblz_s = clamp(y, 0, 65536);\nif (fx.eq(__pxlblz_p, 0)) {\nvar __pxlblz_e = __pxlblz_u;\nvar __pxlblz_g = __pxlblz_r;\nvar __pxlblz_h = __pxlblz_s;\nvar __pxlblz_q = min(fx.sub(pixelCount, 65536), fx.add(fx.mul(floor(fx.mul(__pxlblz_h, __pxlblz_e)), __pxlblz_e), floor(fx.mul(__pxlblz_g, __pxlblz_e))));\nvar __pxlblz_d = 0;\nvar __pxlblz_c = 0;\nvar __pxlblz_b = 0;\n__pxlblz_j = 65536;\n__pxlblz_x = 26214;\n__pxlblz_w = 0;\n__pxlblz_k = pixelCount;\n__pxlblz_z(__pxlblz_q, __pxlblz_g, __pxlblz_h);\n__pxlblz_d = fx.add(fx.mul(__pxlblz_o, 39322), fx.mul(__pxlblz_d, fx.sub(65536, 39322)));\n__pxlblz_c = fx.add(fx.mul(__pxlblz_n, 39322), fx.mul(__pxlblz_c, fx.sub(65536, 39322)));\n__pxlblz_b = fx.add(fx.mul(__pxlblz_m, 39322), fx.mul(__pxlblz_b, fx.sub(65536, 39322)));\nrgb(__pxlblz_d, __pxlblz_c, __pxlblz_b);\nreturn;\n}\n}\n}\nrgb(0, 0, 0);\n}",
+      "modes": [
+        {
+          "fidelity": "fast",
+          "frame": [
+            0.14643305826175854,
+            0.0570082521472478,
+            0.1140165042944956,
+            0.20344131040900634,
+            0.0570082521472478,
+            0.1140165042944956
+          ],
+          "exports": {
+            "__pxlblz_show_elapsed_s": 0.25000000000000017,
+            "__pxlblz_show_mix": 0,
+            "__pxlblz_show_c0_elapsed_ms": 250,
+            "__pxlblz_show_c0_pixelCount": 0,
+            "__pxlblz_show_c0_adapt_brightness": 0,
+            "__pxlblz_show_c0_adapt_phase": 0,
+            "__pxlblz_show_c0_adapt_timeScale": 1,
+            "__pxlblz_show_c0_adapt_mirror": 0,
+            "__pxlblz_show_c0_control_sliderLevel": 0.2585786437626906,
+            "__pxlblz_show_c0_r": 0,
+            "__pxlblz_show_c0_g": 0,
+            "__pxlblz_show_c0_b": 0,
+            "__pxlblz_show_c0_level": 0.2585786437626906,
+            "__pxlblz_show_c0_elapsed": 250
+          }
+        },
+        {
+          "fidelity": "fidelity",
+          "frame": [
+            0.1477203369140625,
+            0.0573577880859375,
+            0.1147308349609375,
+            0.205078125,
+            0.0573577880859375,
+            0.1147308349609375
+          ],
+          "exports": {
+            "__pxlblz_show_elapsed_s": 16500,
+            "__pxlblz_show_mix": 0,
+            "__pxlblz_show_c0_elapsed_ms": 16384000,
+            "__pxlblz_show_c0_pixelCount": 0,
+            "__pxlblz_show_c0_adapt_brightness": 0,
+            "__pxlblz_show_c0_adapt_phase": 0,
+            "__pxlblz_show_c0_adapt_timeScale": 65536,
+            "__pxlblz_show_c0_adapt_mirror": 0,
+            "__pxlblz_show_c0_control_sliderLevel": 16997,
+            "__pxlblz_show_c0_r": 0,
+            "__pxlblz_show_c0_g": 0,
+            "__pxlblz_show_c0_b": 0,
+            "__pxlblz_show_c0_level": 16997,
+            "__pxlblz_show_c0_elapsed": 16384000
+          }
+        }
+      ]
+    }
+  ],
+  "diagnosticBaseCommit": "da1c930cf28b184dbf1c379f5b30998bacab4cf7",
+  "nominalOwnerStatus": "Uncommitted selected-time owner checkpoint. Later landed checkpoint metadata changes preserve emitted sources/frames; unavailable semantic watch binding values are not a source-byte or old-binding preservation claim."
+}

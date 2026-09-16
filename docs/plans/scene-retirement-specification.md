@@ -320,7 +320,13 @@ edit and generated-output counterexample before narrowing scope.
 
 Held appearance keys own complete values without owning time partitions or
 instances. Selected-time edits hold until the next key; whole-Clip application is
-explicit. Move translates Clip and held keys. Trim drops excluded keys and seeds
+explicit. Selected-time appearance edits require a time in the Clip's nominal
+`[startMs, startMs + durationMs)` interval; exact end and outside-bar Transition
+contribution times refuse atomically. They never map to another key time or expand
+the key interval. Whole-Clip application remains available. Legal first/last keys
+still own their inherited incoming/outgoing contribution. Jon accepted this
+boundary on 2026-09-16. Move translates Clip and held keys. Trim drops excluded
+keys and seeds
 the new start from its retained held value. Extend holds the nearest remaining
 value; it never restores discarded keys. Split creates a right Clip with retained
 appearance and the same instance, retaining left identity and incoming endpoints;

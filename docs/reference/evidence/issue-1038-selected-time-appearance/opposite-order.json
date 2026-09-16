@@ -1,0 +1,543 @@
+{
+  "base": {
+    "version": 2,
+    "id": "convertible",
+    "name": "Convertible",
+    "zones": [
+      {
+        "id": "zone",
+        "name": "Main",
+        "nominalPixelCount": 16
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "layout",
+        "name": "Full",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone"
+          ]
+        }
+      }
+    ],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 16,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "continuous",
+      "showEndMs": 1000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:zone:main",
+          "zoneId": "zone",
+          "name": "Main",
+          "rank": 0
+        }
+      ],
+      "clips": [
+        {
+          "id": "clip",
+          "instanceId": "instance",
+          "zoneId": "zone",
+          "layerId": "layer:zone:main",
+          "startMs": 0,
+          "durationMs": 1000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": [
+                    {
+                      "id": "hue",
+                      "kind": "hue",
+                      "turns": 0.1
+                    },
+                    {
+                      "id": "invert",
+                      "kind": "invert",
+                      "amount": 0.3
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "layout",
+          "startMs": 0,
+          "durationMs": 1000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [],
+      "markers": [
+        {
+          "id": "scene-marker:scene-a",
+          "timeMs": 0,
+          "name": "Opening"
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 1
+  },
+  "result": {
+    "status": "changed",
+    "record": {
+      "version": 2,
+      "id": "convertible",
+      "name": "Convertible",
+      "zones": [
+        {
+          "id": "zone",
+          "name": "Main",
+          "nominalPixelCount": 16
+        }
+      ],
+      "zoneLayouts": [
+        {
+          "id": "layout",
+          "name": "Full",
+          "zones": [],
+          "logical": {
+            "kind": "single",
+            "zoneIds": [
+              "zone"
+            ]
+          }
+        }
+      ],
+      "outputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "referenceMapId": "plane",
+        "referencePixelCount": 16,
+        "compatibility": {
+          "dimensions": [
+            2
+          ],
+          "mapClass": "continuous-surface",
+          "resolution": "variable"
+        }
+      },
+      "composition": {
+        "version": 2,
+        "executionModel": "continuous",
+        "showEndMs": 1000,
+        "sampleRemap": {
+          "repeatScale": 1
+        },
+        "patternInstances": [
+          {
+            "id": "instance",
+            "pattern": {
+              "kind": "stock",
+              "id": "TestPattern1D"
+            },
+            "patternName": "TestPattern1D",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            }
+          }
+        ],
+        "layers": [
+          {
+            "id": "layer:zone:main",
+            "zoneId": "zone",
+            "name": "Main",
+            "rank": 0
+          }
+        ],
+        "clips": [
+          {
+            "id": "clip",
+            "instanceId": "instance",
+            "zoneId": "zone",
+            "layerId": "layer:zone:main",
+            "startMs": 0,
+            "durationMs": 1000,
+            "entryPolicy": "continue",
+            "zoneSampleMode": "span",
+            "appearance": {
+              "keys": [
+                {
+                  "id": "clip:appearance:1",
+                  "timeMs": 0,
+                  "value": {
+                    "opacity": 1,
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "effects": [
+                      {
+                        "id": "hue",
+                        "kind": "hue",
+                        "turns": 0.1
+                      },
+                      {
+                        "id": "invert",
+                        "kind": "invert",
+                        "amount": 0.3
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "selected-200",
+                  "timeMs": 200,
+                  "value": {
+                    "opacity": 1,
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "effects": [
+                      {
+                        "id": "invert",
+                        "kind": "invert",
+                        "amount": 0.3
+                      },
+                      {
+                        "id": "hue",
+                        "kind": "hue",
+                        "turns": 0.1
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "transitions": [],
+        "layoutOccurrences": [
+          {
+            "id": "layout-occurrence:1",
+            "layoutId": "layout",
+            "startMs": 0,
+            "durationMs": 1000,
+            "parameters": {}
+          }
+        ],
+        "propertyTracks": [],
+        "markers": [
+          {
+            "id": "scene-marker:scene-a",
+            "timeMs": 0,
+            "name": "Opening"
+          }
+        ],
+        "groupDefinitions": [],
+        "groupOccurrences": []
+      },
+      "updatedAt": 1
+    },
+    "affectedClipIds": [
+      "clip"
+    ],
+    "affectedInstanceIds": [],
+    "affectedTransitionIds": [],
+    "affectedTrackIds": [],
+    "affectedLayoutDefinitionIds": [],
+    "affectedLayoutOccurrenceIds": [],
+    "affectedGroupDefinitionIds": [],
+    "affectedGroupOccurrenceIds": [],
+    "affectedLayerIds": [],
+    "affectedMarkerIds": [],
+    "affectedAppearanceKeyIds": [
+      "selected-200"
+    ],
+    "affectedPropertyKeyIds": [],
+    "removedIds": [],
+    "discardedControlTargets": []
+  },
+  "adjacent": {
+    "version": 2,
+    "id": "convertible",
+    "name": "Convertible",
+    "zones": [
+      {
+        "id": "zone",
+        "name": "Main",
+        "nominalPixelCount": 16
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "layout",
+        "name": "Full",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone"
+          ]
+        }
+      }
+    ],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 16,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "continuous",
+      "showEndMs": 1000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:zone:main",
+          "zoneId": "zone",
+          "name": "Main",
+          "rank": 0
+        }
+      ],
+      "clips": [
+        {
+          "id": "first",
+          "instanceId": "instance",
+          "zoneId": "zone",
+          "layerId": "layer:zone:main",
+          "startMs": 0,
+          "durationMs": 200,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": [
+                    {
+                      "id": "hue",
+                      "kind": "hue",
+                      "turns": 0.1
+                    },
+                    {
+                      "id": "invert",
+                      "kind": "invert",
+                      "amount": 0.3
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "second",
+          "instanceId": "instance",
+          "zoneId": "zone",
+          "layerId": "layer:zone:main",
+          "startMs": 200,
+          "durationMs": 800,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "selected-200",
+                "timeMs": 200,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": [
+                    {
+                      "id": "invert",
+                      "kind": "invert",
+                      "amount": 0.3
+                    },
+                    {
+                      "id": "hue",
+                      "kind": "hue",
+                      "turns": 0.1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "layout",
+          "startMs": 0,
+          "durationMs": 1000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [],
+      "markers": [
+        {
+          "id": "scene-marker:scene-a",
+          "timeMs": 0,
+          "name": "Opening"
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 1
+  },
+  "observations": [
+    {
+      "kind": "preimage",
+      "prepared": "ready",
+      "recipeEntries": [
+        {
+          "id": "instance",
+          "effectKinds": [
+            "hue",
+            "invert"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "selected",
+      "prepared": "refused",
+      "issues": [
+        {
+          "code": "unsupported-runtime-sharing",
+          "path": "composition.clips",
+          "message": "existing compiler recipe cannot represent every used Pattern instance exactly once."
+        }
+      ],
+      "recipeEntries": [
+        {
+          "id": "instance",
+          "effectKinds": [
+            "hue",
+            "invert"
+          ]
+        },
+        {
+          "id": "instance~fx1",
+          "effectKinds": [
+            "invert",
+            "hue"
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "independent-adjacent",
+      "prepared": "refused",
+      "issues": [
+        {
+          "code": "unsupported-runtime-sharing",
+          "path": "composition.clips",
+          "message": "existing compiler recipe cannot represent every used Pattern instance exactly once."
+        }
+      ],
+      "recipeEntries": [
+        {
+          "id": "instance",
+          "effectKinds": [
+            "hue",
+            "invert"
+          ]
+        },
+        {
+          "id": "instance~fx1",
+          "effectKinds": [
+            "invert",
+            "hue"
+          ]
+        }
+      ]
+    }
+  ],
+  "diagnosticBaseCommit": "da1c930cf28b184dbf1c379f5b30998bacab4cf7",
+  "nominalOwnerStatus": "Uncommitted selected-time owner checkpoint. Later landed checkpoint metadata changes preserve emitted sources/frames; unavailable semantic watch binding values are not a source-byte or old-binding preservation claim."
+}

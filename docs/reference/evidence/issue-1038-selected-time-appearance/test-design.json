@@ -1,0 +1,58 @@
+{
+  "issue": 1038,
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+  "proofRows": [
+    "MODEL",
+    "SHARING",
+    "ACTIVATION",
+    "CURVE",
+    "CONTINUITY",
+    "PARITY"
+  ],
+  "boundary": "editShowClipAppearanceV2 -> native Show codec -> public preparation -> actual native EPE importer -> Fast/Precise delivered replay",
+  "status": "Selected-time owner candidate with Jon-approved nominal [start,end) boundary; no whole1038 completion claim.",
+  "invariants": [
+    "Existing whole-Clip signatures and semantics remain unchanged; explicit selected-time retain/insert plans name one authored held value/key.",
+    "Insert seeds the complete current authored value, never sampled numeric animation; unchanged edits retain original identity and insert no redundant key. Neighboring keys are never flattened or merged.",
+    "Selected source/target Effect validation quantifies over the one selected stack; add/duplicate identity freshness still quantifies over every held stack of the selected Clip. Foreign Clip/Group identity namespaces remain independent.",
+    "Runtime payloads, other Clip/Group owners, numeric activation/keys/exact curves, Transition attachments/ramps and Show End remain unchanged; changed output is deeply unaliased.",
+    "Full candidate raw/materialized ownership, Layout, RL08\u201310 and numeric Effect/ramp compatibility remain observational; source preparation/compilation belongs to final caller adoption."
+  ],
+  "partitions": [
+    "Nominal start, existing keys400/800, insertion200/201/799/900, repeat retain, after-last held span; before start/exact end/after end and real incoming/outgoing outside-bar contributions refuse for both retain/insert. Whole-Clip remains available. Exact identity/freshness/malformed/nonfinite/no-op partitions.",
+    "All22 persisted Effect kinds with delivered EPE output; parameter aliases, colors and rounding; complete Transform/Aperture/Blink/Freeze/Strobe values, optional removal-only absence and mixed ownership.",
+    "Selected source exists only in selected span; later-only fresh-ID collisions; exact source/kind/stage/edge rejection; duplicate original animation ownership; admitted first-key reorder and unresolved opposite-order interior representation.",
+    "Ordinary and held Group shared runtime use, foreign same-ID keys/Effects, Group definitions/bindings/holds/control authority exact and deep output unaliasing.",
+    "Nonlinear instance/Clip opacity/Effect tracks; authored static fallback after activation; exact half-open numeric Effect adjacency vs invalid cross-span preimage; incoming first-key and outgoing final-span inherited contribution; numeric Transition ramps and participant final-preparation restrictions."
+  ],
+  "sequences": [
+    "Admitted native preimage -> selected edit -> literal independently authored complete-key graph -> Show/EPE reopen -> exact Fast/Precise delivered frames and nonempty exported state at selection/key/activation/contribution boundaries and loop.",
+    "Interior insert -> repeated retain -> explicit whole-Clip application; no-op and malformed identity plans preserve original record/intent identity and empty affected collections.",
+    "Shared runtime/held Group -> selected edit -> unrelated owner graph exact -> native EPE replay -> intentional nested output mutation proves source and intent unaliased.",
+    "Opposite-order interior reorder -> structurally valid native candidate -> unsupported-runtime-sharing; independently authored adjacent runs reproduce same refusal. This is unresolved representation work, not approved product limitation/output coverage."
+  ],
+  "oracles": [
+    "Literal full expected graphs, native codec and actual parseEpe source equality, fresh Precise emission and exact delivered frames/exports in both modes; expected graphs are not computed by the owner.",
+    "All affected/loss collections empty and original record identity on no-op/refusal; only one actually changed appearance key and Clip affected on changes.",
+    "Publicly prepared and compiled preimages establish supported premises; explicit unsupported candidate classifications are separate from output claims.",
+    "Measured unsplit opacity comparison pins exact observed Precise frames/exports separately from the exact candidate-versus-independent-key oracle; no widened tolerance or unsplit byte-exact claim."
+  ],
+  "tddEvidence": [
+    "First selected interior test failed because old owner refused selected-time scope; minimal extension passed that consumer plus93 existing whole-Clip tests.",
+    "All22 Effect families and complete-key identity partitions were added incrementally; opposite Effect order exposed legacy recipe variants and was minimized against independent adjacent runs.",
+    "Final accepted-boundary fivefiles280/280 (selected98 plus wholeClip/held/Property/Transition adjacent), explicit staged191/191, scoped lint/project TypeScript/diff-check and exact47 parity pass on landed ef0240 base.",
+    "Accepted boundary adds15 tests: outside nominal before/exact end/after and actual Transition pre-start/post-end contribution, both retain/insert plans, exact original/empty affected refusal and whole-Clip remains available. Accepted specification\u00a76 and Clip contract change in the same candidate."
+  ],
+  "mutationEvidence": [
+    "Five actual semantic faults are assertion-killed: change neighboring held keys; seed partial held value; inspect Effect freshness only selected stack; replace retained output key identity; adopt redundant inserted key. Source is restored after every fault.",
+    "One validation-temporary retained-ID mutation is equivalent: that temporary key ID is not emitted on retain. It was excluded, then an actual changed-output retained-ID defect was assertion-killed. No semantic survivor is hidden."
+  ],
+  "residualGaps": [
+    "Opposite Effect-order recipe variants manufacture additional cast members; native preparation keeps unsupported-runtime-sharing refusal. No recipe/compiler widening authorized. See opposite-order.json.",
+    "Keyed instance-control Freeze/Strobe candidate is structurally valid/prepared but compiler requires a static unkeyed cache span; supported unkeyed output is tested separately.",
+    "Positive participant endpoint animation plus divergent appearance retains named unsupported-transition-property-track final admission refusal; valid participant Effect ramps remain structural-only under existing unsupported ramp family.",
+    "Precise opacity at250 differs by exactly one16.16 LSB from unsplit preimage after new section origin. Records/recipes/source expressions/frames/exports are opacity-precision.json; no lowerer/compiler correction or exact-unsplit claim.",
+    "No Effect removal, Group definition edits, numeric-key authoring, UI/store/schema/compiler change or whole1038 completion. Root owns finalbase/native Astra review/authoritative final suites/landing."
+  ],
+  "acceptedDecision": "Jon approved atomic refusal outside nominal [clip.startMs,clip.startMs+clip.durationMs), including exact end and real inherited Transition contribution outside the bar, on2026-09-16. No time remapping/schema expansion."
+}
