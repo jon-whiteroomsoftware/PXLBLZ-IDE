@@ -1,0 +1,46 @@
+{
+  "client": "codex-cli 0.153.4",
+  "clientPath": "codex app-server mcpServer/tool/call",
+  "candidate": "a8d65201d8c66e590604d9d33cfbc471fa485914",
+  "protocolQualification": "OAuth bearer transport before #1048; caller-supplied operation/delivery/sequence identity",
+  "serverConfigured": true,
+  "connection": {
+    "code": "bound",
+    "show_id": "agent-discovery-proof-1051"
+  },
+  "list_patterns": {
+    "code": "read",
+    "count": 101,
+    "textMatchesStructured": true
+  },
+  "list_controller_profiles": {
+    "code": "read",
+    "count": 0
+  },
+  "actualPattern": {
+    "kind": "stock",
+    "id": "CometLoom",
+    "name": "CometLoom",
+    "exportedControlCount": 4
+  },
+  "commands": {
+    "begin_edit": "begun",
+    "create_layers": "changed",
+    "create_clips": "changed",
+    "commit_edit": "outcome"
+  },
+  "savedReceipt": {
+    "status": "applied",
+    "settlement": "saved"
+  },
+  "reopened": {
+    "route": "/PXLBLZ-IDE/studio/shows/agent-discovery-proof-1051",
+    "uiPatternButton": "Select CometLoom",
+    "persistedPatternRef": true,
+    "screenshot": {
+      "path": ".wrsp/ui-proof/1051-discovery-reopened.png",
+      "bytes": 207552,
+      "sha256": "52e2f00e5194732a6ca565317cffe228710f05cbe8c59284a422b4a8d6504788"
+    }
+  }
+}

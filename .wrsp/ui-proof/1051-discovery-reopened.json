@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1051",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-discovery-proof-1051",
+  "operation": "Real codex-cli 0.153.4 app-server MCP client listed stock Patterns, selected returned CometLoom identity, began an edit, created a Layer and Clip, and committed through the live authenticated editor. The receipt reached applied/saved. The browser navigated away and reopened the saved Show; Select CometLoom was visible and the production Show API returned the persisted Pattern reference. Established isolated Playwright authentication fixture; no simulated delivery ACKs, no user credential transfer. Protocol qualified before #1048 identity changes.",
+  "captures": [
+    ".wrsp/ui-proof/1051-discovery-reopened.png"
+  ],
+  "capturedAtCommit": "a8d65201d8c66e590604d9d33cfbc471fa485914"
+}
