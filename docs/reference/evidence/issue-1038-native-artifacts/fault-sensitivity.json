@@ -1,0 +1,26 @@
+{
+  "sourceCheckpoint": "51132e731ada113f14f0a86a1c00a4459558c758",
+  "patchEquivalentFinalbaseSource": "97f863d8cd816f4e522bab289f04ca7bb831b9a3",
+  "mutants": [
+    {
+      "name": "async-identity-assets",
+      "killed": true,
+      "exit": 1
+    },
+    {
+      "name": "second-compile",
+      "killed": true,
+      "exit": 1
+    },
+    {
+      "name": "obsolete-success",
+      "killed": true,
+      "exit": 1
+    },
+    {
+      "name": "mutable-owned-assets",
+      "killed": true,
+      "exit": 1
+    }
+  ]
+}

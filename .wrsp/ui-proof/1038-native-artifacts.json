@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/prepared-stage-synthetic?show-v2-pilot=1&capture",
+  "operation": "Qualified native .pxlshow/.epe from the same displayed advanced31-second held-repeat/shared-Restart Stage bundle. Native reopening succeeded1869bytes with zero API writes. Existing Fast/Precise transport captures at17seconds into later Layout passed. Desktop1440x1000 and narrow390x844 including scroll-accessible native artifact controls inspected; no console errors or horizontal overflow. IAB was connected but lacked documented isolated-cookie admission; declared separate-context repo Playwright preserved the user session.",
+  "captures": [
+    ".wrsp/ui-proof/1038-native-artifacts-desktop.png",
+    ".wrsp/ui-proof/1038-native-artifacts-narrow.png",
+    ".wrsp/ui-proof/1038-native-artifacts-narrow-controls.png"
+  ],
+  "capturedAtCommit": "97f863d8cd816f4e522bab289f04ca7bb831b9a3"
+}

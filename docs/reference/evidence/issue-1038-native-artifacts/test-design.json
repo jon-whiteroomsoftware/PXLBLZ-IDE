@@ -18,7 +18,7 @@
       "PARITY"
     ]
   },
-  "base": "67de72bd7e5e6ca536927984fe36169cbf248c57",
+  "base": "6ed32778831b8a8a8667815b17161f7c124c2c41",
   "invariants": [
     "One owned immutable record/assets capture produces the Stage artifact and both native portable files.",
     "Original dependency references serve eligibility only; no semantic reread or second compile occurs.",
@@ -51,9 +51,9 @@
     "Coordinator owns exact-tip final suites, native candidate review and landing."
   ],
   "qualification": {
-    "focused": "106/106 passed across seven native/Stage/pilot/store/component focused files; nine native artifact tests and eleven route qualification tests.",
-    "static": "Project TypeScript and scoped ESLint passed without warnings; source parity corpus47 unchanged.",
-    "browser": "Pending fresh committed desktop/narrow own-runtime proof.",
+    "focused": "Finalbase106/106 across seven files; nine native artifact consumers and eleven route tests. Changed authenticated Stage/native-artifact flow1/1 PASS.",
+    "static": "Finalbase project TypeScript/scoped ESLint PASS; source parity47 unchanged; source suffix patch-equivalent after rebase.",
+    "browser": "Fresh actual desktop1440x1000/narrow390x844 capture at committed source97f863d8: native Reopen artifacts success1869bytes, zero API writes, console/errors/overflow empty; Fast/Precise transport captures17s with2x125ms frames, failures empty. Three committed captures under .wrsp/ui-proof/1038-native-artifacts*.png. IAB connection available but documented API lacks isolated synthetic-cookie admission; declared separate-context repo Playwright fallback preserves user session.",
     "faultSensitivity": "Four consumer-killed semantic faults: async identity-asset planner reread, second compilation, obsolete success publication, mutable owned nested assets. Original bytes restored; focused106 green again."
   }
 }

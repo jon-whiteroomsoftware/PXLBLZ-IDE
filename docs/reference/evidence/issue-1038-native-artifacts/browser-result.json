@@ -1,0 +1,26 @@
+{
+  "errors": [],
+  "writes": [],
+  "sourceId": "prepared-stage-synthetic",
+  "fast": {
+    "frames": 2,
+    "deltaMs": 125,
+    "startMs": 17000,
+    "names": [
+      "issue1038-prepared-fast-00000.png",
+      "issue1038-prepared-fast-00001.png"
+    ],
+    "failures": []
+  },
+  "precise": {
+    "frames": 2,
+    "deltaMs": 125,
+    "startMs": 17000,
+    "names": [
+      "issue1038-prepared-precise-00000.png",
+      "issue1038-prepared-precise-00001.png"
+    ],
+    "failures": []
+  },
+  "overflows": []
+}
