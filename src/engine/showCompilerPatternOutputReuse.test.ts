@@ -1,5 +1,6 @@
-import { loadPattern } from './loadPattern'
+import { loadPattern, nativeDimension } from './loadPattern'
 import { compileShow, type ShowCompileOptions, type ShowRecipe } from './showCompiler'
+import { createFastReplayRuntime } from './fastReplay'
 
 const ZONES = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 7 }] }]
 
@@ -100,6 +101,40 @@ describe('Show compatible Pattern output reuse (#518)', () => {
     const recipe = repeatedPlacementRecipe()
 
     expect(renderFrame(recipe)).toEqual(renderFrame(recipe, { patternOutputReuse: false }))
+  })
+
+  it('recomputes a selected output-reuse cache after Restart restores member state (#1037)', () => {
+    const recipe = repeatedPlacementRecipe(`
+export var phase = 1
+export function beforeRender(delta) { phase = phase + delta / 1000 }
+export function render(index) {
+  var x = index / pixelCount
+  var a = sin(x * 6.28318 + phase)
+  var b = cos(x * 12.56636 - phase)
+  var c = wave(x + a * 0.125)
+  rgb(a * a, b * b, c)
+}
+`)
+    recipe.restartEvents = [{ atMs: 500, clipId: 'shared' }]
+    const selected = compileShow(recipe, {})
+    const independent = compileShow(recipe, {}, { patternOutputReuse: false })
+    expect(selected.summary.specializations.patternOutputReuse.selectedGroupCount).toBe(1)
+
+    const replay = (artifact: ReturnType<typeof compileShow>) => createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: nativeDimension(artifact.metadata.renderFns),
+    }, {
+      randomSeed: 1037,
+      mapPoints: Array.from({ length: 8 }, (_, index) => ({ sample: [index / 7, 0], pos: [index / 7, 0] })),
+    }).advanceTo(600, { stepMs: 1, forceFullIntermediateRender: true })
+    const selectedResult = replay(selected)
+    const independentResult = replay(independent)
+
+    expect(Array.from(selectedResult.frame)).toEqual(Array.from(independentResult.frame))
+    expect(selectedResult.exports.__pxlblz_show_c0_phase).toEqual(independentResult.exports.__pxlblz_show_c0_phase)
+    expect(Number(selectedResult.exports.__pxlblz_show_c0_phase)).toBeLessThan(1.2)
   })
 
   it('shares one local-index output across equal-size physical Zones', () => {

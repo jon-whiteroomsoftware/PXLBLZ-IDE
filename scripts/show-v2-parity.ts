@@ -155,9 +155,11 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
     refusalMessages: sortedUnique(conversion.issues.map(issue => `${issue.path}: ${issue.message}`)),
   }
   if (!lookup) throw new Error('Exact source lookup unexpectedly unavailable.')
+  const libraries = librarySources(input.fixture)
   const preparation = prepareShowV2ForCompile(
     conversion.record,
     sourceLookupWithFlatProjection(lookup, conversion.report.flatProjectionMappings),
+    { libraries },
   )
   if (preparation.status === 'refused') return {
     ...base,
@@ -165,7 +167,6 @@ function runEntry(input: { corpus: CorpusEntry['corpus']; corpusId: string; show
     refusalCodes: sortedUnique(preparation.issues.map(issue => issue.code)),
     refusalMessages: sortedUnique(preparation.issues.map(issue => `${issue.path}: ${issue.message}`)),
   }
-  const libraries = librarySources(input.fixture)
   const v2Recipe = preparation.recipe
   let v1Recipe: ReturnType<typeof showRecordToCompileRecipe>
   let v1: GeneratedShowArtifact

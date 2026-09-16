@@ -182,6 +182,7 @@ import {
   SHOW_MAX_OUTPUT_PIXELS,
   type ShowVmResourceLedger,
 } from './showVmResourceLedger'
+import type { ShowPatternRestartPlan } from './showPatternRestartPlan'
 import type { ShowArtifactAttribution } from './patternAttribution'
 
 export interface ShowClipRecipe {
@@ -413,6 +414,19 @@ export interface ShowRoutedSceneSequenceRecipe {
 export interface ShowRestartEventRecipe {
   atMs: number
   clipId: string
+}
+
+export class ShowRestartEligibilityError extends Error {
+  readonly clipId: string
+  readonly plan: Extract<ShowPatternRestartPlan, { status: 'refused' }>
+
+  constructor(clipId: string, plan: Extract<ShowPatternRestartPlan, { status: 'refused' }>) {
+    const location = plan.location ? ` at ${plan.location.line}:${plan.location.column}` : ''
+    super(`compileShow cannot fully reset Pattern state for clip "${clipId}": ${plan.reason}${location}: ${plan.message}`)
+    this.name = 'ShowRestartEligibilityError'
+    this.clipId = clipId
+    this.plan = plan
+  }
 }
 
 export interface ShowRoutingLayoutRecipe {
@@ -1050,8 +1064,8 @@ export interface CompiledMember {
   rollingRefreshRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>
   vignetteScalarField?: SelectedScalarField
   resettable: boolean
-  fullResettable: boolean
   resetAssignments: string[]
+  restartPlan: ShowPatternRestartPlan
   slotOwnerCount: number
   slotOwnerAdaptations: ShowClipAdaptation[]
 }
@@ -2267,6 +2281,11 @@ export function compileShow(
   const patternSlotSharing = (recipe.restartEvents?.length ?? 0) > 0
     ? 'none'
     : requestedPatternSlotSharing === 'auto' ? 'none' : requestedPatternSlotSharing
+  // Restart owns one stable machine per effective Pattern instance. Generated
+  // output-reuse prepasses recompute after the scheduler each frame.
+  // Transition snapshots belong to their Transition and intentionally retain
+  // the already-captured image across a live member Restart. Authored member
+  // capture policies are refused; coordinate snapshots have reset assignments.
   const patternOutputReuse = options.patternOutputReuse ?? true
   const scalarFieldCaching = options.scalarFieldCaching ?? true
   const contentKeyConditionalEvaluation = options.contentKeyConditionalEvaluation ?? true
@@ -2388,6 +2407,20 @@ export function compileShow(
   for (const member of members) {
     const snapshots = memberCoordinateTransformSnapshotDeclarations(member)
     if (snapshots.length > 0) member.code = `${member.code.trim()}\n${snapshots.join('\n')}`
+  }
+  // Restart baselines are emitted only for effective instances that actually
+  // own a Restart event. This preserves byte-for-byte output for ordinary
+  // Shows and captures once, after every member declaration initializes but
+  // before the artifact can invoke any execution callback.
+  const restartClipIds = new Set((expandedRecipe.restartEvents ?? []).map(event => event.clipId))
+  for (const member of members) {
+    if (!restartClipIds.has(member.id)) continue
+    if (member.restartPlan.status === 'refused') {
+      throw new ShowRestartEligibilityError(member.id, member.restartPlan)
+    }
+    if (member.restartPlan.captureDeclarations.length > 0) {
+      member.code = `${member.code.trim()}\n${member.restartPlan.captureDeclarations.join('\n')}`
+    }
   }
   let patternSlotRuntimePlan: CompiledPatternSlotRuntimePlan | null = null
   if (patternSlotSharing === 'force' && expandedRecipe.routedSceneSequence) {
@@ -4969,8 +5002,7 @@ function emitRoutedSceneSequenceShowCode(
   const continuityMembers = deterministicLoopReset ? [...continuityWindowByMember.keys()] : []
   const continuityMemberSet = new Set(continuityMembers)
   const advancedFlag = (member: CompiledMember) => `${member.prefix}_advanced_this_frame`
-  const fullMemberResetLines = (member: CompiledMember) => [
-    ...member.resetAssignments,
+  const memberRuntimeResetLines = (member: CompiledMember) => [
     ...memberCoordinateTransformResetAssignments(member),
     `${member.elapsedName} = ${member.adaptation.timeOffsetMs}`,
     ...(member.usesTime ? [`${member.elapsedSecondsName} = ${member.adaptation.timeOffsetMs / 1_000}`] : []),
@@ -4982,8 +5014,17 @@ function emitRoutedSceneSequenceShowCode(
         ]
       : []),
   ]
+  const legacyMemberResetLines = (member: CompiledMember) => [
+    ...member.resetAssignments,
+    ...memberRuntimeResetLines(member),
+  ]
+  const restartMemberResetLines = (member: CompiledMember) => [
+    ...(member.restartPlan.status === 'ready' ? member.restartPlan.restoreAssignments : []),
+    ...memberRuntimeResetLines(member),
+  ]
+  const restartClipIds = new Set((emissionOptions.restartEvents ?? []).map(event => event.clipId))
   const loopResetLines = members.flatMap((member) => [
-    ...fullMemberResetLines(member),
+    ...(restartClipIds.has(member.id) ? restartMemberResetLines(member) : legacyMemberResetLines(member)),
     ...(member.slotOwnerCount > 1
       ? [
           `${member.prefix}_slot_owner = -1`,
@@ -4995,7 +5036,7 @@ function emitRoutedSceneSequenceShowCode(
   for (const event of emissionOptions.restartEvents ?? []) {
     const member = memberById.get(event.clipId)
     if (!member) throw new Error(`compileShow Restart event references missing compiled clip "${event.clipId}".`)
-    if (!member.fullResettable) throw new Error(`compileShow cannot fully reset Pattern state for clip "${event.clipId}".`)
+    if (member.restartPlan.status !== 'ready') throw new ShowRestartEligibilityError(event.clipId, member.restartPlan)
     restartEventsByMember.set(member, [...(restartEventsByMember.get(member) ?? []), event])
   }
   for (const events of restartEventsByMember.values()) events.sort((left, right) => left.atMs - right.atMs)
@@ -5007,7 +5048,7 @@ function emitRoutedSceneSequenceShowCode(
     `var ${member.prefix}_restart_delta = 0`,
   ])
   const restartResetFunctions = restartMembers.map(member => `function ${member.prefix}_restart() {
-${indentBlock(fullMemberResetLines(member).join('\n'), 2)}
+${indentBlock(restartMemberResetLines(member).join('\n'), 2)}
 }`)
   const restartCrossingPrelude = restartMembers.length === 0 ? '' : `var __pxlblz_show_restart_previous_s = __pxlblz_show_elapsed_s
   var __pxlblz_show_restart_wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${totalMs / 1_000}`

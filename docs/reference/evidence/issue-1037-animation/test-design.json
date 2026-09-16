@@ -4,7 +4,8 @@
     "Property activation is half-open, one effective instance target has at most one active authored owner, and Group materialization participates in sole-user and conflict decisions",
     "Clip-owned tracks follow move, trim, extend and split; instance-owned tracks follow only a sole effective user and copy/filter reports exact affected and discarded targets",
     "Insert Time holds the exact boundary value and resumes the remaining authored curve after one global shift without resetting, cloning or double-shifting a shared runtime",
-    "Restart fires once at first contribution, advances every crossed scheduler slice under that slice's complete bindings, fully resets admitted Pattern-owned state and elapsed clocks on the existing shared compiler member, then ordinary setup reapplies authored controls and adaptations; unsupported function-binding state refuses",
+    "Restart fires once at first contribution, advances every crossed scheduler slice under that slice's complete bindings, restores a once-captured scalar baseline and private clocks on the existing shared compiler member, then ordinary setup reapplies authored controls and adaptations; unsupported state refuses",
+    "Baseline capture occurs after all member declarations and before callbacks in every eligible representation, stays private, counts against the persistent-global limit and is never recaptured; deterministic-loop uses it only for Restart-enabled members",
     "Conversion and lowering keep v1 persistence closed and preserve every unrelated legacy recipe/source/output exactly"
   ],
   "partitions": [
@@ -12,7 +13,9 @@
     "Activation start, interior, exclusive end, inactive gap, incoming pre-roll and outgoing contribution",
     "Clip, instance time-scale, instance control, appearance, Transform, Aperture, Effect, Layout split-position and Show repeat-scale targets",
     "Ordinary Clips, shared Clips, independent instances and Group-materialized occurrences",
-    "Restart at time zero, nominal entry, incoming contribution, simultaneous shared entries, one frame crossing multiple distinct entries, intervening hold, Transition and hidden-continuity slices, Show loop and cold replay; ordinary functions, reassigned declared function bindings, and shadowed local writes",
+    "Restart at time zero, nominal entry, incoming contribution, simultaneous shared entries, one frame crossing multiple distinct entries, intervening hold, Transition and hidden-continuity slices, Show loop and cold replay; ordinary functions, reassigned declared function bindings, and parameter, block, loop and local shadows",
+    "Forward-dependent and uninitialized scalar baselines, repeated declarations, repeated Restart, async/generator refusal, implicit state, arrays, palettes, dynamic calls and unknown runtime facilities",
+    "Conventional routed and score-selected emission, Restart-routed flat records, no-Restart continuous-flat records, selected output reuse and Transition-owned snapshot capture",
     "Accepted exact edits, half-open adjacency, overlapping-owner refusal, invalid/unsafe Insert Time and unresettable Pattern refusal"
   ],
   "sequences": [
@@ -29,7 +32,9 @@
     "Complete immutable v2 records validate after accepted edits; refusals return the complete original record and named reason",
     "Public evaluator values and compiler-emitted Fast/Fidelity values match retained source-curve evaluation at boundaries and interiors",
     "Serialized provisional v2 records reopen with exact descriptors while the v1 JSON schema and generated persisted-v1 TypeScript schema reject the v2-only field",
-    "Reopened generated .epe runtime exports prove private state and elapsed reset, authored control reapplication, one compiled shared member and cold-replay equality",
+    "Reopened generated .epe runtime exports prove captured private state and elapsed reset, authored control reapplication, one compiled shared member, deterministic-loop agreement and cold-initializer equality",
+    "Public preparation with resolved Libraries returns typed unsupported-restart diagnostics from the final compile path; the 47-record census distinguishes source eligibility, representation eligibility, resource blockers and all-Restart stress",
+    "Selected output-reuse artifacts recompute after Restart while Transition-owned snapshots retain their authored held image and the live member resets",
     "The pinned parity harness accounts for all 47 records, measures the accepted retired-silent-runtime differences, and keeps every unrelated recipe/source/output/state comparison exact",
     "Targeted Show-authoring mutation report kills every selected curve-offset, Insert boundary, Restart coalescing and overlap fault"
   ],
@@ -38,7 +43,9 @@
     "Wrong retained source offset after successive edits",
     "Inclusive activation end or double shift of an instance track",
     "Restart at nominal start instead of incoming contribution, collapse of distinct crossed boundaries, repeated held-time reset or duplicate shared runtime",
-    "Clock-only reset that leaves private state, full reset that clears authored controls, or approximate reset of unsupported initial state",
+    "Clock-only reset that leaves private state, initializer replay that reads mutated forward dependencies, baseline recapture after execution, full reset that clears authored controls, or approximate reset of unsupported initial state",
+    "Block-local or loop-local shadow hides a later write to a function or implicit top-level binding, or a local spelling is mistaken for a stateful builtin",
+    "Baseline omitted from score emission, persistent-global accounting, deterministic-loop reset or the public Library-bundled preparation path",
     "Reset eligibility accepts reassignment of a declared function binding because scalar declarations alone appear reconstructible, or rejects a same-spelled local shadow without resolving its lexical owner",
     "Overlapping instance target admitted because track order or exact adjacency is mishandled",
     "Incoming legacy Scene owner activated during outgoing pre-roll and rejected by the strict conflict validator",
@@ -56,6 +63,6 @@
   "residualGaps": [
     "#1038 owns duplicate, Make Independent, Replace and Group occurrence authoring integration around these pure owners",
     "#1044/#1039 own history, provider readback, adoption and production route proof",
-    "Coordinator owns final committed-tip suites, cross-family review, landing and publication"
+    "Coordinator owns final committed-tip suites, the authorized native Astra Medium review, landing and publication"
   ]
 }

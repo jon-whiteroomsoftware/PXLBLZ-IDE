@@ -14,7 +14,7 @@ import type { MapPoint } from './maps/types'
 import type { ShowRecord } from './personalContentRecords'
 
 const SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render(index) { rgb(index / pixelCount, 0.25, 0.75) }'
-const STATEFUL_SOURCE = 'export var calls = 0; export var elapsed = 0; export function beforeRender(delta) { calls = calls + 1; elapsed = elapsed + delta / 1000 } export function render(index) { rgb(elapsed, calls / 100, index / pixelCount) }'
+const STATEFUL_SOURCE = 'export var saved = calls || 0; export var calls = 0; export var elapsed = 0; export function beforeRender(delta) { calls = calls + 1; elapsed = elapsed + delta / 1000 } export function render(index) { rgb(elapsed, calls / 100, saved) }'
 const COORDINATE_SOURCE = 'export var calls = 0; export var elapsed = 0; export function beforeRender(delta) { calls = calls + 1; elapsed = elapsed + delta / 1000 } export function render2D(index, x, y) { rgb(x, elapsed, calls / 100) }'
 const OUT_SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render2D(index, x, y) { rgb(1, x * 0.25, y * 0.25) }'
 const IN_SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render2D(index, x, y) { rgb(x * 0.25, y * 0.25, 1) }'
@@ -184,6 +184,30 @@ describe('lowerShowCompositionV2ForCompile', () => {
       expect(atLandmarks.frame[1]).toBeCloseTo(0.1)
       expect(atLandmarks.frame[4]).toBeCloseTo(0.1)
     }
+  })
+
+  it('selects the existing routed global-section representation for a flat Restart record', () => {
+    const source = flatV1Show(true)
+    const flatLookup = { byCellId: { 'cell-a': STATEFUL_SOURCE, 'cell-b': STATEFUL_SOURCE } }
+    const converted = convertShowRecordV1ToV2(source, flatLookup)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const [outgoing, incoming] = converted.record.composition.clips
+    incoming.instanceId = outgoing.instanceId
+    incoming.entryPolicy = 'restart'
+    converted.record.composition.patternInstances = converted.record.composition.patternInstances
+      .filter(instance => instance.id === outgoing.instanceId)
+    const lookup = {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(converted.record.composition.patternInstances.map(instance => [instance.id, STATEFUL_SOURCE])),
+    }
+
+    const prepared = prepareShowV2ForCompile(converted.record, lookup)
+    expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
+    if (prepared.status !== 'ready') return
+    expect(prepared.provenance.route).toBe('global-sections')
+    expect(prepared.recipe.restartEvents).toEqual([{ atMs: 500, clipId: 'cell-a' }])
+    expect(() => compileShow(prepared.recipe, LIBRARIES)).not.toThrow()
   })
 
   it.each(['fast', 'fidelity'] as const)('lowers an occurrence-owned retained split-position curve through routed %s output', fidelity => {
@@ -393,10 +417,165 @@ describe('lowerShowCompositionV2ForCompile', () => {
     expect(scalar(after.exports[`${prefix}_calls`])).toBeLessThan(beforeCalls)
     expect(scalar(after.exports[`${prefix}_elapsed`])).toBeLessThan(0.03)
     expect(scalar(after.exports[`${prefix}_elapsed`])).toBeLessThan(beforeElapsed)
+    expect(scalar(after.exports[`${prefix}_saved`])).toBe(0)
     const cold = createFastReplayRuntime(preparedReplay, { mapPoints: MAP, randomSeed: 1037, fidelity })
       .advanceTo(410, { stepMs: 1 })
     expect(cold.exports).toEqual(after.exports)
     expect(Array.from(cold.frame)).toEqual(Array.from(after.frame))
+  })
+
+  it.each((['fast', 'fidelity'] as const).flatMap(fidelity => (
+    (['live', 'stepped'] as const).flatMap(clock => ([
+      { fidelity, clock, transition: 'cut' as const },
+      { fidelity, clock, transition: 'snapshot-live' as const },
+    ]))
+  )))(
+    'reopens an .epe whose $clock restarted member matches an independently cold member through $transition in $fidelity mode',
+    ({ fidelity, clock, transition }) => {
+      const adaptation = clock === 'stepped' ? { steppedClock: { stepMs: 50 } } : undefined
+      const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 7 }] }]
+      const artifact = compileShow({
+        clips: [
+          { id: 'restarted', source: STATEFUL_SOURCE, adaptation },
+          { id: 'cold', source: STATEFUL_SOURCE, adaptation },
+        ],
+        zones,
+        routingLayouts: [{ id: 'default', name: 'Default', zones }],
+        routedSceneSequence: { scenes: [
+          {
+            holdMs: 400,
+            placements: [{ zoneName: 'main', clipId: 'restarted', stackOrder: 0 }],
+            transitionOut: transition === 'cut'
+              ? { kind: 'cut', durationMs: 0 }
+              : { kind: 'crossfade', durationMs: 100, crossfadePolicy: 'snapshot-live' },
+          },
+          {
+            holdMs: 100,
+            placements: [
+              { zoneName: 'main', clipId: 'restarted', stackOrder: 0 },
+              { zoneName: 'main', clipId: 'cold', stackOrder: 1 },
+            ],
+          },
+        ] },
+        restartEvents: [{ atMs: 400, clipId: 'restarted' }],
+        loopDurationMs: transition === 'cut' ? 500 : 600,
+      }, LIBRARIES, { patternSlotSharing: 'none' })
+      const reopened = parseEpe(buildShowEpeExport(flatV1Show(false), artifact.code).text)
+      const result = createFastReplayRuntime({
+        code: reopened.src,
+        fxCode: artifact.fxCode,
+        metadata: artifact.metadata,
+        dimension: nativeDimension(artifact.metadata.renderFns),
+      }, { mapPoints: MAP, randomSeed: 1037, fidelity }).advanceTo(410, { stepMs: 1 })
+      const scalar = (value: unknown) => Number(value) / (fidelity === 'fidelity' ? 65_536 : 1)
+      const [restarted, cold] = artifact.summary.clips
+
+      for (const binding of ['saved', 'calls', 'elapsed']) {
+        expect(scalar(result.exports[`${restarted.prefix}_${binding}`])).toBeCloseTo(
+          scalar(result.exports[`${cold.prefix}_${binding}`]),
+        )
+      }
+    },
+  )
+
+  it.each(['fast', 'fidelity'] as const)(
+    'reopens an .epe whose forward-dependent Restart baseline survives a deterministic loop in %s mode',
+    fidelity => {
+      const forwardSource = 'export var saved = calls || 0; export var calls = 0; export var elapsed = 0; export function beforeRender(delta) { if (delta > 0) { calls = calls + 1; elapsed = elapsed + delta / 1000 } } export function render(index) { rgb(elapsed, calls / 100, saved) }'
+      const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 7 }] }]
+      const artifact = compileShow({
+        clips: [{ id: 'restarted', source: forwardSource }],
+        zones,
+        routingLayouts: [{ id: 'default', name: 'Default', zones }],
+        routedSceneSequence: { scenes: [{
+          holdMs: 200,
+          placements: [{ zoneName: 'main', clipId: 'restarted' }],
+        }] },
+        restartEvents: [{ atMs: 150, clipId: 'restarted' }],
+        loopDurationMs: 200,
+        deterministicLoopReset: true,
+      }, LIBRARIES, { patternSlotSharing: 'none' })
+      const reopened = parseEpe(buildShowEpeExport(flatV1Show(false), artifact.code).text)
+      const preparedReplay = {
+        code: reopened.src,
+        fxCode: artifact.fxCode,
+        metadata: artifact.metadata,
+        dimension: nativeDimension(artifact.metadata.renderFns),
+      }
+      const afterLoop = createFastReplayRuntime(preparedReplay, { mapPoints: MAP, randomSeed: 1037, fidelity })
+        .advanceLive(210)
+      const cold = createFastReplayRuntime(preparedReplay, { mapPoints: MAP, randomSeed: 1037, fidelity })
+        .advanceLive(10)
+      const prefix = artifact.summary.clips[0].prefix
+
+      Array.from(afterLoop.frame).forEach((value, index) => {
+        expect(value).toBeCloseTo(cold.frame[index], 3)
+      })
+      expect(afterLoop.exports[`${prefix}_saved`]).toEqual(cold.exports[`${prefix}_saved`])
+      expect(afterLoop.exports[`${prefix}_saved`]).toBe(0)
+      expect(afterLoop.exports[`${prefix}_calls`]).toEqual(cold.exports[`${prefix}_calls`])
+      expect(Math.abs(
+        Number(afterLoop.exports[`${prefix}_elapsed`]) - Number(cold.exports[`${prefix}_elapsed`]),
+      )).toBeLessThanOrEqual(fidelity === 'fidelity' ? 1 : 1e-9)
+    },
+  )
+
+  it.each([
+    ['implicit persistent state', 'export var frame = 0\nexport function beforeRender(delta) { hidden = frame }\nexport function render(i) { rgb(frame, 0, 0) }', 'implicit-persistent-binding'],
+    ['runtime array state', 'export var state\nexport function beforeRender(delta) { state = array(2) }\nexport function render(i) { rgb(0, 0, 0) }', 'array-or-object-state'],
+    ['persistent palette state', 'export var sample = 0\nexport function beforeRender(delta) { setPalette(frequencyData) }\nexport function render(i) { paint(sample) }', 'unsupported-runtime-facility'],
+  ])('returns a typed Restart refusal for %s before v2 adoption', (_label, source, reason) => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade', 'live-live'))
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const [outgoing, incoming] = converted.record.composition.clips
+    incoming.instanceId = outgoing.instanceId
+    incoming.entryPolicy = 'restart'
+    converted.record.composition.patternInstances = converted.record.composition.patternInstances
+      .filter(instance => instance.id === outgoing.instanceId)
+
+    expect(prepareShowV2ForCompile(converted.record, {
+      byCellId: {},
+      byPatternInstanceId: { [outgoing.instanceId]: source },
+      stageDimension: 2,
+    })).toMatchObject({
+      status: 'refused',
+      issues: [{
+        code: 'unsupported-restart',
+        path: 'composition.clips[1]',
+        message: expect.stringContaining(reason),
+      }],
+    })
+  })
+
+  it.each([
+    {
+      label: 'scalar Library state',
+      library: 'var phase = 1\nfunction next() { phase = phase + 1; return phase }',
+      expectedStatus: 'ready',
+    },
+    {
+      label: 'array Library state',
+      library: 'var state\nfunction next() { state = array(2); return state[0] }',
+      expectedStatus: 'refused',
+    },
+  ])('plans Restart against bundled $label through the public preparation seam', ({ library, expectedStatus }) => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade', 'live-live'))
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const [outgoing, incoming] = converted.record.composition.clips
+    incoming.instanceId = outgoing.instanceId
+    incoming.entryPolicy = 'restart'
+    converted.record.composition.patternInstances = converted.record.composition.patternInstances
+      .filter(instance => instance.id === outgoing.instanceId)
+    const source = 'export var sample = 0\nexport function beforeRender(delta) { sample = Blz.next() }\nexport function render(i) { rgb(sample, 0, 0) }'
+    const result = prepareShowV2ForCompile(converted.record, {
+      byCellId: {}, byPatternInstanceId: { [outgoing.instanceId]: source }, stageDimension: 2,
+    }, { libraries: { Blz: library } })
+
+    expect(result.status).toBe(expectedStatus)
+    if (result.status === 'ready') expect(() => compileShow(result.recipe, { Blz: library })).not.toThrow()
+    else expect(result.issues).toEqual([expect.objectContaining({ code: 'unsupported-restart' })])
   })
 
   it.each(['fast', 'fidelity'] as const)(

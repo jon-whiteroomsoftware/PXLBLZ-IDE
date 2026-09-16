@@ -15,7 +15,7 @@ import type {
 } from './personalContentRecords'
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { validateShowComposition } from './showCompositionModel'
-import type { ShowRecipe } from './showCompiler'
+import { compileShow, ShowRestartEligibilityError, type ShowRecipe } from './showCompiler'
 import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import {
   validateShowRecordV2,
@@ -64,6 +64,10 @@ export type ShowV2CompilePreparation =
   | { status: 'ready'; recipe: ShowRecipe; provenance: ShowV2CompileProvenance }
   | { status: 'refused'; issues: ShowV2CompilePreparationIssue[] }
 
+export interface ShowV2CompilePreparationOptions {
+  libraries?: Record<string, string>
+}
+
 type PreparationRoute = ShowV2CompileProvenance['route']
 
 interface ResolvedShowV2CompileContext {
@@ -89,7 +93,9 @@ interface ResolvedLowering {
 export function prepareShowV2ForCompile(
   record: ShowRecordV2,
   lookup: ShowCompileRecipeSourceLookup,
+  options: ShowV2CompilePreparationOptions = {},
 ): ShowV2CompilePreparation {
+  const libraries = options.libraries ?? {}
   const resolved = resolveAndLowerShowV2(record, lookup)
   if ('issues' in resolved) return { status: 'refused', issues: resolved.issues }
   const { context, lowered } = resolved
@@ -130,6 +136,35 @@ export function prepareShowV2ForCompile(
       return { status: 'refused', ...refuse('unsupported-runtime-sharing', 'composition.clips', 'Restart event has no matching compiled Pattern instance.') }
     }
     recipe.restartEvents = restartEvents.map(event => ({ atMs: event.atMs, clipId: event.clipId! }))
+    try {
+      // Adoption and final emission intentionally use the same compiler path:
+      // bundled Libraries, transforms, generated runtime state and selected
+      // artifact representation cannot produce a second eligibility answer.
+      compileShow(recipe, libraries)
+    } catch (error) {
+      const clipId = error instanceof ShowRestartEligibilityError ? error.clipId : undefined
+      const instanceId = clipId
+        ? lowered.lookup.instanceIdByCellId?.[clipId] ?? clipId
+        : undefined
+      const clipIndex = instanceId
+        ? context.record.composition.clips.findIndex(candidate => (
+            runtimeInstanceId(context, candidate) === instanceId && candidate.entryPolicy === 'restart'
+          ))
+        : -1
+      const detail = error instanceof ShowRestartEligibilityError
+        ? `${error.plan.reason}${error.plan.location ? ` at source ${error.plan.location.line}:${error.plan.location.column}` : ''}: ${error.plan.message}`
+        : error instanceof Error ? error.message : String(error)
+      return {
+        status: 'refused',
+        ...refuse(
+          'unsupported-restart',
+          clipIndex >= 0 ? `composition.clips[${clipIndex}]` : 'composition.clips',
+          instanceId
+            ? `Restart cannot restore Pattern instance "${instanceId}": ${detail}`
+            : `Restart could not prepare the compiled Pattern artifact: ${detail}`,
+        ),
+      }
+    }
   }
   return {
     status: 'ready',
@@ -405,8 +440,20 @@ function resolveShowV2CompileContext(
       return refuse('unsupported-track-activation', `composition.propertyTracks[${index}]`, `property track "${track.id}" activation does not intersect its target Clip.`)
     }
   }
-  const flatEligible = composition.executionModel === 'continuous' && canLowerToFlat(record)
-  if (composition.clips.some(clip => clip.zoneSampleMode !== 'span') && !flatEligible) {
+  // Restart scheduling exists in the routed Scene emitter. A record that is
+  // otherwise flat-compatible already has an equivalent global-section
+  // lowering, so select it only for the Restart-bearing case; ordinary flat
+  // records retain their existing representation and bytes.
+  const flatEligible = composition.executionModel === 'continuous'
+    && !composition.clips.some(clip => clip.entryPolicy === 'restart')
+    && canLowerToFlat(record)
+  const unsupportedRoutedSampling = composition.clips.some(clip => (
+    clip.zoneSampleMode !== 'span'
+    // With one Zone, independent and span address the same complete domain;
+    // the existing global-section emitter therefore preserves the flat result.
+    && !(record.zones.length === 1 && clip.zoneSampleMode === 'independent')
+  ))
+  if (unsupportedRoutedSampling && !flatEligible) {
     return refuse('unsupported-zone-sampling', 'composition.clips', 'lowering requires repeat-mode Clip sampling evidence before compilation.')
   }
   if (!flatEligible && (composition.transitions.length === 0 || wholeOutput)) {

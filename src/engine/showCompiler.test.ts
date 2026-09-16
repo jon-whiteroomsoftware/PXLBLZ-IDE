@@ -11,6 +11,7 @@ import { sampleShowMotionTransition } from './showMotionTransition'
 import { routeShowLogicalPoint, type ShowLogicalRouting } from './showLogicalRouting'
 import { createFastReplayRuntime, prepareFastReplay } from './fastReplay'
 import type { MapPoint } from './maps/types'
+import { countShowPersistentGlobals, PIXELBLAZE_MAX_PERSISTENT_GLOBALS } from './showVmResourceLedger'
 
 interface LoadedShow {
   handle: PatternHandle
@@ -1739,6 +1740,127 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) 
     }, {})).toThrow('cannot fully reset Pattern state')
   })
 
+  it('captures dependent startup scalars once and restores them at every Restart (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'dependent',
+        source: [
+          'export var saved = counter || 0',
+          'export var counter = 0',
+          'export function beforeRender(delta) {',
+          '  if (delta > 0) { counter = counter + 1; saved = counter }',
+          '}',
+          'export function render(index) { rgb(saved, counter, 0) }',
+        ].join('\n'),
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'dependent' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'dependent' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'dependent' }] },
+      ] },
+      restartEvents: [{ atMs: 100, clipId: 'dependent' }, { atMs: 200, clipId: 'dependent' }],
+      loopDurationMs: 300,
+    }, {}, { patternSlotSharing: 'none' })
+    const { handle } = loadShow(artifact.code, artifact.metadata, 1)
+
+    const capture = artifact.expandedCode.match(/var ([A-Za-z0-9_]+) = [A-Za-z0-9_]*saved/)
+    expect(capture).not.toBeNull()
+    expect(artifact.expandedCode.indexOf(capture![0])).toBeLessThan(artifact.expandedCode.indexOf('export function beforeRender'))
+    expect(artifact.expandedCode.match(new RegExp(`var ${capture![1]} =`, 'g'))).toHaveLength(1)
+    expect(JSON.stringify(artifact.metadata)).not.toContain('restart_initial')
+
+    handle.beforeRender(60)
+    expect(handle.getExports().__pxlblz_show_c0_saved).toBeGreaterThan(0)
+    handle.beforeRender(40)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_saved: 0, __pxlblz_show_c0_counter: 0 })
+    handle.beforeRender(100)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_saved: 0, __pxlblz_show_c0_counter: 0 })
+  })
+
+  it('keeps Restart baseline storage out of Shows with no Restart events (#1037)', () => {
+    const artifact = compileShow({
+      clips: [{ id: 'plain', source: 'export var value = 1\nexport function render(index) { rgb(value, 0, 0) }' }],
+    }, {})
+
+    expect(artifact.expandedCode).not.toContain('restart_initial')
+  })
+
+  it.each([
+    {
+      id: 'ordinary-scalar',
+      source: 'export var value = 1\nexport function beforeRender(delta) { value = value + delta }\nexport function render(index) { rgb(value, 0, 0) }',
+      expectedBaselines: 1,
+      expectedGlobals: 20,
+    },
+    { id: 'stock-luma-chevron', source: DEMOS.LumaChevron, expectedBaselines: 18, expectedGlobals: 54 },
+  ])('charges the delivered $id Restart baselines to the 256-global artifact ledger (#1037)', ({ id, source, expectedBaselines, expectedGlobals }) => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 63 }] }]
+    const artifact = compileShow({
+      clips: [{ id, source }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [{ holdMs: 100, placements: [{ zoneName: 'main', clipId: id }] }] },
+      restartEvents: [{ atMs: 0, clipId: id }],
+      loopDurationMs: 100,
+    }, LIBRARIES, { patternSlotSharing: 'none' })
+    const baselineCount = artifact.expandedCode.match(/var __pxlblz_show_c0_restart_initial_\d+ =/g)?.length ?? 0
+
+    expect(baselineCount).toBe(expectedBaselines)
+    expect(artifact.summary.resources.persistentGlobals).toBe(countShowPersistentGlobals(artifact.code))
+    expect(artifact.summary.resources.persistentGlobals).toBe(expectedGlobals)
+    expect(artifact.summary.resources.persistentGlobals).toBeLessThanOrEqual(PIXELBLAZE_MAX_PERSISTENT_GLOBALS)
+    expect(artifact.summary.resources.blockers.filter(blocker => blocker.kind === 'persistent-global-limit')).toEqual([])
+  })
+
+  it('emits the same captured Restart baseline in the table-driven Show-score representation (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const placement = (clipId: string) => ({ zoneName: 'main', clipId, stackOrder: 0 })
+    const artifact = compileShow({
+      clips: [
+        { id: 'a', source: 'export var saved = counter || 0\nexport var counter = 0\nexport function beforeRender(delta) { counter = counter + 1 }\nexport function render2D(i, x, y) { rgb(saved, counter / 100, 0) }' },
+        { id: 'b', source: 'export function render2D(i, x, y) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones, logical: { kind: 'single', zoneNames: ['main'] } }],
+      routedSceneSequence: { scenes: [
+        { holdMs: 100, placements: [placement('a')], transitionOut: { kind: 'crossfade', durationMs: 100, crossfadePolicy: 'live-live' } },
+        { holdMs: 100, placements: [placement('b')], transitionOut: { kind: 'crossfade', durationMs: 100, crossfadePolicy: 'live-live' } },
+        { holdMs: 100, placements: [placement('a')], transitionOut: { kind: 'crossfade', durationMs: 100, crossfadePolicy: 'live-live' } },
+        { holdMs: 100, placements: [placement('b')] },
+      ] },
+      restartEvents: [{ atMs: 400, clipId: 'a' }],
+      loopDurationMs: 700,
+    }, {}, { showScoreSharing: 'force', patternSlotSharing: 'none' })
+
+    expect(artifact.summary.specializations.showScore?.selected).toBe(true)
+    expect(artifact.expandedCode).toMatch(/var __pxlblz_show_c0_restart_initial_0 = __pxlblz_show_c0_saved/)
+    expect(artifact.expandedCode).toContain('__pxlblz_show_c0_saved = __pxlblz_show_c0_restart_initial_0')
+  })
+
+  it('refuses executable function writes hidden inside aggregate assignment targets (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    expect(() => compileShow({
+      clips: [{
+        id: 'computed-target',
+        source: [
+          'var buffer = 0',
+          'function mode() { return 0 }',
+          'function alternate() { return 1 }',
+          'export function beforeRender(delta) { buffer[(mode = alternate, 0)] = 1 }',
+          'export function render(index) { rgb(mode(), 0, 0) }',
+        ].join('\n'),
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [{ holdMs: 100, placements: [{ zoneName: 'main', clipId: 'computed-target' }] }] },
+      restartEvents: [{ atMs: 0, clipId: 'computed-target' }],
+      loopDurationMs: 100,
+    }, {})).toThrow(/function-binding-write/)
+  })
+
   it('refuses Restart when authored code reassigns a declared function binding (#1037)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
     expect(() => compileShow({
@@ -1792,6 +1914,43 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) 
     runtime.advanceLive(60)
     const crossed = runtime.advanceLive(60)
     expect(crossed.exports[`${artifact.summary.clips[0].prefix}_sample`]).toBe(expectedAfterReset)
+  })
+
+  it('keeps a selected Transition-owned snapshot while Restart resets its live Pattern member (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'outgoing',
+          source: 'export var level = 0\nexport function beforeRender(delta) { level = level + delta / 1000 }\nexport function render(index) { rgb(level, 0, 0) }',
+        },
+        { id: 'incoming', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 1_000,
+          placements: [{ zoneName: 'main', clipId: 'outgoing' }],
+          transitionOut: { kind: 'crossfade', durationMs: 1_000, crossfadePolicy: 'snapshot-live' },
+        },
+        { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'incoming' }] },
+      ] },
+      restartEvents: [{ atMs: 1_500, clipId: 'outgoing' }],
+      masterPixelCount: 4,
+      loopDurationMs: 3_000,
+    }, {}, { patternSlotSharing: 'none' })
+    expect(artifact.summary.renderPolicy).toBe('snapshot-outgoing-transition-live-incoming')
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1_250)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+    handle.beforeRender(250)
+    expect(handle.getExports().__pxlblz_show_c0_level).toBe(0)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+
+    expect(pixel()[0]).toBeCloseTo(0.625)
+    expect(pixel()[2]).toBeCloseTo(0.5)
   })
 
   it('processes every distinct Restart boundary crossed by one frame in chronological order (#1037)', () => {
@@ -2057,6 +2216,39 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     const secondLoop = runtime.advanceLive(60).pixels[0]
     expect(secondLoop[0]).toBeCloseTo(firstLoop[0])
     expect(secondLoop[1]).toBeCloseTo(firstLoop[1])
+  })
+
+  it('restores transform-generated coordinate state at a Restart boundary (#1037)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const source = `
+export function beforeRender(delta) { rotate(PI / 2) }
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({
+      clips: [{ id: 'rotating', source }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'rotating' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+        { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'rotating' }] },
+      ] },
+      restartEvents: [{ atMs: 100, clipId: 'rotating' }],
+      loopDurationMs: 200,
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [1, 0], pos: [1, 0] }],
+      randomSeed: 1,
+    })
+
+    const before = runtime.advanceLive(60).pixels[0]
+    const after = runtime.advanceLive(60).pixels[0]
+    expect(after[0]).toBeCloseTo(before[0])
+    expect(after[1]).toBeCloseTo(before[1])
   })
 
   it('captures an incoming Freeze placement from the beginning of its transition (#586)', () => {

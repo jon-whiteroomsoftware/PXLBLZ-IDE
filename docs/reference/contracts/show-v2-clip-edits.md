@@ -107,22 +107,40 @@ every elapsed hold or Transition slice up to that boundary. Each slice uses the
 ordinary placement setup path for controls, effects, adaptations, Transition
 ramps and Property tracks before advancing the member; an inactive slice inside
 the member's deterministic continuity window uses the existing hidden advance.
-It then applies the
-compiler's exact Pattern reset assignments, coordinate state and elapsed-clock
-reset; the ordinary frame scheduler binds and advances the post-entry portion.
+It then restores compiler-captured scalar values, coordinate state and private
+elapsed/stepped clocks; the ordinary frame scheduler binds and advances the
+post-entry portion.
 The same member remains shared, simultaneous entries coalesce, time zero fires
-once, and loop/cold replay crosses the same events. A Pattern the existing reset
-analysis cannot reconstruct exactly is refused rather than partially reset. This
-includes a declared function whose resolved top-level binding is reassigned:
-function values are not snapshotted or restored. The eligibility analysis resolves
-writes through lexical scopes, so parameter and local shadows do not create a
-false refusal, and ordinary unreassigned functions remain accepted.
+once, and loop/cold replay crosses the same events. A Pattern the Restart planner
+cannot reconstruct exactly is refused rather than partially reset.
+
+The compiler captures each admitted mutable scalar once after all member
+declarations initialize and before any callback. Generated names are collision
+safe, private, one per effective instance and never persisted or recaptured. A
+Restart-enabled deterministic-loop member restores that same baseline at loop
+reset; a member with no Restart retains legacy initializer replay and emitted
+output. Current controls, Property tracks, adaptations and placement bindings are
+reapplied after the reset. Runtime `random()` keeps the shared environmental
+generator's progression.
+
+Eligibility runs on bundled source, including resolved Libraries, and on the
+final transformed member. It fails closed for implicit bindings, array/object or
+closure state, writes to resolved top-level function bindings, async/generator or
+first-class functions, dynamic calls, unknown syntax and unclassified persistent
+facilities. Parameter, block and local shadows remain legal when resolution proves
+the top-level binding unchanged. Persistent palette and member-owned freeze or
+refresh refuse. Output reuse recomputes after scheduling; a Transition-owned
+snapshot deliberately holds its captured image while the live member restarts.
+Baseline globals participate in the existing 256-persistent-global limit.
 
 `lowerShowCompositionV2ForCompile` refuses effective Restart entries, including
 entries inside used Group definitions, and Layout split-position tracks because
 that direct adapter cannot return their transient recipe data. Callers with those
 features must use `prepareShowV2ForCompile`, which returns the complete recipe or
-a typed refusal.
+a typed refusal. Preparation takes the resolved Library source map and invokes the
+same compile path as final emission. Restart-bearing flat records use the existing
+global-sections lowering; no-Restart flat records retain continuous-flat lowering.
+Single-Zone independent sampling is equivalent to span sampling for this route.
 
 ## Evidence
 

@@ -200,10 +200,13 @@ Restart is an authored Clip-entry instruction. It triggers at first contribution
 nominal Clip start without an incoming Transition, the incoming contribution
 window start otherwise. Moving/deleting the Clip moves/removes its instruction;
 attaching/resizing a Transition can move the trigger. All sharing users observe
-the reset. The existing shared Pattern instance's elapsed clocks and Pattern-owned
-variable/private state return to their compiled initial values. Authored instance
-controls and adaptations remain external bindings and are reapplied; no new runtime
-is created. Continue/private legacy Restart conversion remains a separate axis.
+the reset. The existing shared Pattern instance's elapsed clocks and admitted
+Pattern-owned scalar state return to values captured once after member declarations
+initialize and before any callback executes. The baseline belongs to the effective
+instance, uses collision-safe private names and is never recaptured. Authored
+instance controls and adaptations remain external bindings and are reapplied; no
+new runtime is created and no private-state schema is persisted. Continue/private
+legacy Restart conversion remains a separate axis.
 
 Derive each event by `(effective instance ID, materialized Clip ID, entry time)`.
 For one instance, coalesce simultaneous resets into one reset; this changes no
@@ -214,22 +217,36 @@ Group-local time. Positive frame deltas crossing an event must honor its boundar
 Split retains the original instruction on the left and sets the new right to
 Continue. Duplicate copies it. Loop crossing triggers the next loop's entries;
 respect existing Show `continuous`/`deterministic-loop` semantics independently.
+A Restart-enabled member uses the captured baseline at deterministic loop reset,
+so loop start and later authored Restart share one cold baseline. A member with no
+Restart keeps legacy initializer replay and emitted output.
 Cold seek replays from the appropriate existing baseline through the same events.
 Reopening does not promise saved private memory or persistent Undo history.
 
 #1037 owns event derivation, replay and the emitted full-reset seam. The lowerer
 derives transient compiler events from authored Clips; no independent event list
 is persisted. Qualify a stateful shared-instance fixture through generated `.epe`
-output. Reuse the compiler's existing exact Pattern reset assignments and clock
-ownership at Clip-entry boundaries, then let ordinary placement setup reapply
-authored controls and adaptations. If the existing reset analysis cannot reconstruct
-a Pattern's initial state exactly, compilation refuses instead of approximating it.
-The admitted domain includes declared functions only while authored code never
-reassigns their resolved top-level bindings. Function-binding reassignment is
-state the compiler does not snapshot or restore, so Restart fails closed for that
-Pattern. Lexically resolved parameter or local bindings with the same spelling do
-not disqualify an otherwise resettable Pattern; ordinary unreassigned functions
-remain accepted.
+output. A dedicated fail-closed Restart planner covers the bundled source,
+including Libraries, and the final transformed member. It captures admitted
+mutable scalar bindings and combines them with explicit elapsed-clock,
+stepped-clock and coordinate-transform reset actions. Ordinary placement setup
+then reapplies current authored controls and adaptations.
+
+The initial source domain refuses implicit persistent bindings, array/object or
+closure state, writes to resolved top-level function bindings, async/generator
+functions, first-class functions, dynamic calls, unsupported syntax and unknown
+runtime facilities. Lexically resolved parameter, block or local shadows do not
+disqualify an otherwise resettable Pattern; ordinary unreassigned functions remain
+accepted. Persistent palette, member-owned freeze/refresh and unsupported capture
+facilities refuse. Runtime `random()` retains the shared environmental generator;
+Restart does not rewind it.
+
+Output reuse recomputes after scheduler execution. A Transition snapshot belongs
+to that Transition and intentionally retains its captured image while the live
+member restarts. Baseline variables count against the existing 256-persistent-
+global limit and never bypass the resource ledger. Public preparation compiles the
+same bundled/transformed path used by final emission and returns a typed
+`unsupported-restart` refusal when any obligation is incomplete.
 
 ### Shared animation
 

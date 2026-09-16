@@ -17,6 +17,10 @@ import {
   selectShowFrameInvariantHoists,
 } from './showFrameInvariantHoisting'
 import { analyzeShowPatternMemberReset } from './showPatternMemberReset'
+import {
+  planShowPatternRestart,
+  type ShowPatternRestartRuntimeFacility,
+} from './showPatternRestartPlan'
 import { analyzeShowRendererOutputGuaranteesAst } from './showCaptureSpecialization'
 import {
   analyzeShowPatternCoverageRenderState,
@@ -229,6 +233,32 @@ export function compileMember(
     : null
   const reset = analyzeShowPatternMemberReset(code)
   const adaptation = normalizeAdaptation(clip.adaptation)
+  const usesPaint = code.includes(`${palettePrefix}_`)
+  const usesMapPixels = coordinateMapBuiltins.has('mapPixels')
+  const restartRuntimeFacilities: ShowPatternRestartRuntimeFacility[] = [
+    ...(code.includes(`${prefix}_time`) ? ['elapsed-clock' as const] : []),
+    ...(adaptation.steppedClock ? ['stepped-clock' as const] : []),
+    ...(coordinateTransformBuiltins.size > 0 ? ['coordinate-transform' as const] : []),
+    ...(usesPaint ? ['palette' as const] : []),
+    ...(usesMapPixels ? ['map-pixels' as const] : []),
+    ...(/\bprng(?:Seed)?\s*\(/.test(memberSource) ? ['private-prng' as const] : []),
+    ...(/\bsetPerlinWrap\s*\(/.test(memberSource) ? ['perlin-wrap' as const] : []),
+    ...(clip.evaluationPolicy === 'freeze-at-entry' ? ['freeze-capture' as const] : []),
+    ...(clip.evaluationPolicy === 'refresh' ? ['refresh-capture' as const] : []),
+    ...(clip.evaluationPolicy === 'rolling-refresh' ? ['rolling-refresh-capture' as const] : []),
+  ]
+  const restartPlan = planShowPatternRestart(code, {
+    baselinePrefix: allocateMemberRuntimePrefix(prefix, mapping, 'restart_initial'),
+    implicitBindings: [...implicitBindings].map(name => mapping.get(name) ?? name),
+    generatedCalls: [
+      `${prefix}_time`,
+      `${prefix}_rgb`,
+      `${prefix}_hsv`,
+      ...[...coordinateTransformBuiltins].map(name => `${prefix}_${name}`),
+    ],
+    scalarInputs: [`${prefix}_pixelCount`],
+    runtimeFacilities: restartRuntimeFacilities,
+  })
   const renamedPatternVars = bundled.metadata.patternVars
     .map(name => mapping.get(name))
     .filter((name): name is string => Boolean(name))
@@ -278,9 +308,9 @@ export function compileMember(
     hasBeforeRender: bindings.has('beforeRender'),
     coordinateTransformBuiltins: [...coordinateTransformBuiltins].sort(),
     coordinateTransformPrefix,
-    usesMapPixels: coordinateMapBuiltins.has('mapPixels'),
+    usesMapPixels,
     usesHsv: code.includes(`${prefix}_hsv`),
-    usesPaint: code.includes(`${palettePrefix}_`),
+    usesPaint,
     palettePrefix,
     usesTime: code.includes(`${prefix}_time`),
     elapsedName: `${prefix}_elapsed_ms`,
@@ -349,8 +379,8 @@ export function compileMember(
     // the Pattern-slot bank. Keep transformed members on independent machines
     // until that state participates in slot save/restore.
     resettable: reset.resettable && coordinateTransformBuiltins.size === 0,
-    fullResettable: reset.resettable,
     resetAssignments: reset.assignments,
+    restartPlan,
     slotOwnerCount: 1,
     slotOwnerAdaptations: [adaptation],
   }
