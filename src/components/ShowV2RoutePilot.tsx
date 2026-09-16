@@ -3,7 +3,7 @@ import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { ShowStagePreview } from './ShowStagePreview'
-import { admitShowV2PilotGroupOccurrenceEdit, admitShowV2PilotClipSharingEdit, admitShowV2PilotPropertyEdit, admitShowV2PilotTransitionResize, type ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
+import { admitShowV2PilotClipDelete, admitShowV2PilotGroupOccurrenceEdit, admitShowV2PilotClipSharingEdit, admitShowV2PilotPropertyEdit, admitShowV2PilotTransitionResize, type ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
 import { ShowV2ClipTimingEditor, ShowV2TimelineRows } from './ShowV2ClipTimingEditor'
 import { ShowV2LayerEditor } from './ShowV2LayerEditor'
@@ -20,6 +20,7 @@ import { usePatternStore } from '@/store/patternStore'
 import { useMapStore, resolveMap, STOCK_MAPS } from '@/store/mapStore'
 import { useLibraryStore } from '@/store/libraryStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
+import { ShowV2ClipDeleteEditor } from './ShowV2ClipDeleteEditor'
 
 export function ShowV2RoutePilot({ showId }: { showId: string }) {
   const record = useShowStore(state => state.showV2Pilots[showId])
@@ -196,6 +197,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
             </div>
           )}
           {editCapture && <ShowV2ClipTimingEditor key={`timing:${editCapture.record.id}`} capture={editCapture} sources={timingModel.sources} selectedClipId={selectedClip?.id ?? ''} onSelectClip={setSelectedClipId} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
+          {editCapture && <ShowV2ClipDeleteEditor key={`delete:${editCapture.record.id}`} clipId={selectedClip?.id ?? ''} capture={editCapture} submitClipDelete={request => admitShowV2PilotClipDelete({ showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0, capture: editCapture, ...request })} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onDeleted={id => setSelectedClipId(current => current === id ? '' : current)} onStatus={setStatus} />}
           {editCapture && selectedClip && <ShowV2ClipSharingEditor key={`sharing:${editCapture.record.id}:${selectedClip.id}`} clipId={selectedClip.id} capture={editCapture} submitSharingEdit={request => admitShowV2PilotClipSharingEdit({ showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0, capture: editCapture, ...request })} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && selectedClip && <ShowV2AppearanceEditor key={`appearance:${editCapture.record.id}:${selectedClip.id}`} clipId={selectedClip.id} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2LayerEditor key={`layers:${editCapture.record.id}`} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}

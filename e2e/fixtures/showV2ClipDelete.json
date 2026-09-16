@@ -1,0 +1,334 @@
+{
+  "version": 2,
+  "id": "clip-delete-synthetic",
+  "name": "Clip Deletion",
+  "zones": [
+    {
+      "id": "zone",
+      "name": "Main",
+      "nominalPixelCount": 16
+    },
+    {
+      "id": "right",
+      "name": "Right",
+      "nominalPixelCount": 16
+    }
+  ],
+  "zoneLayouts": [
+    {
+      "id": "layout",
+      "name": "Full",
+      "zones": [],
+      "logical": {
+        "kind": "split",
+        "axis": "x",
+        "zoneIds": [
+          "zone",
+          "right"
+        ]
+      }
+    }
+  ],
+  "outputContract": {
+    "version": 1,
+    "kind": "portable-2d",
+    "referenceMapId": "plane",
+    "referencePixelCount": 16,
+    "compatibility": {
+      "dimensions": [
+        2
+      ],
+      "mapClass": "continuous-surface",
+      "resolution": "variable"
+    }
+  },
+  "composition": {
+    "version": 2,
+    "executionModel": "deterministic-loop",
+    "showEndMs": 30000,
+    "sampleRemap": {
+      "repeatScale": 1
+    },
+    "patternInstances": [
+      {
+        "id": "instance",
+        "pattern": {
+          "kind": "user",
+          "id": "deletion-voice"
+        },
+        "patternName": "Deletion Voice",
+        "time": {
+          "timeScale": 1,
+          "timeOffsetMs": 0
+        },
+        "controlTargets": {
+          "sliderGain": 0.4
+        }
+      }
+    ],
+    "layers": [
+      {
+        "id": "layer:zone:main",
+        "zoneId": "zone",
+        "name": "Main",
+        "rank": 0
+      },
+      {
+        "id": "layer:zone:overlay:1",
+        "zoneId": "zone",
+        "name": "Atmosphere",
+        "rank": 1
+      },
+      {
+        "id": "right-main",
+        "zoneId": "right",
+        "name": "Right",
+        "rank": 0
+      }
+    ],
+    "clips": [
+      {
+        "id": "voice",
+        "instanceId": "instance",
+        "zoneId": "zone",
+        "layerId": "layer:zone:main",
+        "startMs": 0,
+        "durationMs": 10000,
+        "entryPolicy": "continue",
+        "zoneSampleMode": "span",
+        "appearance": {
+          "keys": [
+            {
+              "id": "voice-key-0",
+              "timeMs": 0,
+              "value": {
+                "opacity": 0.6,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 0.8
+                },
+                "effects": [
+                  {
+                    "id": "turn",
+                    "kind": "rotate",
+                    "turns": 0
+                  }
+                ],
+                "aperture": {
+                  "enabled": true,
+                  "x": 0.5,
+                  "y": 0.5,
+                  "width": 1,
+                  "height": 1,
+                  "edge": "hard"
+                }
+              }
+            },
+            {
+              "id": "voice-key-1",
+              "timeMs": 6000,
+              "value": {
+                "opacity": 0.6,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 0.8
+                },
+                "effects": [
+                  {
+                    "id": "turn",
+                    "kind": "rotate",
+                    "turns": 0
+                  }
+                ],
+                "aperture": {
+                  "enabled": true,
+                  "x": 0.5,
+                  "y": 0.5,
+                  "width": 1,
+                  "height": 1,
+                  "edge": "hard"
+                }
+              }
+            },
+            {
+              "id": "voice-key-2",
+              "timeMs": 9000,
+              "value": {
+                "opacity": 0.8,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 0.8
+                },
+                "effects": [
+                  {
+                    "id": "turn",
+                    "kind": "rotate",
+                    "turns": 0
+                  }
+                ],
+                "aperture": {
+                  "enabled": true,
+                  "x": 0.5,
+                  "y": 0.5,
+                  "width": 1,
+                  "height": 1,
+                  "edge": "hard"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "linked",
+        "instanceId": "instance",
+        "zoneId": "zone",
+        "layerId": "layer:zone:main",
+        "startMs": 10000,
+        "durationMs": 10000,
+        "entryPolicy": "continue",
+        "zoneSampleMode": "span",
+        "appearance": {
+          "keys": [
+            {
+              "id": "linked:voice-key-0",
+              "timeMs": 10000,
+              "value": {
+                "opacity": 0.6,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 0.8
+                },
+                "effects": [
+                  {
+                    "id": "turn",
+                    "kind": "rotate",
+                    "turns": 0
+                  }
+                ],
+                "aperture": {
+                  "enabled": true,
+                  "x": 0.5,
+                  "y": 0.5,
+                  "width": 1,
+                  "height": 1,
+                  "edge": "hard"
+                }
+              }
+            },
+            {
+              "id": "linked:voice-key-1",
+              "timeMs": 16000,
+              "value": {
+                "opacity": 0.6,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 0.8
+                },
+                "effects": [
+                  {
+                    "id": "turn",
+                    "kind": "rotate",
+                    "turns": 0
+                  }
+                ],
+                "aperture": {
+                  "enabled": true,
+                  "x": 0.5,
+                  "y": 0.5,
+                  "width": 1,
+                  "height": 1,
+                  "edge": "hard"
+                }
+              }
+            },
+            {
+              "id": "linked:voice-key-2",
+              "timeMs": 19000,
+              "value": {
+                "opacity": 0.8,
+                "view": {
+                  "mirror": false,
+                  "phase": 0,
+                  "brightness": 0.8
+                },
+                "effects": [
+                  {
+                    "id": "turn",
+                    "kind": "rotate",
+                    "turns": 0
+                  }
+                ],
+                "aperture": {
+                  "enabled": true,
+                  "x": 0.5,
+                  "y": 0.5,
+                  "width": 1,
+                  "height": 1,
+                  "edge": "hard"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "layoutOccurrences": [
+      {
+        "id": "layout-occurrence:1",
+        "layoutId": "layout",
+        "startMs": 0,
+        "durationMs": 30000,
+        "parameters": {}
+      }
+    ],
+    "propertyTracks": [
+      {
+        "id": "brightness",
+        "target": {
+          "kind": "clip-view",
+          "clipId": "voice",
+          "property": "brightness"
+        },
+        "activeStartMs": 0,
+        "activeDurationMs": 10000,
+        "keyframes": [
+          {
+            "id": "brightness-a",
+            "timeMs": 0,
+            "value": 0.6,
+            "easing": {
+              "curve": "quadratic",
+              "direction": "in"
+            }
+          },
+          {
+            "id": "brightness-b",
+            "timeMs": 10000,
+            "value": 0.9,
+            "easing": {
+              "curve": "linear"
+            }
+          }
+        ]
+      }
+    ],
+    "markers": [
+      {
+        "id": "scene-marker:scene-a",
+        "timeMs": 0,
+        "name": "Opening"
+      }
+    ],
+    "groupDefinitions": [],
+    "groupOccurrences": []
+  },
+  "updatedAt": 1,
+  "stageMapId": "plane"
+}

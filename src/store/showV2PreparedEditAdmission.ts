@@ -57,6 +57,7 @@ export type ShowV2PilotTransitionResizeOutcome =
   | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & ResizeEmpty)
   | ({ status: 'refused'; source: 'transition'; code: ShowTransitionEditRefusalV2; message: string } & ResizeEmpty)
 type Command =
+  | { owner: 'delete-clip'; intent: ShowV2PilotClipDeleteIntent }
   | { owner: 'group-occurrence'; intent: ShowV2PilotGroupOccurrenceEditIntent }
   | { owner: 'create-group'; intent: CreateShowGroupFromSelectionIntentV2 }
   | { owner: 'marker'; intent: ShowMarkerEditIntentV2 }
@@ -69,6 +70,9 @@ type Command =
   | { owner: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
   | { owner: 'property'; propertyOwner: ShowPropertyTrackOwnerV2; intent: ShowPropertyEditIntentV2 }
   | { owner: 'set-show-end'; intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
+export type ShowV2PilotClipDeleteIntent = Extract<ShowTransitionEditIntentV2, { kind: 'delete-clip' }>
+export type ShowV2PilotClipDeleteRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotClipDeleteIntent }
+export type ShowV2PilotClipDeleteOutcome = PilotOwnerOutcome<ShowTransitionEditResultV2, ShowTimelineEditAffectedV2>
 type OwnerResult<C extends Command> = C extends { owner: 'group-occurrence' } ? ShowGroupEditResultV2
   : C extends { owner: 'create-group' } ? ShowGroupCreateResultV2
   : C extends { owner: 'marker' } ? ShowMarkerEditResultV2
@@ -145,7 +149,7 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   const candidate = capturedInputs?.status === 'qualified'
     ? prepareShowStageFromCapturedInputsV2(result.record, capturedInputs.inputs)
     : prepareShowStageV2(result.record, prepared.status === 'ready' ? { ...prepared.bundle.assets, stageMap: capture.dependencies.stageMap } : capture.dependencies)
-  const deletingToEmpty = command.owner === 'group-occurrence' && command.intent.kind === 'delete-occurrence' && isValidatedEmptyShowV2(result.record)
+  const deletingToEmpty = ((command.owner === 'group-occurrence' && command.intent.kind === 'delete-occurrence') || command.owner === 'delete-clip') && isValidatedEmptyShowV2(result.record)
   const expectedCapability = deletingToEmpty ? 'empty' : command.owner === 'create-clip' || prepared.status === 'refused' ? 'ready' : prepared.status
   if (candidate.status !== expectedCapability) return refuse('unsupported-pilot-record', candidate.status === 'refused' ? candidate.message : 'The edit changed the prepared Show capability.')
   if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
@@ -413,4 +417,22 @@ export async function admitShowV2PilotGroupOccurrenceEdit(request: ShowV2PilotGr
   const outcome = await admitPreparedEdit({ ...request, owner: 'group-occurrence' as const })
   const result = 'result' in outcome ? outcome.result : undefined
   return presentOwnerOutcome(outcome, { ...timelineEffects(result), hoistedInstanceIds: result?.hoistedInstanceIds ?? [] })
+}
+export async function admitShowV2PilotClipDelete(request: ShowV2PilotClipDeleteRequest): Promise<ShowV2PilotClipDeleteOutcome> {
+  if (!exactIntentFields(request.intent, ['kind', 'clipId']) || request.intent.kind !== 'delete-clip' || typeof request.intent.clipId !== 'string' || !request.intent.clipId.trim()) {
+    return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Choose one ordinary Clip to delete.', ...timelineEffects() }
+  }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'delete-clip' as const })
+  const effects = timelineEffects()
+  if ('result' in outcome && outcome.result.status === 'changed') {
+    const result = outcome.result
+    effects.affectedClipIds = result.affectedClipIds
+    effects.affectedTransitionIds = result.affectedTransitionIds
+    effects.affectedTrackIds = result.affectedTrackIds
+    effects.removedIds = result.removedIds
+    // Only keys owned by the explicitly reported removed Clip/track owners.
+    effects.affectedAppearanceKeyIds = result.affectedClipIds.filter(id => result.removedIds.includes(id)).flatMap(id => request.capture.record.composition.clips.find(clip => clip.id === id)?.appearance.keys.map(key => key.id) ?? [])
+    effects.affectedPropertyKeyIds = result.affectedTrackIds.filter(id => result.removedIds.includes(id)).flatMap(id => request.capture.record.composition.propertyTracks.find(track => track.id === id)?.keyframes.map(key => key.id) ?? [])
+  }
+  return presentOwnerOutcome(outcome, effects)
 }

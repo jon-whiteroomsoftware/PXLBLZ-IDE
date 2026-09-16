@@ -1,0 +1,58 @@
+{
+  "issue": 1038,
+  "scope": "ordinary Clip deletion UI and closed prepared adoption",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "DELETE-READD",
+      "SHARING",
+      "RESTART",
+      "ROUTE",
+      "FAILURE",
+      "PARITY"
+    ]
+  },
+  "base": "4fd4369ab1ac7b28924d3dec0acea79bbc46dad4",
+  "invariants": [
+    "Deletion delegates once to existing Transition owner; only attached Transitions and Clip-owned tracks cascade.",
+    "Dormant runtime payload, Group definitions/bindings, survivor intervals and Show End remain authored.",
+    "Only validated complete zero-effective-content changes capability to empty.",
+    "Selection clears only after current saved receipt; rollback, stale or superseded completion cannot clear newer selection.",
+    "Affected keys derive solely from reported removed Clip/track owners; all other fourteen collections stay exact."
+  ],
+  "partitions": [
+    "ordinary versus materialized Group target",
+    "incoming/outgoing Transition attachments versus Property ramp refusal",
+    "last ordinary content versus surviving shared held Group",
+    "malformed ingress/record/revision/provider/route/double submission",
+    "owned save failure, superseded save, pending unmount",
+    "empty delete/re-add dormant runtime with no deleted appearance/animation"
+  ],
+  "sequences": [
+    "delete\u2192Undo\u2192Redo\u2192saved reload\u2192cold reopen",
+    "delete final content\u2192empty unavailable preview/export\u2192Add existing Pattern\u2192visible output",
+    "pending delete\u2192selection change or optimistic removal\u2192current save settlement",
+    "failed delete\u2192exact durable rollback\u2192explicit retry"
+  ],
+  "oracles": [
+    "Public prepared wrapper actual provider writes and exact history/receipts.",
+    "Reopened .pxlshow/.epe through real importers; independently authored removal/re-add recipes compare Fast/Precise frames and private state at each frame.",
+    "Actual thirty-second stock-plane route with successful PUT registered before action and semantic persisted readback, narrow keyboard/errors."
+  ],
+  "redEvidence": [
+    "Missing admitShowV2PilotClipDelete:4/4 failed.",
+    "Missing thin Delete action component import."
+  ],
+  "residualGaps": [
+    "Existing Transition Property-ramp deletion refusal remains explicit; no projection is introduced.",
+    "Final authoritative suites and Fable High review are root-owned."
+  ],
+  "qualification": {
+    "focused": "8 files/65 tests passed: deletion model/component/real parent/native/browser plus sharing/Group/Transition siblings",
+    "static": "project TypeScript/scoped ESLint/diff-check passed",
+    "parity": "47 inventoried records matched",
+    "locators": "0 stale;55 unverifiable, passed",
+    "browser": "pending fresh committed source capture"
+  }
+}

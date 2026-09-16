@@ -48,3 +48,11 @@ changed/no-op/refusal, Undo/Redo, save/reload, native reopening and narrow contr
 [Test design](../evidence/issue-1038-transition-admission/test-design.json) owns the
 proof packet. Full editor adoption, other commands and production cutover remain
 outside this slice. Existing Stage sample-from-position behavior is unchanged.
+
+## Ordinary Clip deletion adoption (#1038)
+
+The pilot's explicit ordinary selection can call `admitShowV2PilotClipDelete` with exactly `{kind:'delete-clip',clipId}`. Materialized Group children are not deletion targets. The wrapper delegates to the existing Transition owner: attached visual Transitions and Clip-owned tracks are removed atomically; Property-ramp carrier refusal is preserved. Dormant instance setup, unrelated Group owners, survivor positions and Show End remain unchanged.
+
+The prepared gate admits ready→empty only when this deletion's complete structurally valid candidate has zero effective Clips. This is the explicit editable/saveable empty Show capability, with preview/export unavailable until Add Clip creates content. No arbitrary preparation failure is bypassed. All fourteen affected collections are returned; removed appearance/property key reports are scoped to captured owners explicitly removed by the pure owner, whose removedIds report stays unchanged.
+
+The Show-lifetime action remains mounted through optimistic removal. It clears only the deleted selected identity after a current saved receipt, preserving newer explicit selection, failed rollback and superseded/stale completion. Persistence and history use the existing single adoption path. Consumer evidence lives in `docs/reference/evidence/issue-1038-clip-delete/test-design.json`.
