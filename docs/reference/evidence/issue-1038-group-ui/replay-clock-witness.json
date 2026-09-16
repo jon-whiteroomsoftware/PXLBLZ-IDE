@@ -1,0 +1,22 @@
+{
+  "scope": "Trusted native preimage and grouped output exact; replay labels differ from accumulated generated clock",
+  "recipeRestartEvents": [
+    {
+      "atMs": 3000,
+      "clipId": "instance"
+    }
+  ],
+  "oneMillisecondSteps": [
+    {
+      "replayLabelMs": 3000,
+      "actualClockSeconds": 2.9999999999997806,
+      "memberElapsedMs": 3000
+    },
+    {
+      "replayLabelMs": 3001,
+      "actualClockSeconds": 3.0009999999997805,
+      "memberElapsedMs": 0.9999999997805098
+    }
+  ],
+  "independentOracle": "125ms binary-exact steps: Fast and Precise memberElapsedMs=0 at3000, then expected elapsed since first contribution; Fast independent quadratic global gain."
+}

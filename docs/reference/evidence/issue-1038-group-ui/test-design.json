@@ -1,0 +1,64 @@
+{
+  "issue": 1038,
+  "scope": "Opt-in ordinary selection Group creation model/panel and closed checked admission; no occurrence operations or compiler changes",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "sourceCommit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "MODEL",
+      "SHARING",
+      "RESTART",
+      "CURVE",
+      "ACTIVATION",
+      "LAYOUT-END",
+      "ROUTE",
+      "FAILURE"
+    ]
+  },
+  "invariants": [
+    "Explicit ordinary Clip/Transition selection only; no chain absorption, materialized child mutation or implicit origin adjustment.",
+    "Exactly one supplied repository allocation per complete local identity; owner-scoped namespaces preserved and slots retain authoritative shared runtime bindings.",
+    "Closed typed Group admission retains all fifteen effects, one candidate preparation/history/save and existing stale/provider/dependency/revision/route/rollback checks.",
+    "Refusal leaves original stored record/history/write count unchanged and selected drafts intact; current saved receipt clears selection, obsolete feedback is suppressed."
+  ],
+  "partitions": [
+    "Single and complete-pair lossless selection; same runtime with an unselected sharing user and global quadratic control track.",
+    "Explicit partial chain, missing name, stale IDs, allocation collision, outside-local activation and independent namespace reuse.",
+    "Stale record, revision, route, provider and dependency capture; current save failure/retry and pending external replacement.",
+    "Desktop/narrow native checkbox/form keyboard interaction; actual route Undo/Redo/provider reload and authored/native artifact reopening.",
+    "Fast/Precise native output/private-state preservation at fine boundaries, plus independent binary-exact125ms first-contribution Restart and global curve."
+  ],
+  "sequences": [
+    "Select ordinary owners -> allocate complete explicit plan -> existing pure owner -> public serialize/reopen; confirm same authoritative runtime/global owners.",
+    "Capture trusted ready preimage -> typed admission -> one preparation/adoption/write/history -> native pxlshow/EPE reopening -> exact before/after fine-step frames/private state.",
+    "Partial-chain refusal -> retain selected name/Clips -> explicitly select remaining Clip/Transition -> one successful Create.",
+    "Current persistence failure -> durable cloned data/history rollback -> retained selection/name -> one explicit retry; pending external replacement suppresses old saved feedback.",
+    "Inject three named selection/effects/currentness faults sequentially -> public consumer failures -> restore exact bytes -> rerun qualification."
+  ],
+  "oracles": [
+    "Actual createShowGroupFromSelectionV2 and public provisional parser validate complete maps and persisted authority; no generator-only snapshot.",
+    "Real store/provider checked admission compares fifteen effects against public owner, counts preparation/history/writes and exercises stale partitions.",
+    "Native qualifyShowV2PilotArtifacts/parseEpe source executes through Fast/Precise replay with exact before/after frame/elapsed/gain equality; independent Fast quadratic formula and exact125ms elapsed state.",
+    "Real component controls use the trusted constructor and actual admission/store; refusal/pending/save rollback/obsolete completion remain observable."
+  ],
+  "residualGaps": [
+    "Browser route/UndoRedo/save/reload desktop+narrow proof remains pending source integration and final committed-base capture; checkpoint is not candidate-ready.",
+    "Group creation introduces no occurrence-operation UI, production cutover or new compiler/domain support.",
+    "Fine replay label rounding is separately measured against actual generated clock; independent125ms event state is exact. No tolerance or arbitrary-ms clock equivalence is claimed.",
+    "Inherited held global-ramp section arithmetic remains documented in the pure creation owner packet and is not changed here.",
+    "Root owns exact finalbase, native cross-family review, authoritative suites and landing; this slice does not claim whole1038 implemented."
+  ],
+  "qualification": {
+    "focused": "67/67 across six own/compatibility files",
+    "static": "TypeScript project and seven scoped ESLint files pass",
+    "faultSensitivity": "3/3 named semantic faults killed; exact source bytes restored",
+    "browser": "Pending finalbase source/Route integration and committed desktop/narrow proof"
+  },
+  "evidence": [
+    "src/engine/showV2GroupCreationEditorModel.test.ts",
+    "src/store/showV2GroupCreationAdmission.test.ts",
+    "src/components/ShowV2GroupCreationEditor.test.tsx",
+    "fault-sensitivity.json",
+    "replay-clock-witness.json"
+  ]
+}

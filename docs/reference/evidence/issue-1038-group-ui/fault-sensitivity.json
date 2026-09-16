@@ -1,0 +1,26 @@
+{
+  "scope": "Three sequential semantic faults, public planner/admission consumers; exact original bytes restored after every injection",
+  "faults": [
+    {
+      "name": "implicit-transition-selection",
+      "file": "src/engine/showV2GroupCreationEditorModel.ts",
+      "consumer": "src/engine/showV2GroupCreationEditorModel.test.ts",
+      "killed": true,
+      "restoredSha256": "5a15742a1fca08aa82aef1ce9804ba02d3f848cd85d060c1cf2ca45872ae2cef"
+    },
+    {
+      "name": "drop-group-definition-effects",
+      "file": "src/store/showV2PreparedEditAdmission.ts",
+      "consumer": "src/store/showV2GroupCreationAdmission.test.ts",
+      "killed": true,
+      "restoredSha256": "0cc7ad78b99c11fd4c97d72f3ab980b8f1c4e875074d87ef85089d48e35f0b82"
+    },
+    {
+      "name": "ignore-route-currentness",
+      "file": "src/store/showV2PreparedEditAdmission.ts",
+      "consumer": "src/store/showV2GroupCreationAdmission.test.ts",
+      "killed": true,
+      "restoredSha256": "0cc7ad78b99c11fd4c97d72f3ab980b8f1c4e875074d87ef85089d48e35f0b82"
+    }
+  ]
+}

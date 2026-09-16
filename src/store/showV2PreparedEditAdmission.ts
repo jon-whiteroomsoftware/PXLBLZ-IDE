@@ -14,6 +14,8 @@ import { editShowLayoutIntervalsV2, type ShowLayoutEditIntentV2, type ShowLayout
 import { editShowLayerV2, type ShowLayerEditIntentV2, type ShowLayerEditResultV2, type ShowLayerEditAffectedV2 } from '@/engine/showLayersV2'
 import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2, type ShowClipAppearanceEditResultV2 } from '@/engine/showClipAppearanceEditsV2'
 import { editShowPropertyV2, type ShowPropertyTrackOwnerV2, type ShowPropertyEditIntentV2, type ShowPropertyEditResultV2 } from '@/engine/showPropertyEditsV2'
+import { createShowGroupFromSelectionV2, type CreateShowGroupFromSelectionIntentV2, type ShowGroupCreateResultV2 } from '@/engine/showGroupCreationV2'
+import type { ShowGroupEditAffectedV2 } from '@/engine/showGroupEditsV2'
 export interface ShowV2PilotPreparedCapture {
   readonly record: ShowRecordV2
   readonly dependencies: ShowPreparedStageDependenciesV2
@@ -53,6 +55,7 @@ export type ShowV2PilotTransitionResizeOutcome =
   | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & ResizeEmpty)
   | ({ status: 'refused'; source: 'transition'; code: ShowTransitionEditRefusalV2; message: string } & ResizeEmpty)
 type Command =
+  | { owner: 'create-group'; intent: CreateShowGroupFromSelectionIntentV2 }
   | { owner: 'marker'; intent: ShowMarkerEditIntentV2 }
   | { owner: 'transition-resize'; intent: ShowV2PilotTransitionResizeIntent }
   | { owner: 'create-clip'; intent: CreateShowClipIntentV2 }
@@ -62,7 +65,8 @@ type Command =
   | { owner: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
   | { owner: 'property'; propertyOwner: ShowPropertyTrackOwnerV2; intent: ShowPropertyEditIntentV2 }
   | { owner: 'set-show-end'; intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
-type OwnerResult<C extends Command> = C extends { owner: 'marker' } ? ShowMarkerEditResultV2
+type OwnerResult<C extends Command> = C extends { owner: 'create-group' } ? ShowGroupCreateResultV2
+  : C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
   : C extends { owner: 'clip-temporal' } ? ShowClipTemporalResultV2
   : C extends { owner: 'insert-time' } ? ShowTimelineEditResultV2
@@ -95,23 +99,25 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
   if (!provider.replaceShowV2) return refuse('unsupported-provider', 'The active provider does not support v2 Shows.')
   const command: Command = request
-  const result = (command.owner === 'marker'
-    ? editShowMarkerV2(current, structuredClone(command.intent))
-    : command.owner === 'create-clip'
-      ? createShowClipV2(current, structuredClone(command.intent))
-      : command.owner === 'clip-temporal'
-        ? editShowClipTemporalV2(current, structuredClone(command.intent))
-        : command.owner === 'insert-time'
-          ? insertShowTimeV2(current, structuredClone(command.intent))
-          : command.owner === 'layer'
-            ? editShowLayerV2(current, structuredClone(command.intent))
-            : command.owner === 'appearance'
-              ? editShowClipAppearanceV2(current, structuredClone(command.intent))
-              : command.owner === 'property'
-                ? editShowPropertyV2(current, command.propertyOwner, command.intent)
-                : command.owner === 'set-show-end'
-                  ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
-                  : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
+  const result = (command.owner === 'create-group'
+    ? createShowGroupFromSelectionV2(current, structuredClone(command.intent))
+    : command.owner === 'marker'
+      ? editShowMarkerV2(current, structuredClone(command.intent))
+      : command.owner === 'create-clip'
+        ? createShowClipV2(current, structuredClone(command.intent))
+        : command.owner === 'clip-temporal'
+          ? editShowClipTemporalV2(current, structuredClone(command.intent))
+          : command.owner === 'insert-time'
+            ? insertShowTimeV2(current, structuredClone(command.intent))
+            : command.owner === 'layer'
+              ? editShowLayerV2(current, structuredClone(command.intent))
+              : command.owner === 'appearance'
+                ? editShowClipAppearanceV2(current, structuredClone(command.intent))
+                : command.owner === 'property'
+                  ? editShowPropertyV2(current, command.propertyOwner, command.intent)
+                  : command.owner === 'set-show-end'
+                    ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
+                    : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
   if (result.status === 'refused') return { status: 'refused', source: 'owner', result }
   if (result.status === 'unchanged') return { status: 'unchanged', result }
   const { capture } = request
@@ -182,6 +188,13 @@ export async function admitShowV2PilotCreateClip(request: ShowV2PilotCreateClipR
     return { status: 'refused', source: 'owner', code: outcome.result.code, message: outcome.result.message, ...effects }
   }
   return outcome.status === 'unchanged' ? { status: 'unchanged', ...effects } : { status: 'applied', settlement: outcome.settlement, ...effects }
+}
+export type ShowV2PilotCreateGroupRequest = ShowV2PilotPreparedEditContext & { intent: CreateShowGroupFromSelectionIntentV2 }
+export type ShowV2PilotCreateGroupOutcome = PilotOwnerOutcome<ShowGroupCreateResultV2, ShowGroupEditAffectedV2>
+export async function admitShowV2PilotCreateGroup(request: ShowV2PilotCreateGroupRequest): Promise<ShowV2PilotCreateGroupOutcome> {
+  const outcome = await admitPreparedEdit({ ...request, owner: 'create-group' as const })
+  const result = 'result' in outcome ? outcome.result : undefined
+  return presentOwnerOutcome(outcome, { ...timelineEffects(result), hoistedInstanceIds: result?.hoistedInstanceIds ?? [] })
 }
 type OwnerRefusal<R> = R extends { status: 'refused'; code: infer C extends string } ? C : never
 type PilotOwnerOutcome<R, E> =
