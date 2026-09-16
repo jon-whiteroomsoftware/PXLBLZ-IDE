@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "#1044",
+  "route": "/PXLBLZ-IDE/studio/shows/issue-1044-pilot?show-v2-pilot=1",
+  "operation": "Inspected the committed v2 route pilot at 1440px and 760px with the isolated issue runtime. Edited transition duration to 137, exercised Undo and Redo, reloaded the provider record, reopened both .pxlshow v2 and .epe artifacts, verified API readback, keyboard focus, accessibility names, and the Stage preview without console or page errors.",
+  "captures": [
+    ".wrsp/ui-proof/1044-route-pilot-desktop.png",
+    ".wrsp/ui-proof/1044-route-pilot-narrow-controls.png",
+    ".wrsp/ui-proof/1044-route-pilot-narrow-stage.png"
+  ],
+  "capturedAtCommit": "be8818318837ee4e2acd9e828440a1821b9159f7"
+}
