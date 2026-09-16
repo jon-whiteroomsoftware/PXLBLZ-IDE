@@ -492,3 +492,45 @@ rounded, and identity allocation never retries on a collision.
 Evidence: `evidence/issue-1038-clip-sharing-ui/test-design.json` and its native
 imported-EPE Fast/Precise tests, model/panel tests and retained real Route callback
 regressions. Final browser proof is recorded on the committed final stack.
+
+### Ordinary Pattern replacement inspector adoption (#1038)
+
+`admitShowV2PilotClipReplacementEdit` accepts a closed `replace-pattern` request:
+ordinary Clip ID, structured stock/personal source reference and optional complete
+fresh independence identities. It resolves the canonical name/public slider
+metadata from immutable captured source and Libraries through the existing bundle
+pipeline. Callers cannot submit guessed slider descriptors or source text.
+
+The inspector starts with no selected replacement. Same-source compatible no-op
+allocates nothing; a changed shared runtime allocates each required identity once,
+including effective Group-qualified animation keys. Sole runtime replacement
+retains its ID. The existing owner controls pruning and incompatible Group-owned
+animation refusal. One prepared adoption owns one history/save transition; stale
+record/dependencies/provider/route callbacks and unsupported candidates write
+nothing. Output reports all fourteen affected collections without changing owner
+semantics. Selection or captured context changes retire the explicit source draft.
+
+Consumer evidence: `evidence/issue-1038-clip-replace-ui/test-design.json`; native
+imported EPE Fast/Precise compares an independently authored replacement and the
+untouched linked/held Group runtime. Private generated symbols alone are compared
+through an explicit reference-preserving bijection because adding a member can
+change compaction names; authored operations, values and ordering remain exact.
+
+Retaining another user's runtime payload/member does not create a silent carrier
+for removed contributions or Restart. If replacing the earliest shared Clip
+removes that source's first contribution/Restart, its clock starts at the first
+remaining contribution. The native proof explicitly measures this change against
+an independently authored replacement: with selected `[0,10000)` Restart and a
+linked user beginning10000, elapsed at10000 is250 instead of10000 under250ms
+replay steps (Precise16384000 versus655360000). The same-entry partition keeps an
+invisible ordinary user at0 and proves exact retained member state/output. Both
+partitions compare candidate versus independently authored EPE exactly.
+The same-input partition leaves a visible user at0 with its own Restart and
+makes the selected ordinary Clip invisible/Continue. The consumer reads
+`pixelCount` into authored `observedCount` and visible output; all four authored
+globals (`gain`, `elapsed`, private `lost`, `observedCount`) and delivered frames
+remain exact. A separate invisible-survivor partition retains the originally
+measured transient-binding shape and compares replacement to an independently
+authored record. The observable consumer measures pixelCount1 in both modes
+(65536raw Precise) at15000. This is no universal claim that every inherited
+binding/bookkeeping slot remains unchanged after a contribution is removed.

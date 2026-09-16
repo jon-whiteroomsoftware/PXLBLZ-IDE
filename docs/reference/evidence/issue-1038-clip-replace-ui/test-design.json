@@ -1,0 +1,62 @@
+{
+  "issue": 1038,
+  "scope": "ordinary Clip Pattern replacement inspector/trusted captured metadata adoption",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "REPLACE",
+      "SHARING",
+      "RESTART",
+      "ACTIVATION",
+      "ROUTE",
+      "FAILURE",
+      "PARITY"
+    ]
+  },
+  "base": "f73911cc017fe619f282ff2f224fafe01781d1ed",
+  "invariants": [
+    "Caller submits source identity and complete fresh identities only; captured bundle/Library metadata owns public sliders/name.",
+    "One replacement/history/provider save; sole runtime retained, effective shared users fork only selected ordinary Clip.",
+    "All other runtime payloads, global/Group animation, entry/appearance/Transition identity remain exact.",
+    "No-op before allocation; no guessed controls, retries, partial identity plan or compiler widening.",
+    "Exact fourteen effects; retained callbacks cannot cross provider/record/dependency/route lifetime."
+  ],
+  "partitions": [
+    "sole/shared ordinary/held Group effective users",
+    "stock/personal/Library-dependent/invalid/missing/equal-text different identity sources",
+    "compatible nonlinear track versus incompatible static/control-track pruning and Group-owned refusal",
+    "source metadata freeze, malformed nested ingress, freshness and unavailable targets",
+    "pending/unmount/stale provider or dependency, rollback/retry/double submit"
+  ],
+  "sequences": [
+    "explicit source -> replace -> Undo -> Redo -> saved reload/cold reopen",
+    "same-source no-op -> invalid-source refusal -> shared personal replacement -> sole stock replacement -> Undo",
+    "failed save -> durable rollback -> fresh explicit retry"
+  ],
+  "oracles": [
+    "Real closed admission provider write/history and fourteen exact collections.",
+    "Native .pxlshow/.epe reopened through importers: candidate versus independent authored record Fast/Precise exact frames/exports at each step.",
+    "Exact attributed compiled member and all authored state/output when contribution/reset/input schedules are unchanged. Later-entry and invisible-survivor partitions match independent replacement exactly and measure observable pixelCount/lifecycle rather than assert universal preimage state.",
+    "Actual thirty-second stock-plane desktop/narrow route with pre-registered successful PUT and semantic readback."
+  ],
+  "redEvidence": [
+    "Missing replacement model import (9 cases).",
+    "Missing thin panel import.",
+    "Missing closed admission wrapper (5 cases).",
+    "Missing actual parent mount."
+  ],
+  "residualGaps": [
+    "Unhoisted-only Group runtime source targets remain existing owner restrictions.",
+    "Incompatible Group-owned animation refuses atomically under accepted rule.",
+    "Final authoritative suites/Fable High review root-owned."
+  ],
+  "qualification": {
+    "mutations": "3/3 focused semantic faults killed: ordinary-only effective count, retaining incompatible tracks, live metadata",
+    "parity": "47 inventoried records matched",
+    "locators": "0 stale/55 unverifiable",
+    "focused": "8 files/74 tests passed, including six native Fast/Precise same-input/later-entry/invisible-survivor cases",
+    "static": "project TypeScript/scoped ESLint/diff-check passed",
+    "browser": "pending final committed-tip capture"
+  }
+}

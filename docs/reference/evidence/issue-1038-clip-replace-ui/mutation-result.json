@@ -1,0 +1,17 @@
+[
+  {
+    "mutant": "ordinary-only-sharing",
+    "exitCode": 1,
+    "killed": true
+  },
+  {
+    "mutant": "retain-incompatible-animation",
+    "exitCode": 1,
+    "killed": true
+  },
+  {
+    "mutant": "live-source-metadata",
+    "exitCode": 1,
+    "killed": true
+  }
+]

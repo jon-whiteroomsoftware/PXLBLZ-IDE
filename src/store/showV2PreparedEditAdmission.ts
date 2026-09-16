@@ -18,6 +18,7 @@ import { editShowPropertyV2, type ShowPropertyTrackOwnerV2, type ShowPropertyEdi
 import { createShowGroupFromSelectionV2, type CreateShowGroupFromSelectionIntentV2, type ShowGroupCreateResultV2 } from '@/engine/showGroupCreationV2'
 import type { ShowGroupEditAffectedV2 } from '@/engine/showGroupEditsV2'
 import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
+import { resolveCapturedShowPatternReplacementV2, type ShowV2ClipReplacementIntent } from '@/engine/showV2ClipReplacementModel'
 export interface ShowV2PilotPreparedCapture {
   readonly record: ShowRecordV2
   readonly dependencies: ShowPreparedStageDependenciesV2
@@ -66,6 +67,7 @@ type Command =
   | { owner: 'create-clip'; intent: CreateShowClipIntentV2 }
   | { owner: 'clip-temporal'; intent: ShowClipTemporalIntentV2 }
   | { owner: 'clip-sharing'; intent: ShowV2PilotClipSharingIntent }
+  | { owner: 'clip-replace'; intent: Extract<ShowClipEditIntentV2, { kind: 'replace-pattern' }> }
   | { owner: 'insert-time'; intent: ShowInsertTimeIntentV2 }
   | { owner: 'layer'; intent: ShowLayerEditIntentV2 }
   | { owner: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
@@ -80,7 +82,7 @@ type OwnerResult<C extends Command> = C extends { owner: 'layout-occurrence' } ?
   : C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
   : C extends { owner: 'clip-temporal' } ? ShowClipTemporalResultV2
-  : C extends { owner: 'clip-sharing' } ? ShowClipEditResultV2
+  : C extends { owner: 'clip-sharing' | 'clip-replace' } ? ShowClipEditResultV2
   : C extends { owner: 'insert-time' } ? ShowTimelineEditResultV2
   : C extends { owner: 'layer' } ? ShowLayerEditResultV2
   : C extends { owner: 'appearance' } ? ShowClipAppearanceEditResultV2
@@ -121,7 +123,7 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
           ? editShowMarkerV2(current, structuredClone(command.intent))
           : command.owner === 'create-clip'
             ? createShowClipV2(current, structuredClone(command.intent))
-            : command.owner === 'clip-sharing'
+            : command.owner === 'clip-sharing' || command.owner === 'clip-replace'
             ? editShowClipV2(current, structuredClone(command.intent))
           : command.owner === 'clip-temporal'
               ? editShowClipTemporalV2(current, structuredClone(command.intent))
@@ -361,7 +363,7 @@ function validSharingIntentShape(intent: unknown): intent is ShowV2PilotClipShar
     && exactIntentFields(intent.identities, ['clipId', 'appearanceKeyIdsBySourceId', 'clipTrackIdentitiesBySourceTrackId']) && object(intent.identities) && text(intent.identities.clipId)
     && identities(intent.identities.appearanceKeyIdsBySourceId) && tracks(intent.identities.clipTrackIdentitiesBySourceTrackId)
 }
-function sharingEffects(before: ShowRecordV2, intent: ShowV2PilotClipSharingIntent, result?: ShowClipEditResultV2): ShowTimelineEditAffectedV2 {
+function sharingEffects(before: ShowRecordV2, intent: ShowV2PilotClipSharingIntent | Extract<ShowClipEditIntentV2, { kind: 'replace-pattern' }>, result?: ShowClipEditResultV2): ShowTimelineEditAffectedV2 {
   const effects = timelineEffects()
   if (!result) return effects
   effects.affectedClipIds = result.affectedClipIds
@@ -462,4 +464,24 @@ export async function admitShowV2PilotLayoutOccurrenceEdit(request: ShowV2PilotL
   if (!validLayoutOccurrenceIntent(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one complete explicit Layout occurrence edit.', ...layoutOccurrenceEffects() }
   const outcome = await admitPreparedEdit({ ...request, owner: 'layout-occurrence' as const })
   return presentOwnerOutcome(outcome, layoutOccurrenceEffects('result' in outcome ? outcome.result : undefined))
+}
+export type ShowV2PilotClipReplacementRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2ClipReplacementIntent }
+export type ShowV2PilotClipReplacementOutcome = PilotOwnerOutcome<ShowClipEditResultV2, ShowTimelineEditAffectedV2>
+function validReplacementIntentShape(intent: unknown): intent is ShowV2ClipReplacementIntent {
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return false
+  const value = intent as Record<string, unknown>
+  const text = (item: unknown): item is string => typeof item === 'string' && item.trim().length > 0
+  const fields = ['kind', 'clipId', 'patternReference', ...(Object.prototype.hasOwnProperty.call(value, 'independence') ? ['independence'] : [])]
+  if (!exactIntentFields(value, fields) || value.kind !== 'replace-pattern' || !text(value.clipId) || !exactIntentFields(value.patternReference, ['kind', 'id'])) return false
+  const reference = value.patternReference as Record<string, unknown>
+  if ((reference.kind !== 'stock' && reference.kind !== 'user') || !text(reference.id)) return false
+  return !Object.prototype.hasOwnProperty.call(value, 'independence') || validSharingIntentShape({ kind: 'make-independent', clipId: value.clipId, independence: value.independence })
+}
+export async function admitShowV2PilotClipReplacementEdit(request: ShowV2PilotClipReplacementRequest): Promise<ShowV2PilotClipReplacementOutcome> {
+  if (!validReplacementIntentShape(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Choose one captured Pattern with complete replacement identities.', ...timelineEffects() }
+  const resolved = resolveCapturedShowPatternReplacementV2(request.capture, request.intent.patternReference)
+  if (resolved.status === 'refused') return { status: 'refused', source: 'admission', code: 'unsupported-pilot-record', message: resolved.message, ...timelineEffects() }
+  const intent: Extract<ShowClipEditIntentV2, { kind: 'replace-pattern' }> = { kind: 'replace-pattern', clipId: request.intent.clipId, replacement: resolved.replacement, ...(request.intent.independence ? { independence: request.intent.independence } : {}) }
+  const outcome = await admitPreparedEdit({ ...request, intent, owner: 'clip-replace' as const })
+  return presentOwnerOutcome(outcome, sharingEffects(request.capture.record, intent, 'result' in outcome ? outcome.result : undefined))
 }

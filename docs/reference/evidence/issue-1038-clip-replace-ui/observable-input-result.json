@@ -1,0 +1,119 @@
+{
+  "unreadBindingDiagnosis": {
+    "atMs": 10000,
+    "preimagePixelCount": 0,
+    "candidatePixelCount": 1,
+    "sourceReadsPixelCount": false
+  },
+  "observableConsumer": "beforeRender captures pixelCount to observedCount; green output reads observedCount/16",
+  "measurements": [
+    {
+      "fidelity": "fast",
+      "preimageCount": 1,
+      "candidateCount": 1,
+      "preimageInput": 1,
+      "candidateInput": 1,
+      "preimageFrame": [
+        0.24,
+        0.03,
+        0.19200000000000003,
+        0,
+        0,
+        0
+      ],
+      "candidateFrame": [
+        0.24,
+        0.03,
+        0.19200000000000003,
+        0,
+        0,
+        0
+      ],
+      "partition": "later-entry",
+      "atMs": 10000
+    },
+    {
+      "fidelity": "fast",
+      "preimageCount": 1,
+      "candidateCount": 1,
+      "preimageInput": 1,
+      "candidateInput": 1,
+      "preimageFrame": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "candidateFrame": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "partition": "invisible-survivor",
+      "atMs": 15000
+    },
+    {
+      "fidelity": "fidelity",
+      "preimageCount": 65536,
+      "candidateCount": 65536,
+      "preimageInput": 65536,
+      "candidateInput": 65536,
+      "preimageFrame": [
+        0.239990234375,
+        0.0299835205078125,
+        0.1920013427734375,
+        0,
+        0,
+        0
+      ],
+      "candidateFrame": [
+        0.239990234375,
+        0.0299835205078125,
+        0.1920013427734375,
+        0,
+        0,
+        0
+      ],
+      "partition": "later-entry",
+      "atMs": 10000
+    },
+    {
+      "fidelity": "fidelity",
+      "preimageCount": 65536,
+      "candidateCount": 65536,
+      "preimageInput": 65536,
+      "candidateInput": 65536,
+      "preimageFrame": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "candidateFrame": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "partition": "invisible-survivor",
+      "atMs": 15000
+    }
+  ],
+  "lifecycleDelta": {
+    "atMs": 10000,
+    "stepMs": 250,
+    "preimageElapsed": 10000,
+    "candidateElapsed": 250,
+    "preciseRawPreimage": 655360000,
+    "preciseRawCandidate": 16384000
+  }
+}
