@@ -44,12 +44,18 @@ pre-extraction exporter source before recording their literal hashes.
 [Consumer tests](../../../src/engine/showEpeExportV2.test.ts) reopen `.pxlshow`
 records through the versioned codec, prepare and compile supported ordinary,
 shared/held nonlinear Group Restart, split-position Layout animation, ordinary
-whole-output / Group-local Transitions and converted timed routing fixtures.
+whole-output / Group-local Transitions, converted timed routing fixtures and
+in-range Show repeat-scale activation with ordinary and retained quadratic curves.
 Delivered files reopen through `parseEpe`; Fast and Precise frames and nonempty
 exported state match the pre-export artifact at boundaries/interiors and loop
 crossing. Precise code is regenerated from the reopened source itself.
+Repeat-scale samples additionally match independent quadratic arithmetic at
+activation boundaries, their 1 ms neighbors, interiors and loop crossing with
+125 ms replay steps; runtime elapsed state remains exact. Export preservation
+also compares both artifacts with 1 ms steps. Precise clock accumulation can shift
+an activation relative to wall-clock arithmetic with repeated 1 ms steps; the
+adapter preserves that existing behavior and does not alter the scheduler.
 
 The pure adapter is additive. `showV2Pilot.ts`, prepared Stage preview and route
-adoption remain a separate integration slice. In-range Show repeat-scale animation
-joins consumer qualification after its temporal prerequisite lands. No UI,
+adoption remain a separate integration slice. No UI,
 provider, persistence, schema or emitter behavior changes here.

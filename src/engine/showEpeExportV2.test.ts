@@ -156,23 +156,23 @@ function fixture(): ShowRecordV2 {
   return converted.record
 }
 
-function artifact(record: ShowRecordV2) {
+function artifact(record: ShowRecordV2, sourceCode = code) {
   const decoded = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(record))
   expect(decoded.status).toBe('opened')
   if (decoded.status !== 'opened') throw new Error('Record reopening refused')
   const reopened = decoded.record
   expect(validateShowRecordV2(reopened)).toEqual([])
   const prepared = prepareShowV2ForCompile(reopened, { byCellId: {}, stageDimension: 2,
-    byPatternInstanceId: Object.fromEntries(materializeShowGroupsV2(reopened).composition.patternInstances.map(instance => [instance.id, code])),
+    byPatternInstanceId: Object.fromEntries(materializeShowGroupsV2(reopened).composition.patternInstances.map(instance => [instance.id, sourceCode])),
   }, { libraries: LIBRARIES })
   expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   if (prepared.status !== 'ready') throw new Error('Preparation refused')
   return compileShow(prepared.recipe, LIBRARIES)
 }
 
-function provePlayback(record: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
+function provePlayback(record: ShowRecordV2, fidelity: 'fast' | 'fidelity', sourceCode = code) {
   const before = structuredClone(record)
-  const compiled = artifact(record)
+  const compiled = artifact(record, sourceCode)
   const exported = buildShowEpeExportV2(record, compiled.code, options)
   expect(exported.status, JSON.stringify(exported)).toBe('exported')
   if (exported.status !== 'exported') throw new Error(exported.message)
@@ -192,8 +192,29 @@ function provePlayback(record: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
     expect(Object.keys(a.exports).length).toBeGreaterThan(0)
     expect(b.exports).toEqual(a.exports)
   }
-  return { exported, opened }
+  return { exported, opened, compiled }
 }
+
+it.each((['fast', 'fidelity'] as const).flatMap(fidelity => [false, true].map(retained => ({ fidelity, retained }))))('in-range nonlinear repeat-scale EPE preserves independent samples/state ($fidelity, retained:$retained)', ({ fidelity, retained }) => {
+  const record = fixture()
+  record.composition.executionModel = 'continuous'
+  record.composition.propertyTracks = [{ id: 'repeat-scale', target: { kind: 'show-repeat-scale' }, activeStartMs: 250, activeDurationMs: 500,
+    keyframes: [{ id: 'repeat-first', timeMs: 250, value: retained ? 2.125 : 2, easing: { curve: 'quadratic', direction: 'in' },
+      ...(retained ? { curveSegment: { baseValue: 2, deltaValue: 2, sourceDurationMs: 1000, elapsedOffsetMs: 250, easing: { curve: 'quadratic' as const, direction: 'in' as const } } } : {}) },
+    { id: 'repeat-last', timeMs: 750, value: retained ? 3.125 : 4, easing: { curve: 'linear' } }] }]
+  const sampleCode = 'export var elapsed=0; export function beforeRender(delta){elapsed+=delta} export function render2D(index,x,y){rgb(x,y,elapsed/1000)}'
+  const { opened, compiled } = provePlayback(record, fidelity, sampleCode)
+  const runtime = createFastReplayRuntime({ ...compiled, code: opened.src, fxCode: emitFixedPoint(opened.src), dimension: 2 },
+    { fidelity, randomSeed: 1038, mapPoints: [{ sample: [.25, .5], pos: [.25, .5] }] })
+  const member = compiled.summary.clips.find(clip => clip.id === record.composition.clips[0].instanceId)!
+  for (const atMs of [125, 249, 250, 251, 375, 500, 625, 749, 750, 751, 875, 1000, 1001, 1250, 1500]) {
+    const result = runtime.advanceTo(atMs, { stepMs: 125, forceFullIntermediateRender: true })
+    const scoreMs = atMs % 1000
+    const scale = scoreMs < 250 || scoreMs >= 750 ? 1 : 2 + 2 * (retained ? scoreMs / 1000 : (scoreMs - 250) / 500) ** 2
+    expect(Math.abs(result.frame[0] - (.25 * scale % 1)), `sample@${atMs}`).toBeLessThan(fidelity === 'fast' ? 1e-12 : 5 / 65536)
+    expect(result.exports[`${member.prefix}_elapsed`], `state@${atMs}`).toBe(atMs * (fidelity === 'fidelity' ? 65536 : 1))
+  }
+})
 
 it.each(['fast', 'fidelity'] as const)('native ordinary EPE reopens exact generated playback and state in %s', fidelity => {
   provePlayback(fixture(), fidelity)

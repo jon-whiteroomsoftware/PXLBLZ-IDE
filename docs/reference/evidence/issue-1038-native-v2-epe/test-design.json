@@ -1,6 +1,6 @@
 {
   "issue": 1038,
-  "specificationCommit": "692cd58479fea347f40406b6644268ce1632b6f2",
+  "specificationCommit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
   "proofRows": [
     "ROUTE",
     "RESTART",
@@ -18,7 +18,7 @@
     "Legacy fixed-option envelope/source bytes remain exact."
   ],
   "partitions": [
-    "Ordinary, shared Group top-level authority over stale template, held nonlinear Group controls/Restart, split-position Layout animation, ordinary whole-output and materialized Group Transitions, converted timed Layout transfer. Default-bound Group authority is covered independently from explicit top-level bindings.",
+    "Ordinary, shared Group top-level authority over stale template, held nonlinear Group controls/Restart, split-position Layout animation, ordinary whole-output and materialized Group Transitions, converted timed Layout transfer. Default-bound Group authority is covered independently from explicit top-level bindings. In-range repeat-scale activation independently covers ordinary and retained quadratic2\u21924 source kernels in both runtime modes.",
     "Portable2D and installation; stock/custom/no Stage Map; custom installation fingerprint/private ID; attribution present/absent, unrelated resolved author entries and comment delimiters.",
     "Persisted unknown field/missing reference/effective authority conflict; valid empty ordinary/Group occurrence graph retaining dormant owners.",
     "Exact entry/hold/window/transfer endpoints plus 1ms neighbors, interior and Score loop crossing; readable labels retain exact50ms facts."
@@ -32,21 +32,23 @@
     "Actual imported EPE source ends with exact generated code, ordinary envelope ID/preview and stable Show stamp/name survive reopening.",
     "Delivered frames and nonempty exported state equal pre-export artifact; Precise emitter consumes reopened EPE source, never retained original fxCode.",
     "Source credits/name/schedule and exact millisecond facts are explicit literals; native and legacy compatibility/output/map stamps agree on independently authored partitions.",
-    "Complete original graph equality on change/refusal and explicit empty capability refusal."
+    "Complete original graph equality on change/refusal and explicit empty capability refusal.",
+    "Delivered repeat-scale samples match independent quadratic arithmetic and elapsed state at half-open activation endpoints \u00b11ms, interiors and loop crossing with125ms steps. Original/delivered artifacts also compare exactly with1ms steps; existing Precise fixed-point clock accumulation is preserved, not claimed equivalent to arbitrary wall-clock arithmetic."
   ],
   "tddEvidence": [
     "First native consumer fails absent helper, then assertion-level refused/exported mismatch; minimal native wrapper makes ordinary Fast/Precise roundtrip green.",
     "Admitted converted timed transfer fails missing easing metadata; existing easing option/default is recorded and the consumer becomes green.",
     "Combined visual/timed-transfer preimages expose existing preparation restrictions; separated supported Transition/routing fixtures preserve the upstream domain rather than widening compilation.",
-    "29 native cases pass; 12 existing legacy cases and three literal fixed-option byte pins remain exact."
+    "33 native cases pass including four in-range repeat-scale delivery consumers; 12 existing legacy cases and three literal fixed-option byte pins remain exact.",
+    "Final-base range-diff preserves the original exporter source exactly. Added Precise independent arithmetic at repeated1ms steps exposed existing fixed-point clock accumulation; independent125ms-step arithmetic passes and1ms-step before/after artifact preservation stays exact. No compiler/lowering edits or tolerance expansion."
   ],
   "mutationEvidence": [
     "Eight scoped public-oracle faults are killed by assertion failures: omitted generated program, ordinary-only Clip/Transition schedule, missing empty refusal, wrong participant-window start, missing output-contract stamp, discarded available author and invalid-record laundering. Owned module restored after every fault; no sibling source edits.",
-    "Five-file adjacent public-boundary proof passes116/116 (including29 native and12 legacy cases); restored-source project TypeScript, scoped lint and exact47-record parity pass. Coordinator owns authoritative final suites."
+    "Final temporal-base adjacent public-boundary proof passes162/162 across seven files (six151 plus the actual unused-track preparation sibling11); project TypeScript, scoped lint and exact47-record parity pass. Coordinator owns authoritative final suites.",
+    "On the temporal base, corrupting the delivered generated RGB program is assertion-killed by all four new repeat-scale consumers. Original owned module is restored before subsequent staged checks; the original eight-fault evidence still applies to the unchanged range-diff source."
   ],
   "residualGaps": [
     "Prepared Stage preview, showV2Pilot artifact qualification and route/store adoption consume this adapter in a separate candidate; no browser proof claimed.",
-    "In-range repeat-scale consumer fixture awaits the temporal prerequisite; no compiler support widening.",
     "Coordinator owns final suites, native Astra Medium review, landing and issue progress; full #1038 remains partial."
   ]
 }
