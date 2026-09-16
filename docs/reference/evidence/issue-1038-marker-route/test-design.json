@@ -44,12 +44,14 @@
   ],
   "qualification": {
     "focused": "75/75 across six Marker/admission/pilot/control suites; empty partition red refused->applied, then green.",
-    "static": "Scoped ESLint passed; full-project TypeScript qualification follows finalbase.",
-    "browser": "Pending committed desktop/narrow captures",
+    "static": "Scoped ESLint, full-project tsc and diff-check PASS on93d9-based source; commit hook146node +12chromium-layout PASS, E2E reachability/locator gates PASS.",
+    "browser": "Committed f87aa5dc189f7eadadbb0f725cb71f8f3e444410 served at managed5178: desktop1440x1000 and narrow390x844 Playwright synthetic context;7writes, zero-write equal/refused submissions, Undo/Redo/reload, .pxlshow+.epe reopen; valid-empty Marker save/history/reload and disabled artifacts;0console/page errors. PNG signatures and images inspected. .wrsp/ui-proof/1038-marker-route.json and desktop/narrow PNGs.",
     "finalSuites": "Coordinator-owned; worker did not submit"
   },
   "residualGaps": [
     "Advanced nonempty prepared-recipe preview/.epe metadata adapter and other owner UI remain later slices.",
     "Root owns final suites, review and landing."
-  ]
+  ],
+  "proofSubset": "CHAPTERS covers unchanged general guides only, never1040chapter roles/projection; LAYOUT-END covers dormant Marker and explicit empty-content unavailable preview/export.",
+  "browserFallback": "Installed Browser bootstrap completed, iab unavailable on two get probes and backend list contained Chrome only. Repository Playwright1.60/Chromium1223 used separate fresh synthetic context; user Chrome untouched."
 }

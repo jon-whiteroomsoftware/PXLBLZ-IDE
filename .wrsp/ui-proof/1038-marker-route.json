@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/marker-route-synthetic?show-v2-pilot=1",
+  "operation": "Playwright fallback after two IAB discovery failures: added/select dormant equal-time Marker, rejected fractional time, updated name/color, Undo/Redo and saved reload, reopened .pxlshow/.epe; desktop/narrow and empty-content Marker save/history with preview/export unavailable.",
+  "captures": [
+    ".wrsp/ui-proof/1038-marker-route-desktop.png",
+    ".wrsp/ui-proof/1038-marker-route-narrow.png"
+  ],
+  "capturedAtCommit": "f87aa5dc189f7eadadbb0f725cb71f8f3e444410"
+}
