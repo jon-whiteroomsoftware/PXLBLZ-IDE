@@ -26,7 +26,7 @@ export async function exerciseShowV2Markers(page: Page) {
   await markers.getByRole('button', { name: 'Add Marker' }).click()
   await expect(route.getByText('Marker saved.', { exact: true })).toBeVisible()
   expect(writes).toBe(1)
-  await expect(markers.getByLabel('Marker')).toHaveValue('marker:1')
+  await expect(markers.getByLabel('Marker', { exact: true })).toHaveValue('marker:1')
   await expect(markers.getByRole('option')).toHaveCount(2)
   const commit = async (label: string, value: string) => {
     await markers.getByLabel(label, { exact: true }).fill(value)
@@ -53,7 +53,7 @@ export async function exerciseShowV2Markers(page: Page) {
   expect(writes).toBe(6)
   await route.getByRole('button', { name: 'Reload saved v2' }).click()
   await expect(route.getByText('Reloaded v2 bytes from the provider.', { exact: true })).toBeVisible()
-  await markers.getByLabel('Marker').selectOption('marker:1')
+  await markers.getByLabel('Marker', { exact: true }).selectOption('marker:1')
   await expect(markers.getByLabel('Marker name')).toHaveValue('Outro')
   await expect(markers.getByLabel('Marker time')).toHaveValue('45000')
   await expect(markers.getByLabel('Marker color')).toHaveValue('#ffaa00')
