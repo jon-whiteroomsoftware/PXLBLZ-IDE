@@ -1,0 +1,40 @@
+{
+  "mutants": [
+    {
+      "name": "lost-outgoing-descriptor-reauthor",
+      "killed": true,
+      "oracle": "src/engine/showPropertyEditsV2.test.ts: reauthors only endpoint"
+    },
+    {
+      "name": "lost-old-preceding-reauthor",
+      "killed": true,
+      "oracle": "src/engine/showPropertyEditsV2Curves.test.ts: only reauthors old/new"
+    },
+    {
+      "name": "lost-new-preceding-reauthor",
+      "killed": true,
+      "oracle": "src/engine/showPropertyEditsV2Curves.test.ts: only reauthors old/new"
+    },
+    {
+      "name": "invalid-preimage-laundering",
+      "killed": true,
+      "oracle": "src/engine/showPropertyEditsV2Boundaries.test.ts: malformed complete preimage"
+    },
+    {
+      "name": "invalid-result-and-effective-owner-bypass",
+      "killed": true,
+      "oracle": "src/engine/showPropertyEditsV2Validation.test.ts: refuses top-level and effective Group"
+    },
+    {
+      "name": "changed-input-alias",
+      "killed": true,
+      "oracle": "src/engine/showPropertyEditsV2.test.ts: adds a complete track"
+    },
+    {
+      "name": "no-op-side-effects",
+      "killed": true,
+      "oracle": "src/engine/showPropertyEditsV2Validation.test.ts: preserves exact identity"
+    }
+  ],
+  "sourceRestored": true
+}

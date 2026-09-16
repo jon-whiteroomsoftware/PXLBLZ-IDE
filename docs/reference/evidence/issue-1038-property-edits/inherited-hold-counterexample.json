@@ -1,0 +1,183 @@
+{
+  "boundary": [
+    {
+      "timeMs": 199,
+      "authoredBoundaryExpected": 0.5,
+      "evaluator": 0.5,
+      "emitted": 0.5
+    },
+    {
+      "timeMs": 200,
+      "authoredBoundaryExpected": 0.5,
+      "evaluator": 0.15000000000000002,
+      "emitted": 0.15000000000000002
+    },
+    {
+      "timeMs": 201,
+      "authoredBoundaryExpected": 0.1502002,
+      "evaluator": 0.1502002,
+      "emitted": 0.1502002
+    }
+  ],
+  "expression": "((atMs) <= 0 ? 0.5 : ((atMs) < 100 ? (0.5 + (0) * ((atMs) - 0) / 100) : ((atMs) < 200 ? (0.5 + (0) * ((atMs) - 100) / 100) : ((atMs) < 400 ? (0.1 + (0.8) * ((500 + ((atMs) - 200)) / 2000 * (500 + ((atMs) - 200)) / 2000)) : 0.7))))",
+  "originalIssues": [],
+  "materializedIssues": [],
+  "original": {
+    "id": "curve",
+    "target": {
+      "kind": "clip-view",
+      "clipId": "child",
+      "property": "brightness"
+    },
+    "activeStartMs": 0,
+    "activeDurationMs": 400,
+    "keyframes": [
+      {
+        "id": "first",
+        "timeMs": 0,
+        "value": 0.5,
+        "easing": {
+          "curve": "linear"
+        }
+      },
+      {
+        "id": "before",
+        "timeMs": 100,
+        "value": 0.5,
+        "easing": {
+          "curve": "linear"
+        }
+      },
+      {
+        "id": "boundary",
+        "timeMs": 200,
+        "value": 0.5,
+        "easing": {
+          "curve": "linear"
+        },
+        "curveSegment": {
+          "baseValue": 0.1,
+          "deltaValue": 0.8,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          },
+          "sourceDurationMs": 2000,
+          "elapsedOffsetMs": 500
+        }
+      },
+      {
+        "id": "last",
+        "timeMs": 400,
+        "value": 0.7,
+        "easing": {
+          "curve": "linear"
+        }
+      }
+    ]
+  },
+  "mapped": {
+    "id": "occ-0:curve",
+    "target": {
+      "kind": "clip-view",
+      "clipId": "occ-0:child",
+      "property": "brightness"
+    },
+    "activeStartMs": 0,
+    "activeDurationMs": 500,
+    "keyframes": [
+      {
+        "id": "occ-0:first",
+        "timeMs": 0,
+        "value": 0.5,
+        "easing": {
+          "curve": "linear"
+        }
+      },
+      {
+        "id": "occ-0:before",
+        "timeMs": 100,
+        "value": 0.5,
+        "easing": {
+          "curve": "linear"
+        }
+      },
+      {
+        "id": "occ-0:curve:hold:200",
+        "timeMs": 200,
+        "value": 0.15000000000000002,
+        "easing": {
+          "curve": "linear"
+        }
+      },
+      {
+        "id": "occ-0:boundary",
+        "timeMs": 300,
+        "value": 0.5,
+        "easing": {
+          "curve": "linear"
+        },
+        "curveSegment": {
+          "baseValue": 0.1,
+          "deltaValue": 0.8,
+          "easing": {
+            "curve": "quadratic",
+            "direction": "in"
+          },
+          "sourceDurationMs": 2000,
+          "elapsedOffsetMs": 500
+        }
+      },
+      {
+        "id": "occ-0:last",
+        "timeMs": 500,
+        "value": 0.7,
+        "easing": {
+          "curve": "linear"
+        }
+      }
+    ]
+  },
+  "samples": [
+    {
+      "timeMs": 100,
+      "original": 0.5,
+      "mapped": 0.5
+    },
+    {
+      "timeMs": 199,
+      "original": 0.5,
+      "mapped": 0.15350000000000003
+    },
+    {
+      "timeMs": 200,
+      "original": 0.15000000000000002,
+      "mapped": 0.15000000000000002
+    },
+    {
+      "timeMs": 201,
+      "original": 0.1502002,
+      "mapped": 0.15350000000000003
+    },
+    {
+      "timeMs": 250,
+      "original": 0.16050000000000003,
+      "mapped": 0.325
+    },
+    {
+      "timeMs": 299,
+      "original": 0.1717602,
+      "mapped": 0.4965
+    },
+    {
+      "timeMs": 300,
+      "original": 0.172,
+      "mapped": 0.15000000000000002
+    },
+    {
+      "timeMs": 301,
+      "original": 0.1722402,
+      "mapped": 0.1502002
+    }
+  ]
+}

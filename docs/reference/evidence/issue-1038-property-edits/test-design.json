@@ -1,0 +1,62 @@
+{
+  "issue": 1038,
+  "base": "265b73378b33b2c1971aed96ae231cd4349805b9",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+    "proofRows": [
+      "MODEL",
+      "CURVE",
+      "ACTIVATION",
+      "SHARING",
+      "GROUP-HOLD",
+      "PARITY",
+      "FAILURE"
+    ],
+    "amendment": "Current issue: Jon accepted nominal half-open selected-time appearance boundary; no appearance/UI scope in this owner."
+  },
+  "boundary": "editShowPropertyV2(record, explicit persisted Show/Group-definition owner, six closed CRUD intents); existing record reauthor wrapper + immutable track helper; native v2 importer/EPE importer/FastReplay consumers.",
+  "invariants": [
+    "Only the selected persisted track/key owner changes; no materialized-ID writes, timestamp/control/source/runtime mutation, implicit cloning or GC.",
+    "Complete structural/domain/Layout preimage and candidate admission includes effective materialized Group shared-target conflict checks. Source-dependent final preparation stays outside pure CRUD.",
+    "Activation setters change explicit fields without cropping/shifting keys. Descriptor reauthoring removes only edited outgoing and endpoint old/new predecessor kernels; unrelated kernels remain exact.",
+    "Changed output is completely unaliased; no-op/refusal returns exact input identity and every affected collection empty. Final data equality determines no-op even for equal scalar descriptor reauthor.",
+    "Track IDs are persisted-owner scoped; key IDs track scoped. Group context names definition and all linked occurrences; effective IDs/control authority and holds stay unchanged."
+  ],
+  "partitions": [
+    "All nine persisted target forms through public preparation/native EPE Fast and Precise; Show/local definition contexts; dormant and two linked held occurrences.",
+    "Complete retained descriptors on add-track; ordinary key add; endpoint/time/easing-only reauthor; old/new preceding neighbours; add/remove adjacency; explicit equal value and object-field-order no-op.",
+    "Safe integer activation/key timing, excluded keys/cardinality/order/duplicate IDs, malformed/null/unknown fields/non-data/function values, nonfinite/invalid easing/source offset/last descriptor, target/reference/Effect identity, global-only local target refusals.",
+    "Effective Group versus top-level instance-owner conflict, exact half-open adjacency, distinct control exports and stale definition-slot copies with authoritative bound payload.",
+    "Nested equal key/track strings across independent owners; complete source-dependent missing-control baseline remains typed preparation refusal rather than hidden payload authoring."
+  ],
+  "sequences": [
+    "Add complete track\u2192activation setter\u2192add key\u2192move/value reauthor\u2192remove key\u2192remove track; complete valid result and retained runtime payload after each.",
+    "Add retained source descriptor\u2192explicit equal endpoint/value or easing reauthor\u2192no-op repeat; move key across former neighbours and independently check kernels that survive.",
+    "Definition-local edit\u2192materialize both held linked occurrences\u2192native reopen/EPE Fast/Precise compare with manually authored ordinary curve and same shared runtime.",
+    "Invalid/missing/duplicate/non-data intent\u2192original identity/empty affected; malformed complete preimage cannot be repaired by remove operation.",
+    "Nine-target complete add\u2192independent quadratic evaluator/native EPE\u2192endpoint reauthor versus manually authored ordinary schedule\u2192remove restores exact original record."
+  ],
+  "oracles": [
+    "Native v2 serialize/parser validates complete resulting authored graph; public evaluator proves original quadratic formula and inactive exclusive end; input/caller snapshots and post-result mutation prove no aliases.",
+    "Actual native EPE exporter/importer plus emitted fixed-point source: independent final choreography frames and nonempty exported state equal at125ms0..875 in Fast/Precise for every family and held linked Group.",
+    "Fine key-boundary/evaluator values and old/new neighbour descriptor identity; explicit equal reauthor clears descriptor while actual equal ordinary data/object field order preserves no-op identity.",
+    "Complete typed refusal/message and empty effects; exact removed/raw nested key/track IDs, requested definition and linked occurrence IDs, resolved effective target consumers.",
+    "Source-independent structural CRUD can succeed with missing authored control baseline, but trusted final prepare refuses; no hidden runtime/control baseline is invented.",
+    "Seven named faults killed: outgoing/old/new predecessor descriptor retention, invalid preimage laundering, invalid candidate/effective-owner bypass, changed input alias, no-op side effects; exact source bytes restored.",
+    "Unchanged47-record parity corpus and shared persisted v1 generated-schema drift coverage gate."
+  ],
+  "residualGaps": [
+    "Inherited structurally admitted mismatched descriptor/key exact-boundary evaluator+emitter and exact-key Group hold preservation violation is preserved in inherited-hold-counterexample.json. Canonical right-key semantics and admission stay unchanged; root authorized separate correction, not this CRUD scope.",
+    "Native consumer fixtures use coherent admitted source endpoints; no claim of playback correctness for the inherited mismatched-boundary fixture or arbitrary-ms Precise state.",
+    "No UI/store/history/adoption integration, schema/domain/compiler widening or production cutover. Whole1038 partial; coordinator owns finalbase/exact native review/authoritative final suites/landing."
+  ],
+  "qualification": {
+    "red": "Initial public complete-add counterexample red\u2192green; retained equal-value reauthor red\u2192green; malformed non-data intents3 red\u2192green; final-data target field-order no-op red\u2192green. Initial test-only fixed-point import corrected before native qualification.",
+    "focused": "169/8 own CRUD, nine-family native EPE, shared animation/Groups and schema drift coverage tests pass.",
+    "static": "Full project TypeScript and scoped ESLint pass; normal commit hooks follow scoped checkpoint.",
+    "parity": "47 inventoried records match unchanged committed report.",
+    "faultSensitivity": "7 named semantic mutants killed; sourceRestored=true in fault-sensitivity.json.",
+    "inheritedReproduction": "Public native reopen original/materialized validates[]; emitted/evaluator199=.5/200=.15/201=.1502002 while exact authored boundary expected.5; hold mapper199=.1535 and hold250=.325. /tmp/issue-1038-property-hold-reproduction.mts."
+  }
+}

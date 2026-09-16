@@ -97,6 +97,28 @@ export function evaluateShowPropertyTrackV2(
   return evaluateShowPropertyKeysV2(track.keyframes, atMs)
 }
 
+/** Reauthor one key's adjacent kernels without mutating the supplied track. */
+export function reauthorShowPropertyKeyframeInTrackV2(
+  source: ShowPropertyTrackV2,
+  keyframeId: string,
+  changes: Partial<Pick<ShowPropertyKeyframeV2, 'timeMs' | 'value' | 'easing'>>,
+): ShowPropertyTrackV2 {
+  const track = structuredClone(source)
+  const oldIndex = track.keyframes.findIndex(candidate => candidate.id === keyframeId)
+  if (oldIndex < 0) return track
+  const edited = track.keyframes[oldIndex]
+  const editsEndpoint = changes.timeMs !== undefined || changes.value !== undefined
+  delete edited.curveSegment
+  if (editsEndpoint && oldIndex > 0) delete track.keyframes[oldIndex - 1].curveSegment
+  Object.assign(edited, structuredClone(changes))
+  track.keyframes.sort(compareKeys)
+  if (editsEndpoint) {
+    const newIndex = track.keyframes.findIndex(candidate => candidate.id === keyframeId)
+    if (newIndex > 0) delete track.keyframes[newIndex - 1].curveSegment
+  }
+  return track
+}
+
 /** Reauthor the ordinary segments adjacent to an explicitly edited key. */
 export function reauthorShowPropertyKeyframeV2(
   record: ShowRecordV2,
@@ -111,16 +133,7 @@ export function reauthorShowPropertyKeyframeV2(
   if (!track || oldIndex < 0) {
     return { status: 'refused', record, affectedTrackIds: [], message: `Property keyframe "${keyframeId}" does not exist in track "${trackId}".` }
   }
-  const edited = track.keyframes[oldIndex]
-  const editsEndpoint = changes.timeMs !== undefined || changes.value !== undefined
-  delete edited.curveSegment
-  if (editsEndpoint && oldIndex > 0) delete track.keyframes[oldIndex - 1].curveSegment
-  Object.assign(edited, structuredClone(changes))
-  track.keyframes.sort(compareKeys)
-  if (editsEndpoint) {
-    const newIndex = track.keyframes.findIndex(candidate => candidate.id === keyframeId)
-    if (newIndex > 0) delete track.keyframes[newIndex - 1].curveSegment
-  }
+  next.composition.propertyTracks[next.composition.propertyTracks.indexOf(track)] = reauthorShowPropertyKeyframeInTrackV2(track, keyframeId, changes)
   const issue = validateShowRecordV2(next)[0]
   if (issue) return { status: 'refused', record, affectedTrackIds: [], message: `${issue.path}: ${issue.message}` }
   return { status: 'changed', record: next, affectedTrackIds: [trackId] }
