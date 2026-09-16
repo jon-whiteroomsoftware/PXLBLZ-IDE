@@ -7,7 +7,7 @@ import {
 import { makeProgramId } from './bytecodePush'
 import { showEasingOptionId } from './showEasing'
 import { STOCK_MAP_SPECS } from './maps'
-import type { MapRecord, ShowBoundaryTransition, ShowRecord } from './personalContentRecords'
+import type { MapRecord, ShowBoundaryTransition, ShowRecord, ShowOutputContract, ShowRoutingLayout } from './personalContentRecords'
 import { normalizeShowTransitionState, projectShowTimeline, showVisualTransitionAfter } from './showModel'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 import { formatShowBoundaryIdentity, formatShowClipIdentity } from './showClipIdentity'
@@ -174,8 +174,14 @@ function showArtifactHeader(
   return lines.join('\n')
 }
 
-function deriveShowArtifactMapMetadata(
-  show: ShowRecord,
+export interface ShowEpeMapMetadataInput {
+  stageMapId?: string | null
+  outputContract?: ShowOutputContract
+  routingLayouts: readonly ShowRoutingLayout[]
+}
+
+export function deriveShowArtifactMapMetadata(
+  show: ShowEpeMapMetadataInput,
   userMaps: readonly MapRecord[],
 ): {
   preferredMap?: ArtifactPreferredMap
@@ -209,7 +215,7 @@ function deriveShowArtifactMapMetadata(
 }
 
 function deriveArtifactShowOutputContract(
-  show: ShowRecord,
+  show: ShowEpeMapMetadataInput,
   userMaps: readonly MapRecord[],
   preferredMap: ArtifactPreferredMap | undefined,
 ): ArtifactShowOutputContract | undefined {
@@ -239,11 +245,11 @@ function deriveArtifactShowOutputContract(
   }
 }
 
-function preferredMapReference(map: ArtifactPreferredMap): string {
+export function preferredMapReference(map: ArtifactPreferredMap): string {
   return map.kind === 'stock' ? `stock:${map.id}` : 'custom map name'
 }
 
-function describeMapCompatibility(compatibility: ArtifactMapCompatibility): string {
+export function describeMapCompatibility(compatibility: ArtifactMapCompatibility): string {
   const dimensions = compatibility.dimensions.map((dimension) => `${dimension}D`).join('/') || 'unspecified-dimension'
   const classes = compatibility.mapClasses.join('/') || 'unspecified-class'
   if (compatibility.exactMap) {
@@ -252,7 +258,7 @@ function describeMapCompatibility(compatibility: ArtifactMapCompatibility): stri
   return `adaptive ${dimensions} ${classes} maps at adaptive resolution; other compatible maps may change the composition.`
 }
 
-function describeShowOutputContract(contract: ArtifactShowOutputContract): string {
+export function describeShowOutputContract(contract: ArtifactShowOutputContract): string {
   if (contract.kind === 'installation') {
     return `Installation · ${contract.pixelCount} px fixed${contract.outputMap ? ` · ${contract.outputMap.name}` : ''}${contract.outputMap?.fingerprint ? ` · fingerprint ${contract.outputMap.fingerprint}` : ''}`
   }
@@ -261,7 +267,7 @@ function describeShowOutputContract(contract: ArtifactShowOutputContract): strin
   return `Portable 2D · variable resolution · compatible ${classes} maps${aspect}`
 }
 
-function describeTransition(transition: ShowBoundaryTransition): string {
+export function describeTransition(transition: Omit<ShowBoundaryTransition, 'afterSceneId'>): string {
   if (transition.kind !== 'portal') {
     return `${transition.kind} ${formatSeconds(transition.durationMs)}`
   }
@@ -297,7 +303,7 @@ export function epeFilenameStem(name: string, fallback = 'show'): string {
     .replace(/^-+|-+$/g, '') || fallback
 }
 
-function commentText(value: string): string {
+export function commentText(value: string): string {
   return value.replace(/\*\//g, '* /').replace(/[\r\n]+/g, ' ')
 }
 
