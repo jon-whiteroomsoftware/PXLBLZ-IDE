@@ -5,11 +5,13 @@ import { ShowStagePreview } from './ShowStagePreview'
 import { isValidatedEmptyShowV2 } from '@/engine/showMarkerRouteModel'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
-import { lowerShowV2PilotPreview, qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
+import { qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
+import { prepareShowStageV2 } from '@/engine/showPreparedStageV2'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
-import { useMapStore } from '@/store/mapStore'
+import { useMapStore, resolveMap, STOCK_MAPS } from '@/store/mapStore'
 import { useLibraryStore } from '@/store/libraryStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
 
 export function ShowV2RoutePilot({ showId }: { showId: string }) {
   const record = useShowStore(state => state.showV2Pilots[showId])
@@ -23,6 +25,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
   const patterns = usePatternStore(state => state.userPatterns)
   const maps = useMapStore(state => state.userMaps)
   const libraries = useLibraryStore(state => state.userLibraries)
+  const profiles = useControllerProfileStore(state => state.profiles)
   const [status, setStatus] = useState('')
 
   useEffect(() => {
@@ -40,10 +43,11 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
   const transition = record?.composition.transitions[0]
   const preview = useMemo(() => {
     if (!record) return null
-    if (isValidatedEmptyShowV2(record)) return { show: null, error: 'Add content to preview or export this Show.' }
-    try { return { show: lowerShowV2PilotPreview(record, patterns), error: null } }
-    catch (error) { return { show: null, error: error instanceof Error ? error.message : 'Preview refused.' } }
-  }, [patterns, record])
+    const selected = STOCK_MAPS.find(map => map.id === record.stageMapId)
+      ?? maps.find(map => map.id === record.stageMapId && (map.generator !== 'custom' || (map.points?.length ?? 0) > 0))
+    const stageMap = selected && (selected.dim === 2 || selected.dim === 3) ? resolveMap(selected.id, maps) : null
+    return prepareShowStageV2(record, { patterns, maps, libraries, profiles, stageMap })
+  }, [record, patterns, maps, libraries, profiles])
 
   const resize = async (durationMs: number) => {
     if (!record || !transition) return
@@ -121,11 +125,11 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
         </div>
       </section>
       <section className="min-h-[20rem] border-t border-zinc-800 p-3 lg:min-h-0 lg:border-l lg:border-t-0" aria-label="V2 Stage preview">
-        {preview?.show ? (
-          <ShowStagePreview showId={showId} showOverride={preview.show} />
+        {preview?.status === 'ready' ? (
+          <ShowStagePreview kind="prepared-v2" bundle={preview.bundle} />
         ) : (
           <div role="status" className="flex h-full items-center justify-center px-6 text-center text-sm text-zinc-500">
-            {preview?.error ?? 'Preparing Stage preview…'}
+            {preview?.status === 'empty' ? 'Add content to preview or export this Show.' : preview?.status === 'refused' ? preview.message : 'Preparing Stage preview…'}
           </div>
         )}
       </section>

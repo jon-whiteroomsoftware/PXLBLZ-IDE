@@ -1,0 +1,71 @@
+{
+  "issue": 1038,
+  "specificationCommit": "5a206eac2650a936fad58969a8ebbf8bf1353d92",
+  "implementationBase": "9357bc2e5577d5eb4cde8ff54af350c1c6a40dd6",
+  "proofRows": [
+    "CURVE",
+    "ACTIVATION",
+    "SHARING",
+    "RESTART",
+    "INSERT",
+    "GROUP-HOLD",
+    "LAYOUT-END",
+    "ROUTE",
+    "FAILURE",
+    "PARITY"
+  ],
+  "invariants": [
+    "One captured native record/dependency/artifact identity supplies all prepared-v2 Stage semantics; no fabricated legacy record or recompile.",
+    "Full prepared compiler frame survives later Layout ownership changes without initial solo/unstaged mask.",
+    "Captured source/dimension/duration/digest/stamp cannot be replaced by a newer store record during delayed publication.",
+    "Validated empty creates no runtime; unsupported nonempty exposes actual refusal; legacy behavior remains unchanged."
+  ],
+  "partitions": [
+    "Fast/Precise held original nonlinear repeat curve and advancing Pattern state.",
+    "Shared same-runtime Restart after codec reopen; exact prepared recipe/artifact and source reopened through EPE importer.",
+    "Actual2D/3D map/pixel context and Layout active at zero not array-first; missing/invalid/empty distinct.",
+    "Later physical Layout compiler frame reaches actual renderer unmasked; hidden inoperative solo/guides.",
+    "Delayed real reconstruction after record, dependency/dimension, navigation and unmount replacement; captured stamp unaffected by mutation of original reference token.",
+    "Legacy deferred preview/diagnostics and opt-in Marker/Transition history controls retained."
+  ],
+  "sequences": [
+    "Capture native record/dependencies, publicly prepare/compile once, mount existing Stage, seek into later Layout and compare actual renderer packed frame against independent replay in both modes.",
+    "Reopen held authored record/generated source and advance across hold/resume and shared Restart using binary-exact125ms arithmetic steps.",
+    "Hold initial reconstruction completion, replace captured record/dimension or navigate/unmount, complete current replay then old replay and assert no old publication.",
+    "Drive committed opt-in route desktop/narrow through playback, seek, fidelity and capture, inspect screenshots/console/keyboard and record exact committed identity."
+  ],
+  "oracles": [
+    "Public prepareShowV2ForCompile exact recipe/provenance and compileShow artifact equality.",
+    "Provisional codec/EPE importer reopen; independently computed quadratic values and shared elapsed-reset exports.",
+    "Real existing renderer receives exact independent runtime packed frame; source compiler spy remains unused.",
+    "Captured preview publication event digest/stamp and unchanged count after late obsolete completion.",
+    "Existing legacy/pilot component regressions and parity47 unchanged."
+  ],
+  "residualGaps": [
+    "Native time-aware v2 Zone isolation/authored guides remain later1038 parity integration.",
+    "Native EPE export and advanced edit/admission qualification are separate owners; no default cutover.",
+    "Coordinator owns final suites/native review/landing."
+  ],
+  "qualification": {
+    "focused": "62/62 across4 prepared/legacy/pilot files; pure bundle8 and prepared renderer/publication6 qualify exact source and delayed identity.",
+    "static": "Scoped ESLint/project TypeScript/diff-check PASS; ordinary source hook runs at checkpoint.",
+    "browser": "Pending committed desktop/narrow IAB-first proof.",
+    "faultSensitivity": [
+      {
+        "name": "prepared-initial-mask",
+        "killed": true,
+        "exitCode": 1
+      },
+      {
+        "name": "prepared-restart-dropped",
+        "killed": true,
+        "exitCode": 1
+      }
+    ],
+    "finalSuites": "Coordinator-owned; no worker submission"
+  },
+  "tddEvidence": [
+    "Two initial Stage tests red before prepared branch; ready bundle6 consumer cases green before UI branch.",
+    "Exact initial-mask semantic fault killed both real-renderer tests; dropped Restart event fault killed Fast/Precise reopened state assertions; exact WIP bytes restored."
+  ]
+}

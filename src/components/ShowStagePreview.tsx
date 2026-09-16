@@ -59,6 +59,7 @@ import { beginCaptureOrbit } from '@/dev/captureOrbit'
 import type { CaptureSequenceOptions, CaptureSequenceResult } from '@/dev/captureSequence'
 import { compileLibraries } from '@/engine/libraries'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import type { ShowPreparedStageBundleV2 } from '@/engine/showPreparedStageV2'
 
 /** Dev-only `?capture` automation surface for the Show stage (#879); the
  * Pattern preview's counterpart is `window.__pxlblz` in Preview.tsx. */
@@ -139,17 +140,19 @@ function diagnosticPointList(points: [number, number][]): string {
   return points.map(([x, y]) => `${x.toFixed(4)},${y.toFixed(4)}`).join(' ')
 }
 
-export function ShowStagePreview({
-  showId,
-  showOverride,
-  presentation = 'pane',
-  onPreviewAspectChange,
-}: {
-  showId: string
-  showOverride?: ShowRecord
+type ShowStagePreviewProps = {
   presentation?: 'pane' | 'strip'
   onPreviewAspectChange?: (aspect: number) => void
-}) {
+} & (
+  | { kind?: 'legacy'; showId: string; showOverride?: ShowRecord; bundle?: never }
+  | { kind: 'prepared-v2'; bundle: ShowPreparedStageBundleV2; showId?: never; showOverride?: never }
+)
+
+export function ShowStagePreview(input: ShowStagePreviewProps) {
+  const preparedBundle = input.kind === 'prepared-v2' ? input.bundle : null
+  const showId = preparedBundle ? preparedBundle.record.id : input.showId!
+  const showOverride = input.kind === 'prepared-v2' ? undefined : input.showOverride
+  const { presentation = 'pane', onPreviewAspectChange } = input
   const { setTarget: setSourceTarget } = useContext(ShowSourceOutletContext)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -179,7 +182,7 @@ export function ShowStagePreview({
   const previewShow = useShowPreviewOverrideStore((state) => state.show?.id === showId ? state.show : null)
   const resolvedShow = previewShow ?? showOverride ?? savedShow
   const deferredShow = useDeferredValue(resolvedShow)
-  const show = resolveShowStagePreviewInput(showId, resolvedShow, deferredShow)
+  const show = preparedBundle ? undefined : resolveShowStagePreviewInput(showId, resolvedShow, deferredShow)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userLibraries = useLibraryStore((state) => state.userLibraries)
   const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
@@ -234,7 +237,7 @@ export function ShowStagePreview({
   const targetProfile = show?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === show.targetControllerProfileId)
     : controllerProfiles[0]
-  const installationCoverage = show ? validateInstallationCoverage(show) : null
+  const installationCoverage = preparedBundle ? preparedBundle.presentation.installationCoverage : show ? validateInstallationCoverage(show) : null
   const savedPhysicalZones = useMemo(
     () => show ? installationPhysicalZones(show) : undefined,
     [show],
@@ -255,9 +258,9 @@ export function ShowStagePreview({
       })),
   ], [userMaps])
 
-  const selectedStageMap = stageMaps.find((map) => map.id === show?.stageMapId)
+  const selectedStageMap: Omit<StageMapOption, 'group'> | undefined = preparedBundle ? preparedBundle.presentation.stageMap ?? undefined : stageMaps.find((map) => map.id === show?.stageMapId)
   const danglingStageMap = Boolean(show?.stageMapId && !selectedStageMap)
-  const stageIdentityRole = show?.outputContract?.kind === 'installation'
+  const stageIdentityRole = preparedBundle ? preparedBundle.presentation.stageIdentityRole : show?.outputContract?.kind === 'installation'
     ? 'Output map'
     : show?.outputContract?.kind === 'portable-2d'
       ? 'Reference map'
@@ -270,16 +273,18 @@ export function ShowStagePreview({
     [show],
   )
   const compiled = useMemo(
-    () =>
-      show
+    () => preparedBundle
+      ? { artifact: preparedBundle.artifact, error: null }
+      : show
         ? compileShowForPreview(show, userPatterns, compilationControllerZones, compileLibrarySet, {
             stageDimension: selectedStageMap?.dim,
           })
         : { artifact: null, error: null },
-    [compilationControllerZones, compileLibrarySet, selectedStageMap?.dim, show, userPatterns],
+    [preparedBundle, compilationControllerZones, compileLibrarySet, selectedStageMap?.dim, show, userPatterns],
   )
 
   const layout = useMemo((): StageLayout | null => {
+    if (preparedBundle) return preparedBundle.presentation.layout
     if (!show) return null
     if (!selectedStageMap) {
       const strips = buildShowStripsLayout(show.zones)
@@ -350,9 +355,8 @@ export function ShowStagePreview({
       label: map.name,
       note: logical ? showLogicalAspectAdvisory(mapPoints, logical) : null,
     }
-  }, [danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, userMaps])
-  const effectiveSoloZoneId =
-    layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
+  }, [preparedBundle, danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, userMaps])
+  const effectiveSoloZoneId = !preparedBundle && layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
   const diagnosticFrameAtTime = useMemo(() => show && layout?.draw.kind === '2d'
     ? createShowStageDiagnostics(show, layout.draw.positions, layout.mapPoints, layout.projection, layout.kind === 'map', diagnosticFocus)
     : null, [show, layout, diagnosticFocus])
@@ -364,7 +368,7 @@ export function ShowStagePreview({
   useEffect(() => {
     onPreviewAspectChange?.(previewAspect)
   }, [onPreviewAspectChange, previewAspect])
-  const durationMs = show ? showLoopDurationMs(show) : 0
+  const durationMs = preparedBundle ? preparedBundle.presentation.durationMs : show ? showLoopDurationMs(show) : 0
   const stageMaskPlan = useMemo(
     () => layout ? createShowStageMaskPlan(layout.projection, layout.mapPoints.length) : null,
     [layout],
@@ -507,7 +511,7 @@ export function ShowStagePreview({
       renderer.setZoom(view.zoom)
     }
     const maskStarted = performance.now()
-    const maskedFrame = applyShowStageMaskPacked(result.frame, stageMaskPlan, effectiveSoloZoneIdRef.current)
+    const maskedFrame = preparedBundle ? result.frame : applyShowStageMaskPacked(result.frame, stageMaskPlan, effectiveSoloZoneIdRef.current)
     const maskEnded = performance.now()
     renderer.paint(
       maskedFrame,
@@ -521,7 +525,7 @@ export function ShowStagePreview({
       stageMaskMs: maskEnded - maskStarted,
       webglPaintMs: paintEnded - maskEnded,
     }
-  }, [layout, stageMaskPlan])
+  }, [preparedBundle, layout, stageMaskPlan])
 
   // Dev-only deterministic capture surface (#879). Inert without `?capture`.
   useEffect(() => {
@@ -653,13 +657,13 @@ export function ShowStagePreview({
       // Baseline instrumentation (#945): the first frame of a rebuilt
       // runtime is the moment a record's compiled artifact becomes visible.
       const source = compiledShowRef.current
-      if (import.meta.env.DEV && source) {
+      if (import.meta.env.DEV && (preparedBundle || source)) {
         recordAgentObservation({
           kind: 'preview-published',
           showId,
           at: Date.now(),
-          digest: showRecordDigest(source),
-          updatedAt: source.updatedAt,
+          digest: preparedBundle ? preparedBundle.digest : showRecordDigest(source!),
+          updatedAt: preparedBundle ? preparedBundle.record.updatedAt : source!.updatedAt,
         })
       }
     }
@@ -710,7 +714,7 @@ export function ShowStagePreview({
       replayRef.current = null
       replayKeyRef.current = null
     }
-  }, [compiled.artifact, durationMs, fidelity, layout, paintFastFrame, presentation, replayCheckpointKey, replayRandomSeed, showId])
+  }, [preparedBundle, compiled.artifact, durationMs, fidelity, layout, paintFastFrame, presentation, replayCheckpointKey, replayRandomSeed, showId])
 
   useEffect(() => {
     const renderer = rendererRef.current
@@ -923,7 +927,7 @@ export function ShowStagePreview({
     return () => cancelAnimationFrame(raf)
   }, [layout])
 
-  if (!show) {
+  if (!show && !preparedBundle) {
     return (
       <div className="flex h-full items-center justify-center bg-zinc-950/40 font-mono text-xs text-zinc-500">
         Show not found
@@ -934,9 +938,7 @@ export function ShowStagePreview({
   const error = compiled.error ?? runtimeError
   const rendererLabel = fidelity === 'fast' ? 'Fast' : 'Precise'
   const stageZoneCount = layout?.projection.zones.length ?? 0
-  const showZoneInventory = presentation === 'strip'
-    ? stageZoneCount > 0
-    : stageZoneCount > 1 || installationCoverage?.valid === false
+  const showZoneInventory = !preparedBundle && (presentation === 'strip' ? stageZoneCount > 0 : stageZoneCount > 1 || installationCoverage?.valid === false)
   const coverage = installationCoverage?.layouts[0]
   const fullCoverage = coverage && installationCoverage
     ? `${coverage.assignedPixelCount} assigned · ${coverage.missingPixelCount} missing · ${coverage.overlappingPixelCount} overlapping · ${coverage.outOfRangePixelCount} out of range · ${installationCoverage.pixelCount} total`
@@ -1049,8 +1051,10 @@ export function ShowStagePreview({
         <div className="show-preview-rail" role="group" aria-label="Show preview controls">
           <button type="button" aria-label={isRunning ? 'Pause Show preview' : 'Play Show preview'} title={isRunning ? 'Pause Show preview' : 'Play Show preview'} aria-pressed={isRunning} onClick={togglePlayback} className={isRunning ? 'text-green-400' : 'text-red-400'}>{isRunning ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</button>
           <span className="show-preview-rail-separator" />
+          {!preparedBundle && <>
           <StageDiagnosticToggle label="Zone outlines" icon={<Grid2X2 size={13} aria-hidden />} active={diagnostics.zoneOutlines} onChange={active => setDiagnostic('zoneOutlines', active)} />
           <StageDiagnosticToggle label="Selected Clip outline" icon={<Scan size={13} aria-hidden />} active={diagnostics.clipOutlines} onChange={active => setDiagnostic('clipOutlines', active)} />
+          </>}
         </div>
         <div data-testid="show-stage-controls" className="show-strip-controls rail-list-scroll">
           <div className="show-strip-sections" aria-label="Show stage">
@@ -1096,10 +1100,10 @@ export function ShowStagePreview({
             <DeckCell label="kind"><span className="text-zinc-400">{stageIdentityRole}</span></DeckCell>
           </DeckGrid>
             </ShowStripSection>
-        {(layout?.note || (layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
+        {(layout?.note || (!preparedBundle && layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
           <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
           {layout?.note && <div className="mt-1 text-amber-300">{layout.note}</div>}
-          {layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
+          {!preparedBundle && layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
             <div className="mt-1">{layout.projection.unstagedPixelCount} stage pixels are not covered by a show zone.</div>
           )}
           </div>
@@ -1148,10 +1152,10 @@ export function ShowStagePreview({
             <span aria-hidden className="text-zinc-700">·</span>
             <span className="show-stage-pixel-count shrink-0 tabular-nums text-zinc-400">{layout?.mapPoints.length ?? 0} px</span>
           </div>
-        {(layout?.note || (layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
+        {(layout?.note || (!preparedBundle && layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
           <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
           {layout?.note && <div className="mt-1 text-amber-300">{layout.note}</div>}
-          {layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
+          {!preparedBundle && layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
             <div className="mt-1">{layout.projection.unstagedPixelCount} stage pixels are not covered by a show zone.</div>
           )}
           </div>
@@ -1159,7 +1163,7 @@ export function ShowStagePreview({
           </section>
         <PreviewViewportSection
           profile="show"
-          headerActions={(
+          headerActions={!preparedBundle && (
             <span className="flex items-center gap-1" aria-label="Stage diagnostics">
               <StageDiagnosticToggle
                 label="Zone outlines"
