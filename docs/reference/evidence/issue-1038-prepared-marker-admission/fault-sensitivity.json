@@ -1,0 +1,22 @@
+[
+  {
+    "name": "final-eligibility",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "name": "current-recompile",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "name": "preimage-completion",
+    "exit": 1,
+    "killed": true
+  },
+  {
+    "name": "obsolete-context-completion",
+    "exit": 1,
+    "killed": true
+  }
+]

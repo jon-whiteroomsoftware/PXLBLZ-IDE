@@ -2,19 +2,18 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { DraftTextField } from './ui/draft-text-field'
-import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import type { ShowMarkerEditIntentV2 } from '@/engine/showMarkersV2'
 import { newShowPilotMarkerV2, selectedShowMarkerV2 } from '@/engine/showMarkerRouteModel'
-import { admitShowV2PilotMarkerEdit } from '@/store/showV2MarkerAdmission'
+import { admitShowV2PilotMarkerEdit, type ShowV2PilotMarkerCapture, type ShowV2PilotMarkerAdoptionReceipt } from '@/store/showV2MarkerAdmission'
 import { useShowStore } from '@/store/showStore'
-import { usePatternStore } from '@/store/patternStore'
-import { useMapStore } from '@/store/mapStore'
-import { useLibraryStore } from '@/store/libraryStore'
 
-export function ShowV2MarkerEditor({ record, onStatus }: { record: ShowRecordV2; onStatus: (status: string) => void }) {
-  const patterns = usePatternStore(state => state.userPatterns)
-  const maps = useMapStore(state => state.userMaps)
-  const libraries = useLibraryStore(state => state.userLibraries)
+export function ShowV2MarkerEditor({ capture, isCurrentCapture, isCurrentCompletion, onStatus }: {
+  capture: ShowV2PilotMarkerCapture
+  isCurrentCapture: () => boolean
+  isCurrentCompletion: (receipt: ShowV2PilotMarkerAdoptionReceipt, phase: 'saved' | 'save-failed') => boolean
+  onStatus: (status: string) => void
+}) {
+  const record = capture.record
   const [selectedId, setSelectedId] = useState(record.composition.markers[0]?.id ?? '')
   const [busy, setBusy] = useState(false)
   const [fieldReset, setFieldReset] = useState(0)
@@ -29,22 +28,25 @@ export function ShowV2MarkerEditor({ record, onStatus }: { record: ShowRecordV2;
     if (pending.current) return false
     pending.current = true
     setBusy(true)
+    const adoption: { current: ShowV2PilotMarkerAdoptionReceipt | null } = { current: null }
     const baseRevision = useShowStore.getState().showRevisions[record.id] ?? 0
     try {
       const outcome = await admitShowV2PilotMarkerEdit({
-        showId: record.id, baseRevision, intent, assets: { patterns, maps, libraries },
-        isCurrent: () => live.current && useShowStore.getState().showV2Pilots[record.id] === record
-          && usePatternStore.getState().userPatterns === patterns
-          && useMapStore.getState().userMaps === maps
-          && useLibraryStore.getState().userLibraries === libraries,
+        showId: record.id, baseRevision, intent, capture,
+        isCurrent: () => live.current && isCurrentCapture(),
+        onAdopted: receipt => { adoption.current = receipt },
       })
-      if (!live.current) return false
+      const current = outcome.status === 'applied'
+        ? adoption.current !== null && outcome.settlement === 'saved' && isCurrentCompletion(adoption.current, 'saved')
+        : isCurrentCapture()
+      if (!live.current || !current) return false
       if (outcome.status === 'refused') setFieldReset(value => value + 1)
       onStatus(outcome.status === 'refused' ? outcome.message : outcome.status === 'unchanged' ? 'Marker is unchanged.' : outcome.settlement === 'saved' ? 'Marker saved.' : 'A newer edit replaced this Marker edit.')
       return outcome.status === 'applied'
     } catch (error) {
-      if (live.current) setFieldReset(value => value + 1)
-      if (live.current) onStatus(error instanceof Error ? `Save failed: ${error.message}` : 'Save failed.')
+      const current = adoption.current ? isCurrentCompletion(adoption.current, 'save-failed') : isCurrentCapture()
+      if (live.current && current) setFieldReset(value => value + 1)
+      if (live.current && current) onStatus(error instanceof Error ? `Save failed: ${error.message}` : 'Save failed.')
       return false
     } finally {
       pending.current = false

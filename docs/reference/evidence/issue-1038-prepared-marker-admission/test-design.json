@@ -1,0 +1,53 @@
+{
+  "issue": 1038,
+  "base": "f3db71228f34989d5b615b9c4640197b251c66ed",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+    "proofRows": [
+      "ROUTE",
+      "FAILURE",
+      "SHARING",
+      "RESTART",
+      "GROUP-HOLD",
+      "INSERT",
+      "LAYOUT-END",
+      "PARITY"
+    ]
+  },
+  "invariants": [
+    "Parent supplies one coherent ready/empty capture and trusted map/profile context.",
+    "Changed Marker admission prepares candidate once and invokes existing adoption/history/save once.",
+    "Own adoption receipt permits normal completion while external replacement retires obsolete feedback."
+  ],
+  "partitions": [
+    "Native held/shared-Restart ready records versus real unsupported and explicit structurally valid empty.",
+    "Safe revision, exact record, route/dependency/map/profile/provider invalidation before adoption.",
+    "Own-current save, superseded save, current rollback and obsolete external replacement.",
+    "Dormant/equal-time/optional clearing and strict invalid/no-op Marker inputs."
+  ],
+  "sequences": [
+    "Capture ready -> add dormant Marker -> one adoption -> save/reopen exact choreography/source.",
+    "Add -> own adoption replaces parent capture -> resolve save -> saved status and new selection survive.",
+    "Add -> adopt -> external replacement -> late completion -> no obsolete feedback.",
+    "Changed -> save failure -> durable rollback and own draft recovery; Undo/Redo/save/reopen."
+  ],
+  "oracles": [
+    "Native importer and compiled source/frame preserve choreography.",
+    "Zero direct lower/current recompile and one changed candidate capture in admission.",
+    "Exact original state/history and zero writes on no-op/refusal.",
+    "Real route saved status/selected ID and API write count across desktop/narrow controls."
+  ],
+  "residualGaps": [
+    "Whole1038 remains incomplete; Transition/other edit UI is excluded.",
+    "Existing Stage sample-from-position mapping remains an inherited residual.",
+    "Store clones/stamps adoption; normal parent recapture is distinct from one candidate validation capture.",
+    "Coordinator owns exact final suites/native review/landing."
+  ],
+  "qualification": {
+    "focused": "77/77 across eight prepared Marker/Stage/native artifact files. Held Group, retained Layout and3D save/reopen and Fast/Precise consumers pass; own completion/external replacement/rollback/context matrices pass. Relevant authenticated ordinary+advanced flows2/2 PASS.",
+    "static": "Scoped ESLint and source parity47 PASS; project TypeScript repaired synthetic optional reference-map type and rerun.",
+    "browser": "Pending fresh committed desktop/narrow proof.",
+    "faultSensitivity": "Four consumer-killed named faults: removed final eligibility, duplicate current preparation, strict preimage-only completion, removed adopted-context completion. Exact original bytes restored; focused77 green."
+  }
+}

@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { transitionV1Show } from '@/test/showV2TracerFixture'
-import { setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
+import { prepareShowStageV2 } from '@/engine/showPreparedStageV2'
+import { getPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
@@ -24,9 +25,10 @@ it('adds/selects and commits dormant equal-time Marker fields through one write 
   setPersonalContentProvider({ id: 'marker-editor-test', replaceShowV2 } as unknown as PersonalContentProvider)
   useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
   const outcome = vi.fn()
+  const dependencies = { patterns: [], maps: [], libraries: [], profiles: [], stageMap: null }
   function Harness() {
     const current = useShowStore(state => state.showV2Pilots[record.id])
-    return <ShowV2MarkerEditor record={current} onStatus={outcome} />
+    return <ShowV2MarkerEditor capture={{ record: current, dependencies, prepared: prepareShowStageV2(current, dependencies) }} isCurrentCapture={() => useShowStore.getState().showV2Pilots[record.id] === current} isCurrentCompletion={receipt => useShowStore.getState().showV2Pilots[record.id] === receipt.record && (useShowStore.getState().showRevisions[record.id] ?? 0) === receipt.revision && getPersonalContentProvider() === receipt.provider} onStatus={outcome} />
   }
   render(<Harness />)
   fireEvent.click(screen.getByRole('button', { name: 'Add Marker' }))

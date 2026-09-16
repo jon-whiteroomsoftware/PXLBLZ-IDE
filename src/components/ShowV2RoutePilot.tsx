@@ -4,6 +4,7 @@ import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { ShowStagePreview } from './ShowStagePreview'
 import { isValidatedEmptyShowV2 } from '@/engine/showMarkerRouteModel'
+import type { ShowV2PilotMarkerAdoptionReceipt } from '@/store/showV2MarkerAdmission'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import { qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
@@ -42,13 +43,42 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
 
   const emptyContent = record ? isValidatedEmptyShowV2(record) : false
   const transition = record?.composition.transitions[0]
-  const preview = useMemo(() => {
+  const stageMap = useMemo(() => {
+    const selected = STOCK_MAPS.find(map => map.id === record?.stageMapId)
+      ?? maps.find(map => map.id === record?.stageMapId && (map.generator !== 'custom' || (map.points?.length ?? 0) > 0))
+    return selected && (selected.dim === 2 || selected.dim === 3) ? resolveMap(selected.id, maps) : null
+  }, [record?.stageMapId, maps])
+  const markerCapture = useMemo(() => {
     if (!record) return null
-    const selected = STOCK_MAPS.find(map => map.id === record.stageMapId)
-      ?? maps.find(map => map.id === record.stageMapId && (map.generator !== 'custom' || (map.points?.length ?? 0) > 0))
-    const stageMap = selected && (selected.dim === 2 || selected.dim === 3) ? resolveMap(selected.id, maps) : null
-    return prepareShowStageV2(record, { patterns, maps, libraries, profiles, stageMap })
-  }, [record, patterns, maps, libraries, profiles])
+    const dependencies = { patterns, maps, libraries, profiles, stageMap }
+    return { record, dependencies, prepared: prepareShowStageV2(record, dependencies) }
+  }, [record, patterns, maps, libraries, profiles, stageMap])
+  const preview = markerCapture?.prepared ?? null
+  const activeMarkerCapture = useRef(markerCapture)
+  useLayoutEffect(() => {
+    activeMarkerCapture.current = markerCapture
+    return () => { activeMarkerCapture.current = null }
+  }, [markerCapture, showId])
+  const isCurrentMarkerCapture = () => Boolean(markerCapture && activeMarkerCapture.current === markerCapture
+    && useShowStore.getState().showV2Pilots[showId] === markerCapture.record
+    && usePatternStore.getState().userPatterns === markerCapture.dependencies.patterns
+    && useMapStore.getState().userMaps === markerCapture.dependencies.maps
+    && useLibraryStore.getState().userLibraries === markerCapture.dependencies.libraries
+    && useControllerProfileStore.getState().profiles === markerCapture.dependencies.profiles)
+  const isCurrentMarkerCompletion = (receipt: ShowV2PilotMarkerAdoptionReceipt, phase: 'saved' | 'save-failed') => {
+    const active = activeMarkerCapture.current
+    if (!markerCapture || !active || active.record.id !== showId || receipt.showId !== showId
+      || active.dependencies.stageMap !== markerCapture.dependencies.stageMap
+      || usePatternStore.getState().userPatterns !== markerCapture.dependencies.patterns
+      || useMapStore.getState().userMaps !== markerCapture.dependencies.maps
+      || useLibraryStore.getState().userLibraries !== markerCapture.dependencies.libraries
+      || useControllerProfileStore.getState().profiles !== markerCapture.dependencies.profiles
+      || getPersonalContentProvider() !== receipt.provider) return false
+    const state = useShowStore.getState()
+    return phase === 'saved'
+      ? state.showV2Pilots[showId] === receipt.record && (state.showRevisions[showId] ?? 0) === receipt.revision
+      : state.showV2SaveFailure?.showId === showId && state.showV2SaveFailure.record === receipt.record
+  }
 
   const qualificationGeneration = useRef(0)
   useLayoutEffect(() => {
@@ -133,7 +163,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
               </div>
             </div>
           )}
-          {record && <ShowV2MarkerEditor key={record.id} record={record} onStatus={setStatus} />}
+          {markerCapture && <ShowV2MarkerEditor key={markerCapture.record.id} capture={markerCapture} isCurrentCapture={isCurrentMarkerCapture} isCurrentCompletion={isCurrentMarkerCompletion} onStatus={setStatus} />}
           <div className="mt-7 flex flex-wrap gap-2">
             <Button size="xs" variant="outline" disabled={!history?.past.length} onClick={() => void runHistory('undo')}>Undo</Button>
             <Button size="xs" variant="outline" disabled={!history?.future.length} onClick={() => void runHistory('redo')}>Redo</Button>

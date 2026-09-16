@@ -259,10 +259,13 @@ snapshot from edit start. Missing and same-name requests remain no-ops, and the
 pilot never sends a rename through the version-1 sparse patch path.
 
 The pilot general Marker controls call `admitShowV2PilotMarkerEdit` with the
-captured document revision, route lifetime and exact trusted Pattern/Map/Library
-collection identity. The seam validates the pure Marker candidate and the existing
-trusted preview/artifact path, then rechecks eligibility before invoking the
-ordinary v2 update once. No-op/refusal creates no history or save. Superseded
+captured document revision, route lifetime and the parent’s exact prepared
+ready/empty context, including Pattern/Map/Library/profile and resolved-map
+identity. The seam validates the pure Marker candidate and prepares that candidate
+once with the captured trusted context, then rechecks eligibility before invoking
+the ordinary v2 update once. Current preview is reused without direct lowering
+or another current compile. A local adoption receipt permits normal saved status
+on the own stamped record; external replacements retire obsolete feedback. No-op/refusal creates no history or save. Superseded
 settlement never reports a current durable save.
 
 A structurally validated Show with zero effective Clips remains editable/saveable.
@@ -296,10 +299,10 @@ The pilot's compilation seam resolves one Library map and passes that identical
 map through version-2 preparation and final Show compilation. A Restart whose
 bundled Pattern and Library state is restorable scalar state compiles; unsupported
 persistent Library state refuses at preparation before an artifact can escape.
-The compatibility Stage preview and `.epe` metadata adapter still refuse Restart
-records rather than dropping their transient reset events. The ordinary
-`.pxlshow` and `.epe` checks remain qualification surfaces for the direct-lowerable
-Transition subset. They do not switch the production editor or compiler default.
+Native prepared Stage and artifact qualification now consume one captured
+ready bundle, preserving transient Restart and exact animation without a legacy
+record or direct lowering. Marker admission reuses that current capability and
+validates its own changed candidate with the same trusted inputs. They do not switch the production editor or compiler default.
 The [route-pilot test design](../evidence/issue-1044-route-pilot/test-design.json)
 defines its conversion, history, persistence, artifact, and migration oracles.
 
