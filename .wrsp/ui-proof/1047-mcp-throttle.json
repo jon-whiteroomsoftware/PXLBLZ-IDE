@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1047",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "On frozen code commit f446e1f959c59a76d9a5349980c8926286439a64, the Codex in-app browser opened the authenticated isolated issue runtime through a bounded local fault harness. The harness established one live Assistant binding, began operation proof-operation, injected one 429 throttled Receive response, then resumed the healthy Receive stream with the matching commit_edit continuation. The first capture shows the ordinary Too many requests refusal while the same operation remains working and connected; the second shows that same operation completed as Nothing was applied and the Assistant remained connected. No personal Show write was attempted. One unrelated local personal-content settings request returned 500 during isolated-D1 hydration because the browser account was not seeded there.",
+  "captures": [
+    ".wrsp/ui-proof/1047-mcp-throttle-refused.jpg",
+    ".wrsp/ui-proof/1047-mcp-throttle-recovered.jpg"
+  ],
+  "capturedAtCommit": "f446e1f959c59a76d9a5349980c8926286439a64"
+}
