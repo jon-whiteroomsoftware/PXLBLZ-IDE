@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
-import { appearancePatchFromDirtyFields, buildShowV2AppearanceEditorModel, createShowV2AppearanceTarget, showV2AppearanceEffectTargets,
-  type ShowV2AppearanceDirtyFields, type ShowV2AppearanceScope, type ShowV2AuthoredValue } from '@/engine/showV2AppearanceEditorModel'
+import { appearancePatchFromDirtyFields, appearanceRemovalPatch, buildShowV2AppearanceEditorModel, createShowV2AppearanceTarget, showV2AppearanceEffectTargets,
+  SHOW_V2_APPEARANCE_COMPONENT_FIELDS, SHOW_V2_APPEARANCE_REMOVALS,
+  type ShowV2AppearanceComponent, type ShowV2AppearanceDirtyFields, type ShowV2AppearanceScope, type ShowV2AuthoredValue } from '@/engine/showV2AppearanceEditorModel'
 import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolkitPresentation'
 import { createShowClipEffect } from '@/engine/showEffectAuthoring'
 import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
@@ -11,7 +12,8 @@ import { useShowStore } from '@/store/showStore'
 
 const fieldStyle = 'mt-1 block w-full min-w-0 rounded-sm border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-200'
 const buttonStyle = 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800'
-function display(value: ShowV2AuthoredValue<unknown> | undefined): string { return value?.kind === 'uniform' ? String(value.value) : '' }
+function display(value: ShowV2AuthoredValue<unknown> | undefined): string { return value?.kind === 'uniform' && value.value !== undefined ? String(value.value) : '' }
+const componentLabels: Record<ShowV2AppearanceComponent, string> = { transform: 'Transform', aperture: 'Aperture', presentation: 'Presentation', blink: 'Blink' }
 type Operation = ShowClipAppearanceEditIntentV2 extends infer Intent ? Intent extends ShowClipAppearanceEditIntentV2
   ? Omit<Intent, 'clipId' | 'scope' | 'atMs' | 'keyIdentity'> : never : never
 
@@ -25,6 +27,7 @@ export function ShowV2AppearanceEditor({ clipId, capture, isCurrentCapture, isCu
   const [dirty, setDirty] = useState<ShowV2AppearanceDirtyFields>({}), [busy, setBusy] = useState(false)
   const [newEffectKind, setNewEffectKind] = useState(''), [effectId, setEffectId] = useState(''), [parameterId, setParameterId] = useState('')
   const [parameterValue, setParameterValue] = useState<string | null>(null), [targetId, setTargetId] = useState(''), [edge, setEdge] = useState<'before' | 'after' | ''>('')
+  const [removal, setRemoval] = useState('')
   const pending = useRef(false), live = useRef(true)
   useLayoutEffect(() => { live.current = true; return () => { live.current = false } }, [])
   const [draftContext, setDraftContext] = useState({ record, clipId, scope, time })
@@ -40,7 +43,7 @@ export function ShowV2AppearanceEditor({ clipId, capture, isCurrentCapture, isCu
   const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: capture.prepared.status === 'ready' ? capture.prepared.bundle.presentation.stageDimension : 2 })
     .filter(item => item.kind === 'effect' && item.authoringTarget === 'effect-stack')
   const available = !busy && model !== null && capture.prepared.status === 'ready'
-  const resetDirty = () => { setDirty({}); setParameterValue(null) }
+  const resetDirty = () => { setDirty({}); setParameterValue(null); setRemoval('') }
   const submit = async (operation: Operation) => {
     if (pending.current || !live.current) return
     const plan = createShowV2AppearanceTarget(record, clipId, scope, time, newPersonalContentId)
@@ -69,7 +72,7 @@ export function ShowV2AppearanceEditor({ clipId, capture, isCurrentCapture, isCu
       </select></label>
       {scope === 'selected-time' && <label className="text-xs text-zinc-400">At (ms)<input aria-label="Appearance time" className={fieldStyle} type="text" inputMode="numeric" value={time} disabled={busy} onChange={event => setTime(event.target.value)} /></label>}
     </div>
-    <form className="space-y-3" onSubmit={event => { event.preventDefault(); if (available) void submit({ kind: 'appearance', patch: appearancePatchFromDirtyFields(dirty) }) }}>
+    <form className="space-y-3" onSubmit={event => { event.preventDefault(); if (available && model) void submit({ kind: 'appearance', patch: appearancePatchFromDirtyFields(dirty, model.fields) }) }}>
       <div className="grid gap-3 sm:grid-cols-2">
         {(['opacity', 'brightness', 'phase'] as const).map(field => <label key={field} className="text-xs text-zinc-400">{field === 'opacity' ? 'Opacity' : field === 'brightness' ? 'Brightness' : 'Phase'}
           <input aria-label={field === 'opacity' ? 'Clip opacity' : field === 'brightness' ? 'View brightness' : 'View phase'} className={fieldStyle} type="text" inputMode="decimal" disabled={!available}
@@ -80,8 +83,35 @@ export function ShowV2AppearanceEditor({ clipId, capture, isCurrentCapture, isCu
           <option value="" disabled>{model?.fields.mirror.kind === 'mixed' ? 'Mixed' : 'Choose mirror'}</option><option value="false">Off</option><option value="true">On</option>
         </select></label>
       </div>
+      {(Object.keys(componentLabels) as ShowV2AppearanceComponent[]).map(component => <div key={component} className="space-y-2">
+        <h4 className="text-xs font-medium uppercase tracking-wide text-zinc-500">{componentLabels[component]}</h4>
+        <div className="grid gap-3 sm:grid-cols-2">{SHOW_V2_APPEARANCE_COMPONENT_FIELDS.filter(item => item.component === component).map(item => {
+          const authored = model?.fields[item.id]
+          const value = dirty[item.id] ?? display(authored)
+          const change = (next: string) => setDirty(current => ({ ...current, [item.id]: next }))
+          return <label key={item.id} className="text-xs text-zinc-400">{item.label}
+            {item.control === 'number'
+              ? <input aria-label={item.label} className={fieldStyle} type="text" inputMode="decimal" disabled={!available}
+                  value={value} placeholder={authored?.kind === 'mixed' ? 'Mixed' : undefined} onChange={event => change(event.target.value)} />
+              : <select aria-label={item.label} className={fieldStyle} disabled={!available} value={value} onChange={event => change(event.target.value)}>
+                  <option value="" disabled>{authored?.kind === 'mixed' ? 'Mixed' : 'Choose value'}</option>
+                  {(item.control === 'boolean' ? ['false', 'true'] : item.options).map(option =>
+                    <option key={option} value={option}>{item.control === 'boolean' ? option === 'true' ? 'On' : 'Off' : option}</option>)}
+                </select>}
+          </label>
+        })}</div>
+      </div>)}
       <div className="flex flex-wrap gap-2"><Button type="submit" size="xs" variant="outline" className={buttonStyle} disabled={!available}>Apply appearance</Button>
         <Button type="button" size="xs" variant="outline" className={buttonStyle} disabled={busy || !Object.keys(dirty).length} onClick={resetDirty}>Reset appearance</Button></div>
+    </form>
+    <form className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault()
+      const patch = appearanceRemovalPatch(removal)
+      if (available && patch && !pending.current) void submit({ kind: 'appearance', patch })
+    }}>
+      <label className="min-w-0 flex-1 text-xs text-zinc-400">Clear component<select aria-label="Appearance component to clear" className={fieldStyle} disabled={!available} value={removal} onChange={event => setRemoval(event.target.value)}>
+        <option value="">Choose component</option>{SHOW_V2_APPEARANCE_REMOVALS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+      </select></label>
+      <Button type="submit" size="xs" variant="outline" className={buttonStyle} disabled={!available || !removal}>Clear component</Button>
     </form>
     <h3 className="pt-3 text-sm font-medium text-zinc-200">Effects</h3>
     <form className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); if (!available || pending.current) return
@@ -104,7 +134,8 @@ export function ShowV2AppearanceEditor({ clipId, capture, isCurrentCapture, isCu
             value={parameterValue ?? display(parameter.value)} placeholder={parameter.value.kind === 'mixed' ? 'Mixed' : undefined} onChange={event => setParameterValue(event.target.value)} /></label>}
         </div>
         <div className="flex flex-wrap gap-2"><Button type="submit" size="xs" variant="outline" className={buttonStyle} disabled={!available || !parameter || parameterValue === null && (parameter.descriptor.kind === 'color' || parameter.value.kind === 'mixed')}>Apply parameter</Button>
-          <Button type="button" size="xs" variant="outline" className={buttonStyle} disabled={!available} onClick={() => { if (!pending.current) void submit({ kind: 'duplicate-effect', effectId: source.effect.id, effectKind: source.effect.kind, newEffectId: newPersonalContentId() }) }}>Duplicate Effect</Button></div>
+          <Button type="button" size="xs" variant="outline" className={buttonStyle} disabled={!available} onClick={() => { if (!pending.current) void submit({ kind: 'duplicate-effect', effectId: source.effect.id, effectKind: source.effect.kind, newEffectId: newPersonalContentId() }) }}>Duplicate Effect</Button>
+          <Button type="button" size="xs" variant="outline" className={buttonStyle} disabled={!available} onClick={() => { if (!pending.current) void submit({ kind: 'remove-effect', effectId: source.effect.id, effectKind: source.effect.kind }) }}>Remove Effect</Button></div>
       </form>
       <form className="space-y-3" onSubmit={event => { event.preventDefault(); if (available && target && edge) void submit({ kind: 'reorder-effect', effectId: source.effect.id, effectKind: source.effect.kind, targetEffectId: target.effect.id, targetEffectKind: target.effect.kind, edge }) }}>
         <div className="grid gap-3 sm:grid-cols-2">

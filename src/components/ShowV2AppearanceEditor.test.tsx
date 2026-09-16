@@ -10,11 +10,17 @@ import { ShowV2AppearanceEditor } from './ShowV2AppearanceEditor'
 import * as identity from '@/engine/personalContentMetadata'
 beforeEach(() => { resetPersonalContentProvider(); useShowStore.setState(showInitialState) })
 afterEach(() => { resetPersonalContentProvider(); vi.restoreAllMocks() })
-function setup(mixed = false, color?: 'uniform' | 'mixed') {
+function setup(mixed = false, color?: 'uniform' | 'mixed', animatedEffect = false) {
   const c = convertShowRecordV1ToV2(convertibleV1Show()); if (c.status !== 'converted') throw Error('fixture')
   const record = c.record; record.composition.transitions = []; record.composition.clips = record.composition.clips.slice(0, 1)
   const clip = record.composition.clips[0], first = clip.appearance.keys[0]
   first.value.effects = [{ id: 'hue', kind: 'hue', turns: .2 }]
+  if (animatedEffect) {
+    first.value.effects = [{ id: 'hue', kind: 'hue', turns: .2 }, { id: 'bright', kind: 'brightness', brightness: .8 }]
+    record.composition.propertyTracks = [{ id: 'hue-track', target: { kind: 'clip-effect', clipId: clip.id, effectId: 'hue', effectKind: 'hue', parameterId: 'turns' },
+      activeStartMs: clip.startMs, activeDurationMs: 200,
+      keyframes: [{ id: 'hue-first', timeMs: clip.startMs, value: .2, easing: { curve: 'linear' } }, { id: 'hue-last', timeMs: clip.startMs + 200, value: .4, easing: { curve: 'linear' } }] }]
+  }
   if (mixed) clip.appearance.keys = [0, 400].map((timeMs, index) => ({ id: `key-${index}`, timeMs,
     value: { ...structuredClone(first.value), opacity: index ? .8 : .2, view: { mirror: Boolean(index), phase: .1, brightness: index ? .7 : .3 } } }))
   if (color) for (const [index,key] of clip.appearance.keys.entries()) key.value.effects = [{id:'map',kind:'color-map',amount:1,shadowR:color==='mixed' && index ? .101 : .1,shadowG:.2,shadowB:.3,highlightR:.4,highlightG:.5,highlightB:.6}]
@@ -146,4 +152,57 @@ it('keeps rounded-to-the-same-hex mixed RGB channels exact without any submissio
  fireEvent.submit(screen.getByRole('button',{name:'Apply parameter'}).closest('form')!)
  expect(write).not.toHaveBeenCalled();expect(record).toEqual(before);expect(clip.appearance.keys.map(key=>(key.value.effects?.[0] as {shadowR:number}).shadowR)).toEqual([.1,.101])
  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
+})
+
+it('applies dirty Transform/Aperture/Presentation/Blink fields in one patch and clears one component explicitly', async () => {
+  const { record, write } = setup()
+  fireEvent.change(screen.getByLabelText('Appearance scope'), { target: { value: 'whole-clip' } })
+  for (const [label, value] of [['Transform position X', '.1'], ['Transform scale Y', '1.2'], ['Aperture width', '.8'],
+    ['Aperture feather', '.2'], ['Blink rate', '2'], ['Blink duty', '.5'], ['Blink phase', '.1']] as const) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } })
+  }
+  fireEvent.change(screen.getByLabelText('Aperture enabled'), { target: { value: 'true' } })
+  fireEvent.change(screen.getByLabelText('Aperture shape'), { target: { value: 'ring' } })
+  fireEvent.change(screen.getByLabelText('Presentation mode'), { target: { value: 'freeze' } })
+  expect(write).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Apply appearance' }))
+  expect(await screen.findByText('Appearance saved.')).toBeInTheDocument()
+  const value = useShowStore.getState().showV2Pilots[record.id].composition.clips[0].appearance.keys[0].value
+  expect(value.transform).toEqual({ positionX: .1, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1.2 })
+  expect(value.aperture).toEqual({ enabled: true, x: 0, y: 0, width: .8, height: 1, aperture: 'ring', feather: .2 })
+  expect(value.presentation).toEqual({ mode: 'freeze' })
+  expect(value.blink).toEqual({ rateHz: 2, duty: .5, phase: .1 })
+  fireEvent.change(screen.getByLabelText('Appearance component to clear'), { target: { value: 'aperture.feather' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Clear component' }))
+  await waitFor(() => expect(write).toHaveBeenCalledTimes(2))
+  const cleared = useShowStore.getState().showV2Pilots[record.id].composition.clips[0].appearance.keys[0].value
+  expect(cleared.aperture).toEqual({ enabled: true, x: 0, y: 0, width: .8, height: 1, aperture: 'ring' })
+  expect(cleared.transform).toEqual(value.transform)
+  expect(screen.getByLabelText('Appearance component to clear')).toHaveValue('')
+})
+
+it('shows absent optional components as empty drafts and never invents a closed component member', async () => {
+  const { record, write } = setup(true)
+  fireEvent.change(screen.getByLabelText('Appearance scope'), { target: { value: 'whole-clip' } })
+  expect(screen.getByLabelText('Transform position X')).toHaveValue('')
+  expect(screen.getByLabelText('Presentation mode')).toHaveValue('')
+  expect(screen.getByLabelText('Aperture polygon sides')).toHaveValue('')
+  fireEvent.change(screen.getByLabelText('Blink duty'), { target: { value: '.5' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Apply appearance' }))
+  expect(await screen.findByText('Supply finite supported appearance fields.')).toBeInTheDocument()
+  expect(write).not.toHaveBeenCalled()
+  expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record)
+  expect(screen.getByRole('button', { name: 'Clear component' })).toBeDisabled()
+})
+
+it('removes the selected Effect with its Clip-owned animation and leaves other Effects authored', async () => {
+  const { record, write } = setup(false, undefined, true)
+  fireEvent.change(screen.getByLabelText('Appearance scope'), { target: { value: 'whole-clip' } })
+  fireEvent.change(screen.getByLabelText('Selected Effect'), { target: { value: 'hue' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Effect' }))
+  expect(await screen.findByText('Appearance saved.')).toBeInTheDocument(); expect(write).toHaveBeenCalledTimes(1)
+  const current = useShowStore.getState().showV2Pilots[record.id]
+  expect(current.composition.clips[0].appearance.keys[0].value.effects).toEqual([{ id: 'bright', kind: 'brightness', brightness: .8 }])
+  expect(current.composition.propertyTracks).toEqual([])
+  expect(screen.getByLabelText('Selected Effect')).toHaveValue('')
 })
