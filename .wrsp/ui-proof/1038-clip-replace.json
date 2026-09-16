@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/clip-replace-synthetic?show-v2-pilot=1&capture",
+  "operation": "Actual thirty-second ordinary Clip Pattern replacement: same-source no-op and invalid-source refusal with zero writes, shared personal replacement, Undo/Redo, sole stock replacement, Undo, durable reload/cold reopen and native artifact reopen. Five successful PUT settlements awaited response and semantic D1 readback. Visible stock-plane Stage at5s in Fast/Precise; desktop and narrow1024/390 keyboard/control-bound checks passed with zero browser errors. All three images and both renderer captures inspected. Repository Playwright separate synthetic context used actual Worker/renderer without user-cookie changes.",
+  "captures": [
+    ".wrsp/ui-proof/1038-replace-stage.png",
+    ".wrsp/ui-proof/1038-replace-controls.png",
+    ".wrsp/ui-proof/1038-replace-narrow.png"
+  ],
+  "capturedAtCommit": "ad61318684f1730ac35d31a9979b993f78575e73"
+}

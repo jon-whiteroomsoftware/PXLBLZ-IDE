@@ -1,0 +1,50 @@
+{
+  "status": "passed",
+  "sourceTip": "ad61318684f1730ac35d31a9979b993f78575e73",
+  "durationMs": 30000,
+  "writes": 5,
+  "sameSourceNoOpZeroWrites": true,
+  "invalidSourceRefusalZeroWrites": true,
+  "sharedPersonalReplacement": true,
+  "soleStockReplacement": true,
+  "untouchedHeldGroupPayloadTracks": true,
+  "undoRedo": true,
+  "durableReloadColdReopen": true,
+  "captures": [
+    {
+      "mode": "Fast",
+      "frames": 2,
+      "deltaMs": 125,
+      "startMs": 5000,
+      "names": [
+        "replace-Fast-00000.png",
+        "replace-Fast-00001.png"
+      ],
+      "failures": []
+    },
+    {
+      "mode": "Precise",
+      "frames": 2,
+      "deltaMs": 125,
+      "startMs": 5000,
+      "names": [
+        "replace-Precise-00000.png",
+        "replace-Precise-00001.png"
+      ],
+      "failures": []
+    }
+  ],
+  "responsive": [
+    {
+      "width": 1024,
+      "keyboardFocused": true,
+      "overflow": []
+    },
+    {
+      "width": 390,
+      "keyboardFocused": true,
+      "overflow": []
+    }
+  ],
+  "errors": []
+}
