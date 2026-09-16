@@ -26,7 +26,9 @@ Make Unique allocates the complete definition/local identity plan once, respecti
 the existing owner namespaces. Its consequence text distinguishes independent
 choreography from shared Pattern runtime identity.
 
-The typed submission boundary accepts only the five existing Group intents and
+`admitShowV2PilotGroupOccurrenceEdit` admits only the five existing Group intents
+and returns the exact fifteen Group affected collections. Its thin typed
+submission boundary accepts those intents and
 trusted currentness/receipt notifications. The Route binds it to checked prepared
 admission; it cannot receive arbitrary candidates or transformation callbacks.
 Existing [Group owners](show-v2-group-edits.md) own domain/Layout/Transition and
@@ -50,7 +52,17 @@ Other changed operations must prepare under their existing ready/empty disciplin
 The [test-design packet](../evidence/issue-1038-group-occurrence-ui/test-design.json)
 records public-owner/model tests, actual checked admission/store consumers,
 reopened native Fast/Precise proof and the committed route/browser qualification.
-The first model/panel checkpoint precedes shared Route/admission and browser proof;
-its component submission tests alone do not establish persistence completion.
+Actual parent-callback/store consumers prove replacement, rollback/retry and empty
+adoption. Native Fast/Precise EPEs prove independent125ms shared-state Restart
+schedules; live export getters are read before subsequent frame advances.
+Precise crossfade weights can produce a one16.16-step raw coordinate-channel
+difference; exact displayed8bit color is the independent coordinate oracle, while
+retained choreography compares complete raw before/after frames and private state.
+The positive Layer Transition/repeated-Layout adapter guard still refuses both
+preimage and candidate; it does not establish a compiler limit. The explicit
+[counterexample](../evidence/issue-1038-group-occurrence-ui/preparation-restriction.json)
+and typed zero-write refusal remain. Browser repeated Layout proof uses an admitted
+Cut-linked Group; single-Layout positive internal Transitions stay in native proof.
+Actual browser qualification follows committed shared source.
 No definition editing, Pattern replacement, new Group format, compiler change,
 production activation or downstream ticket belongs to this owner.

@@ -1,0 +1,10 @@
+{
+  "classification": "Existing adapter restriction; not an established compiler limit or accepted scope exception",
+  "consumer": "captureShowStageEditV2 -> inputCapture qualified / preparation refused; Make Unique changed pure owner -> checked candidate refused with original record and zero history/save",
+  "fixture": "showV2GroupOccurrenceEditorFixture(true), first Layout [0,17000), same-definition repeated Layout [17000,31000), internal live-live Layer crossfade duration1000",
+  "publicReproduction": "src/store/showV2GroupOccurrenceAdmission.test.ts: preserves the existing adapter refusal for positive Layer Transition plus repeated Layouts without adopting a candidate",
+  "guard": "src/engine/showCompositionLoweringV2.ts: Layer-scoped positive Transition with more than one Layout occurrence",
+  "refusal": "composition.transitions: Global scalar changes require whole-output preservation scope.",
+  "browserPremise": "Cut-linked Group across repeated Layouts qualifies ready; internal positive Transition held/global animated sharing remains exact through single-Layout native consumer tests",
+  "remainingScope": "The positive Layer Transition/repeated-Layout adapter obligation remains unproved. This candidate does not widen adapter/compiler or claim the guard establishes a compiler restriction."
+}

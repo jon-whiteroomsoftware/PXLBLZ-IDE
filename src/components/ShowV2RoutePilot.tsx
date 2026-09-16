@@ -3,7 +3,7 @@ import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { ShowStagePreview } from './ShowStagePreview'
-import { admitShowV2PilotClipSharingEdit, admitShowV2PilotPropertyEdit, admitShowV2PilotTransitionResize, type ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
+import { admitShowV2PilotGroupOccurrenceEdit, admitShowV2PilotClipSharingEdit, admitShowV2PilotPropertyEdit, admitShowV2PilotTransitionResize, type ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
 import { ShowV2ClipTimingEditor, ShowV2TimelineRows } from './ShowV2ClipTimingEditor'
 import { ShowV2LayerEditor } from './ShowV2LayerEditor'
@@ -11,6 +11,7 @@ import { ShowV2AppearanceEditor } from './ShowV2AppearanceEditor'
 import { ShowV2ClipSharingEditor } from './ShowV2ClipSharingEditor'
 import { ShowV2PropertyEditor } from './ShowV2PropertyEditor'
 import { ShowV2GroupCreationEditor } from './ShowV2GroupCreationEditor'
+import { ShowV2GroupOccurrenceEditor } from './ShowV2GroupOccurrenceEditor'
 import { buildShowV2TimelineEditorModel, selectedShowOrdinaryClipV2 } from '@/engine/showV2TimelineEditorModel'
 import { qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
@@ -200,6 +201,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
           {editCapture && <ShowV2LayerEditor key={`layers:${editCapture.record.id}`} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2PropertyEditor key={`properties:${editCapture.record.id}`} capture={editCapture} submitPropertyEdit={request => admitShowV2PilotPropertyEdit({ showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0, capture: editCapture, ...request })} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2GroupCreationEditor key={`groups:${editCapture.record.id}`} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
+          {editCapture && <ShowV2GroupOccurrenceEditor key={`group-occurrences:${editCapture.record.id}`} capture={editCapture} submitGroupOccurrenceEdit={request => admitShowV2PilotGroupOccurrenceEdit({ showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0, capture: editCapture, ...request })} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2MarkerEditor key={editCapture.record.id} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           <div className="mt-7 flex flex-wrap gap-2">
             <Button size="xs" variant="outline" disabled={!history?.past.length} onClick={() => void runHistory('undo')}>Undo</Button>

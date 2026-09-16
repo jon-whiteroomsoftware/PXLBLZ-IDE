@@ -17,6 +17,7 @@ import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2, type Sho
 import { editShowPropertyV2, type ShowPropertyTrackOwnerV2, type ShowPropertyEditIntentV2, type ShowPropertyEditResultV2 } from '@/engine/showPropertyEditsV2'
 import { createShowGroupFromSelectionV2, type CreateShowGroupFromSelectionIntentV2, type ShowGroupCreateResultV2 } from '@/engine/showGroupCreationV2'
 import type { ShowGroupEditAffectedV2 } from '@/engine/showGroupEditsV2'
+import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
 export interface ShowV2PilotPreparedCapture {
   readonly record: ShowRecordV2
   readonly dependencies: ShowPreparedStageDependenciesV2
@@ -56,6 +57,7 @@ export type ShowV2PilotTransitionResizeOutcome =
   | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & ResizeEmpty)
   | ({ status: 'refused'; source: 'transition'; code: ShowTransitionEditRefusalV2; message: string } & ResizeEmpty)
 type Command =
+  | { owner: 'group-occurrence'; intent: ShowV2PilotGroupOccurrenceEditIntent }
   | { owner: 'create-group'; intent: CreateShowGroupFromSelectionIntentV2 }
   | { owner: 'marker'; intent: ShowMarkerEditIntentV2 }
   | { owner: 'transition-resize'; intent: ShowV2PilotTransitionResizeIntent }
@@ -67,7 +69,8 @@ type Command =
   | { owner: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
   | { owner: 'property'; propertyOwner: ShowPropertyTrackOwnerV2; intent: ShowPropertyEditIntentV2 }
   | { owner: 'set-show-end'; intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
-type OwnerResult<C extends Command> = C extends { owner: 'create-group' } ? ShowGroupCreateResultV2
+type OwnerResult<C extends Command> = C extends { owner: 'group-occurrence' } ? ShowGroupEditResultV2
+  : C extends { owner: 'create-group' } ? ShowGroupCreateResultV2
   : C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
   : C extends { owner: 'clip-temporal' } ? ShowClipTemporalResultV2
@@ -102,8 +105,10 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
   if (!provider.replaceShowV2) return refuse('unsupported-provider', 'The active provider does not support v2 Shows.')
   const command: Command = request
-  const result = (command.owner === 'create-group'
-    ? createShowGroupFromSelectionV2(current, structuredClone(command.intent))
+  const result = (command.owner === 'group-occurrence'
+    ? groupOccurrenceOwnerResult(current, structuredClone(command.intent))
+    : command.owner === 'create-group'
+      ? createShowGroupFromSelectionV2(current, structuredClone(command.intent))
     : command.owner === 'marker'
       ? editShowMarkerV2(current, structuredClone(command.intent))
       : command.owner === 'create-clip'
@@ -140,7 +145,8 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   const candidate = capturedInputs?.status === 'qualified'
     ? prepareShowStageFromCapturedInputsV2(result.record, capturedInputs.inputs)
     : prepareShowStageV2(result.record, prepared.status === 'ready' ? { ...prepared.bundle.assets, stageMap: capture.dependencies.stageMap } : capture.dependencies)
-  const expectedCapability = command.owner === 'create-clip' || prepared.status === 'refused' ? 'ready' : prepared.status
+  const deletingToEmpty = command.owner === 'group-occurrence' && command.intent.kind === 'delete-occurrence' && isValidatedEmptyShowV2(result.record)
+  const expectedCapability = deletingToEmpty ? 'empty' : command.owner === 'create-clip' || prepared.status === 'refused' ? 'ready' : prepared.status
   if (candidate.status !== expectedCapability) return refuse('unsupported-pilot-record', candidate.status === 'refused' ? candidate.message : 'The edit changed the prepared Show capability.')
   if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
   const saving = useShowStore.getState().updateShowV2Pilot(showId, result.record)
@@ -368,4 +374,43 @@ export async function admitShowV2PilotClipSharingEdit(request: ShowV2PilotClipSh
   if (!validSharingIntentShape(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one complete explicit Clip sharing operation.', ...timelineEffects() }
   const outcome = await admitPreparedEdit({ ...request, owner: 'clip-sharing' as const })
   return presentOwnerOutcome(outcome, sharingEffects(request.capture.record, request.intent, 'result' in outcome ? outcome.result : undefined))
+}
+export type ShowV2PilotGroupOccurrenceEditIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2
+export type ShowV2PilotGroupOccurrenceEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotGroupOccurrenceEditIntent }
+export type ShowV2PilotGroupOccurrenceEditOutcome = PilotOwnerOutcome<ShowGroupEditResultV2, ShowGroupEditAffectedV2>
+function groupOccurrenceOwnerResult(record: ShowRecordV2, intent: ShowV2PilotGroupOccurrenceEditIntent): ShowGroupEditResultV2 {
+  switch (intent.kind) {
+    case 'move-occurrence': return moveShowGroupOccurrenceV2(record, intent)
+    case 'duplicate-occurrence': return duplicateShowGroupOccurrenceV2(record, intent)
+    case 'make-unique': return makeShowGroupUniqueV2(record, intent)
+    case 'ungroup-occurrence': return ungroupShowGroupOccurrenceV2(record, intent)
+    case 'delete-occurrence': return deleteShowGroupOccurrenceV2(record, intent)
+  }
+}
+function validGroupOccurrenceIntent(intent: unknown): intent is ShowV2PilotGroupOccurrenceEditIntent {
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return false
+  const value = intent as Record<string, unknown>
+  const text = (item: unknown): item is string => typeof item === 'string' && item.length > 0
+  const mapping = (item: unknown): boolean => !!item && typeof item === 'object' && !Array.isArray(item) && Object.values(item).every(text)
+  if (!text(value.occurrenceId)) return false
+  if (value.kind === 'ungroup-occurrence' || value.kind === 'delete-occurrence') return exactIntentFields(value, ['kind', 'occurrenceId'])
+  if (value.kind === 'make-unique') {
+    if (!exactIntentFields(value, ['kind', 'occurrenceId', 'identities']) || !exactIntentFields(value.identities, ['definitionId', 'patternInstanceIds', 'layerIds', 'clipIds', 'transitionIds', 'propertyTrackIds', 'appearanceKeyIdsByClipId', 'propertyKeyIdsByTrackId'])) return false
+    const plan = value.identities as Record<string, unknown>
+    const nested = (item: unknown) => !!item && typeof item === 'object' && !Array.isArray(item) && Object.values(item).every(mapping)
+    return text(plan.definitionId) && ['patternInstanceIds', 'layerIds', 'clipIds', 'transitionIds', 'propertyTrackIds'].every(key => mapping(plan[key])) && nested(plan.appearanceKeyIdsByClipId) && nested(plan.propertyKeyIdsByTrackId)
+  }
+  if (value.kind !== 'move-occurrence' && value.kind !== 'duplicate-occurrence') return false
+  const fields = ['kind', 'occurrenceId', 'startMs', 'layoutOccurrenceId', 'zoneId', 'layerBindings', 'translationX', 'translationY']
+  if (value.kind === 'duplicate-occurrence') fields.push('newOccurrenceId')
+  return exactIntentFields(value, fields) && typeof value.startMs === 'number' && Number.isSafeInteger(value.startMs)
+    && text(value.layoutOccurrenceId) && text(value.zoneId) && typeof value.translationX === 'number' && Number.isFinite(value.translationX) && typeof value.translationY === 'number' && Number.isFinite(value.translationY)
+    && Array.isArray(value.layerBindings) && value.layerBindings.every(binding => exactIntentFields(binding, ['definitionLayerId', 'layerId']) && typeof binding.definitionLayerId === 'string' && typeof binding.layerId === 'string')
+    && (value.kind !== 'duplicate-occurrence' || text(value.newOccurrenceId))
+}
+export async function admitShowV2PilotGroupOccurrenceEdit(request: ShowV2PilotGroupOccurrenceEditRequest): Promise<ShowV2PilotGroupOccurrenceEditOutcome> {
+  if (!validGroupOccurrenceIntent(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-placement', message: 'Give one complete explicit Group occurrence operation.', ...timelineEffects(), hoistedInstanceIds: [] }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'group-occurrence' as const })
+  const result = 'result' in outcome ? outcome.result : undefined
+  return presentOwnerOutcome(outcome, { ...timelineEffects(result), hoistedInstanceIds: result?.hoistedInstanceIds ?? [] })
 }

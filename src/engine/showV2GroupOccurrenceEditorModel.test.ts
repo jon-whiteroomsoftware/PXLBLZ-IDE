@@ -66,3 +66,12 @@ it('selects exact shell IDs for Ungroup/Delete and retains definitions and dorma
   expect(deleted.record.composition.patternInstances).toEqual(record.composition.patternInstances)
   expect(deleted.record.composition.groupOccurrences[0]).toEqual(record.composition.groupOccurrences[1])
 })
+it('derives the repeated destination Layout at its exact switch instead of retaining the source association', () => {
+  const { record } = showV2GroupOccurrenceEditorFixture(), occurrence = record.composition.groupOccurrences[0]
+  const first = record.composition.layoutOccurrences[0]; first.durationMs = 17000
+  const later = { ...structuredClone(first), id: 'later-layout', startMs: 17000, durationMs: 14000 }; record.composition.layoutOccurrences.push(later)
+  const plan = planShowV2GroupOccurrenceEdit(record, { kind: 'duplicate-occurrence', occurrenceId: occurrence.id, placement: { startMs: 17000, zoneId: occurrence.zoneId, layerBindings: occurrence.layerBindings, translationX: 0, translationY: 0 } }, () => 'later-copy')
+  if (plan.status !== 'ready' || plan.intent.kind !== 'duplicate-occurrence') throw Error('plan')
+  expect(plan.intent.layoutOccurrenceId).toBe('later-layout')
+  expect(duplicateShowGroupOccurrenceV2(record, plan.intent).status).toBe('changed')
+})

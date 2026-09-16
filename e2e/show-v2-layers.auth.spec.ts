@@ -44,3 +44,8 @@ test('ordinary selection creates a lossless native Group with one shared runtime
     expect(await route.evaluate(root => [...root.querySelectorAll<HTMLElement>('input,select,button')].filter(element => { const r = element.getBoundingClientRect(); return r.width > 0 && (r.left < -1 || r.right > innerWidth + 1) }).map(element => element.getAttribute('aria-label') || element.textContent))).toEqual([])
   }
 })
+
+test('Group occurrence controls preserve shared held choreography and adopt validated empty last deletion with durable history', async ({ page }) => {
+  const { exerciseShowV2GroupOccurrences } = await import('./fixtures/showV2GroupOccurrences')
+  await exerciseShowV2GroupOccurrences(page)
+})

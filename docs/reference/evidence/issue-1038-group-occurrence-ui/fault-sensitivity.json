@@ -1,0 +1,26 @@
+{
+  "faults": [
+    {
+      "fault": "source-layout-retained",
+      "oracle": "src/engine/showV2GroupOccurrenceEditorModel.test.ts",
+      "status": "killed",
+      "log": "/tmp/issue-1038-group-occurrence-fault-source-layout-retained.log",
+      "sourceRestoredSha256": "128f26a11dfec8f934450fdd8c0ed2616d7e72871c0e9e9270f6002d96ccd283"
+    },
+    {
+      "fault": "empty-delete-rejected",
+      "oracle": "src/store/showV2GroupOccurrenceAdmission.test.ts",
+      "status": "killed",
+      "log": "/tmp/issue-1038-group-occurrence-fault-empty-delete-rejected.log",
+      "sourceRestoredSha256": "a12e5d6c3e1b584acee8f21fee6cf6c864d32c9aeb1bfe75bb7b55eabfd86c4f"
+    },
+    {
+      "fault": "occurrence-effects-lost",
+      "oracle": "src/store/showV2GroupOccurrenceAdmission.test.ts",
+      "status": "killed",
+      "log": "/tmp/issue-1038-group-occurrence-fault-occurrence-effects-lost.log",
+      "sourceRestoredSha256": "a12e5d6c3e1b584acee8f21fee6cf6c864d32c9aeb1bfe75bb7b55eabfd86c4f"
+    }
+  ],
+  "sourceRestored": true
+}

@@ -1,0 +1,367 @@
+{
+  "record": {
+    "version": 2,
+    "id": "group-occurrence-ui",
+    "name": "Group occurrences",
+    "zones": [
+      {
+        "id": "zone",
+        "name": "Main",
+        "nominalPixelCount": 16
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "layout",
+        "name": "Full",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone"
+          ]
+        }
+      }
+    ],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 16,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "continuous",
+      "showEndMs": 30000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "instance",
+          "pattern": {
+            "kind": "user",
+            "id": "group-voice"
+          },
+          "patternName": "Voice",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          },
+          "controlTargets": {
+            "sliderGain": 0.4
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:zone:main",
+          "zoneId": "zone",
+          "name": "Main",
+          "rank": 0
+        },
+        {
+          "id": "layer:zone:overlay:1",
+          "zoneId": "zone",
+          "name": "Atmosphere",
+          "rank": 1
+        }
+      ],
+      "clips": [],
+      "transitions": [],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "layout",
+          "startMs": 0,
+          "durationMs": 16000,
+          "parameters": {}
+        },
+        {
+          "id": "later-layout",
+          "layoutId": "layout",
+          "startMs": 16000,
+          "durationMs": 14000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [
+        {
+          "id": "shared-gain",
+          "target": {
+            "kind": "instance-control",
+            "instanceId": "instance",
+            "exportName": "sliderGain"
+          },
+          "activeStartMs": 0,
+          "activeDurationMs": 30000,
+          "keyframes": [
+            {
+              "id": "gain-start",
+              "timeMs": 0,
+              "value": 0.4,
+              "easing": {
+                "curve": "quadratic",
+                "direction": "in"
+              }
+            },
+            {
+              "id": "gain-end",
+              "timeMs": 30000,
+              "value": 0.4,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ]
+        }
+      ],
+      "markers": [
+        {
+          "id": "scene-marker:scene-a",
+          "timeMs": 0,
+          "name": "Opening"
+        }
+      ],
+      "groupDefinitions": [
+        {
+          "id": "occurrence-local-1",
+          "name": "Verse",
+          "patternInstances": [
+            {
+              "id": "occurrence-local-3",
+              "pattern": {
+                "kind": "user",
+                "id": "group-voice"
+              },
+              "patternName": "Voice",
+              "time": {
+                "timeScale": 1,
+                "timeOffsetMs": 0
+              },
+              "controlTargets": {
+                "sliderGain": 0.4
+              }
+            }
+          ],
+          "layers": [
+            {
+              "id": "occurrence-local-4",
+              "name": "Atmosphere",
+              "rank": 1
+            }
+          ],
+          "clips": [
+            {
+              "id": "occurrence-local-5",
+              "instanceId": "occurrence-local-3",
+              "layerId": "occurrence-local-4",
+              "startMs": 0,
+              "durationMs": 1000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "occurrence-local-7",
+                    "timeMs": 0,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": [
+                        {
+                          "id": "turn",
+                          "kind": "rotate",
+                          "turns": 0
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "occurrence-local-6",
+              "instanceId": "occurrence-local-3",
+              "layerId": "occurrence-local-4",
+              "startMs": 1000,
+              "durationMs": 3000,
+              "entryPolicy": "restart",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "occurrence-local-8",
+                    "timeMs": 1000,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": [
+                        {
+                          "id": "turn",
+                          "kind": "rotate",
+                          "turns": 0
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "transitions": [],
+          "propertyTracks": []
+        }
+      ],
+      "groupOccurrences": [
+        {
+          "id": "occurrence-local-2",
+          "definitionId": "occurrence-local-1",
+          "layoutOccurrenceId": "layout-occurrence:1",
+          "zoneId": "zone",
+          "startMs": 2000,
+          "translationX": 0,
+          "translationY": 0,
+          "holds": [],
+          "instanceBindings": {
+            "occurrence-local-3": "instance"
+          },
+          "layerBindings": [
+            {
+              "definitionLayerId": "occurrence-local-4",
+              "layerId": "layer:zone:overlay:1"
+            }
+          ]
+        }
+      ]
+    },
+    "updatedAt": 1,
+    "stageMapId": "plane"
+  },
+  "legacy": {
+    "id": "group-occurrence-ui",
+    "name": "Group occurrences",
+    "scenes": [
+      {
+        "id": "scene-a",
+        "name": "Opening",
+        "durationMs": 1000
+      }
+    ],
+    "zones": [
+      {
+        "id": "zone",
+        "name": "Main",
+        "nominalPixelCount": 16
+      }
+    ],
+    "cells": [],
+    "routingLayouts": [
+      {
+        "id": "layout",
+        "name": "Full",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 16,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 1,
+      "executionModel": "deterministic-loop",
+      "durationMs": 1000,
+      "patternInstances": [
+        {
+          "id": "instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "scene-a",
+          "zones": [
+            {
+              "zoneId": "zone",
+              "main": [
+                {
+                  "id": "clip",
+                  "instanceId": "instance",
+                  "startMs": 0,
+                  "durationMs": 1000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": [
+                {
+                  "id": "empty-overlay",
+                  "name": "Atmosphere",
+                  "placements": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "updatedAt": 1
+  },
+  "patterns": [
+    {
+      "id": "group-voice",
+      "name": "Voice",
+      "src": "export var elapsed=0; export var gain=.4; export function sliderGain(v){gain=v} export function beforeRender(d){elapsed+=d} export function render2D(i,x,y){rgb(gain,elapsed/30000,x)}",
+      "controls": {},
+      "updatedAt": 1
+    }
+  ],
+  "qualification": {
+    "before": "qualified-ready",
+    "stage": "stock-plane",
+    "durationMs": 30000,
+    "repeatedLayouts": true
+  }
+}
