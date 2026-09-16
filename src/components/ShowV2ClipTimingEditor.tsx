@@ -32,6 +32,10 @@ export function ShowV2ClipTimingEditor({ capture, sources, selectedClipId, onSel
   const [sourceKey, setSourceKey] = useState<string | null>(null)
   const source = sources.find(source => source.key === sourceKey)
   const [runtimeChoice, setRuntimeChoice] = useState('')
+  const [explicitRuntimeChoice, setExplicitRuntimeChoice] = useState(false)
+  const effectiveRuntimeChoice = !source ? '' : source.runtimeIds.length === 0 ? 'first'
+    : source.runtimeIds.length === 1 ? `runtime:${source.runtimeIds[0]}`
+      : explicitRuntimeChoice && runtimeChoice.startsWith('runtime:') && source.runtimeIds.includes(runtimeChoice.slice('runtime:'.length)) ? runtimeChoice : ''
   const [zoneId, setZoneId] = useState(record.zones[0]?.id ?? '')
   const [layerId, setLayerId] = useState(record.composition.layers.find(layer => layer.zoneId === zoneId)?.id ?? '')
   const [createStart, setCreateStart] = useState(clip ? clip.startMs + clip.durationMs : 0)
@@ -70,9 +74,9 @@ export function ShowV2ClipTimingEditor({ capture, sources, selectedClipId, onSel
     void submit({ owner: 'clip', intent: { kind: 'split', clipId: clip.id, atMs: splitAt, rightClipId: ids.clipId } }, ids.clipId)
   }
   const add = async () => {
-    if (!source || !runtimeChoice || pending.current) return
-    const first = runtimeChoice === 'first' && source.runtimeIds.length === 0
-    const existingId = runtimeChoice.startsWith('runtime:') ? runtimeChoice.slice('runtime:'.length) : ''
+    if (!source || !effectiveRuntimeChoice || pending.current) return
+    const first = effectiveRuntimeChoice === 'first' && source.runtimeIds.length === 0
+    const existingId = effectiveRuntimeChoice.startsWith('runtime:') ? effectiveRuntimeChoice.slice('runtime:'.length) : ''
     if (!first && !source.runtimeIds.includes(existingId)) { onStatus('Select one existing runtime for this Pattern source.'); return }
     const ids = allocateShowClipTimingIdsV2(record, 'create', first, () => newPersonalContentId())
     if (ids.status === 'refused') { onStatus(ids.message); return }
@@ -86,14 +90,14 @@ export function ShowV2ClipTimingEditor({ capture, sources, selectedClipId, onSel
   return <div className="mt-7 space-y-5" data-testid="show-v2-clip-timing">
     <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-medium">Clips</h2><Button size="xs" variant="outline" disabled={busy || !available} onClick={() => setAdding(true)} className={timingButtonStyle}>Add Clip</Button></div>
     {adding && <div className="space-y-3">
-      <PatternCombobox ariaLabel="Clip Pattern" value={sourceKey} disabled={busy} options={sources.map(source => ({ value: source.key, label: source.label, group: source.group }))} onChange={key => { const next = sources.find(source => source.key === key)!; setSourceKey(key); setRuntimeChoice(next.runtimeIds.length === 0 ? 'first' : next.runtimeIds.length === 1 ? `runtime:${next.runtimeIds[0]}` : '') }} />
+      <PatternCombobox ariaLabel="Clip Pattern" value={sourceKey} disabled={busy} options={sources.map(source => ({ value: source.key, label: source.label, group: source.group }))} onChange={key => { const next = sources.find(source => source.key === key)!; setSourceKey(key); setRuntimeChoice(next.runtimeIds.length === 0 ? 'first' : next.runtimeIds.length === 1 ? `runtime:${next.runtimeIds[0]}` : ''); setExplicitRuntimeChoice(false); }} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="min-w-0 text-xs text-zinc-500">Zone<select aria-label="Clip Zone" value={zoneId} disabled={busy} className={selectStyle} onChange={event => { const zone = event.target.value; setZoneId(zone); if (!record.composition.layers.some(layer => layer.id === layerId && layer.zoneId === zone)) setLayerId(record.composition.layers.find(layer => layer.zoneId === zone)?.id ?? '') }}>{record.zones.map(zone => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
         <label className="min-w-0 text-xs text-zinc-500">Layer<select aria-label="Clip Layer" value={layerId} disabled={busy} className={selectStyle} onChange={event => setLayerId(event.target.value)}>{record.composition.layers.filter(layer => layer.zoneId === zoneId).sort((a, b) => a.rank - b.rank).map(layer => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select></label>
       </div>
-      {source && <label className="block text-xs text-zinc-500">Runtime<select aria-label="Clip runtime" value={runtimeChoice} disabled={busy} className={selectStyle} onChange={event => setRuntimeChoice(event.target.value)}>{source.runtimeIds.length > 1 && <option value="">Select runtime</option>}{source.runtimeIds.length === 0 ? <option value="first">First runtime</option> : source.runtimeIds.map(id => <option key={id} value={`runtime:${id}`}>{id}</option>)}</select></label>}
+      {source && <label className="block text-xs text-zinc-500">Runtime<select aria-label="Clip runtime" value={effectiveRuntimeChoice} disabled={busy} className={selectStyle} onChange={event => { setRuntimeChoice(event.target.value); setExplicitRuntimeChoice(true); }}>{source.runtimeIds.length > 1 && <option value="">Select runtime</option>}{source.runtimeIds.length === 0 ? <option value="first">First runtime</option> : source.runtimeIds.map(id => <option key={id} value={`runtime:${id}`}>{id}</option>)}</select></label>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><NumberField label="New Clip start" value={createStart} disabled={busy} step={1} suffix="ms" variant="editor" onChange={setCreateStart}/><NumberField label="New Clip duration" value={createDuration} disabled={busy} step={1} suffix="ms" variant="editor" onChange={setCreateDuration}/></div>
-      <div className="flex flex-wrap gap-2"><Button size="xs" variant="outline" disabled={busy || !source || !runtimeChoice} onClick={() => void add()} className={timingButtonStyle}>Add</Button><Button size="xs" variant="outline" disabled={busy} onClick={() => setAdding(false)} className={timingButtonStyle}>Cancel</Button></div>
+      <div className="flex flex-wrap gap-2"><Button size="xs" variant="outline" disabled={busy || !source || !effectiveRuntimeChoice} onClick={() => void add()} className={timingButtonStyle}>Add</Button><Button size="xs" variant="outline" disabled={busy} onClick={() => setAdding(false)} className={timingButtonStyle}>Cancel</Button></div>
     </div>}
     {clip && <div key={`${clip.id}:${clip.startMs}:${clip.durationMs}:${fieldReset}`} className="space-y-3">
       <div className="truncate text-sm">{sources.find(source => source.runtimeIds.includes(clip.instanceId))?.name ?? clip.id}</div>

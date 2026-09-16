@@ -1,0 +1,41 @@
+{
+  "issue": 1038,
+  "base": "265b73378b33b2c1971aed96ae231cd4349805b9",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "31d428c9f9cdb8f14db3182cc21c81356996cc7c",
+    "proofRows": [
+      "ROUTE",
+      "SHARING",
+      "FAILURE"
+    ]
+  },
+  "invariants": [
+    "The select, Add eligibility and intent use the same current trusted runtime choice.",
+    "Zero matches creates first setup, a sole match shares its existing ID, and multiple matches require a valid user-explicit selection.",
+    "First setup/save/recapture/reopen never retains stale first state or creates a second runtime. Existing admission/history/save owners stay unchanged."
+  ],
+  "partitions": [
+    "Zero\u2192sole after first saved Create; sole\u2192multiple after captured IDs refresh; initial multiple; valid explicit multi-choice retained on reopen; explicit ID removed while multiple remain.",
+    "Typed trusted ready baseline, full actual component/model/admission, fresh committed desktop/narrow real route; no-op/refusal and rollback compatibility."
+  ],
+  "sequences": [
+    "Choose zero-match source\u2192first Create\u2192save/current recapture\u2192reopen same source without retriggering source selection\u2192nonoverlapping second Create sharing exact sole runtime.",
+    "Automatically select sole\u2192refresh multiple matches\u2192blank/disabled Add\u2192explicit choice\u2192save\u2192reopen retains valid choice; remove explicit choice\u2192blank."
+  ],
+  "oracles": [
+    "Persisted/reopened v2 has two new Clips with identical runtime ID and unchanged authoritative payload/cast count, exactly two history/provider writes.",
+    "Actual select value and enabled/disabled Add match submitted semantics; no silent choice among multiple matches, no write before explicit choice.",
+    "Existing actual prepared path ready, native artifacts reopen, desktop/narrow keyboard/no-overflow/error checks against committed source."
+  ],
+  "residualGaps": [
+    "Tiny advisory corrective only; no source/compiler/pure-owner/admission policy or layout expansion.",
+    "Coordinator owns suffix review/final suites/landing; whole1038 remains partial."
+  ],
+  "qualification": {
+    "red": "Three actual component/typed-admission counterexamples fail on landed265b; fixture importer corrected before genuine red.",
+    "focused": "40 tests across5 focused current-choice/editor/completion/admission/model files pass.",
+    "static": "Full project TypeScript and scoped ESLint pass before source checkpoint.",
+    "browser": "Fresh committed desktop/narrow proof follows source checkpoint; no prior capture claimed for changedTSX."
+  }
+}
