@@ -76,7 +76,7 @@ export function ShowV2GroupReplacementEditor({ capture, sources, submitGroupRepl
     {target && target.sharedRuntimeIds.length > 0 && <p className="text-xs text-zinc-500">This Group Clip changes independently. Other users keep their Pattern, controls and state.</p>}
     {confirming
       ? <div role="group" aria-label="Confirm Group animation loss" className="space-y-2 rounded-sm border border-amber-800/60 bg-amber-950/30 p-3">
-        <p className="text-xs text-amber-200">Replacement drops {losses.length} incompatible control{losses.length === 1 ? '' : 's'}: {losses.map(loss => loss.kind === 'instance-control' ? loss.exportName : loss.kind).join(', ')}. {losses.length === 1 ? 'Its' : 'Their'} animation is removed.</p>
+        <p className="text-xs text-amber-200">Replacement drops {losses.length} incompatible control{losses.length === 1 ? '' : 's'}: {losses.map(loss => loss.kind === 'instance-control' ? `${loss.exportName} on ${loss.instanceId}` : loss.kind).join(', ')}. {losses.length === 1 ? 'Its' : 'Their'} animation is removed.</p>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="xs" variant="outline" className={buttonStyle} onClick={() => void submit()}>Confirm Group replacement</Button>
           <Button type="button" size="xs" variant="outline" className={buttonStyle} onClick={() => { setConfirming(false); onStatus('Group Pattern replacement cancelled.') }}>Cancel Group replacement</Button>
