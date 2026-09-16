@@ -229,6 +229,7 @@ export class AgentAccount {
 
 function createsRelay(command: RendezvousCommand, code: string): boolean {
   return code === 'bound' && (command.type === 'claim' || command.type === 'answer' || command.type === 'connect-external')
+    || code === 'bound' && command.type === 'inspect' && command.agentKind === 'builtin'
     || code === 'moved' && command.type === 'replace-external-binding'
 }
 

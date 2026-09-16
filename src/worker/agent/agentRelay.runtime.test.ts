@@ -84,3 +84,20 @@ it('evicts an account owner, retires its persisted old binding, and admits only 
   await channel({ type: 'disconnect', ...own, bindingId: 'fresh-binding' })
   await channel({ type: 'leave', ...own })
 }, 10_000)
+
+it('evicts an account owner and restores a trusted built-in relay from the exact persisted identity', async () => {
+  const registration = await (await channel({ type: 'register', sessionId: 'builtin-recreated', showId })).json() as { registrationId: string }
+  const own = { registrationId: registration.registrationId, sessionId: 'builtin-recreated', showId }
+  const identity = { agentKind: 'builtin', agentId: 'builtin-recreated', agentName: 'Assistant', callId: 'builtin-call', bindingId: 'builtin-binding' }
+  expect(await (await internal({ type: 'claim', ...identity, window: own })).json()).toMatchObject({ code: 'bound' })
+
+  await runtime.unsafeEvictDurableObject('', 'AgentAccount', { name: 'relay-account' })
+  const delivery = { operationId: 'builtin-operation', deliveryId: 'builtin-begin', sequence: 0, payload: { kind: 'begin_edit' } }
+  const dispatching = internal({ type: 'relay-dispatch', accountId: 'relay-account', identity, delivery })
+  const received = await (await channel({ type: 'receive', ...own })).json() as { deliveries: unknown[] }
+  expect(received.deliveries).toEqual([{ ...own, bindingId: identity.bindingId, ...delivery }])
+  expect(await (await channel({ type: 'reply', ...own, bindingId: identity.bindingId, operationId: delivery.operationId, deliveryId: delivery.deliveryId, result: { code: 'begun' } })).json()).toEqual({ code: 'received' })
+  expect(await (await dispatching).json()).toEqual({ code: 'begun' })
+  expect(await (await channel({ type: 'disconnect', ...own, bindingId: identity.bindingId })).json()).toEqual({ code: 'disconnected' })
+  await channel({ type: 'leave', ...own })
+}, 10_000)

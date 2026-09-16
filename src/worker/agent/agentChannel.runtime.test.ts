@@ -111,20 +111,28 @@ it('keeps browser heartbeat, receive, delivery, reply and cleanup healthy after 
   await json({ type: 'arm', ...own })
   expect(await json({ type: 'external-tool-connect', agentId: 'grant', agentName: 'Client', nextCallId: 'call', nextBindingId: 'binding' })).toMatchObject({ code: 'bound' })
 
+  const reading = json({ type: 'external-tool-query', agentId: 'grant', expectedBindingId: 'binding', query: { kind: 'read_show' } })
+  const readBatch = await json({ type: 'receive', ...own }) as { deliveries: Array<{ operationId: string; deliveryId: string; payload: unknown }> }
+  expect(readBatch.deliveries).toEqual([expect.objectContaining({ payload: { kind: 'read_show' } })])
+  const read = readBatch.deliveries[0]
+  expect(await json({ type: 'reply', ...own, bindingId: 'binding', operationId: read.operationId, deliveryId: read.deliveryId, result: { code: 'read', show: { id: own.showId } } })).toEqual({ code: 'received' })
+  expect(await reading).toMatchObject({ code: 'read' })
+
   const dispatch = json({
     type: 'external-tool-dispatch', agentId: 'grant', expectedBindingId: 'binding',
-    delivery: { operationId: 'operation', deliveryId: 'delivery', sequence: 0, payload: { kind: 'begin_edit' } },
+    delivery: { idempotencyKey: 'mixed-begin', payload: { kind: 'begin_edit', intent: 'Verify exhausted-budget liveness' } },
   })
-  for (let i = 0; i < 238; i++) expect(await json({ type: 'external-tool-resolve', agentId: 'grant' })).toMatchObject({ code: 'bound' })
+  for (let i = 0; i < 237; i++) expect(await json({ type: 'external-tool-resolve', agentId: 'grant' })).toMatchObject({ code: 'bound' })
   const throttled = await send({ type: 'external-tool-resolve', agentId: 'grant' })
   expect(throttled.status).toBe(429)
   expect(await throttled.json()).toMatchObject({ code: 'throttled', retry_after_ms: expect.any(Number) })
 
   expect(await json({ type: 'heartbeat', ...own })).toMatchObject({ code: 'status', contact: 'live' })
-  const received = await json({ type: 'receive', ...own }) as { deliveries: Array<{ operationId: string; deliveryId: string }> }
-  expect(received.deliveries).toEqual([expect.objectContaining({ operationId: 'operation', deliveryId: 'delivery' })])
-  expect(await json({ type: 'reply', ...own, bindingId: 'binding', operationId: 'operation', deliveryId: 'delivery', result: { code: 'begun' } })).toEqual({ code: 'received' })
-  expect(await dispatch).toEqual({ code: 'begun' })
+  const received = await json({ type: 'receive', ...own }) as { deliveries: Array<{ operationId: string; deliveryId: string; sequence: number; payload: unknown }> }
+  expect(received.deliveries).toEqual([expect.objectContaining({ sequence: 0, payload: { kind: 'begin_edit', intent: 'Verify exhausted-budget liveness' } })])
+  const begin = received.deliveries[0]
+  expect(await json({ type: 'reply', ...own, bindingId: 'binding', operationId: begin.operationId, deliveryId: begin.deliveryId, result: { code: 'begun', operationId: begin.operationId } })).toEqual({ code: 'received' })
+  expect(await dispatch).toEqual({ code: 'begun', operationId: begin.operationId })
   expect(await json({ type: 'disconnect', ...own, bindingId: 'binding' })).toEqual({ code: 'disconnected' })
   expect(await json({ type: 'leave', ...own })).toEqual({ code: 'retired' })
 })
