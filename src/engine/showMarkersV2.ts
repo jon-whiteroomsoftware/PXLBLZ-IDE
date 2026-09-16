@@ -62,7 +62,7 @@ export function editShowMarkerV2(record: ShowRecordV2, intent: ShowMarkerEditInt
   if (intent.kind !== 'add' && intent.kind !== 'remove' && source!.timeMs === updated.timeMs && source!.name === updated.name && source!.color === updated.color) return { status: 'unchanged', record, ...emptyAffected() }
   const next = structuredClone(record)
   next.composition.markers = (intent.kind === 'add' ? [...next.composition.markers, structuredClone(updated)] : intent.kind === 'remove' ? next.composition.markers.filter(marker => marker.id !== id) : next.composition.markers.map(marker => marker.id === id ? structuredClone(updated) : marker))
-    .sort((a, b) => a.timeMs - b.timeMs || a.id.localeCompare(b.id))
+    .sort((a, b) => a.timeMs - b.timeMs || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   const resultIssue = validateShowRecordV2(next)[0]
   if (resultIssue) return refuse('invalid-result', `${resultIssue.path}: ${resultIssue.message}`)
   return { status: 'changed', record: next, ...emptyAffected(), affectedMarkerIds: [id], removedIds: intent.kind === 'remove' ? [id] : [] }

@@ -15,6 +15,9 @@ clears optional name/color; it cannot clear required time or identity. The opera
 never clamps times, creates IDs, removes dormant guides or changes playback.
 
 Changed records are complete and unaliased, validated and ordered by `(timeMs,id)`.
+The ID tie-breaker uses exact UTF-16 code-unit lexical order, independent of host
+locale, with no Unicode normalization. Canonically equivalent but distinct IDs
+remain distinct and yield the same stored order regardless of insertion order.
 Only the Marker array changes; `updatedAt`, choreography, runtime identities and
 payloads stay exact. The v2 array remains present when the last Marker is removed.
 Equal-time Markers retain distinct identities. An update/move with identical

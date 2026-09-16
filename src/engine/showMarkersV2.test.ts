@@ -70,6 +70,35 @@ it('moves exact Marker time across peers and Show End without touching choreogra
   unchangedContent(actual, source)
 })
 
+it.each([
+  ['canonically equivalent strings remain distinct', ['é', 'é'], ['é', 'é']],
+  ['locale-sensitive strings use code-unit order', ['ä', 'z'], ['z', 'ä']],
+] as const)('orders equal-time IDs deterministically: %s', (_name, ids, expected) => {
+  const outputs: ShowRecordV2['composition']['markers'][] = []
+  for (const insertionOrder of [ids, [...ids].reverse()]) {
+    const source = record()
+    const before = structuredClone(source)
+    let candidate = source
+    for (const id of insertionOrder) {
+      const result = editShowMarkerV2(candidate, { kind: 'add', marker: { id, timeMs: 250 } })
+      expect(result.status).toBe('changed')
+      if (result.status !== 'changed') throw new Error('Marker add refused')
+      expect(result.affectedMarkerIds).toEqual([id])
+      emptyOtherAffected(result)
+      candidate = reopen(result.record)
+    }
+    expect(candidate.composition.markers.map(marker => marker.id)).toEqual(['early', ...expected, 'later'])
+    outputs.push(candidate.composition.markers)
+    unchangedContent(candidate, before)
+    expect(source).toEqual(before)
+    const noOp = editShowMarkerV2(candidate, { kind: 'move', markerId: ids[0], timeMs: 250 })
+    expect(noOp.status).toBe('unchanged')
+    expect(noOp.record).toBe(candidate)
+    expect(noOp.affectedMarkerIds).toEqual([])
+  }
+  expect(outputs[0]).toEqual(outputs[1])
+})
+
 it('updates and clears optional fields explicitly while retaining exact Marker identity', () => {
   const source = record()
   const updated = editShowMarkerV2(source, { kind: 'update', markerId: 'later', patch: { name: '', color: undefined, timeMs: 0 } })

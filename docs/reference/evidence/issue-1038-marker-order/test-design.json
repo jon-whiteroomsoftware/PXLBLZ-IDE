@@ -1,0 +1,36 @@
+{
+  "issue": 1038,
+  "specificationCommit": "ab8f502acbd248e6a671a673eba71345fc97958a",
+  "proofRows": ["MODEL", "CHAPTERS"],
+  "boundary": "editShowMarkerV2 ordering and provisional record serialization/reopen",
+  "invariants": [
+    "Equal-time arbitrary string IDs have a total exact code-unit lexical order independent of locale and insertion order.",
+    "Unicode normalization never merges or rewrites distinct Marker identities.",
+    "Only Markers change; input, unrelated choreography and no-op identity stay exact."
+  ],
+  "partitions": [
+    "Precomposed é versus decomposed e plus combining acute, added in both orders; expected decomposed ID precedes precomposed ID.",
+    "Locale-sensitive ä versus z, added in both orders; expected z precedes ä by code-unit value.",
+    "Earlier/later time peers remain ordered by time and same-time move no-op retains original record identity."
+  ],
+  "sequences": [
+    "Add each equal-time pair in forward and reverse order, serialize/reopen after every add, compare the complete final Marker arrays, then apply a no-op move."
+  ],
+  "oracles": [
+    "Literal independent expected ID order and identical reopened complete Marker arrays for both insertion orders.",
+    "Full validateShowRecordV2 and provisional codec, distinct unchanged raw IDs, exact input/unrelated content and affected collections.",
+    "The existing Marker CRUD suite independently reopens .epe artifacts and preserves exact Fast/Fidelity source, frames and state."
+  ],
+  "tddEvidence": [
+    "Both new regression partitions fail against localeCompare: equivalent accents retain insertion order, and ä sorts before z.",
+    "The exact < and > code-unit comparison repairs both partitions without normalizing or changing IDs.",
+    "Focused Marker and Insert Time consumers pass 87/87, including all 30 Marker cases; TypeScript, scoped ESLint, diff checks and the 47-record parity inventory pass."
+  ],
+  "mutationEvidence": [
+    "A passing 30-case baseline precedes the restored localeCompare comparator fault; both independent Unicode order assertions kill that mutant, then original source is restored."
+  ],
+  "residualGaps": [
+    "Chapter projection, UI/store commands and publication remain separate owners; this is a general Marker ordering corrective only.",
+    "Coordinator owns native review, authoritative full suites, landing and issue progress."
+  ]
+}
