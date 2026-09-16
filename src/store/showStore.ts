@@ -194,6 +194,7 @@ interface ShowState {
   showV2SaveFailure: { showId: string; record: ShowRecordV2 } | null
   openShowV2Pilot: (showId: string) => Promise<{ status: 'ready'; record: ShowRecordV2 } | { status: 'refused'; issues: ShowV1ToV2Issue[] }>
   updateShowV2Pilot: (showId: string, next: ShowRecordV2) => Promise<void>
+  renameShowV2Pilot: (showId: string, name: string) => Promise<void>
   undoShowV2Pilot: (showId: string) => Promise<boolean>
   redoShowV2Pilot: (showId: string) => Promise<boolean>
   reloadShowV2Pilot: (showId: string) => Promise<ShowRecordV2 | null>
@@ -846,6 +847,12 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       const previous = cloneValidShowRecordV2(current)
       const previousHistory = get().showV2Histories[showId] ?? { past: [], future: [] }
       await adoptShowV2PilotReplacement(showId, next, editedHistory(previousHistory, previous), { record: previous, history: previousHistory })
+    },
+
+    renameShowV2Pilot: async (showId, name) => {
+      const current = get().showV2Pilots[showId]
+      if (!current || current.name === name) return
+      await get().updateShowV2Pilot(showId, { ...current, name })
     },
 
     undoShowV2Pilot: async (showId) => {

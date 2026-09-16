@@ -398,7 +398,7 @@ function StudioApp() {
   const showV2Pilots = useShowStore((s) => s.showV2Pilots)
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
-  const updateShowV2Pilot = useShowStore((s) => s.updateShowV2Pilot)
+  const renameShowV2Pilot = useShowStore((s) => s.renameShowV2Pilot)
   const showCreation = useShowStore((s) => s.showCreation)
   const createNewShow = useShowStore((s) => s.createNewShow)
   const cancelShowCreation = useShowStore((s) => s.cancelShowCreation)
@@ -836,6 +836,7 @@ function StudioApp() {
       : undefined
   )
   const activeShowV2Pilot = pilotShowId ? showV2Pilots[pilotShowId] : undefined
+  const activeShowV2PilotId = activeShowV2Pilot?.id
   const activeShowEditor = activeShow ? (
     <ShowEditor
       showId={activeShow.id}
@@ -1323,8 +1324,8 @@ function StudioApp() {
                     <InlineEntityTitle
                       name={activeShowV2Pilot?.name ?? activeShow?.name ?? 'Shows'}
                       noun="show"
-                      onRename={activeShowV2Pilot
-                        ? (nextName) => updateShowV2Pilot(activeShowV2Pilot.id, { ...activeShowV2Pilot, name: nextName })
+                      onRename={activeShowV2PilotId
+                        ? (nextName) => renameShowV2Pilot(activeShowV2PilotId, nextName)
                         : activeShow && !routedStockShow
                           ? (nextName) => renameShow(activeShow.id, nextName)
                           : undefined}

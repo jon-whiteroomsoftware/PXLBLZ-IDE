@@ -588,4 +588,36 @@ describe('opt-in v2 Show route adoption', () => {
     expect(state().showV2SaveFailure).toMatchObject({ showId: source.id, record: { name: 'Rejected B' } })
     expect(stored).toEqual(durableA)
   })
+
+  it('treats same-name and missing pilot renames as no-ops and rejects an invalid current record', async () => {
+    const source = transitionV1Show('crossfade')
+    const replaceShowV2 = vi.fn(async () => {})
+    setPersonalContentProvider({
+      id: 'v2-rename-boundaries',
+      listShows: async () => [source],
+      listShowDocumentsV2: async () => [],
+      replaceShowV2,
+    } as unknown as PersonalContentProvider)
+    useShowStore.setState({ shows: [source] })
+    const opened = await state().openShowV2Pilot(source.id)
+    if (opened.status !== 'ready') throw new Error('conversion failed')
+    const recordIdentity = state().showV2Pilots[source.id]
+    const historyIdentity = state().showV2Histories[source.id]
+
+    await state().renameShowV2Pilot(source.id, opened.record.name)
+    await state().renameShowV2Pilot('missing-show', 'Missing')
+
+    expect(replaceShowV2).not.toHaveBeenCalled()
+    expect(state().showV2Pilots[source.id]).toBe(recordIdentity)
+    expect(state().showV2Histories[source.id]).toBe(historyIdentity)
+
+    const invalid = structuredClone(opened.record)
+    invalid.composition.clips[0].durationMs = -1
+    useShowStore.setState(current => ({
+      showV2Pilots: { ...current.showV2Pilots, [source.id]: invalid },
+    }))
+    await expect(state().renameShowV2Pilot(source.id, 'Invalid rename')).rejects.toThrow()
+    expect(replaceShowV2).not.toHaveBeenCalled()
+    expect(state().showV2Pilots[source.id]).toBe(invalid)
+  })
 })

@@ -41,6 +41,7 @@ import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { transitionV1Show } from '@/test/showV2TracerFixture'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 
 const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
@@ -157,8 +158,12 @@ function setStudioLocation(path = '/studio') {
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
-  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
-  return { promise, resolve }
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
 }
 
 async function choosePlace(name: 'Patterns' | 'Shows' | 'Maps' | 'Controllers' | 'Mixins' | 'Libraries' | 'Docs' | 'API') {
@@ -675,6 +680,111 @@ describe('routing (#308)', () => {
     await user.click(within(editorPane).getByRole('button', { name: 'Reload saved v2' }))
     await waitFor(() => expect(useShowStore.getState().showV2Pilots[legacy.id].name).toBe('Durable v2 name'))
     expect(within(editorPane).getByRole('button', { name: 'Rename show Durable v2 name' })).toBeInTheDocument()
+  })
+
+  it('renames the current pilot record after Undo while the title field retains its original callback', async () => {
+    const user = userEvent.setup()
+    const legacy = { ...transitionV1Show('crossfade'), id: 'show-v2-undo-rename', name: 'Undo rename' }
+    const converted = convertShowRecordV1ToV2(legacy)
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const transitionId = converted.record.composition.transitions[0].id
+    const edited = editShowTransitionV2(converted.record, {
+      kind: 'resize-transition', transitionId, durationMs: 100,
+    })
+    if (edited.status !== 'changed') throw new Error(JSON.stringify(edited))
+    const replaceShowV2 = vi.fn(async (_id: string, _record: ShowRecordV2) => {})
+    const updateShow = vi.fn(async () => {})
+    setPersonalContentProvider({
+      id: 'pilot-undo-rename',
+      listShows: async () => [legacy],
+      listShowDocumentsV2: async () => [],
+      replaceShowV2,
+      updateShow,
+    } as unknown as PersonalContentProvider)
+    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-pilot=1`)
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [legacy], showsLoaded: true, activeShowId: legacy.id })
+    const opened = await useShowStore.getState().openShowV2Pilot(legacy.id)
+    if (opened.status !== 'ready') throw new Error(JSON.stringify(opened.issues))
+    await useShowStore.getState().updateShowV2Pilot(legacy.id, edited.record)
+
+    render(<App />)
+    const editorPane = screen.getByTestId('editor-pane')
+    await user.click(within(editorPane).getByRole('button', { name: `Rename show ${legacy.name}` }))
+    const input = within(editorPane).getByRole('textbox', { name: 'Show name' })
+    await user.clear(input)
+    await user.type(input, 'Undo-safe name')
+
+    await act(async () => {
+      expect(await useShowStore.getState().undoShowV2Pilot(legacy.id)).toBe(true)
+    })
+    await user.type(input, '{Enter}')
+
+    await waitFor(() => expect(replaceShowV2).toHaveBeenCalledTimes(3))
+    const current = useShowStore.getState().showV2Pilots[legacy.id]
+    expect(current.name).toBe('Undo-safe name')
+    expect(current.composition.transitions).toEqual(converted.record.composition.transitions)
+    expect(useShowStore.getState().showV2Histories[legacy.id]).toMatchObject({
+      past: [expect.objectContaining({ composition: converted.record.composition })],
+      future: [],
+    })
+    expect(replaceShowV2.mock.calls[2][1].composition.transitions).toEqual(converted.record.composition.transitions)
+    expect(updateShow).not.toHaveBeenCalled()
+  })
+
+  it('renames the rolled-back pilot record after a save fails while the title field is open', async () => {
+    const user = userEvent.setup()
+    const legacy = { ...transitionV1Show('crossfade'), id: 'show-v2-rollback-rename', name: 'Rollback rename' }
+    const converted = convertShowRecordV1ToV2(legacy)
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const transitionId = converted.record.composition.transitions[0].id
+    const rejected = editShowTransitionV2(converted.record, {
+      kind: 'resize-transition', transitionId, durationMs: 100,
+    })
+    if (rejected.status !== 'changed') throw new Error(JSON.stringify(rejected))
+    const pending = deferred<void>()
+    const replaceShowV2 = vi.fn(async (_id: string, _record: ShowRecordV2) => {})
+      .mockImplementationOnce((_id: string, _record: ShowRecordV2) => pending.promise)
+      .mockResolvedValueOnce(undefined)
+    const updateShow = vi.fn(async () => {})
+    setPersonalContentProvider({
+      id: 'pilot-rollback-rename',
+      listShows: async () => [legacy],
+      listShowDocumentsV2: async () => [],
+      replaceShowV2,
+      updateShow,
+    } as unknown as PersonalContentProvider)
+    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-pilot=1`)
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [legacy], showsLoaded: true, activeShowId: legacy.id })
+    const opened = await useShowStore.getState().openShowV2Pilot(legacy.id)
+    if (opened.status !== 'ready') throw new Error(JSON.stringify(opened.issues))
+
+    render(<App />)
+    const editorPane = screen.getByTestId('editor-pane')
+    const rejectedSave = useShowStore.getState().updateShowV2Pilot(legacy.id, rejected.record)
+    await waitFor(() => expect(replaceShowV2).toHaveBeenCalledTimes(1))
+    await user.click(within(editorPane).getByRole('button', { name: `Rename show ${legacy.name}` }))
+    const input = within(editorPane).getByRole('textbox', { name: 'Show name' })
+    await user.clear(input)
+    await user.type(input, 'Rollback-safe name')
+
+    pending.reject(new Error('offline'))
+    await expect(rejectedSave).rejects.toThrow('offline')
+    expect(useShowStore.getState().showV2Pilots[legacy.id].composition.transitions)
+      .toEqual(converted.record.composition.transitions)
+    await user.type(input, '{Enter}')
+
+    await waitFor(() => expect(replaceShowV2).toHaveBeenCalledTimes(2))
+    const current = useShowStore.getState().showV2Pilots[legacy.id]
+    expect(current.name).toBe('Rollback-safe name')
+    expect(current.composition.transitions).toEqual(converted.record.composition.transitions)
+    expect(useShowStore.getState().showV2Histories[legacy.id]).toMatchObject({
+      past: [expect.objectContaining({ composition: converted.record.composition })],
+      future: [],
+    })
+    expect(replaceShowV2.mock.calls[1][1].composition.transitions).toEqual(converted.record.composition.transitions)
+    expect(updateShow).not.toHaveBeenCalled()
   })
 
   it('renames a matching live Controller from the middle-pane title', async () => {
