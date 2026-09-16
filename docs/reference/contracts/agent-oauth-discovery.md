@@ -87,6 +87,13 @@ The MCP SDK serves stateless JSON initialization and stable `tools/list` metadat
 canonical `SHOW_COMMANDS`, `commit_edit`, `get_outcome` and `cancel_edit`. Listing
 metadata neither claims an account slot nor reads Show contents. There is no GET
 event stream, DELETE session, durable MCP session or tools-list notification.
+Initialization therefore does not advertise resource-list changes. Every listed
+tool publishes an output schema from one of five shared groups: connection,
+catalogue, read, mutation or outcome. The schemas close the public result-code
+domain and the shapes of command changes, refusals, binding-move notices and
+instructions while leaving Show, context and receipt objects opaque. This keeps
+new canonical commands on the same result contract without copying schemas into
+the command registry.
 
 `get_connection` uses the validated grant/client identity to claim the account
 slot. An armed editor binds immediately; otherwise the call waits the full
@@ -132,6 +139,15 @@ normalized command plus its JSON-RPC envelope. OAuth forms remain16 KiB. No
 input or captured reference context is truncated to fit. Relay/read results are
 at most1 MiB; MCP encodes that result as both text and structured content, so its
 wire response may contain two copies plus protocol framing.
+
+The text copy is the exact JSON encoding of `structuredContent`. Successful
+result codes are `bound`, `pending`, `commands`, `read`, `begun`, `changed`,
+`noop`, `unchanged` and `outcome`; every other closed public result code sets MCP
+`isError: true`. In particular, retrieving an `outcome` remains a successful
+tool call even when its opaque receipt records a refused edit. The server's
+independent schema tests validate both successful and error structured results,
+because the pinned MCP SDK deliberately skips its own output validation when
+`isError` is true.
 
 The relay and MCP server carry an optional browser-owned validation diagnostic
 inside an `invalid-candidate` receipt without parsing or rebuilding it.
@@ -258,7 +274,7 @@ Disconnect and Forget remain #1002. This contract does not itself close #963 or
 
 ## Primary sources
 
-Checked 2026-09-10:
+Checked 2026-09-10, with the MCP tool-result clauses rechecked 2026-09-15:
 
 - [Cloudflare workers-oauth-provider](https://github.com/cloudflare/workers-oauth-provider),
   source commit `742e222c55f5adbd8975c964f2248ea8a1670770`, package 0.10.3:
@@ -270,3 +286,6 @@ Checked 2026-09-10:
 - [MCP transports 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports):
   Streamable HTTP and Origin validation. Protocol behavior uses the repository's
   MCP SDK dependency; no diagnostic harness grammar is promoted.
+- [MCP tools 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/server/tools):
+  `isError` tool-execution failures, structured-content text compatibility and
+  conformance to advertised output schemas.

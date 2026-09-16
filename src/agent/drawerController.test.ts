@@ -5,7 +5,7 @@ import { useAgentDrawerStore } from './drawerStore'
 import { createAgentEditorAdmission } from './editorAdmission'
 import { createDefaultShow } from '@/engine/showModel'
 import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
-import { createAgentPrivateExecutor } from '@/engine/agentPrivateExecutor'
+import { createAgentPrivateExecutor, type PrivateEditResult } from '@/engine/agentPrivateExecutor'
 import { createAgentPrivateAdmissionOwner } from './privateAdmissionOwner'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import type { AgentMessageAllowance } from '@/engine/agentAllowance'
@@ -330,11 +330,11 @@ it('attributes only successful owned changes once and keeps Send disabled while 
   const f = fixture()
   f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
   const request = { operationId: 'binding:op', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: ['clip'] }
-  const delivery = (deliveryId: string, payload: unknown, result: { code: string; [key: string]: unknown }) => f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId, sequence: 0, payload }, result, request })
+  const delivery = (deliveryId: string, payload: unknown, result: PrivateEditResult) => f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId, sequence: 0, payload }, result, request })
   f.setReceipt({ request, status: 'pending' })
   delivery('begin', { kind: 'begin_edit', intent: 'Resize' }, { code: 'begun' })
   const command = { kind: 'command', name: 'resize_clip', arguments: { duration_ms: 1000 } }
-  const result = { code: 'changed', changes: [{ command: 'resize_clip', targetId: 'clip', description: 'Clip resized' }] }
+  const result: PrivateEditResult = { code: 'changed', changes: [{ command: 'resize_clip', targetId: 'clip', description: 'Clip resized' }] }
   delivery('change', command, result); delivery('change', command, result)
   f.setReceipt({ request, status: 'applied', settlement: 'saving' })
   delivery('commit', { kind: 'commit_edit' }, { code: 'outcome', receipt: { request, status: 'applied', settlement: 'saving' } })
@@ -353,7 +353,7 @@ it('registers the returned qualified Retry operation and tracks saving without r
   f.setReceipt({ request: original, status: 'applied', settlement: 'rolled-back' })
   f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'old', deliveryId: 'commit', sequence: 1, payload: { kind: 'commit_edit' } }, result: { code: 'outcome', receipt: { request: original, status: 'applied', settlement: 'rolled-back' } }, request: original })
   vi.spyOn(f.api, 'retryIntent').mockReturnValue({ clipId: 'clip', durationMs: 1000 } as never)
-  f.channel.retry = vi.fn(async () => {
+  f.channel.retry = vi.fn(async (): Promise<PrivateEditResult> => {
     const receipt = { request, status: 'applied', settlement: 'saving' }
     f.setReceipt(receipt)
     return { code: 'outcome', operationId: 'new', request, retryOf: original.operationId, receipt }

@@ -2,14 +2,14 @@ import { createAgentPrivateExecutor, type PrivateEditResult } from '@/engine/age
 import type { WindowIdentity } from '@/engine/agentRendezvous'
 import type { createAgentEditorAdmission } from './editorAdmission'
 import { createAgentPrivateAdmissionOwner } from './privateAdmissionOwner'
-import type { AgentBrowserConnection, AgentBrowserSessionEvent, AgentBrowserSessionPort, AgentTabDelivery, AgentWindowConnection } from './channelPort'
+import type { AgentBrowserConnection, AgentBrowserSessionEvent, AgentBrowserSessionPort, AgentChannelResult, AgentTabDelivery, AgentWindowConnection } from './channelPort'
 
 interface Options {
   admission: ReturnType<typeof createAgentEditorAdmission>
   showId: string
   fetch?: typeof fetch
 }
-interface ChannelReply extends PrivateEditResult {
+interface ChannelReply extends AgentChannelResult {
   registrationId?: string
   connection?: AgentWindowConnection
   deliveries?: AgentTabDelivery[]
@@ -127,7 +127,7 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
     abort.signal.addEventListener('abort', done, { once: true })
     if (closed) done()
   })
-  const control = async (type: string, extra: object = {}): Promise<PrivateEditResult> => {
+  const control = async (type: string, extra: object = {}): Promise<AgentChannelResult> => {
     if (closed || !windowIdentity) return { code: 'unavailable' }
     try {
       // Receive compares its last observed view and wakes on later transitions.

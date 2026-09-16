@@ -22,7 +22,7 @@ export class AgentRelay {
     const sent = [...this.jobs.values()].find(job => !job.query && job.sent && job.message.operationId === input.operationId)
     const admission = this.journal.admit(message, sent?.message.deliveryId)
     if (admission.code === 'known') return admission.result as PrivateEditResult
-    if (admission.code !== 'accepted' && admission.code !== 'pending') return admission
+    if (admission.code !== 'accepted' && admission.code !== 'pending') return { code: admission.code }
     let job = this.jobs.get(this.key(message))
     if (admission.code === 'accepted') {
       if (this.jobs.size >= 7 || this.waiting >= 7) {

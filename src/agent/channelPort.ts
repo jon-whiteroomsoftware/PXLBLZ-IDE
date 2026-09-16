@@ -11,6 +11,7 @@ export type AgentBrowserConnection = Exclude<AgentWindowConnection, ExternalBoun
   | { kind: 'contact-lost'; previous: AgentWindowConnection }
   | { kind: 'refused'; code: string }
 export type AgentTabDelivery = AgentDelivery & WindowIdentity
+export interface AgentChannelResult { code: string; [key: string]: unknown }
 export type AgentBrowserSessionEvent =
   | { type: 'connection'; connection: AgentBrowserConnection }
   | { type: 'delivery'; delivery: AgentTabDelivery; result: PrivateEditResult; request?: ShowEditRequest }
@@ -21,13 +22,13 @@ export interface AgentBrowserSessionPort {
   getWindow(): WindowIdentity | undefined
   getConnection(): AgentBrowserConnection
   subscribe(listener: (event: AgentBrowserSessionEvent) => void): () => void
-  arm(): Promise<PrivateEditResult>
-  cancelArm(): Promise<PrivateEditResult>
-  answer(callId: string): Promise<PrivateEditResult>
-  decline(callId: string): Promise<PrivateEditResult>
-  disconnect(): Promise<PrivateEditResult>
-  forget(): Promise<PrivateEditResult>
-  moveExternal(expectedBindingId: string): Promise<PrivateEditResult>
+  arm(): Promise<AgentChannelResult>
+  cancelArm(): Promise<AgentChannelResult>
+  answer(callId: string): Promise<AgentChannelResult>
+  decline(callId: string): Promise<AgentChannelResult>
+  disconnect(): Promise<AgentChannelResult>
+  forget(): Promise<AgentChannelResult>
+  moveExternal(expectedBindingId: string): Promise<AgentChannelResult>
   getOutcome(operationId: string): PrivateEditResult
   /** Qualified single-resize retry only; creates a new operation, never inference. */
   retry(operationId: string): Promise<PrivateEditResult>

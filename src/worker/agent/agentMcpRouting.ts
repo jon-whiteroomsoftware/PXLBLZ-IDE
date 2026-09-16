@@ -11,15 +11,16 @@ import {
   SHOW_AUTHORING_SERVER_INTRO,
 } from '../../engine/showCommands/bulkAuthoringReference'
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
+import { isAgentMcpError, isAgentMcpResult } from '../../engine/agentMcpResults'
 import type { WorkerEnv } from '../apiRoutes'
 import type { ValidatedAgentGrant } from './AgentOAuthAuthority'
 import { agentGrantLive } from './agentGrant'
 import { connectExternalTool, dispatchExternalTool, queryExternalTool, resolveExternalTool, type ExternalToolConnection } from './accountDelivery'
+import { AGENT_MCP_MOVE_INSTRUCTION, AGENT_MCP_OUTPUT_SCHEMAS } from './agentMcpSchemas'
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 const binding = { binding_id: id.describe('Binding returned by get_connection; changed bindings require a new operation.') }
 const operation = { ...binding, operation_id: id, delivery_id: id, sequence: z.number().int().min(0).max(255) }
-const MOVE_INSTRUCTION = 'Call get_connection, then read_show or get_context before starting a new edit.'
 export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant): Promise<Response> {
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
   const active = () => grant.expiresAt * 1000 > Date.now()
@@ -28,13 +29,13 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
       code: 'binding_moved' as const,
       show_id: resolved.moveNotice.showId,
       ...(resolved.moveNotice.showName ? { show_name: resolved.moveNotice.showName } : {}),
-      instruction: MOVE_INSTRUCTION,
+      instruction: AGENT_MCP_MOVE_INSTRUCTION,
     },
   } : {}
   const moved = (resolved: ExternalToolConnection): PrivateEditResult => ({
     code: 'binding_moved',
     ...(resolved.binding ? { show_id: resolved.binding.showId, ...(resolved.binding.showName ? { show_name: resolved.binding.showName } : {}) } : {}),
-    instruction: MOVE_INSTRUCTION,
+    instruction: AGENT_MCP_MOVE_INSTRUCTION,
     ...notice(resolved),
   })
   const visible = (resolved: ExternalToolConnection): PrivateEditResult => {
@@ -45,8 +46,15 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     ? moved(resolved)
     : resolved.code === 'retirement_unconfirmed' ? { code: 'no_live_editor', ...notice(resolved) } : visible(resolved)
   const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: `Call get_connection and Answer in the open Show editor. read_show/get_context read that editor. begin_edit captures one immutable private Show; canonical commands mutate only that candidate. Command changes describe the private proposal, not adopted or saved state. commit_edit requests validation/adoption and may return waiting or saving; an invalid-candidate receipt may include bounded validation detail. Query get_outcome for the authoritative receipt. Never replay a timed-out command; retain operation and delivery identities. New binding requires new operation IDs. ${SHOW_AUTHORING_SERVER_INTRO}` })
-  const output = (result: PrivateEditResult) => ({ content: [{ type: 'text' as const, text: JSON.stringify(result) }], structuredContent: result })
-  server.registerTool('get_connection', { description: 'Connect to the open editor, holding an incoming call for up to 30 seconds. With call_id, inspect only that original call; expired calls are never recreated.', inputSchema: z.object({ call_id: id.optional() }).strict() }, async ({ call_id }) => {
+  const output = (untrusted: PrivateEditResult) => {
+    const result: PrivateEditResult = isAgentMcpResult(untrusted) ? untrusted : { code: 'unknown' }
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      structuredContent: result,
+      ...(isAgentMcpError(result.code) ? { isError: true as const } : {}),
+    }
+  }
+  server.registerTool('get_connection', { description: 'Connect to the open editor, holding an incoming call for up to 30 seconds. With call_id, inspect only that original call; expired calls are never recreated.', inputSchema: z.object({ call_id: id.optional() }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.connection }, async ({ call_id }) => {
     if (!active()) return output({ code: 'unauthorized' })
     const resolved = await connectExternalTool(env, grant, call_id)
     if (resolved.code === 'binding_moved') return output(moved(resolved))
@@ -54,10 +62,10 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     if (call_id === undefined && !await agentGrantLive(env, grant)) return output({ code: 'unauthorized' })
     return output({ code: 'bound', call_id: resolved.claim.callId, binding_id: resolved.claim.bindingId, ...(resolved.binding ? { show_id: resolved.binding.showId, ...(resolved.binding.showName ? { show_name: resolved.binding.showName } : {}) } : {}), ...notice(resolved) })
   })
-  server.registerTool('list_commands', { description: 'List canonical command metadata without attaching to an editor or reading Show contents.', inputSchema: z.object({}).strict() }, async () => {
+  server.registerTool('list_commands', { description: 'List canonical command metadata without attaching to an editor or reading Show contents.', inputSchema: z.object({}).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.catalogue }, async () => {
     if (!active()) return output({ code: 'unauthorized' })
     const resolved = await resolveExternalTool(env, grant)
-    if (['throttled', 'unauthorized', 'unavailable', 'unknown'].includes(resolved.code)) return output(visible(resolved))
+    if (['throttled', 'unauthorized', 'unavailable', 'unknown', 'service_disabled', 'invalid_request'].includes(resolved.code)) return output(visible(resolved))
     return output({ code: 'commands', commands: SHOW_COMMANDS.map(({ name, description, fields, exactlyOne, atLeastOne, atMostOne }) => ({
       name, description, fields,
       ...(exactlyOne ? { exactlyOne } : {}),
@@ -66,7 +74,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     })), ...notice(resolved) })
   })
   for (const kind of ['read_show', 'get_context', 'get_outcome'] as const) {
-    server.registerTool(kind, { description: kind === 'get_outcome' ? 'Read the surviving browser receipt, including bounded invalid-candidate validation detail when available, for this binding and operation; unknown never permits replay.' : `Read ${kind === 'read_show' ? 'the full current Show' : 'the current editor focus/context'} from the bound editor.`, inputSchema: z.object({ ...binding, ...(kind === 'get_outcome' ? { operation_id: id } : {}) }).strict() }, async (args) => {
+    server.registerTool(kind, { description: kind === 'get_outcome' ? 'Read the surviving browser receipt, including bounded invalid-candidate validation detail when available, for this binding and operation; unknown never permits replay.' : `Read ${kind === 'read_show' ? 'the full current Show' : 'the current editor focus/context'} from the bound editor.`, inputSchema: z.object({ ...binding, ...(kind === 'get_outcome' ? { operation_id: id } : {}) }).strict(), outputSchema: kind === 'get_outcome' ? AGENT_MCP_OUTPUT_SCHEMAS.outcome : AGENT_MCP_OUTPUT_SCHEMAS.read }, async (args) => {
       if (!active()) return output({ code: 'unauthorized' })
       const query = kind === 'get_outcome' ? { kind, operationId: (args as { operation_id: string }).operation_id } : { kind }
       const resolved = await queryExternalTool(env, grant, args.binding_id, query)
@@ -75,7 +83,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   }
   const registerMutation = (name: string, description: string, fields: Record<string, z.ZodTypeAny>, payload: (args: Record<string, unknown>) => unknown) => {
     if (Object.keys(fields).some(key => key in operation)) throw new Error('Canonical command collides with transport identity')
-    server.registerTool(name, { description: `${description} Requires the current bound editor${name === 'begin_edit' ? '' : ' and an active begin_edit operation'}. Preserve increasing sequence and stable delivery identity; changed identity reuse is refused.`, inputSchema: z.object({ ...operation, ...fields }).strict() }, async args => {
+    server.registerTool(name, { description: `${description} Requires the current bound editor${name === 'begin_edit' ? '' : ' and an active begin_edit operation'}. Preserve increasing sequence and stable delivery identity; changed identity reuse is refused.`, inputSchema: z.object({ ...operation, ...fields }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async args => {
       const { binding_id, operation_id, delivery_id, sequence, ...command } = args
       if (!active()) return output({ code: 'unauthorized' })
       const resolved = await dispatchExternalTool(env, grant, binding_id, { operationId: operation_id, deliveryId: delivery_id, sequence, payload: payload(command) })
@@ -96,7 +104,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     description: 'Global timing, patch/replace, shared-instance, atomicity, result, and executable example semantics.',
     mimeType: 'text/markdown',
   }, uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: SHOW_AUTHORING_REFERENCE_MARKDOWN }] }))
-  server.server.registerCapabilities({ tools: { listChanged: false } })
+  server.server.registerCapabilities({ tools: { listChanged: false }, resources: { listChanged: false } })
   const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true })
   await server.connect(transport)
   try { return await transport.handleRequest(request) } finally { await server.close() }

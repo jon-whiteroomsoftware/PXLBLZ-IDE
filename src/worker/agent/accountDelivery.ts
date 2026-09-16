@@ -1,6 +1,7 @@
 import { agentBuiltinAccessRefusal, agentServiceRefusal, type AgentAccessEnvironment } from '../../cloudflare/agentAccess'
 import type { AgentClaim, ExternalMoveNotice, WindowIdentity } from '../../engine/agentRendezvous'
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
+import { isAgentMcpResult } from '../../engine/agentMcpResults'
 import type { AgentAccountNamespace } from './AgentAccount'
 import type { AgentDeliveryInput, AgentEditorQuery } from './agentRelay'
 type Environment = AgentAccessEnvironment & { AGENT_ACCOUNTS?: AgentAccountNamespace }
@@ -43,7 +44,8 @@ async function sendExternal(env: Environment, grant: TrustedExternalTool, comman
     const response = await env.AGENT_ACCOUNTS.get(env.AGENT_ACCOUNTS.idFromName(grant.accountId)).fetch(new Request('https://agent-account.internal/external-tool', {
       method: 'POST', body: JSON.stringify({ ...command, agentId: grant.grantId, agentName: grant.clientName }),
     }))
-    return await response.json() as ExternalToolConnection
+    const result: unknown = await response.json()
+    return isAgentMcpResult(result) ? result as ExternalToolConnection : { code: 'unknown' }
   } catch { return { code: 'unknown' } }
 }
 

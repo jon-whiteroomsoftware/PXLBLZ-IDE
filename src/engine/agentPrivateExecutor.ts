@@ -4,6 +4,7 @@ import { createDeliveryJournal, type AgentDelivery, type DeliveryScope } from '.
 import type { ShowRecord } from './personalContentRecords'
 import type { ShowEditCompletion, ShowEditRequest } from './showEditAdmission'
 import { applyShowCommand, type ShowCommandChange, type ShowCommandContext } from './showCommands/registry'
+import type { AgentMcpResult, AgentMcpResultCode } from './agentMcpResults'
 
 export interface PrivateEditOwner {
   capture(operationId: string, intent: string, remainingBytes: number): { request: ShowEditRequest; show: ShowRecord; context: unknown; commandContext: ShowCommandContext; retainedBytes: number } | undefined
@@ -13,7 +14,7 @@ export interface PrivateEditOwner {
   cancel(request: ShowEditRequest): unknown
   outcome(request: ShowEditRequest): unknown
 }
-export interface PrivateEditResult { code: string; [key: string]: unknown }
+export interface PrivateEditResult extends AgentMcpResult { code: AgentMcpResultCode }
 const payloadSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('begin_edit'), intent: z.string().max(240).refine(text => !/[\r\n]/.test(text)).optional() }).strict(),
   z.object({ kind: z.literal('command'), name: z.string().max(128), arguments: z.record(z.unknown()) }).strict(),
@@ -103,7 +104,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
       expireResults()
       const admission = journal.admit(delivery)
       if (admission.code === 'known') return admission.result as PrivateEditResult
-      if (admission.code !== 'accepted') return admission
+      if (admission.code !== 'accepted') return { code: admission.code }
       let result: PrivateEditResult
       try { result = execute(delivery) } catch {
         const operation = operations.get(delivery.operationId)
@@ -122,7 +123,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
       const delivery = { ...scope, operationId: nextOperationId, deliveryId: nextOperationId, sequence: 0, payload: { kind: 'local_retry', original: operationId } }
       const admitted = journal.admit(delivery)
       if (admitted.code === 'known') return admitted.result as PrivateEditResult
-      if (admitted.code !== 'accepted') return admitted
+      if (admitted.code !== 'accepted') return { code: admitted.code }
       const retried = owner.retry(original.request, `${scope.bindingId}:${nextOperationId}`, 16_777_216 - retainedCaptureBytes)
       const result: PrivateEditResult = retried
         ? { ...outcome(retried.receipt), operationId: nextOperationId, request: retried.request, retryOf: original.request.operationId }

@@ -123,10 +123,13 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   }
   const initialize = await rpc('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
   expect(initialize.status).toBe(200)
-  expect(await initialize.json()).toMatchObject({ result: { capabilities: { tools: {}, resources: {} }, instructions: expect.stringContaining('clip-layer-authoring/v1') } })
+  const initialization = await initialize.json() as { result: { capabilities: { tools: { listChanged?: boolean }; resources: { listChanged?: boolean } }; instructions: string } }
+  expect(initialization).toMatchObject({ result: { capabilities: { tools: {}, resources: {} }, instructions: expect.stringContaining('clip-layer-authoring/v1') } })
+  expect(initialization.result.capabilities.resources.listChanged).not.toBe(true)
   const listing = await rpc('tools/list')
-  const tools = (await listing.json() as { result: { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }> } }).result.tools
+  const tools = (await listing.json() as { result: { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] }; outputSchema?: object }> } }).result.tools
   expect(tools.map(tool => tool.name).sort()).toEqual(['get_connection', 'list_commands', 'read_show', 'get_context', 'begin_edit', 'commit_edit', 'get_outcome', 'cancel_edit', ...SHOW_COMMANDS.map(command => command.name)].sort())
+  for (const tool of tools) expect(tool.outputSchema, tool.name).toMatchObject({ type: 'object' })
   const addClip = tools.find(tool => tool.name === 'add_clip')!.inputSchema
   expect(addClip.properties).toMatchObject({ layer: {}, overlay_layer_index: {} })
   expect(addClip.required).not.toContain('layer')
@@ -149,11 +152,31 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   ]) } })
   const reference = await rpc('resources/read', { uri: 'pxlblz://docs/clip-layer-authoring/v1' })
   expect(await reference.json()).toMatchObject({ result: { contents: [expect.objectContaining({ text: expect.stringContaining('create_layers') })] } })
+  const retiredRead = await rpc('tools/call', { name: 'read_show', arguments: { binding_id: 'retired-binding' } })
+  const retiredResult = (await retiredRead.json() as { result: { content: Array<{ text: string }>; structuredContent: unknown; isError?: boolean } }).result
+  expect(retiredResult).toMatchObject({ isError: true, structuredContent: { code: 'no_live_editor' } })
+  expect(JSON.parse(retiredResult.content[0].text)).toEqual(retiredResult.structuredContent)
   expect((await runtime.dispatchFetch(`https://app.test/mcp?access_token=${tokens.access_token}`)).status).toBe(401)
   expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}`, Origin: 'https://hostile.test' } })).status).toBe(403)
   expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)
   expect((await rpc('tools/list')).status).toBe(401)
-})
+}, 10_000)
+it('marks read_show on a retired binding as an MCP tool error in actual workerd', async () => {
+  const tokens = await authorized()
+  const showId = STOCK_SHOW_IDS[0]
+  const channel = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const rpc = (name: string, args: object = {}) => runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) })
+  const registration = await (await channel({ type: 'register', sessionId: 'retired-binding', showId })).json() as { registrationId: string }
+  const window = { registrationId: registration.registrationId, sessionId: 'retired-binding', showId }
+  await channel({ type: 'arm', ...window })
+  const connected = (await (await rpc('get_connection')).json() as { result: { structuredContent: { binding_id: string } } }).result.structuredContent
+
+  expect(await (await channel({ type: 'disconnect', ...window, bindingId: connected.binding_id })).json()).toEqual({ code: 'disconnected' })
+  const result = (await (await rpc('read_show', { binding_id: connected.binding_id })).json() as { result: { content: Array<{ text: string }>; structuredContent: unknown; isError?: boolean } }).result
+  expect(result).toMatchObject({ isError: true, structuredContent: { code: 'no_live_editor' } })
+  expect(JSON.parse(result.content[0].text)).toEqual(result.structuredContent)
+  await channel({ type: 'leave', ...window })
+}, 10_000)
 it('registers bounded public DCR clients without replacing static clients', async () => {
   await runtime.setOptions(runtimeOptions({ AGENT_OAUTH_CLIENTS: '[]' }))
   const capture = async (response: { status: number; headers: { get(name: string): string | null }; text(): Promise<string> }) => ({ status: response.status, headers: response.headers, body: await response.text() })
