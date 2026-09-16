@@ -1,0 +1,37 @@
+{
+  "sourceCommit": "dcb204c6794cb8606326a2464c991b8e785e590b",
+  "readyAfterCreate": true,
+  "firstScenarioWrites": 2,
+  "multipleScenarioWrites": 2,
+  "oneSharedRuntime": "0b947e55-7f05-430c-ad96-1f60b07af2bd",
+  "multipleExplicitRuntime": "choice2",
+  "castUnchanged": true,
+  "fast": {
+    "frames": 2,
+    "deltaMs": 125,
+    "startMs": 17000,
+    "names": [
+      "issue1038-choice-fast-00000.png",
+      "issue1038-choice-fast-00001.png"
+    ],
+    "failures": []
+  },
+  "precise": {
+    "frames": 2,
+    "deltaMs": 125,
+    "startMs": 17000,
+    "names": [
+      "issue1038-choice-precise-00000.png",
+      "issue1038-choice-precise-00001.png"
+    ],
+    "failures": []
+  },
+  "errors": [],
+  "overflows": [],
+  "captures": [
+    ".wrsp/ui-proof/1038-runtime-choice-desktop-sole.png",
+    ".wrsp/ui-proof/1038-runtime-choice-desktop-multiple.png",
+    ".wrsp/ui-proof/1038-runtime-choice-narrow-explicit.png"
+  ],
+  "provenance": "IAB connected; documented API lacks isolated synthetic-cookie admission. Declared repoPlaywright isolated synthetic context and actual product renderer. Managed shared5178/mainWorker265b; main5174 untouched."
+}

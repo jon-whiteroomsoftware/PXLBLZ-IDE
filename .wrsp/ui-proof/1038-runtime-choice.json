@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1038",
+  "route": "/PXLBLZ-IDE/studio/shows/clip-timing-synthetic?show-v2-pilot=1&capture",
+  "operation": "Committed source dcb204c6794cb8606326a2464c991b8e785e590b: desktop1440x1000/narrow390x844; empty\u2192first\u2192saved reopen\u2192second shares exact sole runtime with2 PUTs; multi blank disables Add/zero writes then explicitchoice2\u2192save\u2192reopen\u2192second shareschoice2 with2 PUTs. Cast unchanged; actual native artifacts reopen; Fast+Precise125ms17s two frames each, errors/overflow empty. Three exact captures listed in browser-result.json. Keyboard Escape/focus and all images visually inspected. IAB connected; documented API lacks isolated synthetic cookie admission; declared repoPlaywright isolated synthetic context uses actual renderer. Managed shared1038:5178/mainWorker265b, own local-agent15 exact three verified synthetic fixtures, main5174 untouched. Runtime choice alone corrected; pure owner/admission/compiler/history unchanged.",
+  "captures": [
+    ".wrsp/ui-proof/1038-runtime-choice-desktop-sole.png",
+    ".wrsp/ui-proof/1038-runtime-choice-desktop-multiple.png",
+    ".wrsp/ui-proof/1038-runtime-choice-narrow-explicit.png"
+  ],
+  "capturedAtCommit": "dcb204c6794cb8606326a2464c991b8e785e590b"
+}
