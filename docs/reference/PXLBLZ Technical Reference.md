@@ -885,6 +885,10 @@ Mixed values produce independent dirty patches. See
 [Native v2 appearance management](contracts/show-v2-appearance-management.md)
 for exact identities, prepared admission and named integration restrictions.
 
+[Native v2 Property management](contracts/show-v2-property-management.md) specifies
+the additive Show/Group-definition panel, exact captured source/authoritative scalar
+eligibility, six typed track/key operations and retained-curve draft ownership.
+
 `ShowRecord.composition` (`ShowCompositionV1`) holds the editor's Clips,
 Layers, Groups, Markers, explicit Show End, and Property animation; the
 record's Scenes, Zones, boundary Transitions, and routing layouts remain the
