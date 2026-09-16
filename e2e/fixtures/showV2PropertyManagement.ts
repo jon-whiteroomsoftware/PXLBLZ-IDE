@@ -35,8 +35,8 @@ export async function exerciseShowV2PropertyManagement(page:Page){
  await editor.getByLabel('New key 1 direction').selectOption('in');await editor.getByRole('button',{name:'Create track',exact:true}).click();await waitWrites(7);await expect(editor.getByRole('button',{name:'Apply track',exact:true})).toBeEnabled()
  saved=await readSaved();const local=saved.composition.groupDefinitions[0].propertyTracks[0];expect(local.keyframes.map(key=>[key.timeMs,key.value])).toEqual([[0,.3],[4000,.8]])
  expect(saved.composition.patternInstances).toEqual(propertyManagementRecord.composition.patternInstances);expect(saved.composition.groupOccurrences).toEqual(propertyManagementRecord.composition.groupOccurrences);expect(saved.composition.propertyTracks).toEqual(propertyManagementRecord.composition.propertyTracks)
- await route.getByRole('button',{name:'Undo v2 edit'}).click();await waitWrites(8);await route.getByRole('button',{name:'Redo v2 edit'}).click();await waitWrites(9)
- await route.getByRole('button',{name:'Reload saved v2'}).click();await expect(route).toContainText('Reloaded saved v2 Show.')
+ await expect(route.getByRole('button',{name:'Undo',exact:true})).toBeEnabled();await route.getByRole('button',{name:'Undo',exact:true}).click();await expect(route.getByText('Undo saved.',{exact:true})).toBeVisible();await waitWrites(8);await route.getByRole('button',{name:'Redo',exact:true}).click();await expect(route.getByText('Redo saved.',{exact:true})).toBeVisible();await waitWrites(9)
+ await route.getByRole('button',{name:'Reload saved v2'}).click();await expect(route).toContainText('Reloaded v2 bytes from the provider.')
  await page.reload();await expect(stage).toBeVisible();await editor.getByLabel('Property owner').selectOption('group:held-voice');await editor.getByLabel('Property track').selectOption(local.id);await editor.getByLabel('Property key').selectOption(local.keyframes[0].id);await expect(editor.getByLabel('Property key value')).toHaveValue('0.3');expect(writes).toBe(9)
  return {route,editor,stage,saved:await readSaved(),readWrites:()=>writes}
 }
