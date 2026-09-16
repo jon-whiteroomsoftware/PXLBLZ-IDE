@@ -1,7 +1,7 @@
 {
   "issue": 1038,
-  "specificationCommit": "b532a9061215c8d6e6d0e7cf109630bdc54e93ae",
-  "implementationBase": "93d9cc76749b0c4213a46b8574863d0770d480e9",
+  "specificationCommit": "7abcb65238e7ec782f2a3da8d72dc5618da05904",
+  "implementationBase": "7abcb65238e7ec782f2a3da8d72dc5618da05904",
   "proofRows": [
     "TRANSITION",
     "V2-EDIT-WHOLE-OUTPUT",
@@ -111,12 +111,12 @@
     }
   ],
   "qualification": {
-    "focused": "407/407 across10 affected temporal/Clip/Property/Insert/scalar/compiler/lowerer/Transition/v1-schema suites; range21cases include reopened1\u21928 hold and unchanged earlier/later outside-kernel playback in Fast/Precise; scalar19cases cover1\u21928/8\u21921 original/retained.",
-    "static": "Scoped ESLint/project tsc/diff-check pass. Final source hook passed full source ESLint/project TypeScript/reachability/locator gates and139/139 staged mapped tests; preceding source hook passed263/263 mapped tests.",
+    "focused": "Finalbase:508/508 across12 affected and adjacent files (407 temporal/Clip/Property/Insert/scalar/compiler/lowerer/Transition/v1-schema +42 ClipIdentity +59 GroupReplacement). Range21cases retain prior boundary and reopened Fast/Precise playback proofs; scalar19cases retained.",
+    "static": "Finalbase scoped ESLint/project tsc/diff-check pass. Source hook passed full source ESLint/project TypeScript/reachability/locator gates and139/139 staged mapped tests; preceding source hook passed263/263. Finalbase proof-only hook follows.",
     "parity": "47-record report unchanged",
     "faultSensitivity": "Prior6, range4 and selected-kernel locality1 named semantic faults killed by executed consumer checks; sources restored exactly.",
     "finalSuites": "Coordinator-owned; no worker submission",
-    "state": "Bounded temporal integration/range adapter scope complete, committed and focused-qualified; coordinator owns finalbase integration, final suites/review/landing. Whole1038 remains broader."
+    "state": "Bounded temporal integration/range adapter scope complete and suffix rebased patch-equivalently onto landed7abcb652, preserving Marker\u00a79 and Group\u00a76. Coordinator owns final suites/review/landing; whole1038 remains broader."
   },
   "residualGaps": [
     "Full1038 UI/store owner integration remains other slices; this candidate only pure Clip temporal plus bounded scalar adapter/emitter and edit-local range guard.",
@@ -129,5 +129,11 @@
     "backup": "/tmp/issue-1038-morph-compiler-truncation.txt",
     "fallback": "Coordinator authorized exact native bounded byte splice; NUL1 and all bytes outside sample emitter region preserved"
   },
-  "acceptedAmendment": "Jon2026-09-16: edit-local refusal of out-of-range1\u20138 animated repeat source holds/restrictions/projections; canonical\u00a76/7 amended in this suffix."
+  "acceptedAmendment": "Jon2026-09-16: edit-local refusal of out-of-range1\u20138 animated repeat source holds/restrictions/projections; canonical\u00a76/7 amended in this suffix.",
+  "finalbaseReconciliation": {
+    "previousBase": "93d9cc76749b0c4213a46b8574863d0770d480e9",
+    "preservedTip": "aceba4b0003ec2bb5346885ca1e14625b11cce8f",
+    "rebasedSourceTip": "6a47de0f57f5c1d149e60310c6564ce1fd433802",
+    "evidence": "git range-diff: all4 suffix commits =; canonical spec diff only accepted repeat-range\u00a76/7 additions, preserving landed Marker\u00a79/Group\u00a76"
+  }
 }
