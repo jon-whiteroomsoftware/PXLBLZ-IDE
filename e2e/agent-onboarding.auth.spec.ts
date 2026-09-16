@@ -108,7 +108,8 @@ test('offers client-specific MCP setup on an ordinary editable Show URL at deskt
 test('opens the Agent Authoring Reference from the Feature Guide inside Docs (#1050)', async ({ page }, testInfo) => {
   await page.goto('docs/feature-guide')
   const reader = page.getByTestId('docs-reader')
-  const link = reader.getByRole('link', { name: 'versioned Clip and Layer reference' })
+  const link = reader.locator('a[href="#/docs/agent-authoring-reference"]')
+  await expect(link).toHaveAccessibleName('versioned Clip and Layer reference')
   await expect(link).toBeVisible()
   await link.click()
   await expect(page).toHaveURL(/\/docs\/agent-authoring-reference$/)
