@@ -2,11 +2,11 @@
   "version": 1,
   "issue": "#1044",
   "route": "/PXLBLZ-IDE/studio/shows/issue-1044-pilot?show-v2-pilot=1",
-  "operation": "Inspected the committed v2 route pilot at 1440px and 760px with the isolated issue runtime. Edited transition duration from 137 to 138, exercised Undo and Redo, reloaded the provider record, and reopened both .pxlshow v2 and .epe artifacts. At 760px, wheel scrolling moved the control pane from 0 to its 124px maximum; keyboard Tab then reached Reload saved v2 and Reopen artifacts, and the scrolled capture shows both controls plus artifact status. API readback, accessibility names, and the Stage preview passed without console or page errors.",
+  "operation": "Inspected the committed v2 route pilot at 1440px and 760px with the isolated issue runtime. Edited transition duration from 138 to 137, exercised Undo and Redo, reloaded the provider record, and reopened both .pxlshow v2 and .epe artifacts. At 760px, wheel scrolling moved the control pane from 0 to its 124px maximum; keyboard Tab then reached Reload saved v2 and Reopen artifacts, and Enter reopened both artifacts. The scrolled capture shows both controls plus artifact status. API readback, accessibility names, and the Stage preview passed without console or page errors.",
   "captures": [
     ".wrsp/ui-proof/1044-route-pilot-desktop.png",
     ".wrsp/ui-proof/1044-route-pilot-narrow-controls.png",
     ".wrsp/ui-proof/1044-route-pilot-narrow-stage.png"
   ],
-  "capturedAtCommit": "551b66e0129915a31994ebcff006649a8335ecac"
+  "capturedAtCommit": "6d29b13b87e1974b9e137a6748e4b18bee8fd576"
 }
