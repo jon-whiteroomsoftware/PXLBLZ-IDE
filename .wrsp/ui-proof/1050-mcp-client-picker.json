@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "issue": "1050",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "The Codex in-app browser used the normally signed-in session on the stock Quadrille Show, opened external MCP onboarding, selected Claude Code, Codex, Claude.ai, and Other at 1280x720, 760x720, and 390x844, activated each copy control, and verified the resulting clipboard payload. Captures retain the stock Show viewport context below the global account header and contain no personal Show data.",
+  "captures": [
+    ".wrsp/ui-proof/1050-mcp-desktop-claude-code.jpg",
+    ".wrsp/ui-proof/1050-mcp-desktop-codex.jpg",
+    ".wrsp/ui-proof/1050-mcp-desktop-claude-ai.jpg",
+    ".wrsp/ui-proof/1050-mcp-desktop-other.jpg",
+    ".wrsp/ui-proof/1050-mcp-760-claude-code.jpg",
+    ".wrsp/ui-proof/1050-mcp-760-codex.jpg",
+    ".wrsp/ui-proof/1050-mcp-760-claude-ai.jpg",
+    ".wrsp/ui-proof/1050-mcp-760-other.jpg",
+    ".wrsp/ui-proof/1050-mcp-390-claude-code.jpg",
+    ".wrsp/ui-proof/1050-mcp-390-codex.jpg",
+    ".wrsp/ui-proof/1050-mcp-390-claude-ai.jpg",
+    ".wrsp/ui-proof/1050-mcp-390-other.jpg"
+  ],
+  "capturedAtCommit": "6470f32d8fef90036b0a74cd4727333dd7b9364f"
+}
