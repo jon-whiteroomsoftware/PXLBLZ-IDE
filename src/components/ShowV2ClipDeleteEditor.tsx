@@ -39,5 +39,5 @@ export function ShowV2ClipDeleteEditor({ clipId, capture, submitClipDelete, isCu
     } finally { pending.current = false; if (live.current) setBusy(false) }
   }
   if (!ordinary && !busy) return null
-  return <Button type="button" size="xs" variant="outline" className="mt-3 max-w-full whitespace-normal" disabled={!available || busy} onClick={() => void remove()}>Delete Clip</Button>
+  return <Button type="button" size="xs" variant="outline" className="mt-3 max-w-full whitespace-normal border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-200" disabled={!available || busy} onClick={() => void remove()}>Delete Clip</Button>
 }
