@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { ShowStagePreview } from './ShowStagePreview'
+import { isValidatedEmptyShowV2 } from '@/engine/showMarkerRouteModel'
+import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import { lowerShowV2PilotPreview, qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
 import { useShowStore } from '@/store/showStore'
@@ -34,9 +36,11 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
     return () => { live = false }
   }, [open, record, showId])
 
+  const emptyContent = record ? isValidatedEmptyShowV2(record) : false
   const transition = record?.composition.transitions[0]
   const preview = useMemo(() => {
     if (!record) return null
+    if (isValidatedEmptyShowV2(record)) return { show: null, error: 'Add content to preview or export this Show.' }
     try { return { show: lowerShowV2PilotPreview(record, patterns), error: null } }
     catch (error) { return { show: null, error: error instanceof Error ? error.message : 'Preview refused.' } }
   }, [patterns, record])
@@ -104,11 +108,12 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
               </div>
             </div>
           )}
+          {record && <ShowV2MarkerEditor key={record.id} record={record} onStatus={setStatus} />}
           <div className="mt-7 flex flex-wrap gap-2">
             <Button size="xs" variant="outline" disabled={!history?.past.length} onClick={() => void runHistory('undo')}>Undo</Button>
             <Button size="xs" variant="outline" disabled={!history?.future.length} onClick={() => void runHistory('redo')}>Redo</Button>
             <Button size="xs" variant="outline" onClick={() => void reopen()}>Reload saved v2</Button>
-            <Button size="xs" variant="outline" onClick={() => void qualifyArtifacts()}>Reopen artifacts</Button>
+            <Button size="xs" variant="outline" disabled={!record || emptyContent} onClick={() => void qualifyArtifacts()}>Reopen artifacts</Button>
           </div>
           <output aria-live="polite" className={`mt-6 block text-sm leading-6 ${failure ? 'text-red-300' : 'text-zinc-400'}`}>
             {status || (record ? 'V2 record opened in memory.' : 'Opening v2 pilot…')}

@@ -1,0 +1,55 @@
+{
+  "issue": 1038,
+  "specificationCommit": "b532a9061215c8d6e6d0e7cf109630bdc54e93ae",
+  "proofRows": [
+    "MODEL",
+    "LAYOUT-END",
+    "CHAPTERS"
+  ],
+  "boundary": "Opt-in general Marker controls and checked v2 history/save admission only; chapter roles, other edit UI and production cutover excluded.",
+  "invariants": [
+    "One changed candidate produces one v2 history and durable write; no-op/refusal writes nothing.",
+    "Revision, route lifetime, provider and trusted dependency identities remain eligible immediately before adoption.",
+    "Marker playback source is unchanged; dormant and equal-time guides and exact optional-field clearing survive save/reopen.",
+    "Structurally validated empty content remains editable/saveable, with preview/export unavailable; arbitrary compile refusal never grants admission."
+  ],
+  "partitions": [
+    "Changed add/move/name/color/remove; selected equal-time peers and dormant45000ms guide on30000ms Show.",
+    "Fractional/negative time rejected and authoritative draft restored; missing/duplicate Marker and unsupported provider.",
+    "No-op exact document/history identity; stale revision, departed route, dependency/provider replacement after validation.",
+    "One save, Undo/Redo, persisted reload and current write failure restoration.",
+    "Valid empty source/result with retained cast; invalid empty and advanced nonempty Restart remain refusal.",
+    "Desktop and390px rendered route controls, keyboard commit, overflow and console errors."
+  ],
+  "sequences": [
+    "Add equal-time guide, move dormant, reject fractional draft, name/color, Undo/Redo, reload, reopen .pxlshow/.epe, remove.",
+    "Empty Marker change, Undo/Redo, provider reload, verify no Clip/runtime creation and unavailable compile."
+  ],
+  "oracles": [
+    "Real provider PUT counts and full reopened v2 record, history snapshots and unchanged compiled source.",
+    "Original record pointer, empty affected IDs and zero writes for no-op/refusal.",
+    "Real committed browser route desktop/narrow and existing trusted artifact importers."
+  ],
+  "mutationEvidence": [
+    {
+      "name": "final-eligibility-recheck",
+      "exitCode": 1,
+      "killed": true
+    },
+    {
+      "name": "one-adoption-one-save",
+      "exitCode": 1,
+      "killed": true
+    }
+  ],
+  "qualification": {
+    "focused": "75/75 across six Marker/admission/pilot/control suites; empty partition red refused->applied, then green.",
+    "static": "Scoped ESLint passed; full-project TypeScript qualification follows finalbase.",
+    "browser": "Pending committed desktop/narrow captures",
+    "finalSuites": "Coordinator-owned; worker did not submit"
+  },
+  "residualGaps": [
+    "Advanced nonempty prepared-recipe preview/.epe metadata adapter and other owner UI remain later slices.",
+    "Root owns final suites, review and landing."
+  ]
+}

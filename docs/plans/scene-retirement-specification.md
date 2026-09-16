@@ -570,6 +570,11 @@ missing-source baseline, private-candidate isolation and cancellation. Schema,
 domain, dependencies, compiler eligibility and revision admission are distinct
 checks, not one permissive normalize-and-accept function.
 
+Final-content deletion may leave an empty Show. It remains editable and saveable;
+preview and export are unavailable until content is added. Admission explicitly
+validates the complete empty-content record and effective Clip count; it never
+bypasses arbitrary compiler refusals or creates a placeholder runtime.
+
 ## 10. Conversion, pilot and cutover
 
 Conversion inventories source leaves and preserves payload or reports explicit

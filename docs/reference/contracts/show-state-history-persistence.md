@@ -258,6 +258,18 @@ the visible record; submitting the name therefore cannot restore the record
 snapshot from edit start. Missing and same-name requests remain no-ops, and the
 pilot never sends a rename through the version-1 sparse patch path.
 
+The pilot general Marker controls call `admitShowV2PilotMarkerEdit` with the
+captured document revision, route lifetime and exact trusted Pattern/Map/Library
+collection identity. The seam validates the pure Marker candidate and the existing
+trusted preview/artifact path, then rechecks eligibility before invoking the
+ordinary v2 update once. No-op/refusal creates no history or save. Superseded
+settlement never reports a current durable save.
+
+A structurally validated Show with zero effective Clips remains editable/saveable.
+Marker admission explicitly recognizes that empty-content partition; preview and
+export are unavailable until content is added. Other nonempty compiler or pilot
+preview refusals remain refusals, and no placeholder runtime is created.
+
 The remote provider addresses the explicit v2 collection with
 `show-version=2`; D1 stores the complete closed record in `record_json` and
 excludes that row from ordinary version-1 reads. Worker admission uses the same
