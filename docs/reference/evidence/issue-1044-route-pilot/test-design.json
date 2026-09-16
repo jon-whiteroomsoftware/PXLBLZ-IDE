@@ -38,8 +38,8 @@
   ],
   "residualGaps": [
     "Production remains on version 1; this development-only pilot does not activate native version-2 creation, commands/MCP, stock Shows, or deployment.",
-    "Restart compile preparation is integrated from the stacked #1037 candidate. The compatibility Stage preview and .epe metadata adapter still refuse Restart and Layout animation instead of dropping their transient compiler behavior; generic preview/export-metadata support remains later integration.",
+    "Restart compile preparation consumes the landed #1037 engine contract. The compatibility Stage preview and .epe metadata adapter still refuse Restart and Layout animation instead of dropping their transient compiler behavior; generic preview/export-metadata support remains later integration.",
     "The disposable Miniflare D1 rehearsal proves migration SQL, interrupted-write resume, and rollback with synthetic fixtures; the isolated personal workspace contained zero user rows before the authorized pilot seed, so no personal compatibility claim is made.",
-    "Final committed-tip suites, cross-family review, rebase onto landed engine dependencies, local-main landing, labels, and issue closure belong to the coordinator."
+    "The candidate is rebased onto landed engine dependencies. Final committed-tip suites, Jon-authorized Astra Medium exact-range review, local-main landing, labels, and issue closure belong to the coordinator."
   ]
 }
