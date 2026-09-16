@@ -2,7 +2,12 @@ import { expect, it } from 'vitest'
 import { continuingV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
-import { compileShow } from './showCompiler'
+import { compileShow, type ShowRecipe } from './showCompiler'
+import { createFastReplayRuntime } from './fastReplay'
+import { nativeDimension } from './loadPattern'
+import { buildShowEpeExportV2 } from './showEpeExportV2'
+import { parseEpe } from './epeImport'
+import type { ShowRecordV2 } from './showCompositionV2'
 import { showRecordToCompileRecipe } from './showModel'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2 } from './showCompositionV2'
@@ -91,7 +96,7 @@ it.each(['repeat', 'split'] as const)('preserves changed %s targets across a vis
   source.transitions = [{ id: 'boundary', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 200, easing: { curve: 'linear' } }]
   const converted = convertShowRecordV1ToV2(source)
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-  const lookup = { byCellId: {}, byPatternInstanceId: { instance: 'export function render2D(index,x,y){rgb(x,y,0)}' }, stageDimension: 2 as const }
+  const lookup = { byCellId: {}, byPatternInstanceId: { instance: 'export var calls=0; export function beforeRender(delta){calls++} export function render2D(index,x,y){rgb(x,y,0)}' }, stageDimension: 2 as const }
   const prepared = prepareShowV2ForCompile(converted.record, lookup)
   expect(prepared.status).toBe('ready')
   if (prepared.status !== 'ready') return
@@ -104,5 +109,51 @@ it.each(['repeat', 'split'] as const)('preserves changed %s targets across a vis
   const toId = transition.wholeOutput!.toClipIds[0]
   delete transition.wholeOutput
   transition.participants = [{ id: 'participant', zoneId: from.zoneId, layerId: from.layerId, fromClipId: from.id, toClipId: toId }]
-  expect(prepareShowV2ForCompile(converted.record, lookup).status).toBe('refused')
+  const before = structuredClone(converted.record)
+  const reopened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(converted.record))
+  expect(reopened.status).toBe('opened')
+  if (reopened.status !== 'opened') return
+  const participant = prepareShowV2ForCompile(reopened.record, lookup)
+  expect(converted.record).toEqual(before)
+  if (property === 'repeat') {
+    expect(participant.status).toBe('refused')
+    return
+  }
+  expect(participant.status, participant.status === 'refused' ? JSON.stringify(participant.issues) : '').toBe('ready')
+  if (participant.status !== 'ready') return
+  // The accepted participant schedule is unchanged by independently supplied global scalar values.
+  const neutral = structuredClone(reopened.record)
+  for (const occurrence of neutral.composition.layoutOccurrences) occurrence.parameters.splitPosition = .5
+  neutral.composition.propertyTracks = neutral.composition.propertyTracks.filter(track => track.target.kind !== 'layout-occurrence-split-position')
+  const neutralPrepared = prepareShowV2ForCompile(neutral, lookup)
+  expect(neutralPrepared.status).toBe('ready')
+  if (neutralPrepared.status !== 'ready') return
+  expect(reopened.record.composition.layoutOccurrences[1].startMs).toBe(700)
+  const intended = structuredClone(neutralPrepared.recipe)
+  intended.routingPropertyRamps = { splitPosition: { initial: .25, ramps: [{ atMs: 700, from: .25, to: .75, durationMs: 0, easing: { curve: 'linear' } }] } }
+  expect(participant.recipe.routingPropertyRamps).toEqual(intended.routingPropertyRamps)
+  for (const fidelity of ['fast', 'fidelity'] as const) {
+    const actual = scalarFrames(participant.recipe, fidelity, reopened.record)
+    expect(actual).toEqual(scalarFrames(intended, fidelity))
+    const neutralFrames = scalarFrames(neutralPrepared.recipe, fidelity)
+    expect(actual.some((snapshot, index) => JSON.stringify(snapshot.frame) !== JSON.stringify(neutralFrames[index].frame))).toBe(true)
+    expect(Object.keys(actual[0].state).length).toBeGreaterThan(0)
+  }
 })
+
+function scalarFrames(recipe: ShowRecipe, fidelity: 'fast' | 'fidelity', record?: ShowRecordV2) {
+  const artifact = compileShow(recipe, LIBRARIES)
+  let code = artifact.code
+  if (record) {
+    const file = buildShowEpeExportV2(record, code, { stampedAt: '2026-09-16T00:00:00Z' })
+    expect(file.status).toBe('exported')
+    if (file.status === 'exported') code = parseEpe(file.text).src
+  }
+  const runtime = createFastReplayRuntime({ ...artifact, code, dimension: nativeDimension(artifact.metadata.renderFns) }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [.4, .25], pos: [.4, .25] }, { sample: [.6, .75], pos: [.6, .75] }] })
+  return [125, 375, 400, 425, 500, 575, 600, 625, 750, 875].map(time => {
+    const frame = runtime.advanceTo(time, { stepMs: 25, forceFullIntermediateRender: true })
+    const state = Object.fromEntries(Object.entries(frame.exports).filter(([name, value]) => /calls/.test(name) && typeof value === 'number'))
+    // Export getters are live; copy at this frame before advancing again.
+    return { frame: Array.from(frame.frame), state }
+  })
+}
