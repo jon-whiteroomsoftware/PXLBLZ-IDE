@@ -1,19 +1,23 @@
 # MCP discovery proof (#1051)
 
-The installed `codex-cli 0.153.4` app-server client called the actual local MCP
-Worker and live authenticated browser editor at
-`a8d65201d8c66e590604d9d33cfbc471fa485914`.
+The current proof qualifies discovery on the final #1049 refusal stack at
+`c3a2b0a709e0905270587382d989402710e30c17`. The installed `codex-cli 0.153.4`
+app-server client listed real stock Patterns and Controller profiles, used the
+returned CometLoom identity in one server-owned edit, committed, and reopened
+the saved Show through the authenticated browser and production API. See the
+[current proof report](refusal-stack-proof.md),
+[redacted result transcript](codex-refusal-stack-client.json), and
+[UI proof record](../../../../.wrsp/ui-proof/1051-refusal-stack-discovery.json).
 
-[Redacted result transcript](codex-live-client.json) records the returned Pattern
-identity, command outcomes, saved receipt and reopened Show. The committed
-[reopened browser capture](../../../../.wrsp/ui-proof/1051-discovery-reopened.png)
-shows the synthetic test Show with the newly authored CometLoom Clip. The test
-asserted its accessible name and persisted reference through the production API.
+Two earlier packets remain historical evidence for their exact code tips. The
+[post-#1048 report](server-identity-proof.md) and
+[transcript](codex-server-identity-client.json) qualify server-owned operation
+identity at `e404b13d24cbff483a8b6b5df27f0909b503dda7`, before #1049. The
+[initial transcript](codex-live-client.json) and
+[reopened capture](../../../../.wrsp/ui-proof/1051-discovery-reopened.png) qualify
+the pre-#1048 protocol at `a8d65201d8c66e590604d9d33cfbc471fa485914`.
 
-The isolated authenticated Playwright fixture passed its one acceptance case
-in 6.8 seconds (11 seconds including command setup). No model inference, hosted
-deployment or physical Controller is claimed. This qualifies the protocol before
-#1048; its later identity schema requires fresh client qualification. The temporary
-fixture and synthetic artifacts were cleaned after capture. Root also inspected
-the full capture. Final prerequisite integration, authoritative suites, review
-and landing remain outstanding.
+All three runs used owned synthetic Shows and removed them after capture. They
+used no model inference, hosted deployment, or physical Controller and claim no
+Scene #1041/#1039 proof. Authoritative suites, review, and landing remain
+coordinator-owned.

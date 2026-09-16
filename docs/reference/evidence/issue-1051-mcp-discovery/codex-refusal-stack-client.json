@@ -1,0 +1,86 @@
+{
+  "client": "codex-cli 0.153.4",
+  "clientPath": "codex app-server mcpServer/tool/call",
+  "candidate": "c3a2b0a709e0905270587382d989402710e30c17",
+  "callerIdentity": "Issue 1051 stacked real Codex client (codex-cli 0.153.4)",
+  "protocolQualification": "Final #1048 identity: server-minted operation, delivery, and sequence identity with current OAuth bearer grant",
+  "serverConfigured": true,
+  "connection": {
+    "code": "bound",
+    "show_id": "agent-discovery-stack-proof-1051"
+  },
+  "list_patterns": {
+    "code": "read",
+    "count": 101,
+    "kindFilter": "stock",
+    "sourceFieldPresent": false,
+    "textMatchesStructured": true
+  },
+  "list_controller_profiles": {
+    "code": "read",
+    "count": 0,
+    "textMatchesStructured": true
+  },
+  "read_show": {
+    "code": "read",
+    "textMatchesStructured": true
+  },
+  "actualPattern": {
+    "kind": "stock",
+    "id": "CometLoom",
+    "name": "CometLoom",
+    "exportedControlCount": 4
+  },
+  "operation": {
+    "operation_id": "3f09b308-13d4-414d-a4b7-6d48e24414a9",
+    "assignedBy": "begin_edit response"
+  },
+  "commands": {
+    "begin_edit": {
+      "code": "begun",
+      "textMatchesStructured": true
+    },
+    "create_layers": {
+      "code": "changed",
+      "textMatchesStructured": true
+    },
+    "create_clips": {
+      "code": "changed",
+      "textMatchesStructured": true
+    },
+    "commit_edit": {
+      "code": "outcome",
+      "textMatchesStructured": true
+    }
+  },
+  "savedReceipt": {
+    "status": "applied",
+    "settlement": "saved"
+  },
+  "errors": [],
+  "browser": {
+    "saved": {
+      "operationId": "3f09b308-13d4-414d-a4b7-6d48e24414a9",
+      "outcome": "saved",
+      "activityChangeCount": 2,
+      "unreadOutcomes": 0
+    },
+    "reopened": {
+      "route": "/PXLBLZ-IDE/studio/shows/agent-discovery-stack-proof-1051",
+      "uiPatternButton": "Select CometLoom",
+      "persistedPatternRef": true
+    },
+    "captures": [
+      {
+        "path": ".wrsp/ui-proof/1051-refusal-stack-discovery-saved.png",
+        "bytes": 221047,
+        "sha256": "eeda79e85bb705f89d13c090384d664b96549465392f7b0a85c90d397aca2208"
+      },
+      {
+        "path": ".wrsp/ui-proof/1051-refusal-stack-discovery-reopened.png",
+        "bytes": 207434,
+        "sha256": "da09339b49f2c0c807e576cd6c2c99827d6c5f0b8fed83abea385d8905751218"
+      }
+    ]
+  }
+}

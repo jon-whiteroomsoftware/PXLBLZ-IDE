@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1051",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-discovery-stack-proof-1051",
+  "operation": "Real codex-cli 0.153.4 discovered the returned stock CometLoom identity on the final #1049 refusal stack, listed Controller profiles, freshly read the live Show, began with server-minted identity, created one Layer and Clip, and committed to applied/saved. Authenticated browser/API reopening retained the returned Pattern reference. Both images inspected; synthetic owned test account only; no model inference or hosted deployment. Separate from Scene #1041/#1039 proof.",
+  "captures": [
+    ".wrsp/ui-proof/1051-refusal-stack-discovery-saved.png",
+    ".wrsp/ui-proof/1051-refusal-stack-discovery-reopened.png"
+  ],
+  "capturedAtCommit": "c3a2b0a709e0905270587382d989402710e30c17"
+}
