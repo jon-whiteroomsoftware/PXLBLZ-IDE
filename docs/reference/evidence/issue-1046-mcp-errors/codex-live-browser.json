@@ -1,0 +1,114 @@
+{
+  "client": "codex-cli 0.153.4",
+  "clientPath": "codex app-server mcpServer/tool/call",
+  "candidate": "4ddf7b3ff874a2169b56963337e188b2a3fed0ae",
+  "serverConfigured": true,
+  "get_connection": {
+    "isError": null,
+    "code": "bound",
+    "show_id": "agent-mcp-errors-proof-1046",
+    "binding_id": "[redacted]",
+    "textMatchesStructured": true
+  },
+  "list_commands": {
+    "isError": null,
+    "code": "commands",
+    "count": 54,
+    "textMatchesStructured": true
+  },
+  "read_show_before_disconnect": {
+    "isError": null,
+    "code": "read",
+    "show_id": "agent-mcp-errors-proof-1046",
+    "textMatchesStructured": true
+  },
+  "fixture": "Authenticated Playwright isolated D1; synthetic signed account and Show; real OAuth grant; browser UI disconnect; no edit calls and no user Show writes",
+  "read_show_after_ui_disconnect": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"code\":\"no_live_editor\"}"
+      }
+    ],
+    "structuredContent": {
+      "code": "no_live_editor"
+    },
+    "isError": true
+  },
+  "redactedTranscript": [
+    {
+      "tool": "get_connection",
+      "arguments": {},
+      "result": {
+        "code": "bound",
+        "binding_id": "[redacted]",
+        "show_id": "agent-mcp-errors-proof-1046"
+      }
+    },
+    {
+      "tool": "list_commands",
+      "arguments": {},
+      "result": {
+        "code": "commands",
+        "command_count": 54,
+        "isError": null
+      }
+    },
+    {
+      "tool": "read_show",
+      "arguments": {
+        "binding_id": "[redacted]"
+      },
+      "result": {
+        "code": "read",
+        "show": "[synthetic Show payload omitted]",
+        "isError": null
+      }
+    },
+    {
+      "event": "browser UI Disconnect completed"
+    },
+    {
+      "tool": "read_show",
+      "arguments": {
+        "binding_id": "[redacted]"
+      },
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"code\":\"no_live_editor\"}"
+          }
+        ],
+        "structuredContent": {
+          "code": "no_live_editor"
+        },
+        "isError": true
+      }
+    }
+  ],
+  "browser": {
+    "route": "/PXLBLZ-IDE/studio/shows/agent-mcp-errors-proof-1046",
+    "callerIdentity": "Issue 1046 real Codex client (codex-cli 0.153.4)",
+    "connected": {
+      "indicator": "Connected",
+      "screenshot": {
+        "path": ".wrsp/ui-proof/1046-live-connected.png",
+        "bytes": 195612,
+        "sha256": "ea0af8903e442d9125103ab4e768a6c81e377f2cfd13bdd0b36dd721d649fd38"
+      }
+    },
+    "disconnect": {
+      "control": "button[aria-label=\"Disconnect\"]",
+      "response": {
+        "code": "disconnected"
+      },
+      "disconnectedChooser": "Connect your agent with MCP",
+      "screenshot": {
+        "path": ".wrsp/ui-proof/1046-live-disconnected.png",
+        "bytes": 193942,
+        "sha256": "3d9c5c14400e1c99ce0b47518596d69240e58cf69089311e2b8415a677dbaba6"
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 # Issue #1046 MCP result proof
 
 This packet records focused schema/runtime evidence and the real Codex client
-before/after result probe. Final integration after #1047 lands remains pending.
+before/after result probe. The live-browser qualification below follows landed #1047.
 
 ## Automated evidence
 
@@ -51,9 +51,6 @@ fixture's local Worker and OAuth lifecycle are real; its account and binding
 registration are synthetic. Fresh integration checks remain required after the
 prerequisites land.
 
-## Remaining integration proof
+## Integrated live-browser proof
 
-Rebase onto landed #1047, rerun the current tool-schema census (the observed 62
-tools are a baseline, not an invariant), and capture the exact-base/current
-in-process probe transcript. Final suites, review, landing, publication and issue
-updates remain coordinator-owned.
+At `4ddf7b3ff874a2169b56963337e188b2a3fed0ae`, the installed Codex client read the live Show successfully, then received `isError: true` with `no_live_editor` after the browser clicked Disconnect and awaited the completed channel response. The authenticated Playwright case passed; both committed captures were visually inspected. The [redacted transcript](codex-live-browser.json) records the exact candidate and observable results. This adds real browser connection retirement to the earlier before/after protocol proof. Final review and authoritative committed-tip suites remain coordinator-owned; no hosted publication is claimed.

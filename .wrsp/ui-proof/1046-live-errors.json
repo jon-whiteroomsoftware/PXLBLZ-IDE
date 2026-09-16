@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1046",
+  "route": "/PXLBLZ-IDE/studio/shows/agent-mcp-errors-proof-1046",
+  "operation": "Installed Codex client connected to the actual authenticated editor, listed commands and read the Show successfully. The browser clicked Disconnect and awaited its completed channel response. A subsequent real MCP read on the stale binding returned isError true, no_live_editor, and identical text and structured payload. Synthetic fixture account only; no model inference or hosted deployment.",
+  "captures": [
+    ".wrsp/ui-proof/1046-live-connected.png",
+    ".wrsp/ui-proof/1046-live-disconnected.png"
+  ],
+  "capturedAtCommit": "4ddf7b3ff874a2169b56963337e188b2a3fed0ae"
+}
