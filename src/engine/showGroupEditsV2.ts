@@ -1,0 +1,315 @@
+import {
+  validateShowRecordV2,
+  type ShowGroupDefinitionV2,
+  type ShowPropertyTargetV2,
+  type ShowRecordV2,
+} from './showCompositionV2'
+import { groupRuntimeBindings } from './showGroupsV2'
+
+export interface ShowGroupUniqueIdentityPlanV2 {
+  definitionId: string
+  patternInstanceIds: Record<string, string>
+  layerIds: Record<string, string>
+  clipIds: Record<string, string>
+  transitionIds: Record<string, string>
+  propertyTrackIds: Record<string, string>
+  appearanceKeyIdsByClipId: Record<string, Record<string, string>>
+  propertyKeyIdsByTrackId: Record<string, Record<string, string>>
+}
+
+export interface MakeShowGroupUniqueIntentV2 {
+  kind: 'make-unique'
+  occurrenceId: string
+  identities: ShowGroupUniqueIdentityPlanV2
+}
+
+export type ShowGroupEditRefusalV2 =
+  | 'invalid-record'
+  | 'missing-occurrence'
+  | 'invalid-identity-plan'
+  | 'invalid-result'
+
+export interface ShowGroupEditAffectedV2 {
+  affectedClipIds: string[]
+  affectedInstanceIds: string[]
+  affectedTransitionIds: string[]
+  affectedTrackIds: string[]
+  affectedLayoutDefinitionIds: string[]
+  affectedLayoutOccurrenceIds: string[]
+  affectedGroupDefinitionIds: string[]
+  affectedGroupOccurrenceIds: string[]
+  affectedLayerIds: string[]
+  affectedMarkerIds: string[]
+  affectedAppearanceKeyIds: string[]
+  affectedPropertyKeyIds: string[]
+  hoistedInstanceIds: string[]
+  removedIds: string[]
+  discardedControlTargets: Array<Extract<ShowPropertyTargetV2, { kind: 'instance-control' }>>
+}
+
+export type ShowGroupEditResultV2 =
+  | ({ status: 'changed'; record: ShowRecordV2 } & ShowGroupEditAffectedV2)
+  | ({ status: 'unchanged'; record: ShowRecordV2 } & ShowGroupEditAffectedV2)
+  | ({
+    status: 'refused'
+    record: ShowRecordV2
+    code: ShowGroupEditRefusalV2
+    message: string
+  } & ShowGroupEditAffectedV2)
+
+/** Make one linked Group occurrence structurally unique without minting a runtime. */
+export function makeShowGroupUniqueV2(
+  record: ShowRecordV2,
+  intent: MakeShowGroupUniqueIntentV2,
+): ShowGroupEditResultV2 {
+  const empty = (): ShowGroupEditAffectedV2 => ({
+    affectedClipIds: [], affectedInstanceIds: [], affectedTransitionIds: [], affectedTrackIds: [],
+    affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedGroupDefinitionIds: [],
+    affectedGroupOccurrenceIds: [], affectedLayerIds: [], affectedMarkerIds: [],
+    affectedAppearanceKeyIds: [], affectedPropertyKeyIds: [], hoistedInstanceIds: [],
+    removedIds: [], discardedControlTargets: [],
+  })
+  const refuse = (code: ShowGroupEditRefusalV2, message: string): ShowGroupEditResultV2 => ({
+    status: 'refused', record, code, message, ...empty(),
+  })
+
+  const invalid = validateShowRecordV2(record)[0]
+  if (invalid) return refuse('invalid-record', `${invalid.path}: ${invalid.message}`)
+  const occurrence = record.composition.groupOccurrences.find(candidate => candidate.id === intent.occurrenceId)
+  if (!occurrence) return refuse('missing-occurrence', `Group occurrence "${intent.occurrenceId}" does not exist.`)
+  const definition = record.composition.groupDefinitions.find(candidate => candidate.id === occurrence.definitionId)!
+  const planIssue = validateIdentityPlan(record, definition, intent.identities)
+  if (planIssue) return refuse('invalid-identity-plan', planIssue)
+  if (record.composition.groupOccurrences.filter(candidate => candidate.definitionId === definition.id).length === 1) {
+    return { status: 'unchanged', record, ...empty() }
+  }
+
+  const selectedBindings = groupRuntimeBindings(record)
+    .filter(binding => binding.occurrenceId === occurrence.id)
+  const bindingBySlotId = new Map(selectedBindings.map(binding => [binding.slotId, binding]))
+  const next = structuredClone(record)
+  const hoistedInstanceIds: string[] = []
+  for (const slot of definition.patternInstances) {
+    const binding = bindingBySlotId.get(slot.id)!
+    if (!binding.sharedDefault || binding.authority === 'composition') continue
+    next.composition.patternInstances.push({ ...structuredClone(binding.instance), id: binding.runtimeId })
+    hoistedInstanceIds.push(binding.runtimeId)
+  }
+
+  const identities = intent.identities
+  const cloned: ShowGroupDefinitionV2 = {
+    id: identities.definitionId,
+    name: definition.name,
+    patternInstances: definition.patternInstances.map(slot => ({
+      ...structuredClone(bindingBySlotId.get(slot.id)!.instance),
+      id: identities.patternInstanceIds[slot.id],
+    })),
+    layers: definition.layers.map(layer => ({ ...structuredClone(layer), id: identities.layerIds[layer.id] })),
+    clips: definition.clips.map(clip => ({
+      ...structuredClone(clip),
+      id: identities.clipIds[clip.id],
+      instanceId: identities.patternInstanceIds[clip.instanceId],
+      layerId: identities.layerIds[clip.layerId],
+      appearance: {
+        keys: clip.appearance.keys.map(key => ({
+          ...structuredClone(key),
+          id: identities.appearanceKeyIdsByClipId[clip.id][key.id],
+        })),
+      },
+    })),
+    transitions: definition.transitions.map(transition => ({
+      ...structuredClone(transition),
+      id: identities.transitionIds[transition.id],
+      fromPlacementId: identities.clipIds[transition.fromPlacementId],
+      toPlacementId: identities.clipIds[transition.toPlacementId],
+    })),
+    propertyTracks: definition.propertyTracks.map(track => ({
+      ...structuredClone(track),
+      id: identities.propertyTrackIds[track.id],
+      target: remapTarget(track.target, identities),
+      keyframes: track.keyframes.map(key => ({
+        ...structuredClone(key),
+        id: identities.propertyKeyIdsByTrackId[track.id][key.id],
+      })),
+    })),
+  }
+  next.composition.groupDefinitions.push(cloned)
+  const edited = next.composition.groupOccurrences.find(candidate => candidate.id === occurrence.id)!
+  edited.definitionId = cloned.id
+  edited.instanceBindings = Object.fromEntries(definition.patternInstances.map(slot => [
+    identities.patternInstanceIds[slot.id],
+    bindingBySlotId.get(slot.id)!.runtimeId,
+  ]))
+  edited.layerBindings = occurrence.layerBindings.map(binding => ({
+    definitionLayerId: identities.layerIds[binding.definitionLayerId],
+    layerId: binding.layerId,
+  }))
+
+  const issue = validateShowRecordV2(next)[0]
+  if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
+  return {
+    status: 'changed',
+    record: next,
+    affectedClipIds: Object.values(identities.clipIds).sort(),
+    affectedInstanceIds: [...new Set([
+      ...Object.values(identities.patternInstanceIds),
+      ...hoistedInstanceIds,
+    ])].sort(),
+    affectedTransitionIds: Object.values(identities.transitionIds).sort(),
+    affectedTrackIds: Object.values(identities.propertyTrackIds).sort(),
+    affectedLayoutDefinitionIds: [],
+    affectedLayoutOccurrenceIds: [],
+    affectedGroupDefinitionIds: [cloned.id],
+    affectedGroupOccurrenceIds: [edited.id],
+    affectedLayerIds: Object.values(identities.layerIds).sort(),
+    affectedMarkerIds: [],
+    affectedAppearanceKeyIds: Object.values(identities.appearanceKeyIdsByClipId).flatMap(Object.values).sort(),
+    affectedPropertyKeyIds: Object.values(identities.propertyKeyIdsByTrackId).flatMap(Object.values).sort(),
+    hoistedInstanceIds: hoistedInstanceIds.sort(),
+    removedIds: [],
+    discardedControlTargets: [],
+  }
+}
+
+function remapTarget(
+  target: ShowPropertyTargetV2,
+  identities: ShowGroupUniqueIdentityPlanV2,
+): ShowPropertyTargetV2 {
+  if ('clipId' in target) return { ...structuredClone(target), clipId: identities.clipIds[target.clipId] }
+  if ('instanceId' in target) return { ...structuredClone(target), instanceId: identities.patternInstanceIds[target.instanceId] }
+  return structuredClone(target)
+}
+
+function validateIdentityPlan(
+  record: ShowRecordV2,
+  definition: ShowGroupDefinitionV2,
+  plan: ShowGroupUniqueIdentityPlanV2,
+): string | null {
+  if (typeof plan.definitionId !== 'string'
+    || !plan.definitionId.trim()
+    || record.composition.groupDefinitions.some(candidate => candidate.id === plan.definitionId)) {
+    return 'Make Unique requires a fresh nonblank Group definition identity.'
+  }
+  const partitions: Array<{
+    label: string
+    sourceIds: string[]
+    mapping: Record<string, string>
+    existingIds: string[]
+  }> = [
+    {
+      label: 'Pattern instance',
+      sourceIds: definition.patternInstances.map(value => value.id),
+      mapping: plan.patternInstanceIds,
+      existingIds: [
+        ...record.composition.patternInstances.map(instance => instance.id),
+        ...record.composition.groupDefinitions.flatMap(value => value.patternInstances.map(instance => instance.id)),
+      ],
+    },
+    {
+      label: 'Layer',
+      sourceIds: definition.layers.map(value => value.id),
+      mapping: plan.layerIds,
+      existingIds: [
+        ...record.composition.layers.map(layer => layer.id),
+        ...record.composition.groupDefinitions.flatMap(value => value.layers.map(layer => layer.id)),
+      ],
+    },
+    {
+      label: 'Clip',
+      sourceIds: definition.clips.map(value => value.id),
+      mapping: plan.clipIds,
+      existingIds: [
+        ...record.composition.clips.map(clip => clip.id),
+        ...record.composition.groupDefinitions.flatMap(value => value.clips.map(clip => clip.id)),
+      ],
+    },
+    {
+      label: 'Transition',
+      sourceIds: definition.transitions.map(value => value.id),
+      mapping: plan.transitionIds,
+      existingIds: [
+        ...record.composition.transitions.map(transition => transition.id),
+        ...record.composition.groupDefinitions.flatMap(value => value.transitions.map(transition => transition.id)),
+      ],
+    },
+    {
+      label: 'Property track',
+      sourceIds: definition.propertyTracks.map(value => value.id),
+      mapping: plan.propertyTrackIds,
+      existingIds: [
+        ...record.composition.propertyTracks.map(track => track.id),
+        ...record.composition.groupDefinitions.flatMap(value => value.propertyTracks.map(track => track.id)),
+      ],
+    },
+  ]
+  for (const partition of partitions) {
+    const issue = mappingIssue(partition.label, partition.sourceIds, partition.mapping, partition.existingIds)
+    if (issue) return issue
+  }
+  if (!plan.appearanceKeyIdsByClipId || typeof plan.appearanceKeyIdsByClipId !== 'object') {
+    return 'Appearance key owner identity mapping is missing.'
+  }
+  const appearanceOwnerIds = new Set(definition.clips.map(clip => clip.id))
+  if (Object.keys(plan.appearanceKeyIdsByClipId).some(id => !appearanceOwnerIds.has(id))) {
+    return 'Appearance key owner identity mapping contains an extraneous Clip.'
+  }
+  if (!plan.propertyKeyIdsByTrackId || typeof plan.propertyKeyIdsByTrackId !== 'object') {
+    return 'Property key owner identity mapping is missing.'
+  }
+  const propertyOwnerIds = new Set(definition.propertyTracks.map(track => track.id))
+  if (Object.keys(plan.propertyKeyIdsByTrackId).some(id => !propertyOwnerIds.has(id))) {
+    return 'Property key owner identity mapping contains an extraneous track.'
+  }
+  const existingAppearanceIds = [
+    ...record.composition.clips.flatMap(clip => clip.appearance.keys.map(key => key.id)),
+    ...record.composition.groupDefinitions.flatMap(value => (
+      value.clips.flatMap(clip => clip.appearance.keys.map(key => key.id))
+    )),
+  ]
+  for (const clip of definition.clips) {
+    const issue = mappingIssue(
+      `Appearance key for Clip "${clip.id}"`,
+      clip.appearance.keys.map(key => key.id),
+      plan.appearanceKeyIdsByClipId[clip.id],
+      existingAppearanceIds,
+    )
+    if (issue) return issue
+  }
+  const appearanceIds = Object.values(plan.appearanceKeyIdsByClipId).flatMap(Object.values)
+  if (new Set(appearanceIds).size !== appearanceIds.length) return 'Appearance key identities must be distinct across the cloned definition.'
+  const existingPropertyKeyIds = [
+    ...record.composition.propertyTracks.flatMap(track => track.keyframes.map(key => key.id)),
+    ...record.composition.groupDefinitions.flatMap(value => (
+      value.propertyTracks.flatMap(track => track.keyframes.map(key => key.id))
+    )),
+  ]
+  for (const track of definition.propertyTracks) {
+    const issue = mappingIssue(
+      `Property key for track "${track.id}"`,
+      track.keyframes.map(key => key.id),
+      plan.propertyKeyIdsByTrackId[track.id],
+      existingPropertyKeyIds,
+    )
+    if (issue) return issue
+  }
+  const propertyKeyIds = Object.values(plan.propertyKeyIdsByTrackId).flatMap(Object.values)
+  if (new Set(propertyKeyIds).size !== propertyKeyIds.length) return 'Property key identities must be distinct across the cloned definition.'
+  return null
+}
+
+function mappingIssue(
+  label: string,
+  sourceIds: string[],
+  mapping: Record<string, string> | undefined,
+  existingIds: string[],
+): string | null {
+  if (!mapping) return `${label} identity mapping is missing.`
+  const expected = [...sourceIds].sort()
+  const actual = Object.keys(mapping).sort()
+  if (JSON.stringify(expected) !== JSON.stringify(actual)) return `${label} identity mapping must be complete and contain no extraneous source identities.`
+  const values = Object.values(mapping)
+  if (values.some(value => typeof value !== 'string' || !value.trim())) return `${label} identities must be nonblank.`
+  if (new Set(values).size !== values.length) return `${label} identities must be distinct.`
+  if (values.some(value => existingIds.includes(value))) return `${label} identities must be fresh.`
+  return null
+}

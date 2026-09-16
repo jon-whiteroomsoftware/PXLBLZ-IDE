@@ -1,0 +1,55 @@
+{
+  "invariants": [
+    "Make Unique changes one occurrence's definition-local identities while preserving every effective runtime ID, runtime use and authoritative payload.",
+    "Top-level composition.patternInstances records are authoritative for explicit bindings and hoisted defaults; stale definition-slot payloads never become a second writer.",
+    "An unbound default is hoisted at most once under its existing stable definition-qualified runtime ID; hoisting adds a record and never creates a runtime.",
+    "The caller supplies a complete fresh nonblank conflict-free mapping for every cloned definition-local identity and internal reference.",
+    "The selected occurrence preserves placement, Layer destinations, translation, track activation and holds; the old definition and other occurrences stay byte-identical.",
+    "Refusal and no-op return the original record identity and empty affected collections; change returns a complete unaliased record and complete affected collections.",
+    "Genuine incompatible claims for one otherwise-unowned runtime ID refuse rather than selecting an occurrence by traversal order."
+  ],
+  "partitions": [
+    "One selected occurrence among two linked users; already-unique occurrence; missing occurrence.",
+    "Explicit top-level binding with stale slot payload; unbound default without a top-level record; previously hoisted default; mixed bound and unbound slots.",
+    "Complete identity plan; missing source; extraneous source; blank target; duplicate target; existing target; cross-owner key collision.",
+    "One and multiple Clips, appearance keys and Property keys; Clip, Layer, instance and Transition endpoint references; Clip-target and instance-target tracks.",
+    "Compatible repeated unowned claim and incompatible same-ID unowned claim.",
+    "Continue and Restart Clips; no hold and ordered local hold; Fast and Fidelity replay."
+  ],
+  "sequences": [
+    "Reopen two linked occurrences with held time, Make Unique one occurrence, reopen again, then inspect every local ID/reference, runtime use and authoritative payload.",
+    "Make the same already-unique occurrence unique again and prove original identity, empty affected collections and unchanged effective runtime IDs.",
+    "Bind one slot to a top-level instance while leaving its definition copy stale; combine it with an unbound slot, Make Unique and materialize both old and new definitions.",
+    "Mutate each identity-plan partition and prove atomic refusal with original record identity and empty affected collections.",
+    "Create incompatible missing-top-level same-ID claims in separate definitions and prove materialization and the edit owner refuse without choosing a payload.",
+    "Compile preimage and candidate through prepareShowV2ForCompile, reopen generated .epe artifacts, then compare frames and exported state across hold and Restart boundaries."
+  ],
+  "oracles": [
+    "Provisional v2 serialize/parse reopen plus complete validateShowRecordV2 validation.",
+    "Exact definition and occurrence object equality for untouched owners; exact ID/reference maps and complete affected arrays for the selected clone.",
+    "Public groupRuntimeBindings and materializeShowGroupsV2 outputs for runtime IDs, use counts and authoritative Pattern instance payloads.",
+    "Public prepareShowV2ForCompile provenance and restartEvents, generated .epe reopen, and exact Fast/Fidelity frames plus exported state at boundary probes.",
+    "Input deep equality on change and reference identity on no-op/refusal."
+  ],
+  "faults": [
+    "Derive a new default runtime ID from the cloned definition ID.",
+    "Prefer a stale definition-slot payload over an explicitly bound or hoisted top-level record.",
+    "Hoist one record per occurrence or allocate a new runtime while hoisting.",
+    "Validate only mapping values and miss incomplete or extraneous source keys.",
+    "Remap persisted entities but leave a Transition endpoint, Property target, occurrence binding key or Layer binding key stale.",
+    "Drop holds, track activation or destination Layer IDs while replacing the selected occurrence.",
+    "Resolve incompatible unowned claims by first or last traversal order.",
+    "Return a partial candidate or nonempty affected arrays after refusal."
+  ],
+  "mutationEvidence": [
+    "The first broad qualification instrumented 320 owner/authority mutants and exposed missing distinctions for already-unique selection, explicit unowned bindings, already-hoisted defaults, later-occurrence selection, instance-target remapping and key freshness.",
+    "After adding those independent consumer partitions, the final exact-source semantic scope killed 224 of 233 mutants; the authoritative groupRuntimeBindings/materialization seam killed all 35 of 35 selected mutants.",
+    "The nine reported survivors were refusal-message text, owner-label text, a discriminated-union branch equivalent after the preceding Clip-target branch, and runtime-shape guards whose mutated paths reached the same refusal. No runtime identity, payload authority, hoist, reference-remap, plan-completeness or affected-set semantic mutant survived."
+  ],
+  "residualGaps": [
+    "Group move, duplicate, delete and ungroup remain later #1038 lifecycle owners.",
+    "Layer authoring is the disjoint #1038 Layer candidate; its held-Group integrated proof waits for this lineage to land.",
+    "Global Insert Time, route adoption, UI and store/history/save adoption remain later #1038 slices.",
+    "The coordinator owns final committed-tip suites, native Astra Medium review, landing, labels and publication."
+  ]
+}

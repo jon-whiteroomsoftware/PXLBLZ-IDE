@@ -70,13 +70,38 @@ export function convertGroupOccurrence(
   }
 }
 
-export function groupRuntimeBindings(record: ShowRecordV2): Array<{ runtimeId: string; definitionId: string; sharedDefault: boolean; instance: ShowPatternInstance }> {
+export function defaultGroupRuntimeIdV2(definitionId: string, instanceId: string): string {
+  return `group:${JSON.stringify([definitionId, instanceId])}`
+}
+
+export interface ShowGroupRuntimeBindingV2 {
+  runtimeId: string
+  definitionId: string
+  occurrenceId: string
+  slotId: string
+  sharedDefault: boolean
+  authority: 'composition' | 'definition-slot'
+  instance: ShowPatternInstance
+}
+
+/** Resolve one authoritative payload for every effective Group runtime use. */
+export function groupRuntimeBindings(record: ShowRecordV2): ShowGroupRuntimeBindingV2[] {
+  const topLevelById = new Map(record.composition.patternInstances.map(instance => [instance.id, instance]))
   return record.composition.groupOccurrences.flatMap(occurrence => {
     const definition = record.composition.groupDefinitions.find(definition => definition.id === occurrence.definitionId)!
-    return definition.patternInstances.map(instance => ({
-      runtimeId: occurrence.instanceBindings?.[instance.id] ?? `group:${JSON.stringify([definition.id, instance.id])}`,
-      definitionId: definition.id, sharedDefault: occurrence.instanceBindings?.[instance.id] === undefined, instance,
-    }))
+    return definition.patternInstances.map(slot => {
+      const runtimeId = occurrence.instanceBindings?.[slot.id] ?? defaultGroupRuntimeIdV2(definition.id, slot.id)
+      const authoritative = topLevelById.get(runtimeId)
+      return {
+        runtimeId,
+        definitionId: definition.id,
+        occurrenceId: occurrence.id,
+        slotId: slot.id,
+        sharedDefault: occurrence.instanceBindings?.[slot.id] === undefined,
+        authority: authoritative ? 'composition' as const : 'definition-slot' as const,
+        instance: authoritative ?? slot,
+      }
+    })
   })
 }
 
@@ -85,7 +110,6 @@ export function materializeShowGroupsV2(record: ShowRecordV2): ShowRecordV2 {
   const expanded = structuredClone(record)
   const composition = expanded.composition
   for (const binding of groupRuntimeBindings(record)) {
-    if (binding.sharedDefault && record.composition.patternInstances.some(instance => instance.id === binding.runtimeId)) throw new Error('Default Group runtime identity collides with an ordinary Pattern instance.')
     const value = { ...structuredClone(binding.instance), id: binding.runtimeId }
     const existing = composition.patternInstances.find(instance => instance.id === value.id)
     if (existing && JSON.stringify(existing) !== JSON.stringify(value)) throw new Error(`Group runtime binding "${value.id}" has conflicting Pattern instance values.`)
@@ -93,7 +117,7 @@ export function materializeShowGroupsV2(record: ShowRecordV2): ShowRecordV2 {
   }
   for (const occurrence of record.composition.groupOccurrences) {
     const definition = record.composition.groupDefinitions.find(definition => definition.id === occurrence.definitionId)!
-    const instanceId = (id: string) => occurrence.instanceBindings?.[id] ?? `group:${JSON.stringify([definition.id, id])}`
+    const instanceId = (id: string) => occurrence.instanceBindings?.[id] ?? defaultGroupRuntimeIdV2(definition.id, id)
     const clipId = (id: string) => `${occurrence.id}:${id}`
     const layerId = (id: string) => occurrence.layerBindings.find(binding => binding.definitionLayerId === id)!.layerId
     for (const child of definition.clips) {

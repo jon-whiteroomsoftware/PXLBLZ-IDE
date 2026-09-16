@@ -63,7 +63,7 @@ it('shares definition instances by default across linked occurrences', () => {
   expect(compileShow(prepared.recipe, LIBRARIES).code).toBe(compileShow(showRecordToCompileRecipe(expectedSource, expectedLookup), LIBRARIES).code)
 })
 
-it.each(['collision', 'hold-collision', 'binding', 'appearance', 'track', 'layout-crossing', 'runtime-conflict'] as const)('rejects invalid materialized Group state: %s', change => {
+it.each(['collision', 'hold-collision', 'binding', 'appearance', 'track', 'layout-crossing'] as const)('rejects invalid materialized Group state: %s', change => {
   const converted = convertShowRecordV1ToV2(groupShow())
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
   const composition = converted.record.composition
@@ -73,10 +73,6 @@ it.each(['collision', 'hold-collision', 'binding', 'appearance', 'track', 'layou
   if (change === 'appearance') composition.groupDefinitions[0].clips[0].appearance.keys[0].timeMs = 1
   if (change === 'track') composition.groupDefinitions[0].propertyTracks[0].target = { kind: 'clip-opacity', clipId: 'missing' }
   if (change === 'layout-crossing') composition.groupOccurrences[1].startMs = 950
-  if (change === 'runtime-conflict') {
-    composition.groupOccurrences[0].instanceBindings = { child: 'instance' }
-    composition.groupDefinitions[0].patternInstances[0].time.timeScale = 2
-  }
   const before = structuredClone(converted.record)
   expect(prepareShowV2ForCompile(converted.record, lookup).status).toBe('refused')
   expect(converted.record).toEqual(before)
@@ -445,12 +441,20 @@ it.each([
   expect(converted.record).toEqual(before)
 })
 
-it('refuses an accidental default runtime collision with an ordinary instance', () => {
+it('uses a top-level Pattern instance as authority for a previously unbound default runtime', () => {
   const converted = convertShowRecordV1ToV2(groupShow())
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
   for (const occurrence of converted.record.composition.groupOccurrences) delete occurrence.instanceBindings
-  converted.record.composition.patternInstances.push({ ...structuredClone(converted.record.composition.groupDefinitions[0].patternInstances[0]), id: 'group:["group","child"]' })
-  expect(prepareShowV2ForCompile(converted.record, lookup).status).toBe('refused')
+  const runtimeId = 'group:["group","child"]'
+  converted.record.composition.patternInstances.push({
+    ...structuredClone(converted.record.composition.groupDefinitions[0].patternInstances[0]),
+    id: runtimeId,
+    time: { timeScale: 0.5, timeOffsetMs: 0 },
+  })
+  converted.record.composition.groupDefinitions[0].patternInstances[0].time.timeScale = 2
+  const materialized = materializeShowGroupsV2(converted.record)
+  expect(materialized.composition.patternInstances.find(instance => instance.id === runtimeId)?.time.timeScale).toBe(0.5)
+  expect(prepareShowV2ForCompile(converted.record, { ...lookup, byPatternInstanceId: { ...lookup.byPatternInstanceId, [runtimeId]: code } }).status).toBe('ready')
 })
 
 it('validates unused definitions before they can be instantiated', () => {
