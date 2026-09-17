@@ -41,12 +41,15 @@ async function listV2(page: Page): Promise<SavedShowV2[]> {
 }
 
 /**
- * A fresh Show's two Clips sample their Zone independently, which the lowerer
- * admits only while the Show has exactly one Zone: adding a second one is then
- * refused with `lowering requires repeat-mode Clip sampling evidence`. Neither
- * editor route offers a Clip-sampling control - only the `update_clips` command
- * writes it - so this setup writes `span` through the provider the way an agent
- * would. The gap is recorded in the editor contract as a residual of #1039.
+ * A fresh Show's two Clips sample their Zone independently, and since #1063 the
+ * continuous-flat route carries their Crossfade through a second Zone - so Add
+ * Zone itself needs no setup at all. Two things past it still do: the Add Clip
+ * editor writes `span` for a new Clip, and mixed sampling is not flat-eligible;
+ * and the flat route refuses a second Layout occurrence over a participant
+ * Transition. So the rest of this test moves the Show to `span` through the
+ * provider, the way an agent's `update_clips` would. Neither editor route
+ * offers a Clip-sampling control; that gap is recorded in the editor contract
+ * as a residual of #1039.
  */
 async function spanSampling(page: Page, showId: string): Promise<void> {
   const saved = (await listV2(page)).find(show => show.id === showId)!
@@ -103,7 +106,6 @@ test('the v2 route adds a Zone with its own content and routes it through a new 
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('studio/shows?capture')
   const showId = await createShow(page, 'Portable', 'Two voices')
-  await spanSampling(page, showId)
   const inspector = page.getByTestId('show-inspector-v2')
   const properties = page.getByTestId('show-v2-show-properties')
   await properties.scrollIntoViewIfNeeded()
@@ -131,6 +133,8 @@ test('the v2 route adds a Zone with its own content and routes it through a new 
   await expect.poll(async () => (await listV2(page))[0].composition.layers.map(layer => [layer.zoneId, layer.name]))
     .toEqual([['zone-1', 'Main'], [zoneId, 'Accent']])
 
+  // From here the Show needs `span`: see this spec's note above.
+  await spanSampling(page, showId)
   const clips = page.getByTestId('show-v2-add-clip')
   await clips.scrollIntoViewIfNeeded()
   await clips.getByRole('button', { name: 'Add Clip', exact: true }).click()
@@ -225,8 +229,7 @@ test('the v2 route authors Installation LED ranges and removes a Zone with its c
 
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('studio/shows?capture')
-  const showId = await createShow(page, 'Installation', 'Stair rail')
-  await spanSampling(page, showId)
+  await createShow(page, 'Installation', 'Stair rail')
   const properties = page.getByTestId('show-v2-show-properties')
   await properties.scrollIntoViewIfNeeded()
   const pixels = properties.getByRole('textbox', { name: 'Installation pixels' })

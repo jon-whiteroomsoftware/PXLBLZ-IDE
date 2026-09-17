@@ -7,7 +7,6 @@ import { expect, test, type Page } from './fixtures/authenticated'
 interface SavedShowV2 {
   id: string
   zones: Array<{ id: string; name: string }>
-  composition: { clips: Array<{ id: string; zoneSampleMode: string }> }
 }
 
 async function listV2(page: Page): Promise<SavedShowV2[]> {
@@ -15,16 +14,6 @@ async function listV2(page: Page): Promise<SavedShowV2[]> {
   expect(response.ok(), await response.text()).toBe(true)
   return ((await response.json()).shows as Array<{ version?: number }>)
     .filter(show => show.version === 2) as unknown as SavedShowV2[]
-}
-
-/** A fresh Show's Clips sample `independent`ly; see the spec's own note. */
-async function spanSampling(page: Page, showId: string): Promise<void> {
-  const saved = (await listV2(page)).find(show => show.id === showId)!
-  for (const clip of saved.composition.clips) clip.zoneSampleMode = 'span'
-  const response = await page.request.put(`/api/shows/${showId}?show-version=2`, { data: saved })
-  expect(response.ok(), await response.text()).toBe(true)
-  await page.reload()
-  await expect(page.getByTestId('show-editor-v2-route')).toBeVisible()
 }
 
 async function createShow(page: Page, contract: 'Portable' | 'Installation', name: string): Promise<string> {
@@ -45,8 +34,7 @@ test('captures the v2 Zone Map and Zone Layouts surface', async ({ page }) => {
   test.slow()
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('studio/shows?capture')
-  const showId = await createShow(page, 'Portable', 'Two voices')
-  await spanSampling(page, showId)
+  await createShow(page, 'Portable', 'Two voices')
   await page.waitForFunction(() => Boolean(window.__pxlblzShow))
   const transport = page.getByTestId('show-editor-v2-transport')
   await transport.getByRole('button', { name: 'Pause Show preview' }).click()
@@ -113,8 +101,7 @@ test('captures the Installation LED ranges and their coverage', async ({ page })
   test.slow()
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('studio/shows?capture')
-  const showId = await createShow(page, 'Installation', 'Stair rail')
-  await spanSampling(page, showId)
+  await createShow(page, 'Installation', 'Stair rail')
 
   const properties = page.getByTestId('show-v2-show-properties')
   await properties.scrollIntoViewIfNeeded()
