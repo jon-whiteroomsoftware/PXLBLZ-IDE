@@ -139,6 +139,33 @@ describe('v2 ordinary Show import planning', () => {
     })
   })
 
+  it('imports a Zone Layout whose physical endpoints are not integers, exactly as v1 import does', async () => {
+    // v1 import never ran `validateShowAuthoring`, so its structural Zone
+    // Layout errors were not import refusals; `normalizeShowRoutingState`
+    // rounded the endpoints on the way in instead. v2 has no such normalizer
+    // (specification section 3 forbids a universal one), so the file opens with
+    // its authored endpoints untouched and unrepaired. Refusing here would be
+    // stricter than v1 import; repairing here would be a new normalizer.
+    const show = v2Show()
+    show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 16, resolution: 'fixed' }
+    show.zoneLayouts = show.zoneLayouts.map(layout => ({
+      id: layout.id,
+      name: layout.name,
+      zones: show.zones.map(zone => ({
+        zoneId: zone.id,
+        ranges: zone.id === show.composition.clips[0].zoneId ? [{ start: 0.5, end: 14.75 }] : [],
+      })),
+    }))
+    const authored = structuredClone(show.zoneLayouts)
+    const built = buildShowFileBundle(show, { patterns: [pattern('export function render(index) { hsv(index, 1, 1) }')], maps: [], libraries: [] }, { appVersion: '1039-test', exportedAt: '2026-09-15T00:00:00.000Z' })
+    const reopened = await parseShowFileBundle(await serializeShowFileBundle(built.bundle), { acceptV2: true })
+    if (reopened.version !== 2) throw new Error('Expected v2 bundle')
+    const ids = ['show-copy', 'pattern-copy']
+    const applied = applyShowImportPlanV2(planShowImportV2(reopened, { patterns: [], maps: [], libraries: [], showNames: [] }, { createId: () => ids.shift()!, now: 99 }))
+    expect(validateShowRecordV2(applied.show)).toEqual([])
+    expect(applied.show.zoneLayouts).toEqual(authored)
+  })
+
   it('remaps Group-owned Pattern, explicit runtime binding, and custom Map conflicts as one import candidate', async () => {
     const show = v2Show()
     show.composition.layers.push({

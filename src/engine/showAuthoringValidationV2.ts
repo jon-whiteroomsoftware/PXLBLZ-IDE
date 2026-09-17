@@ -15,8 +15,10 @@
 import { inspectPatternMetadata } from './bundle'
 import type { ShowPatternRef } from './personalContentRecords'
 import {
+  invalidShowOutputCountIssue,
   libraryDependencies,
   referenceIdentity,
+  showOutputCapacityMessage,
   type ShowAuthoringBaseline,
   type ShowAuthoringIssue,
   type ShowPatternSite,
@@ -25,6 +27,7 @@ import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { installationCoverageBlockingMessage } from './showInstallationCoverage'
 import { validateInstallationCoverageV2 } from './showInstallationCoverageV2'
 import { showPortablePatternSitesV2, validatePortableShowCompatibilityV2 } from './showPortableCompatibilityV2'
+import { validateShowZoneLayoutStructure } from './showZoneLayoutStructure'
 
 export interface ShowAuthoringContextV2 {
   /** Exact source lookup. Undefined means unavailable; never substitute. */
@@ -121,7 +124,29 @@ export function validateShowAuthoringV2(record: ShowRecordV2, context: ShowAutho
       ...(issue.path ? { path: issue.path } : {}),
     })
   }
+  // The Zone Layout structural rule `validateShowAuthoring` has always applied,
+  // through the one shared implementation, classified exactly as v1 classifies
+  // it: structural errors that return before the dependency and delivery
+  // questions. `validateShowRecordV2` owns the composition's own structure and
+  // never reads `zoneLayouts` beyond identity and existence.
+  for (const issue of validateShowZoneLayoutStructure({ zones: record.zones, routingLayouts: record.zoneLayouts })) {
+    errors.push({ code: 'structure', diagnosticCode: issue.diagnosticCode, message: issue.message, path: issue.path })
+  }
+  // The same output pixel count rule, in the same two classifications v1 gives
+  // it: an authored count that is not a positive safe integer is a structural
+  // error, and a count past the compiled capacity is a delivery warning
+  // reported after the structural return.
+  if (invalidShowOutputCountIssue(record.outputContract)) {
+    errors.push({
+      code: 'structure',
+      diagnosticCode: 'invalid-output-count',
+      message: 'The output pixel count must be a positive safe integer.',
+      path: JSON.stringify(['outputContract', 'pixelCount']),
+    })
+  }
   if (errors.length) return { valid: false, errors, warnings }
+  const capacity = showOutputCapacityMessage(record.outputContract)
+  if (capacity) warnings.push({ code: 'delivery', message: capacity })
   const baseline = context.baseline ?? captureShowAuthoringBaselineV2(record, context)
   const missingReferences = new Set(baseline.missingReferences)
   for (const site of showPatternSitesV2(record)) {

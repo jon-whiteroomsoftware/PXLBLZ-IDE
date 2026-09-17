@@ -1,7 +1,7 @@
-import type { ShowPatternRef, ShowRecord } from './personalContentRecords'
+import type { ShowOutputContract, ShowPatternRef, ShowRecord } from './personalContentRecords'
 import { validateShowComposition } from './showCompositionModel'
-import { validateShowLogicalRouting } from './showLogicalRouting'
 import { validatePortableShowCompatibility } from './showPortableCompatibility'
+import { validateShowZoneLayoutStructure } from './showZoneLayoutStructure'
 import { installationCoverageBlockingMessage, validateInstallationCoverage } from './showInstallationCoverage'
 import { SHOW_MAX_OUTPUT_PIXELS } from './showVmResourceLedger'
 import { inspectPatternLibraryReferences, inspectPatternMetadata } from './bundle'
@@ -29,6 +29,29 @@ export function showPatternSites(show: ShowRecord): ShowPatternSite[] {
       owner: JSON.stringify(['group', group.id, 'instance', instance.id]), ref: instance.pattern, patternName: instance.patternName,
     }))),
   ]
+}
+
+/**
+ * The authored output pixel count, in the field each contract kind owns. Both
+ * record versions carry the same `ShowOutputContract`, so the two rules below
+ * are implemented once and shared with the v2 authoring validator.
+ */
+export function showOutputPixelCount(outputContract: ShowOutputContract): number {
+  return outputContract.kind === 'installation' ? outputContract.pixelCount : outputContract.referencePixelCount
+}
+
+/** True when the authored count is not a positive safe integer: a structural error. */
+export function invalidShowOutputCountIssue(outputContract: ShowOutputContract): boolean {
+  const outputCount = showOutputPixelCount(outputContract)
+  return !Number.isSafeInteger(outputCount) || outputCount <= 0
+}
+
+/** The delivery warning for an authored count past the compiled Show capacity. */
+export function showOutputCapacityMessage(outputContract: ShowOutputContract): string | null {
+  const outputCount = showOutputPixelCount(outputContract)
+  return outputCount > SHOW_MAX_OUTPUT_PIXELS
+    ? `Show output requests ${outputCount.toLocaleString('en-US')} pixels; compiled Shows support at most ${SHOW_MAX_OUTPUT_PIXELS.toLocaleString('en-US')}.`
+    : null
 }
 
 export interface ShowAuthoringBaseline {
@@ -159,20 +182,19 @@ export function validateShowAuthoring(show: ShowRecord, context: ShowAuthoringCo
     if (transition.kind === 'routing' && !transition.layoutId) structural('routing-layout-required', `Routing event "${transition.id}" needs a Layout target.`, path)
     if (transition.layoutId !== undefined && !layouts.has(transition.layoutId)) structural('transition-missing-layout', `Transition "${transition.id}" has an unknown Layout.`, path)
   }
-  for (const layout of show.routingLayouts) {
-    identities(layout.zones.map(zone => ({ id: zone.zoneId })), `Zone in Layout ${layout.id}`, ['layout', layout.id, 'zone'])
-    for (const zoneId of [...layout.zones.map(zone => zone.zoneId), ...(layout.logical?.zoneIds ?? [])]) {
-      if (!zones.has(zoneId)) structural('layout-missing-zone', `Layout "${layout.id}" has an unknown Zone "${zoneId}".`, JSON.stringify(['layout', layout.id, 'zone', zoneId]))
-    }
-    for (const zone of layout.zones) for (const range of zone.ranges) {
-      if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end)) structural('invalid-physical-range', `Layout "${layout.id}" physical range endpoints must be safe finite integers.`, JSON.stringify(['layout', layout.id, 'zone', zone.zoneId, 'ranges']))
-    }
-    if (layout.logical) for (const message of validateShowLogicalRouting(layout.logical)) structural('invalid-logical-routing', message, JSON.stringify(['layout', layout.id, 'logical']))
+  // The Zone Layout structural rule is version-independent and shared with the
+  // v2 authoring validator; its classification here is unchanged.
+  for (const issue of validateShowZoneLayoutStructure({ zones: show.zones, routingLayouts: show.routingLayouts })) {
+    structural(issue.diagnosticCode, issue.message, issue.path)
   }
-  const outputCount = show.outputContract.kind === 'installation' ? show.outputContract.pixelCount : show.outputContract.referencePixelCount
-  if (!Number.isSafeInteger(outputCount) || outputCount <= 0) structural('invalid-output-count', 'The output pixel count must be a positive safe integer.', JSON.stringify(['outputContract', 'pixelCount']))
+  // The output pixel count rule is version-independent and shared with the v2
+  // authoring validator; its classification here is unchanged - a count that is
+  // not a positive safe integer is a structural error, and a count past the
+  // compiled capacity is a delivery warning the Show stays authorable with.
+  if (invalidShowOutputCountIssue(show.outputContract)) structural('invalid-output-count', 'The output pixel count must be a positive safe integer.', JSON.stringify(['outputContract', 'pixelCount']))
   if (errors.length) return { valid: false, errors, warnings }
-  if (outputCount > SHOW_MAX_OUTPUT_PIXELS) warnings.push({ code: 'delivery', message: `Show output requests ${outputCount.toLocaleString('en-US')} pixels; compiled Shows support at most ${SHOW_MAX_OUTPUT_PIXELS.toLocaleString('en-US')}.` })
+  const capacity = showOutputCapacityMessage(show.outputContract)
+  if (capacity) warnings.push({ code: 'delivery', message: capacity })
   if (show.composition) {
     identities(show.composition.scenes.map(scene => ({ id: scene.sceneId })), 'composition Scene', ['composition', 'scene'])
     for (const scene of show.composition.scenes) identities(scene.zones.map(zone => ({ id: zone.zoneId })), `composition Zone in Scene ${scene.sceneId}`, ['composition', 'scene', scene.sceneId, 'zone'])
