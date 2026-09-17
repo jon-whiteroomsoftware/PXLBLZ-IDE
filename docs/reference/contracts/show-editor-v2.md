@@ -675,6 +675,46 @@ with stored v2 rows"). Every accepted v2 replacement also patches the matching
 `showV2Rows` entry, so a rename is visible in the list without a workspace
 reload, and a rolled-back save restores the durable name with the record.
 
+## Show properties
+
+The Show's own output properties live in the Show inspector, above the Show
+timing section, in `ShowV2ShowPropertiesEditor`. Before #1039's surface slice
+the flipped route had none of them, so a person could choose a Portable contract
+and a reference pixel count at creation and never see or change either again
+while an agent could author all four.
+
+The section is a projection onto the existing v2 owners, not a second owner.
+[`showV2ShowPropertiesEditorModel`](../../../src/engine/showV2ShowPropertiesEditorModel.ts)
+reads one record and returns the summary plus the exact command input each
+control submits; `admitShowV2PilotShowMetadata` runs that command - and only
+`set_output_contract`, `set_stage_map`, `update_zone` or `set_output_trails` -
+through the closed prepared-edit dispatch. One accepted edit is one history
+entry and one save; a refusal writes nothing and keeps the record identity.
+
+| Control | Owner | Behavior |
+| --- | --- | --- |
+| Show output summary | derived | one line titled exactly as the v1 header's badge is: contract kind, pixel count, and the map named or `Missing map` |
+| Output contract | `set_output_contract` | kind, map and pixel count are drafted together and applied as one command; the map list narrows to 2D for Portable before anything is written, and the Stage map follows the contract map as the command documents |
+| Stage map | `set_stage_map` | the Stage map alone, leaving the contract untouched; the list is what `showV2StageMap.ts` can resolve |
+| Zone Map | `update_zone` | one Zone's name and nominal pixel count; a duplicate or blank name is the command's own refusal |
+| Trails | `set_output_trails` | the output Effect and its retention, with v1's own labels |
+
+An accepted edit may name another Stage map, which the capture's pinned map
+cannot prepare. The prepared-edit dispatch therefore re-resolves a moved
+`stageMapId` through `resolveShowV2StageMap` before preparing the candidate, and
+refuses a map that is gone or at an unsupported dimension, exactly as
+[`showV2CandidateAdmission`](../../../src/store/showV2CandidateAdmission.ts)
+already did for an agent's candidate. Neither path substitutes another map's
+geometry for one the Show names.
+
+The header carries the v1 Show actions menu's two remaining entries, View code
+and Download .epe. `useShowV2RouteArtifacts` builds the route's artifacts once
+for the header and the delivery panel together, and `downloadShowV2Epe` is the
+one implementation behind the header's Download .epe and the panel's Export
+.epe, so both write the same bytes under the filename the v1 exporter produces.
+View code opens the generated pattern in place, under v1's own
+`Generated pattern - <name>` heading, and Back to show returns.
+
 ## Surfaces the v1 editor has and this route does not
 
 Named here because #1039 made this route the production editor for every
@@ -684,19 +724,29 @@ still stored as v1, and has no counterpart here:
 
 | Surface | What the v1 editor offers | v2 domain owner that exists |
 | --- | --- | --- |
-| Show output summary and Show properties | the contract kind, pixel count, output or reference map, and editing them | `set_output_contract` |
-| Show stage | choosing the Stage Map | `set_stage_map` |
-| Zone Map | adding, removing and renaming Zones | `update_zone` |
+| Zone Map | adding and removing a Zone | - |
 | Zone Layout definition | routing mode and operator for a Layout definition (the panel here edits occurrences, not definitions) | - |
-| Show Trails | enabling output trails and their retention | `set_output_trails` |
-| Show actions menu | View code, Download .epe from the header (the delivery panel exports both artifacts) | - |
+| Zone LED ranges | selecting an Installation Zone's physical ranges on the Stage (`ShowZoneSpatialSelector`) | - |
 
-The commands exist for most of them, so this is a missing editor surface
-rather than a missing capability, and an agent can still author them. It is
-what a converted Show loses until that surface lands, and it is why
-`e2e/shows.auth.spec.ts` now seeds version-1 rows explicitly for the tests that
-cover these: those tests describe live behavior for unconverted rows, not a
-creation flow that still produces one.
+These three are missing *owners*, not missing editor surfaces: no v2 command
+writes them either, so an agent cannot author them and a projection adapter has
+nothing to project onto. Inventing one here would be a second writer for rules
+the catalogue does not yet state.
+
+Adding a Zone is not a one-field write. Every Layout definition must route the
+new Zone, or preparation refuses the whole Show -
+`compileShow routed scene sequence references missing zone "Spare"` - which is
+the same missing definition-routing owner again; removing one must also carry
+its Layers, Clips, Transitions, Group occurrences and Property tracks.
+`src/engine/showV2ShowSurfaceResiduals.test.ts` holds those facts as checked
+assertions, so landing either owner fails a test and prompts this table's
+update.
+
+Because these rows remain, `e2e/shows.auth.spec.ts` keeps seeding version-1 rows
+explicitly for the tests that cover them: those tests describe live behavior for
+unconverted rows, not a creation flow that still produces one. Its Portable
+contract, Show properties and Trails counterparts on this route are
+`e2e/show-editor-v2-show-properties.auth.spec.ts`.
 
 ## What remains
 
@@ -718,7 +768,8 @@ active input the way a v1 candidate does while the author is typing.
 
 The v1 timeline's zoom, snap and diagnostic toggles landed with #1039 and are
 described under [The visible window](#the-visible-window). Renaming and
-duplicating a v2 row from the Shows rail landed with #1039 too.
+duplicating a v2 row from the Shows rail landed with #1039 too, as did the
+[Show properties](#show-properties) section and the header's Show actions.
 
 One gap remains in that window: `ShowV2AnimationLanes` - the Property lanes, the
 held-appearance keys and the Group occurrence bands drawn beneath the timeline -

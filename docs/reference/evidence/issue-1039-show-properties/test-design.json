@@ -1,0 +1,76 @@
+{
+  "issue": 1039,
+  "scope": "the v2 editor's Show-level surface: output contract, Stage map, Zone Map rename, Trails, and the header's View code and Download .epe",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "ROUTE",
+      "LAYOUT-END"
+    ]
+  },
+  "base": "15ed7a50cf4cb0b53cf395823045e5969052daab",
+  "invariants": [
+    "The editor writes only through the existing showCommandsV2 owners: set_output_contract, set_stage_map, update_zone, set_output_trails. No second writer, no new mutation rule, no compiler or schema widening.",
+    "One accepted Show-metadata edit is one preparation, one history entry and one provider save; a refusal or no-op prepares nothing, writes nothing and returns the original record identity.",
+    "The record after an editor edit equals the record after applyShowCommandV2 with the same input, so a person and an agent produce identical bytes.",
+    "A Stage map an accepted edit newly names is re-resolved through resolveShowV2StageMap before the candidate is prepared; a map that is gone, empty or at an unsupported dimension refuses and adopts nothing. No fallback map is ever substituted.",
+    "The projection reports what the record names: a map absent from this workspace reads as missing, never as another map's name.",
+    "The header's Download .epe and the delivery panel's Export .epe are one implementation writing the same bytes under the filename the v1 exporter produces.",
+    "Zone add/remove and Layout-definition routing have no v2 owner; the surface records them as residuals instead of inventing one."
+  ],
+  "partitions": [
+    "contract kind: portable to portable (map, count), portable to installation, installation map/count, already-satisfied no-op",
+    "contract map eligibility: 2D-only list for Portable, every map for Installation, explicit null clear",
+    "Stage map: absent to named, named to another named, named to a workspace-missing id (refused), unchanged",
+    "Zone: rename, duplicate name (refused), blank name (refused), unknown id (refused), nominal pixel count",
+    "Trails: off to on at the default retention, retune, on to off, unchanged",
+    "intent shape: null/empty/array/missing input/extra field, and a command outside the allowlist (remove_clips, set_show_end, rename_show)",
+    "admission currency: record, revision, provider and route replacement",
+    "artifacts: ready bundle, and a blocked delivery with neither action offered",
+    "viewport: desktop 1440 and narrow 390 keyboard traversal"
+  ],
+  "sequences": [
+    "create a Portable Show at 1024 reference pixels through the production flow -> read the summary -> apply an Installation contract with a chosen map and count -> move the Stage map alone -> Fast and Precise Stage capture -> rename a Zone -> Undo -> enable Trails -> reload -> export .pxlshow -> reopen through parseShowFileBundle",
+    "View code -> Back to show -> Download .epe -> reopen through parseEpe -> 390 px keyboard traversal and control-bounds check",
+    "header Download .epe then panel Export .epe on one capture, compared byte for byte apart from the freshly minted program id"
+  ],
+  "oracles": [
+    "Provider readback through GET /api/shows?show-version=2: the stored record's outputContract, stageMapId, zones and outputEffects.",
+    "The exported .pxlshow reopened through parseShowFileBundle and the exported .epe reopened through parseEpe, both in the live page.",
+    "Real store state and history: useShowStore showV2Pilots identity and showV2Histories past length after each admission outcome.",
+    "The real prepared-stage call: prepareShowStageV2 call count and the stageMap dependency it was handed.",
+    "Stage preview frames captured in both Fast and Precise after the Stage map change.",
+    "The registry itself for the residual rows: which commands touch /zones and /zoneLayouts, and the compiler's own refusal for an unrouted Zone."
+  ],
+  "redEvidence": [
+    "src/engine/showV2ShowPropertiesEditorModel.test.ts (13 cases) written against a module that did not exist.",
+    "src/store/showV2ShowMetadataAdmission.test.ts (22 cases) written against admitShowV2PilotShowMetadata before the owner existed.",
+    "src/components/ShowV2ShowPropertiesEditor.test.tsx (9 cases) written against a component that did not exist.",
+    "src/components/ShowEditorV2ShowActions.test.tsx (4 cases) written against a header that did not exist.",
+    "The route spec's keyboard-traversal assertion failed on the added header control before the Show actions were moved after the transport."
+  ],
+  "faults": [
+    "Dropping the unavailable-Stage-map refusal in the prepared-edit dispatch: killed by 'refuses a Stage map this workspace cannot resolve rather than falling back'.",
+    "Dropping the moved-stage re-resolution branch so the candidate prepares against the captured map: killed by 're-resolves a newly named Stage map instead of preparing against the captured one'.",
+    "Widening the Show-metadata command allowlist to set_show_end/rename_show/remove_clips: killed by malformed-intent cases 6, 7 and 8.",
+    "Substituting the first catalogue map for one the workspace cannot see: killed by 'names a map the workspace cannot see as missing rather than substituting one'.",
+    "Dropping the Portable 2D-only contract map filter: killed by 'offers a Portable contract only 2D maps and an Installation contract every map'."
+  ],
+  "residualGaps": [
+    "Adding or removing a Zone has no v2 owner and no command. Counterexample: appending a valid Zone to `zones` is not enough - every Layout definition must route it, or preparation refuses the whole Show with `compileShow routed scene sequence references missing zone \"Spare\"`; removal must additionally carry the Zone's Layers, Clips, Transitions, Group occurrences and Property tracks. Held as assertions in src/engine/showV2ShowSurfaceResiduals.test.ts.",
+    "A Zone Layout definition's routing mode and operator have no v2 owner and no command. `make_layout_interval_unique` is the only command that touches `/zoneLayouts`, and it only appends a clone: no command reaches a definition's `logical` field, so an agent cannot change a routing mode either.",
+    "Zone LED range selection on the Stage (`ShowZoneSpatialSelector`) stays v1-only for the same reason: it writes a Layout definition's per-Zone physical ranges, which no v2 owner writes.",
+    "The output contract's pixel count is clamped by `createPortableShowOutputContract`/`createInstallationShowOutputContract` as it always has been; the surface bounds its field at MAX_PORTABLE_PREVIEW_PIXELS and reports the value the record kept, but does not warn that a request was clamped.",
+    "Trails retention is authored as a percentage field; the compiled-artifact rejection notice the v1 panel shows when another cache owns the frame arena has no counterpart here.",
+    "Final authoritative committed-tip suites and the cross-family review belong to the coordinator."
+  ],
+  "results": {
+    "focused": "npx vitest run on the five new/changed files: 51 tests passed (13 model, 22 admission, 9 Show properties component, 4 header actions, 3 residual inventory).",
+    "static": "npm run lint and npx tsc -b --pretty false passed.",
+    "staged": "npm run test:staged passed.",
+    "parity": "npm run show:v2-parity reproduced the pinned 47-record report unchanged.",
+    "browser": "npx tsx scripts/run-authenticated-playwright.ts e2e/show-editor-v2-show-properties.auth.spec.ts: 2 passed, zero page errors, Fast and Precise Stage captures after the Stage map change, zero control overflow at 390 px.",
+    "uiProof": ".wrsp/ui-proof/1039-show-properties.json at desktop and 390 px, captured on the committed UI tip through repository Playwright."
+  }
+}

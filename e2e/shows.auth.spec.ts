@@ -1472,9 +1472,13 @@ test.describe('authenticated Show authoring', () => {
     })
     // The creation flow itself is version-agnostic and now produces a v2
     // record; `show-editor-v2-route.auth.spec.ts` covers it choosing this same
-    // contract. What follows - the output summary, Show properties, the Zone
-    // Map and a Zone Layout's routing mode - are v1 editor surfaces the v2
-    // route has no counterpart for, so this seeds the v1 row they belong to.
+    // contract. What follows is the v1 editor's own shape of these surfaces:
+    // its output summary, Show properties panel, Zone Map and Zone Layout
+    // routing mode, so this seeds the v1 row they belong to. The v2 route has
+    // its own counterparts for the contract, the Stage map, Zone renaming and
+    // Trails in `show-editor-v2-show-properties.auth.spec.ts`; adding a Zone
+    // and a Layout definition's routing mode remain v1-only, because no v2
+    // owner writes them.
     const portable = createShowWithOutputContract(
       `v1-portable-${randomUUID()}`,
       'Touring field',

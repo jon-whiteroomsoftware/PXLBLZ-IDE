@@ -11,6 +11,16 @@ presentation. Original record/dependency references identify the capture only;
 playback never rereads them as semantic data. Preparation produces ready, a
 structurally validated empty result without runtime, or an actual refusal.
 
+The Stage map a record names is resolved once, by
+[`showV2StageMap.ts`](../../../src/store/showV2StageMap.ts), for the route's
+capture and for both admissions. Since #1039 gave the editor a Stage map
+chooser, an accepted edit can move `stageMapId` from inside this route as well
+as from an agent's candidate: both admissions re-resolve the newly named map
+before preparing the candidate, and refuse a map that is gone, empty or at a
+dimension the Stage does not support. Recovery is refusal and an unchanged
+record, never preparation against another map's geometry, so the preview and the
+compiled artifact always describe the map the Show names.
+
 `ShowStagePreview` accepts an explicit `prepared-v2` discriminated input. Its
 Show identity, artifact, layout and duration come from that bundle atomically.
 It reuses the existing renderer, replay, transport, seek, checkpoints, prewarm,

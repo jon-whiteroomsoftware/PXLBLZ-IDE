@@ -918,11 +918,13 @@ a version-2 document opens on the v2 editor, and a row still stored as version
 previous editor, its previous command vocabulary and its previous behavior
 until the operator conversion below rewrites it. `?show-v2-editor=1` remains a
 development-only preview of an unconverted row, which converts in memory and
-writes nothing; a production build ignores it. The v2 editor has no counterpart
-yet for the previous editor's output-contract summary and Show properties,
-Stage map selection, Zone Map, Zone Layout definition routing mode or Show
-Trails; see
-[the editor contract](contracts/show-editor-v2.md#surfaces-the-v1-editor-has-and-this-route-does-not).
+writes nothing; a production build ignores it. The v2 editor's Show inspector
+now carries the output-contract summary and Show properties, Stage map
+selection, Zone renaming and Show Trails, and its header carries View code and
+Download .epe; adding or removing a Zone, a Zone Layout definition's routing
+mode and an Installation Zone's LED ranges have no v2 owner yet and so no
+surface on either the editor or the command path. See
+[the editor contract](contracts/show-editor-v2.md#show-properties).
 
 **Row conversion.** Personal rows move to v2 through an explicit operator pass,
 never through a read. `scripts/show-v2-migrate.ts` drives the landed owner over

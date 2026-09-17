@@ -239,8 +239,8 @@ test('a v2 Show exports a file the Show list re-imports as its own record', asyn
 test('the production creation flow stores the chosen output contract on the v2 record', async ({ page }) => {
   // The flow is version-agnostic, and since the flip it writes a version-2
   // document. What it chose has to survive on that record and across a reload.
-  // Reading or changing the contract afterwards is a v1 editor surface with no
-  // v2 counterpart yet; see the editor contract's absent-surface list.
+  // Reading and changing the contract afterwards is
+  // `show-editor-v2-show-properties.auth.spec.ts`.
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('studio/shows')
   const addShow = page.getByRole('button', { name: 'Add show' })
