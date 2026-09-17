@@ -1,13 +1,15 @@
 # Show editor on v2
 
 Canonical authority is [the Scene-retirement specification](../../plans/scene-retirement-specification.md)
-§3 (record and identity), §5 (Cut as absence and whole-output scope), §8 (Layers,
-Layout occurrences, Markers, Show End) and §10 (no mixed window), and issue
-#1056. This describes what is landed after slices 1-3: one version-agnostic
-timeline view model, both projections into it, the v1 container consuming it, a
-v2 rendering on the ordinary route whose ordinary Clips are directly manipulable
-through the landed v2 owners, and the Clip inspector beside it. The Transition
-palette, Layout lane and property lanes are not landed.
+§3 (record and identity), §5 (Transition edit contract, Cut as absence and
+whole-output scope), §8 (Layers, Layout occurrences, Markers, Show End), §9
+(pure edit and adoption boundary) and §10 (no mixed window), and issue #1056.
+This describes what is landed after slices 1-4: one version-agnostic timeline
+view model, both projections into it, the v1 container consuming it, a v2
+rendering on the ordinary route whose ordinary Clips are directly manipulable
+through the landed v2 owners, the Clip inspector beside it, and Transition
+authoring plus the Zone Layout lane's own operations beneath it. Property lanes,
+animation and Marker editing on a v2 record are not landed.
 
 ## The view model
 
@@ -55,8 +57,8 @@ populates:
 | Sidecar | Holds | Owed to |
 | --- | --- | --- |
 | `items[].legacy` | `sceneId`, `startSceneId`, `endSceneId`, placement kind and ids, `logicalClipId`, `segmentIds`, `localStartMs` | the v1 container's own gesture code |
-| `junctions[].legacy.boundaryTransitionId` | the stored v1 Cut record a derived junction resolves through | slice 4 (Transition authoring) |
-| `layoutIntervals[].legacy.sceneIds` | the internal Scene owners of a v1 occurrence | slice 4 (Layout lane) |
+| `junctions[].legacy.boundaryTransitionId` | the stored v1 Cut record a derived junction resolves through | the v1 container only; the v2 authoring path reads neither sidecar |
+| `layoutIntervals[].legacy.sceneIds` | the internal Scene owners of a v1 occurrence | the v1 container only |
 
 Adding Scenes to the view model instead of a sidecar is prohibited.
 
@@ -103,8 +105,11 @@ explained v1 rendering change.
 
 These v1 seams are unchanged and are slice obligations, not view-model gaps:
 
-- the per-Scene CSS grid template, the Layout lane's `sceneIds` addressing and
-  `showRoutingTransitionAfter`, and the sample-repeat lane (slice 4);
+- the per-Scene CSS grid template, the v1 Layout lane's `sceneIds` addressing,
+  `showRoutingTransitionAfter`, `showBoundaryClipIdentity` and the sample-repeat
+  lane. The v2 path replaces none of them in place: it addresses Layout
+  occurrences and boundaries by the view model's own identities instead, so
+  those v1 branches keep serving the v1 record until #1042 retires it;
 - the per-Clip gesture code, which still consumes
   `ShowUnifiedTimelineClipProjection` and the store's v1 mutators; the v2 surface
   never touches it, and the v1 route behaves exactly as before;
@@ -130,14 +135,19 @@ the existing `openShowV2Pilot` store path, captures it with
 | `ShowTimelineGestureSurface` | the capture prepares (`ready` or `empty`) | the lanes below plus direct manipulation of ordinary Clips |
 | `ShowTimelineReadOnlySurface` | the capture is `refused` | the lanes below, every item a focusable `aria-disabled` element |
 
-A refused capture is read-only because the closed admission refuses every edit
-on it with `unsupported-pilot-record`; drawing controls that cannot act would
-misstate the record's condition. Both surfaces draw the ruler, the Zone Layouts
-lane and the Marker lane from
+`ShowEditorV2TransitionLayoutPanel` mounts beneath whichever surface renders, on
+the same capture, so Transition and Layout authoring is offered wherever the
+timeline is. A refused capture is read-only because the closed admission refuses
+every edit on it with `unsupported-pilot-record`; drawing controls that cannot
+act would misstate the record's condition, so the panel's own controls refuse
+for the same reason. Both surfaces draw the ruler, the Zone Layouts lane and the
+Marker lane from
 [`ShowTimelineLanes.tsx`](../../../src/components/ShowTimelineLanes.tsx), whose
-items stay inert until slices 4-5 own them, and both state their condition in
-one status line. Neither surface registers an agent binding, so no command can
-reach a v2 record and §10's forbidden mixed window stays closed.
+items stay inert - slice 4 authors Layout occurrences and Transitions from the
+panel below rather than from the lanes themselves, and Marker editing is slice
+5 - and both state their condition in one status line. Neither surface registers
+an agent binding, so no command can reach a v2 record and §10's forbidden mixed
+window stays closed.
 
 `?show-v2-pilot=1` still renders `ShowV2RoutePilot` and takes precedence. Without
 either flag the ordinary editor renders a v1 record exactly as before. The route's
@@ -145,10 +155,12 @@ missing-Show guard stands aside for both opt-ins, because a converted row leaves
 the v1 list until #1039 couples them.
 
 The route lays the workspace and the Clip inspector side by side above 1024 px
-and stacks them below it. Both read the one prepared capture
+and stacks them below it. All three editable surfaces read the one prepared
+capture
 [`useShowV2EditCapture`](../../../src/components/useShowV2EditCapture.ts) owns:
-the timeline gestures and the inspector plan against the same captured record,
-dependencies and provider, so one stale-edit predicate governs both.
+the timeline gestures, the Transition and Layout panel and the inspector plan
+against the same captured record, dependencies and provider, so one stale-edit
+predicate governs all of them.
 
 The component and its file keep slice 1's `ShowEditorV2ReadOnly` name until
 slice 6 retires the opt-in and renames the route surface; renaming it earlier
@@ -280,12 +292,89 @@ Rules the inspector holds to:
   omitted (`steppedClockEditable={false}`) because no v2 owner edits a Pattern
   instance clock.
 
+## Transition authoring and the Zone Layout lane
+
+[`ShowEditorV2TransitionLayoutPanel`](../../../src/components/ShowEditorV2TransitionLayoutPanel.tsx)
+authors what the Clip gesture seam does not: Transitions at the boundaries the
+view model drew, and the Zone Layout occurrences beneath them. It reads the same
+view model and the same capture as the timeline and the inspector,
+plans one explicit intent per action with a pure editor model, and submits it
+through the closed admission in `src/store/showV2PreparedEditAdmission.ts`. It
+writes no record itself, allocates identity only through the caller-supplied
+generator, and reports an owner's refusal verbatim.
+
+### Boundaries
+
+`showV2BoundaryOptions(view)` lists every drawn junction in timeline order and
+addresses it by `showTimelineSelectionKey`. A `derived-cut` junction also carries
+the junction key `showV2TransitionJunctionKey` builds - the boundary time, Zone,
+Layer and the two Clip identities - which is exactly the key
+`planShowV2TransitionEdit` resolves. A key that names no exact adjacency finds no
+junction and refuses; storage equality has no tolerance.
+
+| Selection | Offer | Owner |
+| --- | --- | --- |
+| derived Cut | Insert: kind and variant from the full catalogue, duration in seconds | `planShowV2TransitionEdit` `insert` through `admitShowV2PilotTransitionEdit` |
+| Transition | Change kind, crossfade policy, every catalogue parameter but duration | `planShowV2TransitionEdit` `settings` / `parameter`, same admission |
+| Transition | Duration | `admitShowV2PilotTransitionResize`, which applies the delta once to the incoming and downstream affected set |
+| Transition | Reset to Cut | `planShowV2TransitionEdit` `reset`, which plans the landed ramp projections when the Transition carries any |
+
+The palette is the v1 `ShowLayerTransitionPalette` with its new `fullCatalogue`
+opt-in: the v1 Layer palette withholds Fade and Motion, while the v2 owner
+decides their eligibility itself and returns RL08 in its own words, so the v2
+surface offers them and shows the refusal. Parameters are the v1
+`ShowTransitionParameters`, now typed against `ShowTransitionSettingsCarrier` so
+one control set reads a v1 boundary record or a `ShowTransitionV2`; `durationMs`
+is omitted there because the resize owner holds it. The selected Transition's
+X-ray is the v1 `ShowTransitionXrayPictogram`, widened the same way.
+
+A whole-output Transition from conversion is selectable and editable by its own
+identity - kind, parameters, duration and Reset - and the panel never creates
+one: Insert offers only the derived Cut junctions the view model drew.
+
+### The Zone Layout lane
+
+`buildShowV2LayoutEditorModel` adds `previousOccurrenceId`, `splitCapable`,
+`splitPosition` and `incomingTransfer` to the pilot's occurrence rows, and
+`planShowV2LayoutEdit` gained three requests beyond the pilot's four. Every
+request names no identity; the planner allocates exactly what the owner requires
+and refuses a blank, duplicate or already-owned one.
+
+| Action | Intent | Identity the planner allocates |
+| --- | --- | --- |
+| Layout | `select-layout` | none |
+| Switch | `move` | none |
+| Split position | `set-parameters` | none, and it is offered only where the definition partitions the Stage |
+| Make Layout Unique | `make-unique` | one Layout definition id |
+| Duplicate | `duplicate` with a content plan | one occurrence id plus one per identity `showLayoutDuplicateSourceIdsV2` enumerates |
+| Remove | `remove` | none; the predecessor extends |
+| Transfer | `set-transfer` | one transfer id, or `null` to clear; a zero duration clears |
+
+`admitShowV2PilotLayoutOccurrenceEdit` accepts those three further intents with
+the same exact-field validation, so a malformed duplicate plan, an unknown
+transfer direction or a foreign `set-show-end` still refuses with `invalid-intent`
+and zero writes. The owner keeps its own protections: a switch move that would
+crop an owned split-position track refuses `owned-track-out-of-bounds`, removing
+an occurrence with a meaningful transfer or track refuses
+`meaningful-occurrence-data`, and a content duplicate whose interval is crossed
+refuses `boundary-crossing-content`.
+
+### History and the capture
+
+The panel renders no history control of its own: slice 2's timeline above owns
+Undo and Redo over `showV2Histories`, and one admitted Transition or Layout edit
+leaves exactly one entry there for it to undo. `useShowV2EditCapture` builds the
+one prepared-edit capture the route submits and answers the two staleness
+questions every adapter must ask before it reports an outcome, so a refusal, a
+superseded save and a save failure each reach the right surface or none.
+
 ## What remains
 
-Slices 4, 5 and 6 of #1056 own Transition and Layout authoring, animation and
-Markers, and the remaining route content, after which `?show-v2-pilot=1` and
-`?show-v2-editor=1` both retire. Until then a v2 record on the ordinary route can
-be read, previewed, traversed, dragged in its Clip timing, sharing and deletion,
-and edited through the Clip inspector; the store mutators, executor, admission
-and MCP surfaces remain v1-typed. Editing a Clip's entry policy on this route
-needs an owner decision that slice 3 deliberately did not take.
+Slices 5 and 6 of #1056 own animation and Markers and the remaining route
+content, after which `?show-v2-pilot=1` and `?show-v2-editor=1` both retire.
+Until then a v2 record on the ordinary route can be read, previewed, traversed,
+dragged in its Clip timing, sharing and deletion, edited through the Clip
+inspector, and edited through its Transitions and Zone Layout lane; property
+edits stay on the pilot panels, and the store mutators, executor, command
+admission and MCP surfaces remain v1-typed. Editing a Clip's entry policy on
+this route needs an owner decision that slice 3 deliberately did not take.

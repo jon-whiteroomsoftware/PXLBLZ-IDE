@@ -1,0 +1,79 @@
+{
+ "issue": 1056,
+ "scope": "slice 4: Transition authoring and the Zone Layout lane on the ordinary v2 editor route",
+ "specification": {
+  "path": "docs/plans/scene-retirement-specification.md",
+  "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+  "proofRows": [
+   "TRANSITION",
+   "LAYOUT-END",
+   "V2-EDIT-LAYOUT-TRANSITION",
+   "ROUTE",
+   "FAILURE"
+  ]
+ },
+ "base": "8f5295f4d849d8edb5b5af62d946cfcb17ab5d6f",
+ "invariants": [
+  "A Cut is the absence of a Transition at exact adjacency; the surface selects a derived junction by the view model's own identity and persists no Cut. A key naming no exact adjacency refuses.",
+  "Insert offers only derived Cut junctions: a whole-output Transition from conversion is editable by identity and is never created on this route.",
+  "A duration change reaches the resize owner, which applies its delta once to the incoming and downstream affected set; a settings or parameter edit moves no Clip and keeps identity, endpoints and window.",
+  "Every mutation is one explicit intent planned by a pure editor model and submitted through the closed prepared-edit admission; the panel writes no record and allocates identity only through the caller's generator.",
+  "A refusal returns the original record identity with empty affected collections, no history entry and no provider write; the owner's own message reaches the author verbatim, RL08 to RL10 included.",
+  "The Zone Layout lane edits only occurrence coverage, routing parameters and the incoming transfer; Clips, Markers, Property tracks and Pattern instances stay exact unless the owner reports them affected.",
+  "Identity is never allocated inside a pure owner: a duplicate names one fresh id per identity the owner enumerates, and a blank, duplicate or already-owned id refuses before the owner sees it."
+ ],
+ "partitions": [
+  "boundary Layer: Main Layer, overlay Layer, second Zone under a split Layout",
+  "Transition kind: crossfade, fade-color, wipe, dither, portal, motion",
+  "crossfade policy: live-live and snapshot-live, through Insert and through a settings edit",
+  "topology: single boundary, converging chain of two Transitions, boundary coincident with a Layout switch",
+  "Transition ramps: none and a global scalar carrier projected on Reset",
+  "Layout operation: select-layout, move, make-unique, duplicate (content and empty), remove, set-parameters, set-transfer set and clear",
+  "Layout definition: shared by two occurrences and sole, split-capable and single-surface",
+  "refusal: RL08 compiler restriction, owned split-position track out of bounds, meaningful transfer on removal, Show End protection, boundary-crossing content duplicate, malformed intent at admission",
+  "route: desktop 1440 and narrow 390, Fast and Precise Stage capture, page reload"
+ ],
+ "sequences": [
+  "select derived Cut -> Insert refused (RL08) -> Insert crossfade -> change kind -> resize -> Undo -> Redo -> Reset to Cut",
+  "select occurrence -> Make Layout Unique -> assign another definition -> move switch -> duplicate -> Undo -> set transfer -> clear transfer -> remove -> Undo",
+  "insert -> resize -> Reset to Cut -> reopen the exported .epe in Fast and in Precise",
+  "moved switch crossing an owned split-position track -> refusal -> record identity unchanged"
+ ],
+ "oracles": [
+  "The planned intent the closed admission would submit, compared with the pilot editor model's intent for the same parameters.",
+  "The record the landed owner returns: exact Clip start times, Transition identity/kind/duration/participants, Layout coverage, transfer and definition rows.",
+  "The real store and closed admission through the panel: provider write count, one history entry per adopted edit, and the adopted record.",
+  "The reopened .epe through its importer, replayed with createFastReplayRuntime in fast and fidelity at named times; a Reset restores the original frames exactly.",
+  "The authenticated route: persisted bytes read back from the provider after each visible action, Fast and Precise Stage captures, reload, 390 px bounds and zero console errors.",
+  "Committed browser proof of the route at the candidate commit."
+ ],
+ "redEvidence": [
+  "src/engine/showV2LayoutLaneEditorModel.test.ts: 3 of 5 cases failed before the extended planner landed (duplicate, set-transfer and set-parameters requests did not exist).",
+  "src/engine/showV2TransitionLaneEditorModel.test.ts: every case failed on the missing showV2TransitionJunctionKey export and the missing parameter request.",
+  "src/components/ShowEditorV2TransitionLayoutPanel.test.tsx: all 8 cases failed before the panel existed.",
+  "src/store/showV2LayoutLaneAdmission.test.ts: the four admitted requests refused as invalid-intent before the admission validator accepted them."
+ ],
+ "faults": [
+  "Resize delta applied twice (showTransitionsV2.ts deltaMs multiplied by 2): killed by 'applies a resize delta once along a converging chain', both artifact reopen cases and the panel's resize case - 4 failures. Restored.",
+  "Switch move cropping an owned track silently (layoutTrackOutsideOwner result forced to null): killed by 'protects an owned split-position track when the switch moves' and the panel's 'surfaces the owner refusal when a moved switch would crop an owned track' - 2 failures. Restored.",
+  "Insert at a non-junction accepted (unknown junction key falling back to the first junction): killed by 'refuses unknown junctions, unknown kinds, unusable durations and conflicting identity' - 1 failure. Restored."
+ ],
+ "results": [
+  "npm run lint: passed.",
+  "npx tsc -b --pretty false: passed with no output.",
+  "npx vitest run of the five owned test files plus the adjacent pilot editor, route, fingerprint, authoring and pictogram suites: passed.",
+  "npm run test:staged: recorded in the handoff.",
+  "npm run show:v2-parity: 47 records, report hash unchanged.",
+  "npx tsx scripts/run-authenticated-playwright.ts e2e/show-editor-v2-transitions-layout.auth.spec.ts: 1 passed.",
+  "npx tsx scripts/run-authenticated-playwright.ts e2e/show-editor-v2-readonly.auth.spec.ts e2e/show-v2-transitions.auth.spec.ts e2e/show-v2-layout-occurrences.auth.spec.ts e2e/show-v2-transition-resize.auth.spec.ts: 4 passed, unchanged.",
+  "npm run check:ui-proof: recorded in the handoff."
+ ],
+ "residualGaps": [
+  "Clip gestures, the Clip inspector and property lanes on the v2 route remain read-only; slices 2, 3 and 5 own them.",
+  "Undo and Redo live in this panel until slice 6 gives the v2 route its own timeline toolbar; the v2 route still has no reload, export or artifact-reopen control.",
+  "The v1 container's showRoutingTransitionAfter and showBoundaryClipIdentity branches still serve the v1 record; the v2 path replaces them by addressing the view model's identities rather than editing those branches, and #1042 retires them.",
+  "Leading and trailing connected resize, connected move and Delete Clip remain gesture-seam operations (slice 2); this panel exposes only the Transition's own duration.",
+  "Property ramp projection on Reset is planned and admitted but is proved here only through the landed owner's plan; a converted record that carries a ramp is covered by the #1035 and #1037 suites.",
+  "The Transition palette shows no Stage preview of a candidate kind, because the v1 preview path replaces a v1 record; the v2 route previews the adopted record instead."
+ ]
+}
