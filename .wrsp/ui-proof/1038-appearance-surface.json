@@ -2,7 +2,7 @@
   "version": 1,
   "issue": "1038",
   "route": "/PXLBLZ-IDE/studio/shows/appearance-surface-proof?show-v2-pilot=1",
-  "operation": "Driven with repository Playwright against a managed authenticated runtime serving this worktree, as the synthetic Playwright user; the Codex in-app browser is not available to this worker. On the v2 pilot route I selected the Appearance Voice Clip, applied one whole-Clip patch across the new Transform, Aperture, Presentation and Blink fields, cleared the Aperture feather through the Clear component control, then selected the hue Effect and removed it with Remove Effect, which also removed its Clip-owned Property track in the saved v2 document. Captures: the Transform/Aperture fields with applied values and Mixed opacity, the Presentation/Blink fields with the Clear component control, the Effect section with Duplicate/Remove Effect enabled, the Effect section after removal, and the 390px narrow view with the Aperture shape select focused.",
+  "operation": "Driven with repository Playwright against a managed authenticated runtime serving this worktree, as the synthetic Playwright user; the Codex in-app browser is not available to this worker. On the v2 pilot route I selected the Appearance Voice Clip, applied one whole-Clip patch across the new Transform, Aperture, Presentation and Blink fields, cleared the Aperture feather through the Clear component control, then selected the hue Effect and removed it with Remove Effect, which also removed its Clip-owned Property track in the saved v2 document. Captures: the Transform/Aperture fields with applied values and Mixed opacity, the Presentation/Blink fields with the Clear component control, the Effect section with Duplicate/Remove Effect enabled, the Effect section after removal, and the 390px narrow view with the Aperture shape select focused. This record is a refresh of that same operation at the rebased base, re-driven and re-captured through repository Playwright (Chromium) as the synthetic authenticated user; no product source, test, contract or evidence file changed.",
   "captures": [
     ".wrsp/ui-proof/1038-appearance-surface-components.png",
     ".wrsp/ui-proof/1038-appearance-surface-clear.png",
@@ -10,5 +10,5 @@
     ".wrsp/ui-proof/1038-appearance-surface-removal.png",
     ".wrsp/ui-proof/1038-appearance-surface-narrow.png"
   ],
-  "capturedAtCommit": "46ecf7caf6ff52fb231c32472e07dbf57327c6cc"
+  "capturedAtCommit": "a82bed652297922d5d0322965b10d6363b639adf"
 }
