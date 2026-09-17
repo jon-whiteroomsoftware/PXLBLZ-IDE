@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "1056",
+  "route": "/PXLBLZ-IDE/studio/shows/show-editor-v2-animation?show-v2-editor=1",
+  "operation": "Seeded the committed slice-5 ShowRecordV2 through PUT /api/shows/:id?show-version=2 and opened it on the ordinary Show editor route behind the version gate. Desktop 1440x1000: the read-only status line naming the panel that edits, the ruler, the two Layout occurrences, the Opening Marker with End 30.00s, the Zone row with its three Layer lanes, the 'Voice sliderGain' Property lane drawing its authored curve with a 0.20-1.00 range, and the 'Verse Voice' Group occurrence band with its local child; beside them the Clip inspector showing the selected Clip's Entry policy Continue, the On entry control, exact timing, 'Shared by 4 Clips', the Stutter Pattern clock row and the Pattern instance values. The instance-values capture scrolls to that section: 'These values affect all 4 Clip uses of this Pattern instance.', Animation speed, Evaluation, the declared sliderGain, and all four effective uses listed including both Group occurrence uses. The insert-hold capture is after Insert Time of 3000 ms at 5000 ms: Show End reads 33000, the status reads 'Insert Time saved.', the first Group band has widened by the hold while the Clips after the insertion have moved, and the held-appearance key lanes are drawn. The show-end-refusal capture is the next operation, shortening Show End to 15000: the field still reads 33000, no write was made, and the status reads 'Clip contribution \"reprise\" ends at 23000 ms.' The narrow capture is 390x844 after scrolling the side panel with the mouse wheel only - no programmatic scrollTop - reaching its last controls, the Marker Role select and the same refusal status line, with the timeline, Property lane and appearance lane stacked above and no horizontal overflow. Driven with repository Playwright through scripts/run-authenticated-playwright.ts as the synthetic authenticated user; the Codex in-app browser is not available to this agent.",
+  "captures": [
+    ".wrsp/ui-proof/1056-s5-desktop.png",
+    ".wrsp/ui-proof/1056-s5-instance-values.png",
+    ".wrsp/ui-proof/1056-s5-insert-hold.png",
+    ".wrsp/ui-proof/1056-s5-show-end-refusal.png",
+    ".wrsp/ui-proof/1056-s5-narrow.png"
+  ],
+  "capturedAtCommit": "debfd1673499e95433825a466b0ed3040d2dc69b"
+}
