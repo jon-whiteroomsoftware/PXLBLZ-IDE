@@ -320,9 +320,7 @@ describe('App smoke test', () => {
         entity: { kind: 'shows', id: sourceB.id },
       })
     })
-    // Since the flip a routed row with a stored v2 document clears the v1
-    // selection (#1039), so the route, not the v1 store, is what must hold B.
-    expect(useRouterStore.getState().route).toEqual({ kind: 'studio', entity: { kind: 'shows', id: sourceB.id } })
+    expect(useShowStore.getState().activeShowId).toBe(sourceB.id)
     await waitFor(() => expect(useShowStore.getState().showV2Pilots[sourceB.id]?.name).toBe(sourceB.name))
 
     delayedA.resolve([structuredClone(convertedA.record), structuredClone(convertedB.record)])

@@ -217,6 +217,13 @@ interface ShowState {
   beginShowCreation: () => void
   cancelShowCreation: () => void
   openShow: (id: string | null) => Promise<void>
+  /**
+   * Drop the v1 selection without touching a session another editor holds.
+   * The routed v2 editor and the v1 store share one edit session slot, so
+   * `openShow(null)` would retire the v2 route's session; this retires only
+   * a session that belongs to the row being deselected (#1039).
+   */
+  clearActiveShowSelection: () => void
   addShow: (record: ShowRecord) => Promise<void>
   addImportedShow: (record: ShowRecord) => Promise<void>
   renameShow: (id: string, name: string) => Promise<void>
@@ -852,6 +859,13 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     const creation = get().showCreation
     if (!creation) return
     set({ activeShowId: creation.previousShowId, showCreation: null })
+  },
+
+  clearActiveShowSelection: () => {
+    const previous = get().activeShowId
+    if (previous === null) return
+    if (editSession && editSession.showId === previous) get().retireShowEditSession(editSession.sessionId)
+    set({ activeShowId: null, showCreation: null })
   },
 
   openShow: async (id) => {

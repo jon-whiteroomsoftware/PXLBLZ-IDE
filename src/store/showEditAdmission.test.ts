@@ -496,3 +496,38 @@ it.each([
   expect(snapshot()).toEqual(before)
   expect(provider.updateShow).not.toHaveBeenCalled()
 })
+
+describe('clearActiveShowSelection (#1039)', () => {
+  it('drops another row\'s v1 selection while the routed Show\'s session stays live', () => {
+    const v1Row = createDefaultShow('v1-row', 'Still v1')
+    const routed = createDefaultShow('routed-v2', 'Routed v2')
+    providerFor(v1Row)
+    useShowStore.setState({ shows: [v1Row, routed], showsLoaded: true, activeShowId: v1Row.id })
+    const session = state().beginShowEditSession(routed.id)
+
+    state().clearActiveShowSelection()
+
+    expect(state().activeShowId).toBeNull()
+    expect(state().beginShowEdit(session, intent()).status).toBe('pending')
+  })
+
+  it('retires the deselected row\'s own session', () => {
+    const v1Row = createDefaultShow('v1-row', 'Still v1')
+    providerFor(v1Row)
+    useShowStore.setState({ shows: [v1Row], showsLoaded: true, activeShowId: v1Row.id })
+    const session = state().beginShowEditSession(v1Row.id)
+
+    state().clearActiveShowSelection()
+
+    expect(state().activeShowId).toBeNull()
+    expect(state().beginShowEdit(session, intent()).status).toBe('retired')
+  })
+
+  it('is a no-op without a selection', () => {
+    const routed = createDefaultShow('routed-v2', 'Routed v2')
+    useShowStore.setState({ shows: [routed], showsLoaded: true, activeShowId: null })
+    const session = state().beginShowEditSession(routed.id)
+    state().clearActiveShowSelection()
+    expect(state().beginShowEdit(session, intent()).status).toBe('pending')
+  })
+})

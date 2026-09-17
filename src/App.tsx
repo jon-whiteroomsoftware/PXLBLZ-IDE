@@ -404,6 +404,7 @@ function StudioApp() {
   const showV2Pilots = useShowStore((s) => s.showV2Pilots)
   const showV2Rows = useShowStore((s) => s.showV2Rows)
   const openShow = useShowStore((s) => s.openShow)
+  const clearActiveShowSelection = useShowStore((s) => s.clearActiveShowSelection)
   // Which editor holds one routed Show (#1039). A stored version-2 document
   // opens on the v2 route; a row still stored as v1 - and every built-in Show,
   // which has no stored document at all - keeps the v1 editor until the
@@ -622,14 +623,17 @@ function StudioApp() {
       }
     } else if (currentRoute.kind === 'studio' && currentRoute.entity !== null && currentRoute.entity.kind === 'shows' && currentRoute.entity.id !== null) {
       const entityId = currentRoute.entity.id
-      if (stockShowById(entityId) || routedShowOpensOnV2(entityId)) {
-        // A built-in Show and a stored v2 row are both held outside the v1
-        // Show store; leaving a v1 row active would keep the rail on it and let
-        // the URL sync steer back to it (#1039).
+      if (stockShowById(entityId)) {
         if (activeShowId !== null) void openShow(null)
+      } else if (routedShowOpensOnV2(entityId)) {
+        // A stored v2 row is held outside the v1 Show store; leaving another
+        // v1 row active would keep the rail on it and let the URL sync steer
+        // back to it (#1039). A row stored both ways keeps its own id, and the
+        // v2 route's edit session is never retired from here.
+        if (activeShowId !== null && activeShowId !== entityId) clearActiveShowSelection()
       } else if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, routedShowOpensOnV2, activeShowId, activeLibraryName, userPatterns, openShow])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, routedShowOpensOnV2, activeShowId, activeLibraryName, userPatterns, openShow, clearActiveShowSelection])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
