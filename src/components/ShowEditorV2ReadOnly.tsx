@@ -67,14 +67,23 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
     )
   }
 
-  // Reserve the height the timeline column actually draws. The authoring panel
-  // takes a fraction of that column rather than a fixed strip, so the column
-  // has to be large enough for the timeline surface to keep its own lanes in
-  // what is left: a Clip lane the panel covers is neither visible nor
-  // droppable.
-  const surfaceHeight = READ_ONLY_LANES_PX + view.rows.reduce((height, row) => (
-    height + ZONE_HEADER_PX + row.layers.length * LAYER_LANE_PX
-  ), 0)
+  // Reserve the height the timeline column actually draws - the timeline
+  // surface and the animation lanes beneath it. The authoring panel takes a
+  // fraction of that column rather than a fixed strip, so the column has to be
+  // large enough for both to keep their own height in what is left: a Clip lane
+  // the panel covers is neither visible nor droppable, and squeezed lanes hide
+  // the Property curves and Group bands outright.
+  const surfaceHeight = READ_ONLY_LANES_PX
+    + view.rows.reduce((height, row) => (
+      height + ZONE_HEADER_PX + row.layers.length * LAYER_LANE_PX
+    ), 0)
+    + (view.propertyTracks?.length ?? 0) * PROPERTY_LANE_PX
+    + view.rows.reduce((height, row) => (
+      height
+      + row.groups.length * GROUP_LANE_PX
+      + row.layers.reduce((keys, layer) => keys + layer.items
+        .filter((item) => (item.appearanceKeys?.length ?? 0) > 1).length, 0) * APPEARANCE_LANE_PX
+    ), 0)
   const contentHeight = Math.ceil(surfaceHeight / (1 - AUTHORING_PANEL_MAX_FRACTION))
 
   return (
@@ -86,7 +95,10 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
           timelineContentHeight={contentHeight}
           timelineRequiredHeight={contentHeight}
           timeline={(
-            <div className="flex h-full min-h-0 flex-col">
+            <div
+              data-testid="show-editor-v2-timeline-column"
+              className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden"
+            >
               {prepared?.status === 'refused' ? (
                 <ShowTimelineReadOnlySurface
                   view={view}
@@ -145,5 +157,9 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
 const READ_ONLY_LANES_PX = 30 + 28 + 20 + 20 + 8
 const ZONE_HEADER_PX = 27
 const LAYER_LANE_PX = 36
+/** One Property lane, one held-appearance lane and one Group occurrence band. */
+const PROPERTY_LANE_PX = 33
+const APPEARANCE_LANE_PX = 25
+const GROUP_LANE_PX = 32
 /** Matches `max-h-[55%]` on `ShowEditorV2TransitionLayoutPanel`'s own section. */
 const AUTHORING_PANEL_MAX_FRACTION = 0.55
