@@ -1,8 +1,13 @@
 // Provenance: pxlblz-v3 test/support/grammarHarness.ts at 9ecd481f, re-authored
 // onto the version-2 catalogue for #1039 (see src/agent-harness/PROVENANCE.md).
 // Shared harness for the grammar registry tests: the accepted/refused invariants
-// asserted on every case, plus a recorder the touch-path faithfulness test
-// replays golden runs through.
+// asserted on every case.
+//
+// The golden-run recorder that used to live here fed `support/grammarGoldens.ts`
+// and the v1 touch-path faithfulness test, which proved the harness's own
+// operation implementations declared what they wrote. The harness no longer has
+// its own implementations - it registers the production catalogue, whose touch
+// paths are its own - so the recorder went with that suite.
 import { expect } from 'vitest'
 import { validateShowRecordV2 } from '@/engine/showCompositionV2'
 import type { ShowPropertyTrackV2 } from '@/engine/showCompositionV2'
@@ -13,26 +18,6 @@ import {
 import { projectClipListing } from '../../grammar/openShow.js'
 import { trackSites } from '../../grammar/support.js'
 import { openGrammarFixture, type GrammarFixtureOptions } from './grammarFixture.js'
-
-export interface AppliedRecord {
-  op: string
-  before: unknown
-  after: unknown
-}
-
-/** Populated by applyOk while recording is on (the faithfulness test). */
-export const APPLIED_RECORDS: AppliedRecord[] = []
-let recording = false
-
-export function withRecording<T>(run: () => T): T {
-  APPLIED_RECORDS.length = 0
-  recording = true
-  try {
-    return run()
-  } finally {
-    recording = false
-  }
-}
 
 export function fixture(options: GrammarFixtureOptions = {}): ShowGrammarDocument {
   return openGrammarFixture(options).document
@@ -50,7 +35,6 @@ export function applyOk(document: ShowGrammarDocument, name: string, args: Recor
     expect(change.op).toBe(name)
     expect(change.description.length).toBeGreaterThan(0)
   }
-  if (recording) APPLIED_RECORDS.push({ op: name, before, after: structuredClone(outcome.document.show) })
   return outcome
 }
 
