@@ -404,6 +404,7 @@ function StudioApp() {
   const renameShowV2Pilot = useShowStore((s) => s.renameShowV2Pilot)
   const showCreation = useShowStore((s) => s.showCreation)
   const createNewShow = useShowStore((s) => s.createNewShow)
+  const createNewShowV2 = useShowStore((s) => s.createNewShowV2)
   const cancelShowCreation = useShowStore((s) => s.cancelShowCreation)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
   const personalWorkspaceUnavailable = useWorkspaceStore((s) => s.personalWorkspaceUnavailable)
@@ -1468,6 +1469,18 @@ function StudioApp() {
                     maps={showCreationMaps}
                     onCancel={cancelShowCreation}
                     onCreate={async (input) => {
+                      // Behind the gate a fresh Show is authored natively as v2,
+                      // in the same two-Clip two-sided Crossfade shape (#1056
+                      // slice 6); the v1 route keeps its own builder.
+                      if (showV2RouteEnabled) {
+                        const createdV2 = await createNewShowV2(input)
+                        // A v2 record is not in the v1 list, so the route holds
+                        // no ordinary active Show; this also ends the creation flow.
+                        void openShow(null)
+                        navigate({ kind: 'studio', entity: { kind: 'shows', id: createdV2.id } })
+                        studioDrawerRef.current?.closeAfterEntitySelection()
+                        return
+                      }
                       const created = await createNewShow(input)
                       void openShow(created.id)
                       navigate({ kind: 'studio', entity: { kind: 'shows', id: created.id } })

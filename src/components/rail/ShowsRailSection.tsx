@@ -17,6 +17,8 @@ import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from '@/com
 export function ShowsRailSection({
   personalWorkspaceAuthenticated,
   userShows,
+  userShowsV2 = [],
+  onOpenShowV2,
   activeShowId,
   stockShows,
   activeStockShowId,
@@ -42,6 +44,13 @@ export function ShowsRailSection({
 }: {
   personalWorkspaceAuthenticated: boolean
   userShows: ShowRecord[]
+  /**
+   * Stored version-2 rows, listed beside the v1 ones behind the route gate
+   * (#1056 slice 6). They are a separate prop because `shows` stays v1-typed
+   * until #1039 couples the list and the editor.
+   */
+  userShowsV2?: readonly { id: string; name: string }[]
+  onOpenShowV2?: (id: string) => void
   activeShowId: string | null
   stockShows: StockShow[]
   activeStockShowId: string | null
@@ -67,7 +76,10 @@ export function ShowsRailSection({
 }) {
   const [builtInOrganization, setBuiltInOrganization] = useState(() => stockShowOrganization(stockShows))
   const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
-  const personalNames = Object.fromEntries(userShows.map((show) => [show.id, show.name]))
+  const personalNames = Object.fromEntries([
+    ...userShows.map((show) => [show.id, show.name] as const),
+    ...userShowsV2.map((show) => [show.id, show.name] as const),
+  ])
   const stockNames = Object.fromEntries(stockShows.map((show) => [show.id, show.name]))
   const total = (personalWorkspaceAuthenticated ? searchEntityOrganization(personalOrganization, personalNames, '').length : 0)
     + searchEntityOrganization(builtInOrganization, stockNames, '').length
@@ -106,7 +118,12 @@ export function ShowsRailSection({
           <EntityOrganizationTree
               ref={personalTreeRef}
               organization={personalOrganization}
-              items={userShows.map((show) => ({ id: show.id, name: show.name }))}
+              items={[
+                ...userShows.map((show) => ({ id: show.id, name: show.name })),
+                // A v2 row opens on the same route; renaming and duplicating it
+                // stay with #1039, so it offers neither here.
+                ...userShowsV2.map((show) => ({ id: show.id, name: show.name, meta: 'v2', canRename: false })),
+              ]}
               activeEntityId={activeShowId}
               query={query}
               noun="show"
@@ -115,6 +132,7 @@ export function ShowsRailSection({
               onSelect={(id) => {
                 const show = userShows.find((candidate) => candidate.id === id)
                 if (show) onOpenShow(show)
+                else if (userShowsV2.some((candidate) => candidate.id === id)) onOpenShowV2?.(id)
               }}
               onRenameEntity={onRenameShow}
               onDuplicateEntity={onDuplicateShow}

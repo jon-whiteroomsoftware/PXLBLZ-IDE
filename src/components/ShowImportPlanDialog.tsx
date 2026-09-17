@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from 'react'
 import { Check, CircleX, Copy, FileCode2, Film, Map, Plus, type LucideIcon } from 'lucide-react'
 import type { ShowImportCopyPlanItem, ShowImportPlan, ShowImportPlanItem } from '@/engine/showImportPlan'
+import type { ShowImportPlanV2 } from '@/engine/showImportPlanV2'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -12,8 +13,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { studioEntityDrawerBusySurfaceProps } from '@/components/studioEntityDrawerContext'
 
+/**
+ * The dialog reads only what both planners describe - the file's Show name, the
+ * Show it will add, and the Pattern and Map decisions - so a v1 and a v2 plan
+ * are reviewed the same way (#1056 slice 6).
+ */
 export type ShowImportDialogState =
-  | { kind: 'plan'; plan: ShowImportPlan }
+  | { kind: 'plan'; plan: ShowImportPlan | ShowImportPlanV2 }
   | { kind: 'error'; message: string; entityId?: string }
 
 export function ShowImportPlanDialog({

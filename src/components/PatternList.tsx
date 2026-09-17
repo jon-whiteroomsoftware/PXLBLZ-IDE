@@ -75,7 +75,9 @@ import { ShowsRailSection } from '@/components/rail/ShowsRailSection'
 import { ShowImportPlanDialog, type ShowImportDialogState } from '@/components/ShowImportPlanDialog'
 import { STOCK_SHOWS, type StockShow } from '@/pixelblaze/stock/shows'
 import { parseShowFileBundle } from '@/engine/showFileBundle'
-import { applyShowImportPlan, planShowImport, ShowImportPlanError } from '@/engine/showImportPlan'
+import { applyShowImportPlan, planShowImport, ShowImportPlanError, type ShowImportPlan } from '@/engine/showImportPlan'
+import { applyShowImportPlanV2, planShowImportV2, type ShowImportPlanV2 } from '@/engine/showImportPlanV2'
+import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
 import { searchEntityOrganization } from '@/engine/entityOrganization'
 
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
@@ -126,6 +128,8 @@ export function PatternList({
   const removeControllerProfile = useControllerProfileStore((s) => s.removeProfile)
   const renameControllerProfile = useControllerStore((s) => s.renameControllerProfile)
   const userShows = useShowStore((s) => s.shows)
+  // Stored v2 rows the list offers behind the one route gate (#1056 slice 6).
+  const userShowsV2 = useShowStore((s) => s.showV2Rows)
   const activeShowId = useShowStore((s) => s.activeShowId)
   const loadShows = useShowStore((s) => s.loadShows)
   const beginShowCreation = useShowStore((s) => s.beginShowCreation)
@@ -134,6 +138,7 @@ export function PatternList({
   const removeShow = useShowStore((s) => s.removeShow)
   const duplicateShow = useShowStore((s) => s.duplicateShow)
   const addImportedShow = useShowStore((s) => s.addImportedShow)
+  const addImportedShowV2 = useShowStore((s) => s.addImportedShowV2)
   const patternOrganization = useEntityOrganizationStore((s) => s.organizations.patterns)
   const showOrganization = useEntityOrganizationStore((s) => s.organizations.shows)
   const mapOrganization = useEntityOrganizationStore((s) => s.organizations.maps)
@@ -184,7 +189,7 @@ export function PatternList({
   }, [])
 
   const patternIdsKey = userPatterns.map((pattern) => pattern.id).join('\0')
-  const showIdsKey = userShows.map((show) => show.id).join('\0')
+  const showIdsKey = [...userShows.map((show) => show.id), ...userShowsV2.map((show) => show.id)].join('\0')
   const mapIdsKey = userMaps.map((map) => map.id).join('\0')
   const controllerIdsKey = controllerProfiles.map((profile) => profile.id).join('\0')
   const mixinIdsKey = userMixins.map((mixin) => mixin.id).join('\0')
@@ -197,8 +202,12 @@ export function PatternList({
 
   useEffect(() => {
     if (!showOrganizationLoaded) return
-    void mutateOrganization('shows', userShows.map((show) => show.id), (organization) => organization)
-  }, [mutateOrganization, showIdsKey, showOrganizationLoaded, userShows])
+    void mutateOrganization(
+      'shows',
+      [...userShows.map((show) => show.id), ...userShowsV2.map((show) => show.id)],
+      (organization) => organization,
+    )
+  }, [mutateOrganization, showIdsKey, showOrganizationLoaded, userShows, userShowsV2])
 
   useEffect(() => {
     if (!mapOrganizationLoaded) return
@@ -278,12 +287,29 @@ export function PatternList({
     if (!file) return
     e.target.value = ''
     void file.arrayBuffer().then(async (buffer) => {
-      const bundle = await parseShowFileBundle(new Uint8Array(buffer))
-      const plan = planShowImport(bundle, {
-        patterns: usePatternStore.getState().userPatterns,
-        maps: useMapStore.getState().userMaps,
-        showNames: useShowStore.getState().shows.map((show) => show.name),
-      })
+      // Behind the route gate a version-2 file is accepted and planned through
+      // the isolated v2 adapters; a version-1 file keeps its own planner, here
+      // and after activation (specification section 10).
+      const acceptV2 = isShowV2RouteEnabled()
+      const bundle = acceptV2
+        ? await parseShowFileBundle(new Uint8Array(buffer), { acceptV2: true })
+        : await parseShowFileBundle(new Uint8Array(buffer))
+      const showNames = [
+        ...useShowStore.getState().shows.map((show) => show.name),
+        ...useShowStore.getState().showV2Rows.map((row) => row.name),
+      ]
+      const plan = bundle.version === 2
+        ? planShowImportV2(bundle, {
+            patterns: usePatternStore.getState().userPatterns,
+            maps: useMapStore.getState().userMaps,
+            libraries: useLibraryStore.getState().userLibraries,
+            showNames,
+          })
+        : planShowImport(bundle, {
+            patterns: usePatternStore.getState().userPatterns,
+            maps: useMapStore.getState().userMaps,
+            showNames,
+          })
       setShowImportDialog({ kind: 'plan', plan })
     }).catch((cause) => {
       setShowImportDialog({
@@ -300,8 +326,30 @@ export function PatternList({
     const createdPatterns: string[] = []
     const createdMaps: string[] = []
     let createdShow = false
+    const createdLibraries: string[] = []
+    const plan = showImportDialog.plan
     try {
-      const applied = applyShowImportPlan(showImportDialog.plan)
+      if (plan.bundle.version === 2) {
+        const applied = applyShowImportPlanV2(plan as ShowImportPlanV2)
+        for (const pattern of applied.newPatterns) {
+          await addPattern(pattern)
+          createdPatterns.push(pattern.id)
+        }
+        for (const map of applied.newMaps) {
+          await addMap(map)
+          createdMaps.push(map.id)
+        }
+        for (const library of applied.newLibraries) {
+          await useLibraryStore.getState().addLibrary(library)
+          createdLibraries.push(library.id)
+        }
+        await addImportedShowV2(applied.show)
+        createdShow = true
+        setShowImportDialog(null)
+        openShowV2Route(applied.show.id)
+        return
+      }
+      const applied = applyShowImportPlan(plan as ShowImportPlan)
       for (const pattern of applied.newPatterns) {
         await addPattern(pattern)
         createdPatterns.push(pattern.id)
@@ -315,8 +363,9 @@ export function PatternList({
       setShowImportDialog(null)
       openUserShow(applied.show)
     } catch (cause) {
-      const plannedShowId = showImportDialog.plan.show.id
+      const plannedShowId = plan.show.id
       if (createdShow) await useShowStore.getState().removeShow(plannedShowId).catch(() => {})
+      for (const id of createdLibraries.reverse()) await useLibraryStore.getState().removeLibrary(id).catch(() => {})
       for (const id of createdMaps.reverse()) await useMapStore.getState().removeMap(id).catch(() => {})
       for (const id of createdPatterns.reverse()) await usePatternStore.getState().removePattern(id).catch(() => {})
       setShowImportDialog({
@@ -828,6 +877,17 @@ export function PatternList({
     if (copy) openUserShow(copy)
   }
 
+  /** A stored v2 row opens on the same route; the gate decides what renders. */
+  function openShowV2Route(id: string) {
+    requestBufferReplacement(() => {
+      closeMapEditor()
+      closeMixinEditor()
+      closeLibraryEditor()
+      closeDocs()
+      navigate({ kind: 'studio', entity: { kind: 'shows', id } })
+    })
+  }
+
   function openUserShow(show: ShowRecord) {
     requestBufferReplacement(() => {
       closeMapEditor()
@@ -1163,6 +1223,8 @@ export function PatternList({
           <ShowsRailSection
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             userShows={userShows}
+            userShowsV2={userShowsV2}
+            onOpenShowV2={(id) => { openShowV2Route(id); onEntityChosen?.() }}
             activeShowId={activeShowId}
             stockShows={STOCK_SHOWS}
             activeStockShowId={activeStockShowId}
@@ -1185,7 +1247,7 @@ export function PatternList({
             personalOrganization={showOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
               'shows',
-              userShows.map((show) => show.id),
+              [...userShows.map((show) => show.id), ...userShowsV2.map((show) => show.id)],
               () => organization,
             )}
           />
