@@ -1,20 +1,27 @@
 import { Lock } from 'lucide-react'
 import {
-  fitShowTimelineViewport,
-  showTimelineRulerTicks,
-} from '@/engine/showTimelineViewport'
-import {
   showTimelineSelectionKey,
   type ShowTimelineItemView,
-  type ShowTimelineJunctionView,
   type ShowTimelineViewModel,
 } from '@/engine/showTimelineViewModel'
+import {
+  formatShowTimelineRange,
+  ShowTimelineJunctionMark,
+  ShowTimelineLayoutLane,
+  ShowTimelineMarkerLane,
+  ShowTimelineRulerLane,
+  showTimelinePercentOf,
+} from './ShowTimelineLanes'
 
 /**
- * The read-only timeline surface for a record the editor renders but cannot yet
- * edit. It draws only from the version-agnostic view model, so it holds no v1
- * or v2 record and offers no mutating control. Items stay focusable so keyboard
- * traversal still reaches every Clip, Layout occurrence and Marker.
+ * The read-only timeline surface for a record the editor renders but cannot
+ * edit - a v2 record whose prepared Stage refuses, where every edit would be
+ * refused by admission anyway. It draws only from the version-agnostic view
+ * model, so it holds no v1 or v2 record and offers no mutating control. Items
+ * stay focusable so keyboard traversal still reaches every Clip, Layout
+ * occurrence and Marker.
+ *
+ * An editable v2 record renders through `ShowTimelineGestureSurface` instead.
  */
 export function ShowTimelineReadOnlySurface({
   view,
@@ -24,12 +31,7 @@ export function ShowTimelineReadOnlySurface({
   statusLine: string
 }) {
   const totalMs = Math.max(1, view.showEndMs)
-  const { ticks } = showTimelineRulerTicks({
-    viewport: fitShowTimelineViewport(totalMs),
-    rulerDurationMs: totalMs,
-    visibleWidthPx: 812,
-  })
-  const percent = (timeMs: number) => `${Math.min(100, Math.max(0, timeMs / totalMs * 100))}%`
+  const percent = showTimelinePercentOf(totalMs)
 
   return (
     <section
@@ -47,78 +49,9 @@ export function ShowTimelineReadOnlySurface({
         <span className="min-w-0">{statusLine}</span>
       </div>
 
-      <div
-        data-testid="show-timeline-read-only-ruler"
-        className="relative h-7 shrink-0 border-b border-zinc-800 bg-zinc-950/70"
-        role="presentation"
-      >
-        {ticks.map((tick) => (
-          <span
-            key={tick.timeMs}
-            aria-hidden
-            className={tick.kind === 'major'
-              ? 'absolute inset-y-0 w-px bg-zinc-700'
-              : 'absolute bottom-0 h-1.5 w-px bg-zinc-800'}
-            style={{ left: percent(tick.timeMs) }}
-          />
-        ))}
-        {ticks.filter((tick) => tick.label).map((tick) => (
-          <span
-            key={`label-${tick.timeMs}`}
-            aria-hidden
-            className="pointer-events-none absolute top-1 pl-1 text-[8.5px] tabular-nums text-zinc-600"
-            style={{ left: percent(tick.timeMs) }}
-          >
-            {tick.label}
-          </span>
-        ))}
-      </div>
-
-      <div role="group" aria-label="Zone Layouts lane" className="relative h-5 shrink-0 border-b border-zinc-900/80">
-        {view.layoutIntervals.map((interval) => (
-          <span
-            key={interval.id}
-            tabIndex={0}
-            role="button"
-            aria-disabled="true"
-            data-show-selection-key={showTimelineSelectionKey(interval.selection)}
-            aria-label={`${interval.definitionName} Zone Layout, ${formatRange(interval.startMs, interval.endMs)}${
-              interval.parameters.splitPosition === undefined
-                ? ''
-                : `, split ${Math.round(interval.parameters.splitPosition * 100)}%`
-            }`}
-            className="absolute inset-y-0 flex items-center overflow-hidden border-l border-zinc-800 px-1 font-mono text-[9px] text-zinc-400 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
-            style={{ left: percent(interval.startMs), width: percent(interval.durationMs) }}
-          >
-            <span className="truncate">{interval.definitionName}</span>
-          </span>
-        ))}
-      </div>
-
-      <div role="group" aria-label="Show Markers" className="relative h-5 shrink-0 border-b border-zinc-900/80">
-        {view.markers.map((marker) => (
-          <span
-            key={marker.id}
-            tabIndex={0}
-            role="button"
-            aria-disabled="true"
-            data-show-selection-key={showTimelineSelectionKey(marker.selection)}
-            data-show-marker-role={marker.role}
-            aria-label={`${marker.role === 'chapter' ? 'Chapter Marker' : 'Marker'} ${marker.name ?? marker.id} at ${formatTime(marker.timeMs)}`}
-            className="absolute inset-y-0 flex max-w-[45%] items-center gap-1 whitespace-nowrap pl-1 font-mono text-[9px] text-zinc-400 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
-            style={{ left: percent(marker.timeMs), borderLeft: `2px solid ${marker.color ?? '#a1a1aa'}` }}
-          >
-            <span className="truncate">{marker.name ?? marker.id}</span>
-          </span>
-        ))}
-        <span
-          data-testid="show-timeline-read-only-end"
-          aria-label={`Show End at ${formatTime(view.showEndMs)}`}
-          className="absolute inset-y-0 right-0 flex items-center pr-1 font-mono text-[9px] text-zinc-500"
-        >
-          End {formatTime(view.showEndMs)}
-        </span>
-      </div>
+      <ShowTimelineRulerLane totalMs={totalMs} percent={percent} />
+      <ShowTimelineLayoutLane view={view} percent={percent} />
+      <ShowTimelineMarkerLane view={view} percent={percent} />
 
       {view.rows.map((row) => (
         <div
@@ -145,7 +78,7 @@ export function ShowTimelineReadOnlySurface({
                 <ReadOnlyItem key={item.id} item={item} percent={percent} />
               ))}
               {layer.junctions.map((junction) => (
-                <ReadOnlyJunction key={junction.id} junction={junction} percent={percent} />
+                <ShowTimelineJunctionMark key={junction.id} junction={junction} percent={percent} />
               ))}
             </div>
           ))}
@@ -174,7 +107,7 @@ function ReadOnlyItem({
       data-show-selection-key={showTimelineSelectionKey(item.selection)}
       data-show-group-occurrence={item.groupOccurrenceId}
       aria-label={`${item.groupOccurrenceId ? 'Group Clip' : 'Clip'} ${item.patternName}, ${
-        formatRange(item.startMs, item.endMs)
+        formatShowTimelineRange(item.startMs, item.endMs)
       }${item.entryPolicy === 'restart' ? ', restarts on entry' : ''}`}
       className="absolute inset-y-0 flex min-w-px items-center overflow-hidden rounded-[3px] border-l-2 border-live/60 bg-live/10 px-1 text-[9px] leading-none text-zinc-200 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
       style={{ left: percent(item.startMs), width: percent(item.durationMs) }}
@@ -182,40 +115,4 @@ function ReadOnlyItem({
       <span className="truncate">{item.patternName}</span>
     </span>
   )
-}
-
-function ReadOnlyJunction({
-  junction,
-  percent,
-}: {
-  junction: ShowTimelineJunctionView
-  percent: (timeMs: number) => string
-}) {
-  if (junction.scope === 'derived-cut') {
-    return (
-      <i
-        aria-hidden
-        data-show-layer-junction={junction.scope}
-        className="absolute inset-y-0 z-[2] w-px -translate-x-1/2 bg-zinc-500"
-        style={{ left: percent(junction.startMs) }}
-      />
-    )
-  }
-  return (
-    <i
-      aria-hidden
-      data-show-layer-junction={junction.scope}
-      data-show-transition-kind={junction.kind}
-      className="absolute inset-y-1 z-[2] bg-amber-300/25"
-      style={{ left: percent(junction.startMs), width: percent(junction.durationMs) }}
-    />
-  )
-}
-
-function formatRange(startMs: number, endMs: number): string {
-  return `${formatTime(startMs)} to ${formatTime(endMs)}`
-}
-
-function formatTime(timeMs: number): string {
-  return `${(timeMs / 1000).toFixed(2)}s`
 }

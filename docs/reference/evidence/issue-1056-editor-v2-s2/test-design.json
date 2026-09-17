@@ -1,0 +1,78 @@
+{
+  "issue": 1056,
+  "scope": "slice 2: timeline gestures to v2 intents on the ordinary Show editor route",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "ROUTE",
+      "DELETE-READD",
+      "TRANSITION",
+      "FAILURE"
+    ]
+  },
+  "base": "8f5295f4d849d8edb5b5af62d946cfcb17ab5d6f",
+  "invariants": [
+    "One adopted gesture is one owner intent, one candidate, one history entry and one provider save; the adapter decides no edit semantics and writes no record.",
+    "Identity is allocated only at submission and only for a gesture that can change the record; an unknown Clip, a Group Clip use, an out-of-bounds split time or a destination outside Show End refuses with the allocator untouched.",
+    "A rigid connected move is the temporal owner's traversal: the adapter emits one move and shifts no neighbour, and drop feedback clamps and collides on the whole component.",
+    "Duplication is linked: the copy consumes the source effective Pattern instance and no gesture mints a runtime.",
+    "Cut is exact adjacency: snapping and collision are pixel affordances, the submitted times are whole milliseconds, and a one-millisecond gap draws no junction.",
+    "A refusal or no-op leaves the record identity, history, timestamp and provider untouched, and surfaces the owner's message in the existing pilot status vocabulary.",
+    "The v1 route is unchanged: the v2 surface consumes only the version-agnostic view model and never the v1 projections or store mutators."
+  ],
+  "partitions": [
+    "gesture kind: drag move, cross-Layer re-placement, trailing resize, leading resize, split, linked duplicate, delete",
+    "direction: grow versus shrink on each edge; earlier versus later on a move; unmoved edge and unmoved drop as no-ops",
+    "topology: Clip with no Transition, Clip inside a Crossfade chain, whole-output carrier with a Property ramp, Group Clip use",
+    "leading resize outcome: narrowed window versus window closed to zero, with and without a carrier ramp",
+    "drop feedback: free drop, boundary-snapped drop, Alt raw-millisecond drop, component clamp at zero and at Show End, colliding drop",
+    "input: pointer drag, pointer edge drag, double-click split, keyboard nudge and edge step, S/D/Delete, Escape cancel, busy guard",
+    "admission: applied, owner refusal, adapter refusal before admission, Undo, Redo",
+    "DELETE-READD placement: replacement at exact adjacency versus one millisecond later"
+  ],
+  "sequences": [
+    "drag move -> keyboard move -> trailing resize -> leading resize -> split -> collided duplicate refusal -> duplicate -> delete -> Undo -> Redo -> provider readback",
+    "fresh two-Clip v2 Show -> delete the second Clip -> add a replacement at the boundary + 1 ms (gap) -> delete it -> add a replacement at the exact boundary (derived Cut)",
+    "gesture on a Clip inside a Crossfade chain -> both members translate by one delta with the Transition duration preserved",
+    "leading edge dragged onto its outgoing neighbour with a ramp carrier -> Reset consumes complete projections"
+  ],
+  "oracles": [
+    "The record saved through the closed admission deep-equals the record the pilot's typed intent produces for the same parameters, plus an independently stated per-Clip interval and Transition duration for every temporal case.",
+    "Store state after each gesture: one provider write, one history entry holding the exact preimage, and the preimage object itself unmutated.",
+    "Undo and Redo restore the exact prior and edited records through undoShowV2Pilot / redoShowV2Pilot.",
+    "The view model projected from the saved record: a derived-cut junction with a null transitionId only at exact adjacency, and no Transition resurrected by a replacement Clip.",
+    "The rendered surface: aria-labels naming each Clip's interval, drop-preview collision state, focus after a created Clip, and the status line.",
+    "The real authenticated route at 1440 and 390 px: gesture outcomes read back from the drawn labels and from GET /api/shows?show-version=2, Fast and Precise Stage capture sequences, zero console errors, zero overflow."
+  ],
+  "redEvidence": [
+    "src/engine/showTimelineGesturesV2.test.ts failed to resolve the module before it existed (23 cases).",
+    "src/store/showV2TimelineGestureAdmission.test.ts failed on seven cases before the adoption timestamp was excluded from the record oracle.",
+    "src/components/ShowTimelineGestureSurface.test.tsx failed on the collided-duplicate case until the duplicate drop carried the dragged Clip alone.",
+    "src/components/ShowEditorV2ReadOnly.test.tsx failed on slice 1's inert-control and read-only status assertions until they were superseded."
+  ],
+  "faults": [
+    "Dropped the connected-component traversal in showTimelineConnectedItemIdsV2: 3 named tests failed (component identity, rigid clamp and collision, keyboard chain clamp).",
+    "Dropped connectedComponent from the temporal owner's move so the chain would move piecewise: 3 named admission tests failed.",
+    "Off-by-one on the trailing resize edge (endMs - 1): 4 named tests failed across the adapter and the admission interval oracle.",
+    "Made duplicate mint a Pattern instance for the copy: 2 named tests failed (adapter runtime preservation, admission instance equality)."
+  ],
+  "results": [
+    "npm run lint: passed.",
+    "npx tsc -b --pretty false: passed with no output.",
+    "npx vitest run (7 blast-radius files incl. the v1 fingerprint and view-model parity): 166 passed.",
+    "npm run test:staged: 21 files / 183 tests passed, then the layout project 4 files / 12 tests passed.",
+    "npm run show:v2-parity: 47 inventoried records matched, report hash unchanged.",
+    "e2e/show-editor-v2-gestures.auth.spec.ts through scripts/run-authenticated-playwright.ts: passed.",
+    "e2e/show-editor-v2-readonly.auth.spec.ts re-run after its slice-1 assertions were superseded: passed.",
+    "npm run check:ui-proof over the candidate range: accepted."
+  ],
+  "residualGaps": [
+    "An independent duplicate is not a gesture. No landed owner performs duplicate plus independence as one candidate, and emitting two would break specification section 9's one-candidate-per-gesture rule; Make Pattern Independent stays the inspector's explicit action in slice 3.",
+    "Cross-Layer drag is proved through the pure resolver and the re-placement intent, not through a pointer drag in the e2e spec: jsdom has no hit testing and the fixture's second Layer is empty, so the browser proof covers one Layer.",
+    "Transition insert, kind, parameters and Reset as authored operations remain slice 4; this slice only rides the ripple the temporal owner already performs.",
+    "Group Clip uses, Markers, the Layout lane and property lanes stay inert on the v2 surface.",
+    "Selection and the inspector are slice 3; a created Clip receives keyboard focus but no selection state exists yet.",
+    "Final authoritative committed-tip suites and Fable High review are coordinator-owned."
+  ]
+}

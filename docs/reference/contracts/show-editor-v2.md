@@ -3,10 +3,11 @@
 Canonical authority is [the Scene-retirement specification](../../plans/scene-retirement-specification.md)
 §3 (record and identity), §5 (Cut as absence and whole-output scope), §8 (Layers,
 Layout occurrences, Markers, Show End) and §10 (no mixed window), and issue
-#1056. This describes what is landed after slices 1 and 3: one version-agnostic
+#1056. This describes what is landed after slices 1-3: one version-agnostic
 timeline view model, both projections into it, the v1 container consuming it, a
-read-only v2 timeline on the ordinary route, and the Clip inspector beside it.
-The timeline surface itself is still read-only.
+v2 rendering on the ordinary route whose ordinary Clips are directly manipulable
+through the landed v2 owners, and the Clip inspector beside it. The Transition
+palette, Layout lane and property lanes are not landed.
 
 ## The view model
 
@@ -53,7 +54,7 @@ populates:
 
 | Sidecar | Holds | Owed to |
 | --- | --- | --- |
-| `items[].legacy` | `sceneId`, `startSceneId`, `endSceneId`, placement kind and ids, `logicalClipId`, `segmentIds`, `localStartMs` | slice 2 (gesture adapters) |
+| `items[].legacy` | `sceneId`, `startSceneId`, `endSceneId`, placement kind and ids, `logicalClipId`, `segmentIds`, `localStartMs` | the v1 container's own gesture code |
 | `junctions[].legacy.boundaryTransitionId` | the stored v1 Cut record a derived junction resolves through | slice 4 (Transition authoring) |
 | `layoutIntervals[].legacy.sceneIds` | the internal Scene owners of a v1 occurrence | slice 4 (Layout lane) |
 
@@ -105,7 +106,8 @@ These v1 seams are unchanged and are slice obligations, not view-model gaps:
 - the per-Scene CSS grid template, the Layout lane's `sceneIds` addressing and
   `showRoutingTransitionAfter`, and the sample-repeat lane (slice 4);
 - the per-Clip gesture code, which still consumes
-  `ShowUnifiedTimelineClipProjection` and the store's v1 mutators (slice 2);
+  `ShowUnifiedTimelineClipProjection` and the store's v1 mutators; the v2 surface
+  never touches it, and the v1 route behaves exactly as before;
 - property lanes, which the view model does not carry (slice 5).
 
 `ShowClipEntityDetail` and its `ShowClipInspectorValue`/`onPatch` contract remain
@@ -117,11 +119,25 @@ that does fit a v2 record: `ShowPatternInstanceControls`.
 
 ## The version gate
 
-The ordinary route renders a `ShowRecordV2` read-only behind a dev-only
+The ordinary route renders a `ShowRecordV2` behind a dev-only
 `?show-v2-editor=1` opt-in. `ShowEditorV2ReadOnly` resolves the record through
-the existing `openShowV2Pilot` store path, projects it with
-`projectShowTimelineV2`, and renders `ShowTimelineReadOnlySurface` plus
-`ShowStagePreview kind="prepared-v2"` over `captureShowStageEditV2`.
+the existing `openShowV2Pilot` store path, captures it with
+`captureShowStageEditV2`, projects it with `projectShowTimelineV2`, and renders
+`ShowStagePreview kind="prepared-v2"` beside one of two timeline surfaces:
+
+| Surface | When | What it offers |
+| --- | --- | --- |
+| `ShowTimelineGestureSurface` | the capture prepares (`ready` or `empty`) | the lanes below plus direct manipulation of ordinary Clips |
+| `ShowTimelineReadOnlySurface` | the capture is `refused` | the lanes below, every item a focusable `aria-disabled` element |
+
+A refused capture is read-only because the closed admission refuses every edit
+on it with `unsupported-pilot-record`; drawing controls that cannot act would
+misstate the record's condition. Both surfaces draw the ruler, the Zone Layouts
+lane and the Marker lane from
+[`ShowTimelineLanes.tsx`](../../../src/components/ShowTimelineLanes.tsx), whose
+items stay inert until slices 4-5 own them, and both state their condition in
+one status line. Neither surface registers an agent binding, so no command can
+reach a v2 record and §10's forbidden mixed window stays closed.
 
 `?show-v2-pilot=1` still renders `ShowV2RoutePilot` and takes precedence. Without
 either flag the ordinary editor renders a v1 record exactly as before. The route's
@@ -129,19 +145,101 @@ missing-Show guard stands aside for both opt-ins, because a converted row leaves
 the v1 list until #1039 couples them.
 
 The route lays the workspace and the Clip inspector side by side above 1024 px
-and stacks them below it.
+and stacks them below it. Both read the one prepared capture
+[`useShowV2EditCapture`](../../../src/components/useShowV2EditCapture.ts) owns:
+the timeline gestures and the inspector plan against the same captured record,
+dependencies and provider, so one stale-edit predicate governs both.
 
-`ShowTimelineReadOnlySurface` draws only from the view model. It holds no record,
-takes no callbacks that change one, and offers no control that can: every item is
-a focusable `aria-disabled` element, so keyboard traversal reaches each Clip,
-Layout occurrence and Marker while nothing is actionable. One status line states
-the condition. The surface registers no agent binding, so no command can reach a
-v2 record and §10's forbidden mixed window stays closed.
+The component and its file keep slice 1's `ShowEditorV2ReadOnly` name until
+slice 6 retires the opt-in and renames the route surface; renaming it earlier
+would collide with every concurrent slice mounting into it.
+
+## Gesture adapters
+
+[`showTimelineGesturesV2.ts`](../../../src/engine/showTimelineGesturesV2.ts) is
+the pure seam between what the pointer or the keyboard did and what the landed
+owners are asked to do. `ShowTimelineGestureV2` is the vocabulary; each member
+becomes exactly one owner intent, submitted through one closed-admission
+wrapper, producing one candidate and one history entry.
+
+| Gesture | Intent | Owner and admission wrapper |
+| --- | --- | --- |
+| drag or nudge inside one Layer | `move` | `editShowClipTemporalV2` / `admitShowV2PilotClipTemporal` |
+| drag onto another Layer of the Zone | `replace-placement` | the same |
+| trailing edge later / earlier | `extend` / `trim` with the Clip's own start | the same |
+| leading edge earlier / later | `extend` / `trim` with the Clip's own end | the same |
+| split at a time | `split` with one fresh Clip identity | the same |
+| Alt-drag or `D` | `duplicate` | `editShowClipV2` / `admitShowV2PilotClipSharingEdit` |
+| `Delete` | `delete-clip` | `editShowTransitionV2` / `admitShowV2PilotClipDelete` |
+
+Rules the adapter holds to:
+
+- **The owners decide the edit.** A rigid connected move is `editShowClipTemporalV2`'s
+  own traversal of the Transition-connected component; the adapter emits one
+  `move` and never shifts a neighbour itself. A trailing resize ripples its
+  connected successors, and a leading resize that closes its incoming window
+  delegates to Reset, both inside the owner.
+- **Identity is allocated once, at submission, and never before a gesture that
+  cannot change the record.** A split takes its right Clip from
+  `allocateShowClipTimingIdsV2`; a duplicate takes its complete identity plan
+  from `createShowV2LinkedDuplicateIntent`; a leading resize that closes a ramp
+  carrier, and a delete that removes one, take their projections from
+  `planShowV2TransitionRampProjections` and `planShowV2ClipDeleteRampProjections`.
+  An out-of-bounds split time, an unknown Clip, a Group Clip use or a
+  destination outside Show End is refused with the allocator untouched.
+- **Duplication is linked.** The copy consumes the source's effective Pattern
+  instance and no gesture mints a runtime (specification §4). Making a copy
+  independent is the inspector's explicit Make Pattern Independent, a second
+  authored decision with its own candidate; no gesture performs both.
+- **Cut is exact adjacency.** Snapping and collision feedback are pixel
+  affordances only: `resolveShowTimelineClipDropV2` and
+  `resolveShowTimelineEdgeDropV2` reuse the landed viewport helpers and the
+  view's `structuralTimesMs`, and the times they produce are whole milliseconds
+  the owners compare exactly. A drop one millisecond off a neighbour is blank
+  time, not a Cut.
+- **The moved body is the component.** Drop feedback clamps and collision-tests
+  the whole connected component, so a chain stops when its earliest member
+  reaches zero or its latest reaches Show End. A duplicate and a cross-Layer
+  re-placement carry the dragged Clip alone (`carry: 'clip'`), matching the
+  owners: `replace-placement` refuses to detach a Transition endpoint.
+
+## The gesture surface
+
+`ShowTimelineGestureSurface` draws the view model and emits gestures. Ordinary
+Clips render as a `<button>` body with two edge handles; a Group Clip use stays
+an inert `aria-disabled` element, because its occurrence owns it (slice 5).
+
+| Input | Gesture |
+| --- | --- |
+| drag the body | move; hold Alt mid-drag for raw milliseconds |
+| Alt-press then drag | linked duplicate |
+| drag an edge handle | leading or trailing resize |
+| double-click the body | split at the pointer time |
+| `←` / `→` on the body | move one drop-grid step, `Shift` for 100 ms |
+| `←` / `→` on an edge handle | move that edge one step |
+| `S` / `D` / `Delete` | split at the midpoint / duplicate after the Clip / delete |
+| `Escape` during a drag | cancel, submitting nothing |
+| `⌘Z` / `⇧⌘Z`, or the history controls | Undo / Redo |
+
+A live drag draws `[data-show-drop-preview]`, marked
+`data-show-drop-collides="true"` when the dropped body would overlap content it
+is not carrying. Keyboard focus follows a Clip a split or a duplicate created.
+
+[`useShowV2TimelineGestures`](../../../src/components/useShowV2TimelineGestures.ts)
+owns the submission: it plans the gesture, admits it, and reports the outcome in
+the existing pilot status vocabulary - the owner's message on a refusal,
+`"Clip is unchanged."` on a no-op, `"Clip saved."`, `"Clip sharing saved."`,
+`"Clip deleted."`, `"Undo saved."`, `"Nothing to redo."`, `"Save failed: …"`.
+It carries the pilot's stale/provider/dependency guards unchanged: a refusal or
+no-op leaves the record identical with no history entry, timestamp or provider
+write, a failed save rolls back through the store's existing recovery, and a
+completion that is no longer current is discarded rather than displayed. Undo
+and Redo run through `undoShowV2Pilot` / `redoShowV2Pilot`.
 
 ## The Clip inspector
 
 [`ShowClipInspectorV2`](../../../src/components/ShowClipInspectorV2.tsx) renders
-beside the read-only timeline on the same gated route. It holds no record: it
+beside the timeline on the same gated route. It holds no record: it
 reads the prepared capture
 [`useShowV2EditCapture`](../../../src/components/useShowV2EditCapture.ts) pins,
 and re-reads it after every adoption.
@@ -184,10 +282,10 @@ Rules the inspector holds to:
 
 ## What remains
 
-Slices 2, 4, 5 and 6 of #1056 own gesture adapters, Transition and Layout
-authoring, animation and Markers, and the remaining route content, after which
-`?show-v2-pilot=1` and `?show-v2-editor=1` both retire. Until then a v2 record on
-the ordinary route can be read, previewed, traversed and edited through the Clip
-inspector, but its timeline cannot be dragged, and the store mutators, executor,
-admission and MCP surfaces remain v1-typed. Editing a Clip's entry policy on this
-route needs an owner decision that slice 3 deliberately did not take.
+Slices 4, 5 and 6 of #1056 own Transition and Layout authoring, animation and
+Markers, and the remaining route content, after which `?show-v2-pilot=1` and
+`?show-v2-editor=1` both retire. Until then a v2 record on the ordinary route can
+be read, previewed, traversed, dragged in its Clip timing, sharing and deletion,
+and edited through the Clip inspector; the store mutators, executor, admission
+and MCP surfaces remain v1-typed. Editing a Clip's entry policy on this route
+needs an owner decision that slice 3 deliberately did not take.

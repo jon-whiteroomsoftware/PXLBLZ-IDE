@@ -1,14 +1,17 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { getPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
-import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
-import type { ShowV2PilotAdoptionReceipt, ShowV2PilotPreparedCapture } from '@/store/showV2PreparedEditAdmission'
+import { captureShowStageEditV2, type ShowPreparedStageEditCaptureV2 } from '@/engine/showPreparedStageV2'
+import type { ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useLibraryStore } from '@/store/libraryStore'
 import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 
-export interface ShowV2EditCapture extends ShowV2PilotPreparedCapture {
+// Extends the stage capture rather than the admission's looser
+// `ShowV2PilotPreparedCapture`, so the qualified `inputCapture` the timeline
+// gesture adapter plans against stays required; the admission still accepts it.
+export interface ShowV2EditCapture extends ShowPreparedStageEditCaptureV2 {
   /** The provider the capture was taken against; a later swap makes the edit stale. */
   readonly provider: PersonalContentProvider
 }

@@ -4,18 +4,24 @@ import { projectShowTimelineV2 } from '@/engine/showTimelineViewModelV2'
 import { useShowStore } from '@/store/showStore'
 import { ShowClipInspectorV2 } from './ShowClipInspectorV2'
 import { ShowStagePreview } from './ShowStagePreview'
+import { ShowTimelineGestureSurface } from './ShowTimelineGestureSurface'
 import { ShowTimelineReadOnlySurface } from './ShowTimelineReadOnlySurface'
+import { useShowV2TimelineGestures } from './useShowV2TimelineGestures'
 import { ShowWorkspace } from './ShowWorkspace'
 import { useShowV2EditCapture } from './useShowV2EditCapture'
 
 /**
  * The ordinary Show editor route holding a `ShowRecordV2`.
  *
- * Slice 1 of #1056 renders that record read-only: the timeline, Layout lane,
- * Markers, Show End and Stage preview all come from the version-agnostic view
- * model, and no mutating control is offered. The v1 route is untouched, and
- * this surface registers no agent binding, so no command sees a v2 record
- * (specification section 10).
+ * Slice 1 of #1056 rendered that record read-only from the version-agnostic
+ * view model. Slice 2 adds the timeline's direct manipulation of ordinary
+ * Clips - move, resize, split, duplicate, delete, Undo and Redo - through the
+ * landed v2 owners and the closed prepared-edit admission, and slice 3 mounts
+ * the Clip inspector beside the workspace. Both read the one prepared capture
+ * `useShowV2EditCapture` owns. A record whose prepared Stage refuses stays
+ * read-only, because admission would refuse every edit on it anyway. The v1
+ * route is untouched, and this surface registers no agent binding, so no
+ * command sees a v2 record (specification section 10).
  */
 export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
   const record = useShowStore((state) => state.showV2Pilots[showId])
@@ -35,11 +41,14 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
     return () => { live = false }
   }, [open, record, showId])
 
-  const prepared = binding.capture?.prepared ?? null
+  const capture = binding.capture
+  const prepared = capture?.prepared ?? null
+  const { status, handlers } = useShowV2TimelineGestures({ showId, capture })
+
   const view = useMemo(() => (record ? projectShowTimelineV2(record) : null), [record])
   const [previewAspect, setPreviewAspect] = useState(1)
 
-  if (!record || !view) {
+  if (!record || !view || !capture) {
     return (
       <div role="status" className="flex h-full items-center justify-center px-6 text-center text-sm text-zinc-500">
         {refusal ?? 'Opening this Show…'}
@@ -61,10 +70,16 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
           timelineMinimumHeight={Math.max(SHOW_TIMELINE_MIN_HEIGHT, Math.min(contentHeight, 420))}
           timelineContentHeight={contentHeight}
           timelineRequiredHeight={contentHeight}
-          timeline={(
+          timeline={prepared?.status === 'refused' ? (
             <ShowTimelineReadOnlySurface
               view={view}
-              statusLine="Read only - this Show is stored in the v2 format; timeline editing arrives with the next slice."
+              statusLine={`Read only - this v2 Show cannot be prepared: ${prepared.message}`}
+            />
+          ) : (
+            <ShowTimelineGestureSurface
+              view={view}
+              statusLine={status ?? 'Editing this v2 Show. Drag a Clip to move it, drag its edges to resize.'}
+              gestures={handlers}
             />
           )}
           stage={prepared?.status === 'ready' ? (

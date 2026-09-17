@@ -8,7 +8,10 @@ const { source, record } = JSON.parse(
 )
 const SHOW_ID = 'show-editor-v2-readonly'
 
-test('the ordinary Show route renders a stored v2 record read-only through the version gate', async ({ page }) => {
+// #1056 slice 2 replaced the read-only surface with the gesture surface for a
+// preparable record, so this spec now proves the rendering and the lanes that
+// stay inert until slices 4-5; editing itself is show-editor-v2-gestures.
+test('the ordinary Show route renders a stored v2 record through the version gate', async ({ page }) => {
   const created = await page.request.post('/api/shows', { data: source })
   expect(created.ok(), await created.text()).toBe(true)
   const saved = await page.request.put(`/api/shows/${SHOW_ID}?show-version=2`, { data: record })
@@ -31,13 +34,13 @@ test('the ordinary Show route renders a stored v2 record read-only through the v
   await expect(surface).toHaveAttribute('data-show-record-version', '2')
   await expect(page.getByTestId('show-v2-route-pilot')).toHaveCount(0)
   await expect(page.getByTestId('show-timeline-read-only-status'))
-    .toContainText('Read only - this Show is stored in the v2 format')
+    .toContainText('Editing this v2 Show')
 
   // Timeline: Zone rows, Layer lanes, Clips and the Transition window.
   await expect(surface.getByRole('group', { name: 'Zone Main', exact: true })).toBeVisible()
   await expect(surface.getByRole('group', { name: 'Layer Main in Zone Main' })).toBeVisible()
-  await expect(surface.getByRole('button', { name: /Clip Outgoing, 0\.00s to 0\.40s/ })).toBeVisible()
-  await expect(surface.getByRole('button', { name: /Clip Incoming, 0\.60s to 1\.00s/ })).toBeVisible()
+  await expect(surface.getByRole('button', { name: /^Clip Outgoing, 0\.00s to 0\.40s/ })).toBeVisible()
+  await expect(surface.getByRole('button', { name: /^Clip Incoming, 0\.60s to 1\.00s/ })).toBeVisible()
   await expect(surface.locator('[data-show-layer-junction="layer"]')).toHaveAttribute('data-show-transition-kind', 'crossfade')
 
   // Layout lane, Markers and Show End.
@@ -47,10 +50,13 @@ test('the ordinary Show route renders a stored v2 record read-only through the v
     .getByRole('button', { name: /Chapter Marker Opening at 0\.00s/ })).toBeVisible()
   await expect(page.getByTestId('show-timeline-read-only-end')).toHaveText('End 1.00s')
 
-  // Every timeline control is inert: focusable for traversal, never actionable.
-  const controls = await surface.getByRole('button').all()
-  expect(controls.length).toBeGreaterThan(3)
-  for (const control of controls) await expect(control).toHaveAttribute('aria-disabled', 'true')
+  // The Layout lane and the Marker lane stay inert until slices 4-5: focusable
+  // for traversal, never actionable. The timeline offers no field of its own.
+  for (const laneName of ['Zone Layouts lane', 'Show Markers']) {
+    const controls = await surface.getByRole('group', { name: laneName }).getByRole('button').all()
+    expect(controls.length).toBeGreaterThan(0)
+    for (const control of controls) await expect(control).toHaveAttribute('aria-disabled', 'true')
+  }
   await expect(surface.locator('input, select, textarea, [role="slider"]')).toHaveCount(0)
 
   // Stage preview in both fidelities.
@@ -85,7 +91,7 @@ test('the ordinary Show route renders a stored v2 record read-only through the v
   await expect(firstItem).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(surface.getByRole('button', { name: /Chapter Marker Opening/ })).toBeFocused()
-  const overflow = await surface.evaluate(root => [...root.querySelectorAll<HTMLElement>('[role="button"]')]
+  const overflow = await surface.evaluate(root => [...root.querySelectorAll<HTMLElement>('button, [role="button"]')]
     .filter(element => {
       const rect = element.getBoundingClientRect()
       return rect.width > 0 && (rect.left < -1 || rect.right > window.innerWidth + 1)

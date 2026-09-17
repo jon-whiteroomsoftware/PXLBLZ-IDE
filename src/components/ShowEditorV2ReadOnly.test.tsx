@@ -48,7 +48,7 @@ afterEach(() => {
   resetControllerProvider()
 })
 
-describe('ShowEditorV2ReadOnly (#1056 slice 1)', () => {
+describe('ShowEditorV2ReadOnly (#1056 slices 1-2)', () => {
   it('renders the Zone rows, Layers, Clips and Show End from the v2 record', () => {
     const record = seededRecord()
     seed(record)
@@ -58,8 +58,8 @@ describe('ShowEditorV2ReadOnly (#1056 slice 1)', () => {
     expect(surface).toHaveAttribute('data-show-record-version', '2')
     const zone = within(surface).getByRole('group', { name: 'Zone Main' })
     expect(within(zone).getByRole('group', { name: 'Layer Main in Zone Main' })).toBeInTheDocument()
-    expect(within(surface).getByRole('button', { name: /Clip Outgoing, 0\.00s to 0\.40s/ })).toBeInTheDocument()
-    expect(within(surface).getByRole('button', { name: /Clip Incoming, 0\.60s to 1\.00s/ })).toBeInTheDocument()
+    expect(within(surface).getByRole('button', { name: /^Clip Outgoing, 0\.00s to 0\.40s/ })).toBeInTheDocument()
+    expect(within(surface).getByRole('button', { name: /^Clip Incoming, 0\.60s to 1\.00s/ })).toBeInTheDocument()
     expect(screen.getByTestId('show-timeline-read-only-end')).toHaveAccessibleName('Show End at 1.00s')
   })
 
@@ -76,20 +76,28 @@ describe('ShowEditorV2ReadOnly (#1056 slice 1)', () => {
     expect(junction).toHaveAttribute('data-show-transition-kind', 'crossfade')
   })
 
-  it('offers no mutating control and keeps every item keyboard reachable', async () => {
+  it('offers Clip gestures while the other lanes stay inert, and keeps every item keyboard reachable', async () => {
     const user = userEvent.setup()
     const record = seededRecord()
     seed(record)
     render(<ShowEditorV2ReadOnly showId={record.id} />)
 
     const surface = screen.getByTestId('show-timeline-read-only')
-    for (const control of within(surface).getAllByRole('button')) {
-      expect(control).toHaveAttribute('aria-disabled', 'true')
-      expect(control.tagName).toBe('SPAN')
+    expect(surface).toHaveAttribute('data-show-timeline-editable', 'true')
+    // Slice 2 owns Clip gestures only; the Layout lane and Markers are slices 4-5.
+    for (const lane of ['Zone Layouts lane', 'Show Markers']) {
+      for (const control of within(within(surface).getByRole('group', { name: lane })).getAllByRole('button')) {
+        expect(control).toHaveAttribute('aria-disabled', 'true')
+        expect(control.tagName).toBe('SPAN')
+      }
     }
+    const clip = within(surface).getByRole('button', { name: /^Clip Outgoing, 0\.00s to 0\.40s/ })
+    expect(clip.tagName).toBe('BUTTON')
+    expect(clip).not.toHaveAttribute('aria-disabled')
+    expect(within(surface).getByRole('button', { name: /^Start edge of Clip Outgoing/ })).toBeInTheDocument()
+    expect(within(surface).getByRole('button', { name: /^End edge of Clip Outgoing/ })).toBeInTheDocument()
     expect(within(surface).queryAllByRole('textbox')).toHaveLength(0)
     expect(within(surface).queryAllByRole('slider')).toHaveLength(0)
-    expect(within(surface).queryAllByRole('menuitem')).toHaveLength(0)
 
     const focusable = within(surface).getAllByRole('button')
     await user.tab()
@@ -98,12 +106,30 @@ describe('ShowEditorV2ReadOnly (#1056 slice 1)', () => {
     expect(focusable).toContain(document.activeElement)
   })
 
-  it('states the read-only condition in one status line', () => {
+  it('states the editing condition in one status line and offers Undo and Redo', () => {
     const record = seededRecord()
     seed(record)
     render(<ShowEditorV2ReadOnly showId={record.id} />)
     expect(screen.getByTestId('show-timeline-read-only-status'))
-      .toHaveTextContent('Read only - this Show is stored in the v2 format; timeline editing arrives with the next slice.')
+      .toHaveTextContent('Editing this v2 Show.')
+    const history = screen.getByRole('group', { name: 'Show history' })
+    // Nothing is in the history yet, so neither direction is offered.
+    expect(within(history).getByRole('button', { name: 'Undo' })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(history).getByRole('button', { name: 'Redo' })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('stays read-only when the record cannot be prepared, because admission would refuse every edit', () => {
+    const record = seededRecord()
+    record.composition.patternInstances[0].pattern = { kind: 'user', id: 'absent-source' }
+    seed(record)
+    render(<ShowEditorV2ReadOnly showId={record.id} />)
+
+    const surface = screen.getByTestId('show-timeline-read-only')
+    expect(surface).not.toHaveAttribute('data-show-timeline-editable')
+    expect(screen.getByTestId('show-timeline-read-only-status')).toHaveTextContent('Read only')
+    for (const control of within(surface).getAllByRole('button')) {
+      expect(control).toHaveAttribute('aria-disabled', 'true')
+    }
   })
 
   it('leaves the seeded v2 record untouched while rendering', () => {
