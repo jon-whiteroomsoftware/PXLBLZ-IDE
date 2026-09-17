@@ -30,7 +30,10 @@ portable Show — with a caption beside it: title, byline, premise, and loop
 length; a thin bar along the bottom tracks how far through the loop it is.
 The first thing on the page is a Show, and the others are spread down the
 grid; the **Shows** directory lists only them. A band opens the Show's own
-page (`/s/<slug>`) with the stage at full size and its scenes as an arc.
+page (`/s/<slug>`) with the stage at full size and its chapters as an arc: the
+Show's named passages, each with how long it runs. The caption beside a band
+names the chapter the loop is currently inside. A Show with no named chapters
+shows no arc and no caption; nothing is invented to fill the space.
 
 Every Pattern card opens on a chosen keyframe of its Pattern, and the cards
 nearest your pointer run the real preview engine from that moment, within a
@@ -417,6 +420,13 @@ constantly:
 Marquee-select Clips and **Group** them into one movable occurrence across
 Layers. **Duplicate** creates linked copies that share edits until **Make
 Unique** breaks the link.
+
+A **Marker** is a named point on the timeline. It guides your eye and nothing
+else: playback, Clips and Transitions never depend on one. A Marker can also be
+a **chapter**, which is how a Show names its passages for the Gallery, its
+public page and the Live caption. Chapters read in time order, and two chapters
+at the same moment stay separate. Markers you add are ordinary guides; they do
+not become chapters on their own.
 
 ## 14. Clips
 

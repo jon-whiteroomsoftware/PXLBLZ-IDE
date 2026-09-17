@@ -895,17 +895,34 @@ Layout's output is never hidden by an initial mask. See
 [Prepared v2 Stage preview](contracts/show-v2-prepared-stage.md) for the
 presentation windows, transfer blending and the presentation-only boundary.
 
-The complete gated surface, reached only through `?show-v2-editor=1`, also covers
-ordinary Clip creation, timing, deletion, sharing and Pattern replacement,
-Transition Insert/settings/Reset to Cut, Group creation and occurrence
-operations, Group definition-local Pattern replacement, Layout occurrence edits,
-Markers, global Insert Time and Show End. Every one of those adapters reaches its
-pure owner through one closed prepared-edit admission path that revalidates
-route, provider, revision and captured dependencies, publishes exactly one
-candidate with one history entry and one save, and writes nothing on refusal or
-no-op. Production Shows remain v1 until the #1039 cutover; the
+That surface is the production Show editor since the #1039 cutover, and it
+covers ordinary Clip creation, timing, deletion, sharing and Pattern
+replacement, Transition Insert/settings/Reset to Cut, Group creation and
+occurrence operations, Group definition-local Pattern replacement, Layout
+occurrence edits, Markers, global Insert Time and Show End. Every one of those
+adapters reaches its pure owner through one closed prepared-edit admission path
+that revalidates route, provider, revision and captured dependencies, publishes
+exactly one candidate with one history entry and one save, and writes nothing on
+refusal or no-op. The
 [audit scope map](evidence/issue-1038-audit/scope-map.md) records which
 behaviors are proved and which residuals are still carried.
+
+**Which editor holds a Show.** `SHOW_V2_ROUTE_DEFAULT` is `true`, so version 2
+is the ordinary Show path: a fresh Show is authored as a `ShowRecordV2`, the
+Show list reads stored version-2 documents beside whatever is still version 1,
+`.pxlshow` import accepts either version, and an unbound MCP connection is
+described the v2 catalogue. Which editor a routed Show opens on follows that
+Show's stored version, because nothing in the application converts a stored row:
+a version-2 document opens on the v2 editor, and a row still stored as version
+1 - like every built-in Show, which has no stored document at all - keeps the
+previous editor, its previous command vocabulary and its previous behavior
+until the operator conversion below rewrites it. `?show-v2-editor=1` remains a
+development-only preview of an unconverted row, which converts in memory and
+writes nothing; a production build ignores it. The v2 editor has no counterpart
+yet for the previous editor's output-contract summary and Show properties,
+Stage map selection, Zone Map, Zone Layout definition routing mode or Show
+Trails; see
+[the editor contract](contracts/show-editor-v2.md#surfaces-the-v1-editor-has-and-this-route-does-not).
 
 **Row conversion.** Personal rows move to v2 through an explicit operator pass,
 never through a read. `scripts/show-v2-migrate.ts` drives the landed owner over

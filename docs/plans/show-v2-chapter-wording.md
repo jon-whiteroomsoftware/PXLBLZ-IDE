@@ -1,11 +1,16 @@
 # Prepared Feature Guide wording for chapters (#1040)
 
-Status: prepared, not published. The
-[Feature Guide](../reference/PXLBLZ%20Feature%20Guide.md) documents shipped
-behavior, and the chapter vocabulary is not user-facing production behavior
-until #1039 activates v2. This file holds the replacement wording so #1039 and
-#1043 can land it without re-deriving it, and so the vocabulary is reviewed
-once rather than invented twice.
+Status: **published in part at #1039**, which activated v2. The Gallery and the
+Markers-and-chapters passages are now in the
+[Feature Guide](../reference/PXLBLZ%20Feature%20Guide.md); the Live strip
+replacement is **not**, and is the one thing left here for #1043.
+
+The Live strip narration still describes Scene following because that is still
+what it does: the strip belongs to the previous editor's Show workspace, which
+the v2 route does not mount, so nothing reads the chapter projection there yet.
+Publishing that replacement would document behavior no Show has. #1043 lands it
+when the strip exists on the v2 surface, or rewrites it for whatever replaces
+the strip.
 
 What actually changed at #1040 is narrow: the Gallery band and the public
 reading card no longer print a Scene count, the reading card's arc is the Show's

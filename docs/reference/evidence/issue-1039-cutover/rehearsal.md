@@ -127,6 +127,30 @@ through the ordinary v2 import planner, and prepares and compiles the record. A
 qualification refusal is a reported outcome, not a thrown pass: the row keeps
 its snapshot and the operator restores exactly the reported identities.
 
+## Third rehearsal, on the flipped build
+
+Re-run on the activation candidate, after `SHOW_V2_ROUTE_DEFAULT` became
+`true`, to prove the runbook is unchanged by the flip. Same isolated runtime
+(`npm run dev:issue -- --issue 1039 --profile isolated`, port 5212), the same
+seeder and the same pinned corpus - 47 v1 rows plus one deliberately malformed
+row - through the same `npm run show:v2-migrate` entry point.
+
+| Pass | Result |
+| --- | --- |
+| `inventory` | `48 row(s); 0 already v2.` Every row `unrecorded`; the malformed row listed with its decode error |
+| `convert --stop-after 5` | `Stopped after 5 settled row(s) at operator request.` |
+| `convert` (resume) | `{"already-v2":5,"converted":42,"refused":1}` - the five settled rows are recognised, not redone |
+| `convert` (repeat) | `{"already-v2":47,"refused":1}` - idempotent, no second write |
+| `rollback --ids <47>` | `Restored 47 row(s) from their migration backups.` |
+| `inventory` | `48 row(s); 0 already v2.` - the restore is complete |
+| `convert` (reconvert) | `{"converted":47,"refused":1}` |
+
+The one refusal is the seeded malformed row, by name:
+`Show rehearsal-malformed-row is missing a valid output contract`. It stays
+recoverable and is reported rather than skipped. Nothing in the runbook needed
+a change for the flip: the conversion path never reads the route gate, which is
+the same reason the application cannot convert a row on its own.
+
 ## Residuals and open observations
 
 - The remote pass and its deployed-tip evidence are blocked and were not

@@ -1,8 +1,8 @@
 import { expect, test, type Page } from './fixtures/authenticated'
 
 /**
- * One agent command sequence against a version-2 record, on the ordinary Show
- * route behind its gate, through the real MCP path (#1039).
+ * One agent command sequence against a version-2 record, on the production
+ * Show route with no query flag, through the real MCP path (#1039).
  *
  * Nothing is stubbed: the client registers itself with the Worker's own OAuth
  * authority, the person grants consent on the real consent page in this
@@ -11,8 +11,6 @@ import { expect, test, type Page } from './fixtures/authenticated'
  * executor, the v2 candidate admission - and the oracles are what the author
  * sees in the timeline and what storage returns on a reload.
  */
-const GATE = 'show-v2-editor=1'
-
 /**
  * The consent page is served outside the app's base path, so the dev server has
  * no `/assets/...` webfont to answer with. That is a static-asset path on the
@@ -99,26 +97,26 @@ async function createShow(page: Page): Promise<string> {
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
-  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?/)
+  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+/)
   return new URL(page.url()).pathname.split('/').at(-1)!
 }
 
-test('an external agent renames and reshapes a v2 Show through MCP on the gated route', async ({ page }) => {
+test('an external agent renames and reshapes a v2 Show through MCP on the production route', async ({ page }) => {
   test.setTimeout(180_000)
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
 
   await page.setViewportSize({ width: 1440, height: 1000 })
-  await page.goto(`studio/shows?${GATE}`)
+  await page.goto('studio/shows')
   const showId = await createShow(page)
 
   const client = await registerClient(page)
   const token = await accessToken(page, client)
   const tool = mcp(page, token)
 
-  // Back on the gated route, holding the v2 record, with the binding armed.
-  await page.goto(`studio/shows/${showId}?${GATE}`)
+  // Back on the production route, holding the v2 record, with the binding armed.
+  await page.goto(`studio/shows/${showId}`)
   await expect(page.getByTestId('show-editor-v2-route')).toBeVisible()
   await expect(page.getByTestId('show-editor-v2-route-version')).toHaveText('v2')
   const edge = page.getByRole('button', { name: /^Open the Agent drawer/ })
@@ -163,7 +161,7 @@ test('an external agent renames and reshapes a v2 Show through MCP on the gated 
   expect(saved?.name).toBe('Renamed by MCP')
   expect(saved?.composition.clips).toHaveLength(clips.length - 1)
 
-  await page.goto(`studio/shows/${showId}?${GATE}`)
+  await page.goto(`studio/shows/${showId}`)
   await expect(page.getByTestId('show-editor-v2-route-version')).toHaveText('v2')
   await expect(page.getByRole('heading', { name: 'Renamed by MCP' })).toBeVisible()
 
