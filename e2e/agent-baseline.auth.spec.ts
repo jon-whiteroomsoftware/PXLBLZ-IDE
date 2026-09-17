@@ -20,6 +20,7 @@ import { showBoundaryCommandFixture } from '../src/test/showBoundaryCommandFixtu
 // screenshot per sequence land under reports/agent-harness/baseline/browser/.
 // Not part of the push gates: this is an explicit diagnostic command.
 import { spawn, type ChildProcess } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Page, Request } from '@playwright/test'
@@ -32,6 +33,8 @@ import {
   personalLibraryPatternShow,
 } from '../src/agent-harness/baseline/fixtures'
 import type { ShowRecord } from '../src/engine/personalContentRecords'
+import { createShowWithOutputContract } from '../src/engine/showModel'
+import { createInstallationShowOutputContract } from '../src/engine/showOutputContract'
 import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { showOverlayLayerFixture } from '../src/test/showOverlayLayerFixture'
 import { showSplitClipFixture } from '../src/test/showSplitClipFixture'
@@ -234,15 +237,26 @@ function watchShowWrites(page: Page): ShowWrite[] {
   return writes
 }
 
+/**
+ * Seed one version-1 personal Show and open it with the Agent capability on.
+ *
+ * Every other sequence here posts its own version-1 fixture; this one used to
+ * drive the creation flow, which since #1039 writes a version-2 record onto the
+ * v2 editor. These reproductions are about the v1 editor's agent binding, so it
+ * seeds the row it means, in the shape the flow's Installation defaults built.
+ */
 async function createPersonalShow(page: Page): Promise<string> {
-  await page.goto('studio/shows?agent=1')
-  await page.getByRole('button', { name: 'Add show' }).click()
-  await page.getByRole('button', { name: 'New show' }).click()
-  await page.getByRole('button', { name: 'Create Installation Show' }).click()
-  await page.getByRole('button', { name: 'Create Show' }).click()
-  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?agent=1$/)
+  const show = createShowWithOutputContract(
+    randomUUID(),
+    'Untitled Show',
+    createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 256 }),
+  )
+  const created = await page.context().request.post('/api/shows', { data: show })
+  expect(created.ok(), await created.text()).toBe(true)
+  await page.goto(`studio/shows/${show.id}?agent=1`)
+  await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}\\?agent=1$`))
   await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-  return new URL(page.url()).pathname.split('/').at(-1)!
+  return show.id
 }
 
 async function injectOverlay(page: Page, bridgeUrl: string): Promise<void> {
