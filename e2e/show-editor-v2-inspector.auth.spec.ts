@@ -10,9 +10,11 @@ test('the ordinary route inspects and edits a v2 Clip through the landed owners'
   await page.setViewportSize({ width: 1440, height: 1000 })
   const { showId, inspector, readSaved, writes } = await openShowEditorV2Inspector(page)
   await expect(inspector).toBeVisible()
-  // The timeline itself stays read-only; only the inspector edits this record.
+  // Slice 2 made the timeline editable, so the surface beside the inspector now
+  // states the editing condition. This spec still edits only through the
+  // inspector and performs no gesture, so the status line keeps its default.
   await expect(page.getByTestId('show-timeline-read-only-status'))
-    .toContainText('Read only - this Show is stored in the v2 format')
+    .toContainText('Editing this v2 Show')
 
   // Selection binds the inspector to one Clip, with its authored entry policy.
   await inspector.getByLabel('Selected Clip').selectOption('voice')
