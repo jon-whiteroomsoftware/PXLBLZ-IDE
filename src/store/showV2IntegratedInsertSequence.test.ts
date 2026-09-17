@@ -58,11 +58,11 @@ function insertFixture(): { record: ShowRecordV2; dependencies: ShowPreparedStag
       ],
       propertyTracks: [
         {
-          // A participant-scope positive Transition currently requires full-Show
-          // activation for every Clip/instance track (`unsupported-transition-
-          // property-track`), so the animated Clip keeps Show-wide activation
-          // with its authored keys inside; key 'curve-last' is the last key of a
-          // still-active track.
+          // The animated Clip starts with Show-wide activation and its authored
+          // keys inside; key 'curve-last' is the last key of a still-active
+          // track. Insertion at zero later moves this activation off zero, which
+          // the section-scoped lowering must accept beside the participant
+          // Transition.
           id: 'clip-curve', target: { kind: 'clip-view', clipId: 'animated', property: 'brightness' }, activeStartMs: 0, activeDurationMs: 8000,
           keyframes: [
             { id: 'curve-start', timeMs: 1000, value: 0.2, easing: { curve: 'quadratic', direction: 'in' } },
@@ -181,11 +181,10 @@ it('runs the whole Insert Time sequence with typed interior refusals through adm
   expect(pilot.current().composition.layoutOccurrences[1].startMs).toBe(switchAt + 100)
   expect(pilot.current().composition.layoutOccurrences[1].incomingTransfer).toEqual(record.composition.layoutOccurrences[1].incomingTransfer)
 
-  // 7. Insertion at zero is representable and mapped correctly by the timeline
-  //    owner, but the current lowering guard then refuses the complete record:
-  //    shifting a full-Show-activated track off zero breaks the positive-
-  //    Transition activation requirement. Recorded as an unresolved obligation
-  //    of `showCompositionLoweringV2.ts`, not an accepted product limit.
+  // 7. Insertion at zero shifts every owner right, leaves blank leading time,
+  //    and the mapped candidate prepares: the section-scoped activation it
+  //    produces now lowers into derived sections beside the participant
+  //    Transition instead of refusing.
   const beforeZero = pilot.current()
   const firstDuration = beforeZero.composition.layoutOccurrences[0].durationMs
   const zeroOwner = insertShowTimeV2(beforeZero, { atMs: 0, durationMs: 100 })
@@ -194,20 +193,19 @@ it('runs the whole Insert Time sequence with typed interior refusals through adm
   expect(zeroOwner.record.composition.layoutOccurrences[0]).toMatchObject({ startMs: 0, durationMs: firstDuration + 100 })
   expect(clipOf(zeroOwner.record, 'static').startMs).toBe(100)
   expect(zeroOwner.record.composition.showEndMs).toBe(8800)
-  const zeroPrepared = prepareShowStageV2(zeroOwner.record, dependencies)
-  expect(zeroPrepared).toMatchObject({ status: 'refused', message: expect.stringContaining('positive-Transition property-track activation') })
-  // The smallest counterexample: the same mapped candidate prepares as soon as
-  // the participant-scope positive Transition is absent.
-  const withoutTransition = structuredClone(zeroOwner.record)
-  withoutTransition.composition.transitions = []
-  withoutTransition.composition.clips = withoutTransition.composition.clips.filter(clip => clip.id !== 'out' && clip.id !== 'in')
-  expect(prepareShowStageV2(withoutTransition, dependencies).status).toBe('ready')
+  // Both tracks moved off zero together and keep their exclusive Show End.
+  for (const id of ['clip-curve', 'shared-gain']) {
+    expect(trackOf(zeroOwner.record, id), id).toMatchObject({ activeStartMs: 100, activeDurationMs: 8700 })
+  }
+  expect(prepareShowStageV2(zeroOwner.record, dependencies).status).toBe('ready')
   const atZero = await admitShowV2PilotInsertTime({ ...pilot.context(), intent: { atMs: 0, durationMs: 100 } })
-  expect(atZero).toMatchObject({ status: 'refused', source: 'admission', code: 'unsupported-pilot-record' })
-  expect(pilot.current()).toBe(beforeZero)
+  expect(atZero.status).toBe('applied')
+  expect(pilot.current().composition).toEqual(zeroOwner.record.composition)
+  expect(clipOf(pilot.current(), 'static').startMs).toBe(100)
+  expect(pilot.current().composition.markers.map(marker => marker.timeMs)).toEqual([1300, 12800])
 
-  expect(pilot.writes()).toBe(4)
-  expect(pilot.history().past).toHaveLength(4)
+  expect(pilot.writes()).toBe(5)
+  expect(pilot.history().past).toHaveLength(5)
   expect(pilot.saved()).toEqual(pilot.current())
 
   // Runtime evolution is untouched: the shared runtime advances normally through
@@ -220,15 +218,18 @@ it('runs the whole Insert Time sequence with typed interior refusals through adm
     const frozen = native.prefixFor('frozen')
     const elapsed = (time: number) => exportedScalar(replay.advanceTo(time, { stepMs: 100, forceFullIntermediateRender: true }).exports, `${shared}_elapsed`, fidelity)
     const frozenElapsed = (time: number) => exportedScalar(replay.advanceTo(time, { stepMs: 100, forceFullIntermediateRender: true }).exports, `${frozen}_elapsed`, fidelity)
+    // Insertion at zero left 100 ms of blank leading time: nothing contributes
+    // and the shared runtime has not started.
+    expect(elapsed(99), `leading blank ${fidelity}`).toBe(0)
     // The shared runtime advances while it contributes, holds across the widened
     // gap, and resumes in the extended animated Clip. No reset was introduced.
-    const atGapStart = elapsed(600)
+    const atGapStart = elapsed(700)
     expect(atGapStart, `gap start ${fidelity}`).toBeGreaterThan(0)
-    // 1100 is the last frame of the widened gap; the animated Clip now starts at 1200.
-    expect(elapsed(1100), `gap hold ${fidelity}`).toBe(atGapStart)
-    expect(elapsed(1200) - atGapStart, `gap resume ${fidelity}`).toBe(100)
-    expect(elapsed(1300) - atGapStart, `advance after resume ${fidelity}`).toBe(200)
+    // 1200 is the last frame of the widened gap; the animated Clip now starts at 1300.
+    expect(elapsed(1200), `gap hold ${fidelity}`).toBe(atGapStart)
+    expect(elapsed(1300) - atGapStart, `gap resume ${fidelity}`).toBe(100)
+    expect(elapsed(1400) - atGapStart, `advance after resume ${fidelity}`).toBe(200)
     // Explicit zero time scale keeps its existing behavior through added playback.
-    expect(frozenElapsed(3600), `frozen ${fidelity}`).toBe(0)
+    expect(frozenElapsed(3700), `frozen ${fidelity}`).toBe(0)
   }
 })

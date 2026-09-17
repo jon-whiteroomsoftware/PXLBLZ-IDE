@@ -712,9 +712,10 @@ describe('definition-local Group Clip Pattern replacement', () => {
   })
 
   it('keeps an ordinary sharing user, its attached Transition and its compiled member exact while the selected linked use forks', () => {
+    // The Group definition keeps its local instance animation, so the ordinary
+    // positive Transition coexists with materialized section-scoped activation.
     const source = linkedFixture()
     source.composition.propertyTracks = []
-    source.composition.groupDefinitions[0].propertyTracks = []
     source.composition.clips[0].durationMs = 400
     source.composition.clips.push({ ...structuredClone(source.composition.clips[0]), id: 'second', startMs: 600,
       appearance: { keys: [{ ...structuredClone(source.composition.clips[0].appearance.keys[0]), id: 'second:key', timeMs: 600 }] } })
@@ -723,7 +724,6 @@ describe('definition-local Group Clip Pattern replacement', () => {
     const before = structuredClone(source)
     const old = runtime(source, 'fast')
     const value = linkedIntent(source)
-    value.slot = { kind: 'retain' }
     const result = replaceShowGroupDefinitionClipPatternV2(source, value)
     expect(result.status, JSON.stringify(result)).toBe('changed')
     if (result.status !== 'changed') return

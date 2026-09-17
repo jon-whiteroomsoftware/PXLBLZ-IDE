@@ -184,15 +184,15 @@ it('runs the §7 hold example, repeat insertion, move, duplicate, Make Unique an
 })
 
 it('refuses an overlapping effective Group instance track duplicate atomically', { timeout: 60_000 }, async () => {
-  // The lowering guard requires full-Show activation for every Clip/instance
-  // track whenever a participant-scope positive Transition exists, so this
-  // conflict partition uses the same fixture without the internal Transition.
+  // The §4 shared-animation rule, proved on the fixture that keeps its internal
+  // Group-local Transition: section-scoped activation now lowers beside a
+  // participant-scope positive Transition, so the conflict no longer has to be
+  // demonstrated on a Transition-free variant.
   const { record, dependencies } = groupHoldFixture()
   const definition = definitionOf(record, 'verse')
-  definition.transitions = []
-  definition.clips[1].startMs = 4000
-  definition.clips[1].durationMs = 6000
-  definition.clips[1].appearance.keys[0].timeMs = 4000
+  // A second Group Layer so the duplicated occurrence's Clips cannot collide:
+  // only the shared instance-control activation overlaps.
+  record.composition.layers.push({ id: 'group-layer-2', zoneId: 'zone', name: 'Group 2', rank: 2 })
   definition.propertyTracks = [{
     id: 'local-gain', target: { kind: 'instance-control', instanceId: 'slot', exportName: 'sliderGain' }, activeStartMs: 0, activeDurationMs: 10000,
     keyframes: [
@@ -207,11 +207,19 @@ it('refuses an overlapping effective Group instance track duplicate atomically',
   const held = occurrence(pilot.current(), 'occurrence-0')
   const overlapping = planShowV2GroupOccurrenceEdit(pilot.current(), {
     kind: 'duplicate-occurrence', occurrenceId: 'occurrence-0',
-    placement: { startMs: 5000, zoneId: 'zone', layerBindings: held.layerBindings, translationX: 0, translationY: 0 },
+    // A different destination Layer: the copied Clips occupy free Layer time, so
+    // only the effective instance-control activation collides.
+    placement: { startMs: 5000, zoneId: 'zone', layerBindings: [{ definitionLayerId: 'local', layerId: 'group-layer-2' }], translationX: 0, translationY: 0 },
   }, () => 'conflicting-copy')
   if (overlapping.status !== 'ready') throw Error(overlapping.message)
   const outcome = await admitShowV2PilotGroupOccurrenceEdit({ ...pilot.context(), intent: overlapping.intent })
-  expect(outcome).toMatchObject({ status: 'refused', source: 'owner' })
+  // The refusal names the §4 shared-animation rule and both effective track
+  // IDs, so a plain Clip-overlap or placement refusal cannot satisfy it.
+  expect(outcome).toMatchObject({ status: 'refused', source: 'owner', code: 'invalid-result' })
+  if (outcome.status !== 'refused' || outcome.source !== 'owner') throw Error('expected an owner refusal')
+  expect(outcome.message).toContain('overlaps active owner')
+  expect(outcome.message).toContain('conflicting-copy:local-gain')
+  expect(outcome.message).toContain('occurrence-0:local-gain')
   expect(pilot.writes()).toBe(0)
   expect(pilot.history().past).toEqual([])
   expect(pilot.current().composition.groupOccurrences).toHaveLength(2)
