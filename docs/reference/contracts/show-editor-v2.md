@@ -3,10 +3,10 @@
 Canonical authority is [the Scene-retirement specification](../../plans/scene-retirement-specification.md)
 §3 (record and identity), §5 (Cut as absence and whole-output scope), §8 (Layers,
 Layout occurrences, Markers, Show End) and §10 (no mixed window), and issue
-#1056. This describes what is landed after slice 1: one version-agnostic timeline
-view model, both projections into it, the v1 container consuming it, and a
-read-only v2 rendering on the ordinary route. Editing a v2 record on that route
-is not landed.
+#1056. This describes what is landed after slices 1 and 3: one version-agnostic
+timeline view model, both projections into it, the v1 container consuming it, a
+read-only v2 timeline on the ordinary route, and the Clip inspector beside it.
+The timeline surface itself is still read-only.
 
 ## The view model
 
@@ -106,8 +106,14 @@ These v1 seams are unchanged and are slice obligations, not view-model gaps:
   `showRoutingTransitionAfter`, and the sample-repeat lane (slice 4);
 - the per-Clip gesture code, which still consumes
   `ShowUnifiedTimelineClipProjection` and the store's v1 mutators (slice 2);
-- the Clip inspector and its satellites (slice 3);
 - property lanes, which the view model does not carry (slice 5).
+
+`ShowClipEntityDetail` and its `ShowClipInspectorValue`/`onPatch` contract remain
+the v1 inspector, unchanged. Its patch shape carries whole component values and
+no held-key identity, so it cannot express what the v2 appearance owner requires
+(one scope, one selected-time key identity plan, and only the dirty fields). The
+v2 inspector below composes the landed v2 models instead, and reuses the v1 leaf
+that does fit a v2 record: `ShowPatternInstanceControls`.
 
 ## The version gate
 
@@ -122,6 +128,9 @@ either flag the ordinary editor renders a v1 record exactly as before. The route
 missing-Show guard stands aside for both opt-ins, because a converted row leaves
 the v1 list until #1039 couples them.
 
+The route lays the workspace and the Clip inspector side by side above 1024 px
+and stacks them below it.
+
 `ShowTimelineReadOnlySurface` draws only from the view model. It holds no record,
 takes no callbacks that change one, and offers no control that can: every item is
 a focusable `aria-disabled` element, so keyboard traversal reaches each Clip,
@@ -129,10 +138,56 @@ Layout occurrence and Marker while nothing is actionable. One status line states
 the condition. The surface registers no agent binding, so no command can reach a
 v2 record and §10's forbidden mixed window stays closed.
 
+## The Clip inspector
+
+[`ShowClipInspectorV2`](../../../src/components/ShowClipInspectorV2.tsx) renders
+beside the read-only timeline on the same gated route. It holds no record: it
+reads the prepared capture
+[`useShowV2EditCapture`](../../../src/components/useShowV2EditCapture.ts) pins,
+and re-reads it after every adoption.
+
+| Section | Model that plans it | Admission wrapper |
+| --- | --- | --- |
+| Clip identity, placement, entry policy | `buildShowClipInspectorModelV2` | none; read only |
+| Clip start, duration, end, in exact ms | `ShowClipTemporalIntentV2` | `admitShowV2PilotClipTemporal` |
+| Pattern instance, Make Pattern Independent, Rejoin | `createShowV2IndependentIntent`, `createShowV2RejoinIntent` | `admitShowV2PilotClipSharingEdit` |
+| Replace Pattern | `createShowV2ClipReplacementIntent`, `previewShowV2ClipReplacement` | `admitShowV2PilotClipReplacementEdit` |
+| Appearance and Effects | `showV2AppearanceEditorModel` | `admitShowV2PilotAppearanceEdit` |
+| Create Group, Group occurrence actions, Replace Group Pattern | `showV2GroupCreationEditorModel`, `showV2GroupOccurrenceEditorModel`, `showV2GroupReplacementEditorModel` | `admitShowV2PilotCreateGroup`, `admitShowV2PilotGroupOccurrenceEdit`, `admitShowV2PilotGroupReplacementEdit` |
+
+Rules the inspector holds to:
+
+- **Selection is view-model identity.** A `clip` selection names an authored
+  ordinary Clip. A `group` selection resolves to that occurrence's first
+  materialized Group Clip use and is inspected, not edited: the ordinary Clip
+  owners do not accept a materialized child, so the timing, Replace and
+  appearance sections are absent and the Group sections stand in their place.
+  The panel selects from its own Clip list until a caller passes a selection.
+- **Sharing is counted over effective uses.** The Pattern instance panel counts
+  and lists ordinary Clips and every materialized Group Clip use (section 4), so
+  a Clip whose only other users are invisible Group uses still reads as shared.
+  Rejoin offers explicit existing instances only, never the Clip's own.
+- **Replacement confirms its loss.** `previewShowV2ClipReplacement` reports the
+  instance-control tracks and control values a replacement would discard;
+  the inspector confirms them before adopting and a cancelled confirmation
+  adopts nothing (section 6). The pilot route keeps its unconfirmed control:
+  `requireLossConfirmation` is opt-in.
+- **One edit, one history entry.** Every section adopts through the closed
+  admission, so a refusal returns the original record identity and writes no
+  history, save or timestamp. Undo and Redo settle through the same save queue.
+- **No new owner semantics.** The entry policy is shown and never written here:
+  no landed pure owner or `admitShowV2Pilot*` wrapper sets `clip.entryPolicy`
+  on an existing Clip. The only landed writer is the command layer's
+  `update_clips`, which belongs to #1041. The stutter control is likewise
+  omitted (`steppedClockEditable={false}`) because no v2 owner edits a Pattern
+  instance clock.
+
 ## What remains
 
-Slices 2-6 of #1056 own gesture adapters, the Clip inspector, Transition and
-Layout authoring, animation and Markers, and the remaining route content, after
-which `?show-v2-pilot=1` and `?show-v2-editor=1` both retire. Until then a v2
-record on the ordinary route can be read, previewed and traversed, but not edited,
-and the store mutators, executor, admission and MCP surfaces remain v1-typed.
+Slices 2, 4, 5 and 6 of #1056 own gesture adapters, Transition and Layout
+authoring, animation and Markers, and the remaining route content, after which
+`?show-v2-pilot=1` and `?show-v2-editor=1` both retire. Until then a v2 record on
+the ordinary route can be read, previewed, traversed and edited through the Clip
+inspector, but its timeline cannot be dragged, and the store mutators, executor,
+admission and MCP surfaces remain v1-typed. Editing a Clip's entry policy on this
+route needs an owner decision that slice 3 deliberately did not take.

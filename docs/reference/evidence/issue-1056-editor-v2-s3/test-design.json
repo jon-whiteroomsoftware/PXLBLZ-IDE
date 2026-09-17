@@ -1,0 +1,76 @@
+{
+  "issue": 1056,
+  "scope": "slice 3: the Clip inspector on the ordinary v2 editor route - selection-bound timing, Pattern instance sharing, Replace Pattern with animation-loss confirmation, appearance and Effects, and the Group actions, all through the closed prepared-edit admission",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "REPLACE",
+      "SHARING",
+      "RESTART",
+      "ROUTE",
+      "FAILURE"
+    ]
+  },
+  "base": "8f5295f4d849d8edb5b5af62d946cfcb17ab5d6f",
+  "invariants": [
+    "Sharing is counted over effective uses: ordinary Clips and every materialized Group Clip use, including invisible ones (section 4).",
+    "One accepted inspector edit is one adopted record, one history entry and one provider save; a refusal or no-op returns the original record identity and writes nothing (section 9).",
+    "Replacement changes the selected Clip only: other users keep their instance, controls, tracks and compiled member, and a shared source forks through the explicit independence plan (section 6).",
+    "Animation loss is reported by the pure planner and confirmed at the adapter; a cancelled confirmation adopts nothing (section 6).",
+    "An appearance edit writes the dirty fields of one explicit scope and leaves untouched held values and Effects exactly as authored (section 6).",
+    "The inspector allocates no identity of its own beyond the explicit fresh identities its planners ask for, and holds no second copy of the record.",
+    "A materialized Group Clip use is inspected, never edited as an ordinary Clip.",
+    "The authored entry policy is shown and never written: no landed owner or admission wrapper sets clip.entryPolicy (reported residual)."
+  ],
+  "partitions": [
+    "selection: ordinary Clip / Group occurrence / absent Clip / a selection kind the inspector does not own / no selection",
+    "sharing: sole use versus three effective uses across one ordinary Clip and two held Group Clip uses; Rejoin targets present, absent and self",
+    "replacement: compatible destination with no loss / incompatible destination dropping an animated control / unresolvable source / materialized child / missing Clip",
+    "confirmation: cancelled before adoption versus confirmed",
+    "timing: accepted move, accepted resize, fractional-millisecond refusal",
+    "appearance: one dirty field with held Effects and view values untouched; Effect added then removed",
+    "currency: superseded record, swapped provider, unmounted route",
+    "width: 1440 desktop and 390 narrow"
+  ],
+  "sequences": [
+    "select Clip -> move -> resize -> fractional refusal -> Make Pattern Independent -> Replace (cancel) -> Replace (confirm) -> add Effect -> remove Effect -> Undo -> Redo -> reload",
+    "pilot panel independence on one fixture versus inspector independence on the same fixture, with identities minted from the same deterministic sequence",
+    "Group occurrence selection -> inspect instance uses -> ordinary Clip sections absent"
+  ],
+  "oracles": [
+    "The adopted record in the store and the bytes the provider received, compared field by field against the authored preimage.",
+    "Record equality between the inspector's adoption and the landed pilot panel's adoption of the same operation on the same fixture.",
+    "The exported .epe reopened through its importer: the retained instance's attributed compiled member is byte-identical before and after a shared-Clip replacement.",
+    "The stored v2 record read back through GET /api/shows?show-version=2 on the real authenticated route, plus the visible status line and the panel's rendered state.",
+    "History past/future entries and the counted PUT writes for accepted, refused and cancelled operations."
+  ],
+  "redEvidence": [
+    "showClipInspectorV2Model.test.ts written against the model's required behaviour before the component existed; the Group-occurrence and Rejoin-target partitions failed until the materialized resolution and self-exclusion were implemented.",
+    "previewShowV2ClipReplacement tests failed with a missing export until the planner reported its loss.",
+    "The inspector component test failed on the move partition until the Clip fixture was shortened, exposing that the authored Clip filled Show End and the owner refuses a move past it.",
+    "The first e2e run failed on a strict-mode locator collision, showing the number field's Apply and Cancel affordances share the field's accessible name."
+  ],
+  "faults": [
+    "independence copies zero tracks (createShowV2IndependentIntent): killed, 1 failed of 7 in ShowClipInspectorV2.test.tsx",
+    "Replace forgoes independence and mutates the shared instance (createShowV2ClipReplacementIntent): killed, 2 failed of 7",
+    "loss preview reports nothing (previewShowV2ClipReplacement): killed, 3 failed of 22 across the component and model suites",
+    "appearance submit writes an undirtied field (ShowV2AppearanceEditor): killed, 1 failed of 7",
+    "instance use count ignores Group Clip uses (showClipInspectorV2Model): killed, 4 failed of 13 across the model and component suites"
+  ],
+  "results": {
+    "focused": "npx vitest run src/engine/showClipInspectorV2Model.test.ts src/components/ShowClipInspectorV2.test.tsx src/engine/showV2ClipReplacementModel.test.ts: 28 passed (28). Pilot regression: src/components/ShowV2ClipReplacementEditor.test.tsx and ShowV2RoutePilotReplacement.test.tsx: 7 passed (7).",
+    "static": "npm run lint clean; npx tsc -b --pretty false clean.",
+    "parity": "npm run show:v2-parity: 47 inventoried records matched, report unchanged.",
+    "e2e": "npx tsx scripts/run-authenticated-playwright.ts e2e/show-editor-v2-inspector.auth.spec.ts: 1 passed; eight awaited durable writes, two zero-write partitions (cancelled replacement, fractional millisecond), Undo/Redo, reload round trip of the authored Restart policy, 390 px keyboard traversal with zero control overflow, zero console errors.",
+    "faultSensitivity": "5/5 injected faults killed; suites restored green (28 passed).",
+    "browser": "Four committed captures under .wrsp/ui-proof/1056-s3-*, driven on the real route with repository Playwright; every image opened and inspected."
+  },
+  "residualGaps": [
+    "Entry policy is displayed, not editable: no landed pure owner or admitShowV2Pilot* wrapper writes clip.entryPolicy on an existing Clip, and the only landed writer is the non-exported writeClipFlags behind the #1041 update_clips command. Adding an owner and a Command variant to the closed admission is outside this slice's limits and needs the coordinator's decision.",
+    "Pattern instance clock (stutter), time scale and control values have no v2 edit owner, so the reused v1 leaf renders without its stutter row.",
+    "Inspector-versus-pilot equality is asserted at the adopted record and history, not at the returned affected-collection arrays, because the inspector calls the admission wrappers directly rather than through an injected submit seam.",
+    "Timeline gestures, Transition and Layout authoring, property lanes and Markers remain with slices 2, 4 and 5; the timeline surface stays read-only.",
+    "Authoritative committed-tip runner suites and Fable High review are the coordinator's."
+  ]
+}

@@ -98,6 +98,11 @@ test('the ordinary route inspects and edits a v2 Clip through the landed owners'
 
   // Narrow width: reachable by keyboard and nothing escapes the viewport.
   await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByTestId('studio-drawer-layout')).not.toHaveAttribute('data-drawer-mode', 'pinned')
+  await page.mouse.move(380, 800)
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('studio-entity-drawer').first()).toBeHidden()
   const narrow = page.getByTestId('show-clip-inspector-v2')
   const select = narrow.getByLabel('Selected Clip')
   await select.scrollIntoViewIfNeeded()
