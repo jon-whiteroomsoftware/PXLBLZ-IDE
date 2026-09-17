@@ -62,7 +62,9 @@ print no Scene count, the reading card's arc is the chapter list with each span
 derived from the next chapter start, and the Live preview captions the chapter
 the loop is inside. The v2 pilot's Marker panel shows the same projection
 read-only. Playback, compilation and stored Gallery keyframes still run on the
-pinned legacy v1 record; #1039 owns activation. Prepared Feature Guide wording
+pinned legacy v1 record; #1039 owns activation. Both catalogues therefore ship
+until #1042 retires the legacy builder, which costs a measured 122.6 kB
+minified / 18.2 kB gzipped in the production bundle. Prepared Feature Guide wording
 for the vocabulary is held in
 [chapter wording](../../plans/show-v2-chapter-wording.md) and is unpublished.
 

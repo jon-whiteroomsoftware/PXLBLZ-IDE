@@ -4,7 +4,10 @@
   "specification": {
     "path": "docs/plans/scene-retirement-specification.md",
     "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
-    "proofRows": ["CHAPTERS", "PARITY"]
+    "proofRows": [
+      "CHAPTERS",
+      "PARITY"
+    ]
   },
   "base": "cf76983b3a68046ca74b5c46eabc338eabecfb5a",
   "invariants": [
@@ -72,7 +75,8 @@
     "The Live caption's per-frame text is driven by the rAF loop, so its content is proven by the browser captures and by showChapterIndexAtV2's unit cases rather than by a jsdom assertion.",
     "Production playback, compilation and Gallery keyframes still read the pinned legacy v1 records; #1039 owns activation.",
     "The three Zone Layout showcases census differently from v1 under the accepted #1036 silent-runtime retirement; the difference is measured in the 47-record report, not re-derived here.",
-    "Feature Guide chapter wording is prepared but unpublished: production reference claims land with #1039."
+    "Feature Guide chapter wording is prepared but unpublished: production reference claims land with #1039.",
+    "Both stock catalogues ship in the production bundle until #1042 deletes the legacy builder: measured 122.6 kB minified / 18.2 kB gzipped, the deliberate price of naming chapters from role rather than from Scene labels."
   ],
   "qualification": {
     "mutations": "9/9 focused semantic faults killed across the converter, the projection, the schema, the native catalogue and both guards of the native parity report.",
@@ -81,6 +85,7 @@
     "focused": "showChaptersV2 13, showsV2 166, galleryShows 9, ShowDetailPage 3, GalleryPage 13, ShowV2MarkerEditor 2; full src/components suite 1490 passed.",
     "static": "project TypeScript build and repository ESLint passed.",
     "browser": "npm run capture:chapters drove the Gallery, reading card and pilot routes at 0ccb50a5; three PNG captures opened and inspected; check:ui-proof accepted the record.",
-    "e2e": "e2e/show-v2-chapters.auth.spec.ts passed on the real pilot route; e2e/show-v2-markers.auth.spec.ts and the 28-test public suite stayed green."
+    "e2e": "e2e/show-v2-chapters.auth.spec.ts passed on the real pilot route; e2e/show-v2-markers.auth.spec.ts and the 28-test public suite stayed green.",
+    "bundle": "Built with and without the native catalogue import: 4,137.25 kB / 1,212.82 kB gzip versus 4,014.68 kB / 1,194.58 kB gzip."
   }
 }
