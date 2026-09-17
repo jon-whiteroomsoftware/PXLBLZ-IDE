@@ -329,6 +329,11 @@ describe('v2 timeline gesture adapters', () => {
     // The surface may also offer a time the view model does not carry, such as
     // a Marker or the playhead the v1 toolbar snaps to.
     expect(drop([610])).toMatchObject({ startMs: 610, magnetized: true })
+    // A running transport reports a fractional playhead; the drop still lands
+    // on a whole millisecond, because the owner refuses anything else (#1039).
+    const playing = drop([609.63])
+    expect(playing).toMatchObject({ startMs: 610, magnetized: true })
+    expect(Number.isInteger(playing.startMs)).toBe(true)
   })
 
   it('resolves an edge drag against the offered snap candidates too (#1039)', () => {
@@ -342,6 +347,8 @@ describe('v2 timeline gesture adapters', () => {
     expect(edge()).toEqual({ timeMs: 400, magnetized: true })
     expect(edge([])).toEqual({ timeMs: 400, magnetized: false })
     expect(edge([410])).toEqual({ timeMs: 410, magnetized: true })
+    expect(edge([409.63])).toEqual({ timeMs: 410, magnetized: true })
+    expect(edge([Number.NaN, 410])).toEqual({ timeMs: 410, magnetized: true })
   })
 
   it('keeps an edge drag inside the Clip and inside Show End', () => {

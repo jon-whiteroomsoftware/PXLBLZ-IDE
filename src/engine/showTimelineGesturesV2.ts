@@ -252,7 +252,7 @@ export function resolveShowTimelineClipDropV2(
       totalMs: view.showEndMs,
       visibleDurationMs: input.visibleDurationMs,
       visibleWidthPx: input.visibleWidthPx,
-      structuralTimesMs: input.structuralTimesMs ?? view.structuralTimesMs,
+      structuralTimesMs: wholeMilliseconds(input.structuralTimesMs ?? view.structuralTimesMs),
       excludedStructuralTimesMs: moved.flatMap(candidate => [candidate.startMs, candidate.endMs]),
       altKey: input.altKey,
       shiftKey: input.shiftKey,
@@ -293,6 +293,16 @@ export interface ShowTimelineEdgeDropInputV2 {
 }
 
 /**
+ * Snap candidates as whole milliseconds. Authored times are integers, but the
+ * surface also offers the transport's playhead, which is fractional while the
+ * preview runs; a drop magnetized to it would otherwise carry a fractional time
+ * into an owner that refuses anything but safe integer milliseconds (#1039).
+ */
+function wholeMilliseconds(timesMs: readonly number[]): number[] {
+  return timesMs.filter(Number.isFinite).map(timeMs => Math.round(timeMs))
+}
+
+/**
  * Resolve one edge drag. The opposite edge is fixed, so the resolved time stays
  * inside the Clip by at least one millisecond and inside Show End.
  */
@@ -310,7 +320,7 @@ export function resolveShowTimelineEdgeDropV2(
     visibleWidthPx: input.visibleWidthPx,
     structuralTimesMs: input.altKey
       ? []
-      : (input.structuralTimesMs ?? view.structuralTimesMs).filter(timeMs => !ownEdges.includes(timeMs)),
+      : wholeMilliseconds(input.structuralTimesMs ?? view.structuralTimesMs).filter(timeMs => !ownEdges.includes(timeMs)),
     gridEnabled: !input.altKey,
     ...(input.altKey
       ? {}
