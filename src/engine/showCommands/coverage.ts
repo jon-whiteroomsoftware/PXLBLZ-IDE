@@ -9,6 +9,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SHOW_COMMANDS } from './registry'
+import { SHOW_COMMANDS_V2 } from '../showCommandsV2/registry'
+import { renderShowCommandV2CoverageSection } from '../showCommandsV2/coverage'
 
 /**
  * Identity and derived fields the coverage walk excludes, with reasons.
@@ -243,6 +245,7 @@ export function renderShowCommandCoverageReport(coverage: ShowCommandCoverage): 
     '| --- | --- |',
     ...[...coverage.covered.entries()].map(([path, commands]) => `| \`${path}\` | ${commands.join(', ')} |`),
     '',
+    renderShowCommandV2CoverageSection(SHOW_COMMANDS_V2),
   ]
   return lines.join('\n')
 }

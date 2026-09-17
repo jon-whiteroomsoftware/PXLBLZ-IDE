@@ -191,3 +191,69 @@ export const RETIRED_V1_REFUSAL_CODES: Array<{ code: string; reason: string }> =
   { code: 'animated-effect-removed', reason: 'The appearance owner prunes a Clip-owned Effect track through its documented cascade.' },
   { code: 'shared-instance-conflict', reason: 'Replaced by the owner conflict refusal naming both track identities.' },
 ]
+
+/**
+ * The prepared v2 catalogue section of the regenerated coverage report. It is
+ * appended to the v1 report, which stays truthful about production until the
+ * coordinated cutover in #1039.
+ */
+export function renderShowCommandV2CoverageSection(
+  catalogue: ReadonlyArray<{ name: string; family: string; touches: readonly string[] }>,
+): string {
+  const byFamily = new Map<string, Array<{ name: string; touches: readonly string[] }>>()
+  for (const command of catalogue) {
+    byFamily.set(command.family, [...(byFamily.get(command.family) ?? []), command])
+  }
+  const lines: string[] = [
+    '# Prepared v2 command catalogue',
+    '',
+    'Issue #1041 prepares the complete v2 catalogue over the v2 engine owners.',
+    'Production MCP keeps the v1 catalogue above until the coordinated cutover in',
+    '#1039; `agentMcpRouting` exposes this one only through its explicit',
+    "`catalogue: 'v2'` option. MCP publishes no runtime alias for a retired name.",
+    '',
+    '## v2 catalogue',
+    '',
+    '| Family | Command | ShowRecordV2 touch paths |',
+    '| --- | --- | --- |',
+    ...[...byFamily.entries()].flatMap(([family, commands]) => commands.map(command => (
+      `| ${family} | \`${command.name}\` | ${command.touches.map(touch => `\`${touch}\``).join(', ')} |`
+    ))),
+    '',
+    '## v1 to v2 name map',
+    '',
+    'Every v1 command maps to exactly one v2 command or an explicit retirement.',
+    'The harness grammar, corpus and baseline fixtures replay through this map.',
+    '',
+    '| v1 command | v2 command | Change |',
+    '| --- | --- | --- |',
+    ...SHOW_COMMAND_V2_NAME_MAP.map(entry => (
+      `| ${entry.v1 ? `\`${entry.v1}\`` : '(new)'} | ${entry.v2 ? `\`${entry.v2}\`` : '(retired)'} | ${entry.reason} |`
+    )),
+    '',
+    '## Retired v1 addressing',
+    '',
+    '| Retired form | v2 replacement |',
+    '| --- | --- |',
+    ...RETIRED_V1_ADDRESSING.map(entry => `| \`${entry.form}\` | ${entry.replacement} |`),
+    '',
+    '## Refusal-code map',
+    '',
+    'A v1 code is reused only where its meaning is unchanged. Descriptor shape',
+    'issues and domain refusals stay distinct categories.',
+    '',
+    '| v2 code | Reused v1 code | Meaning |',
+    '| --- | --- | --- |',
+    ...SHOW_COMMAND_V2_REFUSAL_CODES.map(entry => (
+      `| \`${entry.code}\` | ${entry.v1 ? `\`${entry.v1}\`` : '(new)'} | ${entry.meaning} |`
+    )),
+    '',
+    '## Retired v1 refusal codes',
+    '',
+    '| Retired code | Reason |',
+    '| --- | --- |',
+    ...RETIRED_V1_REFUSAL_CODES.map(entry => `| \`${entry.code}\` | ${entry.reason} |`),
+    '',
+  ]
+  return lines.join('\n')
+}

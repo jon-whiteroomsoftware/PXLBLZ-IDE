@@ -6,6 +6,13 @@ import { showCommandInputShape } from '../../engine/showCommands/descriptorSchem
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 import { showCommandV2InputShape } from '../../engine/showCommandsV2/descriptorSchema'
 import {
+  SHOW_AUTHORING_V2_JSON_SCHEMA,
+  SHOW_AUTHORING_V2_REFERENCE_MARKDOWN,
+  SHOW_AUTHORING_V2_REFERENCE_URI,
+  SHOW_AUTHORING_V2_SCHEMA_URI,
+  SHOW_AUTHORING_V2_SERVER_INTRO,
+} from '../../engine/showCommandsV2/authoringReference'
+import {
   SHOW_AUTHORING_JSON_SCHEMA,
   SHOW_AUTHORING_REFERENCE_MARKDOWN,
   SHOW_AUTHORING_REFERENCE_URI,
@@ -30,6 +37,11 @@ export const AGENT_MCP_INSTRUCTIONS = [
   'At most 10 ordinary calls may be queued, including the in-flight head. One operation admits at most 253 ordinary commands; the 256-delivery lifecycle reserves one delivery for commit_edit and one after it for cancel_edit. When a choreography needs more commands, split it into committed operations and call read_show again before each new chunk.',
   'begin_edit requires a stable key. Later mutations may use an optional stable idempotency_key; a keyed retry with an identical payload only looks up the original admission. pending means the original call may still finish; unknown means its result is unavailable and never permits replay. After an unkeyed timeout, do not repeat the mutation; call get_outcome with its operation_id. The retry ledger is volatile: after connection or ledger loss, call get_connection, then read_show, and begin a new operation with a new key; never replay an unkeyed call.',
   SHOW_AUTHORING_SERVER_INTRO,
+].join('\n\n')
+/** The prepared v2 catalogue's server instructions; #1039 activates them. */
+export const AGENT_MCP_INSTRUCTIONS_V2 = [
+  ...AGENT_MCP_INSTRUCTIONS.split('\n\n').slice(0, -1),
+  SHOW_AUTHORING_V2_SERVER_INTRO,
 ].join('\n\n')
 /**
  * Which authored command catalogue the server exposes. Production stays on v1
@@ -65,7 +77,8 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   const toolResult = (resolved: ExternalToolConnection): PrivateEditResult => resolved.code === 'binding_moved'
     ? moved(resolved)
     : resolved.code === 'retirement_unconfirmed' ? { code: 'no_live_editor', ...notice(resolved) } : visible(resolved)
-  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: AGENT_MCP_INSTRUCTIONS })
+  const v2 = options.catalogue === 'v2'
+  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: v2 ? AGENT_MCP_INSTRUCTIONS_V2 : AGENT_MCP_INSTRUCTIONS })
   const output = (untrusted: PrivateEditResult) => {
     const trusted: PrivateEditResult = isAgentMcpResult(untrusted) ? untrusted : { code: 'unknown' }
     const { operationId, ...rest } = trusted
@@ -144,16 +157,18 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   for (const entry of catalogue) registerMutation(entry.name, entry.description, entry.shape, args => ({ kind: 'command', name: entry.name, arguments: args }))
   registerMutation('commit_edit', 'Validate and request adoption of the entire private candidate once; command changes describe only the private proposal, waiting/saving are not completion, and invalid-candidate may include bounded validation detail.', {}, () => ({ kind: 'commit_edit' }))
   registerMutation('cancel_edit', 'Retire the private candidate; already-adopted saves retain their receipt.', {}, () => ({ kind: 'cancel_edit' }))
-  server.registerResource('clip-layer-authoring-schema-v1', SHOW_AUTHORING_SCHEMA_URI, {
-    title: 'Clip and Layer authoring schema v1',
-    description: 'Generated JSON Schema for visible Clip/Layer bulk command inputs. This is distinct from persisted ShowRecord JSON.',
+  server.registerResource(v2 ? 'clip-layer-authoring-schema-v2' : 'clip-layer-authoring-schema-v1', v2 ? SHOW_AUTHORING_V2_SCHEMA_URI : SHOW_AUTHORING_SCHEMA_URI, {
+    title: v2 ? 'Show authoring schema v2' : 'Clip and Layer authoring schema v1',
+    description: 'Generated JSON Schema for the authored command vocabulary. This is distinct from persisted ShowRecord JSON.',
     mimeType: 'application/schema+json',
-  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(SHOW_AUTHORING_JSON_SCHEMA, null, 2) }] }))
-  server.registerResource('clip-layer-authoring-reference-v1', SHOW_AUTHORING_REFERENCE_URI, {
-    title: 'Clip and Layer authoring reference v1',
-    description: 'Global timing, patch/replace, shared-instance, atomicity, result, and executable example semantics.',
+  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(v2 ? SHOW_AUTHORING_V2_JSON_SCHEMA : SHOW_AUTHORING_JSON_SCHEMA, null, 2) }] }))
+  server.registerResource(v2 ? 'clip-layer-authoring-reference-v2' : 'clip-layer-authoring-reference-v1', v2 ? SHOW_AUTHORING_V2_REFERENCE_URI : SHOW_AUTHORING_REFERENCE_URI, {
+    title: v2 ? 'Show authoring reference v2' : 'Clip and Layer authoring reference v1',
+    description: v2
+      ? 'Identity addressing, exact global timing, the appearance apply selector, Effect and Aperture parameter names, the animation target union, the uniform no-op and the affected-entity result.'
+      : 'Global timing, patch/replace, shared-instance, atomicity, result, and executable example semantics.',
     mimeType: 'text/markdown',
-  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: SHOW_AUTHORING_REFERENCE_MARKDOWN }] }))
+  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: v2 ? SHOW_AUTHORING_V2_REFERENCE_MARKDOWN : SHOW_AUTHORING_REFERENCE_MARKDOWN }] }))
   server.server.registerCapabilities({ tools: { listChanged: false }, resources: { listChanged: false } })
   const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true })
   await server.connect(transport)

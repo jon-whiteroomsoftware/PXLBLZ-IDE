@@ -718,3 +718,223 @@ and the diff reviewed.
 | `/zones/*/color` | update_zone |
 | `/zones/*/name` | update_zone |
 | `/zones/*/nominalPixelCount` | update_zone |
+
+# Prepared v2 command catalogue
+
+Issue #1041 prepares the complete v2 catalogue over the v2 engine owners.
+Production MCP keeps the v1 catalogue above until the coordinated cutover in
+#1039; `agentMcpRouting` exposes this one only through its explicit
+`catalogue: 'v2'` option. MCP publishes no runtime alias for a retired name.
+
+## v2 catalogue
+
+| Family | Command | ShowRecordV2 touch paths |
+| --- | --- | --- |
+| show | `rename_show` | `/name` |
+| show | `set_stage_map` | `/stageMapId` |
+| show | `update_zone` | `/zones/*/name`, `/zones/*/nominalPixelCount`, `/zones/*/color` |
+| show | `set_target_controller_profile` | `/targetControllerProfileId` |
+| show | `set_output_contract` | `/outputContract`, `/stageMapId` |
+| show | `set_output_trails` | `/outputEffects` |
+| show | `set_show_end` | `/composition/showEndMs`, `/composition/layoutOccurrences` |
+| show | `insert_time` | `/composition` |
+| layers | `create_layers` | `/composition/layers`, `/composition/clips`, `/composition/patternInstances` |
+| layers | `rename_layer` | `/composition/layers/*/name` |
+| layers | `reorder_layer` | `/composition/layers/*/rank` |
+| layers | `remove_layer` | `/composition/layers`, `/composition/clips/*/layerId`, `/composition/transitions/*/participants/*/layerId`, `/composition/groupOccurrences/*/layerBindings/*/layerId` |
+| clips | `create_clips` | `/composition/clips`, `/composition/patternInstances` |
+| clips | `update_clips` | `/composition/clips`, `/composition/patternInstances`, `/composition/transitions`, `/composition/propertyTracks` |
+| clips | `remove_clips` | `/composition/clips`, `/composition/transitions`, `/composition/propertyTracks` |
+| clips | `resize_clip` | `/composition/clips`, `/composition/transitions`, `/composition/propertyTracks` |
+| clips | `split_clip` | `/composition/clips`, `/composition/transitions`, `/composition/propertyTracks` |
+| clips | `duplicate_clip` | `/composition/clips`, `/composition/patternInstances`, `/composition/propertyTracks` |
+| clips | `replace_clip_pattern` | `/composition/patternInstances`, `/composition/clips/*/instanceId`, `/composition/propertyTracks` |
+| clips | `make_clip_pattern_independent` | `/composition/patternInstances`, `/composition/clips/*/instanceId`, `/composition/propertyTracks` |
+| clips | `rejoin_clip_pattern_instance` | `/composition/patternInstances`, `/composition/clips/*/instanceId`, `/composition/propertyTracks` |
+| transitions | `insert_transition` | `/composition/transitions`, `/composition/clips` |
+| transitions | `update_transition` | `/composition/transitions` |
+| transitions | `resize_transition` | `/composition/transitions`, `/composition/clips` |
+| transitions | `remove_transition` | `/composition/transitions`, `/composition/clips`, `/composition/propertyTracks` |
+| layouts | `add_layout_interval` | `/composition/layoutOccurrences`, `/composition/showEndMs` |
+| layouts | `duplicate_layout_interval` | `/composition/layoutOccurrences`, `/composition/showEndMs`, `/composition/clips`, `/composition/transitions`, `/composition/propertyTracks`, `/composition/markers`, `/composition/groupOccurrences` |
+| layouts | `make_layout_interval_unique` | `/zoneLayouts`, `/composition/layoutOccurrences/*/layoutId` |
+| layouts | `move_layout_switch` | `/composition/layoutOccurrences/*/startMs`, `/composition/layoutOccurrences/*/durationMs` |
+| layouts | `select_layout` | `/composition/layoutOccurrences/*/layoutId` |
+| layouts | `update_layout_interval` | `/composition/layoutOccurrences/*/parameters` |
+| layouts | `set_layout_transfer` | `/composition/layoutOccurrences/*/incomingTransfer` |
+| layouts | `remove_layout_interval` | `/composition/layoutOccurrences` |
+| markers | `add_marker` | `/composition/markers` |
+| markers | `update_marker` | `/composition/markers` |
+| markers | `remove_marker` | `/composition/markers` |
+| effects | `add_clip_effect` | `/composition/clips/*/appearance/keys/*/value/effects` |
+| effects | `update_clip_effect` | `/composition/clips/*/appearance/keys/*/value/effects` |
+| effects | `move_clip_effect` | `/composition/clips/*/appearance/keys/*/value/effects` |
+| effects | `duplicate_clip_effect` | `/composition/clips/*/appearance/keys/*/value/effects` |
+| effects | `remove_clip_effect` | `/composition/clips/*/appearance/keys/*/value/effects`, `/composition/propertyTracks` |
+| animation | `add_property_tracks` | `/composition/propertyTracks` |
+| animation | `update_property_track` | `/composition/propertyTracks/*/activeStartMs`, `/composition/propertyTracks/*/activeDurationMs` |
+| animation | `edit_property_keyframes` | `/composition/propertyTracks/*/keyframes` |
+| animation | `remove_property_tracks` | `/composition/propertyTracks` |
+| groups | `move_group_occurrence` | `/composition/groupOccurrences`, `/composition/propertyTracks` |
+| groups | `duplicate_group_occurrence` | `/composition/groupOccurrences` |
+| groups | `make_group_unique` | `/composition/groupDefinitions`, `/composition/groupOccurrences`, `/composition/patternInstances` |
+| groups | `ungroup` | `/composition/groupOccurrences`, `/composition/clips`, `/composition/transitions`, `/composition/propertyTracks`, `/composition/patternInstances` |
+
+## v1 to v2 name map
+
+Every v1 command maps to exactly one v2 command or an explicit retirement.
+The harness grammar, corpus and baseline fixtures replay through this map.
+
+| v1 command | v2 command | Change |
+| --- | --- | --- |
+| `rename_show` | `rename_show` | Port; unchanged shape. |
+| `set_stage_map` | `set_stage_map` | Port; unchanged shape. |
+| `update_zone` | `update_zone` | Port; nominal_pixel_count is now a bounded integer. |
+| `set_target_controller_profile` | `set_target_controller_profile` | Port; unchanged shape. |
+| `set_output_contract` | `set_output_contract` | Port; pixel_count is now a bounded integer. |
+| `set_output_trails` | `set_output_trails` | Port; retention carries schema bounds. |
+| `set_show_end` | `set_show_end` | Port to the exact rule: invalid shortening refuses naming the protecting entity, with no clamp, and empty trailing intervals are removed. |
+| `insert_time` | `insert_time` | Port to global time mapping with Group-local holds, curve hold keys and Layout coverage. |
+| `create_layers` | `create_layers` | Port; Layers are Zone-owned with names and ranks, and absorb add_overlay_layer. |
+| `add_overlay_layer` | `create_layers` | Subsumed by the bulk form; overlay index addressing retires. |
+| (new) | `rename_layer` | New: v2 Layers carry a stable name for the whole Show. |
+| `reorder_overlay_layer` | `reorder_layer` | Renamed; stacking is authored by rank or an explicit neighbour Layer identity. |
+| `remove_overlay_layer` | `remove_layer` | Renamed; removal takes an explicit complete reassignment destination. |
+| `create_clips` | `create_clips` | Port with the v2 ClipSpec and the D3 instance policy. |
+| `add_clip` | `create_clips` | Subsumed; the free-time clamp and implicit Show End extension do not survive, exact timing does. |
+| `update_clips` | `update_clips` | Port with the v2 ClipPatch, appearance apply selector and instance_properties. |
+| `move_clip` | `update_clips` | Subsumed by ClipPatch placement, which applies the connected move policy. |
+| `set_clip_opacity` | `update_clips` | Subsumed by the appearance patch (decision D1). |
+| `set_clip_view` | `update_clips` | Subsumed by the appearance patch (decision D1). |
+| `set_clip_transform` | `update_clips` | Subsumed by the appearance patch (decision D1). |
+| `set_clip_aperture` | `update_clips` | Subsumed by the appearance patch (decision D1). |
+| `set_clip_control_target` | `update_clips` | Subsumed by instance_properties.controls (decision D1). |
+| `set_clip_time` | `update_clips` | Subsumed by instance_properties.time_scale and time_offset_ms (decision D1). |
+| `set_clip_evaluation` | `update_clips` | Subsumed by instance_properties.evaluation (decision D1). |
+| `remove_clip` | `remove_clips` | Renamed bulk; removing the final content leaves a valid empty Show (decision D6). |
+| `resize_clip` | `resize_clip` | Port to the trailing and leading resize policy. |
+| `split_clip` | `split_clip` | Port; the right piece shares the instance and enters with continue. |
+| `duplicate_clip` | `duplicate_clip` | Port with the D4 flip: the copy shares the runtime by default and independent true splits it. |
+| (new) | `replace_clip_pattern` | New: Clip-scoped Replace, performing independence first when the runtime is shared. |
+| `make_clip_pattern_independent` | `make_clip_pattern_independent` | Port; unchanged meaning. |
+| `rejoin_clip_pattern_instance` | `rejoin_clip_pattern_instance` | Port; the target is an explicit instance_id, not another Clip. |
+| `insert_layer_transition` | `insert_transition` | Merged; the junction is addressed by its outgoing and incoming Clip identities. |
+| `set_boundary_transition` | `insert_transition` | Merged; the create case becomes insert_transition and the kind cut becomes remove_transition. |
+| `set_boundary_transition_timing` | `resize_transition` | Merged; easing moves to update_transition and duration to resize_transition. |
+| `update_boundary_transition_parameter` | `update_transition` | Merged and widened from one parameter to a parameter record. |
+| `resize_layer_transition` | `resize_transition` | Merged; the delta applies once to the incoming and downstream set. |
+| `reset_layer_transition_to_cut` | `remove_transition` | Renamed; a Cut is the absence of a Transition at exact adjacency. |
+| `set_boundary_layout` | `select_layout` | Renamed; no Boundary lookup remains. |
+| `add_layout_interval` | `add_layout_interval` | Port; exactly one of at_ms or duration_ms. |
+| `duplicate_layout_interval` | `duplicate_layout_interval` | Port over the owner duplicate intent added under decision D7. |
+| `make_layout_interval_unique` | `make_layout_interval_unique` | Port; only the Layout definition is cloned, never Zones or runtimes. |
+| (new) | `move_layout_switch` | New: the manual switch move becomes a command. |
+| (new) | `update_layout_interval` | New: routing parameters only. |
+| (new) | `set_layout_transfer` | New: the incoming timed routing transfer owned by its destination interval. |
+| (new) | `remove_layout_interval` | New: predecessor extension or promotion to zero, refusing on meaningful data. |
+| `add_marker` | `add_marker` | Port plus the chapter role argument. |
+| `update_marker` | `update_marker` | Merged with move_marker. |
+| `move_marker` | `update_marker` | Merged; at_ms is one field of the update. |
+| `remove_marker` | `remove_marker` | Port; unchanged shape. |
+| `add_clip_effect` | `add_clip_effect` | Port with the apply selector and the compact parameter record. |
+| `update_clip_effect` | `update_clip_effect` | Widened from one parameter to a parameter record. |
+| `move_clip_effect` | `move_clip_effect` | Port with the apply selector. |
+| `duplicate_clip_effect` | `duplicate_clip_effect` | Port with the apply selector. |
+| `remove_clip_effect` | `remove_clip_effect` | Port; the Clip-owned track cascade is the owner rule. |
+| `add_property_track` | `add_property_tracks` | Renamed bulk with a typed target union and authored activation. |
+| (new) | `update_property_track` | New: activation is authored in v2. |
+| `edit_property_keyframes` | `edit_property_keyframes` | Port; the delete edit list is now named remove. |
+| `add_keyframe` | `edit_property_keyframes` | Subsumed by the edits.add list (decision D1). |
+| `update_keyframe` | `edit_property_keyframes` | Subsumed by the edits.update list (decision D1). |
+| `delete_keyframe` | `edit_property_keyframes` | Subsumed by the edits.remove list (decision D1). |
+| `delete_property_track` | `remove_property_tracks` | Renamed bulk; delete_ retires from the verb vocabulary. |
+| (new) | `move_group_occurrence` | New: occurrence placement with explicit Layer bindings. |
+| (new) | `duplicate_group_occurrence` | New: a linked occurrence sharing the definition, runtimes and hold list. |
+| (new) | `make_group_unique` | New: definition clone preserving effective runtime identities. |
+| (new) | `ungroup` | New: materialize the occurrence into ordinary v2 content without cloning a runtime. |
+
+## Retired v1 addressing
+
+| Retired form | v2 replacement |
+| --- | --- |
+| `scene_id` | Scenes are retired; address Clips, Layout intervals and Markers by identity. |
+| `layer: "main" | index` | layer_id, a stable Zone-owned Layer identity. |
+| `overlay_layer_index` | layer_id, with stacking authored by rank or above_layer_id / below_layer_id. |
+| `at_ms / after_clip_id Boundary lookup` | transition_id, or the (from_clip_id, to_clip_id) pair of a derived Cut junction. |
+| `target_clip_id on rejoin` | instance_id, an explicit existing Pattern instance. |
+| `json-typed target and keyframes` | The typed target object and the typed keyframe objects. |
+
+## Refusal-code map
+
+A v1 code is reused only where its meaning is unchanged. Descriptor shape
+issues and domain refusals stay distinct categories.
+
+| v2 code | Reused v1 code | Meaning |
+| --- | --- | --- |
+| `invalid-argument` | `invalid-argument` | A field is missing, of the wrong type, or outside its documented range. |
+| `unknown-field` | `unknown-field` | The input carries a field the command does not declare. |
+| `empty-patch` | `empty-patch` | A patch object sets none of its documented fields. |
+| `empty-collection` | `empty-collection` | A bulk array carries no items. |
+| `batch-too-large` | `batch-too-large` | A bulk array carries more than 128 items. |
+| `unknown-command` | `unknown-command` | No command has that name. |
+| `unknown-id` | (new) | One identity did not resolve. Replaces the v1 per-entity codes unknown-clip, unknown-layer, unknown-zone, unknown-layout, unknown-interval, unknown-track, unknown-keyframe, unknown-transition, unknown-effect and unknown-scene; the message names the entity kind and the result carries candidate identities. |
+| `unknown-control` | `unknown-control` | The Pattern does not export a slider with that name. |
+| `ambiguous-instance` | (new) | Several Pattern runtimes exist for one source and none was named, or a first-runtime request found an existing one. Replaces the v1 ambiguous-junction and duplicate-target instance cases. |
+| `missing-dependency` | `unknown-pattern` | Trusted resolved Pattern metadata is unavailable for this source in this session. |
+| `not-a-junction` | `unknown-junction` | The named Clip pair is not exactly adjacent on one Zone and Layer, so it is not a Cut junction. |
+| `duplicate-name` | `duplicate-name` | Another entity already uses that name. |
+| `unsupported` | (new) | The catalogue accepts the argument but no landed owner capability implements it yet; the message names the missing capability. |
+| `invalid-record` | (new) | The preimage Show is not a valid v2 record. |
+| `invalid-intent` | (new) | The owner rejected the requested operation shape. |
+| `invalid-result` | (new) | The complete candidate would be an invalid Show. |
+| `missing-clip` | `unknown-clip` | The owner could not find the addressed Clip. |
+| `missing-transition` | `unknown-transition` | The owner could not find the addressed Transition. |
+| `missing-occurrence` | `unknown-interval` | The owner could not find the addressed Layout or Group occurrence. |
+| `missing-layout` | `unknown-layout` | The owner could not find the addressed Zone Layout definition. |
+| `missing-track` | `unknown-track` | The owner could not find the addressed Property track. |
+| `missing-key` | `unknown-keyframe` | The owner could not find the addressed keyframe. |
+| `missing-marker` | (new) | The owner could not find the addressed Marker. |
+| `missing-target` | `missing-target` | The owner could not find the addressed Layer or Zone. |
+| `duplicate-marker` | `duplicate-target` | A Marker with that identity already exists. |
+| `duplicate-track` | `duplicate-target` | A Property track with that identity already exists in this owner. |
+| `duplicate-key` | `duplicate-keyframe-reference` | A keyframe with that identity already exists in this track. |
+| `invalid-topology` | `unsupported-topology` | The requested Transition arrangement is not a valid connected topology. |
+| `unsupported-topology` | `unsupported-topology` | The requested Clip arrangement is not supported by the v2 domain. |
+| `unsupported-property-carrier` | (new) | A Transition Property ramp must be projected into tracks before its carrier is removed. |
+| `unsupported-content-copy` | (new) | Duplicating a Layout interval with content cannot copy a Transition that carries Property ramps. |
+| `boundary-crossing-content` | `multi-segment-clip` | Authored content crosses the duplicated Layout interval boundary. |
+| `protected-content` | `out-of-bounds` | Shortening Show End would cut a protected Clip contribution, Property activation or timed transfer. |
+| `meaningful-occurrence-data` | (new) | A Layout interval owns a split-position track or a timed transfer that must be resolved before removal. |
+| `owned-track-out-of-bounds` | `outside-scene` | An interval-owned split-position track would leave its owning interval. |
+| `zone-unavailable` | `missing-zone` | Content would use a Zone the active Layout does not provide for its whole contribution. |
+| `compiler-ineligible` | `transition-refused` | A bounded compiler scheduling restriction rejects the candidate. |
+| `time-overflow` | (new) | A mapped time would leave safe integer milliseconds. |
+| `identity-conflict` | `duplicate-target` | A Layer identity or rank is already taken in that Zone. |
+| `incomplete-reassignment` | `layer-not-empty` | Removing a referenced Layer needs an explicit destination for every reference. |
+| `incompatible-reassignment` | (new) | A Layer reassignment does not name another Layer in the same Zone. |
+| `invalid-transfer` | `invalid-duration` | A timed routing transfer does not attach to adjacent intervals or does not fit them. |
+| `invalid-owner` | `missing-owner` | The Property owner is not the Show or an existing Group definition. |
+| `invalid-identity-plan` | (new) | A Group uniqueness identity plan is incomplete or collides. |
+| `invalid-occurrence-id` | `duplicate-target` | A Group occurrence identity is blank or already used. |
+| `invalid-placement` | `occupied` | A Group occurrence placement collides or leaves its routing domain. |
+| `engine-refused` | `engine-refused` | An owner declined without a more specific code. |
+
+## Retired v1 refusal codes
+
+| Retired code | Reason |
+| --- | --- |
+| `last-clip` | Decision D6: removing the final Clip leaves a valid empty Show. |
+| `no-change` | Catalogue rule 4: an already-satisfied request returns unchanged, never a refusal. |
+| `delete-refused` | Replaced by the owner code that explains the refusal. |
+| `unknown-scene` | Scenes are retired from the authored contract. |
+| `outside-scene` | Scene-local time is retired; owned-track-out-of-bounds covers the interval case. |
+| `multi-segment-clip` | One Clip is one authored record across Layout switches; boundary-crossing-content covers duplication. |
+| `missing-composition` | A v2 record always carries a composition. |
+| `unsupported-schema-version` | read_show returns the v2 record only. |
+| `group` | Group children are addressed through the Group occurrence commands. |
+| `ambiguous-junction` | A junction is addressed by its exact Clip pair. |
+| `unknown-junction` | Replaced by not-a-junction, which distinguishes a gap from a missing Clip. |
+| `animated-placement` | Clip-owned animation follows the Clip through the owner cascade. |
+| `animated-instance` | Shared instance tracks are reported in the affected set instead of refusing. |
+| `animated-effect-removed` | The appearance owner prunes a Clip-owned Effect track through its documented cascade. |
+| `shared-instance-conflict` | Replaced by the owner conflict refusal naming both track identities. |
