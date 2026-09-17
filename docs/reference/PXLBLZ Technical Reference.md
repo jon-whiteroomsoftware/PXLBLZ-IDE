@@ -907,6 +907,24 @@ no-op. Production Shows remain v1 until the #1039 cutover; the
 [audit scope map](evidence/issue-1038-audit/scope-map.md) records which
 behaviors are proved and which residuals are still carried.
 
+**Row conversion.** Personal rows move to v2 through an explicit operator pass,
+never through a read. `scripts/show-v2-migrate.ts` drives the landed owner over
+a local D1 store: `inventory` lists rows with their version and recorded
+outcome, `convert` snapshots each original, converts and validates it in
+memory, writes v2 under a compare-and-set over the original columns, then reads
+the row back and reopens and compiles it, and `rollback` restores exactly the
+identities it is given. Already-v2 rows are idempotent no-ops, an interrupted
+pass resumes from the recorded per-row outcomes, a row whose original changed
+since its outcome is rechecked, and a failed row keeps its snapshot and is
+reported by name. Conversion resolves Pattern sources only from trusted
+metadata the caller supplies, so a flat v1 row whose source is gone refuses
+rather than converting against a guess. There is no remote backend; the remote
+pass is blocked on a recorded Cloudflare migration authorization failure. See
+[state, history and persistence](contracts/show-state-history-persistence.md)
+for the contract and the
+[cutover rehearsal](evidence/issue-1039-cutover/rehearsal.md) for the local
+pass, its interruption and resume, its idempotent repeat and its rollback.
+
 `ShowRecord.composition` (`ShowCompositionV1`) holds the editor's Clips,
 Layers, Groups, Markers, explicit Show End, and Property animation; the
 record's Scenes, Zones, boundary Transitions, and routing layouts remain the

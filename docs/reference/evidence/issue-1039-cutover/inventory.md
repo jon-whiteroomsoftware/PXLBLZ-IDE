@@ -39,7 +39,7 @@ counterexample and its consequences are in
 | Worker routes | `GET/POST /api/shows`, `PATCH /api/shows/:id` are v1 unless `?show-version=2` | the same routes' `show-version=2` branch | ready |
 | Remote provider | `listShowDocuments`, `replaceShow` | `listShowDocumentsV2`, `replaceShowV2` in `remotePersonalContentProvider.ts` | ready |
 | Provider interface | `PersonalContentProvider` v1 methods required | `listShowDocumentsV2?`/`replaceShowV2?` optional | ready; activation makes the v2 pair required |
-| Row migration | none | `rehearseShowV2Migration`/`rollbackShowV2Migration` (`src/engine/showV2Migration.ts`) over `createD1ShowV2MigrationStore` (`src/cloudflare/showV2Migration.ts`), backed by migration `0028`'s `personal_show_v2_migration_backups` and `..._outcomes` tables | ready as an owner; **had no operator entry point** before this candidate |
+| Row migration | none | `rehearseShowV2Migration`/`rollbackShowV2Migration` (`src/engine/showV2Migration.ts`) over `createD1ShowV2MigrationStore` (`src/cloudflare/showV2Migration.ts`), backed by migration `0028`'s `personal_show_v2_migration_backups` and `..._outcomes` tables | **was not ready.** The owner had no operator entry point, could not convert a flat v1 row (no source lookup was passed to the converter), and stopped at a byte-for-byte readback rather than reopening and compiling. All three are repaired in this candidate and rehearsed; see [rehearsal.md](rehearsal.md). |
 
 Storage stays backward compatible either way: the v2 writer keeps the legacy
 columns present (`scenes_json`/`cells_json` written as `'[]'`,
@@ -139,9 +139,11 @@ the editor* stay on v1 with it, so no forbidden mixed window is opened.
    consistent: under `catalogue: 'v2'` every command surface - tool list,
    instructions, schema resource and `list_commands` - describes the same
    vocabulary.
-3. The section 10 migration runbook as an operator script over the landed owner, with
-   readback that reopens and compiles each converted row, plus the rehearsal and
-   rollback rehearsal on local D1.
+3. The section 10 migration runbook completed and made operable: the two gaps
+   the first real rehearsal exposed (flat rows could not convert; readback
+   proved storage but not usability), an operator command over the landed
+   owner, and the local rehearsal with its interruption, resume, idempotent
+   repeat and rollback. See [rehearsal.md](rehearsal.md).
 
 ## What remains
 
