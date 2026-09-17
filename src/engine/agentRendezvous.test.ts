@@ -305,6 +305,15 @@ it('atomically compares an external tool binding while consuming its public-resp
     .toMatchObject({ code: 'bound', claim: { callId: 'call-b', bindingId: 'binding-b' } })
 })
 
+it('stores a declared version-2 record and leaves a version-1 registration unchanged (#1039)', () => {
+  const v1 = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA }, 0).state
+  expect(v1.registrations).toEqual([{ ...windowA, lastSeenAt: 0 }])
+  const v2 = transitionRendezvous(v1, { type: 'register', ...windowB, showVersion: 2 }, 0).state
+  expect(v2.registrations[1]).toEqual({ ...windowB, showVersion: 2, lastSeenAt: 0 })
+  const declaredOne = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA, showVersion: 1 }, 0).state
+  expect(declaredOne.registrations).toEqual([{ ...windowA, lastSeenAt: 0 }])
+})
+
 it('stores only bounded nonempty registration names', () => {
   const blank = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA, showName: '' }, 0).state
   const long = transitionRendezvous(blank, { type: 'register', ...windowB, showName: 'x'.repeat(129) }, 0).state

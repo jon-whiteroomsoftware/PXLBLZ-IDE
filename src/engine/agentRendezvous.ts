@@ -153,8 +153,10 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
     if (state.registrations.some((item) => item.sessionId === command.sessionId || item.registrationId === command.registrationId)) return result('already_registered')
     if (state.registrations.length >= MAX_REGISTRATIONS) return result('capacity')
     const showName = typeof command.showName === 'string' && command.showName.length > 0 && command.showName.length <= 128 ? command.showName : undefined
-    const showVersion = command.showVersion === 2 ? 2 as const : 1 as const
-    state.registrations.push({ registrationId: command.registrationId, sessionId: command.sessionId, showId: command.showId, ...(showName ? { showName } : {}), showVersion, lastSeenAt: now })
+    // Only a declared version 2 is stored: an absent field is version 1, which
+    // keeps every existing window's persisted registration shape unchanged.
+    const showVersion = command.showVersion === 2 ? { showVersion: 2 as const } : {}
+    state.registrations.push({ registrationId: command.registrationId, sessionId: command.sessionId, showId: command.showId, ...(showName ? { showName } : {}), ...showVersion, lastSeenAt: now })
     return result('registered')
   }
   if (command.type === 'claim') {
