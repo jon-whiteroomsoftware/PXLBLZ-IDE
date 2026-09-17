@@ -103,7 +103,7 @@ describe('ShowEditorV2ReadOnly (#1056 slice 1)', () => {
     seed(record)
     render(<ShowEditorV2ReadOnly showId={record.id} />)
     expect(screen.getByTestId('show-timeline-read-only-status'))
-      .toHaveTextContent('Read only - this Show is stored in the v2 format; editing arrives with the next slice.')
+      .toHaveTextContent('Read only - this Show is stored in the v2 format; timeline editing arrives with the next slice.')
   })
 
   it('leaves the seeded v2 record untouched while rendering', () => {
