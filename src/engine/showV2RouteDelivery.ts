@@ -4,6 +4,8 @@ import { buildShowEpeExportV2 } from './showEpeExportV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import type { ShowRecordV2 } from './showCompositionV2'
 import { preparedShowPatternSourceV2, type ShowPreparedStageBundleV2 } from './showPreparedStageV2'
+import { installationCoverageBlockingMessage } from './showInstallationCoverage'
+import { validateInstallationCoverageV2 } from './showInstallationCoverageV2'
 import { portableCompatibilityBlockingMessage } from './showPortableCompatibility'
 import { showPortablePatternSitesV2, validatePortableShowCompatibilityV2 } from './showPortableCompatibilityV2'
 import {
@@ -53,6 +55,14 @@ export function buildShowV2RouteArtifacts(
   } = {},
 ): ShowV2RouteArtifactsResult {
   const { record, assets, artifact } = bundle
+  // The Installation coverage gate `compileShowForArtifact` applies first: a
+  // physical Zone Layout that does not own every output pixel exactly once
+  // describes light nothing can deliver. Preparation compiles it the way v1
+  // preview does, so authoring and preview stay available and only delivery
+  // refuses. The two gates never compete - the coverage rule returns null for a
+  // Portable contract and the Portable rule for an Installation one.
+  const coverage = installationCoverageBlockingMessage(validateInstallationCoverageV2(record))
+  if (coverage) return { status: 'refused', message: coverage }
   // The Portable 2D capability gate `compileShowForArtifact` applies to a v1
   // Show. Preparation compiles a Portable Show the way v1 preview does, without
   // this gate; delivery is where v1 refuses one, so delivery is where v2 refuses

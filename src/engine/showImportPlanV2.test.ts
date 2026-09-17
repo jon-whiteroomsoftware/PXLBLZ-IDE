@@ -109,6 +109,36 @@ describe('v2 ordinary Show import planning', () => {
     })
   })
 
+  it('imports an Installation Show whose physical Layout is incomplete and leaves the refusal to delivery', async () => {
+    // v1 import never ran the coverage rule either: the file opens with its
+    // authored ranges untouched, and `compileShowForArtifact` is what refuses.
+    const show = v2Show()
+    show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 16, resolution: 'fixed' }
+    show.zoneLayouts = show.zoneLayouts.map(layout => ({
+      id: layout.id,
+      name: layout.name,
+      zones: show.zones.map(zone => ({
+        zoneId: zone.id,
+        ranges: zone.id === show.composition.clips[0].zoneId ? [{ start: 0, end: 3 }] : [],
+      })),
+    }))
+    const authored = structuredClone(show.zoneLayouts)
+    const built = buildShowFileBundle(show, { patterns: [pattern('export function render(index) { hsv(index, 1, 1) }')], maps: [], libraries: [] }, { appVersion: '1039-test', exportedAt: '2026-09-15T00:00:00.000Z' })
+    const reopened = await parseShowFileBundle(await serializeShowFileBundle(built.bundle), { acceptV2: true })
+    if (reopened.version !== 2) throw new Error('Expected v2 bundle')
+    const ids = ['show-copy', 'pattern-copy']
+    const applied = applyShowImportPlanV2(planShowImportV2(reopened, { patterns: [], maps: [], libraries: [], showNames: [] }, { createId: () => ids.shift()!, now: 99 }))
+    expect(validateShowRecordV2(applied.show)).toEqual([])
+    expect(applied.show.zoneLayouts).toEqual(authored)
+
+    const prepared = prepareShowStageV2(applied.show, { patterns: applied.newPatterns, maps: [], libraries: [], profiles: [], stageMap: null })
+    if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared))
+    expect(buildShowV2RouteArtifacts(prepared.bundle)).toMatchObject({
+      status: 'refused',
+      message: expect.stringContaining('Installation output is incomplete'),
+    })
+  })
+
   it('remaps Group-owned Pattern, explicit runtime binding, and custom Map conflicts as one import candidate', async () => {
     const show = v2Show()
     show.composition.layers.push({

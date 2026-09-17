@@ -1,6 +1,7 @@
 import { ZONE_COLORS, formatShowRoutingRanges, showRoutingLayoutKindLabel } from './showModel'
 import type { ShowRecordV2 } from './showCompositionV2'
-import { validateInstallationCoverage, type InstallationLayoutCoverage } from './showInstallationCoverage'
+import type { InstallationLayoutCoverage } from './showInstallationCoverage'
+import { validateInstallationCoverageV2 } from './showInstallationCoverageV2'
 import { validateShowLogicalRouting, type ShowLogicalRouting } from './showLogicalRouting'
 import type { ShowZoneEditIntentV2 } from './showZonesV2'
 
@@ -69,10 +70,9 @@ export interface ShowV2ZoneLayoutModel {
 }
 
 export function buildShowV2ZoneLayoutModel(record: ShowRecordV2): ShowV2ZoneLayoutModel {
-  const coverage = validateInstallationCoverage({
-    outputContract: record.outputContract,
-    routingLayouts: record.zoneLayouts,
-  })
+  // One projection owner, shared with the authoring validator and the delivery
+  // gate, so the arithmetic this section shows is the arithmetic that refuses.
+  const coverage = validateInstallationCoverageV2(record)
   return {
     definitions: record.zoneLayouts.map(layout => {
       const mode = showV2RoutingMode(layout)

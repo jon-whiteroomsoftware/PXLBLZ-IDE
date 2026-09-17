@@ -8,6 +8,7 @@ import {
   validateShowAuthoringV2,
 } from './showAuthoringValidationV2'
 import type { ShowRecordV2 } from './showCompositionV2'
+import { installationCoverageBlockingMessage, validateInstallationCoverage } from './showInstallationCoverage'
 import { LIBRARIES } from '../pixelblaze/libs'
 
 const VOICE = 'export function render(index) { hsv(index, 1, 1) }'
@@ -157,6 +158,70 @@ it('warns that a Portable Show names a 3D reference output and stays silent for 
   const installation = validateShowAuthoringV2(next, { source: source('export function render3D(index, x, y, z) { rgb(x, y, z) }'), libraries: LIBRARIES, stageDimension: 3 })
   expect(installation.valid).toBe(true)
   expect(installation.warnings.map(issue => issue.diagnosticCode).filter(Boolean)).toEqual([])
+})
+
+/** The same record as an Installation Show whose one physical Layout owns `ranges`. */
+function installation(next: ShowRecordV2, ranges: Array<{ start: number; end: number }>, pixelCount = 8): ShowRecordV2 {
+  next.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount, resolution: 'fixed' }
+  next.zoneLayouts = next.zoneLayouts.map((layout, index) => ({
+    id: layout.id,
+    name: layout.name,
+    zones: index === 0 ? [{ zoneId: next.zones[0].id, ranges }] : [{ zoneId: next.zones[0].id, ranges: [{ start: 0, end: pixelCount - 1 }] }],
+  }))
+  return next
+}
+
+it('keeps incomplete Installation coverage authorable and reports it as a delivery warning', () => {
+  // v1's classification, unchanged: `validateShowAuthoring` pushes
+  // `installationCoverageBlockingMessage` as a delivery warning with no
+  // diagnostic code, and the artifact boundary is what refuses. The harness
+  // suite pins the v1 counterpart in "keeps cross-Layer overlap and incomplete
+  // installation coverage through commit and reopen".
+  const next = installation(record(), [{ start: 0, end: 3 }])
+  const result = validateShowAuthoringV2(next, { source: source(), libraries: LIBRARIES })
+  expect(result.valid).toBe(true)
+  expect(result.errors).toEqual([])
+  expect(result.warnings).toContainEqual({
+    code: 'delivery',
+    message: installationCoverageBlockingMessage(validateInstallationCoverage({
+      outputContract: next.outputContract,
+      routingLayouts: next.zoneLayouts,
+    })),
+  })
+})
+
+it('stays silent when every physical Zone Layout covers the Installation output exactly once', () => {
+  const next = installation(record(), [{ start: 0, end: 7 }])
+  const result = validateShowAuthoringV2(next, { source: source(), libraries: LIBRARIES })
+  expect(result.valid).toBe(true)
+  expect(result.warnings.filter(issue => issue.message.startsWith('Installation output is incomplete'))).toEqual([])
+})
+
+it('reports overlapping, out-of-range and over-capacity Installation ranges the same way', () => {
+  for (const ranges of [
+    [{ start: 0, end: 5 }, { start: 3, end: 7 }],
+    [{ start: 0, end: 7 }, { start: 8, end: 11 }],
+    [{ start: 0, end: 31 }],
+  ]) {
+    const next = installation(record(), ranges)
+    const result = validateShowAuthoringV2(next, { source: source(), libraries: LIBRARIES })
+    expect(result.valid, JSON.stringify(ranges)).toBe(true)
+    expect(result.warnings.map(issue => issue.message), JSON.stringify(ranges))
+      .toContain(installationCoverageBlockingMessage(validateInstallationCoverage({
+        outputContract: next.outputContract,
+        routingLayouts: next.zoneLayouts,
+      })))
+  }
+})
+
+it('leaves a structurally invalid Installation record to the record validator, before the coverage rule runs', () => {
+  // v1 returns after its structural pass, so an unopenable record never carries
+  // a coverage warning; the v2 validator returns at the same point.
+  const next = installation(record(), [{ start: 0, end: 3 }])
+  next.composition.clips[0].layerId = 'gone'
+  const result = validateShowAuthoringV2(next, { source: source(), libraries: LIBRARIES })
+  expect(result.valid).toBe(false)
+  expect(result.warnings).toEqual([])
 })
 
 it('captures an immutable snapshot of a valid v2 record and refuses an invalid one', () => {

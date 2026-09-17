@@ -9,8 +9,9 @@
 // before this edit, and whether an authored or animated control actually exists
 // in its Pattern. That half is version-independent, so this module reuses the v1
 // implementation of it and supplies only the v2 record's own sites and structure
-// check. The Portable capability rule is shared the same way, through
-// `showPortableCompatibilityV2`, and classified here exactly as v1 classifies it.
+// check. The Portable capability rule and the Installation coverage rule are
+// shared the same way, through `showPortableCompatibilityV2` and
+// `showInstallationCoverageV2`, and classified here exactly as v1 classifies them.
 import { inspectPatternMetadata } from './bundle'
 import type { ShowPatternRef } from './personalContentRecords'
 import {
@@ -21,6 +22,8 @@ import {
   type ShowPatternSite,
 } from './showAuthoringValidation'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
+import { installationCoverageBlockingMessage } from './showInstallationCoverage'
+import { validateInstallationCoverageV2 } from './showInstallationCoverageV2'
 import { showPortablePatternSitesV2, validatePortableShowCompatibilityV2 } from './showPortableCompatibilityV2'
 
 export interface ShowAuthoringContextV2 {
@@ -147,6 +150,12 @@ export function validateShowAuthoringV2(record: ShowRecordV2, context: ShowAutho
       }
     } catch { errors.push({ code: 'metadata', diagnosticCode: 'control-metadata-unavailable', path: requirement.path, message: 'Required control metadata cannot be inspected.' }) }
   }
+  // Installation delivery fitness, classified exactly as `validateShowAuthoring`
+  // classifies it: an incomplete, overlapping or out-of-range physical Zone
+  // Layout stays authorable and is reported as a delivery warning with no
+  // diagnostic code. The artifact boundary is what refuses delivery.
+  const coverage = installationCoverageBlockingMessage(validateInstallationCoverageV2(record))
+  if (coverage) warnings.push({ code: 'delivery', message: coverage })
   // Portable delivery fitness, classified exactly as `validateShowAuthoring`
   // classifies it: a capability mismatch stays authorable and is reported as a
   // delivery warning, while an invalid logical Layout or uninspectable Pattern

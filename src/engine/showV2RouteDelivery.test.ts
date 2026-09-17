@@ -16,6 +16,28 @@ function prepared() {
   return { record, bundle: capture.prepared.bundle }
 }
 
+/**
+ * The same fixture as a 16-pixel Installation Show whose single physical Zone
+ * Layout - named "Only" so the refusal names it - assigns `ranges` to the Zone
+ * its content uses.
+ */
+function installation(ranges: Array<{ start: number; end: number }>, patternSource?: string) {
+  const { record, dependencies } = showV2GroupEditorFixture()
+  if (patternSource) dependencies.patterns[0].src = patternSource
+  record.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 16, resolution: 'fixed' }
+  record.zoneLayouts = record.zoneLayouts.map(layout => ({
+    id: layout.id,
+    name: 'Only',
+    zones: record.zones.map(zone => ({
+      zoneId: zone.id,
+      ranges: zone.id === record.composition.clips[0].zoneId ? ranges : [],
+    })),
+  }))
+  const capture = captureShowStageEditV2(record, dependencies)
+  if (capture.prepared.status !== 'ready') throw new Error(JSON.stringify(capture.prepared))
+  return { record, bundle: capture.prepared.bundle }
+}
+
 describe('the v2 route delivery model', () => {
   it('exports one .epe that reopens with the compiled Show and measures it', () => {
     const { bundle } = prepared()
@@ -106,6 +128,49 @@ describe('the v2 route delivery model', () => {
     })
     if (capture.prepared.status !== 'ready') throw new Error(JSON.stringify(capture.prepared))
     expect(buildShowV2RouteArtifacts(capture.prepared.bundle).status).toBe('ready')
+  })
+
+  it('refuses to deliver an Installation Show whose physical Layout leaves pixels unassigned', () => {
+    // v1 refuses the same Show at `compileShowForArtifact`, with this exact
+    // message; preparation and preview accept it in both versions.
+    const { bundle } = installation([{ start: 0, end: 3 }])
+    expect(buildShowV2RouteArtifacts(bundle)).toEqual({
+      status: 'refused',
+      message: 'Installation output is incomplete: Only assigns 4 of 16 pixels (12 missing). Repair physical pixel ranges in Show properties.',
+    })
+  })
+
+  it('refuses overlapping, out-of-range and over-capacity Installation ranges alike', () => {
+    for (const ranges of [
+      [{ start: 0, end: 11 }, { start: 4, end: 15 }],
+      [{ start: 0, end: 15 }, { start: 16, end: 19 }],
+      [{ start: 0, end: 63 }],
+    ]) {
+      const { bundle } = installation(ranges)
+      expect(buildShowV2RouteArtifacts(bundle), JSON.stringify(ranges)).toMatchObject({
+        status: 'refused',
+        message: expect.stringContaining('Installation output is incomplete'),
+      })
+    }
+  })
+
+  it('delivers an Installation Show whose physical Layout covers the output exactly once', () => {
+    const { bundle } = installation([{ start: 0, end: 15 }])
+    expect(buildShowV2RouteArtifacts(bundle).status).toBe('ready')
+  })
+
+  it('keeps the coverage and Portable gates on their own contracts, as v1 does', () => {
+    // `compileShowForArtifact` runs coverage first and Portable second, but the
+    // two verdicts can never compete: the coverage rule returns null for a
+    // Portable contract and the Portable rule returns null for an Installation
+    // one. So an Installation Show carrying a 3D-only Pattern reports only the
+    // coverage refusal, and delivers once its ranges are complete.
+    const volume = 'export var gain = .4\nexport function sliderGain(v) { gain = v }\nexport function render3D(index, x, y, z) { rgb(gain, y, z) }'
+    expect(buildShowV2RouteArtifacts(installation([{ start: 0, end: 3 }], volume).bundle)).toMatchObject({
+      status: 'refused',
+      message: expect.stringContaining('Installation output is incomplete'),
+    })
+    expect(buildShowV2RouteArtifacts(installation([{ start: 0, end: 15 }], volume).bundle).status).toBe('ready')
   })
 
   it('counts every effective Clip use of an instance, Group uses included', () => {
