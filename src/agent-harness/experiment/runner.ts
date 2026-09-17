@@ -7,10 +7,11 @@
 // through the same protocol path a live model uses.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import { projectClipListing } from '../grammar/openShow.js'
 import { createShowsServer } from '../mcp/showsServer.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
-import { DICTATION_RULES, type EditorContext } from '../grammar/read.js'
+import { DICTATION_RULES, type EditorContext, type ShowDescription } from '../grammar/read.js'
 import type { GrammarIssue, ShowClipListing } from '../grammar/types.js'
 import { evaluateAssertion, type AssertionResult, type DictationCase, type ScriptStep } from './corpus.js'
 import { dictationFixture, fixtureSetup } from './fixtures.js'
@@ -48,7 +49,7 @@ export interface DictationTranscript {
   /** Commits per conversation turn; absent on transcripts recorded before followups existed. */
   turnTransactions?: number[]
   genericUses: Array<{ operation: string; pointers: string[]; transaction: string | null }>
-  finalShow: ShowRecord
+  finalShow: ShowRecordV2
   /** Latency and token telemetry (#33); absent on fake runs and on transcripts recorded before it. */
   timing?: CaseTiming
 }
@@ -110,76 +111,88 @@ interface Harness {
   description: unknown
 }
 
-/** '$clipAt:0'-style placeholders resolved against the live session. */
-function resolvePlaceholder(store: GrammarSessionStore, sessionId: string, token: string): unknown {
-  const described = store.describe(sessionId)
-  if (!described.ok) throw new Error('describe failed during placeholder resolution')
-  const description = described.description
-  const clips = description.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+/**
+ * `$clipAt:0`-style placeholders, resolved against one Show description.
+ *
+ * Every identity a case needs is in the description the agent itself reads, so
+ * this is one implementation for the store-side runner and the protocol-side
+ * fake agent — a case cannot be written against a shape the agent cannot see.
+ * Every token names an identity; none names an index into the record, a Scene
+ * or an overlay position.
+ */
+export function resolvePlaceholderIn(description: ShowDescription, token: string): unknown {
+  const layers = description.zones.flatMap((zone) => zone.layers)
+  const clips = layers.flatMap((layer) => layer.clips)
   const [kind, ...parts] = token.slice(1).split(':')
 
-  if (kind === 'clipAt') {
-    const startMs = Number(parts[0])
+  const clipAt = (startMs: number) => {
     const clip = clips.find((candidate) => candidate.startMs === startMs)
-    if (!clip) throw new Error(`no clip at ${startMs} ms for ${token}`)
-    return clip.clipId
+    if (!clip) throw new Error(`no Clip starts at ${startMs} ms for ${token}`)
+    return clip
   }
+
+  if (kind === 'clipAt') return clipAt(Number(parts[0])).clipId
+  if (kind === 'instanceAt') return clipAt(Number(parts[0])).instanceId
   if (kind === 'patternClip') {
     const needle = parts[0].toLowerCase()
     const clip = clips.find((candidate) => candidate.patternName.toLowerCase().includes(needle))
-    if (!clip) throw new Error(`no clip matching pattern "${parts[0]}"`)
+    if (!clip) throw new Error(`no Clip matching Pattern "${parts[0]}"`)
     return clip.clipId
   }
-  if (kind === 'overlayClip') {
-    const overlay = description.zones
-      .flatMap((zone) => zone.layers)
-      .find((layer) => layer.kind === 'overlay')
-    const clip = overlay?.clips[0]
-    if (!clip) throw new Error('no overlay clip')
+  if (kind === 'layerId') {
+    const layer = layers.find((candidate) => candidate.name.toLowerCase() === parts[0].toLowerCase())
+    if (!layer) throw new Error(`no Layer named "${parts[0]}"`)
+    return layer.layerId
+  }
+  if (kind === 'layerClip') {
+    const layer = layers.find((candidate) => candidate.name.toLowerCase() === parts[0].toLowerCase())
+    const clip = layer?.clips[0]
+    if (!clip) throw new Error(`no Clip on Layer "${parts[0]}"`)
     return clip.clipId
   }
   if (kind === 'markerAt') {
     const timeMs = Number(parts[0])
     const marker = description.markers.find((candidate) => candidate.timeMs === timeMs)
-    if (!marker) throw new Error(`no marker at ${timeMs} ms`)
+    if (!marker) throw new Error(`no Marker at ${timeMs} ms`)
     return marker.markerId
   }
   if (kind === 'trackOf' || kind === 'keyframeOf') {
-    const startMs = Number(parts[0])
+    const clip = clipAt(Number(parts[0]))
     const needle = parts[1].toLowerCase()
-    const clip = clips.find((candidate) => candidate.startMs === startMs)
-    const track = clip?.tracks.find((candidate) => candidate.target.toLowerCase().includes(needle))
-    if (!track) throw new Error(`no "${parts[1]}" track on the clip at ${startMs} ms`)
+    const track = description.propertyTracks.find((candidate) =>
+      (candidate.targetEntityId === clip.clipId || candidate.targetEntityId === clip.instanceId) &&
+      candidate.target.toLowerCase().includes(needle))
+    if (!track) throw new Error(`no "${parts[1]}" track on the Clip at ${parts[0]} ms`)
     if (kind === 'trackOf') return track.trackId
-    const exported = store.export(sessionId)
-    if (!exported.ok) throw new Error('export failed during placeholder resolution')
-    const composition = exported.show.composition as {
-      scenes: Array<{ propertyTracks?: Array<{ id: string; keyframes: Array<{ id: string }> }> }>
-    }
-    const raw = composition.scenes
-      .flatMap((scene) => scene.propertyTracks ?? [])
-      .find((candidate) => candidate.id === track.trackId)
-    const keyframe = raw?.keyframes[Number(parts[2])]
+    const keyframe = track.keyframes[Number(parts[2])]
     if (!keyframe) throw new Error(`no keyframe ${parts[2]} on track ${track.trackId}`)
     return keyframe.id
   }
   if (kind === 'effectOf') {
-    const startMs = Number(parts[0])
-    const clip = clips.find((candidate) => candidate.startMs === startMs)
-    const effect = clip?.effects.find((candidate) => candidate.kind === parts[1])
-    if (!effect) throw new Error(`no ${parts[1]} Effect on the clip at ${startMs} ms`)
+    const clip = clipAt(Number(parts[0]))
+    const effect = clip.appearanceKeys
+      .flatMap((key) => key.effects)
+      .find((candidate) => candidate.kind === parts[1])
+    if (!effect) throw new Error(`no ${parts[1]} Effect on the Clip at ${parts[0]} ms`)
     return effect.effectId
   }
-  if (kind === 'layerTransition') {
-    const junctions = description.zones
-      .flatMap((zone) => zone.layers)
-      .flatMap((layer) => layer.junctions)
-      .filter((junction) => junction.layerTransitionId !== null)
-    const junction = junctions[Number(parts[0])]
-    if (!junction) throw new Error(`no layer transition ${parts[0]}`)
-    return junction.layerTransitionId
+  if (kind === 'transition') {
+    const transition = description.transitions[Number(parts[0])]
+    if (!transition) throw new Error(`no Transition ${parts[0]}`)
+    return transition.transitionId
+  }
+  if (kind === 'layoutOccurrence') {
+    const occurrence = description.layoutOccurrences[Number(parts[0])]
+    if (!occurrence) throw new Error(`no Layout occurrence ${parts[0]}`)
+    return occurrence.occurrenceId
   }
   throw new Error(`unknown placeholder ${token}`)
+}
+
+function resolvePlaceholder(store: GrammarSessionStore, sessionId: string, token: string): unknown {
+  const described = store.describe(sessionId)
+  if (!described.ok) throw new Error('describe failed during placeholder resolution')
+  return resolvePlaceholderIn(described.description, token)
 }
 
 export function resolveArgs(
@@ -244,11 +257,9 @@ async function prepareHarness(dictationCase: DictationCase): Promise<Harness> {
 
   const described = store.describe(sessionId)
   if (!described.ok) throw new Error('describe failed after setup')
-  const listing = {
-    durationMs: described.description.durationMs,
-    scenes: described.description.scenes.map((scene) => ({ ...scene, name: scene.name })),
-    clips: [],
-  } as unknown as ShowClipListing
+  const reopened = store.export(sessionId)
+  if (!reopened.ok) throw new Error('export failed after setup')
+  const listing = projectClipListing({ show: reopened.show, inlinePatterns: [], options: {} })
 
   return {
     store,
@@ -382,7 +393,7 @@ export function createFakeAgent(): DictationAgent {
           ...operationArgs,
         })
         if (!isError && payload && typeof payload === 'object' && 'changes' in payload) {
-          const changes = (payload as { changes: Array<{ targetId: string }> }).changes
+          const changes = (payload as { changes: Array<{ targetId?: string }> }).changes
           previousTarget = changes[0]?.targetId ?? previousTarget
         }
         if (finishReply !== undefined && !isError) {
@@ -397,24 +408,6 @@ export function createFakeAgent(): DictationAgent {
   }
 }
 
-interface DescribedForResolution {
-  durationMs: number
-  markers: Array<{ markerId: string; timeMs: number }>
-  zones: Array<{
-    layers: Array<{
-      kind: string
-      clips: Array<{
-        clipId: string
-        patternName: string
-        startMs: number
-        tracks: Array<{ trackId: string; target: string; keyframes: Array<{ keyframeId: string }> }>
-        effects: Array<{ effectId: string; kind: string }>
-      }>
-      junctions: Array<{ layerTransitionId: string | null }>
-    }>
-  }>
-}
-
 async function resolveArgsViaProtocol(
   context: AgentTurnContext,
   args: Record<string, unknown>,
@@ -423,70 +416,16 @@ async function resolveArgsViaProtocol(
   if (!JSON.stringify(args).includes('"$')) return args
 
   const { payload } = await context.callTool('describe_show', { session_id: context.sessionId })
-  const description = (payload as { description: DescribedForResolution }).description
-
-  const clips = description.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
-
-  const resolveToken = (token: string): unknown => {
-    if (token === '$prevTarget') {
-      if (!previousTarget) throw new Error('$prevTarget with no previous step')
-      return previousTarget
-    }
-    const [kind, ...parts] = token.slice(1).split(':')
-    if (kind === 'clipAt') {
-      const clip = clips.find((candidate) => candidate.startMs === Number(parts[0]))
-      if (!clip) throw new Error(`no clip at ${parts[0]} ms`)
-      return clip.clipId
-    }
-    if (kind === 'patternClip') {
-      const clip = clips.find((candidate) =>
-        candidate.patternName.toLowerCase().includes(parts[0].toLowerCase()))
-      if (!clip) throw new Error(`no clip matching "${parts[0]}"`)
-      return clip.clipId
-    }
-    if (kind === 'overlayClip') {
-      const layer = description.zones
-        .flatMap((zone) => zone.layers)
-        .find((candidate) => candidate.kind === 'overlay')
-      const clip = layer?.clips[0]
-      if (!clip) throw new Error('no overlay clip')
-      return clip.clipId
-    }
-    if (kind === 'markerAt') {
-      const marker = description.markers.find((candidate) => candidate.timeMs === Number(parts[0]))
-      if (!marker) throw new Error(`no marker at ${parts[0]} ms`)
-      return marker.markerId
-    }
-    if (kind === 'trackOf' || kind === 'keyframeOf') {
-      const clip = clips.find((candidate) => candidate.startMs === Number(parts[0]))
-      const track = clip?.tracks.find((candidate) =>
-        candidate.target.toLowerCase().includes(parts[1].toLowerCase()))
-      if (!track) throw new Error(`no "${parts[1]}" track at ${parts[0]} ms`)
-      if (kind === 'trackOf') return track.trackId
-      const keyframe = track.keyframes[Number(parts[2])]
-      if (!keyframe) throw new Error(`no keyframe ${parts[2]} on ${track.trackId}`)
-      return keyframe.keyframeId
-    }
-    if (kind === 'effectOf') {
-      const clip = clips.find((candidate) => candidate.startMs === Number(parts[0]))
-      const effect = clip?.effects.find((candidate) => candidate.kind === parts[1])
-      if (!effect) throw new Error(`no ${parts[1]} Effect at ${parts[0]} ms`)
-      return effect.effectId
-    }
-    if (kind === 'layerTransition') {
-      const junctions = description.zones
-        .flatMap((zone) => zone.layers)
-        .flatMap((layer) => layer.junctions)
-        .filter((junction) => junction.layerTransitionId !== null)
-      const junction = junctions[Number(parts[0])]
-      if (!junction) throw new Error(`no layer transition ${parts[0]}`)
-      return junction.layerTransitionId
-    }
-    throw new Error(`unknown placeholder ${token}`)
-  }
+  const description = (payload as { description: ShowDescription }).description
 
   const substitute = (value: unknown): unknown => {
-    if (typeof value === 'string' && value.startsWith('$')) return resolveToken(value)
+    if (typeof value === 'string' && value.startsWith('$')) {
+      if (value === '$prevTarget') {
+        if (!previousTarget) throw new Error('$prevTarget with no previous step')
+        return previousTarget
+      }
+      return resolvePlaceholderIn(description, value)
+    }
     if (Array.isArray(value)) return value.map(substitute)
     if (value !== null && typeof value === 'object') {
       return Object.fromEntries(

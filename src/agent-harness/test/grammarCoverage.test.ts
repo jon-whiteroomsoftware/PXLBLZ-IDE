@@ -1,4 +1,5 @@
-// Provenance: pxlblz-v3 test/grammarCoverage.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
+// Provenance: pxlblz-v3 test/grammarCoverage.test.ts at 9ecd481f, re-authored
+// onto the version-2 record and catalogue for #1039 (see PROVENANCE.md).
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -9,21 +10,22 @@ import {
   generateCoverageReport,
   renderCoverageReport,
 } from '../grammar/coverage.js'
-import { SHOW_STRUCTURE_COMMANDS } from '@/engine/showCommands/structure'
+import { SHOW_COMMANDS_V2 } from '@/engine/showCommandsV2/registry'
 import { createSessionStore } from '../grammar/session.js'
 import { grammarFixtureShow } from './support/grammarFixture.js'
 import { applyRefused, fixture } from './support/grammarHarness.js'
 import genericOnlySnapshot from './fixtures/grammar-generic-only.json'
 
-// Test model (issue #22). Boundaries: the schema walker on hand-written
-// schemas; the coverage report over the real declared schema and registry (no
-// unreachable declared path; the generic-only list is a reviewed snapshot);
-// the generic operations' validation and refusal behavior; and the session's
-// generic-use log. Arbitrary paths are outside this report. The committed
-// report artifact must reproduce exactly from the schema and registry.
+// Test model (issue #22, re-authored for #1039). Boundaries: the schema walker
+// on hand-written schemas; the coverage report over the real v2 record schema
+// and the catalogue's declared touch paths (no unreachable declared path; the
+// generic-only list is a reviewed snapshot); the generic operations' validation
+// and refusal behavior; and the session's generic-use log. Arbitrary paths are
+// outside this report. The committed report artifact must reproduce exactly
+// from the schema and registry.
 
 describe('schema walker (#22)', () => {
-  const document = { definitions: {} as Record<string, Record<string, unknown>> }
+  const document = { $defs: {} as Record<string, Record<string, unknown>> }
 
   it('enumerates nested objects, arrays, and record keys with wildcards', () => {
     const schema = {
@@ -49,12 +51,12 @@ describe('schema walker (#22)', () => {
 
   it('unions anyOf members and resolves refs with cycle termination', () => {
     const cyclic = {
-      definitions: {
+      $defs: {
         Node: {
           type: 'object',
           properties: {
             label: { type: 'string' },
-            child: { $ref: '#/definitions/Node' },
+            child: { $ref: '#/$defs/Node' },
           },
         },
         Union: {
@@ -65,19 +67,19 @@ describe('schema walker (#22)', () => {
         },
       },
     }
-    const union = enumerateSchemaLeafPaths({ $ref: '#/definitions/Union' }, cyclic).sort()
+    const union = enumerateSchemaLeafPaths({ $ref: '#/$defs/Union' }, cyclic).sort()
     expect(union).toEqual(['/a', '/b', '/kind'])
-    const node = enumerateSchemaLeafPaths({ $ref: '#/definitions/Node' }, cyclic).sort()
+    const node = enumerateSchemaLeafPaths({ $ref: '#/$defs/Node' }, cyclic).sort()
     // The cycle terminates as a leaf at the repeated ref.
     expect(node).toEqual(['/child', '/label'])
   })
 
   it('matches paths and patterns with wildcards on either side, prefix in either direction', () => {
-    expect(coverageMatches('/composition/scenes/*/zones/*/main/*/durationMs',
-      '/composition/scenes/*/zones/*/main/*')).toBe(true)
-    expect(coverageMatches('/scenes/*/durationMs', '/scenes/*/durationMs')).toBe(true)
-    expect(coverageMatches('/scenes/*/name', '/scenes/*/durationMs')).toBe(false)
-    expect(coverageMatches('/transitions/*', '/transitions/*/durationMs')).toBe(true)
+    expect(coverageMatches('/composition/clips/*/appearance/keys/*/value/opacity',
+      '/composition/clips/*/appearance/keys/*')).toBe(true)
+    expect(coverageMatches('/composition/clips/*/durationMs', '/composition/clips/*/durationMs')).toBe(true)
+    expect(coverageMatches('/composition/clips/*/startMs', '/composition/clips/*/durationMs')).toBe(false)
+    expect(coverageMatches('/composition/transitions/*', '/composition/transitions/*/durationMs')).toBe(true)
   })
 })
 
@@ -88,11 +90,17 @@ describe('coverage over the real schema and registry (#22)', () => {
     expect(report.unreachable).toEqual([])
   })
 
-  it('classifies every Layout occurrence blanket rewrite as structural', () => {
-    for (const command of SHOW_STRUCTURE_COMMANDS.filter(command => ['add_layout_interval', 'duplicate_layout_interval', 'make_layout_interval_unique'].includes(command.name))) {
-      for (const pattern of command.touches.filter(path => path !== '/updatedAt')) {
-        expect(STRUCTURAL_DECLARATIONS).toContainEqual({ operation: command.name, pattern })
-      }
+  it('keeps every structural cascade declaration anchored to a command that declares that touch', () => {
+    // A structural declaration suppresses a blanket touch so a family with no
+    // authoring command of its own cannot read as complete. It rots silently in
+    // exactly one way: the named command loses that touch (or the command goes
+    // away) and the declaration stops suppressing anything, so a stale entry is
+    // a defect even though the report still renders.
+    for (const declaration of STRUCTURAL_DECLARATIONS) {
+      const command = SHOW_COMMANDS_V2.find((candidate) => candidate.name === declaration.operation)
+      expect(command, `structural declaration names unknown command ${declaration.operation}`).toBeDefined()
+      expect(command!.touches, `${declaration.operation} no longer touches ${declaration.pattern}`)
+        .toContain(declaration.pattern)
     }
   })
 
@@ -103,21 +111,33 @@ describe('coverage over the real schema and registry (#22)', () => {
     expect(report.genericOnly).toEqual(genericOnlySnapshot)
   })
 
-  it('records the known gaps: Groups remain partial and the flat model remains generic; Trails is covered (#27)', () => {
+  it('records the known v2 gap: Group definition internals, plus two whole-composition fields', () => {
     const families = Object.fromEntries(report.families.map((family) => [family.family, family]))
-    expect(families['groups'].specific).toBe(1)
-    expect(families['flat model (legacy)'].specific).toBe(0)
-    for (const path of ['/cells/*/viewport/starPoints', '/cells/*/effects/*/amount', '/zones/*/icon', '/routingLayouts/*/name', '/routingLayouts/*/zones/*/ranges/*/start', '/routingLayouts/*/logical/kind']) {
-      expect(report.rows.find(row => row.path === path)).toEqual({ path, classification: 'generic-only', operations: [] })
+    // Decision D2: the catalogue authors Group *occurrences*; a definition's
+    // internals are edited by materializing an occurrence, so the definition
+    // subtree is the one genuine authoring gap.
+    expect(families['groups'].specific).toBe(12)
+    expect(families['groups'].specific).toBeLessThan(families['groups'].total)
+    for (const path of report.genericOnly) {
+      expect(
+        path.startsWith('/composition/groupDefinitions/')
+          || path === '/composition/executionModel'
+          || path === '/composition/sampleRemap/repeatScale',
+        `unreviewed generic-only path ${path}`,
+      ).toBe(true)
     }
-    expect(families['output effects'].percent).toBe(100)
-    expect(report.genericOnly).not.toContain('/outputEffects/*/retention')
-    expect(families['junctions'].percent).toBe(100)
-    expect(families['property animation'].percent).toBe(100)
-    // Broad Scene writes in add/insert commands do not offer edits to these fields.
-    for (const path of ['/scenes/*/name', '/scenes/*/routingTargets/splitPosition', '/scenes/*/sampleTargets/repeatScale']) {
-      expect(report.rows.find(row => row.path === path)).toEqual({ path, classification: 'generic-only', operations: [] })
+    for (const family of ['animation', 'clips', 'effects', 'layers', 'layouts', 'markers', 'transitions']) {
+      expect(families[family].percent, `${family} is no longer completely covered`).toBe(100)
     }
+  })
+
+  it('reports no retired version-1 shape: no Scene, cell, routing-layout or flat-model path survives', () => {
+    for (const row of report.rows) {
+      for (const retired of ['/scenes/', '/cells/', '/routingLayouts/', '/flat']) {
+        expect(row.path.startsWith(retired), `retired v1 path ${row.path} still in the report`).toBe(false)
+      }
+    }
+    expect(report.families.map((family) => family.family)).not.toContain('flat model (legacy)')
   })
 
   it('reproduces the committed report artifact from schema and registry alone', () => {
@@ -135,12 +155,12 @@ describe('generic operations (#22)', () => {
     const issues = applyRefused(
       document,
       'set_field',
-      { pointer: '/scenes/0/durationMs', value: 'not a number' },
+      { pointer: '/composition/clips/0/durationMs', value: 'not a number' },
       'result-invalid',
     )
     expect(issues[0].message).toContain('schema')
     applyRefused(document, 'set_field', { pointer: '/updatedAt', value: 1 }, 'invalid-argument')
-    applyRefused(document, 'set_field', { pointer: '/scenes/9/durationMs', value: 1 }, 'invalid-argument')
+    applyRefused(document, 'set_field', { pointer: '/composition/clips/9/durationMs', value: 1 }, 'invalid-argument')
     applyRefused(document, 'set_field', { pointer: 'no-slash', value: 1 }, 'invalid-argument')
   })
 
@@ -151,7 +171,7 @@ describe('generic operations (#22)', () => {
       'apply_patch',
       {
         patch: [
-          { op: 'replace', path: '/cells/0/pattern/id', value: 'NoSuchStockPattern' },
+          { op: 'replace', path: '/composition/patternInstances/0/pattern/id', value: 'NoSuchStockPattern' },
         ],
       },
       'result-invalid',

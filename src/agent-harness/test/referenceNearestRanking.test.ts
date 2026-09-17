@@ -1,4 +1,5 @@
-// V2-authored for #945 (second candidate review of the corrections, P3): a
+// V2-authored for #945 (second candidate review of the corrections, P3),
+// re-authored onto the version-2 record and catalogue for #1039: a
 // resolve_reference miss caused by the Zone filter ranks its "nearest"
 // candidates by distance from the queried time before truncating to five.
 // Before, the Zone-miss branches of both kinds returned the first five
@@ -12,51 +13,17 @@
 // the Zone filter. Oracle: the junction and clip ids describe_show reports for
 // the expected start times, in order.
 import { describe, expect, it } from 'vitest'
-import type { ShowRecord } from '@/engine/personalContentRecords'
 import { openShowDocument } from '../grammar/openShow.js'
 import { describeShow, resolveReference, type ReferenceQuery } from '../grammar/read.js'
 import { applyShowGrammarOperation } from '../grammar/registry.js'
 import type { ShowGrammarDocument } from '../grammar/types.js'
+import { LEFT_LAYER_ID, longTwoZoneShowV2 } from './support/twoZoneFixture.js'
 
 const CUTS = [10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 99_000]
 
-function twoZoneShow(): ShowRecord {
-  const cell = (id: string, zoneId: string, patternId: string) => ({
-    id,
-    zoneId,
-    sceneId: 's1',
-    sceneSpan: 1,
-    pattern: { kind: 'stock', id: patternId },
-    patternName: patternId,
-    adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
-  })
-  return {
-    id: 'late-junction-fixture',
-    name: 'Late junction',
-    updatedAt: 0,
-    scenes: [{ id: 's1', name: 'Long', durationMs: 120_000 }],
-    zones: [
-      { id: 'z1', name: 'Left', nominalPixelCount: 32 },
-      { id: 'z2', name: 'Right', nominalPixelCount: 32 },
-    ],
-    cells: [cell('c1', 'z1', 'CometLoom'), cell('c2', 'z2', 'TestPattern1D')],
-    routingLayouts: [
-      { id: 'l1', name: 'Split', zones: [], logical: { kind: 'split', zoneIds: ['z1', 'z2'], axis: 'x' } },
-    ],
-    transitions: [],
-    outputContract: {
-      version: 1,
-      kind: 'portable-2d',
-      referenceMapId: 'plane',
-      referencePixelCount: 256,
-      compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
-    },
-  } as unknown as ShowRecord
-}
-
 /** The Left Zone cut into eleven clips (cuts at CUTS); the Right Zone one uncut clip. */
 function lateJunctionShow() {
-  const opened = openShowDocument(twoZoneShow())
+  const opened = openShowDocument(longTwoZoneShowV2())
   if (!opened.ok) throw new Error(`fixture failed to open: ${JSON.stringify(opened.issues)}`)
   const firstClip = opened.listing.clips.find((clip) => clip.zoneId === 'z1' && clip.startMs === 0)!
   let document: ShowGrammarDocument = opened.document
@@ -68,7 +35,7 @@ function lateJunctionShow() {
   step('resize_clip', { clip_id: firstClip.clipId, duration_ms: CUTS[0] })
   for (const [index, startMs] of CUTS.entries()) {
     const endMs = CUTS[index + 1] ?? 120_000
-    step('add_clip', { zone_id: 'z1', start_ms: startMs, duration_ms: endMs - startMs, pattern_kind: 'stock', pattern_id: 'TestPattern1D' })
+    step('create_clips', { clips: [{ zone_id: 'z1', layer_id: LEFT_LAYER_ID, start_ms: startMs, duration_ms: endMs - startMs, pattern: { kind: 'stock', id: 'TestPattern1D' }, instance: 'inst-right-1' }] })
   }
   const description = describeShow(document)
   const left = description.zones.find((zone) => zone.zoneId === 'z1')!

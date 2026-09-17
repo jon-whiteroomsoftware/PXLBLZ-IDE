@@ -11,19 +11,19 @@
       "features": [
         "personal-show"
       ],
-      "recordSha256": "9e1ea53c180655cf3fbe2a77fb72c75ca558988298f62b199e15e25f106843f4",
+      "recordSha256": "7fdf75ce5fda3aafea8cd7586ebe707beccc99777e87fbd2b8f52091b080dc9f",
       "loopDurationMs": 60000,
       "clipCount": 2,
       "before": {
         "pxlshow": {
           "filename": "baseline-personal-show.pxlshow",
-          "bytes": 531,
-          "contentSha256": "2bc0540569a663086f197ea405def8d42f6dbe163f2fca27ff64d85203c36552"
+          "bytes": 822,
+          "contentSha256": "a47ed1e321dbb32c45769353f9b1d9562fba9c8089aef2349f46b9f34d489c0b"
         },
         "epe": {
           "filename": "baseline-personal-show.epe",
-          "bytes": 6729,
-          "sourceSha256": "bbbe725fccc311534510f7b5cfa480b755a6332fc7fd7c0e6c30e252bb511406",
+          "bytes": 6852,
+          "sourceSha256": "1da2fb8e79af9a5179a3d43d4225e587a4461db7eba350b265369036ae62d236",
           "stampKind": "show"
         }
       },
@@ -31,7 +31,7 @@
         "opened": true,
         "changed": true,
         "summaries": [
-          "Clip placement-c1-s1 now runs 0–12000 ms (12000 ms)."
+          "Clip placement-c1-s1 spans 0–12000 ms; Clips placement-c1-s1."
         ],
         "reply": "The first Clip is twelve seconds.",
         "toolEvents": [
@@ -43,16 +43,16 @@
       "after": {
         "pxlshow": {
           "filename": "baseline-personal-show.pxlshow",
-          "bytes": 676,
-          "contentSha256": "50f66e523f20b43bf9abb0d665c40827ea28c6816177113e9775e0b5bc036d25"
+          "bytes": 826,
+          "contentSha256": "177ca6fdda4059ee895259da9960233325a0de98e63b90629713efa54b4aab31"
         },
         "epe": {
           "filename": "baseline-personal-show.epe",
-          "bytes": 10615,
-          "sourceSha256": "efec1da77eb457de7dcc55e090df4d368ecbae32b15923788fa8ad493edbd4ba",
+          "bytes": 7778,
+          "sourceSha256": "20c334ba2e85d1c6ccd079c279b77009044954982ac0ae71a5812ac83b86adf5",
           "stampKind": "show"
         },
-        "recordSha256": "e062dd4d7b159c5831ed21bc4d3dac45853e766b7aea44d9c2c58b578f43a7df",
+        "recordSha256": "e5fbee6196677efd05dfcc5b602fa3bad5103d30a526b7bb9e6f6fabf3994954",
         "clipCount": 2,
         "firstClipDurationMs": 12000
       }
@@ -67,14 +67,12 @@
         "personal-pattern",
         "personal-library"
       ],
-      "recordSha256": "058f1133becc1ed5e2baad34499557b8c66503fd204ca543ba0255e55a18307d",
+      "recordSha256": "e39f604a1b61c16d8bf30fd28ebc4b84579ccc9a7006ee89bbf4a42287e5f63a",
       "loopDurationMs": 60000,
       "clipCount": 2,
       "before": {
         "pxlshow": {
-          "filename": "baseline-library-pattern-show.pxlshow",
-          "bytes": 670,
-          "contentSha256": "97092f1161d2754b45fadef463d4e85f83b7790bbed01a24f1d90d5d518da37b"
+          "error": "Show \"Baseline Library Pattern Show\" needs user Library \"Blz\", which is not in the library."
         },
         "epe": {
           "error": "Unknown library namespace \"Blz\""
@@ -84,7 +82,7 @@
         "opened": true,
         "changed": true,
         "summaries": [
-          "Clip placement-c1-s1 now runs 0–12000 ms (12000 ms)."
+          "Clip placement-c1-s1 spans 0–12000 ms; Clips placement-c1-s1."
         ],
         "reply": "The first Clip is twelve seconds.",
         "toolEvents": [
@@ -95,14 +93,12 @@
       },
       "after": {
         "pxlshow": {
-          "filename": "baseline-library-pattern-show.pxlshow",
-          "bytes": 826,
-          "contentSha256": "20c0c5eaa66080005fee45fe97f6d6b9ddf8e3ac4ea3589988d2cd81db69f4d6"
+          "error": "Show \"Baseline Library Pattern Show\" needs user Library \"Blz\", which is not in the library."
         },
         "epe": {
           "error": "Unknown library namespace \"Blz\""
         },
-        "recordSha256": "33e617739d66f29ec6eafbfccc9ec1885a8aa19ac627994b908ca77b80a0b7bb",
+        "recordSha256": "2011e6dcb6e6671014e89dae589bb54b58f36714055e636ace3f48e2a79bf70d",
         "clipCount": 2,
         "firstClipDurationMs": 12000
       }
@@ -116,19 +112,19 @@
       "features": [
         "stock-draft"
       ],
-      "recordSha256": "2e7c2d19ca074184b1eaca10b7004ff68541582ec6c1a4c11854670e76aa1818",
+      "recordSha256": "c9bcd29531000453503e1fe68aad6e8c9268143aa4e852e460ff3247e8b83213",
       "loopDurationMs": 16000,
       "clipCount": 3,
       "before": {
         "pxlshow": {
           "filename": "101-clips-cuts-and-blank-time.pxlshow",
-          "bytes": 701,
-          "contentSha256": "c2b79ac4c56e5139163a6765370c8dcba230b06b3010c5cc62223617bfa1f193"
+          "bytes": 862,
+          "contentSha256": "832e1f61d1785984cb9e24cc4c8d040f974154cb3723790a26422d4edbd93498"
         },
         "epe": {
           "filename": "101-clips-cuts-and-blank-time.epe",
-          "bytes": 12649,
-          "sourceSha256": "25b79a59a03a469caf2966567f537bff3af1b7ea92eb74bc9376cfa6a4a74ebf",
+          "bytes": 12804,
+          "sourceSha256": "3ebcd515bd1c6f35ce8f44f9bbfeb8df77d01c8a84408772d02e45c3d4bb5bce",
           "stampKind": "show"
         }
       },
@@ -142,7 +138,7 @@
           "resize_clip"
         ],
         "refusals": [
-          "resize_clip: The same-Layer range at this start is 0–5000 ms."
+          "resize_clip: resize_clip: composition.clips[1]: Clips on one Zone and Layer cannot overlap."
         ]
       },
       "after": null
@@ -156,19 +152,19 @@
       "features": [
         "groups"
       ],
-      "recordSha256": "08a30e89a4e5b0fab649b73866b6e21ba2daaa07caaa246f9e10cbce27a78a89",
+      "recordSha256": "d33b570138331ed680cd610275e58400ddb898ae1bf52208da607c8c67d750ae",
       "loopDurationMs": 16000,
       "clipCount": 5,
       "before": {
         "pxlshow": {
           "filename": "205-groups-and-linked-reuse.pxlshow",
-          "bytes": 1010,
-          "contentSha256": "cd77594ddbf19d66064343b4ff858eb3709b5d43f05c5d86227551a43f47c7b9"
+          "bytes": 1253,
+          "contentSha256": "43be4b8ece72b16c4c8a3726f3426f4376024fd2aba12451f0a38a27b5d48e36"
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
-          "bytes": 34590,
-          "sourceSha256": "0d541fe82033c366063550f8745809cbd5929fcf7a09f9524d7a544c731fcb3e",
+          "bytes": 34930,
+          "sourceSha256": "da45e3712141b5d2e815ee062700a5581385752a96d1f536448b1a87a0ebcf04",
           "stampKind": "show"
         }
       },
@@ -176,7 +172,7 @@
         "opened": true,
         "changed": true,
         "summaries": [
-          "Clip clip-loom now runs 0–12000 ms (12000 ms)."
+          "Clip clip-loom spans 0–12000 ms; Clips clip-loom."
         ],
         "reply": "The first Clip is twelve seconds.",
         "toolEvents": [
@@ -188,16 +184,16 @@
       "after": {
         "pxlshow": {
           "filename": "205-groups-and-linked-reuse.pxlshow",
-          "bytes": 1012,
-          "contentSha256": "1c5ea197b6a33befdb99cbf6bf9d8024d0fccbac1ea9c397ceb98e4b7b64293d"
+          "bytes": 1257,
+          "contentSha256": "4a5e57003f6b07335a3b404c6471a92238e8f13add4152731926e4e01ef15e3d"
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
-          "bytes": 39876,
-          "sourceSha256": "344358bd23a395d13e2f73a6394e65bbd74a057e85cf18ee5bfbb0dfa37bfba5",
+          "bytes": 40216,
+          "sourceSha256": "b9b0303a56c044bcdb80144bd9defef1e8202750db62397b06114c6b5d89a841",
           "stampKind": "show"
         },
-        "recordSha256": "d9bcf8eb4efaa2c05940f746c1dd5f58f7a2cfc786f4e0bd24a93bb0065db8b3",
+        "recordSha256": "b5195dd5aeedc35b301a8d23421d31fe8b5de76114501cf22a3a2365934e7739",
         "clipCount": 5,
         "firstClipDurationMs": 12000
       }
@@ -211,19 +207,19 @@
       "features": [
         "animation"
       ],
-      "recordSha256": "af280e326519ea31fb2cc8bead934cfae71ff515e4150019ae5710e490fec3cd",
+      "recordSha256": "1b8be00f2ddbaf253ec49ce3bb1b5a23df2abd00c3e1c79ad0053f11916b54ab",
       "loopDurationMs": 48600,
       "clipCount": 19,
       "before": {
         "pxlshow": {
           "filename": "property-animation.pxlshow",
-          "bytes": 1909,
-          "contentSha256": "d8343883889faf20a9b9a9d4b98f19840977ad5ab59c69525fca510280df3c6f"
+          "bytes": 2176,
+          "contentSha256": "8abee04281c3d308dd951a513eb828153c5707a96cfd0958bdff5d25136e2f51"
         },
         "epe": {
           "filename": "property-animation.epe",
-          "bytes": 67736,
-          "sourceSha256": "c7068998df6903b0a6f71917d192bbab184bc098b4f09bddf812a3aec12d744b",
+          "bytes": 69157,
+          "sourceSha256": "0cc1fcdd60613401747db630c8ad8320fd1c46871f72c334cae4b74ac720c6b2",
           "stampKind": "show"
         }
       },
@@ -237,7 +233,7 @@
           "resize_clip"
         ],
         "refusals": [
-          "resize_clip: The same-Layer range at this start is 0–5000 ms."
+          "resize_clip: resize_clip: composition.clips[2]: Clips on one Zone and Layer cannot overlap."
         ]
       },
       "after": null
@@ -251,19 +247,19 @@
       "features": [
         "routing"
       ],
-      "recordSha256": "da474a5baa5208fdb132d9fbdd789d1558c6ad12e29c29cdff801624f6ba0b6f",
+      "recordSha256": "8c28209a3639a64b26e345e725985fe06259e2cddf336ef70d475f865c26d6fc",
       "loopDurationMs": 17000,
       "clipCount": 5,
       "before": {
         "pxlshow": {
           "filename": "206-changing-zone-layouts.pxlshow",
-          "bytes": 1008,
-          "contentSha256": "725be9317930546394b9e77da36a4dadc60f5166aaca160d2dcb75936c728b4f"
+          "bytes": 1110,
+          "contentSha256": "00aac2d74528dc74c01ecbd3d9794bbf1f695212e2080b9db96d572b150ded7c"
         },
         "epe": {
           "filename": "206-changing-zone-layouts.epe",
-          "bytes": 22162,
-          "sourceSha256": "3c62b675203f40eff0abf82aa943bbe2ecaace195a7a88b68e8ed5061478bbba",
+          "bytes": 22438,
+          "sourceSha256": "4b525bd7b29d3503b44a817cea897a075a6338b5d26480f4ce23cf638b4689a3",
           "stampKind": "show"
         }
       },
@@ -277,7 +273,7 @@
           "resize_clip"
         ],
         "refusals": [
-          "resize_clip: The same-Layer range at this start is 0–5000 ms."
+          "resize_clip: resize_clip: composition.clips[1]: Clips on one Zone and Layer cannot overlap."
         ]
       },
       "after": null
@@ -292,36 +288,51 @@
         "long-timeline",
         "boundary-transition"
       ],
-      "recordSha256": "c7f439e13f0e03cb9d083df1eac20bf3890ce56ecfac83e5b65f337c9bbd427d",
+      "recordSha256": "946be6f13e8e29d07eca9b741abad75f160941c1ae549da0dc3e1882fb5626a8",
       "loopDurationMs": 371000,
       "clipCount": 12,
       "before": {
         "pxlshow": {
           "filename": "baseline-long-timeline.pxlshow",
-          "bytes": 816,
-          "contentSha256": "aca5b2ccedffc1948b9b065fbba11f2789a4200f513e3e1923673a016ec1b4ed"
+          "bytes": 1411,
+          "contentSha256": "fdbe140862153446900dd7414eef1a4d1d43221664b048862a085c66339d723c"
         },
         "epe": {
           "filename": "baseline-long-timeline.epe",
-          "bytes": 19444,
-          "sourceSha256": "265b7122728c3f5401acb19ea85ee9697a37790825249a25141eb2cb5c3db420",
+          "bytes": 21222,
+          "sourceSha256": "5882a1188e2f717e0dcc89eb36404b3b4cfe6f3e5e6758b4802ec630157158cc",
           "stampKind": "show"
         }
       },
       "bridge": {
         "opened": true,
-        "changed": false,
-        "summaries": [],
-        "reply": "(no reply)",
+        "changed": true,
+        "summaries": [
+          "Clip placement-c1-s1 spans 0–12000 ms; Clips placement-c1-s1, placement-c10-s10, placement-c11-s11, placement-c12-s12, placement-c2-s2, placement-c3-s3, placement-c4-s4, placement-c5-s5, placement-c6-s6, placement-c7-s7, placement-c8-s8, placement-c9-s9."
+        ],
+        "reply": "The first Clip is twelve seconds.",
         "toolEvents": [
           "describe_show",
           "resize_clip"
         ],
-        "refusals": [
-          "resize_clip: This resize would remove a Scene-boundary Transition."
-        ]
+        "refusals": []
       },
-      "after": null
+      "after": {
+        "pxlshow": {
+          "filename": "baseline-long-timeline.pxlshow",
+          "bytes": 1429,
+          "contentSha256": "f0deae3da89ccb9109c248b2324739e5910048b97df9a31b3cc27cfc1c6e2ff1"
+        },
+        "epe": {
+          "filename": "baseline-long-timeline.epe",
+          "bytes": 21969,
+          "sourceSha256": "357b47b6e407b26b8ccfabd5a9ae608d51c28e2a73449e8e4304242e04689955",
+          "stampKind": "show"
+        },
+        "recordSha256": "6de4830552ee3c8e20caceae7d294bad9d2ffdcb2edf41a144e0b47228d7da8d",
+        "clipCount": 12,
+        "firstClipDurationMs": 12000
+      }
     }
   ]
 }

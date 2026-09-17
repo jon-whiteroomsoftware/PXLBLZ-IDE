@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import { grammarFixtureShow } from './support/grammarFixture.js'
-import { applyOk, clipAt, clips, fixture, withBrightnessTrack } from './support/grammarHarness.js'
+import { affectedIds, applyOk, clipAt, clips, fixture, withBrightnessTrack } from './support/grammarHarness.js'
 import { describeShow, evaluatePropertyAt, resolveReference } from '../grammar/read.js'
 
 // Test model (issue #21). Boundaries: resolveReference / describeShow /
@@ -13,21 +13,24 @@ import { describeShow, evaluatePropertyAt, resolveReference } from '../grammar/r
 // values outside the span.
 
 function richFixture() {
-  // Two zones' worth of structure on one Zone: overlay layer with a clip and
-  // an opacity track, a boundary crossfade, and a marker.
-  let document = fixture({ overlay: true, boundaryCrossfade: true })
+  // One Zone with two Layers: a second Layer carrying a Clip and an opacity
+  // track, plus a Marker. The Crossfade variant is not used here because the
+  // compiler refuses a participant Transition beside an authored Property
+  // activation; junction coverage below uses the derived Cut instead.
+  let document = fixture({ overlay: true })
   document = applyOk(document, 'add_marker', { at_ms: 12_000, name: 'Drop' }).document
-  const overlay = clips(document).find((candidate) => candidate.layer.kind === 'overlay')!
-  const tracked = applyOk(document, 'add_property_track', {
-    clip_id: overlay.clipId,
-    target: 'opacity',
-    keyframes: [
-      { time_ms: 3_000, value: 0.8, easing: 'linear' },
-      { time_ms: 5_000, value: 0.6, easing: 'ease-in-out' },
-      { time_ms: 8_000, value: 0.4 },
-    ],
+  const overlay = clips(document).find((candidate) => candidate.layerName === 'Over')!
+  const tracked = applyOk(document, 'add_property_tracks', {
+    tracks: [{
+      target: { kind: 'opacity', clip_id: overlay.clipId },
+      keyframes: [
+        { at_ms: 3_000, value: 0.8, easing: 'linear' },
+        { at_ms: 5_000, value: 0.6, easing: 'ease-in-out' },
+        { at_ms: 8_000, value: 0.4 },
+      ],
+    }],
   })
-  return { document: tracked.document, overlay, trackId: tracked.changes[0].targetId }
+  return { document: tracked.document, overlay, trackId: affectedIds(tracked.changes[0], 'tracks')[0] }
 }
 
 describe('resolve_reference (#21)', () => {
@@ -138,36 +141,42 @@ describe('describe_show (#21)', () => {
     const description = describeShow(document)
 
     expect(description.name).toBe('Grammar fixture')
-    // The 1 s boundary crossfade adds a transition window to the timeline.
-    expect(description.durationMs).toBe(61_000)
-    expect(description.scenes.map((scene) => scene.sceneId)).toEqual(['s1', 's2'])
+    // Show End owns the loop length in v2; no Scene sum contributes to it.
+    expect(description.showEndMs).toBe(60_000)
 
     const zone = description.zones.find((candidate) => candidate.zoneId === 'z1')!
-    const layerKinds = zone.layers.map((layer) => layer.kind)
-    expect(layerKinds).toContain('main')
-    expect(layerKinds).toContain('overlay')
+    expect(zone.layers.map((layer) => layer.name).sort()).toEqual(['Main', 'Over'])
 
     const allClips = zone.layers.flatMap((layer) => layer.clips)
     expect(allClips.length).toBe(3)
     const overlayClip = allClips.find((clip) => clip.clipId === overlay.clipId)!
-    expect(overlayClip.tracks).toEqual([
+    expect(overlayClip.entryPolicy).toBe('continue')
+
+    // Property tracks are global in v2, so the description lists them once with
+    // the entity each one targets.
+    expect(description.propertyTracks).toEqual([
       {
         trackId,
+        owner: 'show',
         target: expect.stringContaining('opacity'),
+        targetEntityId: overlay.clipId,
+        activeStartMs: expect.any(Number),
+        activeEndMs: expect.any(Number),
         keyframes: [
-          expect.objectContaining({ keyframeId: expect.any(String), timeMs: expect.any(Number), value: expect.any(Number), easing: expect.any(String) }),
-          expect.objectContaining({ keyframeId: expect.any(String) }),
-          expect.objectContaining({ keyframeId: expect.any(String) }),
+          expect.objectContaining({ id: expect.any(String), timeMs: expect.any(Number), value: expect.any(Number), easing: expect.any(String), retainedCurve: false }),
+          expect.objectContaining({ id: expect.any(String) }),
+          expect.objectContaining({ id: expect.any(String) }),
         ],
       },
     ])
 
+    // The two Main-Layer Clips are exactly adjacent, so their junction is a
+    // derived Cut that mints no persisted identity.
     const junctions = zone.layers.flatMap((layer) => layer.junctions)
-    expect(junctions.some((junction) => junction.boundaryTransition)).toBe(true)
+    expect(junctions.some((junction) => junction.scope === 'derived-cut' && junction.transitionId === null)).toBe(true)
 
     expect(description.markers).toHaveLength(1)
     expect(description.markers[0].name).toBe('Drop')
-    expect(description.otherTracks).toEqual([])
 
     // The ids the description carries are accepted by the operations.
     const resized = applyOk(document, 'resize_clip', {
@@ -192,13 +201,21 @@ describe('evaluate_property_at (#21)', () => {
     if (!easedMid.ok) throw new Error('evaluate failed')
     expect(easedMid.evaluation.value).toBeCloseTo(0.5, 5)
 
+    // Activation is the Clip's own interval, not the key range: inside it the
+    // first and last key values hold outside the keys (specification section 6).
     const before = evaluatePropertyAt(document, trackId, 0)
     if (!before.ok) throw new Error('evaluate failed')
-    expect(before.evaluation.value).toBe(0.8)
+    expect(before.evaluation).toMatchObject({ active: true, value: 0.8 })
 
     const after = evaluatePropertyAt(document, trackId, 20_000)
     if (!after.ok) throw new Error('evaluate failed')
-    expect(after.evaluation.value).toBe(0.4)
+    expect(after.evaluation).toMatchObject({ active: true, value: 0.4 })
+
+    // Outside activation the track has no effect and reports none.
+    const outside = evaluatePropertyAt(document, trackId, 40_000)
+    if (!outside.ok) throw new Error('evaluate failed')
+    expect(outside.evaluation).toMatchObject({ active: false })
+    expect(outside.evaluation.value).toBeUndefined()
 
     const unknown = evaluatePropertyAt(document, 'nope', 1_000)
     expect(unknown.ok).toBe(false)
@@ -251,18 +268,20 @@ describe('editor context round trip (#21)', () => {
 
   it('feeds resolution through the session store, reading the working copy mid-transaction', () => {
     const store = createSessionStore()
-    const opened = store.open(grammarFixtureShow({ emptySecondScene: true }))
+    const opened = store.open(grammarFixtureShow({ emptyTail: true }))
     if (!opened.ok) throw new Error('open failed')
     const sessionId = opened.sessionId
     const clipId = opened.listing.clips[0].clipId
 
     expect(store.begin(sessionId, 'read test').ok).toBe(true)
-    expect(store.apply(sessionId, 'add_clip', {
-      zone_id: 'z1',
-      start_ms: 40_000,
-      duration_ms: 5_000,
-      pattern_kind: 'stock',
-      pattern_id: 'CometLoom',
+    expect(store.apply(sessionId, 'create_clips', {
+      clips: [{
+        zone_id: 'z1',
+        layer_id: opened.listing.layers[0].layerId,
+        start_ms: 40_000,
+        duration_ms: 5_000,
+        pattern: { kind: 'stock', id: 'CometLoom' },
+      }],
     }).ok).toBe(true)
 
     // The uncommitted clip is visible to reads.

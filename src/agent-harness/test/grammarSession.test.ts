@@ -26,13 +26,13 @@ describe('grammar session store (#17)', () => {
     const store = createSessionStore()
     const opened = openFixtureSession(store)
     expect(opened.sessionId).toBe('show-1')
-    expect(opened.listing.durationMs).toBe(60_000)
-    expect(opened.listing.scenes.map((scene) => scene.sceneId)).toEqual(['s1', 's2'])
+    expect(opened.listing.showEndMs).toBe(60_000)
+    expect(opened.listing.layers.map((layer) => layer.name)).toEqual(['Main'])
     expect(opened.listing.clips).toHaveLength(2)
     for (const clip of opened.listing.clips) {
       expect(clip.clipId.length).toBeGreaterThan(0)
       expect(clip.zoneName).toBe('Main')
-      expect(clip.layer.kind).toBe('main')
+      expect(clip.layerName).toBe('Main')
       expect(clip.endMs - clip.startMs).toBe(clip.durationMs)
     }
   })
@@ -77,10 +77,8 @@ describe('grammar session store (#17)', () => {
 
     const exported = store.export(opened.sessionId)
     if (!exported.ok) throw new Error('export failed')
-    const scene1 = (exported.show.composition as {
-      scenes: Array<{ sceneId: string; zones: Array<{ main: Array<{ durationMs: number }> }> }>
-    }).scenes.find((scene) => scene.sceneId === 's1')
-    expect(scene1?.zones[0].main[0].durationMs).toBe(12_000)
+    const first = [...exported.show.composition.clips].sort((left, right) => left.startMs - right.startMs)[0]
+    expect(first.durationMs).toBe(12_000)
   })
 
   it('leaves the session document unchanged after a refusal', () => {
@@ -92,7 +90,9 @@ describe('grammar session store (#17)', () => {
 
     const refused = store.apply(opened.sessionId, 'resize_clip', { clip_id: clipId, duration_ms: 40_000 })
     expect(refused.ok).toBe(false)
-    if (!refused.ok) expect(refused.issues[0].code).toBe('no-space')
+    // The v2 Clip owner refuses the complete candidate rather than pre-checking
+    // free space, so the code is its own `invalid-result`.
+    if (!refused.ok) expect(refused.issues[0].code).toBe('invalid-result')
 
     const after = store.export(opened.sessionId)
     if (!after.ok) throw new Error('export failed')
@@ -124,10 +124,8 @@ describe('grammar session store (#17)', () => {
     }
     const one2 = store.export(one.sessionId)
     if (!one2.ok) throw new Error('export failed')
-    const scene1 = (one2.show.composition as {
-      scenes: Array<{ sceneId: string; zones: Array<{ main: Array<{ durationMs: number }> }> }>
-    }).scenes.find((scene) => scene.sceneId === 's1')
-    expect(scene1?.zones[0].main[0].durationMs).toBe(12_000)
+    const first = [...one2.show.composition.clips].sort((left, right) => left.startMs - right.startMs)[0]
+    expect(first.durationMs).toBe(12_000)
   })
 
   it('reports unknown session ids with the known ids', () => {

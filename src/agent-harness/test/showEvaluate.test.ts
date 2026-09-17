@@ -1,26 +1,21 @@
 // Provenance: pxlblz-v3 test/showEvaluate.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
-import type { ShowRecord } from '@/engine/personalContentRecords'
-import { SHOW_MAX_OUTPUT_PIXELS } from '@/engine/showVmResourceLedger'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { compileShowDocument, validateShowDocument } from '../shows/evaluate.js'
 import { createSessionStore } from '../grammar/session.js'
+import { toShowRecordV2 } from './support/convertFixture.js'
 
-const stockShow = (): ShowRecord => structuredClone(STOCK_SHOWS[0].show)
-const portableShow = (): ShowRecord => {
-  const item = STOCK_SHOWS.find((entry) => entry.show.outputContract?.kind === 'portable-2d')
-  expect(item, 'expected at least one portable-2d stock Show').toBeDefined()
-  return structuredClone(item!.show)
-}
+const stockShow = (): ShowRecordV2 => toShowRecordV2(structuredClone(STOCK_SHOWS[0].show), STOCK_SHOWS[0].name)
 
-// Rewires the first cell to a user-pattern reference and returns the stock
-// source that reference should resolve to when supplied inline.
+// Rewires the first Pattern instance to a user-pattern reference and returns the
+// stock source that reference should resolve to when supplied inline.
 const withUserPatternRef = () => {
   const show = stockShow()
-  const original = show.cells[0].pattern
+  const original = show.composition.patternInstances[0].pattern
   expect(original.kind).toBe('stock')
-  show.cells[0].pattern = { kind: 'user', id: 'inline-under-test' }
+  show.composition.patternInstances[0].pattern = { kind: 'user', id: 'inline-under-test' }
   return { show, source: DEMOS[original.id] }
 }
 
@@ -46,10 +41,10 @@ describe('validateShowDocument (#7)', () => {
   })
 
   it('reports a missing required field', () => {
-    const { scenes: _scenes, ...withoutScenes } = stockShow()
-    const result = validateShowDocument(withoutScenes)
+    const { zones: _zones, ...withoutZones } = stockShow()
+    const result = validateShowDocument(withoutZones)
     expect(result.valid).toBe(false)
-    expect(result.errors.some((error) => error.code === 'schema' && error.message.includes('scenes'))).toBe(true)
+    expect(result.errors.some((error) => error.code === 'schema' && error.message.includes('zones'))).toBe(true)
   })
 
   it('rejects user-library references with an explanatory error', () => {
@@ -89,7 +84,7 @@ describe('validateShowDocument (#7)', () => {
 
   it('rejects unknown stock pattern ids instead of silently substituting', () => {
     const show = stockShow()
-    show.cells[0].pattern = { kind: 'stock', id: 'NoSuchPatternAnywhere' }
+    show.composition.patternInstances[0].pattern = { kind: 'stock', id: 'NoSuchPatternAnywhere' }
     const result = validateShowDocument(show)
     expect(result.valid).toBe(false)
     expect(result.errors[0].code).toBe('unknown-stock-pattern')
@@ -122,13 +117,8 @@ describe('compileShowDocument (#7)', () => {
     expect(result.errors[0].code).toBe('malformed-json')
   })
 
-  it('surfaces the oversized-target compile blocker', () => {
-    const result = compileShowDocument(portableShow(), [], {
-      targetPixelCount: SHOW_MAX_OUTPUT_PIXELS + 1,
-    })
-    expect(result.ok, JSON.stringify(result)).toBe(true)
-    if (!result.ok) return
-    expect(result.artifactBlocker).toBeDefined()
-    expect(result.artifactBlocker).toContain(`${SHOW_MAX_OUTPUT_PIXELS.toLocaleString('en-US')}`)
-  })
+  // The v1 compile path reported an advisory `artifactBlocker` for a target
+  // pixel count above SHOW_MAX_OUTPUT_PIXELS. The v2 preparation owner has no
+  // such advisory and takes no caller-supplied target count, so this harness no
+  // longer surfaces that deployment blocker (#1039 residual).
 })

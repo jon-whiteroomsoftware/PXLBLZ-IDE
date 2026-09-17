@@ -7,7 +7,7 @@ import { createSessionStore } from '../grammar/session.js'
 // #949 B1: the finish protocol, not reply punctuation, owns the private transaction.
 async function exercise(finish: unknown) {
   const store = createSessionStore()
-  const opened = store.open(dictationFixture('empty-second-scene'))
+  const opened = store.open(dictationFixture('empty-tail'))
   if (!opened.ok) throw new Error('fixture refused')
   const sessionId = opened.sessionId
   const before = store.export(sessionId)
@@ -48,7 +48,7 @@ describe('explicit private turn outcomes', () => {
 // complete history records. Entry counts alone would miss corrupted redo state.
 it.each(['ask', 'refuse', 'incomplete', 'missing', 'malformed'])('preserves complete past/future through %s', async (intent) => {
   const store = createSessionStore()
-  const opened = store.open(dictationFixture('empty-second-scene'))
+  const opened = store.open(dictationFixture('empty-tail'))
   if (!opened.ok) throw new Error('fixture refused')
   const sessionId = opened.sessionId
   const clip_id = opened.listing.clips[0].clipId
@@ -86,7 +86,7 @@ it.each(['ask', 'refuse', 'incomplete', 'missing', 'malformed'])('preserves comp
 
 it('rejects contradictory returned intent after staged apply', async () => {
   const store = createSessionStore()
-  const opened = store.open(dictationFixture('empty-second-scene'))
+  const opened = store.open(dictationFixture('empty-tail'))
   if (!opened.ok) throw new Error('fixture refused')
   const before = store.export(opened.sessionId)
   const result = await runDictationTurn({
@@ -105,7 +105,7 @@ it('rejects contradictory returned intent after staged apply', async () => {
 
 it('adds one private entry over existing history, and undo/redo restore complete records', async () => {
   const store = createSessionStore()
-  const opened = store.open(dictationFixture('empty-second-scene'))
+  const opened = store.open(dictationFixture('empty-tail'))
   if (!opened.ok) throw new Error('fixture refused')
   const sessionId = opened.sessionId
   expect(store.apply(sessionId, 'add_marker', { at_ms: 5000, name: 'Existing marker' }).ok).toBe(true)

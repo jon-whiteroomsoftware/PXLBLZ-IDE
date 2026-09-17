@@ -1,5 +1,6 @@
-// V2-authored for #945 (third candidate review of the corrections, P1).
-// Element identity of a ShowRecord under the generic operations, modelled as
+// V2-authored for #945 (third candidate review of the corrections, P1),
+// re-authored on the version-2 record for #1039.
+// Element identity of a Show record under the generic operations, modelled as
 // provenance carried by the objects of one private working copy rather than
 // re-inferred from the path an object currently sits at.
 //
@@ -11,10 +12,11 @@
 //
 // The model. When a generic operation clones the record into its private
 // working copy it creates one IdentityTracker over that clone, which tags
-// every array-member object carrying a string `id` - a Scene, Zone, Layout,
-// Transition, instance, placement, layer, Effect, track, keyframe, marker or
-// output Effect - with its id and its identity domain, keyed by the object
-// reference (a WeakMap). Obligations then follow the object:
+// every array-member object carrying a string `id` - a Zone, Layout, Layer,
+// Clip, appearance key, Effect, Transition and its participants, Layout
+// occurrence, instance, track, keyframe, Marker, Group definition or
+// occurrence, or output Effect - with its id and its identity domain, keyed by
+// the object reference (a WeakMap). Obligations then follow the object:
 //   - a tagged object's `id` is never written or removed, wherever it sits;
 //   - a write over a tagged object keeps it under its own id and the fresh
 //     value inherits the tag; an ancestor write keeps every tagged object the
@@ -30,7 +32,7 @@
 //     duplicates like an insertion; an undeclared collection fails closed).
 //     Nested elements stay in their own collections, which move with them,
 //     and are re-derived where a declared destination changes their domain
-//     (an Effect stack moved between placements). A move onto an existing key
+//     (an Effect moved between appearance keys). A move onto an existing key
 //     drops what was there before checking the incoming identities, so the
 //     admission is equivalent to an explicit remove-destination then move;
 //   - an inserted fresh value has every array-member object with an id
@@ -40,34 +42,63 @@
 //     until it enters one, and an untagged array member never gains an id.
 // The identity domains are policy, not inference: within a domain an id
 // names one element and the engine refuses duplicates; across domains one
-// string may name different elements. Sources: validateShowComposition and
-// validateShowPropertyTracks, whose duplicate-id checks span main and
-// overlay placements together, overlay layers, instances, markers, layer
-// transitions, tracks and keyframes across every Scene and track; and
-// findEffect, which looks an Effect up within its placement's stack. A
-// collection shape not declared here fails closed: a removal from it
-// tombstones the id in every domain and an insertion into it is refused by
-// a tombstone in any domain.
+// string may name different elements. The source is
+// `validateShowRecordV2Domain`, whose duplicate-id checks index the Show's own
+// entity collections record-wide and index keyframes, Transition participants,
+// Group holds and appearance keys inside their own owner. A collection shape
+// not declared here fails closed: a removal from it tombstones the id in every
+// domain and an insertion into it is refused by a tombstone in any domain.
 //
 // Everything here is pure: the tracker owns no record, mutates nothing but
 // its own tags and ledger, and is dropped with the working copy on refusal.
 import type { GrammarIssue } from './types.js'
 
-const PLACEMENT_SHAPES = ['/composition/scenes/*/zones/*/main', '/composition/scenes/*/zones/*/overlays/*/placements']
-const EFFECT_SHAPES = PLACEMENT_SHAPES.map((shape) => `${shape}/*/effects`)
+/**
+ * Held-appearance key stacks. A Clip's Effects live inside one appearance key,
+ * so an Effect id names one element within that key's stack, the way a v1
+ * Effect named one element within its placement's stack.
+ */
+const EFFECT_SHAPES = ['/composition/clips/*/appearance/keys/*/value/effects']
+const GROUP_DEFINITION = '/composition/groupDefinitions/*'
+/**
+ * Collections whose members' ids are unique record-wide, from the duplicate-id
+ * checks `validateShowRecordV2Domain` runs over the Show's own entity
+ * collections and every Group definition's local collections.
+ */
 const RECORD_WIDE_SHAPES = [
-  '/scenes',
   '/zones',
-  '/cells',
-  '/routingLayouts',
-  '/transitions',
+  '/zoneLayouts',
   '/outputEffects',
   '/composition/patternInstances',
-  '/composition/markers',
+  '/composition/layers',
+  '/composition/clips',
   '/composition/transitions',
-  '/composition/scenes/*/zones/*/overlays',
-  '/composition/scenes/*/propertyTracks',
-  '/composition/scenes/*/propertyTracks/*/keyframes',
+  '/composition/layoutOccurrences',
+  '/composition/propertyTracks',
+  '/composition/markers',
+  '/composition/groupDefinitions',
+  '/composition/groupOccurrences',
+  `${GROUP_DEFINITION}/patternInstances`,
+  `${GROUP_DEFINITION}/layers`,
+  `${GROUP_DEFINITION}/clips`,
+  `${GROUP_DEFINITION}/transitions`,
+  `${GROUP_DEFINITION}/propertyTracks`,
+]
+/**
+ * Collections whose ids are unique inside their own owner, not record-wide.
+ *
+ * `validateUniqueNestedIds` indexes each of these per enclosing element — one
+ * track's keyframes, one Transition's participants, one Group occurrence's
+ * holds, one Clip's appearance keys — so two owners may legally carry the same
+ * id string and the ledger must keep their tombstones apart.
+ */
+const OWNER_SCOPED_SHAPES: Array<{ shape: string; domain: string }> = [
+  { shape: '/composition/propertyTracks/*/keyframes', domain: 'keyframe' },
+  { shape: `${GROUP_DEFINITION}/propertyTracks/*/keyframes`, domain: 'keyframe' },
+  { shape: '/composition/transitions/*/participants', domain: 'participant' },
+  { shape: '/composition/groupOccurrences/*/holds', domain: 'hold' },
+  { shape: '/composition/clips/*/appearance/keys', domain: 'appearance' },
+  { shape: `${GROUP_DEFINITION}/clips/*/appearance/keys`, domain: 'appearance' },
 ]
 const UNDECLARED_DOMAIN = '*'
 
@@ -84,12 +115,13 @@ const escapeSegment = (segment: string) => segment.replace(/~/g, '~0').replace(/
 const idOf = (value: unknown): string | undefined =>
   isRecordObject(value) && typeof value.id === 'string' ? value.id : undefined
 
-/** The key an array member is known by: its id, else its composition owner, else its index. */
-const ownerKeyOf = (item: unknown, index: number): string =>
-  idOf(item) ??
-  (isRecordObject(item) && typeof item.sceneId === 'string' ? item.sceneId : undefined) ??
-  (isRecordObject(item) && typeof item.zoneId === 'string' ? item.zoneId : undefined) ??
-  String(index)
+/**
+ * The key an array member is known by: its id, else its index.
+ *
+ * Every v2 collection member carries an `id`, so the v1 Scene- and Zone-keyed
+ * composition rows this used to fall back to no longer exist.
+ */
+const ownerKeyOf = (item: unknown, index: number): string => idOf(item) ?? String(index)
 
 /** An array of the record: its shape (array steps as `*`) and the owner key of its enclosing element. */
 interface Collection {
@@ -106,8 +138,9 @@ export interface Site {
 
 /** The identity domain of the members of a collection. */
 function identityDomain(collection: Collection): string {
-  if (PLACEMENT_SHAPES.includes(collection.shape)) return 'placement'
   if (EFFECT_SHAPES.includes(collection.shape)) return `effect@${collection.ownerKey}`
+  const owned = OWNER_SCOPED_SHAPES.find((entry) => entry.shape === collection.shape)
+  if (owned) return `${owned.domain}@${collection.ownerKey}`
   if (RECORD_WIDE_SHAPES.includes(collection.shape)) return collection.shape
   return UNDECLARED_DOMAIN
 }

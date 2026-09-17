@@ -1,4 +1,5 @@
-// Provenance: pxlblz-v3 test/grammarReferentArgs.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
+// Provenance: pxlblz-v3 test/grammarReferentArgs.test.ts at 9ecd481f,
+// re-authored onto the version-2 catalogue for #1039 (see PROVENANCE.md).
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -42,7 +43,7 @@ describe('clip referents inside operations (#35)', () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
     await createShowsServer().connect(serverTransport)
     await client.connect(clientTransport)
-    const opened = await callJson('open_show', { show: dictationFixture('empty-second-scene') })
+    const opened = await callJson('open_show', { show: dictationFixture('empty-tail') })
     sessionId = opened.payload.sessionId
     firstClipId = opened.payload.listing.clips[0].clipId
   })
@@ -50,7 +51,15 @@ describe('clip referents inside operations (#35)', () => {
   it('every clip_id operation also takes clip, and clip_id is no longer required', async () => {
     const { tools } = await client.listTools()
     const clipOperations = SHOW_GRAMMAR_OPERATIONS.filter((operation) => 'clip_id' in operation.inputShape)
-    expect(clipOperations.length).toBeGreaterThanOrEqual(15)
+    // v2 collapses the per-field v1 Clip commands into bulk ones, so fewer
+    // entries take a single clip_id — but every one that does must offer the
+    // referent, and the singular Clip commands must still be among them.
+    expect(clipOperations.map((operation) => operation.name)).toEqual(expect.arrayContaining([
+      'resize_clip', 'split_clip', 'duplicate_clip', 'replace_clip_pattern',
+      'make_clip_pattern_independent', 'rejoin_clip_pattern_instance',
+      'add_clip_effect', 'update_clip_effect', 'move_clip_effect',
+      'duplicate_clip_effect', 'remove_clip_effect',
+    ]))
     for (const operation of clipOperations) {
       const tool = tools.find((candidate) => candidate.name === operation.name)
       const schema = tool?.inputSchema as { properties: Record<string, unknown>; required?: string[] }
@@ -117,8 +126,8 @@ describe('clip referents inside operations (#35)', () => {
 
   it('refuses a pattern name matching nothing with the nearest clips', async () => {
     const before = await snapshot()
-    const { payload, isError } = await callJson('remove_clip', {
-      session_id: sessionId, clip: { pattern_name: 'nothing like this' },
+    const { payload, isError } = await callJson('resize_clip', {
+      session_id: sessionId, clip: { pattern_name: 'nothing like this' }, duration_ms: 3_000,
     })
     expect(isError).toBe(true)
     expect(payload.issues[0]).toMatchObject({ code: 'unknown-clip', message: expect.stringContaining('Nearest') })
@@ -141,7 +150,7 @@ describe('clip referents inside operations (#35)', () => {
     const clips = described.payload.description.zones[0].layers[0].clips as Array<{ clipId: string }>
     const second = clips[1].clipId
     await callJson('set_editor_context', { session_id: sessionId, selected_clip_ids: [second] })
-    const removed = await callJson('remove_clip', { session_id: sessionId, clip_id: second })
+    const removed = await callJson('remove_clips', { session_id: sessionId, clip_ids: [second] })
     expect(removed.isError).toBe(false)
     const before = await snapshot()
     const { payload, isError } = await callJson('resize_clip', {

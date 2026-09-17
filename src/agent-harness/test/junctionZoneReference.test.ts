@@ -1,66 +1,24 @@
-// V2-authored for #945 (integration review correction 3): a junction
+// V2-authored for #945 (integration review correction 3), re-authored onto the
+// version-2 record and catalogue for #1039: a junction
 // referent honours the requested Zone the way a clip referent does.
 // Boundary: resolveReference as a pure function over a two-Zone Show whose
-// junctions are per-Zone cuts inside Scene 1 (a Scene-boundary transition
-// is one shared element across Zones, so it cannot show which Zone
-// resolved). Invariant: with a zone constraint, only that Zone's junctions
+// junctions are per-Zone derived Cuts (a whole-output Transition is one
+// shared element across Zones, so it cannot show which Zone resolved). Invariant: with a zone constraint, only that Zone's junctions
 // are candidates; without one, every Zone's are. Partitions: the requested
 // Zone has no junction at the time while another Zone does; both Zones have
 // one at the same time; the Zone is named by id, by name, or in another
 // case; the Zone does not exist. Ids returned are the ones describe_show
 // reports.
 import { describe, expect, it } from 'vitest'
-import type { ShowRecord } from '@/engine/personalContentRecords'
 import { openShowDocument } from '../grammar/openShow.js'
 import { describeShow, resolveReference } from '../grammar/read.js'
 import { applyShowGrammarOperation } from '../grammar/registry.js'
 import type { ShowGrammarDocument } from '../grammar/types.js'
-
-function twoZoneShow(): ShowRecord {
-  const cell = (id: string, zoneId: string, sceneId: string, patternId: string) => ({
-    id,
-    zoneId,
-    sceneId,
-    sceneSpan: 1,
-    pattern: { kind: 'stock', id: patternId },
-    patternName: patternId,
-    adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
-  })
-  return {
-    id: 'two-zone-fixture',
-    name: 'Two Zones',
-    updatedAt: 0,
-    scenes: [
-      { id: 's1', name: 'Opening', durationMs: 30_000 },
-      { id: 's2', name: 'Closing', durationMs: 30_000 },
-    ],
-    zones: [
-      { id: 'z1', name: 'Left', nominalPixelCount: 32 },
-      { id: 'z2', name: 'Right', nominalPixelCount: 32 },
-    ],
-    cells: [
-      cell('c1', 'z1', 's1', 'CometLoom'),
-      cell('c2', 'z1', 's2', 'TestPattern1D'),
-      cell('c3', 'z2', 's1', 'CometLoom'),
-      cell('c4', 'z2', 's2', 'TestPattern1D'),
-    ],
-    routingLayouts: [
-      { id: 'l1', name: 'Split', zones: [], logical: { kind: 'split', zoneIds: ['z1', 'z2'], axis: 'x' } },
-    ],
-    transitions: [],
-    outputContract: {
-      version: 1,
-      kind: 'portable-2d',
-      referenceMapId: 'plane',
-      referencePixelCount: 256,
-      compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
-    },
-  } as unknown as ShowRecord
-}
+import { LEFT_LAYER_ID, RIGHT_LAYER_ID, twoZoneShowV2 } from './support/twoZoneFixture.js'
 
 /** Split Scene 1 of the named Zones at 15 s, so each gains a cut junction of its own. */
 function open(zonesWithCut: string[]) {
-  const opened = openShowDocument(twoZoneShow())
+  const opened = openShowDocument(twoZoneShowV2())
   if (!opened.ok) throw new Error(`fixture failed to open: ${JSON.stringify(opened.issues)}`)
   let document: ShowGrammarDocument = opened.document
   for (const zoneId of zonesWithCut) {
@@ -68,12 +26,15 @@ function open(zonesWithCut: string[]) {
     if (!firstClip) throw new Error(`no opening clip on ${zoneId}`)
     const resized = applyShowGrammarOperation(document, 'resize_clip', { clip_id: firstClip.clipId, duration_ms: 15_000 })
     if (!resized.ok) throw new Error(JSON.stringify(resized.issues))
-    const added = applyShowGrammarOperation(resized.document, 'add_clip', {
-      zone_id: zoneId,
-      start_ms: 15_000,
-      duration_ms: 15_000,
-      pattern_kind: 'stock',
-      pattern_id: 'TestPattern1D',
+    const added = applyShowGrammarOperation(resized.document, 'create_clips', {
+      clips: [{
+        zone_id: zoneId,
+        layer_id: zoneId === 'z1' ? LEFT_LAYER_ID : RIGHT_LAYER_ID,
+        start_ms: 15_000,
+        duration_ms: 15_000,
+        pattern: { kind: 'stock', id: 'TestPattern1D' },
+        instance: zoneId === 'z1' ? 'inst-left-2' : 'inst-right-2',
+      }],
     })
     if (!added.ok) throw new Error(JSON.stringify(added.issues))
     document = added.document

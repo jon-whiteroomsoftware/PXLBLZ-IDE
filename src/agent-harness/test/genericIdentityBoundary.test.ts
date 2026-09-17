@@ -12,34 +12,47 @@
 // accepted edits, applyRefused's unchanged-record check and the named id for
 // refusals, the session's pending count and export inside a transaction.
 import { describe, expect, it } from 'vitest'
-import type { ShowCompositionV1 } from '@/engine/personalContentRecords'
 import { createSessionStore } from '../grammar/session.js'
 import type { ShowGrammarDocument } from '../grammar/types.js'
-import { applyOk, applyRefused, clips, fixture } from './support/grammarHarness.js'
+import { applyOk, applyRefused, clipOnLayer, fixture } from './support/grammarHarness.js'
 
-/** The overlay fixture plus two markers, two main-clip Effects, and an opacity track. */
+/** The overlay fixture plus two Markers, two Clip Effects, and an opacity track. */
 function richDocument(): ShowGrammarDocument {
   let document = fixture({ overlay: true })
   document = applyOk(document, 'add_marker', { at_ms: 12_000, name: 'Drop' }).document
   document = applyOk(document, 'add_marker', { at_ms: 20_000, name: 'Lift' }).document
-  const mainClip = clips(document).find((clip) => clip.layer.kind === 'main' && clip.startMs === 0)!
-  document = applyOk(document, 'add_clip_effect', { clip_id: mainClip.clipId, kind: 'brightness' }).document
-  document = applyOk(document, 'add_clip_effect', { clip_id: mainClip.clipId, kind: 'hue' }).document
-  document = applyOk(document, 'add_property_track', {
-    clip_id: 'ov-clip-1',
-    target: 'opacity',
-    keyframes: [{ time_ms: 3_000, value: 0.8 }, { time_ms: 8_000, value: 0.4 }],
+  const mainClipId = clipOnLayer(document, 'Main').clipId
+  for (const kind of ['brightness', 'hue']) {
+    document = applyOk(document, 'add_clip_effect', {
+      clip_id: mainClipId,
+      kind,
+      apply: { scope: 'whole-clip' },
+    }).document
+  }
+  document = applyOk(document, 'add_clip_effect', {
+    clip_id: clipOnLayer(document, 'Over').clipId,
+    kind: 'vignette',
+    apply: { scope: 'whole-clip' },
+  }).document
+  document = applyOk(document, 'add_property_tracks', {
+    tracks: [{
+      target: { kind: 'opacity', clip_id: clipOnLayer(document, 'Over').clipId },
+      keyframes: [{ at_ms: 3_000, value: 0.8 }, { at_ms: 8_000, value: 0.4 }],
+    }],
   }).document
   return document
 }
 
-const composition = (document: ShowGrammarDocument) => document.show.composition as ShowCompositionV1
-const markersOf = (document: ShowGrammarDocument) => composition(document).markers!
-const mainPlacement = (document: ShowGrammarDocument) => composition(document).scenes[0].zones[0].main[0]
+const composition = (document: ShowGrammarDocument) => document.show.composition
+const markersOf = (document: ShowGrammarDocument) => composition(document).markers
+const clipIndex = (document: ShowGrammarDocument, layerName: string) =>
+  composition(document).clips.findIndex((clip) => clip.id === clipOnLayer(document, layerName).clipId)
+const effectsOf = (document: ShowGrammarDocument, layerName: string) =>
+  composition(document).clips[clipIndex(document, layerName)].appearance.keys[0].value.effects!
 
 const MARKERS = '/composition/markers'
-const MAIN_PLACEMENT = '/composition/scenes/0/zones/0/main/0'
-const OVERLAY_PLACEMENT = '/composition/scenes/0/zones/0/overlays/0/placements/0'
+const mainKey = (document: ShowGrammarDocument) => `/composition/clips/${clipIndex(document, 'Main')}/appearance/keys/0/value`
+const overlayEffects = (document: ShowGrammarDocument) => `/composition/clips/${clipIndex(document, 'Over')}/appearance/keys/0/value/effects`
 
 function refusedIdentity(document: ShowGrammarDocument, operation: string, args: Record<string, unknown>, id: string) {
   const issues = applyRefused(document, operation, args, 'invalid-argument')
@@ -141,70 +154,73 @@ describe('legitimate structural operations keep working (#945 repair)', () => {
       ],
     })
     const expected = structuredClone(document.show)
-    expected.composition!.markers = [a, fresh]
+    expected.composition.markers = [a, fresh]
     expect(result.document.show).toEqual(expected)
     expect(b.id).not.toBe(fresh.id)
   })
 
   it('accepts an ancestor replacement that removes or reorders nested elements under their own ids', () => {
     const document = richDocument()
-    const placement = mainPlacement(document)
-    const [brightness, hue] = placement.effects!
+    const index = clipIndex(document, 'Main')
+    const value = composition(document).clips[index].appearance.keys[0].value
+    const [brightness, hue] = effectsOf(document, 'Main')
 
     const emptied = applyOk(document, 'apply_patch', {
-      patch: [{ op: 'replace', path: MAIN_PLACEMENT, value: { ...placement, effects: [] } }],
+      patch: [{ op: 'replace', path: mainKey(document), value: { ...value, effects: [] } }],
     })
     const expectedEmpty = structuredClone(document.show)
-    expectedEmpty.composition!.scenes[0].zones[0].main[0].effects = []
+    expectedEmpty.composition.clips[index].appearance.keys[0].value.effects = []
     expect(emptied.document.show).toEqual(expectedEmpty)
 
     const reordered = applyOk(document, 'apply_patch', {
-      patch: [{ op: 'replace', path: MAIN_PLACEMENT, value: { ...placement, effects: [hue, brightness] } }],
+      patch: [{ op: 'replace', path: mainKey(document), value: { ...value, effects: [hue, brightness] } }],
     })
     const expectedOrder = structuredClone(document.show)
-    expectedOrder.composition!.scenes[0].zones[0].main[0].effects = [hue, brightness]
+    expectedOrder.composition.clips[index].appearance.keys[0].value.effects = [hue, brightness]
     expect(reordered.document.show).toEqual(expectedOrder)
 
     // set_field over the collection itself is the same write.
-    const viaSetField = applyOk(document, 'set_field', { pointer: `${MAIN_PLACEMENT}/effects`, value: [hue, brightness] })
+    const viaSetField = applyOk(document, 'set_field', { pointer: `${mainKey(document)}/effects`, value: [hue, brightness] })
     expect(viaSetField.document.show).toEqual(expectedOrder)
   })
 
   it('refuses an ancestor replacement that introduces a nested id; insertion is an add at an array position', () => {
     const document = richDocument()
-    const placement = mainPlacement(document)
+    const index = clipIndex(document, 'Main')
+    const value = composition(document).clips[index].appearance.keys[0].value
     const opacity = { id: 'fx-opacity', kind: 'opacity', opacity: 0.5 }
     const issues = refusedIdentity(document, 'apply_patch', {
-      patch: [{ op: 'replace', path: MAIN_PLACEMENT, value: { ...placement, effects: [...placement.effects!, opacity] } }],
+      patch: [{ op: 'replace', path: mainKey(document), value: { ...value, effects: [...value.effects!, opacity] } }],
     }, opacity.id)
     expect(`${issues[0].message} ${issues[0].remedy ?? ''}`).toMatch(/\badd\b/)
 
     const inserted = applyOk(document, 'apply_patch', {
-      patch: [{ op: 'add', path: `${MAIN_PLACEMENT}/effects/-`, value: opacity }],
+      patch: [{ op: 'add', path: `${mainKey(document)}/effects/-`, value: opacity }],
     })
     const expected = structuredClone(document.show)
-    expected.composition!.scenes[0].zones[0].main[0].effects!.push(opacity as never)
+    expected.composition.clips[index].appearance.keys[0].value.effects!.push(opacity as never)
     expect(inserted.document.show).toEqual(expected)
   })
 
   it('moves an element between collections with its identity, and refuses copying one', () => {
     const document = richDocument()
-    const [brightness, hue] = mainPlacement(document).effects!
+    const mainIndex = clipIndex(document, 'Main')
+    const overlayIndex = clipIndex(document, 'Over')
+    const [brightness, hue] = effectsOf(document, 'Main')
+    const [vignette] = effectsOf(document, 'Over')
     const moved = applyOk(document, 'apply_patch', {
       patch: [
-        { op: 'add', path: `${OVERLAY_PLACEMENT}/effects`, value: [] },
-        { op: 'move', from: `${MAIN_PLACEMENT}/effects/0`, path: `${OVERLAY_PLACEMENT}/effects/0` },
+        { op: 'move', from: `${mainKey(document)}/effects/0`, path: `${overlayEffects(document)}/0` },
       ],
     })
     const expected = structuredClone(document.show)
-    expected.composition!.scenes[0].zones[0].main[0].effects = [hue]
-    expected.composition!.scenes[0].zones[0].overlays[0].placements[0].effects = [brightness]
+    expected.composition.clips[mainIndex].appearance.keys[0].value.effects = [hue]
+    expected.composition.clips[overlayIndex].appearance.keys[0].value.effects = [brightness, vignette]
     expect(moved.document.show).toEqual(expected)
 
     refusedIdentity(document, 'apply_patch', {
       patch: [
-        { op: 'add', path: `${OVERLAY_PLACEMENT}/effects`, value: [] },
-        { op: 'copy', from: `${MAIN_PLACEMENT}/effects/0`, path: `${OVERLAY_PLACEMENT}/effects/0` },
+        { op: 'copy', from: `${mainKey(document)}/effects/0`, path: `${overlayEffects(document)}/0` },
       ],
     }, brightness.id)
   })

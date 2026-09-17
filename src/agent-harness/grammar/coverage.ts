@@ -1,60 +1,64 @@
-// Provenance: pxlblz-v3 src/grammar/coverage.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// Schema coverage (#22): prove the tool surface is complete over the
-// ShowRecord grammar, and keep completeness a property that cannot rot. The
-// walker enumerates every editable leaf path of the generated JSON schema
-// (array wildcards as '*'), excludes identity and derived fields through the
-// documented allowlist below, and classifies each path against the
-// registry's declared touch paths. The generic operations (set_field /
-// apply_patch) cover the remaining declared schema paths, but apply_patch
-// requires each member — not only its final result — to preserve structural
-// validity. Arbitrary scratch paths are outside this report. A schema path is
-// unreachable only if the generics are barred from it too, and the coverage
-// test asserts there are none.
+// Provenance: pxlblz-v3 src/grammar/coverage.ts at 9ecd481f, re-authored onto the
+// version-2 record for #1039 (see src/agent-harness/PROVENANCE.md).
+// Schema coverage: prove the tool surface is complete over the ShowRecordV2
+// grammar, and keep completeness a property that cannot rot. The walker
+// enumerates every editable leaf path of the v2 JSON Schema (array wildcards as
+// '*'), excludes identity and derived fields through the documented allowlist
+// below, and classifies each path against the registry's declared touch paths.
+// The generic operations (set_field / apply_patch) cover the remaining declared
+// schema paths, but apply_patch requires each member — not only its final
+// result — to preserve structural validity. Arbitrary scratch paths are outside
+// this report. A schema path is unreachable only if the generics are barred from
+// it too, and the coverage test asserts there are none.
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { SHOW_GRAMMAR_OPERATIONS } from './registry.js'
 import { GENERIC_OPERATION_NAMES, PROTECTED_POINTER_PATTERNS } from './operations/generic.js'
 
-const schemaPath = fileURLToPath(new URL('../../../schemas/show-record.schema.json', import.meta.url))
+const schemaPath = fileURLToPath(new URL('../../../schemas/show-record-v2.provisional.schema.json', import.meta.url))
 
 /**
  * Identity and derived fields the coverage walk excludes, with reasons.
- * These are not editable grammar: element identity is minted by operations,
- * bookkeeping is engine-owned, and derived subtrees are rebuilt by builders.
+ * These are not editable grammar: element identity is supplied by the caller to
+ * an owner that never mints one, bookkeeping is engine-owned, and derived
+ * associations are recomputed by the explicit edit owners.
  */
 export const COVERAGE_ALLOWLIST: Array<{ pattern: string; reason: string }> = [
   { pattern: '/id', reason: 'Record identity; minted at creation, never edited.' },
   { pattern: '/updatedAt', reason: 'Engine bookkeeping stamp.' },
-  { pattern: '*/id', reason: 'Element identity (clips, tracks, keyframes, Effects, markers, …); minted by the operations.' },
+  { pattern: '*/id', reason: 'Element identity (Clips, Layers, tracks, keys, Effects, Markers, …); supplied to the owner, never minted by it.' },
+  { pattern: '/version', reason: 'Record schema constant.' },
   { pattern: '/composition/version', reason: 'Composition schema constant.' },
   { pattern: '/outputContract/version', reason: 'Contract schema constant.' },
   { pattern: '/outputContract/compatibility', reason: 'Derived by the contract builders.' },
   { pattern: '/importMetadata', reason: 'Import provenance; recorded once, never edited.' },
-  { pattern: '/composition/scenes/*/sceneId', reason: 'Scene ownership key of a composition row.' },
-  { pattern: '/composition/scenes/*/zones/*/zoneId', reason: 'Zone ownership key of a composition row.' },
+  {
+    pattern: '/composition/groupOccurrences/*/layoutOccurrenceId',
+    reason: 'Derived start-time association, not an enclosing owner; the explicit edit owners recompute it from global start (specification section 3).',
+  },
 ]
 
 type JsonSchema = Record<string, unknown>
 
 interface SchemaDocument {
-  definitions: Record<string, JsonSchema>
+  $defs: Record<string, JsonSchema>
 }
 
 function loadSchema(): { root: JsonSchema; document: SchemaDocument } {
   const document = JSON.parse(readFileSync(schemaPath, 'utf8')) as SchemaDocument & { $ref: string }
-  const rootName = document.$ref.replace('#/definitions/', '')
-  return { root: document.definitions[rootName], document }
+  const rootName = document.$ref.replace('#/$defs/', '')
+  return { root: document.$defs[rootName], document }
 }
 
 function deref(schema: JsonSchema, document: SchemaDocument): JsonSchema {
   const ref = schema.$ref as string | undefined
   if (!ref) return schema
-  return document.definitions[ref.replace('#/definitions/', '')] ?? {}
+  return document.$defs[ref.replace('#/$defs/', '')] ?? {}
 }
 
 /**
  * Enumerate leaf paths of a JSON schema as pointer patterns with '*' for
- * array items and free-form record keys. Union members (anyOf) contribute
+ * array items and free-form record keys. Union members (anyOf/oneOf) contribute
  * the union of their paths. Cycles terminate as a leaf at the repeated ref.
  */
 export function enumerateSchemaLeafPaths(
@@ -122,35 +126,39 @@ export function isAllowlisted(path: string): boolean {
 }
 
 /**
- * Declarations that mark a structural rewrite rather than purposeful
- * editability: insert_time shifts everything after a point and the layout
- * interval operations manufacture internal Scenes, so their blanket touch
- * paths are true for the faithfulness test but must not classify every path
- * beneath them as specifically covered — the group family, for one, has no
- * operations and must read as a gap.
+ * Declarations that record a cascade over existing content rather than
+ * purposeful editability of that field.
+ *
+ * `insert_time` maps every global time in the composition, and the Layout,
+ * Group and Show-End owners carry content through their own cascades. Those
+ * blanket touches are true for the faithfulness test, but they must not
+ * classify every path beneath them as specifically covered — otherwise a family
+ * with no authoring command of its own would read as complete.
  */
 export const STRUCTURAL_DECLARATIONS: Array<{ operation: string; pattern: string }> = [
-  { operation: 'add_layout_interval', pattern: '/cells' },
-  { operation: 'add_layout_interval', pattern: '/routingLayouts' },
-  { operation: 'duplicate_layout_interval', pattern: '/cells' },
-  { operation: 'make_layout_interval_unique', pattern: '/zones' },
-  { operation: 'make_layout_interval_unique', pattern: '/routingLayouts' },
-  { operation: 'make_layout_interval_unique', pattern: '/transitions' },
-  { operation: 'make_layout_interval_unique', pattern: '/cells' },
-  { operation: 'make_layout_interval_unique', pattern: '/composition/scenes/*/zones' },
   { operation: 'insert_time', pattern: '/composition' },
-  { operation: 'insert_time', pattern: '/scenes' },
-  { operation: 'set_show_end', pattern: '/scenes' },
-  { operation: 'set_show_end', pattern: '/cells' },
-  { operation: 'set_show_end', pattern: '/transitions' },
-  { operation: 'set_show_end', pattern: '/composition/scenes' },
-  { operation: 'add_clip', pattern: '/scenes' },
-  { operation: 'add_layout_interval', pattern: '/composition' },
-  { operation: 'add_layout_interval', pattern: '/scenes' },
-  { operation: 'add_layout_interval', pattern: '/transitions' },
-  { operation: 'duplicate_layout_interval', pattern: '/composition' },
-  { operation: 'duplicate_layout_interval', pattern: '/scenes' },
-  { operation: 'duplicate_layout_interval', pattern: '/transitions' },
+  { operation: 'set_show_end', pattern: '/composition/layoutOccurrences' },
+  { operation: 'add_layout_interval', pattern: '/composition/showEndMs' },
+  { operation: 'duplicate_layout_interval', pattern: '/composition/showEndMs' },
+  { operation: 'duplicate_layout_interval', pattern: '/composition/clips' },
+  { operation: 'duplicate_layout_interval', pattern: '/composition/transitions' },
+  { operation: 'duplicate_layout_interval', pattern: '/composition/propertyTracks' },
+  { operation: 'duplicate_layout_interval', pattern: '/composition/markers' },
+  { operation: 'duplicate_layout_interval', pattern: '/composition/groupOccurrences' },
+  { operation: 'ungroup', pattern: '/composition/clips' },
+  { operation: 'ungroup', pattern: '/composition/transitions' },
+  { operation: 'ungroup', pattern: '/composition/propertyTracks' },
+  { operation: 'ungroup', pattern: '/composition/patternInstances' },
+  { operation: 'make_group_unique', pattern: '/composition/patternInstances' },
+  // Decision D2: the catalogue authors Group occurrences, not definition
+  // internals. Make Unique clones a definition and Ungroup materializes an
+  // occurrence away; neither authors the fields beneath them, so the definition
+  // subtree must read as the gap it is.
+  { operation: 'make_group_unique', pattern: '/composition/groupDefinitions' },
+  { operation: 'ungroup', pattern: '/composition/groupOccurrences' },
+  { operation: 'create_layers', pattern: '/composition/clips' },
+  { operation: 'create_layers', pattern: '/composition/patternInstances' },
+  { operation: 'remove_layer', pattern: '/composition/clips/*/layerId' },
 ]
 
 function isStructuralDeclaration(operation: string, pattern: string): boolean {
@@ -176,22 +184,23 @@ export interface CoverageReport {
 }
 
 const FAMILY_OF_PREFIX: Array<{ prefix: string; family: string }> = [
-  { prefix: '/composition/scenes/*/propertyTracks', family: 'property animation' },
-  { prefix: '/composition/scenes/*/zones/*/main/*/effects', family: 'effects' },
-  { prefix: '/composition/scenes/*/zones/*/overlays/*/placements/*/effects', family: 'effects' },
-  { prefix: '/composition/transitions', family: 'layer transitions' },
-  { prefix: '/composition/markers', family: 'timeline' },
-  { prefix: '/composition/durationMs', family: 'timeline' },
+  { prefix: '/composition/clips/*/appearance/keys/*/value/effects', family: 'effects' },
+  { prefix: '/composition/clips', family: 'clips' },
+  { prefix: '/composition/patternInstances', family: 'clips' },
+  { prefix: '/composition/layers', family: 'layers' },
+  { prefix: '/composition/transitions', family: 'transitions' },
+  { prefix: '/composition/layoutOccurrences', family: 'layouts' },
+  { prefix: '/composition/propertyTracks', family: 'animation' },
+  { prefix: '/composition/markers', family: 'markers' },
   { prefix: '/composition/groupDefinitions', family: 'groups' },
   { prefix: '/composition/groupOccurrences', family: 'groups' },
-  { prefix: '/composition', family: 'clips' },
-  { prefix: '/transitions', family: 'junctions' },
-  { prefix: '/outputContract', family: 'structure' },
-  { prefix: '/routingLayouts', family: 'structure' },
-  { prefix: '/scenes', family: 'timeline' },
-  { prefix: '/zones', family: 'structure' },
-  { prefix: '/cells', family: 'flat model (legacy)' },
-  { prefix: '/outputEffects', family: 'output effects' },
+  { prefix: '/composition', family: 'show' },
+  { prefix: '/zoneLayouts', family: 'layouts' },
+  { prefix: '/zones', family: 'show' },
+  { prefix: '/outputContract', family: 'show' },
+  { prefix: '/outputEffects', family: 'show' },
+  { prefix: '/stageMapId', family: 'show' },
+  { prefix: '/targetControllerProfileId', family: 'show' },
   { prefix: '', family: 'record' },
 ]
 
@@ -254,9 +263,9 @@ export function renderCoverageReport(report: CoverageReport): string {
   lines.push('# Show grammar schema coverage')
   lines.push('')
   lines.push('Generated by `npm run -s agent:coverage` from')
-  lines.push('`schemas/show-record.schema.json` and the registry\'s declared touch paths')
-  lines.push('(`src/agent-harness/grammar/coverage.ts`). Do not edit by hand; the suite fails when this')
-  lines.push('file drifts from the generator.')
+  lines.push('`schemas/show-record-v2.provisional.schema.json` and the registry\'s declared touch')
+  lines.push('paths (`src/agent-harness/grammar/coverage.ts`). Do not edit by hand; the suite fails')
+  lines.push('when this file drifts from the generator.')
   lines.push('')
   lines.push('## Per-family coverage')
   lines.push('')

@@ -28,8 +28,12 @@ describe('corpus (#23)', () => {
     expect(byOutcome('ask').length).toBeGreaterThanOrEqual(3)
     expect(byOutcome('no-edit').length).toBeGreaterThanOrEqual(3)
 
+    // The corpus is keyed on the v2 catalogue's own families. The v1 names it
+    // used to require are retired, not renamed: `timeline` and `structure` were
+    // the flat-projection families, `junctions` and `layer-transitions` both
+    // became `transitions`, and `layers`, `layouts` and `markers` are v2's own.
     const families = new Set(DICTATION_CASES.map((candidate) => candidate.family))
-    for (const family of ['clips', 'timeline', 'animation', 'junctions', 'layer-transitions', 'effects', 'structure']) {
+    for (const family of ['clips', 'layers', 'layouts', 'show', 'transitions', 'animation', 'effects', 'markers']) {
       expect(families, `family ${family} missing`).toContain(family)
     }
     const referents = new Set(DICTATION_CASES.map((candidate) => candidate.referent))

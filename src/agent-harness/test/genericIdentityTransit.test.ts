@@ -1,32 +1,58 @@
-// V2-authored for #945. Jon's narrowed completion contract supersedes the
-// earlier scratch-container test surface: each patch member must remain valid
-// declared Show structure, so temporary wrapper transit is rejected at that
-// boundary and is covered by genericDeclaredStructure.test.ts. This suite
-// retains the legitimate transit case: a collection moved directly between
-// declared placement owners re-derives its nested Effect identity domains.
+// V2-authored for #945, re-authored on the version-2 record for #1039. Jon's
+// narrowed completion contract supersedes the earlier scratch-container test
+// surface: each patch member must remain valid declared Show structure, so
+// temporary wrapper transit is rejected at that boundary and is covered by
+// genericDeclaredStructure.test.ts. This suite retains the legitimate transit
+// case: an Effect moved directly between declared owners re-derives its
+// identity domain. In v2 an Effect stack lives inside one held appearance key
+// and the schema requires that key to keep an `effects` array, so the transit
+// that stays structurally valid at every member is moving one Effect between
+// two Clips' first keys rather than detaching a whole collection.
 // Boundary: apply_patch through the public registry. Oracles: exact complete
 // Show records for success and unchanged input plus the named id for refusal.
 import { describe, expect, it } from 'vitest'
-import type { ShowCompositionV1, ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import type { ShowGrammarDocument } from '../grammar/types.js'
-import { applyOk, applyRefused, clips, fixture } from './support/grammarHarness.js'
+import { applyOk, applyRefused, clipOnLayer, fixture } from './support/grammarHarness.js'
 
-const MAIN_PLACEMENT = '/composition/scenes/0/zones/0/main/0'
-const OVERLAY_PLACEMENT = '/composition/scenes/0/zones/0/overlays/0/placements/0'
+const composition = (document: ShowGrammarDocument) => document.show.composition
+const clipIndex = (document: ShowGrammarDocument, clipId: string) =>
+  composition(document).clips.findIndex((clip) => clip.id === clipId)
+const effectsPointer = (index: number) => `/composition/clips/${index}/appearance/keys/0/value/effects`
+const effectsOf = (document: ShowGrammarDocument, index: number) =>
+  composition(document).clips[index].appearance.keys[0].value.effects!
 
-const composition = (document: ShowGrammarDocument) => document.show.composition as ShowCompositionV1
-const mainPlacement = (document: ShowGrammarDocument) => composition(document).scenes[0].zones[0].main[0]
-const overlayPlacement = (document: ShowGrammarDocument) => composition(document).scenes[0].zones[0].overlays[0].placements[0]
-
-function transitDocument(): ShowGrammarDocument {
-  let document = fixture({ overlay: true })
-  const mainClip = clips(document).find((clip) => clip.layer.kind === 'main' && clip.startMs === 0)!
-  document = applyOk(document, 'add_clip_effect', { clip_id: mainClip.clipId, kind: 'brightness' }).document
-  document = applyOk(document, 'add_clip_effect', { clip_id: mainClip.clipId, kind: 'hue' }).document
-  return document
+interface TransitDocument {
+  document: ShowGrammarDocument
+  mainIndex: number
+  overlayIndex: number
 }
 
-function expectedFrom(document: ShowGrammarDocument, edit: (show: ShowRecord) => void) {
+function transitDocument(): TransitDocument {
+  let document = fixture({ overlay: true })
+  const mainClipId = clipOnLayer(document, 'Main').clipId
+  const overlayClipId = clipOnLayer(document, 'Over').clipId
+  for (const kind of ['brightness', 'hue']) {
+    document = applyOk(document, 'add_clip_effect', {
+      clip_id: mainClipId,
+      kind,
+      apply: { scope: 'whole-clip' },
+    }).document
+  }
+  // The destination owner needs an Effect collection to move onto.
+  document = applyOk(document, 'add_clip_effect', {
+    clip_id: overlayClipId,
+    kind: 'vignette',
+    apply: { scope: 'whole-clip' },
+  }).document
+  return {
+    document,
+    mainIndex: clipIndex(document, mainClipId),
+    overlayIndex: clipIndex(document, overlayClipId),
+  }
+}
+
+function expectedFrom(document: ShowGrammarDocument, edit: (show: ShowRecordV2) => void) {
   const expected = structuredClone(document.show)
   edit(expected)
   return expected
@@ -38,32 +64,30 @@ function refusedIdentity(document: ShowGrammarDocument, patch: Array<Record<stri
   expect(issues[0].message).toMatch(/identity/i)
 }
 
-describe('a collection moved between declared owners re-derives nested identity domains (#945)', () => {
-  it('moves an Effect stack to another placement while preserving legal independent-domain reuse', () => {
-    const document = transitDocument()
-    const [brightness, hue] = mainPlacement(document).effects!
+describe('an Effect moved between declared owners re-derives its identity domain (#945)', () => {
+  it('moves one Effect to another Clip, leaving both stacks structurally valid', () => {
+    const { document, mainIndex, overlayIndex } = transitDocument()
+    const [brightness, hue] = effectsOf(document, mainIndex)
+    const [vignette] = effectsOf(document, overlayIndex)
     const moved = applyOk(document, 'apply_patch', {
       patch: [
-        { op: 'move', from: `${MAIN_PLACEMENT}/effects`, path: `${OVERLAY_PLACEMENT}/effects` },
-        { op: 'remove', path: `${OVERLAY_PLACEMENT}/effects/0` },
-        { op: 'add', path: `${MAIN_PLACEMENT}/effects`, value: [{ ...brightness }] },
+        { op: 'move', from: `${effectsPointer(mainIndex)}/0`, path: `${effectsPointer(overlayIndex)}/-` },
       ],
     })
     expect(moved.document.show).toEqual(expectedFrom(document, (show) => {
-      const comp = show.composition as ShowCompositionV1
-      comp.scenes[0].zones[0].main[0].effects = [{ ...brightness }]
-      comp.scenes[0].zones[0].overlays[0].placements[0].effects = [hue]
+      show.composition.clips[mainIndex].appearance.keys[0].value.effects = [hue]
+      show.composition.clips[overlayIndex].appearance.keys[0].value.effects = [vignette, brightness]
     }))
-    expect(overlayPlacement(moved.document).effects!.map((effect) => effect.id)).toEqual([hue.id])
+    expect(effectsOf(moved.document, overlayIndex).map((effect) => effect.id))
+      .toEqual([vignette.id, brightness.id])
   })
 
-  it('refuses same-domain recycling after the moved collection removes an Effect', () => {
-    const document = transitDocument()
-    const [brightness] = mainPlacement(document).effects!
+  it('refuses recycling the moved Effect’s identity in the owner it left', () => {
+    const { document, mainIndex, overlayIndex } = transitDocument()
+    const [brightness] = effectsOf(document, mainIndex)
     refusedIdentity(document, [
-      { op: 'move', from: `${MAIN_PLACEMENT}/effects`, path: `${OVERLAY_PLACEMENT}/effects` },
-      { op: 'remove', path: `${OVERLAY_PLACEMENT}/effects/0` },
-      { op: 'add', path: `${OVERLAY_PLACEMENT}/effects/-`, value: { ...brightness } },
+      { op: 'move', from: `${effectsPointer(mainIndex)}/0`, path: `${effectsPointer(overlayIndex)}/-` },
+      { op: 'add', path: `${effectsPointer(overlayIndex)}/-`, value: { ...brightness } },
     ], brightness.id)
   })
 })

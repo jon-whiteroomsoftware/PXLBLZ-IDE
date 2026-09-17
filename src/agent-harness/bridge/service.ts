@@ -36,7 +36,7 @@ import { createSessionStore, type GrammarSessionStore } from '../grammar/session
 import { createShowsServer } from '../mcp/showsServer.js'
 import { runTargetedResizeTurn } from '../experiment/targetedResizeTurn.js'
 import { parseAgentResizeIntent, type AgentResizeIntent } from '../../dev/agentResizeProtocol.js'
-import { SHOW_COMMANDS } from '@/engine/showCommands/registry'
+import { SHOW_COMMANDS_V2 } from '@/engine/showCommandsV2/registry'
 import type { GrammarChange } from '../grammar/types.js'
 import type { AgentChange } from '@/engine/agentDrawerModel'
 
@@ -210,11 +210,17 @@ export async function runUtterance(
     toolCalls: [],
   }
   const rawStore = createSessionStore({ authoringValidation: true })
+  // Bands the drawer draws over the timeline. v2 change records carry the
+  // affected-entity collections, not before/after values, so the band comes
+  // from the accepted call's own arguments and the Show End it replaced.
   const insertionRanges = new WeakMap<GrammarChange, { startMs: number; endMs: number }>()
   let executedResize: AgentResizeIntent | undefined
   let applyAttempts = 0
   let mutationCalls = 0
   let agentRuns = 0
+  // The Show End the last accepted operation left, so a later set_show_end can
+  // report the band it moved without a before/after value on the change record.
+  let showEndMs = 0
   const readOnlyTools = new Set(['describe_show', 'export_show', 'resolve_reference', 'get_editor_context', 'list_stock_patterns', 'get_stock_pattern', 'evaluate_property_at', 'validate_show', 'describe_changes'])
   const store = observedSessionStore(rawStore, (validation) => {
     timing.validation = validation
@@ -222,11 +228,19 @@ export async function runUtterance(
   }, (operation, args, result) => {
     const ok = result.ok
     applyAttempts += 1
+    const previousShowEndMs = showEndMs
+    if (ok) showEndMs = result.listing.showEndMs
     if (operation === 'insert_time' && ok && typeof args.at_ms === 'number' && typeof args.duration_ms === 'number') {
       // Retain the successful execution's exact change identity, including repeated
       // insertions at the same point. Registry time coordinates are rounded.
       const startMs = Math.round(args.at_ms)
       for (const change of result.changes) insertionRanges.set(change, { startMs, endMs: startMs + Math.round(args.duration_ms) })
+    }
+    if (operation === 'set_show_end' && ok && typeof args.end_ms === 'number') {
+      const before = previousShowEndMs
+      for (const change of result.changes) {
+        insertionRanges.set(change, { startMs: Math.min(before, args.end_ms), endMs: Math.max(before, args.end_ms) })
+      }
     }
     if (operation === 'resize_clip' && ok && Object.keys(args).length === 2 && Object.prototype.hasOwnProperty.call(args, 'clip_id') && Object.prototype.hasOwnProperty.call(args, 'duration_ms')) {
       executedResize = parseAgentResizeIntent({ clipId: args.clip_id, durationMs: args.duration_ms })
@@ -252,6 +266,7 @@ export async function runUtterance(
       }
     }
     const sessionId = opened.sessionId
+    showEndMs = opened.listing.showEndMs
 
     // Scripted mode runs the request's script, else the script the baseline
     // catalogue or the corpus records for this exact utterance. A live model
@@ -322,13 +337,18 @@ export async function runUtterance(
 
     const history = store.describeChanges(sessionId)
     const summaries = history.ok ? history.entries.map((entry) => entry.summary) : []
-    const drawerChanges: AgentChange[] = history.ok ? history.entries.flatMap(entry => entry.changes.map(change => {
-      const before = change.before as { durationMs?: number } | undefined
-      const after = change.after as { durationMs?: number } | undefined
-      const range = change.op === 'insert_time' ? insertionRanges.get(change)
-        : change.op === 'set_show_end' && typeof before?.durationMs === 'number' && typeof after?.durationMs === 'number'
-          ? { startMs: Math.min(before.durationMs, after.durationMs), endMs: Math.max(before.durationMs, after.durationMs) } : undefined
-      return { targetId: change.targetId, description: change.description, touches: [...(SHOW_COMMANDS.find(command => command.name === change.op)?.touches ?? [])], ...(range ? { range } : {}) }
+    // A change with no single target identity (a whole-Show edit, say) is not a
+    // drawer row: the drawer addresses elements, and inventing an identity for
+    // one would be a lie. Its outcome still reaches the reply and the summaries.
+    const drawerChanges: AgentChange[] = history.ok ? history.entries.flatMap(entry => entry.changes.flatMap(change => {
+      if (!change.targetId) return []
+      const range = insertionRanges.get(change)
+      return [{
+        targetId: change.targetId,
+        description: change.description,
+        touches: [...(SHOW_COMMANDS_V2.find(command => command.name === change.op)?.touches ?? [])],
+        ...(range ? { range } : {}),
+      }]
     })) : []
     const changed = disposition.kind === 'committed'
     const exported = changed ? store.export(sessionId) : null
@@ -383,7 +403,7 @@ export async function runRetryUtterance(
     const exported = store.export(id)
     if (!exported.ok) return refuse('The private retry could not be exported.')
     timing.exportedAt = Date.now()
-    return { privateOutcome: { kind: 'committed', summary: committed.summary }, reply: `Resize the original Clip to ${intent.durationMs / 1000}s.`, changed: true, summaries: [committed.summary], changes: committed.changes.map(change => ({ targetId: change.targetId, description: change.description })), show: exported.show, retryResize: intent, timing }
+    return { privateOutcome: { kind: 'committed', summary: committed.summary }, reply: `Resize the original Clip to ${intent.durationMs / 1000}s.`, changed: true, summaries: [committed.summary], changes: committed.changes.flatMap(change => change.targetId ? [{ targetId: change.targetId, description: change.description }] : []), show: exported.show, retryResize: intent, timing }
   } finally { store.close(id) }
 }
 

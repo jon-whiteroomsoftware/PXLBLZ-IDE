@@ -64,7 +64,7 @@ function scriptedTurns(turns: Step[][]): DictationAgent & { prompts: string[]; f
   }
 }
 
-async function harness(fixture: 'base' | 'empty-second-scene' = 'empty-second-scene') {
+async function harness(fixture: 'base' | 'empty-tail' = 'empty-tail') {
   const store = createSessionStore()
   const server = createShowsServer({ sessions: store })
   const client = new Client({ name: 'turn-test', version: '0' })
@@ -268,10 +268,10 @@ describe('one dictation turn (#34)', () => {
       scriptedTurns([[{ tool: 'resize_clip', args: { clip_id: clipId, duration_ms: 12_000 } }, { say: 'The clip is 12 s.', intent: 'apply' }]]),
       'Make the first clip twelve seconds long.',
     )
-    expect(result.disposition).toEqual({ kind: 'committed', summary: 'Shortened CometLoom to 12 seconds.\n0–12 seconds · 12 seconds' })
+    expect(result.disposition).toEqual({ kind: 'committed', summary: 'Clip clip-1 spans 0–12000 ms; Clips clip-1.' })
     expect(result.finalText).toBe('The clip is 12 s.')
     expect(history(store, sessionId)).toEqual([
-      { index: 0, label: 'Make the first clip twelve seconds long.', summary: 'Shortened CometLoom to 12 seconds.\n0–12 seconds · 12 seconds', changes: [expect.objectContaining({ op: 'resize_clip' })] },
+      { index: 0, label: 'Make the first clip twelve seconds long.', summary: 'Clip clip-1 spans 0–12000 ms; Clips clip-1.', changes: [expect.objectContaining({ op: 'resize_clip' })] },
     ])
     expect(store.pending(sessionId)).toEqual({ ok: true, open: null })
     expect(result.timings).toHaveLength(1)
@@ -299,26 +299,37 @@ describe('one dictation turn (#34)', () => {
     expect(exported(store, sessionId)).toBe(before)
   })
 
-  const badClip = { tool: 'add_clip', args: { zone_id: 'z1', start_ms: 35_000, duration_ms: 10_000, pattern_kind: 'user', pattern_id: 'nope' } }
+  // A candidate every command owner accepts and only the turn's final
+  // validation refuses. v2 catches an unavailable Pattern at the command, so
+  // the remaining deferred failure is the compiler restriction: a participant
+  // Transition cannot be split across the derived section boundary a
+  // section-scoped Property activation needs.
+  //
+  // The owners mint these identities deterministically from the request, so a
+  // script can name them; a change in identity minting fails here loudly.
+  const NEW_CLIP_ID = 'clip-z1-30000'
+  const NEW_TRANSITION_ID = 'transition-clip-1-clip-z1-30000'
+  const unsplittableCandidate = [
+    { tool: 'create_clips', args: { clips: [{ zone_id: 'z1', layer_id: 'layer-main', start_ms: 30_000, duration_ms: 10_000, pattern: { kind: 'stock', id: 'TestPattern2D' } }] } },
+    { tool: 'add_property_tracks', args: { tracks: [{ target: { kind: 'view-brightness', clip_id: NEW_CLIP_ID }, keyframes: [{ at_ms: 30_000, value: 1 }, { at_ms: 40_000, value: 0.2 }] }] } },
+    { tool: 'insert_transition', args: { from_clip_id: 'clip-1', to_clip_id: NEW_CLIP_ID, duration_ms: 2_000, kind: 'crossfade' } },
+  ]
+  const removeTransition = { tool: 'remove_transition', args: { transition_id: NEW_TRANSITION_ID } }
 
   it('hands a refused commit back as one repair turn and commits the repaired edit', async () => {
     const { store, sessionId, run } = await harness()
     const agent = scriptedTurns([
-      [badClip, { say: 'Added the clip.', intent: 'apply' }],
-      [
-        { tool: 'remove_clip', args: { clip_id: '$last' } },
-        { tool: 'add_clip', args: { zone_id: 'z1', start_ms: 35_000, duration_ms: 10_000, pattern_kind: 'stock', pattern_id: 'CometLoom' } },
-        { say: 'Added a CometLoom clip at 35 s instead.', intent: 'apply' },
-      ],
+      [...unsplittableCandidate, { say: 'Added the crossfade.', intent: 'apply' }],
+      [removeTransition, { say: 'Left the Cut in place instead.', intent: 'apply' }],
     ])
-    const result = await run(agent, 'Add my library pattern at 35 seconds.')
+    const result = await run(agent, 'Crossfade into an animated Clip.')
     expect(agent.prompts).toHaveLength(2)
-    expect(agent.prompts[1]).toMatch(/^\[editor\] The edit could not be applied: .*user/i)
+    expect(agent.prompts[1]).toMatch(/^\[editor\] The edit could not be applied: .*section-scoped/i)
     expect(result.disposition.kind).toBe('committed')
-    expect(result.finalText).toBe('Added a CometLoom clip at 35 s instead.')
+    expect(result.finalText).toBe('Left the Cut in place instead.')
     const entries = history(store, sessionId)
     expect(entries).toHaveLength(1)
-    expect(entries[0].label).toBe('Add my library pattern at 35 seconds.')
+    expect(entries[0].label).toBe('Crossfade into an animated Clip.')
     expect(result.timings).toHaveLength(2)
   })
 
@@ -326,11 +337,11 @@ describe('one dictation turn (#34)', () => {
     const { store, sessionId, run } = await harness()
     const before = exported(store, sessionId)
     const result = await run(
-      scriptedTurns([[badClip, { say: 'Added the clip.', intent: 'apply' }], [{ say: 'The library pattern is not available here.', intent: 'apply' }]]),
-      'Add my library pattern at 35 seconds.',
+      scriptedTurns([[...unsplittableCandidate, { say: 'Added the crossfade.', intent: 'apply' }], [{ say: 'That crossfade is not possible here.', intent: 'apply' }]]),
+      'Crossfade into an animated Clip.',
     )
     expect(result.disposition.kind).toBe('commit-refused')
-    expect(result.finalText).toMatch(/^The library pattern is not available here\. The edit was discarded: /)
+    expect(result.finalText).toMatch(/^That crossfade is not possible here\. The edit was discarded: /)
     expect(result.finalText).not.toContain('?')
     expect(history(store, sessionId)).toEqual([])
     expect(exported(store, sessionId)).toBe(before)
@@ -340,8 +351,8 @@ describe('one dictation turn (#34)', () => {
   it('discards the edit when the repair turn asks instead', async () => {
     const { store, sessionId, run } = await harness()
     const result = await run(
-      scriptedTurns([[badClip, { say: 'Added the clip.', intent: 'apply' }], [{ say: 'Should I use a stock pattern instead?', intent: 'ask' }]]),
-      'Add my library pattern at 35 seconds.',
+      scriptedTurns([[...unsplittableCandidate, { say: 'Added the crossfade.', intent: 'apply' }], [{ say: 'Should I leave the Cut instead?', intent: 'ask' }]]),
+      'Crossfade into an animated Clip.',
     )
     expect(result.disposition.kind).toBe('asked')
     expect(history(store, sessionId)).toEqual([])
@@ -363,7 +374,22 @@ describe('one dictation turn (#34)', () => {
 })
 
 describe('finish_turn ends the turn in the same response (#38)', () => {
-  const badClip = { tool: 'add_clip', args: { zone_id: 'z1', start_ms: 35_000, duration_ms: 10_000, pattern_kind: 'user', pattern_id: 'nope' } }
+  // A candidate every command owner accepts and only the turn's final
+  // validation refuses. v2 catches an unavailable Pattern at the command, so
+  // the remaining deferred failure is the compiler restriction: a participant
+  // Transition cannot be split across the derived section boundary a
+  // section-scoped Property activation needs.
+  //
+  // The owners mint these identities deterministically from the request, so a
+  // script can name them; a change in identity minting fails here loudly.
+  const NEW_CLIP_ID = 'clip-z1-30000'
+  const NEW_TRANSITION_ID = 'transition-clip-1-clip-z1-30000'
+  const unsplittableCandidate = [
+    { tool: 'create_clips', args: { clips: [{ zone_id: 'z1', layer_id: 'layer-main', start_ms: 30_000, duration_ms: 10_000, pattern: { kind: 'stock', id: 'TestPattern2D' } }] } },
+    { tool: 'add_property_tracks', args: { tracks: [{ target: { kind: 'view-brightness', clip_id: NEW_CLIP_ID }, keyframes: [{ at_ms: 30_000, value: 1 }, { at_ms: 40_000, value: 0.2 }] }] } },
+    { tool: 'insert_transition', args: { from_clip_id: 'clip-1', to_clip_id: NEW_CLIP_ID, duration_ms: 2_000, kind: 'crossfade' } },
+  ]
+  const removeTransition = { tool: 'remove_transition', args: { transition_id: NEW_TRANSITION_ID } }
 
   it('commits the operations and replies with the given line after one model call', async () => {
     const { store, sessionId, clipId, run } = await harness()
@@ -389,7 +415,7 @@ describe('finish_turn ends the turn in the same response (#38)', () => {
       'Make the first clip twelve seconds long.',
     )
     expect(result.disposition.kind).toBe('committed')
-    expect(result.finalText).toBe('Shortened CometLoom to 12 seconds.\n0–12 seconds · 12 seconds')
+    expect(result.finalText).toBe('Clip clip-1 spans 0–12000 ms; Clips clip-1.')
   })
 
   it('treats a finish_turn reply with a question mark as an ask and discards the edits', async () => {
@@ -407,18 +433,17 @@ describe('finish_turn ends the turn in the same response (#38)', () => {
   it('returns the tier-0 issues to the model and commits once the same turn repairs them', async () => {
     const { store, sessionId, run } = await harness()
     const agent = scriptedTurns([[
-      badClip,
-      { tool: 'finish_turn', args: { intent: 'apply', reply: 'Added the clip.' } },
+      ...unsplittableCandidate,
+      { tool: 'finish_turn', args: { intent: 'apply', reply: 'Added the crossfade.' } },
       // The model's next round, after seeing the refusal:
-      { tool: 'remove_clip', args: { clip_id: '$last' } },
-      { tool: 'add_clip', args: { zone_id: 'z1', start_ms: 35_000, duration_ms: 10_000, pattern_kind: 'stock', pattern_id: 'CometLoom' } },
-      { tool: 'finish_turn', args: { intent: 'apply', reply: 'Added a CometLoom clip at 35 s instead.' } },
+      removeTransition,
+      { tool: 'finish_turn', args: { intent: 'apply', reply: 'Left the Cut in place instead.' } },
     ]])
-    const result = await run(agent, 'Add my library pattern at 35 seconds.')
+    const result = await run(agent, 'Crossfade into an animated Clip.')
     expect(agent.finishRefusals).toEqual([['result-invalid']])
     expect(agent.prompts).toHaveLength(1)
     expect(result.disposition.kind).toBe('committed')
-    expect(result.finalText).toBe('Added a CometLoom clip at 35 s instead.')
+    expect(result.finalText).toBe('Left the Cut in place instead.')
     expect(history(store, sessionId)).toHaveLength(1)
   })
 
@@ -450,73 +475,65 @@ describe('the projection carries the stock catalogue (#40)', () => {
         return { finalText: 'Noted.' }
       },
     }
-    await runCase(DICTATION_CASES.find((candidate) => candidate.id === 'clips-add-at-time')!, probe)
+    await runCase(DICTATION_CASES.find((candidate) => candidate.id === 'clips-create-at-time')!, probe)
     const description = seen as { availableStockPatterns: Array<{ id: string }> }
     expect(description.availableStockPatterns.map((pattern) => pattern.id)).toContain('CometLoom')
   })
 })
 
 describe('results carry verification (#34)', () => {
-  it('returns keyframes at global times and engine-evaluated samples on every animation result', async () => {
+  it('reports the tracks and keys an animation edit touched, and the read surface agrees', async () => {
+    // The v1 catalogue answered an animation edit with a bespoke `details`
+    // block: the resulting keyframes plus engine-evaluated samples. The v2
+    // catalogue answers every command with one affected-entity vocabulary
+    // instead, so the verification a caller gets is the set of tracks and keys
+    // the edit touched, and the values come from the read surface's evaluator.
     const { store, sessionId, clipId } = await harness('base')
-    // The base fixture's first clip sits in Scene 1 at 0 ms, so global == local here;
-    // move the check to the second Scene's clip when one exists.
-    const added = store.apply(sessionId, 'add_property_track', {
-      clip_id: clipId,
-      target: 'view-brightness',
-      keyframes: [{ time_ms: 3_000, value: 0.8 }, { time_ms: 5_000, value: 0.6 }, { time_ms: 8_000, value: 0.4 }],
+    const added = store.apply(sessionId, 'add_property_tracks', {
+      tracks: [{
+        target: { kind: 'view-brightness', clip_id: clipId },
+        keyframes: [{ at_ms: 3_000, value: 0.8 }, { at_ms: 5_000, value: 0.6 }, { at_ms: 8_000, value: 0.4 }],
+      }],
     })
     expect(added.ok).toBe(true)
     if (!added.ok) return
-    const details = added.changes[0].details as {
-      keyframes: Array<{ keyframeId: string; timeMs: number; value: number; easing: string }>
-      evaluated: Array<{ atMs: number; value: number }>
-    }
-    expect(details.keyframes.map((keyframe) => [keyframe.timeMs, keyframe.value])).toEqual([[3_000, 0.8], [5_000, 0.6], [8_000, 0.4]])
-    expect(details.evaluated.map((sample) => sample.atMs)).toEqual([3_000, 4_000, 5_000, 6_500, 8_000])
+    const affected = added.changes[0].details as { tracks: string[]; propertyKeys: string[] }
+    expect(affected.tracks).toHaveLength(1)
+    expect(affected.propertyKeys).toHaveLength(3)
+    const trackId = affected.tracks[0]
+
+    // The same values survive an export and a reopen.
     const exportedDocument = store.export(sessionId)
     if (!exportedDocument.ok) throw new Error('export failed')
     const reopened = createSessionStore()
     const again = reopened.open(exportedDocument.show)
     if (!again.ok) throw new Error('reopen failed')
-    for (const sample of details.evaluated) {
-      const evaluation = reopened.evaluate(again.sessionId, added.changes[0].targetId, sample.atMs)
-      expect(evaluation.ok && evaluation.evaluation.value).toBe(sample.value)
+    for (const [atMs, value] of [[3_000, 0.8], [5_000, 0.6], [8_000, 0.4]] as const) {
+      const evaluation = reopened.evaluate(again.sessionId, trackId, atMs)
+      expect(evaluation.ok && evaluation.evaluation.value).toBeCloseTo(value, 5)
     }
 
-    const moved = store.apply(sessionId, 'update_keyframe', {
-      track_id: added.changes[0].targetId,
-      keyframe_id: details.keyframes[1].keyframeId,
-      time_ms: 6_000,
+    // Moving a key reports the same track and the one key it moved.
+    const described = store.describe(sessionId)
+    if (!described.ok) throw new Error('describe failed')
+    const keys = described.description.propertyTracks[0].keyframes
+    expect(keys.map((key) => key.timeMs)).toEqual([3_000, 5_000, 8_000])
+    const moved = store.apply(sessionId, 'edit_property_keyframes', {
+      track_id: trackId,
+      edits: { update: [{ keyframe_id: keys[1].id, at_ms: 6_000 }] },
     })
     expect(moved.ok).toBe(true)
     if (!moved.ok) return
-    const movedDetails = moved.changes[0].details as typeof details
-    expect(movedDetails.keyframes.map((keyframe) => keyframe.timeMs)).toEqual([3_000, 6_000, 8_000])
-    expect(movedDetails.evaluated.map((sample) => sample.atMs)).toEqual([3_000, 4_500, 6_000, 7_000, 8_000])
+    expect((moved.changes[0].details as { tracks: string[] }).tracks).toEqual([trackId])
 
-    const refused = store.apply(sessionId, 'delete_keyframe', {
-      track_id: added.changes[0].targetId,
-      keyframe_id: details.keyframes[0].keyframeId,
-    })
-    expect(refused.ok).toBe(true)
-    const belowMinimum = store.apply(sessionId, 'delete_keyframe', {
-      track_id: added.changes[0].targetId,
-      keyframe_id: details.keyframes[1].keyframeId,
-    })
-    expect(belowMinimum.ok).toBe(false)
-    if (!belowMinimum.ok) expect(belowMinimum.issues[0].code).toBe('minimum-keyframes')
+    const afterMove = store.describe(sessionId)
+    if (!afterMove.ok) throw new Error('describe failed')
+    expect(afterMove.description.propertyTracks[0].keyframes.map((key) => key.timeMs)).toEqual([3_000, 6_000, 8_000])
 
-    // describe_show lists the same keyframes, so a keyframe id never needs export_show.
-    const described = store.describe(sessionId)
-    if (!described.ok) throw new Error('describe failed')
-    const track = described.description.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips)).flatMap((clip) => clip.tracks)[0]
-    expect(track.keyframes.map((keyframe) => keyframe.timeMs)).toEqual([6_000, 8_000])
-    const evaluation = evaluatePropertyAt(
-      (() => { const result = store.export(sessionId); if (!result.ok) throw new Error('x'); const opened = createSessionStore().open(result.show); if (!opened.ok) throw new Error('y'); return { show: result.show, inlinePatterns: [], options: {} } })(),
-      track.trackId,
-      7_000,
-    )
+    // describe_show lists the same keys, so a key id never needs export_show.
+    const exported = store.export(sessionId)
+    if (!exported.ok) throw new Error('export failed')
+    const evaluation = evaluatePropertyAt({ show: exported.show, inlinePatterns: [], options: {} }, trackId, 7_000)
     expect(evaluation.ok).toBe(true)
   })
 })

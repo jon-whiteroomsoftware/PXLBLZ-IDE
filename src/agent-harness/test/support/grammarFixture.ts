@@ -1,65 +1,99 @@
-// Provenance: pxlblz-v3 test/support/grammarFixture.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
+// Provenance: pxlblz-v3 test/support/grammarFixture.ts at 9ecd481f, re-authored
+// onto the version-2 record for #1039 (see src/agent-harness/PROVENANCE.md).
 // Shared fixture for the grammar registry and session tests: a minimal
-// portable-2d Show in the flat shape (two 30 s Scenes, one Zone, one stock
-// clip per Scene). openShowDocument normalizes it to the composition shape,
-// which is where every grammar operation runs. openGrammarFixture can add an
-// overlay clip, because source-over opacity (the owner example's target) is
-// owned by overlay placements only.
-import type { ShowCompositionV1, ShowRecord } from '@/engine/personalContentRecords'
-import { addShowOverlayClip, addShowOverlayLayer } from '@/engine/showCompositionModel'
+// portable-2d Show — one Zone, one Layer, two consecutive 30 s Clips on stock
+// Patterns, one Layout occurrence covering the whole Show. It is authored
+// natively in the v2 vocabulary: no Scenes, no cells, and no projection step on
+// open.
+import type {
+  ShowClipV2,
+  ShowLayerV2,
+  ShowRecordV2,
+  ShowTransitionV2,
+} from '@/engine/showCompositionV2'
 import { openShowDocument, projectClipListing } from '../../grammar/openShow.js'
 import type { ShowClipListing, ShowGrammarDocument } from '../../grammar/types.js'
 
+export const FIXTURE_MAIN_LAYER_ID = 'layer:z1:main'
+export const FIXTURE_OVERLAY_LAYER_ID = 'layer:z1:over'
+export const FIXTURE_FIRST_CLIP_ID = 'clip-1'
+export const FIXTURE_SECOND_CLIP_ID = 'clip-2'
+export const FIXTURE_OVERLAY_CLIP_ID = 'ov-clip-1'
+
 export interface GrammarFixtureOptions {
-  /** Leave Scene 2's main layer empty, so the timeline has free space. */
-  emptySecondScene?: boolean
-  /** Author a 1 s crossfade boundary Transition after Scene 1. */
+  /** Leave the second half of the timeline empty, so it has free space. */
+  emptyTail?: boolean
+  /** Author a 1 s Crossfade between the two Clips on the Main Layer. */
   boundaryCrossfade?: boolean
+  /** Add a second Layer above Main carrying one full-length Clip. */
+  overlay?: boolean
 }
 
-export function grammarFixtureShow(options: GrammarFixtureOptions = {}): ShowRecord {
+function clip(
+  id: string,
+  instanceId: string,
+  layerId: string,
+  startMs: number,
+  durationMs: number,
+): ShowClipV2 {
   return {
+    id,
+    instanceId,
+    zoneId: 'z1',
+    layerId,
+    startMs,
+    durationMs,
+    entryPolicy: 'continue',
+    zoneSampleMode: 'independent',
+    appearance: {
+      keys: [{
+        id: `${id}:appearance:1`,
+        timeMs: startMs,
+        value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] },
+      }],
+    },
+  }
+}
+
+export function grammarFixtureShow(options: GrammarFixtureOptions = {}): ShowRecordV2 {
+  // A Transition's positive duration fills the interval from the outgoing
+  // Clip's end to the incoming Clip's nominal start (specification section 5),
+  // so the Crossfade variant shortens the outgoing Clip rather than overlapping.
+  const firstDurationMs = options.boundaryCrossfade ? 29_000 : 30_000
+  const layers: ShowLayerV2[] = [
+    { id: FIXTURE_MAIN_LAYER_ID, zoneId: 'z1', name: 'Main', rank: 0 },
+    ...(options.overlay ? [{ id: FIXTURE_OVERLAY_LAYER_ID, zoneId: 'z1', name: 'Over', rank: 1 }] : []),
+  ]
+  const clips: ShowClipV2[] = [
+    clip(FIXTURE_FIRST_CLIP_ID, 'inst-1', FIXTURE_MAIN_LAYER_ID, 0, firstDurationMs),
+    ...(options.emptyTail ? [] : [clip(FIXTURE_SECOND_CLIP_ID, 'inst-2', FIXTURE_MAIN_LAYER_ID, 30_000, 30_000)]),
+    ...(options.overlay ? [clip(FIXTURE_OVERLAY_CLIP_ID, 'inst-3', FIXTURE_OVERLAY_LAYER_ID, 0, 30_000)] : []),
+  ]
+  const transitions: ShowTransitionV2[] = options.boundaryCrossfade && !options.emptyTail
+    ? [{
+        id: 'transition-1',
+        kind: 'crossfade',
+        durationMs: 1_000,
+        easing: { curve: 'linear' },
+        crossfadePolicy: 'snapshot-live',
+        participants: [{
+          id: 'participant-1',
+          zoneId: 'z1',
+          layerId: FIXTURE_MAIN_LAYER_ID,
+          fromClipId: FIXTURE_FIRST_CLIP_ID,
+          toClipId: FIXTURE_SECOND_CLIP_ID,
+        }],
+        propertyRamps: [],
+      }]
+    : []
+  return {
+    version: 2,
     id: 'grammar-fixture',
     name: 'Grammar fixture',
-    updatedAt: 0,
-    scenes: [
-      { id: 's1', name: 'Opening', durationMs: 30_000 },
-      { id: 's2', name: 'Closing', durationMs: 30_000 },
-    ],
     zones: [{ id: 'z1', name: 'Main', nominalPixelCount: 64 }],
-    cells: [
-      {
-        id: 'c1',
-        zoneId: 'z1',
-        sceneId: 's1',
-        sceneSpan: 1,
-        pattern: { kind: 'stock', id: 'CometLoom' },
-        patternName: 'CometLoom',
-        adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
-      },
-      ...(options.emptySecondScene ? [] : [{
-        id: 'c2',
-        zoneId: 'z1',
-        sceneId: 's2',
-        sceneSpan: 1,
-        pattern: { kind: 'stock', id: 'TestPattern1D' },
-        patternName: 'TestPattern1D',
-        adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
-      }]),
-    ],
-    routingLayouts: [
+    zoneLayouts: [
       { id: 'l1', name: 'Full Stage', zones: [], logical: { kind: 'single', zoneIds: ['z1'] } },
     ],
-    transitions: options.boundaryCrossfade
-      ? [{
-          id: 'transition-s1',
-          afterSceneId: 's1',
-          kind: 'crossfade',
-          durationMs: 1_000,
-          easing: { curve: 'linear' },
-          crossfadePolicy: 'snapshot-live',
-        }]
-      : [],
     outputContract: {
       version: 1,
       kind: 'portable-2d',
@@ -67,53 +101,38 @@ export function grammarFixtureShow(options: GrammarFixtureOptions = {}): ShowRec
       referencePixelCount: 256,
       compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
     },
-  } as unknown as ShowRecord
+    composition: {
+      version: 2,
+      executionModel: 'continuous',
+      showEndMs: 60_000,
+      sampleRemap: { repeatScale: 1 },
+      patternInstances: [
+        { id: 'inst-1', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } },
+        { id: 'inst-2', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D', time: { timeScale: 1, timeOffsetMs: 0 } },
+        ...(options.overlay
+          ? [{ id: 'inst-3', pattern: { kind: 'stock' as const, id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } }]
+          : []),
+      ],
+      layers,
+      clips,
+      transitions,
+      layoutOccurrences: [
+        { id: 'layout-1', layoutId: 'l1', startMs: 0, durationMs: 60_000, parameters: {} },
+      ],
+      propertyTracks: [],
+      markers: [],
+      groupDefinitions: [],
+      groupOccurrences: [],
+    },
+    updatedAt: 0,
+  }
 }
 
-/**
- * Open the fixture for grammar editing. With { overlay: true }, Scene 1 gains
- * an overlay layer carrying one full-Scene stock clip ("ov-clip-1"), the
- * legal home of a placement-opacity track.
- */
+/** Open the fixture for grammar editing. */
 export function openGrammarFixture(
-  options: { overlay?: boolean } & GrammarFixtureOptions = {},
+  options: GrammarFixtureOptions = {},
 ): { document: ShowGrammarDocument; listing: ShowClipListing } {
   const opened = openShowDocument(grammarFixtureShow(options))
   if (!opened.ok) throw new Error(`fixture failed to open: ${JSON.stringify(opened.issues)}`)
-  if (!options.overlay) return { document: opened.document, listing: opened.listing }
-
-  const { document } = opened
-  const composition = document.show.composition as ShowCompositionV1
-  const withLayer = addShowOverlayLayer(document.show, composition, {
-    sceneId: 's1',
-    zoneId: 'z1',
-    layer: { id: 'ov-layer-1', name: 'Overlay 1', placements: [] },
-  })
-  const withClip = addShowOverlayClip(document.show, withLayer, {
-    sceneId: 's1',
-    zoneId: 'z1',
-    layerId: 'ov-layer-1',
-    instance: {
-      id: 'ov-instance-1',
-      pattern: { kind: 'stock', id: 'CometLoom' },
-      patternName: 'CometLoom',
-      time: { timeScale: 1, timeOffsetMs: 0 },
-    },
-    placement: {
-      id: 'ov-clip-1',
-      instanceId: 'ov-instance-1',
-      startMs: 0,
-      durationMs: 30_000,
-      opacity: 1,
-      view: { mirror: false, phase: 0, brightness: 1 },
-    },
-  })
-  if (withClip === withLayer || withClip === composition) {
-    throw new Error('fixture overlay clip was refused by the engine')
-  }
-  const augmented: ShowGrammarDocument = {
-    ...document,
-    show: { ...document.show, composition: withClip },
-  }
-  return { document: augmented, listing: projectClipListing(augmented) }
+  return { document: opened.document, listing: projectClipListing(opened.document) }
 }

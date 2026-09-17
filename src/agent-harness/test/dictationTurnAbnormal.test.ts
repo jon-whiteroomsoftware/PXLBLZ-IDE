@@ -26,7 +26,7 @@ async function harness() {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
   await client.connect(clientTransport)
-  const opened = store.open(dictationFixture('empty-second-scene'))
+  const opened = store.open(dictationFixture('empty-tail'))
   if (!opened.ok) throw new Error(JSON.stringify(opened.issues))
   const described = store.describe(opened.sessionId)
   const toolList = await client.listTools()
@@ -175,21 +175,40 @@ describe('abnormal turn completion through the turn runner (#945)', () => {
       run: async (context) => {
         turn += 1
         if (turn === 1) {
-          const added = await context.callTool('add_clip', {
+          // Accepted by every owner, refused by the turn's final validation:
+          // the compiler cannot split a participant Transition across the
+          // derived section boundary a section-scoped activation needs.
+          const first = context.listing.clips[0]
+          const created = await context.callTool('create_clips', {
             session_id: context.sessionId,
-            zone_id: 'z1',
-            start_ms: 35_000,
-            duration_ms: 10_000,
-            pattern_kind: 'user',
-            pattern_id: 'nope',
+            clips: [{
+              zone_id: first.zoneId, layer_id: first.layerId,
+              start_ms: first.endMs, duration_ms: 10_000,
+              pattern: { kind: 'stock', id: 'TestPattern2D' },
+            }],
           })
-          if (added.isError) throw new Error('fixture add_clip refused')
-          return { finalText: 'Added the clip.', completion: { intent: 'apply', reply: 'Added the clip.' } }
+          if (created.isError) throw new Error('fixture create_clips refused')
+          const createdClipId = ((created.payload as { changes?: Array<{ details?: { clips?: string[] } }> })
+            .changes?.[0]?.details?.clips ?? []).find((id) => id !== first.clipId)!
+          await context.callTool('add_property_tracks', {
+            session_id: context.sessionId,
+            tracks: [{
+              target: { kind: 'view-brightness', clip_id: createdClipId },
+              keyframes: [{ at_ms: first.endMs, value: 1 }, { at_ms: first.endMs + 10_000, value: 0.2 }],
+            }],
+          })
+          const inserted = await context.callTool('insert_transition', {
+            session_id: context.sessionId,
+            from_clip_id: first.clipId, to_clip_id: createdClipId,
+            duration_ms: 2_000, kind: 'crossfade',
+          })
+          if (inserted.isError) throw new Error('fixture insert_transition refused')
+          return { finalText: 'Added the crossfade.', completion: { intent: 'apply', reply: 'Added the crossfade.' } }
         }
         return { finalText: 'The turn limit was reached before the edit completed.', incomplete: { reason: 'turn-limit' } }
       },
     }
-    const result = await run(agent, 'Add my library pattern at 35 seconds.')
+    const result = await run(agent, 'Crossfade into an animated Clip.')
     expect(turn).toBe(2)
     expect(result.disposition).toMatchObject({ kind: 'incomplete', reason: 'turn-limit' })
     expect(result.finalText).toMatch(/discarded/i)

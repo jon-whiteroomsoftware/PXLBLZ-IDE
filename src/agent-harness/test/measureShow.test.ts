@@ -1,6 +1,8 @@
 // Provenance: pxlblz-v3 test/measureShow.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import { toShowRecordV2 } from './support/convertFixture.js'
 import { measureShowDocument, showTimelineDurationMs } from '../telemetry/measure.js'
 
 const STROBE_SOURCE = `
@@ -17,33 +19,65 @@ export function beforeRender(delta) {}
 export function render2D(index, x, y) { thisFunctionDoesNotExist(x) }
 `
 
-// Minimal portable Show around one inline user pattern.
-const inlineShow = (patternId: string) => ({
+// Minimal portable version-2 Show around one inline user Pattern: one Zone, one
+// Layer, one 12 s Clip, one Layout occurrence over the whole Show.
+const inlineShow = (patternId: string): ShowRecordV2 => ({
+  version: 2,
   id: 'measure-fixture',
   name: 'Measure Fixture',
-  scenes: [{ id: 'scene-1', name: 'One', durationMs: 12_000 }],
   zones: [{ id: 'zone-main', name: 'Main', nominalPixelCount: 64 }],
-  cells: [
-    {
-      id: 'cell-1', zoneId: 'zone-main', sceneId: 'scene-1', sceneSpan: 1,
-      pattern: { kind: 'user', id: patternId }, patternName: patternId,
-      adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
-    },
-  ],
-  routingLayouts: [
+  zoneLayouts: [
     { id: 'layout-full', name: 'Full Stage', zones: [], logical: { kind: 'single', zoneIds: ['zone-main'] } },
   ],
-  transitions: [],
   outputContract: {
     version: 1, kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 256,
     compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
   },
+  composition: {
+    version: 2,
+    executionModel: 'continuous',
+    showEndMs: 12_000,
+    sampleRemap: { repeatScale: 1 },
+    patternInstances: [{
+      id: 'inst-1',
+      pattern: { kind: 'user', id: patternId },
+      patternName: patternId,
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }],
+    layers: [{ id: 'layer-main', zoneId: 'zone-main', name: 'Main', rank: 0 }],
+    clips: [{
+      id: 'clip-1',
+      instanceId: 'inst-1',
+      zoneId: 'zone-main',
+      layerId: 'layer-main',
+      startMs: 0,
+      durationMs: 12_000,
+      entryPolicy: 'continue',
+      zoneSampleMode: 'independent',
+      appearance: {
+        keys: [{
+          id: 'clip-1:appearance:1',
+          timeMs: 0,
+          value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] },
+        }],
+      },
+    }],
+    transitions: [],
+    layoutOccurrences: [{ id: 'layout-occurrence-1', layoutId: 'layout-full', startMs: 0, durationMs: 12_000, parameters: {} }],
+    propertyTracks: [],
+    markers: [],
+    groupDefinitions: [],
+    groupOccurrences: [],
+  },
   updatedAt: 0,
 })
 
+/** The stock catalogue entry as the version-2 record the app's converter makes. */
+const stockShowV2 = () => toShowRecordV2(structuredClone(STOCK_SHOWS[0].show), STOCK_SHOWS[0].name)
+
 describe('measureShowDocument (#12)', () => {
   it('measures a stock Show over its own timeline with the gate passing', () => {
-    const show = structuredClone(STOCK_SHOWS[0].show)
+    const show = stockShowV2()
     const result = measureShowDocument(show)
     expect(result.ok, JSON.stringify(result)).toBe(true)
     if (!result.ok) return
@@ -58,7 +92,7 @@ describe('measureShowDocument (#12)', () => {
   })
 
   it('honors an explicit measurement window', () => {
-    const result = measureShowDocument(structuredClone(STOCK_SHOWS[0].show), [], { durationSeconds: 5 })
+    const result = measureShowDocument(stockShowV2(), [], { durationSeconds: 5 })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.report.input.durationMs).toBe(5_000)
@@ -76,7 +110,7 @@ describe('measureShowDocument (#12)', () => {
   })
 
   it('rejects an invalid document with typed errors, not an exception', () => {
-    const result = measureShowDocument('{"cells": [')
+    const result = measureShowDocument('{"composition": [')
     expect(result).toMatchObject({ ok: false, reason: 'invalid-show' })
     if (result.ok || result.reason !== 'invalid-show') return
     expect(result.errors[0].code).toBe('malformed-json')
@@ -91,8 +125,8 @@ describe('measureShowDocument (#12)', () => {
   })
 
   it('is deterministic across runs', () => {
-    const first = measureShowDocument(structuredClone(STOCK_SHOWS[0].show), [], { durationSeconds: 8 })
-    const second = measureShowDocument(structuredClone(STOCK_SHOWS[0].show), [], { durationSeconds: 8 })
+    const first = measureShowDocument(stockShowV2(), [], { durationSeconds: 8 })
+    const second = measureShowDocument(stockShowV2(), [], { durationSeconds: 8 })
     expect(JSON.stringify(second)).toBe(JSON.stringify(first))
   })
 })

@@ -1,8 +1,25 @@
 import { expect, it } from 'vitest'
 import { captureShowAuthoringBaseline, validateShowAuthoring } from './showAuthoringValidation'
-import { openGrammarFixture } from '../agent-harness/test/support/grammarFixture'
+import { projectFlatShowToCompositionV1 } from './showCompositionModel'
+import { personalBaseShow } from '../agent-harness/baseline/fixtures'
 import { stockPatternSource } from '../agent-harness/shows/stockCatalogue'
 import { LIBRARIES } from '../pixelblaze/libs'
+
+/**
+ * A composition-shaped v1 record, the shape this validator owns.
+ *
+ * The pinned baseline fixture supplies the flat record and the engine projects
+ * it, so this test keeps its own v1 subject after the agent harness moved to the
+ * version-2 vocabulary (#1039).
+ */
+function openGrammarFixture(): { document: { show: ReturnType<typeof personalBaseShow> } } {
+  const show = personalBaseShow('authoring-fixture')
+  show.composition = projectFlatShowToCompositionV1(show, {
+    byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, stockPatternSource(cell.pattern.id)!])),
+    stageDimension: 2,
+  })
+  return { document: { show } }
+}
 
 it.each(['pattern-source', 'library-source'] as const)('does not grandfather a new missing Library after %s changes', change => {
   const show = openGrammarFixture().document.show

@@ -9,7 +9,7 @@
 // pushes exactly one history entry. An operation called outside a transaction
 // is auto-wrapped in a single-operation transaction, so it validates and
 // commits immediately and produces one history entry, exactly as in #17.
-import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { validateAuthoringShowDocument, validateShowDocument, type InlinePattern, type ShowEvaluationOptions, type ShowIssue } from '../shows/evaluate.js'
 import { openShowDocument, projectClipListing } from './openShow.js'
 import {
@@ -24,8 +24,6 @@ import {
 } from './read.js'
 import { applyShowGrammarOperation } from './registry.js'
 import type { GrammarChange, GrammarIssue, ShowClipListing, ShowGrammarDocument } from './types.js'
-import { createPrivateClipPairMove, type PrivateClipPairMove } from '@/engine/showTimelineClipAuthoring'
-import { validateShowComposition } from '@/engine/showCompositionModel'
 
 export interface HistoryEntrySummary {
   index: number
@@ -46,7 +44,6 @@ interface OpenTransaction {
   label: string
   working: ShowGrammarDocument
   changes: GrammarChange[]
-  privatePair?: PrivateClipPairMove
 }
 
 export interface GenericUseEntry {
@@ -108,7 +105,7 @@ export interface GrammarSessionStore {
     atMs: number,
   ) => { ok: true; evaluation: PropertyEvaluation } | Refusal
   genericUse: (sessionId: string) => { ok: true; uses: GenericUseEntry[] } | Refusal
-  export: (sessionId: string) => { ok: true; show: ShowRecord } | Refusal
+  export: (sessionId: string) => { ok: true; show: ShowRecordV2 } | Refusal
   close: (sessionId: string) => { ok: true; sessionId: string } | Refusal
 }
 
@@ -127,7 +124,7 @@ function logGenericUse(
   if (operation !== 'set_field' && operation !== 'apply_patch') return
   session.genericUse.push({
     operation,
-    pointers: changes.flatMap((change) => (change.details?.pointers as string[] | undefined) ?? []),
+    pointers: changes.flatMap((change) => ((change.details as { pointers?: string[] } | undefined)?.pointers) ?? []),
     transaction,
   })
 }
@@ -171,11 +168,7 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
   }
 
   /** The final validation result a commit of this working copy would produce. */
-  function pendingValidationIssues(working: ShowGrammarDocument, baseline: ShowGrammarDocument, privatePair = false): { ok: true; warnings?: ShowIssue[] } | Refusal {
-    if (privatePair && working.show.composition) {
-      const issues = validateShowComposition(working.show, working.show.composition)
-      if (issues.length) return { ok: false, issues: issues.map(issue => ({ code: 'result-invalid', message: issue.message, path: issue.path })) }
-    }
+  function pendingValidationIssues(working: ShowGrammarDocument, baseline: ShowGrammarDocument): { ok: true; warnings?: ShowIssue[] } | Refusal {
     const validation = working.authoringValidation
       ? validateAuthoringShowDocument(working.show, working.inlinePatterns, working.options, baseline)
       : validateShowDocument(working.show, working.inlinePatterns, working.options)
@@ -217,23 +210,7 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
 
       if (session.open) {
         const transaction = session.open
-        const outcome = applyShowGrammarOperation(transaction.working, operation, args, {
-          validateResult: false,
-          privateMove: {
-            active: Boolean(transaction.privatePair),
-            move(owner, target, partner) {
-              if (transaction.privatePair) return transaction.privatePair.move(owner, target)
-              if (!partner || !pendingValidationIssues(transaction.working, session.document, Boolean(transaction.privatePair)).ok) return null
-              const composition = transaction.working.show.composition
-              if (!composition) return null
-              const pair = createPrivateClipPairMove(transaction.working.show, composition, [owner, partner])
-              const result = pair?.move(owner, target)
-              if (!result) return null
-              transaction.privatePair = pair!
-              return result
-            },
-          },
-        })
+        const outcome = applyShowGrammarOperation(transaction.working, operation, args, { validateResult: false })
         if (!outcome.ok) return outcome
         session.open.working = outcome.document
         session.open.changes.push(...outcome.changes)
@@ -288,7 +265,7 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
       const { session } = found
       if (!session.open) return NO_TRANSACTION
       const { label, working, changes } = session.open
-      const validation = pendingValidationIssues(working, session.document, Boolean(session.open.privatePair))
+      const validation = pendingValidationIssues(working, session.document)
       if (!validation.ok) return validation
       const summary = changes.length > 0 ? summarize(changes) : 'No operations were applied.'
       if (working !== session.document || changes.length > 0) {
@@ -303,7 +280,7 @@ export function createSessionStore(policy: { authoringValidation?: boolean } = {
       if (!found.ok) return found
       const { session } = found
       if (!session.open) return NO_TRANSACTION
-      const validation = pendingValidationIssues(session.open.working, session.document, Boolean(session.open.privatePair))
+      const validation = pendingValidationIssues(session.open.working, session.document)
       if (!validation.ok) return validation
       const { changes } = session.open
       return {

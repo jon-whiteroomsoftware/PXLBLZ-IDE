@@ -1,6 +1,6 @@
 // Provenance: pxlblz-v3 src/grammar/operations/generic.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 // Generic operation family (#22): the bounded backstop. set_field and
-// apply_patch reach declared editable paths of the ShowRecord that specific
+// apply_patch reach declared editable paths of the ShowRecordV2 that specific
 // operations miss (the Trails output Effect was the first known such path).
 // Each apply_patch member must leave a structurally valid Show, and the final
 // result passes tier 0 even inside a transaction. Arbitrary scratch fields,
@@ -20,7 +20,7 @@
 // leaves the record untouched: the patch applies to the clone, which is
 // dropped whole with its tracker.
 import { z } from 'zod'
-import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { validateAuthoringShowDocument, validateShowDocument, validateShowStructure } from '../../shows/evaluate.js'
 import { createIdentityTracker, type IdentityTracker } from '../identity.js'
 import type { GrammarOperationResult, ShowGrammarOperation } from '../registry.js'
@@ -334,7 +334,7 @@ function applyOne(
 function concludeGeneric(
   operationName: string,
   document: ShowGrammarDocument,
-  next: ShowRecord,
+  next: ShowRecordV2,
   pointers: string[],
   description: string,
 ): GrammarOperationResult {
@@ -367,15 +367,16 @@ function workingCopy(document: ShowGrammarDocument): { next: Json; tracker: Iden
 
 const setField: ShowGrammarOperation = {
   name: 'set_field',
+  family: 'generic',
   description:
-    'Bounded backstop: set one declared field of the ShowRecord by JSON pointer, for the rare paths no ' +
+    'Bounded backstop: set one declared field of the Show record by JSON pointer, for the rare paths no ' +
     'specific operation covers (the Trails output Effect, say). The result is schema- and tier-0- ' +
     'validated immediately, even inside a transaction, and refused if invalid. Prefer the specific ' +
     'operations — they carry the engine’s own planning and refusal reasons; every set_field use is ' +
     'logged as a gap signal.',
   mutates: ['/*'],
   inputShape: {
-    pointer: z.string().describe('JSON pointer into declared ShowRecord structure (for example /outputEffects/0/retention)'),
+    pointer: z.string().describe('JSON pointer into declared Show record structure (for example /outputEffects/0/retention)'),
     value: z.unknown().describe('The new value; omit to delete the field').optional(),
     delete: z.boolean().optional().describe('Remove the field instead of setting it'),
   },
@@ -395,7 +396,7 @@ const setField: ShowGrammarOperation = {
     return concludeGeneric(
       'set_field',
       document,
-      next as unknown as ShowRecord,
+      next as unknown as ShowRecordV2,
       [pointer],
       args.delete
         ? `Field ${pointer} removed (generic set_field).`
@@ -413,9 +414,10 @@ const patchOperationArgument = z.object({
 
 const applyPatch: ShowGrammarOperation = {
   name: 'apply_patch',
+  family: 'generic',
   description:
     'Bounded backstop: apply a JSON Patch (RFC 6902: add, remove, replace, move, copy, test) to declared ' +
-    'ShowRecord structure for multi-field edits no specific operation covers. Every patch member must ' +
+    'Show record structure for multi-field edits no specific operation covers. Every patch member must ' +
     'leave a structurally valid Show; arbitrary scratch fields, temporary containers, and final-only-valid ' +
     'sequences are refused. The complete patch remains atomic and its final result is tier-0 validated, ' +
     'even inside a transaction. Prefer specific operations; every apply_patch use is logged as a gap signal.',
@@ -459,7 +461,7 @@ const applyPatch: ShowGrammarOperation = {
     return concludeGeneric(
       'apply_patch',
       document,
-      next as unknown as ShowRecord,
+      next as unknown as ShowRecordV2,
       pointers,
       `Applied a ${patch.length}-operation JSON Patch touching ${pointers.join(', ')} (generic apply_patch).`,
     )

@@ -1,67 +1,46 @@
-// Provenance: pxlblz-v3 src/grammar/registry.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// The Show grammar operation registry. Each entry is data: a stable name, an
-// agent-facing description, a zod input shape, the ShowRecord JSON-pointer
-// patterns it may mutate, and an apply function that calls the vendored v2
-// authoring functions. The MCP tool list is generated from this table; adding
-// an operation is one entry in one family module.
+// Provenance: pxlblz-v3 src/grammar/registry.ts at 9ecd481f, re-authored onto the
+// version-2 catalogue for #1039 (see src/agent-harness/PROVENANCE.md).
+// The Show grammar operation registry. Every authored operation is one entry of
+// the production v2 catalogue (`src/engine/showCommandsV2/registry.ts`) exposed
+// through a transport adapter, plus the two bounded generic backstops this
+// harness owns. The MCP tool list is generated from this table.
 //
-// Contract: operations take global times and clip/Zone/layer ids (the layer
-// the v2 editor's mouse calls), never Scene-relative coordinates. Every apply
-// works on a copy, runs tier-0 validation on the result, and refuses with
-// typed issues; an engine refusal (input returned by identity) is surfaced as
-// a typed refusal unless the semantic owner independently validates a no-op.
-// Planner-backed operations run the
-// vendored plan* function first and pass its user-legible reason through.
+// There is no translation layer. The harness does not rename, widen, narrow or
+// re-shape a catalogue command: a caller sends the v2 command's own arguments,
+// the v2 owner runs, and its affected-entity result is reported unchanged. A v1
+// name is not registered here and has no alias — `SHOW_COMMAND_V2_NAME_MAP` is
+// where a retired name's replacement is recorded.
 import { z, type ZodRawShape } from 'zod'
 import { validateAuthoringShowDocument, validateShowDocument } from '../shows/evaluate.js'
 import type { GrammarChange, GrammarIssue, ShowGrammarDocument } from './types.js'
-import type { ShowCompositionV1 } from '@/engine/personalContentRecords'
-import type { ShowTimelineClipOwner, ShowTimelineClipMoveTarget } from '@/engine/showTimelineClipAuthoring'
 
 export type GrammarOperationResult =
   | { ok: true; document: ShowGrammarDocument; changes: GrammarChange[] }
   | { ok: false; issues: GrammarIssue[] }
 
-export interface PrivateMoveContext {
-  active: boolean
-  move: (owner: ShowTimelineClipOwner, target: ShowTimelineClipMoveTarget, partner?: ShowTimelineClipOwner) => ShowCompositionV1 | null
-}
-
 export interface ShowGrammarOperation {
   name: string
+  /** The catalogue family this operation belongs to, or `generic`. */
+  family: string
   /** One paragraph written for an agent; becomes the MCP tool description. */
   description: string
-  /** ShowRecord JSON-pointer patterns this operation may mutate. */
+  /** ShowRecordV2 JSON-pointer patterns this operation may write. */
   mutates: string[]
   /** Zod shape for the operation's own arguments (session_id is added by the server). */
   inputShape: ZodRawShape
   validateInput?: (args: Record<string, unknown>) => GrammarIssue[]
-  apply: (document: ShowGrammarDocument, args: Record<string, unknown>, context?: PrivateMoveContext) => GrammarOperationResult
+  apply: (document: ShowGrammarDocument, args: Record<string, unknown>) => GrammarOperationResult
 }
 
 export type { ShowGrammarDocument } from './types.js'
 
 // The family modules import only types from this module, so these imports are
 // not circular at runtime.
-import { ANIMATION_OPERATIONS } from './operations/animation.js'
-import { CLIP_OPERATIONS } from './operations/clips.js'
-import { EFFECT_OPERATIONS } from './operations/effects.js'
+import { CATALOGUE_OPERATIONS } from './operations/catalogue.js'
 import { GENERIC_OPERATIONS } from './operations/generic.js'
-import { JUNCTION_OPERATIONS } from './operations/junctions.js'
-import { LAYER_TRANSITION_OPERATIONS } from './operations/layerTransitions.js'
-import { RECORD_OPERATIONS } from './operations/record.js'
-import { STRUCTURE_OPERATIONS } from './operations/structure.js'
-import { TIMELINE_OPERATIONS } from './operations/timeline.js'
 
 export const SHOW_GRAMMAR_OPERATIONS: ShowGrammarOperation[] = [
-  ...CLIP_OPERATIONS,
-  ...TIMELINE_OPERATIONS,
-  ...JUNCTION_OPERATIONS,
-  ...LAYER_TRANSITION_OPERATIONS,
-  ...EFFECT_OPERATIONS,
-  ...STRUCTURE_OPERATIONS,
-  ...RECORD_OPERATIONS,
-  ...ANIMATION_OPERATIONS,
+  ...CATALOGUE_OPERATIONS,
   ...GENERIC_OPERATIONS,
 ]
 
@@ -74,7 +53,7 @@ export function applyShowGrammarOperation(
   document: ShowGrammarDocument,
   name: string,
   rawArgs: Record<string, unknown>,
-  options: { validateResult?: boolean; privateMove?: PrivateMoveContext } = {},
+  options: { validateResult?: boolean } = {},
 ): GrammarOperationResult {
   const operation = SHOW_GRAMMAR_OPERATIONS.find((candidate) => candidate.name === name)
   if (!operation) {
@@ -99,13 +78,10 @@ export function applyShowGrammarOperation(
       })),
     }
   }
-  if (options.privateMove?.active && name !== 'move_clip') {
-    return { ok: false, issues: [{ code: 'invalid-argument', message: 'This private transaction retains two Clip participants; only their moves may change it until commit or rollback.' }] }
-  }
-  const outcome = operation.apply(document, parsed.data as Record<string, unknown>, options.privateMove)
+  const outcome = operation.apply(document, parsed.data as Record<string, unknown>)
   if (!outcome.ok) return outcome
-  // Inside a transaction the session defers tier-0 to commit_edit, so a
-  // working copy may pass through resolvable-invalid states.
+  // Inside a transaction the session defers tier-0 to commit_edit, so a working
+  // copy may pass through resolvable-invalid states.
   if (options.validateResult === false) return outcome
 
   const validate = document.authoringValidation ? validateAuthoringShowDocument : validateShowDocument

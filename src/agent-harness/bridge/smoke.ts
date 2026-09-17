@@ -7,21 +7,19 @@
 // progress, the in-memory MCP client/server pair, a grammar session, and the
 // shared turn runner. The fake agent resolves its Clip reference through
 // describe_show and edits through resize_clip like a model would. The
-// returned candidate is then exported through the V2 editor's own `.pxlshow`
-// pair and reopened through the Show importer, and exported as `.epe` and
-// reopened through the Pattern importer; the facts asserted come from those
-// reopened artifacts projected with the editor's timeline projection, never
-// from the bridge's own reply.
+// returned candidate is then exported through the editor's own version-2
+// `.pxlshow` pair and reopened through the v2 Show importer, and exported as
+// `.epe` and reopened through the Pattern importer; the facts asserted come from
+// those reopened artifacts projected with the editor's timeline projection,
+// never from the bridge's own reply.
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseEpe } from '@/engine/epeImport'
-import type { ShowRecord } from '@/engine/personalContentRecords'
-import { projectFlatShowToCompositionV1 } from '@/engine/showCompositionModel'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
-import { applyShowImportPlan, planShowImport } from '@/engine/showImportPlan'
-import { sourceForShowCell } from '@/engine/showPreviewArtifact'
-import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
+import { applyShowImportPlanV2, planShowImportV2 } from '@/engine/showImportPlanV2'
+import { projectShowTimelineV2 } from '@/engine/showTimelineViewModelV2'
 import type { ScriptStep } from '../experiment/corpus.js'
 import { dictationFixture } from '../experiment/fixtures.js'
 import { exportShowDocument } from '../shows/exportShow.js'
@@ -42,16 +40,11 @@ export interface ShowFacts {
   firstClipDurationMs: number
 }
 
-/** What the editor's timeline projection shows for a record. A flat record
- * (no composition) is projected the way the editor projects it on open. */
-export function showFacts(show: ShowRecord): ShowFacts {
-  const composition = show.composition ?? projectFlatShowToCompositionV1(show, {
-    byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, sourceForShowCell(cell, [])])),
-    stageDimension: 2,
-  })
-  const timeline = projectShowUnifiedTimeline(show, composition)
-  const clips = timeline.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
-  const first = [...clips].filter((clip) => clip.kind === 'main').sort((a, b) => a.startMs - b.startMs)[0]
+/** What the editor's timeline projection shows for a version-2 record. */
+export function showFacts(show: ShowRecordV2): ShowFacts {
+  const timeline = projectShowTimelineV2(show)
+  const clips = timeline.rows.flatMap((row) => row.layers.flatMap((layer) => layer.items))
+  const first = [...clips].sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id))[0]
   return {
     id: show.id,
     name: show.name,
@@ -117,7 +110,7 @@ export async function runBridgeSmoke(options: BridgeSmokeOptions = {}): Promise<
     const done = events.find((event) => event.kind === 'done')
     if (!done || done.kind !== 'done') throw new Error('the bridge stream ended without a result')
     const toolEvents = events.flatMap((event) => (event.kind === 'tool' ? [event.name] : []))
-    const candidate = done.show as ShowRecord | undefined
+    const candidate = done.show as ShowRecordV2 | undefined
     if (!candidate) throw new Error(`the bridge returned no candidate: ${done.reply}`)
 
     const fixtureFacts = showFacts(fixture)
@@ -134,9 +127,10 @@ export async function runBridgeSmoke(options: BridgeSmokeOptions = {}): Promise<
     const pxlshowPath = join(directory, filename)
     writeFileSync(pxlshowPath, await serializeShowFileBundle(bundle))
     const pxlshowBytes = readFileSync(pxlshowPath)
-    const reopened = await parseShowFileBundle(new Uint8Array(pxlshowBytes))
-    const plan = planShowImport(reopened, { patterns: [], maps: [], showNames: [] }, { createId: () => 'agent-smoke-import', now: 1 })
-    const imported = applyShowImportPlan(plan).show
+    const reopened = await parseShowFileBundle(new Uint8Array(pxlshowBytes), { acceptV2: true })
+    if (reopened.version !== 2) throw new Error(`the reopened Show file is version ${String(reopened.version)}, not 2`)
+    const plan = planShowImportV2(reopened, { patterns: [], maps: [], libraries: [], showNames: [] }, { createId: () => 'agent-smoke-import', now: 1 })
+    const imported = applyShowImportPlanV2(plan).show
     const importedFacts = showFacts(imported)
 
     // .epe: the compiled deliverable, reopened by the Pattern importer. The

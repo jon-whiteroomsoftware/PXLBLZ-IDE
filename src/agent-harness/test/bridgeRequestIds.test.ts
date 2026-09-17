@@ -7,7 +7,7 @@ import { showFacts, SMOKE_UTTERANCE } from '../bridge/smoke.js'
 import { parseBridgeEvents, createScriptedAgent, startBridge, type BridgeEvent } from '../bridge/service.js'
 import { dictationFixture } from '../experiment/fixtures.js'
 import type { AgentTurnContext, DictationAgent } from '../experiment/runner.js'
-import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 
 async function post(url: string, body: Record<string, unknown>): Promise<BridgeEvent[]> {
   const response = await fetch(`${url}/utterance`, {
@@ -18,9 +18,18 @@ async function post(url: string, body: Record<string, unknown>): Promise<BridgeE
   return parseBridgeEvents(await response.text())
 }
 
+/**
+ * An agent whose first candidate is accepted by every command owner and still
+ * refused by the turn's final validation, then repaired on the one repair pass.
+ *
+ * v2 moved the unavailable-Pattern case forward into the command owner, so the
+ * failure that only final validation can see is the compiler restriction: a
+ * participant Transition cannot be split across the derived section boundary a
+ * section-scoped Property activation needs.
+ */
 function repairingAgent(): DictationAgent & { passes: Array<{ startedAt: number; endedAt: number }> } {
   const passes: Array<{ startedAt: number; endedAt: number }> = []
-  let invalidClipId = ''
+  let transitionId = ''
   return {
     name: 'repairing-agent',
     passes,
@@ -29,30 +38,41 @@ function repairingAgent(): DictationAgent & { passes: Array<{ startedAt: number;
       passes.push(pass)
       await new Promise((resolve) => setTimeout(resolve, passes.length === 1 ? 40 : 60))
       if (passes.length === 1) {
-        const result = await context.callTool('add_clip', {
+        const first = context.listing.clips[0]
+        const created = await context.callTool('create_clips', {
           session_id: context.sessionId,
-          zone_id: 'z1',
-          start_ms: 35_000,
-          duration_ms: 10_000,
-          pattern_kind: 'stock',
-          pattern_id: 'missing-stock-pattern',
+          clips: [{
+            zone_id: first.zoneId,
+            layer_id: first.layerId,
+            start_ms: first.endMs,
+            duration_ms: 10_000,
+            pattern: { kind: 'stock', id: 'TestPattern2D' },
+          }],
         })
-        const changes = (result.payload as { changes?: Array<{ targetId?: string }> }).changes
-        invalidClipId = changes?.[0]?.targetId ?? ''
+        const createdClipId = ((created.payload as { changes?: Array<{ details?: { clips?: string[] } }> })
+          .changes?.[0]?.details?.clips ?? []).find((id) => id !== first.clipId) ?? ''
+        await context.callTool('add_property_tracks', {
+          session_id: context.sessionId,
+          tracks: [{
+            target: { kind: 'view-brightness', clip_id: createdClipId },
+            keyframes: [{ at_ms: first.endMs, value: 1 }, { at_ms: first.endMs + 10_000, value: 0.2 }],
+          }],
+        })
+        const inserted = await context.callTool('insert_transition', {
+          session_id: context.sessionId,
+          from_clip_id: first.clipId,
+          to_clip_id: createdClipId,
+          duration_ms: 2_000,
+          kind: 'crossfade',
+        })
+        transitionId = ((inserted.payload as { changes?: Array<{ details?: { transitions?: string[] } }> })
+          .changes?.[0]?.details?.transitions ?? [])[0] ?? ''
         pass.endedAt = Date.now()
-        return { finalText: 'Added the stock Pattern.', completion: { intent: 'apply', reply: 'Added the stock Pattern.' } }
+        return { finalText: 'Added a crossfade.', completion: { intent: 'apply', reply: 'Added a crossfade.' } }
       }
-      await context.callTool('remove_clip', { session_id: context.sessionId, clip_id: invalidClipId })
-      await context.callTool('add_clip', {
-        session_id: context.sessionId,
-        zone_id: 'z1',
-        start_ms: 35_000,
-        duration_ms: 10_000,
-        pattern_kind: 'stock',
-        pattern_id: 'CometLoom',
-      })
+      await context.callTool('remove_transition', { session_id: context.sessionId, transition_id: transitionId })
       pass.endedAt = Date.now()
-      return { finalText: 'Added a CometLoom clip instead.', completion: { intent: 'apply', reply: 'Added a CometLoom clip instead.' } }
+      return { finalText: 'Left the Cut in place instead.', completion: { intent: 'apply', reply: 'Left the Cut in place instead.' } }
     },
   }
 }
@@ -80,7 +100,7 @@ describe('bridge request ids and timing', () => {
       const done = events[events.length - 1]
       if (!done || done.kind !== 'done') throw new Error('no done event')
       expect(done.changed).toBe(true)
-      expect(showFacts(done.show as ShowRecord).firstClipDurationMs).toBe(12_000)
+      expect(showFacts(done.show as ShowRecordV2).firstClipDurationMs).toBe(12_000)
       const { timing } = done
       expect(timing.delayMs).toBe(150)
       expect(timing.agentStartedAt - timing.acceptedAt).toBeGreaterThanOrEqual(150)
@@ -100,8 +120,8 @@ describe('bridge request ids and timing', () => {
     try {
       const events = await post(bridge.url, {
         requestId: 'req-repair-timing',
-        show: dictationFixture('empty-second-scene'),
-        utterance: 'Add that stock Pattern at 35 seconds.',
+        show: dictationFixture('empty-tail'),
+        utterance: 'Crossfade into a new Clip.',
         script: [],
         delayMs: 30,
         context: {},
@@ -121,7 +141,8 @@ describe('bridge request ids and timing', () => {
       expect(done.timing.agentEndedAt).toBeGreaterThanOrEqual(repaired.endedAt)
       expect(done.timing.agentEndedAt - done.timing.agentStartedAt).toBeGreaterThanOrEqual(100)
       expect(done.timing.exportedAt).toBeGreaterThanOrEqual(done.timing.agentEndedAt)
-      expect(done.timing.toolCalls.map((call) => call.name)).toEqual(['add_clip', 'remove_clip', 'add_clip'])
+      expect(done.timing.toolCalls.map((call) => call.name))
+        .toEqual(['create_clips', 'add_property_tracks', 'insert_transition', 'remove_transition'])
     } finally {
       await bridge.close()
     }

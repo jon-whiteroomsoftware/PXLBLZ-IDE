@@ -1,7 +1,9 @@
 // Provenance: pxlblz-v3 test/critiqueShow.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
 import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { critiqueShow } from '../shows/critique.js'
+import { toShowRecordV2 } from './support/convertFixture.js'
 import { validateShowDocument } from '../shows/evaluate.js'
 
 interface SceneSpec {
@@ -13,7 +15,7 @@ interface SceneSpec {
 
 // Minimal valid portable Show: one zone, one cell per non-blank Scene, one
 // boundary Transition after every Scene but the last.
-function buildShow(scenes: SceneSpec[]): ShowRecord {
+function buildShow(scenes: SceneSpec[]): ShowRecordV2 {
   const record = {
     id: 'critique-fixture',
     name: 'Critique Fixture',
@@ -52,12 +54,13 @@ function buildShow(scenes: SceneSpec[]): ShowRecord {
     updatedAt: 0,
   } as unknown as ShowRecord
   // Fixtures must stay legal: critique presumes a valid document.
-  const validated = validateShowDocument(record)
+  const converted = toShowRecordV2(record, 'critique fixture')
+  const validated = validateShowDocument(converted)
   expect(validated.errors, JSON.stringify(validated.errors)).toEqual([])
-  return record
+  return converted
 }
 
-const rulesIn = (show: ShowRecord, context = {}) => critiqueShow(show, context).map((finding) => finding.rule)
+const rulesIn = (show: ShowRecordV2, context = {}) => critiqueShow(show, context).map((finding) => finding.rule)
 
 describe('critique_show heuristics (#11)', () => {
   it('flags pacing monotony when every Scene runs the same length', () => {
@@ -76,21 +79,25 @@ describe('critique_show heuristics (#11)', () => {
     expect(rulesIn(varied)).not.toContain('pacing-monotony')
   })
 
-  it('flags the same pattern in back-to-back Scenes on one Zone', () => {
+  it('flags the same Pattern in exactly adjacent Clips on one Layer', () => {
+    // The rule is about a junction that buys no visual change, so the pair must
+    // be *exactly* adjacent: a Cut boundary, not a Transition that separates
+    // the two Clips in time.
     const repeated = buildShow([
-      { durationMs: 8_000, pattern: 'CompassRose', transitionKind: 'crossfade' },
+      { durationMs: 8_000, pattern: 'CompassRose' },
       { durationMs: 15_000, pattern: 'CompassRose', transitionKind: 'wipe' },
       { durationMs: 5_000, pattern: 'Caustics' },
     ])
     const findings = critiqueShow(repeated)
     const repetition = findings.find((finding) => finding.rule === 'adjacent-pattern-repetition')
-    expect(repetition).toBeDefined()
+    expect(repetition, JSON.stringify(findings)).toBeDefined()
     expect(repetition!.message).toContain('CompassRose')
-    expect(repetition!.message).toContain('sceneSpan')
+    expect(repetition!.message).toContain('the Cut lands on the same texture')
+    expect(repetition!.where).toMatch(/^Layer "Main", Clips /)
 
     const spaced = buildShow([
-      { durationMs: 8_000, pattern: 'CompassRose', transitionKind: 'crossfade' },
-      { durationMs: 15_000, pattern: 'Caustics', transitionKind: 'wipe' },
+      { durationMs: 8_000, pattern: 'CompassRose' },
+      { durationMs: 15_000, pattern: 'Caustics' },
       { durationMs: 5_000, pattern: 'CompassRose' },
     ])
     expect(rulesIn(spaced)).not.toContain('adjacent-pattern-repetition')

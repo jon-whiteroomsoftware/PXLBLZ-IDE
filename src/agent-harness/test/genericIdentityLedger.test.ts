@@ -1,69 +1,83 @@
-// V2-authored for #945 (second candidate review of the corrections, P1): the
-// removed-id ledger is owned per identity domain and a move never touches it.
+// V2-authored for #945 (second candidate review of the corrections, P1),
+// re-authored on the version-2 record for #1039: the removed-id ledger is owned
+// per identity domain and a move never touches it.
+//
 // Before, the ledger was one set of id strings and a move was implemented as
-// remove + add, deleting every carried id from the ledger afterwards: a
-// marker and an Effect legitimately sharing an id string let "remove the
-// marker, move the Effect, add the marker back" through, and a move into a
-// placement whose Effect of that id had just been removed redirected the
-// reference. Boundary: set_field and apply_patch through the registry and a
-// session transaction, over a record where one id string names a marker, an
-// Effect on the main clip and an Effect on the overlay clip, and where an
-// overlay Effect carries its own placement's id. Invariants: a tombstone
-// survives every later operation of the patch; an insertion or move never
-// brings an id back into the domain it was removed from; independent domains
-// (marker vs Effect; Effects of different placements) never block each other;
-// main and overlay placements, and keyframes across tracks, are one domain
-// each, as the engine's duplicate checks say; a refused patch leaves the
-// record and a transaction's working copy untouched. Oracles: exact record
-// equality for accepted edits; applyRefused's unchanged-record check and the
-// named id for refusals; the engine's own duplicate checks, called directly on
-// an edited record, for the declared record-wide domains.
+// remove + add, deleting every carried id from the ledger afterwards: a Marker
+// and an Effect legitimately sharing an id string let "remove the Marker, move
+// the Effect, add the Marker back" through, and a move into an owner whose
+// Effect of that id had just been removed redirected the reference.
+//
+// Boundary: set_field and apply_patch through the registry and a session
+// transaction, over a record where one id string names a Marker, an Effect on
+// one Clip and an Effect on another, and where an Effect carries a Clip's own
+// id. Invariants: a tombstone survives every later operation of the patch; an
+// insertion or move never brings an id back into the domain it was removed
+// from; independent domains (Marker versus Effect; Effects of different
+// appearance keys) never block each other; Clips across Layers are one domain,
+// while keyframes are scoped to their own track, as the engine's duplicate
+// checks say; a refused patch leaves the record and a transaction's working copy
+// untouched.
+// Oracles: exact record equality for accepted edits; applyRefused's
+// unchanged-record check and the named id for refusals; `validateShowRecordV2`,
+// called directly on an edited record, for the declared record-wide domains.
+//
+// The v2 domains differ from v1 in one way this file records: an Effect stack
+// belongs to a held appearance key, not to a Clip, so an Effect id is scoped to
+// its key.
 import { describe, expect, it } from 'vitest'
-import type { ShowCompositionV1 } from '@/engine/personalContentRecords'
-import { validateShowComposition } from '@/engine/showCompositionModel'
-import { validateShowPropertyTracks } from '@/engine/showPropertyAnimation'
+import { validateShowRecordV2, type ShowCompositionV2 } from '@/engine/showCompositionV2'
 import { createSessionStore } from '../grammar/session.js'
 import type { ShowGrammarDocument } from '../grammar/types.js'
-import { applyOk, applyRefused, clips, fixture } from './support/grammarHarness.js'
+import { applyOk, applyRefused, clipOnLayer, fixture } from './support/grammarHarness.js'
 
 const MARKERS = '/composition/markers'
-const MAIN_PLACEMENT = '/composition/scenes/0/zones/0/main/0'
-const OVERLAY_LAYER = '/composition/scenes/0/zones/0/overlays/0'
-const OVERLAY_PLACEMENT = `${OVERLAY_LAYER}/placements/0`
-const TRACKS = '/composition/scenes/0/propertyTracks'
+const TRACKS = '/composition/propertyTracks'
+const CLIPS = '/composition/clips'
 
-const composition = (document: ShowGrammarDocument) => document.show.composition as ShowCompositionV1
-const markersOf = (document: ShowGrammarDocument) => composition(document).markers!
-const mainPlacement = (document: ShowGrammarDocument) => composition(document).scenes[0].zones[0].main[0]
-const overlayPlacement = (document: ShowGrammarDocument) => composition(document).scenes[0].zones[0].overlays[0].placements[0]
+const composition = (document: ShowGrammarDocument) => document.show.composition
+const markersOf = (document: ShowGrammarDocument) => composition(document).markers
+const clipIndex = (document: ShowGrammarDocument, layerName: string) =>
+  composition(document).clips.findIndex((clip) => clip.id === clipOnLayer(document, layerName).clipId)
+const effectsPointer = (index: number) => `${CLIPS}/${index}/appearance/keys/0/value/effects`
+const effectsOf = (document: ShowGrammarDocument, index: number) =>
+  composition(document).clips[index].appearance.keys[0].value.effects!
 
 /**
- * The overlay fixture with two markers, brightness and hue Effects on the
- * main clip and an opacity track on the overlay clip, plus the shared id
- * strings this suite is about: a third marker carrying the hue Effect's id,
- * and an overlay Effect stack holding the brightness Effect's id and the
- * overlay placement's own id ("ov-clip-1"). The engine accepts all of it.
+ * The overlay fixture with two Markers, brightness and hue Effects on the Main
+ * Clip and an opacity track on the overlay Clip, plus the shared id strings this
+ * suite is about: a third Marker carrying the hue Effect's id, and an overlay
+ * Effect stack holding the brightness Effect's id and the overlay Clip's own id.
+ * The engine accepts all of it.
  */
-function sharedIdDocument(): ShowGrammarDocument {
+function sharedIdDocument() {
   let document = fixture({ overlay: true })
   document = applyOk(document, 'add_marker', { at_ms: 12_000, name: 'Drop' }).document
   document = applyOk(document, 'add_marker', { at_ms: 20_000, name: 'Lift' }).document
-  const mainClip = clips(document).find((clip) => clip.layer.kind === 'main' && clip.startMs === 0)!
-  document = applyOk(document, 'add_clip_effect', { clip_id: mainClip.clipId, kind: 'brightness' }).document
-  document = applyOk(document, 'add_clip_effect', { clip_id: mainClip.clipId, kind: 'hue' }).document
-  document = applyOk(document, 'add_property_track', {
-    clip_id: 'ov-clip-1',
-    target: 'opacity',
-    keyframes: [{ time_ms: 3_000, value: 0.8 }, { time_ms: 8_000, value: 0.4 }],
+  const mainClipId = clipOnLayer(document, 'Main').clipId
+  const overlayClipId = clipOnLayer(document, 'Over').clipId
+  for (const kind of ['brightness', 'hue']) {
+    document = applyOk(document, 'add_clip_effect', { clip_id: mainClipId, kind, apply: { scope: 'whole-clip' } }).document
+  }
+  document = applyOk(document, 'add_property_tracks', {
+    tracks: [{
+      target: { kind: 'opacity', clip_id: overlayClipId },
+      keyframes: [{ at_ms: 3_000, value: 0.8 }, { at_ms: 8_000, value: 0.4 }],
+    }],
   }).document
-  const [brightness, hue] = mainPlacement(document).effects!
+  const main = clipIndex(document, 'Main')
+  const over = clipIndex(document, 'Over')
+  const [brightness, hue] = effectsOf(document, main)
   document = applyOk(document, 'apply_patch', {
     patch: [
       { op: 'add', path: `${MARKERS}/-`, value: { id: hue.id, timeMs: 25_000, name: 'Shared' } },
-      { op: 'add', path: `${OVERLAY_PLACEMENT}/effects`, value: [{ ...brightness }, { ...hue, id: 'ov-clip-1' }] },
+      // Each Effect enters the overlay key's own domain by insertion; replacing
+      // the collection would be a write over elements it does not hold.
+      { op: 'add', path: `${effectsPointer(over)}/-`, value: { ...brightness } },
+      { op: 'add', path: `${effectsPointer(over)}/-`, value: { ...hue, id: overlayClipId } },
     ],
   }).document
-  return document
+  return { document, main, over, overlayClipId, brightness, hue }
 }
 
 function refusedIdentity(document: ShowGrammarDocument, operation: string, args: Record<string, unknown>, id: string) {
@@ -73,69 +87,66 @@ function refusedIdentity(document: ShowGrammarDocument, operation: string, args:
   return issues
 }
 
-function expectedFrom(document: ShowGrammarDocument, edit: (comp: ShowCompositionV1) => void) {
+function expectedFrom(document: ShowGrammarDocument, edit: (composition: ShowCompositionV2) => void) {
   const expected = structuredClone(document.show)
-  edit(expected.composition as ShowCompositionV1)
+  edit(expected.composition)
   return expected
 }
 
 describe('the fixture itself: one id string across independent domains is a valid Show', () => {
-  it('shares the hue id between a marker and an Effect, and the brightness id between two placements', () => {
-    const document = sharedIdDocument()
-    const [brightness, hue] = mainPlacement(document).effects!
+  it('shares the hue id between a Marker and an Effect, and the brightness id between two Clips', () => {
+    const { document, over, overlayClipId, brightness, hue } = sharedIdDocument()
     expect(markersOf(document).map((marker) => marker.id)).toContain(hue.id)
-    expect(overlayPlacement(document).effects!.map((effect) => effect.id)).toEqual([brightness.id, 'ov-clip-1'])
-    expect(overlayPlacement(document).id).toBe('ov-clip-1')
+    expect(effectsOf(document, over).map((effect) => effect.id)).toEqual([brightness.id, overlayClipId])
+    expect(validateShowRecordV2(document.show)).toEqual([])
   })
 })
 
 describe('a move never erases a tombstone (#945 second review, P1)', () => {
-  it('refuses the recycled marker after a distinct Effect of the same id moved between placements', () => {
-    const document = sharedIdDocument()
-    const hue = mainPlacement(document).effects![1]
+  it('refuses the recycled Marker after a distinct Effect of the same id moved between Clips', () => {
+    const { document, main, over, hue } = sharedIdDocument()
     const sharedMarker = markersOf(document).findIndex((marker) => marker.id === hue.id)
     refusedIdentity(document, 'apply_patch', {
       patch: [
         { op: 'remove', path: `${MARKERS}/${sharedMarker}` },
-        { op: 'move', from: `${MAIN_PLACEMENT}/effects/1`, path: `${OVERLAY_PLACEMENT}/effects/-` },
+        { op: 'move', from: `${effectsPointer(main)}/1`, path: `${effectsPointer(over)}/-` },
         { op: 'add', path: `${MARKERS}/-`, value: { id: hue.id, timeMs: 26_000, name: 'Recycled' } },
       ],
     }, hue.id)
   })
 
-  it('refuses a move that would bring an id back into the placement it was removed from', () => {
-    const document = sharedIdDocument()
-    const brightness = mainPlacement(document).effects![0]
-    // The overlay clip's first Effect carries the main clip's brightness id:
-    // moving it in after removing the main clip's own would redirect the
-    // reference (main clip, brightness id) to another element.
+  it('refuses a move that would bring an id back into the key it was removed from', () => {
+    const { document, main, over, brightness } = sharedIdDocument()
+    // The overlay Clip's first Effect carries the Main Clip's brightness id:
+    // moving it in after removing the Main Clip's own would redirect the
+    // reference (that appearance key, brightness id) to another element.
     refusedIdentity(document, 'apply_patch', {
       patch: [
-        { op: 'remove', path: `${MAIN_PLACEMENT}/effects/0` },
-        { op: 'move', from: `${OVERLAY_PLACEMENT}/effects/0`, path: `${MAIN_PLACEMENT}/effects/0` },
+        { op: 'remove', path: `${effectsPointer(main)}/0` },
+        { op: 'move', from: `${effectsPointer(over)}/0`, path: `${effectsPointer(main)}/0` },
       ],
     }, brightness.id)
   })
 
   it('keeps a legal move and the tombstones of other elements side by side', () => {
-    const document = sharedIdDocument()
+    const { document, main, over, hue } = sharedIdDocument()
     const [a] = markersOf(document)
-    const hue = mainPlacement(document).effects![1]
     const moved = applyOk(document, 'apply_patch', {
       patch: [
         { op: 'remove', path: `${MARKERS}/0` },
-        { op: 'move', from: `${MAIN_PLACEMENT}/effects/1`, path: `${OVERLAY_PLACEMENT}/effects/-` },
+        { op: 'move', from: `${effectsPointer(main)}/1`, path: `${effectsPointer(over)}/-` },
       ],
     })
     expect(moved.document.show).toEqual(expectedFrom(document, (comp) => {
-      comp.markers = comp.markers!.slice(1)
-      comp.scenes[0].zones[0].main[0].effects = comp.scenes[0].zones[0].main[0].effects!.slice(0, 1)
-      comp.scenes[0].zones[0].overlays[0].placements[0].effects!.push(hue)
+      comp.markers = comp.markers.slice(1)
+      const mainEffects = comp.clips[main].appearance.keys[0].value.effects!
+      comp.clips[main].appearance.keys[0].value.effects = mainEffects.slice(0, 1)
+      comp.clips[over].appearance.keys[0].value.effects!.push(hue)
     }))
     refusedIdentity(document, 'apply_patch', {
       patch: [
         { op: 'remove', path: `${MARKERS}/0` },
-        { op: 'move', from: `${MAIN_PLACEMENT}/effects/1`, path: `${OVERLAY_PLACEMENT}/effects/-` },
+        { op: 'move', from: `${effectsPointer(main)}/1`, path: `${effectsPointer(over)}/-` },
         { op: 'add', path: `${MARKERS}/-`, value: { id: a.id, timeMs: 27_000, name: 'Back' } },
       ],
     }, a.id)
@@ -151,103 +162,63 @@ describe('a move never erases a tombstone (#945 second review, P1)', () => {
 })
 
 describe('tombstones are owned by identity domains (#945 second review, P1)', () => {
-  it('lets independent domains carry the same id string: a removed marker does not block an Effect', () => {
-    const document = sharedIdDocument()
-    const hue = mainPlacement(document).effects![1]
+  it('lets independent domains carry the same id string: a removed Marker does not block an Effect', () => {
+    const { document, over, hue } = sharedIdDocument()
     const sharedMarker = markersOf(document).findIndex((marker) => marker.id === hue.id)
     const result = applyOk(document, 'apply_patch', {
       patch: [
         { op: 'remove', path: `${MARKERS}/${sharedMarker}` },
-        { op: 'add', path: `${OVERLAY_PLACEMENT}/effects/-`, value: { ...hue } },
+        { op: 'add', path: `${effectsPointer(over)}/-`, value: { ...hue } },
       ],
     })
     expect(result.document.show).toEqual(expectedFrom(document, (comp) => {
-      comp.markers = comp.markers!.filter((marker) => marker.id !== hue.id)
-      comp.scenes[0].zones[0].overlays[0].placements[0].effects!.push({ ...hue })
+      comp.markers = comp.markers.filter((marker) => marker.id !== hue.id)
+      comp.clips[over].appearance.keys[0].value.effects!.push({ ...hue })
     }))
   })
 
-  it('scopes an Effect id to its placement: removed from one clip, it is fresh on another', () => {
-    const document = sharedIdDocument()
-    const hue = mainPlacement(document).effects![1]
+  it('scopes an Effect id to its appearance key: removed from one, it is fresh on another', () => {
+    const { document, main, over, hue } = sharedIdDocument()
     const result = applyOk(document, 'apply_patch', {
       patch: [
-        { op: 'remove', path: `${MAIN_PLACEMENT}/effects/1` },
-        { op: 'add', path: `${OVERLAY_PLACEMENT}/effects/-`, value: { ...hue } },
+        { op: 'remove', path: `${effectsPointer(main)}/1` },
+        { op: 'add', path: `${effectsPointer(over)}/-`, value: { ...hue } },
       ],
     })
     expect(result.document.show).toEqual(expectedFrom(document, (comp) => {
-      comp.scenes[0].zones[0].main[0].effects = comp.scenes[0].zones[0].main[0].effects!.slice(0, 1)
-      comp.scenes[0].zones[0].overlays[0].placements[0].effects!.push({ ...hue })
+      const mainEffects = comp.clips[main].appearance.keys[0].value.effects!
+      comp.clips[main].appearance.keys[0].value.effects = mainEffects.slice(0, 1)
+      comp.clips[over].appearance.keys[0].value.effects!.push({ ...hue })
     }))
-    // Back onto the same clip it is a recycle.
+    // Back onto the same key it is a recycle.
     refusedIdentity(document, 'apply_patch', {
       patch: [
-        { op: 'remove', path: `${MAIN_PLACEMENT}/effects/1` },
-        { op: 'add', path: `${MAIN_PLACEMENT}/effects/-`, value: { ...hue, hue: 0.25 } },
+        { op: 'remove', path: `${effectsPointer(main)}/1` },
+        { op: 'add', path: `${effectsPointer(main)}/-`, value: { ...hue, turns: 0.25 } },
       ],
     }, hue.id)
   })
 
-  it('keys an Effect domain by its placement id, so removing the placement tombstones its stack but no other', () => {
-    const document = sharedIdDocument()
-    const hue = mainPlacement(document).effects![1]
-    const placement = overlayPlacement(document)
-    // The overlay placement (id ov-clip-1) goes, with its Effect of the same
-    // id; a main-clip Effect may then carry "ov-clip-1", a placement may not.
-    const result = applyOk(document, 'apply_patch', {
-      patch: [
-        { op: 'remove', path: `${TRACKS}/0` },
-        { op: 'remove', path: OVERLAY_PLACEMENT },
-        { op: 'add', path: `${MAIN_PLACEMENT}/effects/-`, value: { ...hue, id: 'ov-clip-1' } },
-      ],
-    })
-    expect(result.document.show).toEqual(expectedFrom(document, (comp) => {
-      comp.scenes[0].propertyTracks = []
-      comp.scenes[0].zones[0].overlays[0].placements = []
-      comp.scenes[0].zones[0].main[0].effects!.push({ ...hue, id: 'ov-clip-1' })
-    }))
+  it('treats Clips on different Layers as one domain', () => {
+    const { document, main, over } = sharedIdDocument()
+    const mainClip = composition(document).clips[main]
+    const overlayClip = composition(document).clips[over]
     refusedIdentity(document, 'apply_patch', {
       patch: [
-        { op: 'remove', path: `${TRACKS}/0` },
-        { op: 'remove', path: OVERLAY_PLACEMENT },
-        { op: 'add', path: `${OVERLAY_LAYER}/placements/-`, value: { ...placement, effects: [] } },
+        { op: 'remove', path: `${CLIPS}/${main}` },
+        { op: 'add', path: `${CLIPS}/-`, value: { ...structuredClone(overlayClip), id: mainClip.id } },
       ],
-    }, 'ov-clip-1')
-    // A new placement's stack is a new domain: its Effect may carry the string.
-    const replaced = applyOk(document, 'apply_patch', {
-      patch: [
-        { op: 'remove', path: `${TRACKS}/0` },
-        { op: 'remove', path: OVERLAY_PLACEMENT },
-        { op: 'add', path: `${OVERLAY_LAYER}/placements/-`, value: { ...placement, id: 'ov-clip-2', effects: [{ ...hue, id: 'ov-clip-1' }] } },
-      ],
-    })
-    expect(replaced.document.show).toEqual(expectedFrom(document, (comp) => {
-      comp.scenes[0].propertyTracks = []
-      comp.scenes[0].zones[0].overlays[0].placements = [{ ...placement, id: 'ov-clip-2', effects: [{ ...hue, id: 'ov-clip-1' }] }]
-    }))
-  })
-
-  it('treats main and overlay placements as one domain', () => {
-    const document = sharedIdDocument()
-    const placement = mainPlacement(document)
-    refusedIdentity(document, 'apply_patch', {
-      patch: [
-        { op: 'remove', path: MAIN_PLACEMENT },
-        { op: 'add', path: `${OVERLAY_LAYER}/placements/-`, value: { ...placement, startMs: 30_000, durationMs: 0, opacity: 1 } },
-      ],
-    }, placement.id)
+    }, mainClip.id)
   })
 
   it('refuses the recycle atomically where nested owners share the id string, in and out of a transaction', () => {
-    const document = sharedIdDocument()
-    const hue = mainPlacement(document).effects![1]
+    const { document, over, overlayClipId, hue } = sharedIdDocument()
     const patch = [
       { op: 'replace', path: `${MARKERS}/0/name`, value: 'Bass' },
-      { op: 'remove', path: `${OVERLAY_PLACEMENT}/effects/1` },
-      { op: 'add', path: `${OVERLAY_PLACEMENT}/effects/-`, value: { ...hue, id: 'ov-clip-1' } },
+      { op: 'remove', path: `${effectsPointer(over)}/1` },
+      { op: 'add', path: `${effectsPointer(over)}/-`, value: { ...hue, id: overlayClipId } },
     ]
-    refusedIdentity(document, 'apply_patch', { patch }, 'ov-clip-1')
+    refusedIdentity(document, 'apply_patch', { patch }, overlayClipId)
 
     const store = createSessionStore()
     const opened = store.open(document.show)
@@ -268,37 +239,53 @@ describe('tombstones are owned by identity domains (#945 second review, P1)', ()
 describe('the declared record-wide domains agree with the engine', () => {
   // The generic surface validates through tier-0 only, so the engine's own
   // duplicate checks are the oracle here: they define the domains the ledger
-  // declares (placements across main and overlay layers; keyframes across
-  // tracks), and their silence on a marker/Effect and on the Effects of two
-  // placements is what makes those domains independent.
-  it('a placement id duplicated across main and overlay layers is a duplicate to the engine', () => {
-    const document = sharedIdDocument()
-    const placement = mainPlacement(document)
+  // declares (Clips across Layers; keyframes across tracks), and their silence
+  // on a Marker/Effect pair and on the Effects of two appearance keys is what
+  // makes those domains independent.
+  it('a Clip id duplicated across Layers is a duplicate to the engine', () => {
+    const { document, main, over } = sharedIdDocument()
+    const mainClip = composition(document).clips[main]
     const record = expectedFrom(document, (comp) => {
-      comp.scenes[0].zones[0].overlays[0].placements.push({
-        ...overlayPlacement(document), id: placement.id, startMs: 30_000, durationMs: 0, effects: [],
-      })
+      comp.clips.push({ ...structuredClone(comp.clips[over]), id: mainClip.id, startMs: 40_000, durationMs: 1_000 })
     })
-    const issues = validateShowComposition(record, record.composition as ShowCompositionV1)
-    expect(issues.some((issue) => issue.code === 'duplicate-id' && issue.message.includes(placement.id))).toBe(true)
-    expect(validateShowComposition(document.show, composition(document))).toEqual([])
+    const issues = validateShowRecordV2(record)
+    expect(issues.some((issue) => issue.code === 'duplicate-id' && issue.message.includes(mainClip.id))).toBe(true)
+    expect(validateShowRecordV2(document.show)).toEqual([])
   })
 
-  it('a keyframe id duplicated across tracks is a duplicate to the engine', () => {
-    let document = sharedIdDocument()
-    const mainClip = clips(document).find((clip) => clip.layer.kind === 'main' && clip.startMs === 0)!
-    document = applyOk(document, 'add_property_track', {
-      clip_id: mainClip.clipId,
-      target: 'view-brightness',
-      keyframes: [{ time_ms: 0, value: 1 }, { time_ms: 10_000, value: 0.5 }],
+  it('a keyframe id is scoped to its track: duplicated inside one, the engine refuses; across two, it does not', () => {
+    const { document: base, main } = sharedIdDocument()
+    const document = applyOk(base, 'add_property_tracks', {
+      tracks: [{
+        target: { kind: 'view-brightness', clip_id: composition(base).clips[main].id },
+        keyframes: [{ at_ms: 0, value: 1 }, { at_ms: 10_000, value: 0.5 }],
+      }],
     }).document
-    const [overlayTrack, mainTrack] = composition(document).scenes[0].propertyTracks!
+    const [overlayTrack, mainTrack] = composition(document).propertyTracks
     const borrowed = mainTrack.keyframes[0].id
-    const record = expectedFrom(document, (comp) => {
-      comp.scenes[0].propertyTracks![0].keyframes.push({ ...overlayTrack.keyframes[1], id: borrowed, timeMs: 9_000 })
+
+    // Across two tracks the same id string is legal.
+    const shared = expectedFrom(document, (comp) => {
+      comp.propertyTracks[0].keyframes[0].id = borrowed
     })
-    const issues = validateShowPropertyTracks(record, record.composition as ShowCompositionV1)
-    expect(issues.some((issue) => issue.code === 'duplicate-keyframe-id' && issue.message.includes(borrowed))).toBe(true)
-    expect(validateShowPropertyTracks(document.show, composition(document))).toEqual([])
+    expect(validateShowRecordV2(shared)).toEqual([])
+
+    // Inside one track it is a duplicate.
+    const duplicated = expectedFrom(document, (comp) => {
+      comp.propertyTracks[0].keyframes.push({
+        ...structuredClone(overlayTrack.keyframes[1]),
+        id: overlayTrack.keyframes[0].id,
+        timeMs: 7_000,
+      })
+    })
+    const issues = validateShowRecordV2(duplicated)
+    expect(issues.some((issue) => issue.code === 'duplicate-id' && issue.message.includes(overlayTrack.keyframes[0].id))).toBe(true)
+    expect(validateShowRecordV2(document.show)).toEqual([])
+  })
+
+  it(`${TRACKS} removal keeps the rest of the record valid`, () => {
+    const { document } = sharedIdDocument()
+    const cleared = applyOk(document, 'set_field', { pointer: TRACKS, value: [] })
+    expect(validateShowRecordV2(cleared.document.show)).toEqual([])
   })
 })

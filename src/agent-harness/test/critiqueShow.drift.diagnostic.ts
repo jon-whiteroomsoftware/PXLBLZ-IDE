@@ -13,6 +13,7 @@
 import { describe, expect, it } from 'vitest'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { critiqueShow } from '../shows/critique.js'
+import { toShowRecordV2 } from './support/convertFixture.js'
 import { compileShowDocument } from '../shows/evaluate.js'
 
 describe('V3 critique oracle against the live V2 compiler (#945 diagnostic)', () => {
@@ -20,8 +21,9 @@ describe('V3 critique oracle against the live V2 compiler (#945 diagnostic)', ()
     for (const name of ['106 Built from Basics', 'Blend and Fade Transitions']) {
       const item = STOCK_SHOWS.find((entry) => entry.name === name)
       expect(item, name).toBeDefined()
-      const compiled = compileShowDocument(structuredClone(item!.show))
-      const findings = critiqueShow(item!.show, {
+      const record = toShowRecordV2(structuredClone(item!.show), name)
+      const compiled = compileShowDocument(record)
+      const findings = critiqueShow(record, {
         budgetRatio: compiled.ok ? compiled.summary.artifactBudgetRatio : undefined,
       })
       expect(findings, `${name}: ${JSON.stringify(findings.map((f) => f.rule))}`).toEqual([])

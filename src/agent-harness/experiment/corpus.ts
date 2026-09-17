@@ -1,38 +1,46 @@
-// Provenance: pxlblz-v3 src/experiment/corpus.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// Corpus format for the dictation experiment (#23): each case is a starting
-// Show (a named fixture plus setup operations), an editor context, an
-// utterance, the expected outcome, and executable assertions over the
-// resulting document. The zod schema below is the format's contract; the
-// loader refuses a corpus whose cases do not validate or whose starting
-// Shows fail to open.
+// Provenance: pxlblz-v3 src/experiment/corpus.ts at 9ecd481f, re-authored onto the
+// version-2 vocabulary for #1039 (see src/agent-harness/PROVENANCE.md).
+// Corpus format for the dictation experiment: each case is a starting Show (a
+// named fixture plus setup operations), an editor context, an utterance, the
+// expected outcome, and executable assertions over the resulting document. The
+// zod schema below is the format's contract; the loader refuses a corpus whose
+// cases do not validate or whose starting Shows fail to open.
+//
+// Every assertion addresses v2 entities: Clips, Layers, Transitions between two
+// named Clips, global Property tracks and held appearance keys. Nothing here
+// names a Scene, an overlay index or a Scene-local time.
 import { z } from 'zod'
-import type { ShowRecord } from '@/engine/personalContentRecords'
-import { evaluateShowPropertyTrack } from '@/engine/showPropertyAnimation'
-import { showLoopDurationMs } from '@/engine/showModel'
+import type { ShowClipV2, ShowRecordV2 } from '@/engine/showCompositionV2'
+import { evaluateShowPropertyTrackV2 } from '@/engine/showPropertyAnimationV2'
 import { openShowDocument, projectClipListing } from '../grammar/openShow.js'
 import { describeShow } from '../grammar/read.js'
+import { describeTarget, trackSites } from '../grammar/support.js'
 import type { ShowGrammarDocument } from '../grammar/types.js'
-import type { ShowCompositionV1 } from '@/engine/personalContentRecords'
 
 export const REFERENT_SOURCES = [
   'direct', 'hover', 'selection', 'ordinal', 'time', 'pattern-name', 'none',
 ] as const
 
 export const OPERATION_FAMILIES = [
-  'clips', 'timeline', 'animation', 'junctions', 'layer-transitions',
-  'effects', 'structure', 'generic',
+  'clips', 'layers', 'show', 'animation', 'transitions', 'layouts', 'markers',
+  'effects', 'groups', 'generic',
 ] as const
 
 const clipLocatorSchema = z.object({
   start_ms: z.number().optional(),
   pattern_name: z.string().optional(),
-  layer_kind: z.enum(['main', 'overlay']).optional(),
+  /** The Zone-owned Layer's authored name; v2 has no overlay index. */
+  layer_name: z.string().optional(),
 })
+
+type ClipLocator = z.infer<typeof clipLocatorSchema>
 
 const assertionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('clip-count'), count: z.number().int() }),
   z.object({ kind: z.literal('clip-duration'), clip: clipLocatorSchema, duration_ms: z.number() }),
   z.object({ kind: z.literal('clip-start'), clip: clipLocatorSchema, start_ms: z.number() }),
+  z.object({ kind: z.literal('clip-layer'), clip: clipLocatorSchema, layer_name: z.string() }),
+  z.object({ kind: z.literal('clip-entry-policy'), clip: clipLocatorSchema, policy: z.enum(['continue', 'restart']) }),
   z.object({
     kind: z.literal('track-keyframes'),
     clip: clipLocatorSchema,
@@ -44,13 +52,21 @@ const assertionSchema = z.discriminatedUnion('kind', [
     kind: z.literal('track-value-at'),
     clip: clipLocatorSchema,
     target_contains: z.string(),
-    at_local_ms: z.number(),
+    /** Global milliseconds; a track has effect only inside its activation. */
+    at_ms: z.number(),
     value: z.number(),
     tolerance: z.number().optional(),
   }),
-  z.object({ kind: z.literal('junction-kind'), after_scene_id: z.string(), junction_kind: z.string() }),
   z.object({
-    kind: z.literal('layer-transition'),
+    kind: z.literal('junction'),
+    /** The junction whose outgoing Clip this locates. */
+    clip: clipLocatorSchema,
+    scope: z.enum(['layer', 'whole-output', 'derived-cut']),
+    junction_kind: z.string().optional(),
+    duration_ms: z.number().optional(),
+  }),
+  z.object({
+    kind: z.literal('transition-count'),
     count: z.number().int(),
     duration_ms: z.number().optional(),
   }),
@@ -79,7 +95,7 @@ export type CorpusAssertion = z.infer<typeof assertionSchema>
 
 const contextSchema = z.object({
   hovered_clip_at_ms: z.number().optional()
-    .describe('Resolved to the clip id at this start time when the case loads'),
+    .describe('Resolved to the Clip id at this start time when the case loads'),
   selected_clip_at_ms: z.array(z.number()).optional(),
   playhead_ms: z.number().optional(),
   active_zone_id: z.string().optional(),
@@ -92,11 +108,14 @@ const scriptStepSchema = z.union([
 
 export type ScriptStep = z.infer<typeof scriptStepSchema>
 
+export const FIXTURE_NAMES = ['base', 'empty-tail', 'overlay', 'boundary-crossfade', 'four-clips'] as const
+export type FixtureName = (typeof FIXTURE_NAMES)[number]
+
 export const caseSchema = z.object({
   id: z.string(),
   family: z.enum(OPERATION_FAMILIES),
   referent: z.enum(REFERENT_SOURCES),
-  fixture: z.enum(['base', 'empty-second-scene', 'overlay', 'boundary-crossfade', 'four-clips']),
+  fixture: z.enum(FIXTURE_NAMES),
   setup: z.array(z.object({ operation: z.string(), args: z.record(z.unknown()) })).optional(),
   context: contextSchema.optional(),
   utterance: z.string(),
@@ -109,12 +128,11 @@ export const caseSchema = z.object({
   /** The intended solution, executed verbatim by the scripted fake agent. */
   script: z.array(scriptStepSchema),
   /**
-   * Later turns of the same conversation (seeded from live bridge
-   * sessions): each runs as a fresh agent turn carrying the dialogue
-   * history, exactly as the bridge does. `expect` covers the whole
-   * conversation - the outcome classifies the final turn, assertions run
-   * on the final document, and committing an edit before the final turn
-   * fails as premature.
+   * Later turns of the same conversation (seeded from live bridge sessions):
+   * each runs as a fresh agent turn carrying the dialogue history, exactly as
+   * the bridge does. `expect` covers the whole conversation — the outcome
+   * classifies the final turn, assertions run on the final document, and
+   * committing an edit before the final turn fails as premature.
    */
   followups: z.array(z.object({
     utterance: z.string(),
@@ -124,22 +142,22 @@ export const caseSchema = z.object({
 
 export type DictationCase = z.infer<typeof caseSchema>
 
-/** Assertions accept a flat record too; it normalizes like open_show. */
-function normalizedDocument(show: ShowRecord): ShowGrammarDocument {
-  if (show.composition) return { show, inlinePatterns: [], options: {} }
-  const opened = openShowDocument(show)
-  if (!opened.ok) throw new Error(`assertion target does not open: ${opened.issues[0]?.message}`)
-  return opened.document
+function documentOf(show: ShowRecordV2): ShowGrammarDocument {
+  return { show, inlinePatterns: [], options: {} }
 }
 
-function locateClip(show: ShowRecord, locator: z.infer<typeof clipLocatorSchema>) {
-  const document = normalizedDocument(show)
-  const clips = projectClipListing(document).clips.filter((clip) =>
+function locateClip(show: ShowRecordV2, locator: ClipLocator) {
+  return projectClipListing(documentOf(show)).clips.find((clip) =>
     (locator.start_ms === undefined || clip.startMs === locator.start_ms) &&
     (locator.pattern_name === undefined ||
       clip.patternName.toLowerCase().includes(locator.pattern_name.toLowerCase())) &&
-    (locator.layer_kind === undefined || clip.layer.kind === locator.layer_kind))
-  return clips[0]
+    (locator.layer_name === undefined ||
+      clip.layerName.toLowerCase() === locator.layer_name.toLowerCase()))
+}
+
+/** The Clip record behind a listing entry, for held-appearance assertions. */
+function clipRecord(show: ShowRecordV2, clipId: string): ShowClipV2 | undefined {
+  return show.composition.clips.find((clip) => clip.id === clipId)
 }
 
 export interface AssertionResult {
@@ -149,57 +167,69 @@ export interface AssertionResult {
 }
 
 /** Evaluate one assertion against the final exported document. */
-export function evaluateAssertion(show: ShowRecord, assertion: CorpusAssertion): AssertionResult {
-  const document = normalizedDocument(show)
+export function evaluateAssertion(show: ShowRecordV2, assertion: CorpusAssertion): AssertionResult {
+  const document = documentOf(show)
   const fail = (detail: string) => ({ assertion, passed: false, detail })
   const pass = (detail: string) => ({ assertion, passed: true, detail })
-  const composition = document.show.composition as ShowCompositionV1 | undefined
 
   switch (assertion.kind) {
     case 'clip-count': {
       const count = projectClipListing(document).clips.length
       return count === assertion.count
-        ? pass(`${count} clips`)
-        : fail(`expected ${assertion.count} clips, found ${count}`)
+        ? pass(`${count} Clips`)
+        : fail(`expected ${assertion.count} Clips, found ${count}`)
     }
     case 'clip-duration': {
       const clip = locateClip(show, assertion.clip)
-      if (!clip) return fail(`no clip matches ${JSON.stringify(assertion.clip)}`)
+      if (!clip) return fail(`no Clip matches ${JSON.stringify(assertion.clip)}`)
       return clip.durationMs === assertion.duration_ms
-        ? pass(`clip ${clip.clipId} is ${clip.durationMs} ms`)
-        : fail(`clip ${clip.clipId} is ${clip.durationMs} ms, expected ${assertion.duration_ms}`)
+        ? pass(`Clip ${clip.clipId} is ${clip.durationMs} ms`)
+        : fail(`Clip ${clip.clipId} is ${clip.durationMs} ms, expected ${assertion.duration_ms}`)
     }
     case 'clip-start': {
       const clip = locateClip(show, assertion.clip)
-      if (!clip) return fail(`no clip matches ${JSON.stringify(assertion.clip)}`)
+      if (!clip) return fail(`no Clip matches ${JSON.stringify(assertion.clip)}`)
       return clip.startMs === assertion.start_ms
-        ? pass(`clip ${clip.clipId} starts at ${clip.startMs} ms`)
-        : fail(`clip ${clip.clipId} starts at ${clip.startMs} ms, expected ${assertion.start_ms}`)
+        ? pass(`Clip ${clip.clipId} starts at ${clip.startMs} ms`)
+        : fail(`Clip ${clip.clipId} starts at ${clip.startMs} ms, expected ${assertion.start_ms}`)
+    }
+    case 'clip-layer': {
+      const clip = locateClip(show, assertion.clip)
+      if (!clip) return fail(`no Clip matches ${JSON.stringify(assertion.clip)}`)
+      return clip.layerName === assertion.layer_name
+        ? pass(`Clip ${clip.clipId} is on Layer ${clip.layerName}`)
+        : fail(`Clip ${clip.clipId} is on Layer ${clip.layerName}, expected ${assertion.layer_name}`)
+    }
+    case 'clip-entry-policy': {
+      const clip = locateClip(show, assertion.clip)
+      if (!clip) return fail(`no Clip matches ${JSON.stringify(assertion.clip)}`)
+      return clip.entryPolicy === assertion.policy
+        ? pass(`Clip ${clip.clipId} enters with ${clip.entryPolicy}`)
+        : fail(`Clip ${clip.clipId} enters with ${clip.entryPolicy}, expected ${assertion.policy}`)
     }
     case 'track-keyframes':
     case 'track-value-at': {
       const clip = locateClip(show, assertion.clip)
-      if (!clip) return fail(`no clip matches ${JSON.stringify(assertion.clip)}`)
-      const description = describeShow(document)
-      const described = description.zones
-        .flatMap((zone) => zone.layers)
-        .flatMap((layer) => layer.clips)
-        .find((candidate) => candidate.clipId === clip.clipId)
-      const trackInfo = described?.tracks.find((track) =>
-        track.target.toLowerCase().includes(assertion.target_contains.toLowerCase()))
-      if (!trackInfo) {
-        return fail(`clip ${clip.clipId} has no track targeting "${assertion.target_contains}"`)
-      }
-      const track = composition?.scenes
-        .flatMap((scene) => scene.propertyTracks ?? [])
-        .find((candidate) => candidate.id === trackInfo.trackId)
-      if (!track) return fail(`track ${trackInfo.trackId} not found in the composition`)
+      if (!clip) return fail(`no Clip matches ${JSON.stringify(assertion.clip)}`)
+      const needle = assertion.target_contains.toLowerCase()
+      const site = trackSites(document).find((candidate) => {
+        const target = candidate.track.target
+        const owns = ('clipId' in target && target.clipId === clip.clipId)
+          || ('instanceId' in target && target.instanceId === clip.instanceId)
+        return owns && describeTarget(candidate.track.target).toLowerCase().includes(needle)
+      })
+      if (!site) return fail(`Clip ${clip.clipId} has no track targeting "${assertion.target_contains}"`)
+      const { track } = site
       if (assertion.kind === 'track-value-at') {
-        const value = evaluateShowPropertyTrack(track, assertion.at_local_ms)
+        const value = evaluateShowPropertyTrackV2(track, assertion.at_ms)
+        if (value === undefined) {
+          return fail(`track ${track.id} is inactive at ${assertion.at_ms} ms ` +
+            `(active ${track.activeStartMs}–${track.activeStartMs + track.activeDurationMs} ms)`)
+        }
         const tolerance = assertion.tolerance ?? 0.001
         return Math.abs(value - assertion.value) <= tolerance
-          ? pass(`value ${value} at ${assertion.at_local_ms} ms`)
-          : fail(`value ${value} at ${assertion.at_local_ms} ms, expected ${assertion.value}`)
+          ? pass(`value ${value} at ${assertion.at_ms} ms`)
+          : fail(`value ${value} at ${assertion.at_ms} ms, expected ${assertion.value}`)
       }
       const times = track.keyframes.map((keyframe) => keyframe.timeMs)
       const values = track.keyframes.map((keyframe) => keyframe.value)
@@ -211,61 +241,76 @@ export function evaluateAssertion(show: ShowRecord, assertion: CorpusAssertion):
       }
       return pass(`track ${track.id}: times ${times.join(',')}`)
     }
-    case 'junction-kind': {
-      const transition = show.transitions?.find(
-        (candidate) => candidate.afterSceneId === assertion.after_scene_id)
-      if (!transition) return fail(`no boundary transition after ${assertion.after_scene_id}`)
-      return transition.kind === assertion.junction_kind
-        ? pass(`junction after ${assertion.after_scene_id} is ${transition.kind}`)
-        : fail(`junction after ${assertion.after_scene_id} is ${transition.kind}, expected ${assertion.junction_kind}`)
+    case 'junction': {
+      const clip = locateClip(show, assertion.clip)
+      if (!clip) return fail(`no Clip matches ${JSON.stringify(assertion.clip)}`)
+      const junction = describeShow(document).zones
+        .flatMap((zone) => zone.layers)
+        .flatMap((layer) => layer.junctions)
+        .find((candidate) => candidate.fromClipId === clip.clipId)
+      if (!junction) return fail(`no junction follows Clip ${clip.clipId}`)
+      if (junction.scope !== assertion.scope) {
+        return fail(`junction after ${clip.clipId} is ${junction.scope}, expected ${assertion.scope}`)
+      }
+      if (assertion.junction_kind !== undefined && junction.kind !== assertion.junction_kind) {
+        return fail(`junction after ${clip.clipId} is ${junction.kind}, expected ${assertion.junction_kind}`)
+      }
+      if (assertion.duration_ms !== undefined && junction.durationMs !== assertion.duration_ms) {
+        return fail(`junction after ${clip.clipId} is ${junction.durationMs} ms, expected ${assertion.duration_ms}`)
+      }
+      return pass(`junction after ${clip.clipId} is ${junction.scope} ${junction.kind}`)
     }
-    case 'layer-transition': {
-      const transitions = composition?.transitions ?? []
+    case 'transition-count': {
+      const transitions = show.composition.transitions
       if (transitions.length !== assertion.count) {
-        return fail(`${transitions.length} layer transitions, expected ${assertion.count}`)
+        return fail(`${transitions.length} Transitions, expected ${assertion.count}`)
       }
       if (assertion.duration_ms !== undefined &&
           !transitions.some((candidate) => candidate.durationMs === assertion.duration_ms)) {
-        return fail(`no layer transition of ${assertion.duration_ms} ms`)
+        return fail(`no Transition of ${assertion.duration_ms} ms`)
       }
-      return pass(`${transitions.length} layer transitions`)
+      return pass(`${transitions.length} Transitions`)
     }
-    case 'effect': {
+    case 'effect':
+    case 'no-effect': {
       const clip = locateClip(show, assertion.clip)
-      if (!clip) return fail(`no clip matches ${JSON.stringify(assertion.clip)}`)
-      const placement = composition?.scenes
-        .flatMap((scene) => scene.zones)
-        .flatMap((zone) => [...zone.main, ...zone.overlays.flatMap((layer) => layer.placements)])
-        .find((candidate) => candidate.id === clip.startPlacementId)
-      const effect = placement?.effects?.find((candidate) => candidate.kind === assertion.effect_kind)
-      if (!effect) return fail(`clip ${clip.clipId} has no ${assertion.effect_kind} Effect`)
+      if (!clip) return fail(`no Clip matches ${JSON.stringify(assertion.clip)}`)
+      const record = clipRecord(show, clip.clipId)
+      const effects = record?.appearance.keys.flatMap((key) => key.value.effects ?? []) ?? []
+      const effect = effects.find((candidate) => candidate.kind === assertion.effect_kind)
+      if (assertion.kind === 'no-effect') {
+        return effect
+          ? fail(`Clip ${clip.clipId} still has a ${assertion.effect_kind} Effect`)
+          : pass(`Clip ${clip.clipId} has no ${assertion.effect_kind} Effect`)
+      }
+      if (!effect) return fail(`Clip ${clip.clipId} has no ${assertion.effect_kind} Effect`)
       if (assertion.parameter !== undefined) {
         const value = (effect as unknown as Record<string, unknown>)[assertion.parameter]
         if (value !== assertion.value) {
-          return fail(`${assertion.effect_kind}.${assertion.parameter} is ${value}, expected ${assertion.value}`)
+          return fail(`${assertion.effect_kind}.${assertion.parameter} is ${String(value)}, expected ${String(assertion.value)}`)
         }
       }
-      return pass(`clip ${clip.clipId} carries ${assertion.effect_kind}`)
+      return pass(`Clip ${clip.clipId} carries ${assertion.effect_kind}`)
     }
     case 'marker': {
-      const marker = (composition?.markers ?? []).find((candidate) => candidate.timeMs === assertion.time_ms)
-      if (!marker) return fail(`no marker at ${assertion.time_ms} ms`)
+      const marker = show.composition.markers.find((candidate) => candidate.timeMs === assertion.time_ms)
+      if (!marker) return fail(`no Marker at ${assertion.time_ms} ms`)
       if (assertion.name !== undefined && marker.name !== assertion.name) {
-        return fail(`marker at ${assertion.time_ms} ms is named "${marker.name}", expected "${assertion.name}"`)
+        return fail(`Marker at ${assertion.time_ms} ms is named "${marker.name}", expected "${assertion.name}"`)
       }
-      return pass(`marker at ${assertion.time_ms} ms`)
+      return pass(`Marker at ${assertion.time_ms} ms`)
     }
     case 'show-end': {
-      const duration = showLoopDurationMs(show)
-      return duration === assertion.duration_ms
-        ? pass(`Show End at ${duration} ms`)
-        : fail(`Show End at ${duration} ms, expected ${assertion.duration_ms}`)
+      const showEndMs = show.composition.showEndMs
+      return showEndMs === assertion.duration_ms
+        ? pass(`Show End at ${showEndMs} ms`)
+        : fail(`Show End at ${showEndMs} ms, expected ${assertion.duration_ms}`)
     }
     case 'instance-time-scale':
     case 'instance-control': {
       const clip = locateClip(show, assertion.clip)
-      if (!clip) return fail(`no clip matches ${JSON.stringify(assertion.clip)}`)
-      const instance = composition?.patternInstances.find((candidate) => candidate.id === clip.instanceId)
+      if (!clip) return fail(`no Clip matches ${JSON.stringify(assertion.clip)}`)
+      const instance = show.composition.patternInstances.find((candidate) => candidate.id === clip.instanceId)
       if (!instance) return fail(`instance ${clip.instanceId} not found`)
       if (assertion.kind === 'instance-time-scale') {
         return instance.time.timeScale === assertion.value
@@ -275,33 +320,21 @@ export function evaluateAssertion(show: ShowRecord, assertion: CorpusAssertion):
       const control = instance.controlTargets?.[assertion.export_name]
       return control === assertion.value
         ? pass(`control ${assertion.export_name} = ${control}`)
-        : fail(`control ${assertion.export_name} is ${control}, expected ${assertion.value}`)
+        : fail(`control ${assertion.export_name} is ${String(control)}, expected ${assertion.value}`)
     }
     case 'no-track': {
       const clip = locateClip(show, assertion.clip)
-      if (!clip) return fail(`no clip matches ${JSON.stringify(assertion.clip)}`)
-      const description = describeShow(document)
-      const described = description.zones
-        .flatMap((zone) => zone.layers)
-        .flatMap((layer) => layer.clips)
-        .find((candidate) => candidate.clipId === clip.clipId)
-      const track = described?.tracks.find((candidate) =>
-        candidate.target.toLowerCase().includes(assertion.target_contains.toLowerCase()))
-      return track
-        ? fail(`clip ${clip.clipId} still has track ${track.trackId}`)
-        : pass(`clip ${clip.clipId} has no "${assertion.target_contains}" track`)
-    }
-    case 'no-effect': {
-      const clip = locateClip(show, assertion.clip)
-      if (!clip) return fail(`no clip matches ${JSON.stringify(assertion.clip)}`)
-      const placement = composition?.scenes
-        .flatMap((scene) => scene.zones)
-        .flatMap((zone) => [...zone.main, ...zone.overlays.flatMap((layer) => layer.placements)])
-        .find((candidate) => candidate.id === clip.startPlacementId)
-      const effect = placement?.effects?.find((candidate) => candidate.kind === assertion.effect_kind)
-      return effect
-        ? fail(`clip ${clip.clipId} still has a ${assertion.effect_kind} Effect`)
-        : pass(`clip ${clip.clipId} has no ${assertion.effect_kind} Effect`)
+      if (!clip) return fail(`no Clip matches ${JSON.stringify(assertion.clip)}`)
+      const needle = assertion.target_contains.toLowerCase()
+      const site = trackSites(document).find((candidate) => {
+        const target = candidate.track.target
+        const owns = ('clipId' in target && target.clipId === clip.clipId)
+          || ('instanceId' in target && target.instanceId === clip.instanceId)
+        return owns && describeTarget(candidate.track.target).toLowerCase().includes(needle)
+      })
+      return site
+        ? fail(`Clip ${clip.clipId} still has track ${site.track.id}`)
+        : pass(`Clip ${clip.clipId} has no "${assertion.target_contains}" track`)
     }
     case 'pointer-equals': {
       let node: unknown = show
@@ -319,7 +352,7 @@ export function evaluateAssertion(show: ShowRecord, assertion: CorpusAssertion):
 /** Load-time validation: schema, unique ids, and an openable starting Show. */
 export function validateCorpus(
   cases: DictationCase[],
-  fixtureOf: (name: DictationCase['fixture']) => ShowRecord,
+  fixtureOf: (name: FixtureName) => ShowRecordV2,
 ): string[] {
   const problems: string[] = []
   const ids = new Set<string>()

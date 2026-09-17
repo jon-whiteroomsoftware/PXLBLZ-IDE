@@ -3,12 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { parseEpe } from '@/engine/epeImport'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { exportShowDocument } from '../shows/exportShow.js'
+import { toShowRecordV2 } from './support/convertFixture.js'
 
 const STAMP = '2026-08-14T00:00:00.000Z'
 
 describe('exportShowDocument (#15)', () => {
   it('exports a stock Show as an .epe that round-trips through parseEpe', () => {
-    const show = structuredClone(STOCK_SHOWS[0].show)
+    const show = toShowRecordV2(structuredClone(STOCK_SHOWS[0].show), STOCK_SHOWS[0].name)
     const result = exportShowDocument(show, [], { stampedAt: STAMP })
     expect(result.ok, JSON.stringify(result).slice(0, 300)).toBe(true)
     if (!result.ok) return
@@ -36,7 +37,7 @@ describe('exportShowDocument (#15)', () => {
   })
 
   it('is deterministic when the stamp time is injected', () => {
-    const show = structuredClone(STOCK_SHOWS[0].show)
+    const show = toShowRecordV2(structuredClone(STOCK_SHOWS[0].show), STOCK_SHOWS[0].name)
     const first = exportShowDocument(show, [], { stampedAt: STAMP, epeId: 'fixed-id' })
     const second = exportShowDocument(show, [], { stampedAt: STAMP, epeId: 'fixed-id' })
     expect(JSON.stringify(second)).toBe(JSON.stringify(first))

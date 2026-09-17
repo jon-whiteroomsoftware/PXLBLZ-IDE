@@ -1,10 +1,19 @@
 // Utterances the scripted bridge understands without a per-request script
-// (#945 browser baseline). The chat overlay sends only what the author
-// typed, exactly as it does to a live model; in scripted mode the bridge
-// resolves that utterance here, then in the dictation corpus, and runs the
-// matching script through the same MCP tool path. Placeholders resolve
-// against the Show the editor sent, so each script names its target by
-// timeline position rather than by id.
+// (#945 browser baseline, re-authored on the version-2 catalogue for #1039).
+// The chat overlay sends only what the author typed, exactly as it does to a
+// live model; in scripted mode the bridge resolves that utterance here, then in
+// the dictation corpus, and runs the matching script through the same MCP tool
+// path. Placeholders resolve against the Show the editor sent, so each script
+// names its target by timeline position rather than by id.
+//
+// The browser-sequence catalogue that used to live here named v1 commands
+// (`move_clip`, `set_clip_view`, `set_boundary_transition`, …) against Shows the
+// #945 browser spec seeds as v1 records. Those scripts are retired rather than
+// mechanically renamed: their arguments change shape under the v2 catalogue, and
+// writing scripts nothing exercises would be a guess recorded as evidence. They
+// return with the browser baseline's own re-authoring onto the v2 route, which
+// `docs/reference/agent-editing-baseline.md` records as outstanding. Every entry
+// below runs in this repository's offline suites.
 import { DICTATION_CASES } from '../experiment/cases.js'
 import type { ScriptStep } from '../experiment/corpus.js'
 
@@ -25,125 +34,27 @@ export const BASELINE_FIXTURE_RESIZE: BaselineUtterance = {
 }
 
 export const BASELINE_UTTERANCES: BaselineUtterance[] = [
-  {"utterance": "rename this Show Night Show", "intent": "#954: Show and Layout authoring adopts once without device delivery.", "script": [{"tool": "rename_show", "args": {"name": "Night Show", "finish_turn_reply": {"intent": "apply", "reply": "Updated the Show."}}}]},
-  {"utterance": "stage this Show on the plane map", "intent": "#954: Show and Layout authoring adopts once without device delivery.", "script": [{"tool": "set_stage_map", "args": {"stage_map_id": "plane", "finish_turn_reply": {"intent": "apply", "reply": "Updated the Show."}}}]},
-  {"utterance": "target the test controller profile without sending", "intent": "#954: Show and Layout authoring adopts once without device delivery.", "script": [{"tool": "set_target_controller_profile", "args": {"profile_id": "profile-test", "finish_turn_reply": {"intent": "apply", "reply": "Updated the Show."}}}]},
-  {"utterance": "name the Zone Front with 124 pixels and color abcdef", "intent": "#954: Show and Layout authoring adopts once without device delivery.", "script": [{"tool": "update_zone", "args": {"zone_id": "zone-1", "name": "Front", "nominal_pixel_count": 124, "color": "#abcdef", "finish_turn_reply": {"intent": "apply", "reply": "Updated the Show."}}}]},
-  {"utterance": "make the output portable with the plane map and 512 reference pixels", "intent": "#954: Show and Layout authoring adopts once without device delivery.", "script": [{"tool": "set_output_contract", "args": {"kind": "portable-2d", "map_id": "plane", "pixel_count": 512, "finish_turn_reply": {"intent": "apply", "reply": "Updated the Show."}}}]},
-  {"utterance": "enable output Trails at half retention", "intent": "#954: Show and Layout authoring adopts once without device delivery.", "script": [{"tool": "set_output_trails", "args": {"enabled": true, "retention": 0.5, "finish_turn_reply": {"intent": "apply", "reply": "Updated the Show."}}}]},
-  {"utterance": "append a one second Layout interval", "intent": "#954: Show and Layout authoring adopts once without device delivery.", "script": [{"tool": "add_layout_interval", "args": {"layout_id": "layout-1", "duration_ms": 1000, "finish_turn_reply": {"intent": "apply", "reply": "Updated the Show."}}}]},
-  {"utterance": "duplicate the first Layout interval empty", "intent": "#954: Show and Layout authoring adopts once without device delivery.", "script": [{"tool": "duplicate_layout_interval", "args": {"interval_id": "layout-occurrence-scene-1", "finish_turn_reply": {"intent": "apply", "reply": "Updated the Show."}}}]},
-  {"utterance": "make the first Layout interval unique", "intent": "#954: Show and Layout authoring adopts once without device delivery.", "script": [{"tool": "make_layout_interval_unique", "args": {"interval_id": "layout-occurrence-scene-1", "finish_turn_reply": {"intent": "apply", "reply": "Updated the Show."}}}]},
-  ...[
-    { utterance: 'seed a phase animation track at point three', tool: 'add_property_track', args: { clip_id: 'clip-a', target: 'view-phase', initial_value: 0.3 } },
-    { utterance: 'add a brightness keyframe at fifteen seconds', tool: 'add_keyframe', args: { track_id: 'track-b', time_ms: 15000, value: 0.5 } },
-    { utterance: 'move the first brightness keyframe to twenty seconds', tool: 'update_keyframe', args: { track_id: 'track-b', keyframe_id: 'kf-1', time_ms: 20000 } },
-    { utterance: 'delete the middle brightness keyframe', tool: 'delete_keyframe', args: { track_id: 'track-b', keyframe_id: 'middle' } },
-    { utterance: 'remove the brightness animation track', tool: 'delete_property_track', args: { track_id: 'track-b' } },
-  ].map(row => ({ utterance: row.utterance, intent: '#953: edit authored animation through the shared command.', script: [{ tool: row.tool, args: { ...row.args, finish_turn_reply: { intent: 'apply', reply: 'Updated the animation.' } } }] })),
-
-  {
-    utterance: 'insert a fifteen hundred millisecond Layer crossfade with ease in',
-    intent: '#952: Layer insertion retains explicit timing and easing.',
-    script: [{ tool: 'insert_layer_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500, easing: 'ease-in', finish_turn_reply: { intent: 'apply', reply: 'Inserted the Layer crossfade.' } } }],
-  },
-  {
-    utterance: 'make the overlay Layer Transition fifteen hundred milliseconds',
-    intent: '#952: Layer resize shifts its endpoint chain.',
-    script: [{ tool: 'resize_layer_transition', args: { transition_id: 'connected-transition', duration_ms: 1500, finish_turn_reply: { intent: 'apply', reply: 'Resized the Layer Transition.' } } }],
-  },
-  {
-    utterance: 'reset the Layer Transition to Cut',
-    intent: '#952: Layer reset closes the interval once.',
-    script: [{ tool: 'reset_layer_transition_to_cut', args: { transition_id: 'connected-transition', finish_turn_reply: { intent: 'apply', reply: 'Reset the Layer Transition to Cut.' } } }],
-  },
-  {
-    utterance: 'make the connected overlay Clip nine seconds',
-    intent: '#952: connected resize uses the canonical Clip command.',
-    script: [{ tool: 'resize_clip', args: { clip_id: 'clip-b', duration_ms: 9000, finish_turn_reply: { intent: 'apply', reply: 'Resized the connected Clip.' } } }],
-  },
-  {
-    utterance: 'make the Boundary fade through black over fifteen hundred milliseconds',
-    intent: '#952: explicit Boundary variant adopts once.',
-    script: [{ tool: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', variant: 'through-color', duration_ms: 1500, finish_turn_reply: { intent: 'apply', reply: 'Selected the Boundary fade.' } } }],
-  },
-  {
-    utterance: 'set the Boundary to fifteen hundred milliseconds with ease in',
-    intent: '#952: Boundary timing adopts once.',
-    script: [{ tool: 'set_boundary_transition_timing', args: { transition_id: 'transition-scene-1', duration_ms: 1500, easing: 'ease-in', finish_turn_reply: { intent: 'apply', reply: 'Updated Boundary timing.' } } }],
-  },
-  {
-    utterance: 'set the Boundary easing parameter to sine in',
-    intent: '#952: typed Boundary presentation parameter adopts once.',
-    script: [{ tool: 'update_boundary_transition_parameter', args: { transition_id: 'transition-scene-1', parameter: 'easing', value: 'sine-in', finish_turn_reply: { intent: 'apply', reply: 'Updated Boundary easing.' } } }],
-  },
-  {
-    utterance: 'switch to the second Layout at the Boundary',
-    intent: '#952: agent-only Boundary Layout setter adopts once.',
-    script: [{ tool: 'set_boundary_layout', args: { transition_id: 'transition-scene-1', layout_id: 'layout-2', finish_turn_reply: { intent: 'apply', reply: 'Changed the Boundary Layout.' } } }],
-  },
-
-  {
-    utterance: 'swap the two plain Clips through a private overlap',
-    intent: '#949: one retained pair overlaps privately, then resolves before one complete candidate.',
-    script: [
-      { tool: 'move_clip', args: { clip_id: 'resize-a', start_ms: 8000 } },
-      { tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 0, finish_turn_reply: { intent: 'apply', reply: 'Swapped the two Clips.' } } },
-    ],
-  },
-  {
-    utterance: 'leave the private overlap incomplete',
-    intent: '#949: no private intermediate is published.',
-    script: [
-      { tool: 'move_clip', args: { clip_id: 'resize-a', start_ms: 8000 } },
-      { say: 'The private edit is incomplete.', intent: 'incomplete' },
-    ],
-  },
-  {
-    utterance: 'move the second Clip to sixteen seconds then make the first Clip twelve seconds',
-    intent: '#950: move B then resize A, with both intermediate records valid.',
-    script: [
-      { tool: 'move_clip', args: { clip_id: '$clipAt:8000', start_ms: 16000 } },
-      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12000, finish_turn_reply: { intent: 'apply', reply: 'Moved the second Clip to sixteen seconds and resized the first to twelve seconds.' } } },
-    ],
-  },
-  {
-    utterance: 'move the second Clip to sixteen seconds then try seventeen seconds for the first',
-    intent: '#950: refused resize must not publish the earlier private move.',
-    script: [
-      { tool: 'move_clip', args: { clip_id: '$clipAt:8000', start_ms: 16000 } },
-      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 17000 } },
-      { say: 'The first Clip cannot reach seventeen seconds. Neither edit was applied.', intent: 'refuse' },
-    ],
-  },
-  {
-    utterance: 'move the second Clip to sixteen seconds but leave the batch incomplete',
-    intent: '#950: incomplete typed completion must not publish a private move.',
-    script: [
-      { tool: 'move_clip', args: { clip_id: '$clipAt:8000', start_ms: 16000 } },
-      { say: 'The batch is incomplete. No edit was applied.', intent: 'incomplete' },
-    ],
-  },
-  {
-    utterance: 'try twelve seconds with the next Clip at eight',
-    intent: '#950 fixture R: report the exact capacity refusal without authoring a candidate.',
-    script: [
-      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12000 } },
-      { say: 'The requested twelve seconds do not fit. Available range: 0–8000 ms.', intent: 'refuse' },
-    ],
-  },
+  BASELINE_FIXTURE_RESIZE,
   {
     utterance: 'make the first Clip exactly eight seconds',
-    intent: '#950 fixture R: the exact neighbor boundary is accepted; repetition is a valid no-op.',
-    script: [{ tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 8000, finish_turn_reply: { intent: 'apply', reply: 'The first Clip is exactly eight seconds.' } } }],
+    intent: 'The exact neighbour boundary is accepted; repetition is a valid no-op.',
+    script: [{ tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 8_000, finish_turn_reply: { intent: 'apply', reply: 'The first Clip is exactly eight seconds.' } } }],
   },
-  BASELINE_FIXTURE_RESIZE,
   {
     utterance: 'make the first Clip twelve seconds and dim it to half',
     intent: 'One turn, two operations: the first Clip is 12 000 ms long at brightness 0.5, committed as one change set.',
     script: [
       { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000 } },
-      { tool: 'set_clip_view', args: { clip_id: '$clipAt:0', brightness: 0.5, finish_turn_reply: { intent: 'apply', reply: 'The first Clip is twelve seconds at half brightness.' } } },
+      {
+        tool: 'update_clips',
+        args: {
+          updates: [{
+            clip_id: '$clipAt:0',
+            appearance: { apply: { scope: 'whole-clip' }, view: { brightness: 0.5 } },
+          }],
+          finish_turn_reply: { intent: 'apply', reply: 'The first Clip is twelve seconds at half brightness.' },
+        },
+      },
     ],
   },
   {
@@ -154,116 +65,10 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     ],
   },
   {
-    utterance: 'move the connected second Clip five seconds later then two seconds earlier',
-    intent: '#951: exact canonical chain move in both directions.',
-    script: [
-      { tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 8000 } },
-      { tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 6000, finish_turn_reply: { intent: 'apply', reply: 'Moved the connected Clips three seconds later.' } } },
-    ],
-  },
-  {
-    utterance: 'keep the connected second Clip at six seconds',
-    intent: '#951: validated no-op produces no candidate.',
-    script: [{ tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 6000, finish_turn_reply: { intent: 'apply', reply: 'The Clip is already at six seconds.' } } }],
-  },
-  {
-    utterance: 'move the connected second Clip to overlay zero',
-    intent: '#951: incompatible connected destination refuses without detachment.',
-    script: [
-      { tool: 'move_clip', args: { clip_id: 'resize-b', start_ms: 6000, layer: 0 } },
-      { say: 'The connected Clip cannot change Layer without an explicit disconnect.', intent: 'refuse' },
-    ],
-  },
-  {
-    utterance: 'duplicate the overlay Clip independently',
-    intent: '#951: independent duplicate preserves the complete Show and adopts once.',
-    script: [{ tool: 'duplicate_clip', args: { clip_id: 'clip-ov', finish_turn_reply: { intent: 'apply', reply: 'Duplicated the overlay Clip independently.' } } }],
-  },
-  {
-    utterance: 'split the connected target Clip at sixteen seconds',
-    intent: '#951: connected multi-Scene split preserves shared state and adopts once.',
-    script: [{ tool: 'split_clip', args: { clip_id: 'clip-b', at_ms: 16000, finish_turn_reply: { intent: 'apply', reply: 'Split the target Clip at sixteen seconds.' } } }],
-  },
-  {
-    utterance: 'remove the connected target Clip',
-    intent: '#951: complete logical removal and orphan cleanup adopt once.',
-    script: [{ tool: 'remove_clip', args: { clip_id: 'clip-b', finish_turn_reply: { intent: 'apply', reply: 'Removed the target Clip and attached Transition.' } } }],
-  },
-  {
-    utterance: 'add a topmost overlay Layer',
-    intent: '#951: one fresh Layer in every Scene, adopted once.',
-    script: [{ tool: 'add_overlay_layer', args: { zone_id: 'zone-1', finish_turn_reply: { intent: 'apply', reply: 'Added a topmost Layer.' } } }],
-  },
-  {
-    utterance: 'add move and update the marker',
-    intent: '#951: marker batch adopts once.',
-    script: [
-      { tool: 'add_marker', args: { at_ms: 1000, name: 'New', color: '#f59e0b' } },
-      { tool: 'move_marker', args: { marker_id: 'marker-2', at_ms: 70000 } },
-      { tool: 'update_marker', args: { marker_id: 'marker-2', at_ms: 9000, name: 'Final', color: '#38bdf8', finish_turn_reply: { intent: 'apply', reply: 'Added, moved and updated the marker.' } } },
-    ],
-  },
-  {
-    utterance: 'keep the final marker unchanged',
-    intent: '#951: wholly no-op marker batch does not adopt.',
-    script: [
-      { tool: 'move_marker', args: { marker_id: 'marker-2', at_ms: 9000 } },
-      { tool: 'update_marker', args: { marker_id: 'marker-2', name: 'Final', color: '#38bdf8', finish_turn_reply: { intent: 'apply', reply: 'The marker is already correct.' } } },
-    ],
-  },
-  {
-    utterance: 'remove the missing marker',
-    intent: '#951: missing removal refuses.',
-    script: [
-      { tool: 'remove_marker', args: { marker_id: 'absent' } },
-      { say: 'That marker does not exist.', intent: 'refuse' },
-    ],
-  },
-  {
-    utterance: 'remove the final marker',
-    intent: '#951: removal preserves all other content.',
-    script: [{ tool: 'remove_marker', args: { marker_id: 'marker-2', finish_turn_reply: { intent: 'apply', reply: 'Removed the marker.' } } }],
-  },
-  {
-    utterance: 'add CometLoom to the overlay at twenty nine seconds',
-    intent: '#951: add Clip admits one complete candidate.',
-    script: [{ tool: 'add_clip', args: { zone_id: 'zone-1', start_ms: 29000, duration_ms: 1000, overlay_layer_index: 0, pattern_kind: 'stock', pattern_id: 'CometLoom', finish_turn_reply: { intent: 'apply', reply: 'Added CometLoom.' } } }],
-  },
-  {
-    utterance: 'make the third Clip Pattern independent',
-    intent: '#951: independent Pattern state admits once.',
-    script: [{ tool: 'make_clip_pattern_independent', args: { clip_id: 'clip-c', finish_turn_reply: { intent: 'apply', reply: 'Made the third Clip independent.' } } }],
-  },
-  {
-    utterance: 'rejoin the second Clip to the first Pattern instance',
-    intent: '#951: rejoin and source cleanup admit once.',
-    script: [{ tool: 'rejoin_clip_pattern_instance', args: { clip_id: 'clip-b', target_clip_id: 'clip-a', finish_turn_reply: { intent: 'apply', reply: 'Rejoined the second Clip.' } } }],
-  },
-  {
-    utterance: 'insert one second at twenty nine seconds',
-    intent: '#951: timeline insertion admits once.',
-    script: [{ tool: 'insert_time', args: { at_ms: 29000, duration_ms: 1000, finish_turn_reply: { intent: 'apply', reply: 'Inserted one second.' } } }],
-  },
-  {
     utterance: 'set Show End to seventy seconds',
-    intent: '#951: Show End admits once.',
-    script: [{ tool: 'set_show_end', args: { end_ms: 70000, finish_turn_reply: { intent: 'apply', reply: 'Set Show End to seventy seconds.' } } }],
+    intent: 'Show End admits once.',
+    script: [{ tool: 'set_show_end', args: { end_ms: 70_000, finish_turn_reply: { intent: 'apply', reply: 'Set Show End to seventy seconds.' } } }],
   },
-  ...[
-    { utterance: 'dim and mirror the overlay Clip', tool: 'set_clip_view', args: { clip_id: 'clip-ov', mirror: true, phase: 0.25, brightness: 0.5 } },
-    { utterance: 'set the first Clip speed control to three quarters', tool: 'set_clip_control_target', args: { clip_id: 'clip-a', export_name: 'sliderSpeed', value: 0.75 } },
-    { utterance: 'slow the first Clip shared instance to half speed', tool: 'set_clip_time', args: { clip_id: 'clip-a', time_scale: 0.5, time_offset_ms: 250 } },
-    { utterance: 'freeze the first Clip shared instance at entry', tool: 'set_clip_evaluation', args: { clip_id: 'clip-a', policy: 'freeze-at-entry' } },
-  ].map(({ utterance, tool, args }) => ({ utterance, intent: '#953: shared Clip property admission.', script: [{ tool, args: { ...args, finish_turn_reply: { intent: 'apply', reply: 'Updated the Clip properties.' } } }] })),
-
-  ...[
-      { id: 'AE953', tool: 'add_clip_effect', args: { clip_id: 'clip-ov', kind: 'opacity', parameters: { opacity: 0.6 } }, utterance: 'add an opacity Effect to the overlay Clip' },
-      { id: 'UE953', tool: 'update_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', parameter: 'brightness', value: 0.7 }, utterance: 'set the overlay brightness Effect to seven tenths' },
-      { id: 'DE953', tool: 'duplicate_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness' }, utterance: 'duplicate the overlay brightness Effect' },
-      { id: 'ME953', tool: 'move_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'hue', target_effect_id: 'brightness', edge: 'before' }, utterance: 'move the overlay hue Effect before brightness' },
-      { id: 'RE953', tool: 'remove_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness' }, utterance: 'remove the overlay brightness Effect' },
-  ].map(({ utterance, tool, args }) => ({ utterance, intent: '#953: shared Effect admission.', script: [{ tool, args: { ...args, finish_turn_reply: { intent: 'apply', reply: 'Updated the Effect stack.' } } }] })),
-
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */

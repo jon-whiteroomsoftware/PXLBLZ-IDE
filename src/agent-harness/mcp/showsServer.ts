@@ -1,6 +1,12 @@
-// Provenance: pxlblz-v3 src/mcp/showsServer.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// Thin MCP wrapper over the pure modules in src/shows/. Tool handlers only
-// shape arguments and serialize results; all Show logic stays there.
+// Provenance: pxlblz-v3 src/mcp/showsServer.ts at 9ecd481f, re-authored onto the
+// version-2 vocabulary for #1039 (see src/agent-harness/PROVENANCE.md).
+// Thin MCP wrapper over the pure modules in src/shows/ and the v2 command
+// catalogue. Tool handlers only shape arguments and serialize results; all Show
+// logic stays in the owners.
+//
+// The authored tools are generated from `SHOW_GRAMMAR_OPERATIONS`, which is the
+// production v2 catalogue plus the two generic backstops. No retired v1 name is
+// registered and none is aliased.
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -19,19 +25,19 @@ import { OPERATING_RULES, type EditorContext, type ReferenceQuery } from '../gra
 import { SHOW_GRAMMAR_OPERATIONS } from '../grammar/registry.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import {
-  SHOW_AUTHORING_JSON_SCHEMA,
-  SHOW_AUTHORING_REFERENCE_MARKDOWN,
-  SHOW_AUTHORING_REFERENCE_URI,
-  SHOW_AUTHORING_SCHEMA_URI,
-  SHOW_AUTHORING_SERVER_INTRO,
-} from '@/engine/showCommands/bulkAuthoringReference'
+  SHOW_AUTHORING_V2_JSON_SCHEMA,
+  SHOW_AUTHORING_V2_REFERENCE_MARKDOWN,
+  SHOW_AUTHORING_V2_REFERENCE_URI,
+  SHOW_AUTHORING_V2_SCHEMA_URI,
+  SHOW_AUTHORING_V2_SERVER_INTRO,
+} from '@/engine/showCommandsV2/authoringReference'
 
-const showRecordSchemaPath = fileURLToPath(new URL('../../../schemas/show-record.schema.json', import.meta.url))
+const showRecordSchemaPath = fileURLToPath(new URL('../../../schemas/show-record-v2.provisional.schema.json', import.meta.url))
 const showDataModelPath = fileURLToPath(new URL('../reference/show-data-model.md', import.meta.url))
 
 const showArgument = z.union([z.record(z.unknown()), z.string()]).describe(
-  'The ShowRecord document to evaluate, as a JSON object (preferred) or a JSON string. ' +
-    'Author against schemas/show-record.schema.json.',
+  'The version-2 Show record to evaluate, as a JSON object (preferred) or a JSON string. ' +
+    'Author against schemas/show-record-v2.provisional.schema.json.',
 )
 
 const inlinePatternsArgument = z
@@ -45,27 +51,17 @@ const inlinePatternsArgument = z
   .optional()
   .describe('Inline sources for user-pattern references; without one, a user reference is rejected.')
 
-const stageDimensionArgument = z
-  .union([z.literal(1), z.literal(2), z.literal(3)])
-  .optional()
-  .describe('Reference output dimension (default 2)')
-
-const targetPixelCountArgument = z
-  .number()
-  .int()
-  .positive()
-  .optional()
-  .describe('Reported pixel count of the target Controller (portable Shows only)')
-
 interface ToolArguments {
   show: Record<string, unknown> | string
   inline_patterns?: InlinePattern[]
-  stage_dimension?: 1 | 2 | 3
-  target_pixel_count?: number
 }
 
-function evaluationOptions(args: ToolArguments): ShowEvaluationOptions {
-  return { stageDimension: args.stage_dimension, targetPixelCount: args.target_pixel_count }
+/**
+ * A v2 record names its own Stage map, and the preparation owner derives the
+ * Stage dimension from it, so there is no caller-supplied dimension to accept.
+ */
+function evaluationOptions(_args: ToolArguments): ShowEvaluationOptions {
+  return {}
 }
 
 function jsonResult(payload: unknown, isError = false) {
@@ -83,7 +79,7 @@ export interface ShowsServerOptions {
 export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
   const server = new McpServer(
     { name: 'pxlblz-shows', version: '0.1.0' },
-    { instructions: `${OPERATING_RULES}\n\n${SHOW_AUTHORING_SERVER_INTRO}` },
+    { instructions: `${OPERATING_RULES}\n\n${SHOW_AUTHORING_V2_SERVER_INTRO}` },
   )
 
   server.registerTool(
@@ -97,8 +93,6 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
       inputSchema: {
         show: showArgument,
         inline_patterns: inlinePatternsArgument,
-        stage_dimension: stageDimensionArgument,
-        target_pixel_count: targetPixelCountArgument,
       },
     },
     (args: ToolArguments) =>
@@ -116,8 +110,6 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
       inputSchema: {
         show: showArgument,
         inline_patterns: inlinePatternsArgument,
-        stage_dimension: stageDimensionArgument,
-        target_pixel_count: targetPixelCountArgument,
       },
     },
     (args: ToolArguments) => {
@@ -140,8 +132,6 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
       inputSchema: {
         show: showArgument,
         inline_patterns: inlinePatternsArgument,
-        stage_dimension: stageDimensionArgument,
-        target_pixel_count: targetPixelCountArgument,
         duration_seconds: z.number().finite().positive().optional()
           .describe('Measurement window; defaults to the Show’s loop duration. Explicit values clamp to 1–600 s'),
         pixel_count: z.number().int().min(4).max(4096).optional().describe('Modeled pixel count (default 64)'),
@@ -183,7 +173,6 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
       inputSchema: {
         show: showArgument,
         inline_patterns: inlinePatternsArgument,
-        stage_dimension: stageDimensionArgument,
       },
     },
     (args: ToolArguments) => {
@@ -255,8 +244,6 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
       inputSchema: {
         show: showArgument,
         inline_patterns: inlinePatternsArgument,
-        stage_dimension: stageDimensionArgument,
-        target_pixel_count: targetPixelCountArgument,
       },
     },
     (args: ToolArguments) => {
@@ -604,10 +591,10 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
     'show-record-schema',
     'pxlblz://schemas/show-record',
     {
-      title: 'ShowRecord JSON Schema',
+      title: 'Show record JSON Schema',
       description:
-        'Generated draft-07 schema for the ShowRecord authoring document — the structural contract ' +
-        'validate_show and compile_show enforce.',
+        'The version-2 Show record schema — the structural contract validate_show and compile_show ' +
+        'enforce, and the shape open_show accepts.',
       mimeType: 'application/schema+json',
     },
     (uri) => ({
@@ -621,8 +608,8 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
     {
       title: 'Show data model (authoring reference)',
       description:
-        'Semantics the schema cannot express: Scenes, Zones, Zone Layouts, Cells, Transitions, output ' +
-        'contracts, budgets, and a minimal-valid-Show checklist.',
+        'Semantics the schema cannot express: Zones, Layers, Clips, Zone Layout occurrences, Transitions, ' +
+        'output contracts, budgets, and a minimal-valid-Show checklist.',
       mimeType: 'text/markdown',
     },
     (uri) => ({
@@ -631,24 +618,24 @@ export function createShowsServer(options: ShowsServerOptions = {}): McpServer {
   )
 
   server.registerResource(
-    'clip-layer-authoring-schema-v1',
-    SHOW_AUTHORING_SCHEMA_URI,
+    'clip-layer-authoring-schema-v2',
+    SHOW_AUTHORING_V2_SCHEMA_URI,
     {
-      title: 'Clip and Layer authoring schema v1',
-      description: 'Generated JSON Schema for visible Clip/Layer bulk command inputs; not the persisted ShowRecord model.',
+      title: 'Show authoring schema v2',
+      description: 'Generated JSON Schema for the authored command vocabulary. This is distinct from the persisted Show record.',
       mimeType: 'application/schema+json',
     },
-    uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(SHOW_AUTHORING_JSON_SCHEMA, null, 2) }] }),
+    uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(SHOW_AUTHORING_V2_JSON_SCHEMA, null, 2) }] }),
   )
   server.registerResource(
-    'clip-layer-authoring-reference-v1',
-    SHOW_AUTHORING_REFERENCE_URI,
+    'clip-layer-authoring-reference-v2',
+    SHOW_AUTHORING_V2_REFERENCE_URI,
     {
-      title: 'Clip and Layer authoring reference v1',
-      description: 'Bulk authoring semantics and executable examples; distinct from persisted document resources.',
+      title: 'Show authoring reference v2',
+      description: 'Identity addressing, exact global timing, the appearance apply selector, Effect and Aperture parameter names, the animation target union, the uniform no-op and the affected-entity result.',
       mimeType: 'text/markdown',
     },
-    uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: SHOW_AUTHORING_REFERENCE_MARKDOWN }] }),
+    uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: SHOW_AUTHORING_V2_REFERENCE_MARKDOWN }] }),
   )
 
   return server

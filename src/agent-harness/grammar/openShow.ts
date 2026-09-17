@@ -1,22 +1,22 @@
-// Provenance: pxlblz-v3 src/grammar/openShow.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// Opening a Show document for grammar editing: tier-0 validation, then
-// normalization to the composition shape (the editor's projection), then the
-// compact clip listing an agent addresses clips through. Pure logic — the MCP
+// Provenance: pxlblz-v3 src/grammar/openShow.ts at 9ecd481f, re-authored onto the
+// version-2 vocabulary for #1039 (see src/agent-harness/PROVENANCE.md).
+// Opening a Show document for grammar editing: tier-0 validation, then the
+// compact Clip listing an agent addresses Clips through. Pure logic — the MCP
 // session tools are thin wrappers over these functions.
-import type { ShowCompositionV1, ShowRecord } from '@/engine/personalContentRecords'
-import { projectFlatShowToCompositionV1WithCellOrigins } from '@/engine/showCompositionModel'
-import { projectShowTimeline } from '@/engine/showModel'
-import { sourceForShowCell } from '@/engine/showPreviewArtifact'
-import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
+//
+// There is no normalization step. A v2 record is already the one representation
+// the commands read, so opening validates and lists; it never rewrites the
+// caller's record into a second shape.
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import {
   parseShowDocument,
-  prepareShowDocument,
   validateAuthoringShowDocument,
   validateShowDocument,
   type InlinePattern,
   type ShowEvaluationOptions,
   type ShowIssue,
 } from '../shows/evaluate.js'
+import { clipSites, timelineOf } from './support.js'
 import type { GrammarIssue, ShowClipListing, ShowGrammarDocument } from './types.js'
 
 function openIssue(issue: ShowIssue): GrammarIssue {
@@ -31,93 +31,55 @@ export type OpenShowResult =
   | { ok: true; document: ShowGrammarDocument; listing: ShowClipListing; warnings: ShowIssue[] }
   | { ok: false; issues: GrammarIssue[] }
 
-/**
- * Validate and normalize a Show document for editing. A Show carrying only the
- * flat cell grid gets the same projected composition the v2 editor edits
- * through; a Show that already has a composition keeps it untouched.
- */
+/** Validate a v2 Show document for editing and return its Clip listing. */
 export function openShowDocument(
   input: unknown,
   inlinePatterns: InlinePattern[] = [],
   options: ShowEvaluationOptions = {},
   policy: { authoringValidation?: boolean } = {},
 ): OpenShowResult {
-  const validate = policy.authoringValidation ? validateAuthoringShowDocument : validateShowDocument
-  const validation = validate(input, inlinePatterns, options)
-  if (!validation.valid) return { ok: false, issues: validation.errors.map(openIssue) }
-
-  const prepared = prepareShowDocument(input, inlinePatterns, options)
   const parsed = parseShowDocument(input)
   if ('error' in parsed) return { ok: false, issues: [openIssue(parsed.error)] }
-  const show = parsed.document as ShowRecord
-  if ('errors' in prepared && (!policy.authoringValidation || !show.composition)) return { ok: false, issues: prepared.errors.map(openIssue) }
-  const userPatterns = 'prepared' in prepared ? prepared.prepared.userPatterns : []
-  let composition = show.composition as ShowCompositionV1 | undefined | null
-  if (!composition) {
-    if (policy.authoringValidation && 'prepared' in prepared && prepared.prepared.unresolved.length) return {
-      ok: false,
-      issues: [{ code: 'open-failed', message: 'Flat Show projection needs the unavailable Pattern source; supply exact metadata before opening.' }],
-    }
-    try {
-      const projection = projectFlatShowToCompositionV1WithCellOrigins(show, {
-        byCellId: Object.fromEntries(
-          show.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)]),
-        ),
-        stageDimension: options.stageDimension ?? 2,
-      })
-      composition = { ...projection.composition, executionModel: 'deterministic-loop' }
-    } catch (cause) {
-      return {
-        ok: false,
-        issues: [{
-          code: 'open-failed',
-          message: `The flat Show could not be projected to a composition: ${
-            cause instanceof Error ? cause.message : String(cause)}`,
-        }],
-      }
-    }
-  }
+
+  const validate = policy.authoringValidation ? validateAuthoringShowDocument : validateShowDocument
+  const validation = validate(parsed.document, inlinePatterns, options)
+  if (!validation.valid) return { ok: false, issues: validation.errors.map(openIssue) }
 
   const document: ShowGrammarDocument = structuredClone({
-    show: { ...show, composition },
+    show: parsed.document as ShowRecordV2,
     inlinePatterns,
     options,
     ...(policy.authoringValidation ? { authoringValidation: true as const } : {}),
   })
-  const normalized = validate(document.show, document.inlinePatterns, document.options)
-  if (!normalized.valid) return { ok: false, issues: normalized.errors.map(openIssue) }
-  return { ok: true, document, listing: projectClipListing(document), warnings: normalized.warnings }
+  return { ok: true, document, listing: projectClipListing(document), warnings: validation.warnings }
 }
 
-/** The compact clip listing: every clip with its id, Zone, layer, and range. */
+/** The compact listing: every Layer, and every Clip with its identity and range. */
 export function projectClipListing(document: ShowGrammarDocument): ShowClipListing {
-  const composition = document.show.composition as ShowCompositionV1
-  const timeline = projectShowUnifiedTimeline(document.show, composition)
-  const sceneNameById = new Map(document.show.scenes.map((scene) => [scene.id, scene.name]))
+  const timeline = timelineOf(document)
   return {
-    durationMs: timeline.durationMs,
-    scenes: projectShowTimeline(document.show).scenes.map((scene) => ({
-      sceneId: scene.sceneId,
-      name: sceneNameById.get(scene.sceneId) ?? scene.sceneId,
-      startMs: scene.startMs,
-      endMs: scene.endMs,
+    showEndMs: timeline.showEndMs,
+    layers: timeline.rows.flatMap((row) => row.layers.map((layer) => ({
+      layerId: layer.id,
+      zoneId: row.zoneId,
+      zoneName: row.zoneName,
+      name: layer.name,
+      rank: layer.rank,
+    }))),
+    clips: clipSites(timeline).map((site) => ({
+      clipId: site.item.id,
+      instanceId: site.item.instanceId,
+      patternName: site.item.patternName,
+      zoneId: site.zoneId,
+      zoneName: site.zoneName,
+      layerId: site.layerId,
+      layerName: site.layerName,
+      layerRank: site.layerRank,
+      startMs: site.item.startMs,
+      endMs: site.item.endMs,
+      durationMs: site.item.durationMs,
+      entryPolicy: site.item.entryPolicy,
+      ...(site.item.groupOccurrenceId ? { groupOccurrenceId: site.item.groupOccurrenceId } : {}),
     })),
-    clips: timeline.zones.flatMap((zone) =>
-      zone.layers.flatMap((layer) =>
-        layer.clips.map((clip) => ({
-          clipId: clip.id,
-          startPlacementId: clip.startPlacementId,
-          instanceId: clip.instanceId,
-          patternName: clip.patternName,
-          zoneId: zone.id,
-          zoneName: zone.name,
-          layer: { kind: clip.kind, index: clip.layerIndex },
-          sceneId: clip.sceneId,
-          startMs: clip.startMs,
-          endMs: clip.endMs,
-          durationMs: clip.durationMs,
-        })),
-      ),
-    ),
   }
 }

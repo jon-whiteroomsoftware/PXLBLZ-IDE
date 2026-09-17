@@ -11,10 +11,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseEpe } from '@/engine/epeImport'
-import type { PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
+import type { PatternRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { buildShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
-import { showLoopDurationMs } from '@/engine/showModel'
-import { stockShowById } from '@/pixelblaze/stock/shows'
 import { createScriptedAgent, parseBridgeEvents, startBridge } from '../bridge/service.js'
 import { showFacts } from '../bridge/smoke.js'
 import { exportShowDocument } from '../shows/exportShow.js'
@@ -27,17 +26,17 @@ import {
   type BaselineFixtureEvidence,
   type FixtureEvidence,
 } from './evidence.js'
-import { BASELINE_FIXTURES, resolveBaselineFixtureRecord, type BaselineFixture } from './fixtures.js'
+import { BASELINE_FIXTURES, type BaselineFixture } from './fixtures.js'
+import { baselineFixtureRecordV2 } from './fixturesV2.js'
 import { BASELINE_FIXTURE_RESIZE } from './scripts.js'
-import { captureAgentShowSnapshot } from '@/dev/agentShowSnapshot'
-import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
+import { captureAgentShowSnapshotV2 } from '@/engine/showAuthoringValidationV2'
 
 const here = dirname(fileURLToPath(import.meta.url))
 export const EVIDENCE_PATH = join(here, 'evidence', 'fixtures.json')
 const STAMPED_AT = '2026-09-05T00:00:00.000Z'
 const UTTERANCE = BASELINE_FIXTURE_RESIZE.utterance
 
-async function artifactEvidence(show: ShowRecord, patterns: PatternRecord[], epeId: string): Promise<ArtifactEvidence> {
+async function artifactEvidence(show: ShowRecordV2, patterns: PatternRecord[], epeId: string): Promise<ArtifactEvidence> {
   let pxlshow: ArtifactEvidence['pxlshow']
   try {
     const { filename, bundle } = buildShowFileBundle(show, { patterns, maps: [] }, { appVersion: 'agent-baseline', exportedAt: STAMPED_AT })
@@ -74,13 +73,13 @@ export interface FixtureRun {
 }
 
 export async function runFixture(fixture: BaselineFixture, bridgeUrl: string): Promise<FixtureRun> {
-  const record = resolveBaselineFixtureRecord(fixture, (id) => stockShowById(id)?.show)
+  const record = baselineFixtureRecordV2(fixture)
   const patterns = fixture.patterns ?? []
   const facts = showFacts(record)
   const opened = openShowDocument(record, [], { allowUnresolvedUserPatterns: true })
   const before = await artifactEvidence(record, patterns, `agent-baseline-${fixture.id}`)
-  const captured = captureAgentShowSnapshot(record, ref => ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : patterns.find(pattern => pattern.id === ref.id)?.src)
-  if (!captured) throw new Error(`Fixture ${fixture.id} lacks exact projection metadata`)
+  const captured = captureAgentShowSnapshotV2(record)
+  if (!captured) throw new Error(`Fixture ${fixture.id} is not a valid version-2 record`)
   const turnStart = Date.now()
   const response = await fetch(`${bridgeUrl}/utterance`, {
     method: 'POST',
@@ -91,7 +90,7 @@ export async function runFixture(fixture: BaselineFixture, bridgeUrl: string): P
   const turnMs = Date.now() - turnStart
   const done = events[events.length - 1]
   if (!done || done.kind !== 'done') throw new Error(`${fixture.id}: the bridge stream ended without a result`)
-  const returned = done.show as ShowRecord | undefined
+  const returned = done.show as ShowRecordV2 | undefined
   // Canonical commands stamp updatedAt with wall-clock time. Evidence compares
   // authored content at the original fixture revision, not execution timing.
   const candidate = returned ? { ...returned, updatedAt: record.updatedAt } : undefined
@@ -110,7 +109,7 @@ export async function runFixture(fixture: BaselineFixture, bridgeUrl: string): P
       source: fixture.source,
       features: fixture.features,
       recordSha256: recordSha256(record),
-      loopDurationMs: showLoopDurationMs(record),
+      loopDurationMs: record.composition.showEndMs,
       clipCount: facts.clipCount,
       before,
       bridge: {

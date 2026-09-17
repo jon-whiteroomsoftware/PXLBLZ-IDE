@@ -1,4 +1,5 @@
-// V2-authored for #945 (candidate review of a4e11cc0, P2): argument
+// V2-authored for #945 (candidate review of a4e11cc0, P2), re-authored onto the
+// version-2 record and catalogue for #1039: argument
 // validation precedes the Zone filter in resolve_reference. The junction
 // branch returned "none" for a Zone without junctions before checking that a
 // time was given, so a malformed request read as a clean miss. Boundary:
@@ -8,68 +9,29 @@
 // clip branch's hovered/selected/playhead pointers; a well-formed query for
 // a Zone with no match still resolves to none with the nearest candidates.
 import { describe, expect, it } from 'vitest'
-import type { ShowRecord } from '@/engine/personalContentRecords'
 import { openShowDocument } from '../grammar/openShow.js'
 import { resolveReference, type ReferenceQuery } from '../grammar/read.js'
 import { applyShowGrammarOperation } from '../grammar/registry.js'
 import type { ShowGrammarDocument } from '../grammar/types.js'
 import { grammarFixtureShow } from './support/grammarFixture.js'
+import { LEFT_LAYER_ID, twoZoneShowV2 } from './support/twoZoneFixture.js'
 
-function twoZoneShow(): ShowRecord {
-  const cell = (id: string, zoneId: string, sceneId: string, patternId: string) => ({
-    id,
-    zoneId,
-    sceneId,
-    sceneSpan: 1,
-    pattern: { kind: 'stock', id: patternId },
-    patternName: patternId,
-    adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
-  })
-  return {
-    id: 'two-zone-fixture',
-    name: 'Two Zones',
-    updatedAt: 0,
-    scenes: [
-      { id: 's1', name: 'Opening', durationMs: 30_000 },
-      { id: 's2', name: 'Closing', durationMs: 30_000 },
-    ],
-    zones: [
-      { id: 'z1', name: 'Left', nominalPixelCount: 32 },
-      { id: 'z2', name: 'Right', nominalPixelCount: 32 },
-    ],
-    cells: [
-      cell('c1', 'z1', 's1', 'CometLoom'),
-      cell('c2', 'z1', 's2', 'TestPattern1D'),
-      cell('c3', 'z2', 's1', 'CometLoom'),
-      cell('c4', 'z2', 's2', 'TestPattern1D'),
-    ],
-    routingLayouts: [
-      { id: 'l1', name: 'Split', zones: [], logical: { kind: 'split', zoneIds: ['z1', 'z2'], axis: 'x' } },
-    ],
-    transitions: [],
-    outputContract: {
-      version: 1,
-      kind: 'portable-2d',
-      referenceMapId: 'plane',
-      referencePixelCount: 256,
-      compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
-    },
-  } as unknown as ShowRecord
-}
-
-/** Split Scene 1 of the Left Zone at 15 s so only it carries a cut junction. */
+/** Cut the Left Zone's opening Clip at 15 s so only it carries an extra Cut. */
 function leftCutOnly(): ShowGrammarDocument {
-  const opened = openShowDocument(twoZoneShow())
+  const opened = openShowDocument(twoZoneShowV2())
   if (!opened.ok) throw new Error(`fixture failed to open: ${JSON.stringify(opened.issues)}`)
   const firstClip = opened.listing.clips.find((clip) => clip.zoneId === 'z1' && clip.startMs === 0)!
   const resized = applyShowGrammarOperation(opened.document, 'resize_clip', { clip_id: firstClip.clipId, duration_ms: 15_000 })
   if (!resized.ok) throw new Error(JSON.stringify(resized.issues))
-  const added = applyShowGrammarOperation(resized.document, 'add_clip', {
-    zone_id: 'z1',
-    start_ms: 15_000,
-    duration_ms: 15_000,
-    pattern_kind: 'stock',
-    pattern_id: 'TestPattern1D',
+  const added = applyShowGrammarOperation(resized.document, 'create_clips', {
+    clips: [{
+      zone_id: 'z1',
+      layer_id: LEFT_LAYER_ID,
+      start_ms: 15_000,
+      duration_ms: 15_000,
+      pattern: { kind: 'stock', id: 'TestPattern1D' },
+      instance: 'inst-left-2',
+    }],
   })
   if (!added.ok) throw new Error(JSON.stringify(added.issues))
   return added.document
@@ -77,7 +39,7 @@ function leftCutOnly(): ShowGrammarDocument {
 
 /** One clip, no junction anywhere. */
 function noJunctions(): ShowGrammarDocument {
-  const opened = openShowDocument(grammarFixtureShow({ emptySecondScene: true }))
+  const opened = openShowDocument(grammarFixtureShow({ emptyTail: true }))
   if (!opened.ok) throw new Error(`fixture failed to open: ${JSON.stringify(opened.issues)}`)
   return opened.document
 }

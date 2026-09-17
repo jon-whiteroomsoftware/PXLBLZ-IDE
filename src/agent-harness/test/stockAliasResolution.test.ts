@@ -5,11 +5,11 @@
 // stock id up. Invariant: a Show carrying a retired id behaves exactly as the
 // same Show carrying the superseding id; an id V2 does not know is refused.
 import { describe, expect, it } from 'vitest'
-import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { RETIRED_STOCK_PATTERN_IDS } from '@/pixelblaze/stock/patterns'
 import { openShowDocument } from '../grammar/openShow.js'
+import { applyShowGrammarOperation } from '../grammar/registry.js'
 import { createSessionStore } from '../grammar/session.js'
-import { compositionOf, controlExportIssue } from '../grammar/support.js'
 import { critiqueShow } from '../shows/critique.js'
 import { compileShowDocument, validateShowDocument } from '../shows/evaluate.js'
 import { getStockPattern } from '../shows/stockCatalogue.js'
@@ -19,10 +19,10 @@ import { grammarFixtureShow } from './support/grammarFixture.js'
 const RETIRED_ID = 'DoomFire'
 const CURRENT_ID = RETIRED_STOCK_PATTERN_IDS[RETIRED_ID]
 
-function fireShow(id: string): ShowRecord {
+function fireShow(id: string): ShowRecordV2 {
   const show = grammarFixtureShow()
-  show.cells[0].pattern = { kind: 'stock', id }
-  show.cells[0].patternName = 'Doom Fire'
+  show.composition.patternInstances[0].pattern = { kind: 'stock', id }
+  show.composition.patternInstances[0].patternName = 'Doom Fire'
   return show
 }
 
@@ -62,13 +62,21 @@ describe('retired stock ids resolve as V2 resolves them (#945)', () => {
     const legacy = openShowDocument(fireShow(RETIRED_ID))
     const current = openShowDocument(fireShow(CURRENT_ID))
     if (!legacy.ok || !current.ok) throw new Error('fixture failed to open')
-    const instanceOf = (document: typeof legacy.document) =>
-      compositionOf(document).patternInstances.find((instance) => instance.patternName === 'Doom Fire')!.id
-    // The successor declares controls, so a wrong export name is refused
-    // with its candidates; the retired id must reach the same check.
-    const currentIssue = controlExportIssue(current.document, instanceOf(current.document), 'noSuchExport')
-    expect(currentIssue?.code).toBe('unknown-control')
-    expect(controlExportIssue(legacy.document, instanceOf(legacy.document), 'noSuchExport')).toEqual(currentIssue)
+    // The successor declares controls, so a wrong export name is refused; the
+    // retired id must reach the same check with the same refusal.
+    const setControl = (document: typeof legacy.document) => applyShowGrammarOperation(document, 'update_clips', {
+      updates: [{
+        clip_id: document.show.composition.clips[0].id,
+        instance_properties: { controls: { noSuchExport: 0.5 } },
+      }],
+    })
+    const currentOutcome = setControl(current.document)
+    const legacyOutcome = setControl(legacy.document)
+    expect(currentOutcome.ok).toBe(false)
+    expect(legacyOutcome.ok).toBe(false)
+    if (currentOutcome.ok || legacyOutcome.ok) return
+    expect(currentOutcome.issues[0].code).toBe('unknown-control')
+    expect(legacyOutcome.issues).toEqual(currentOutcome.issues)
 
     expect(critiqueShow(fireShow(RETIRED_ID))).toEqual(critiqueShow(fireShow(CURRENT_ID)))
   })

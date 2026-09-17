@@ -7,7 +7,6 @@
 // Oracles: exact unchanged input/export and zero pending session changes on
 // refusal; exact full record for an ordinary accepted multi-field patch.
 import { describe, expect, it } from 'vitest'
-import type { ShowCompositionV1 } from '@/engine/personalContentRecords'
 import { createSessionStore } from '../grammar/session.js'
 import type { ShowGrammarDocument } from '../grammar/types.js'
 import { applyOk, applyRefused, clipAt, fixture } from './support/grammarHarness.js'
@@ -54,19 +53,19 @@ describe('generic edits stay inside declared Show structure (#945 narrowed compl
   it('checks the actual identity target after a source detach shifts its destination array', () => {
     let document = fixture()
     const secondClip = clipAt(document, 30_000)
-    document = applyOk(document, 'add_property_track', {
-      clip_id: secondClip.clipId,
-      target: 'view-brightness',
-      keyframes: [{ time_ms: 30_000, value: 1 }, { time_ms: 40_000, value: 0.5 }],
+    document = applyOk(document, 'add_property_tracks', {
+      tracks: [{
+        target: { kind: 'view-brightness', clip_id: secondClip.clipId },
+        keyframes: [{ at_ms: 30_000, value: 1 }, { at_ms: 40_000, value: 0.5 }],
+      }],
     }).document
-    const composition = document.show.composition as ShowCompositionV1
-    const trackId = composition.scenes[1].propertyTracks![0].id
+    const trackId = document.show.composition.propertyTracks[0].id
 
     const issues = applyRefused(document, 'apply_patch', {
       patch: [{
         op: 'move',
-        from: '/composition/scenes/0',
-        path: '/composition/scenes/0/propertyTracks/0/id',
+        from: '/composition/markers',
+        path: '/composition/propertyTracks/0/id',
       }],
     }, 'invalid-argument')
     expect(issues[0].message).toContain(trackId)

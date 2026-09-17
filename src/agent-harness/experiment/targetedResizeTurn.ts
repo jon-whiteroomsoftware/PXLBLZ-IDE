@@ -24,7 +24,7 @@ export async function runTargetedResizeTurn(agent: DictationAgent, input: unknow
       mode: 'targeted-resize',
       sessionId: 'targeted-resize',
       utterance: 'Propose exactly the supplied Clip duration, or finish with refusal.',
-      history: [], editorContext: {}, listing: { durationMs: 0, scenes: [], clips: [] },
+      history: [], editorContext: {}, listing: { showEndMs: 0, layers: [], clips: [] },
       description: { clipId: intent.clipId, durationMs: intent.durationMs },
       instructions: 'This is a typed exact resize diagnostic. Only the supplied Clip and duration are authorized. No references to previous dialogue or other content are available. Do not request document reads or other edits.',
       tools: dictationTools([{ name: 'resize_clip', description: 'Propose the exact supplied Clip duration.', inputSchema: { type: 'object', properties: { session_id: { type: 'string', const: 'targeted-resize' }, clip_id: { type: 'string', const: intent.clipId }, duration_ms: { type: 'integer', const: intent.durationMs } }, required: ['clip_id', 'duration_ms'], additionalProperties: false } }]),

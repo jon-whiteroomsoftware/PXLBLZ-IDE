@@ -31,7 +31,7 @@ describe('sealed held-out corpus (#945)', () => {
 
   it('keeps every held-out id outside the ordinary baseline and tuning corpus', () => {
     expect(assertHeldOutCorpusExclusion(DICTATION_CASES.map((candidate) => candidate.id))).toEqual({
-      ordinaryCaseCount: 43,
+      ordinaryCaseCount: 46,
       heldOutCaseCount: 16,
       collisions: [],
     })

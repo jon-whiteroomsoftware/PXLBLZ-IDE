@@ -27,7 +27,7 @@ async function harness() {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
   await client.connect(clientTransport)
-  const opened = store.open(dictationFixture('empty-second-scene'))
+  const opened = store.open(dictationFixture('empty-tail'))
   if (!opened.ok) throw new Error(JSON.stringify(opened.issues))
   const described = store.describe(opened.sessionId)
   const toolList = await client.listTools()

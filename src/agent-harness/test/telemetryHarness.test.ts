@@ -4,6 +4,7 @@ import { inspectPatternMetadata } from '@/engine/bundle'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { compileShowDocument } from '../shows/evaluate.js'
 import { runTelemetry } from '../telemetry/harness.js'
+import { toShowRecordV2 } from './support/convertFixture.js'
 
 const runFixture = (source: string, durationMs: number, options: { pixelCount?: number } = {}) =>
   runTelemetry(source, inspectPatternMetadata(source), { durationMs, ...options })
@@ -86,8 +87,10 @@ describe('telemetry harness fixtures (#8)', () => {
 })
 
 describe('telemetry determinism and cost (#8)', () => {
+  // The stock catalogue entry is the subject; the harness compiles the version-2
+  // record the app's own converter makes of it.
   const compiledStockShow = () => {
-    const compiled = compileShowDocument(structuredClone(STOCK_SHOWS[0].show))
+    const compiled = compileShowDocument(toShowRecordV2(structuredClone(STOCK_SHOWS[0].show)))
     expect(compiled.ok).toBe(true)
     if (!compiled.ok) throw new Error('unreachable')
     return compiled

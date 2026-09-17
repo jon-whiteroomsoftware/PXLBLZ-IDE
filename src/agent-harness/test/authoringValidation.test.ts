@@ -1,348 +1,327 @@
+// The editing session's authoring-validation boundary, re-authored on
+// version-2 faults for #1039.
+//
+// The invariant is unchanged from the v1 suite: an authoring session accepts
+// more than delivery does, and every refusal on that wider surface leaves the
+// document, the history and the redo stack exactly as they were. What changed
+// is the fault vocabulary — there are no Scenes, cells or flat projection to
+// break — so each case below is written on a v2 fault at the document level the
+// bridge actually hands over.
+//
+// Cases of the v1 suite that are not re-authored here, and why:
+//
+// - "keeps broader authoring acceptance internal and reports its diagnostics
+//   explicitly" was written on the caller-supplied `stageDimension` option,
+//   which v2 retires (a record names its own Stage map). The surviving content
+//   — the editing session tolerating an unresolvable personal reference while
+//   strict validation refuses it — is asserted by `showEvaluate.test.ts`
+//   ("tolerates an unresolved user reference in editing-session mode") and by
+//   the product's own `src/engine/showAuthoringValidationV2.test.ts`.
+// - "requires actual metadata for flat projection and preserves the source
+//   input on refusal": flat projection is retired, so the premise is gone.
+// - "preserves an existing missing stock Pattern on the internal composition
+//   path only": v2 makes an unknown *stock* id a hard error in every mode
+//   (`shows/evaluate.ts`), a deliberate narrowing. The replacement behaviour is
+//   asserted by `showEvaluate.test.ts` ("rejects unknown stock pattern ids
+//   instead of silently substituting") and `bridgeAuthoringValidation.test.ts`
+//   ("refuses unresolvable-pattern at service open").
+// - the three internal-file-importer cases were written on
+//   `preserveAuthoringPhysicalRanges` and on the v1 importer rewriting a
+//   record on the way in. A v2 record round-trips whole, which
+//   `bridgeTypedOutcome.test.ts` asserts against the reopened `.pxlshow`.
 import { expect, it } from 'vitest'
-import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
 import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { createSessionStore } from '../grammar/session'
 import { openShowDocument } from '../grammar/openShow'
-import { validateShowDocument } from '../shows/evaluate'
-import { openGrammarFixture } from './support/grammarFixture'
+import { compileShowDocument, validateShowDocument } from '../shows/evaluate'
+import { grammarFixtureShow, openGrammarFixture } from './support/grammarFixture'
 
-it('edits and reopens a delivery-incomplete Show while delivery still refuses it', async () => {
-  const show = openGrammarFixture().document.show
+/** An authoring session over one record, opened in editing-session mode. */
+function session(show: ShowRecordV2, patterns: Array<{ id: string; name?: string; source: string }> = [], options = {}) {
   const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show, [], { stageDimension: 3 })
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  expect(store.begin(opened.sessionId).ok).toBe(true)
-  expect(store.apply(opened.sessionId, 'rename_show', { name: 'Still authoring' }).ok).toBe(true)
-  expect(store.validatePending(opened.sessionId).ok).toBe(true)
-  expect(store.commit(opened.sessionId).ok).toBe(true)
-  const exported = store.export(opened.sessionId)
+  const opened = store.open(show, patterns, { allowUnresolvedUserPatterns: true, ...options })
+  if (!opened.ok) throw new Error(`session failed to open: ${JSON.stringify(opened.issues)}`)
+  return { store, sessionId: opened.sessionId, listing: opened.listing }
+}
+
+it('edits, exports and reopens an empty Show while delivery still refuses it', async () => {
+  // Specification section 9: an empty Show is a valid, editable, saveable
+  // record whose preview and export are unavailable. That is v2's own
+  // authoring-accepts/delivery-refuses partition.
+  const show = grammarFixtureShow()
+  show.composition.clips = []
+  show.composition.transitions = []
+  const { store, sessionId } = session(show)
+
+  expect(store.begin(sessionId).ok).toBe(true)
+  expect(store.apply(sessionId, 'rename_show', { name: 'Still authoring' }).ok).toBe(true)
+  expect(store.validatePending(sessionId).ok).toBe(true)
+  expect(store.commit(sessionId).ok).toBe(true)
+  const exported = store.export(sessionId)
   expect(exported.ok).toBe(true)
   if (!exported.ok) return
-  expect(openShowDocument(JSON.stringify(exported.show), [], { stageDimension: 3 }, { authoringValidation: true }).ok).toBe(true)
-  const { bundle, filename } = buildShowFileBundle(exported.show, { patterns: [], maps: [] }, { appVersion: 'D1-test', exportedAt: '2026-09-08T00:00:00.000Z' })
+
+  // It reopens for editing, both as an object and as a JSON string.
+  expect(openShowDocument(JSON.stringify(exported.show), [], {}, { authoringValidation: true }).ok).toBe(true)
+  const { bundle, filename } = buildShowFileBundle(exported.show, { patterns: [], maps: [], libraries: [] }, { appVersion: 'D1-test', exportedAt: '2026-09-08T00:00:00.000Z' })
   expect(filename).toMatch(/\.pxlshow$/)
-  const reopenedFile = await parseShowFileBundle(await serializeShowFileBundle(bundle))
-  expect(reopenedFile.show).toEqual({
-    ...exported.show,
-    cells: exported.show.cells.map(cell => ({ ...cell, restartOnEntry: false })),
-    transitions: [{ id: 'transition-s1', afterSceneId: 's1', durationMs: 0, kind: 'cut', easing: { curve: 'linear' } }],
-  })
-  expect(openShowDocument(reopenedFile.show, [], { stageDimension: 3 }, { authoringValidation: true }).ok).toBe(true)
-  expect(validateShowDocument(exported.show, [], { stageDimension: 3 }).valid).toBe(false)
-  expect(store.undo(opened.sessionId).ok).toBe(true)
-  expect(store.export(opened.sessionId)).toEqual({ ok: true, show })
-  expect(store.redo(opened.sessionId).ok).toBe(true)
-  expect(store.export(opened.sessionId)).toEqual(exported)
+  const reopenedFile = await parseShowFileBundle(await serializeShowFileBundle(bundle), { acceptV2: true })
+  expect(reopenedFile.version).toBe(2)
+  if (reopenedFile.version !== 2) return
+  // A v2 record round-trips whole; the importer normalizes nothing away.
+  expect(reopenedFile.show).toEqual(exported.show)
+  expect(openShowDocument(reopenedFile.show, [], {}, { authoringValidation: true }).ok).toBe(true)
+
+  // Delivery still refuses, by name.
+  const compiled = compileShowDocument(exported.show)
+  expect(compiled.ok).toBe(false)
+  if (!compiled.ok) expect(compiled.errors[0].message).toContain('no Clips')
+
+  expect(store.undo(sessionId).ok).toBe(true)
+  expect(store.export(sessionId)).toEqual({ ok: true, show })
+  expect(store.redo(sessionId).ok).toBe(true)
+  expect(store.export(sessionId)).toEqual(exported)
 })
 
-it('refuses unknown personal control metadata without changing document or history', () => {
+it('refuses a control write needing absent personal metadata without changing document or history', () => {
   const show = openGrammarFixture().document.show
-  const instance = show.composition!.patternInstances[0]
-  instance.pattern = { kind: 'user', id: 'missing-personal' }
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show, [], { allowUnresolvedUserPatterns: true })
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  const before = store.export(opened.sessionId)
-  const history = store.describeChanges(opened.sessionId)
-  const listing = opened.listing.clips.find(clip => clip.instanceId === instance.id)!
-  const result = store.apply(opened.sessionId, 'set_clip_control_target', { clip_id: listing.clipId, export_name: 'sliderInvented', value: 0.5 })
+  show.composition.patternInstances[0].pattern = { kind: 'user', id: 'missing-personal' }
+  const { store, sessionId, listing } = session(show)
+  const before = store.export(sessionId)
+  const history = store.describeChanges(sessionId)
+  const clip = listing.clips.find((candidate) => candidate.instanceId === 'inst-1')!
+
+  const result = store.apply(sessionId, 'update_clips', {
+    updates: [{ clip_id: clip.clipId, instance_properties: { controls: { sliderInvented: 0.5 } } }],
+  })
   expect(result.ok).toBe(false)
-  expect(store.export(opened.sessionId)).toEqual(before)
-  expect(store.describeChanges(opened.sessionId)).toEqual(history)
+  if (!result.ok) expect(result.issues[0].code).toBe('missing-dependency')
+  expect(store.export(sessionId)).toEqual(before)
+  expect(store.describeChanges(sessionId)).toEqual(history)
 })
 
 it('preserves an existing missing Library by owner and source identity, but rejects a new owner', () => {
   const show = openGrammarFixture().document.show
-  const first = show.composition!.patternInstances[0]
+  const first = show.composition.patternInstances[0]
   first.pattern = { kind: 'user', id: 'personal' }
   const patterns = [{ id: 'personal', source: 'export function render(index) { Missing.paint(index) }' }]
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show, patterns, { allowUnresolvedUserPatterns: true })
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  expect(store.apply(opened.sessionId, 'rename_show', { name: 'Unrelated edit' }).ok).toBe(true)
-  const before = store.export(opened.sessionId)
-  const history = store.describeChanges(opened.sessionId)
-  const result = store.apply(opened.sessionId, 'set_field', { pointer: '/composition/patternInstances/1/pattern', value: first.pattern })
+  const { store, sessionId } = session(show, patterns)
+
+  // The existing unresolvable owner is carried, so unrelated editing continues.
+  expect(store.apply(sessionId, 'rename_show', { name: 'Unrelated edit' }).ok).toBe(true)
+  const before = store.export(sessionId)
+  const history = store.describeChanges(sessionId)
+
+  // A second instance adopting the same unresolvable source is a *new* owner.
+  const result = store.apply(sessionId, 'set_field', {
+    pointer: '/composition/patternInstances/1/pattern',
+    value: first.pattern,
+  })
   expect(result.ok).toBe(false)
-  expect(store.export(opened.sessionId)).toEqual(before)
-  expect(store.describeChanges(opened.sessionId)).toEqual(history)
+  expect(store.export(sessionId)).toEqual(before)
+  expect(store.describeChanges(sessionId)).toEqual(history)
 })
 
 it.each(['missing-zone', 'malformed-routing', 'missing-instance', 'duplicate-instance', 'same-layer-overlap'] as const)(
-  'refuses %s even with delivery capability warnings and preserves complete redo history', (fault) => {
+  'refuses %s mid-session and preserves complete redo history',
+  (fault) => {
     const show = openGrammarFixture({ overlay: true }).document.show
-    const store = createSessionStore({ authoringValidation: true })
-    const opened = store.open(show, [], { stageDimension: 3 })
-    expect(opened.ok).toBe(true)
-    if (!opened.ok) return
-    expect(store.apply(opened.sessionId, 'rename_show', { name: 'Later' }).ok).toBe(true)
-    const later = store.export(opened.sessionId)
-    expect(store.undo(opened.sessionId).ok).toBe(true)
-    const before = store.export(opened.sessionId)
-    const history = store.describeChanges(opened.sessionId)
-    const composition = structuredClone(show.composition!)
-    let pointer = '/composition'
-    let value: unknown = composition
+    const { store, sessionId } = session(show)
+    expect(store.apply(sessionId, 'rename_show', { name: 'Later' }).ok).toBe(true)
+    const later = store.export(sessionId)
+    expect(store.undo(sessionId).ok).toBe(true)
+    const before = store.export(sessionId)
+    const history = store.describeChanges(sessionId)
+
+    let pointer: string
+    let value: unknown
     if (fault === 'missing-zone') {
-      pointer = '/routingLayouts/0/logical/zoneIds'
+      pointer = '/zoneLayouts/0/logical/zoneIds'
       value = ['gone']
     } else if (fault === 'malformed-routing') {
-      pointer = '/routingLayouts/0/logical'
+      pointer = '/zoneLayouts/0/logical'
       value = { kind: 'grid', zoneIds: ['z1'], columns: 2, rows: 1 }
-    } else if (fault === 'missing-instance') composition.scenes[0].zones[0].main[0].instanceId = 'gone'
-    else if (fault === 'duplicate-instance') composition.patternInstances.push(structuredClone(composition.patternInstances[0]))
-    else {
-      const main = composition.scenes[0].zones[0].main
-      main.push({ ...main[0], id: 'new-placement', startMs: 100, durationMs: 100 })
+    } else if (fault === 'missing-instance') {
+      pointer = '/composition/clips/0/instanceId'
+      value = 'gone'
+    } else if (fault === 'duplicate-instance') {
+      pointer = '/composition/patternInstances/-'
+      value = structuredClone(show.composition.patternInstances[0])
+    } else {
+      pointer = '/composition/clips/-'
+      value = { ...structuredClone(show.composition.clips[0]), id: 'overlapping-clip', startMs: 100, durationMs: 100 }
     }
-    expect(store.apply(opened.sessionId, 'set_field', { pointer, value }).ok).toBe(false)
-    expect(store.export(opened.sessionId)).toEqual(before)
-    expect(store.describeChanges(opened.sessionId)).toEqual(history)
-    expect(store.redo(opened.sessionId).ok).toBe(true)
-    expect(store.export(opened.sessionId)).toEqual(later)
+
+    expect(store.apply(sessionId, 'set_field', { pointer, value }).ok, fault).toBe(false)
+    expect(store.export(sessionId)).toEqual(before)
+    expect(store.describeChanges(sessionId)).toEqual(history)
+    expect(store.redo(sessionId).ok).toBe(true)
+    expect(store.export(sessionId)).toEqual(later)
   },
 )
 
-it('keeps cross-Layer overlap and incomplete installation coverage through commit and reopen', () => {
-  const show = openGrammarFixture({ overlay: true }).document.show
-  show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 256, resolution: 'fixed' }
-  show.routingLayouts = [{ id: 'l1', name: 'Incomplete', zones: [{ zoneId: 'z1', ranges: [{ start: 0, end: 31 }] }] }]
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show)
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  expect(store.apply(opened.sessionId, 'rename_show', { name: 'Coverage later' }).ok).toBe(true)
-  const exported = store.export(opened.sessionId)
-  expect(exported.ok).toBe(true)
-  if (!exported.ok) return
-  const reopened = openShowDocument(JSON.stringify(exported.show), [], {}, { authoringValidation: true })
-  expect(reopened.ok).toBe(true)
-  if (reopened.ok) {
-    expect(reopened.document.show.composition).toEqual(show.composition)
-    expect(reopened.warnings.some(issue => issue.code === 'delivery')).toBe(true)
-  }
-  expect(validateShowDocument(exported.show).errors.some(issue => issue.code === 'coverage')).toBe(true)
+it('rejects a Zone Layout that does not provide a Clip\'s Zone', () => {
+  const show = openGrammarFixture().document.show
+  show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 8, resolution: 'fixed' } as never
+  show.zoneLayouts = [{ id: 'l1', name: 'Physical', zones: [{ zoneId: 'gone', ranges: [{ start: 0, end: 7 }] }] }] as never
+  const refused = createSessionStore({ authoringValidation: true }).open(show)
+  expect(refused.ok).toBe(false)
+  if (!refused.ok) expect(refused.issues[0].message).toContain('does not provide it')
 })
 
 it('preserves one missing Pattern but refuses replacement and transplantation, then repairs it', () => {
   const show = openGrammarFixture().document.show
-  show.composition!.patternInstances[0].pattern = { kind: 'user', id: 'missing' }
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show, [], { allowUnresolvedUserPatterns: true })
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  expect(store.apply(opened.sessionId, 'rename_show', { name: 'Unrelated' }).ok).toBe(true)
-  const before = store.export(opened.sessionId)
+  show.composition.patternInstances[0].pattern = { kind: 'user', id: 'missing' }
+  const { store, sessionId } = session(show)
+  expect(store.apply(sessionId, 'rename_show', { name: 'Unrelated' }).ok).toBe(true)
+  const before = store.export(sessionId)
+
+  // Neither swapping the missing owner for a different missing one, nor giving
+  // a second instance the same missing source, is accepted.
   for (const [index, id] of [[0, 'other-missing'], [1, 'missing']] as const) {
-    expect(store.apply(opened.sessionId, 'set_field', {
+    expect(store.apply(sessionId, 'set_field', {
       pointer: `/composition/patternInstances/${index}/pattern`, value: { kind: 'user', id },
     }).ok).toBe(false)
-    expect(store.export(opened.sessionId)).toEqual(before)
+    expect(store.export(sessionId)).toEqual(before)
   }
-  expect(store.apply(opened.sessionId, 'set_field', {
+
+  // Repairing it with a resolvable stock Pattern is accepted and reopens.
+  expect(store.apply(sessionId, 'set_field', {
     pointer: '/composition/patternInstances/0/pattern', value: { kind: 'stock', id: 'CometLoom' },
   }).ok).toBe(true)
-  const exported = store.export(opened.sessionId)
+  const exported = store.export(sessionId)
   expect(exported.ok).toBe(true)
   if (exported.ok) expect(openShowDocument(JSON.stringify(exported.show), [], {}, { authoringValidation: true }).ok).toBe(true)
 })
 
 it('refuses generic control writes requiring absent metadata', () => {
   const show = openGrammarFixture().document.show
-  show.composition!.patternInstances[0].pattern = { kind: 'user', id: 'missing' }
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show, [], { allowUnresolvedUserPatterns: true })
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  const before = store.export(opened.sessionId)
-  expect(store.apply(opened.sessionId, 'set_field', {
+  show.composition.patternInstances[0].pattern = { kind: 'user', id: 'missing' }
+  const { store, sessionId } = session(show)
+  const before = store.export(sessionId)
+  expect(store.apply(sessionId, 'set_field', {
     pointer: '/composition/patternInstances/0/controlTargets', value: { sliderInvented: 0.5 },
   }).ok).toBe(false)
-  expect(store.export(opened.sessionId)).toEqual(before)
-})
-
-it('keeps broader authoring acceptance internal and reports its diagnostics explicitly', () => {
-  const show = openGrammarFixture().document.show
-  expect(createSessionStore().open(show, [], { stageDimension: 3 }).ok).toBe(false)
-  expect(openShowDocument(show, [], { stageDimension: 3 }).ok).toBe(false)
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show, [], { stageDimension: 3 })
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  expect(opened.warnings?.some(issue => issue.code === 'delivery')).toBe(true)
-  store.begin(opened.sessionId)
-  store.apply(opened.sessionId, 'rename_show', { name: 'Internal only' })
-  const validation = store.validatePending(opened.sessionId)
-  expect(validation.ok).toBe(true)
-  if (validation.ok) expect(validation.warnings?.some(issue => issue.code === 'delivery')).toBe(true)
-  const commit = store.commit(opened.sessionId)
-  expect(commit.ok).toBe(true)
-  if (commit.ok) expect(commit.warnings?.some(issue => issue.code === 'delivery')).toBe(true)
+  expect(store.export(sessionId)).toEqual(before)
 })
 
 it('snapshots caller source and Library metadata and validates a supplied personal slider', () => {
   const show = openGrammarFixture().document.show
-  const instance = show.composition!.patternInstances[0]
+  const instance = show.composition.patternInstances[0]
   instance.pattern = { kind: 'user', id: 'personal' }
-  const patterns = [{ id: 'personal', source: 'export function sliderSpeed(v) {} export function render(index) { Missing.paint(index) }' }]
-  const options = { allowUnresolvedUserPatterns: true, authoringLibraries: {} as Record<string, string> }
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show, patterns, options)
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  patterns[0].source = 'export function render(index) { Different.paint(index) }'
-  options.authoringLibraries.Missing = 'this is not source'
-  instance.pattern.id = 'caller-mutation'
-  const clip = opened.listing.clips.find(clip => clip.instanceId === instance.id)!
-  expect(store.apply(opened.sessionId, 'set_clip_control_target', { clip_id: clip.clipId, export_name: 'sliderSpeed', value: 0.5 }).ok).toBe(true)
-  const exported = store.export(opened.sessionId)
-  expect(exported.ok).toBe(true)
-  if (exported.ok) expect(exported.show.composition!.patternInstances[0].pattern.id).toBe('personal')
-})
+  const patterns = [{ id: 'personal', source: 'export function sliderSpeed(v) {} export function render(index) { House.paint(index) }' }]
+  const options = {
+    allowUnresolvedUserPatterns: true,
+    authoringLibraries: { House: 'function paint(index) { rgb(1, 1, 1) }' } as Record<string, string>,
+  }
+  const { store, sessionId, listing } = session(show, patterns, options)
 
-it('requires actual metadata for flat projection and preserves the source input on refusal', () => {
-  const show = openGrammarFixture().document.show
-  delete show.composition
-  show.cells[0].pattern = { kind: 'user', id: 'missing' }
-  const before = structuredClone(show)
-  expect(createSessionStore({ authoringValidation: true }).open(show, [], { allowUnresolvedUserPatterns: true }).ok).toBe(false)
-  expect(show).toEqual(before)
+  // The session captured its dependency boundary at open; later caller mutation
+  // must not reach it (specification section 6).
+  patterns[0].source = 'export function render(index) { Different.paint(index) }'
+  options.authoringLibraries.House = 'this is not source'
+  instance.pattern.id = 'caller-mutation'
+
+  const clip = listing.clips.find((candidate) => candidate.instanceId === 'inst-1')!
+  expect(store.apply(sessionId, 'update_clips', {
+    updates: [{ clip_id: clip.clipId, instance_properties: { controls: { sliderSpeed: 0.5 } } }],
+  }).ok).toBe(true)
+  const exported = store.export(sessionId)
+  expect(exported.ok).toBe(true)
+  if (exported.ok) expect(exported.show.composition.patternInstances[0].pattern.id).toBe('personal')
 })
 
 it('refuses an invalid final private candidate without changing committed state or redo', () => {
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(openGrammarFixture({ emptySecondScene: true }).document.show, [], { allowUnresolvedUserPatterns: true })
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  store.apply(opened.sessionId, 'rename_show', { name: 'Redo target' })
-  const later = store.export(opened.sessionId)
-  store.undo(opened.sessionId)
-  const before = store.export(opened.sessionId)
-  const history = store.describeChanges(opened.sessionId)
-  store.begin(opened.sessionId)
-  expect(store.apply(opened.sessionId, 'add_clip', {
-    zone_id: 'z1', start_ms: 35000, duration_ms: 10000, pattern_kind: 'stock', pattern_id: 'missing-pattern',
+  const { store, sessionId, listing } = session(openGrammarFixture({ emptyTail: true }).document.show)
+  store.apply(sessionId, 'rename_show', { name: 'Redo target' })
+  const later = store.export(sessionId)
+  store.undo(sessionId)
+  const before = store.export(sessionId)
+  const history = store.describeChanges(sessionId)
+
+  // A candidate every command owner accepts and only the final validation
+  // refuses: a participant Transition beside a section-scoped activation.
+  const first = listing.clips[0]
+  store.begin(sessionId)
+  const resized = store.apply(sessionId, 'resize_clip', { clip_id: first.clipId, duration_ms: 10_000 })
+  expect(resized.ok).toBe(true)
+  const created = store.apply(sessionId, 'create_clips', {
+    clips: [{
+      zone_id: first.zoneId, layer_id: first.layerId, start_ms: 10_000, duration_ms: 10_000,
+      pattern: { kind: 'stock', id: 'TestPattern2D' },
+    }],
+  })
+  expect(created.ok).toBe(true)
+  if (!created.ok) return
+  const secondClipId = (created.changes[0].details as { clips: string[] }).clips.find((id) => id !== first.clipId)!
+  expect(store.apply(sessionId, 'add_property_tracks', {
+    tracks: [{
+      target: { kind: 'view-brightness', clip_id: secondClipId },
+      keyframes: [{ at_ms: 10_000, value: 1 }, { at_ms: 20_000, value: 0.2 }],
+    }],
   }).ok).toBe(true)
-  expect(store.validatePending(opened.sessionId).ok).toBe(false)
-  expect(store.commit(opened.sessionId).ok).toBe(false)
-  expect(store.export(opened.sessionId)).toEqual(before)
-  expect(store.describeChanges(opened.sessionId)).toEqual(history)
-  store.rollback(opened.sessionId)
-  expect(store.redo(opened.sessionId).ok).toBe(true)
-  expect(store.export(opened.sessionId)).toEqual(later)
-})
+  expect(store.apply(sessionId, 'insert_transition', {
+    from_clip_id: first.clipId, to_clip_id: secondClipId, duration_ms: 2_000, kind: 'crossfade',
+  }).ok).toBe(true)
 
-it.each([
-  ['overlap', [{ start: 0, end: 5 }, { start: 4, end: 7 }]],
-  ['outside', [{ start: -3, end: 11 }]],
-  ['missing', [{ start: 0, end: 3 }]],
-] as const)('preserves physical %s assignments with diagnostics and delivery refusal', (name, ranges) => {
-  const show = openGrammarFixture().document.show
-  show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 8, resolution: 'fixed' }
-  show.routingLayouts = [{ id: 'l1', name, zones: [{ zoneId: 'z1', ranges: ranges.map(range => ({ ...range })) }] }]
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show)
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  expect(opened.warnings?.some(issue => issue.code === 'delivery')).toBe(true)
-  expect(store.apply(opened.sessionId, 'rename_show', { name: 'Authoring' }).ok).toBe(true)
-  const exported = store.export(opened.sessionId)
-  expect(exported.ok).toBe(true)
-  if (!exported.ok) return
-  expect(exported.show.routingLayouts).toEqual(show.routingLayouts)
-  expect(validateShowDocument(exported.show).valid).toBe(false)
-})
-
-it.each([0.5, NaN, Infinity, -Infinity])('refuses malformed physical endpoint %s without throwing', endpoint => {
-  const show = openGrammarFixture().document.show
-  show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 8, resolution: 'fixed' }
-  show.routingLayouts = [{ id: 'l1', name: 'Physical', zones: [{ zoneId: 'z1', ranges: [{ start: endpoint, end: 7 }] }] }]
-  expect(createSessionStore({ authoringValidation: true }).open(show).ok).toBe(false)
-})
-
-it('rejects an unknown physical Zone even when coverage is complete', () => {
-  const show = openGrammarFixture().document.show
-  show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 8, resolution: 'fixed' }
-  show.routingLayouts = [{ id: 'l1', name: 'Physical', zones: [{ zoneId: 'gone', ranges: [{ start: 0, end: 7 }] }] }]
-  expect(createSessionStore({ authoringValidation: true }).open(show).ok).toBe(false)
-})
-
-it('preserves an existing missing stock Pattern on the internal composition path only', () => {
-  const show = openGrammarFixture().document.show
-  show.composition!.patternInstances[0].pattern = { kind: 'stock', id: 'removed-stock' }
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show, [], { allowUnresolvedUserPatterns: true })
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  expect(store.apply(opened.sessionId, 'rename_show', { name: 'Unrelated' }).ok).toBe(true)
-  const exported = store.export(opened.sessionId)
-  expect(exported.ok).toBe(true)
-  if (exported.ok) expect(exported.show.composition!.patternInstances[0].pattern.id).toBe('removed-stock')
-  expect(createSessionStore().open(show, [], { allowUnresolvedUserPatterns: true }).ok).toBe(false)
-})
-
-it('keeps over-capacity authoring editable while the artifact retains its resource blocker', async () => {
-  const show = openGrammarFixture().document.show
-  show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 2001, resolution: 'fixed' }
-  show.routingLayouts = [{ id: 'l1', name: 'Complete', zones: [{ zoneId: 'z1', ranges: [{ start: 0, end: 2000 }] }] }]
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show)
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  expect(opened.warnings?.some(issue => issue.code === 'delivery' && issue.message.includes('2,000'))).toBe(true)
-  expect(store.apply(opened.sessionId, 'rename_show', { name: 'Over capacity' }).ok).toBe(true)
-  const exported = store.export(opened.sessionId)
-  expect(exported.ok).toBe(true)
-  if (!exported.ok) return
-  const { bundle } = buildShowFileBundle(exported.show, { patterns: [], maps: [] }, { appVersion: 'D1' })
-  const reopened = await parseShowFileBundle(await serializeShowFileBundle(bundle))
-  expect(reopened.show.outputContract).toEqual(show.outputContract)
-  expect(compileShowForArtifact(exported.show, [], undefined, {}).artifactBlocker).toContain('2,001 pixels')
+  expect(store.validatePending(sessionId).ok).toBe(false)
+  expect(store.commit(sessionId).ok).toBe(false)
+  expect(store.export(sessionId)).toEqual(before)
+  expect(store.describeChanges(sessionId)).toEqual(history)
+  // A refused commit leaves the transaction open for correction; the refusal's
+  // own remedy says so, so discarding it must be the caller's choice.
+  expect(store.pending(sessionId)).toEqual({ ok: true, open: { label: 'edit', changes: 4 } })
+  expect(store.rollback(sessionId).ok).toBe(true)
+  expect(store.redo(sessionId).ok).toBe(true)
+  expect(store.export(sessionId)).toEqual(later)
 })
 
 it('does not promote a member resource-fit failure into an authoring refusal', () => {
   const show = openGrammarFixture().document.show
-  const pattern = { id: 'large', name: 'Large', src: 'var field = array(20000); export function render(index) { rgb(field[index], 0, 0) }', controls: {}, updatedAt: 1 }
-  show.cells[0].pattern = { kind: 'user', id: pattern.id }
-  show.composition!.patternInstances[0].pattern = { kind: 'user', id: pattern.id }
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(show, [{ id: pattern.id, source: pattern.src }])
-  expect(opened.ok).toBe(true)
-  if (!opened.ok) return
-  expect(store.apply(opened.sessionId, 'rename_show', { name: 'Needs more memory' }).ok).toBe(true)
-  const exported = store.export(opened.sessionId)
+  const source = 'var field = array(20000)\nexport function render(index) { rgb(field[index], 0, 0) }'
+  show.composition.patternInstances[0].pattern = { kind: 'user', id: 'large' }
+  show.composition.patternInstances[0].patternName = 'Large'
+  const { store, sessionId } = session(show, [{ id: 'large', name: 'Large', source }])
+  expect(store.apply(sessionId, 'rename_show', { name: 'Needs more memory' }).ok).toBe(true)
+  const exported = store.export(sessionId)
   expect(exported.ok).toBe(true)
   if (!exported.ok) return
-  const artifact = compileShowForArtifact(exported.show, [pattern], undefined, {}, { stageDimension: 2 })
-  expect(artifact.error).toBeNull()
-  expect(artifact.artifact?.summary.resources.blockers.some(blocker => blocker.kind === 'vm-word-budget')).toBe(true)
-  expect(artifact.artifactBlocker).toBeTruthy()
+  // The compile succeeds and reports the blocker in its summary; it is not an
+  // authoring refusal, and the harness does not invent one.
+  const compiled = compileShowDocument(exported.show, [{ id: 'large', name: 'Large', source }])
+  expect(compiled.ok, JSON.stringify(compiled)).toBe(true)
+  if (!compiled.ok) return
+  expect(compiled.summary.resources.blockers.some((blocker) => blocker.kind === 'vm-word-budget')).toBe(true)
 })
 
-it.each([{ start: -3, end: 11 }, { start: 11, end: -3 }])('preserves qualified authored physical ranges through the internal file importer: %j', async range => {
+it.each([
+  ['incomplete coverage', [{ start: 0, end: 3 }], 8],
+  ['overlapping ranges', [{ start: 0, end: 5 }, { start: 4, end: 7 }], 8],
+  ['out-of-range endpoints', [{ start: -3, end: 11 }], 8],
+  ['a fractional endpoint', [{ start: 0.5, end: 7 }], 8],
+  ['an over-capacity pixel count', [{ start: 0, end: 2000 }], 2001],
+] as const)('RESIDUAL (#1039): leaves Installation %s authorable and undiagnosed on the version-2 path', (_name, ranges, pixelCount) => {
+  // Under v1 every one of these was diagnosed: `validateShowDocument` ran
+  // `validateInstallationCoverage` through `showAuthoringValidation.ts`, and
+  // `compileShowForArtifact` carried the capacity blocker. On v2 the coverage
+  // fact is still computed — `showPreparedStageV2.ts` puts it on the prepared
+  // capture's `presentation` — but nothing turns it into a refusal, and the
+  // v1 validators are reachable only from v1-only modules. This is the same
+  // gap as the absent Portable capability check, one size larger.
+  //
+  // The harness pins what actually holds rather than keeping a second opinion
+  // about validity; the gap is reported to the epic, not repaired here.
   const show = openGrammarFixture().document.show
-  show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 8, resolution: 'fixed' }
-  show.routingLayouts = [{ id: 'l1', name: 'Physical', zones: [{ zoneId: 'z1', ranges: [range] }] }]
-  const { bundle } = buildShowFileBundle(show, { patterns: [], maps: [] }, { appVersion: 'D1' })
-  const bytes = await serializeShowFileBundle(bundle)
-  const reopened = await parseShowFileBundle(bytes, { preserveAuthoringPhysicalRanges: true })
-  expect(reopened.show).toEqual({
-    ...show,
-    cells: show.cells.map(cell => ({ ...cell, restartOnEntry: false })),
-    transitions: [{ id: 'transition-s1', afterSceneId: 's1', durationMs: 0, kind: 'cut', easing: { curve: 'linear' } }],
-  })
-  expect(openShowDocument(reopened.show, [], {}, { authoringValidation: true }).ok).toBe(true)
-  const ordinary = await parseShowFileBundle(bytes)
-  expect(ordinary.show.routingLayouts[0].zones[0].ranges).toEqual([{ start: 0, end: 11 }])
-})
+  show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount, resolution: 'fixed' } as never
+  show.zoneLayouts = [{ id: 'l1', name: 'Physical', zones: [{ zoneId: 'z1', ranges: ranges.map((range) => ({ ...range })) }] }] as never
+  const before = structuredClone(show)
 
-it.each([0.5, Infinity, NaN])('refuses malformed physical endpoints in the internal file importer: %s', async endpoint => {
-  const show = openGrammarFixture().document.show
-  show.routingLayouts = [{ id: 'l1', name: 'Physical', zones: [{ zoneId: 'z1', ranges: [{ start: endpoint, end: 7 }] }] }]
-  const { bundle } = buildShowFileBundle(show, { patterns: [], maps: [] }, { appVersion: 'D1' })
-  const bytes = await serializeShowFileBundle(bundle)
-  await expect(parseShowFileBundle(bytes, { preserveAuthoringPhysicalRanges: true })).rejects.toThrow('physical')
+  expect(validateShowDocument(show).valid).toBe(true)
+  const { store, sessionId } = session(show)
+  expect(store.apply(sessionId, 'rename_show', { name: 'Authoring' }).ok).toBe(true)
+  const exported = store.export(sessionId)
+  expect(exported.ok).toBe(true)
+  // The authored ranges are carried through untouched; nothing is repaired.
+  if (exported.ok) expect(exported.show.zoneLayouts).toEqual(before.zoneLayouts)
 })

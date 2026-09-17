@@ -1,125 +1,106 @@
-// Provenance: pxlblz-v3 src/grammar/types.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// Shared types for the Show grammar operation registry (#17). Pure data — no
-// MCP or transport imports.
-import type { ShowRecord } from '@/engine/personalContentRecords'
-import type { ShowClipDeletionRefusalReason } from '@/engine/showClipDeletion'
+// Provenance: pxlblz-v3 src/grammar/types.ts at 9ecd481f, re-authored onto the
+// version-2 vocabulary for #1039 (see src/agent-harness/PROVENANCE.md).
+// Shared types for the Show grammar operation registry. Pure data — no MCP or
+// transport imports.
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import type { InlinePattern, ShowEvaluationOptions } from '../shows/evaluate.js'
+
+/**
+ * Refusal codes this harness owns: session, transaction, referent and transport
+ * concerns the v2 catalogue knows nothing about.
+ *
+ * Domain refusals are not re-declared here. A catalogue refusal passes through
+ * carrying its own code from `SHOW_COMMAND_V2_REFUSAL_CODES`, which is the one
+ * place those codes and their meanings live. Retired v1 codes
+ * (`RETIRED_V1_REFUSAL_CODES`) must not reappear on this surface.
+ */
+export type GrammarHarnessIssueCode =
+  | 'unknown-operation'
+  | 'unknown-session'
+  | 'ambiguous-referent'
+  | 'transaction-open'
+  | 'no-transaction'
+  | 'history-exhausted'
+  | 'invalid-argument'
+  | 'result-invalid'
+  | 'open-failed'
+  | 'unknown-id'
+  | 'unknown-track'
 
 /** A typed reason an operation was refused. A refusal is never silent. */
 export interface GrammarIssue {
-  code:
-    | 'unknown-operation'
-    | 'unknown-session'
-    | 'unknown-clip'
-    | 'ambiguous-referent'
-    | 'unknown-track'
-    | 'unknown-keyframe'
-    | 'unknown-marker'
-    | 'unknown-zone'
-    | 'unknown-junction'
-    | 'ambiguous-junction'
-    | 'unknown-transition'
-    | 'unknown-effect'
-    | 'unknown-parameter'
-    | 'unknown-control'
-    | 'unknown-layout'
-    | 'unknown-interval'
-    | 'transition-refused'
-    | 'transaction-open'
-    | 'no-transaction'
-    | 'history-exhausted'
-    | 'invalid-argument'
-    | 'overlap'
-    | 'outside-timeline'
-    | 'outside-scene'
-    | 'duplicate-target'
-    | 'duplicate-name'
-    | 'duplicate-keyframe-time'
-    | 'minimum-keyframes'
-    | 'multi-segment-clip'
-    | 'last-clip'
-    | 'already-independent'
-    | 'no-change'
-    | 'engine-refused'
-    | 'result-invalid'
-    | 'open-failed'
-    // Planner codes, passed through from the vendored plan* functions with
-    // their user-legible reasons:
-    | 'invalid-time'
-    | 'invalid-duration'
-    | 'transition'
-    | 'missing-owner'
-    | 'occupied'
-    | 'no-space'
-    | 'outside-clip'
-    | 'transition-gap'
-    | 'scene-boundary'
-    | 'transition-boundary'
-    | 'unsupported-animation'
-    | 'already-shared'
-    | 'missing-target'
-    | 'incompatible-target'
-    | 'group'
-    | 'logical-clip'
-    | 'nonlinear-property-animation'
-    | 'missing-composition'
-    | 'unsupported-topology'
-    | 'domain-refusal'
-    | ShowClipDeletionRefusalReason
+  /** A harness code above, or a v2 catalogue refusal code passed through. */
+  code: GrammarHarnessIssueCode | (string & {})
   message: string
   /** What the agent can do instead, where one exists. */
   remedy?: string
-  /** JSON pointer into the document, where one applies. */
+  /** JSON pointer or JSONPath into the document or the input, where one applies. */
   path?: string
-  /** Nearest known ids when an id failed to resolve. */
+  /** Nearest known identities when an id failed to resolve. */
   candidates?: string[]
-  availableRange?: { startMs: number; endMs: number }
 }
 
 /** One entry of the structured change list an accepted operation returns. */
 export interface GrammarChange {
   op: string
-  /** The id of the element the change created or edited. */
-  targetId: string
+  /** The identity the change created or edited, when it names one. */
+  targetId?: string
   /** One line of prose an agent can echo to the user. */
   description: string
-  before?: unknown
-  after?: unknown
-  /** Ids an agent needs for follow-up calls (keyframe ids, etc.). */
-  details?: Record<string, unknown>
+  /**
+   * The command's own affected-entity collections, unchanged, or the generic
+   * backstop's touched pointers. Never re-shaped on the way through.
+   */
+  details?: object
 }
 
 /**
- * The document a grammar operation edits: a ShowRecord normalized to the
- * composition shape, plus everything tier-0 validation needs to re-run.
+ * The document a grammar operation edits.
+ *
+ * v2 has one record representation, so there is no projection step and no
+ * second shape: this is the record the commands read, the validators observe
+ * and the exporters write.
  */
 export interface ShowGrammarDocument {
   /** Internal qualification path only; no bridge or MCP caller enables it. */
   authoringValidation?: true
-  show: ShowRecord
+  show: ShowRecordV2
   inlinePatterns: InlinePattern[]
   options: ShowEvaluationOptions
 }
 
-/** Compact clip listing so an agent can address a clip without the raw document. */
+/** Compact Clip listing so an agent can address a Clip without the raw document. */
 export interface ClipListingEntry {
   clipId: string
-  /** Placement id of the clip's first segment; property-track targets use it. */
-  startPlacementId: string
-  /** Pattern instance the clip renders; clips sharing an instance share state. */
+  /** Pattern instance the Clip renders; Clips sharing an instance share state. */
   instanceId: string
   patternName: string
   zoneId: string
   zoneName: string
-  layer: { kind: 'main' | 'overlay'; index: number }
-  sceneId: string
+  /** Stable Zone-owned Layer identity for the whole Show. */
+  layerId: string
+  layerName: string
+  /** Zero is the bottom Layer. */
+  layerRank: number
   startMs: number
   endMs: number
   durationMs: number
+  entryPolicy: 'continue' | 'restart'
+  /** Present for a materialized Group Clip use. */
+  groupOccurrenceId?: string
+}
+
+export interface ShowLayerListingEntry {
+  layerId: string
+  zoneId: string
+  zoneName: string
+  name: string
+  rank: number
 }
 
 export interface ShowClipListing {
-  durationMs: number
-  scenes: Array<{ sceneId: string; name: string; startMs: number; endMs: number }>
+  /** Show End owns the loop length. */
+  showEndMs: number
+  layers: ShowLayerListingEntry[]
   clips: ClipListingEntry[]
 }

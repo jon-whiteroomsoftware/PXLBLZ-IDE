@@ -10,6 +10,7 @@ import { showLoopDurationMs } from '@/engine/showModel'
 import { BASELINE_FIXTURES, resolveBaselineFixtureRecord, type BaselineFixtureFeature } from '../baseline/fixtures.js'
 import { canonicalJson, evidenceDifferences, recordSha256, type BaselineFixtureEvidence } from '../baseline/evidence.js'
 import { collectFixtureEvidence } from '../baseline/fixturesCli.js'
+import { baselineFixtureRecordV2 } from '../baseline/fixturesV2.js'
 import { openShowDocument } from '../grammar/openShow.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -20,7 +21,8 @@ const REQUIRED: BaselineFixtureFeature[] = [
 ]
 
 describe('baseline fixtures', () => {
-  it('runs the original applying resize scenario despite prepended browser utterances', async () => {
+  // Two full collection passes over every fixture, each through a real bridge.
+  it('runs the original applying resize scenario despite prepended browser utterances', { timeout: 120_000 }, async () => {
     const { document } = await collectFixtureEvidence()
     const repeated = await collectFixtureEvidence()
     expect(repeated.document).toEqual(document)
@@ -68,8 +70,9 @@ describe('baseline fixtures', () => {
   it('records, in the committed evidence, which fixtures the grammar opens in editing-session mode', () => {
     const evidence = JSON.parse(readFileSync(evidencePath, 'utf8')) as BaselineFixtureEvidence
     for (const fixture of BASELINE_FIXTURES) {
-      const record = resolveBaselineFixtureRecord(fixture, (id) => stockShowById(id)?.show)
-      const opened = openShowDocument(record, [], { allowUnresolvedUserPatterns: true })
+      // The baseline opens the version-2 record the app's own converter makes
+      // of the pinned legacy fixture, which is what the evidence records.
+      const opened = openShowDocument(baselineFixtureRecordV2(fixture), [], { allowUnresolvedUserPatterns: true })
       const entry = evidence.fixtures.find((item) => item.id === fixture.id)
       expect(entry, fixture.id).toBeDefined()
       // An open refusal is a baseline finding, recorded verbatim, never repaired here.
@@ -80,10 +83,13 @@ describe('baseline fixtures', () => {
   })
 
   it('pins each fixture record by hash in the committed evidence', () => {
+    // The pinned hash is of the version-2 record the baseline actually opens.
+    // The legacy inputs behind it have their own pin: the 47-record parity
+    // census (`npm run show:v2-parity`, specification section 2).
     const evidence = JSON.parse(readFileSync(evidencePath, 'utf8')) as BaselineFixtureEvidence
     const actual = BASELINE_FIXTURES.map((fixture) => ({
       id: fixture.id,
-      recordSha256: recordSha256(resolveBaselineFixtureRecord(fixture, (id) => stockShowById(id)?.show)),
+      recordSha256: recordSha256(baselineFixtureRecordV2(fixture)),
     }))
     const expected = evidence.fixtures.map((fixture) => ({ id: fixture.id, recordSha256: fixture.recordSha256 }))
     expect(evidenceDifferences(expected, actual)).toEqual([])

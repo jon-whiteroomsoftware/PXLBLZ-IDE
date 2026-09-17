@@ -1,28 +1,20 @@
-// Provenance: pxlblz-v3 src/grammar/support.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// Shared helpers for the grammar operation families: clip resolution over the
-// unified timeline projection, Scene-local time conversion, deterministic id
-// allocation, refusal construction, and the engine-refusal diagnosis. Pure
-// logic shared by src/grammar/operations/*.
-import { z } from 'zod'
-import { describeShowPropertyTrack, type TrackState } from '@/engine/showPropertyAnimation'
-import { getStockPattern } from '../shows/stockCatalogue.js'
+// Provenance: pxlblz-v3 src/grammar/support.ts at 9ecd481f, re-authored onto the
+// version-2 vocabulary for #1039 (see src/agent-harness/PROVENANCE.md).
+// Shared helpers for the grammar surface: Clip and Layer resolution over the
+// version-agnostic timeline view model, deterministic id allocation, refusal
+// construction and Property-track lookup. Pure logic.
+//
+// Scene-local time conversion is gone with Scenes: every time here is global
+// integer milliseconds, and a Group definition's own tracks are local to that
+// definition, which the track site records explicitly.
+import type { ShowPropertyTargetV2, ShowPropertyTrackV2, ShowRecordV2 } from '@/engine/showCompositionV2'
+import { projectShowTimelineV2 } from '@/engine/showTimelineViewModelV2'
 import type {
-  ShowCompositionV1,
-  ShowPropertyAnimationKeyframe,
-  ShowPropertyAnimationTarget,
-  ShowPropertyAnimationTrack,
-  ShowRecord,
-  ShowTransitionEasing,
-} from '@/engine/personalContentRecords'
-import { normalizeShowEasing } from '@/engine/showEasing'
-import { validateShowPropertyTracks } from '@/engine/showPropertyAnimation'
-import type { ShowTimelineClipOwner } from '@/engine/showTimelineClipAuthoring'
-import {
-  projectShowUnifiedTimeline,
-  type ShowUnifiedTimelineClipProjection,
-} from '@/engine/showUnifiedTimelineProjection'
+  ShowTimelineItemView,
+  ShowTimelineJunctionView,
+  ShowTimelineViewModel,
+} from '@/engine/showTimelineViewModel'
 import type { GrammarIssue, ShowGrammarDocument } from './types.js'
-import { inspectPatternMetadata } from '@/engine/bundle'
 
 export interface GrammarRefusal {
   ok: false
@@ -33,18 +25,7 @@ export function refuse(...issues: GrammarIssue[]): GrammarRefusal {
   return { ok: false, issues }
 }
 
-export function compositionOf(document: ShowGrammarDocument): ShowCompositionV1 {
-  return document.show.composition as ShowCompositionV1
-}
-
-export function composedShow(
-  document: ShowGrammarDocument,
-  composition: ShowCompositionV1,
-): ShowGrammarDocument {
-  return { ...document, show: { ...document.show, composition } }
-}
-
-export function replacedShow(document: ShowGrammarDocument, show: ShowRecord): ShowGrammarDocument {
+export function replacedShow(document: ShowGrammarDocument, show: ShowRecordV2): ShowGrammarDocument {
   return { ...document, show }
 }
 
@@ -66,264 +47,169 @@ export function idFactory(document: ShowGrammarDocument): (prefix: string) => st
   }
 }
 
-export interface ClipContext {
-  clip: ShowUnifiedTimelineClipProjection
+export function timelineOf(document: ShowGrammarDocument): ShowTimelineViewModel {
+  return projectShowTimelineV2(document.show)
+}
+
+export interface ClipSite {
+  item: ShowTimelineItemView
+  zoneId: string
   zoneName: string
-  timelineDurationMs: number
-  siblings: Array<{ clip: ShowUnifiedTimelineClipProjection; zoneId: string; zoneName: string }>
+  layerId: string
+  layerName: string
+  layerRank: number
 }
 
-export function describeClip(clip: ShowUnifiedTimelineClipProjection, zoneName: string): string {
-  return `${clip.id} (${clip.patternName} on ${zoneName}, ${clip.startMs}–${clip.endMs} ms)`
+export interface JunctionSite {
+  junction: ShowTimelineJunctionView
+  zoneId: string
+  zoneName: string
+  layerId: string
 }
 
+export function clipSites(timeline: ShowTimelineViewModel): ClipSite[] {
+  const sites: ClipSite[] = []
+  for (const row of timeline.rows) {
+    for (const layer of row.layers) {
+      for (const item of layer.items) {
+        sites.push({
+          item,
+          zoneId: row.zoneId,
+          zoneName: row.zoneName,
+          layerId: layer.id,
+          layerName: layer.name,
+          layerRank: layer.rank,
+        })
+      }
+    }
+  }
+  return sites.sort((left, right) => left.item.startMs - right.item.startMs
+    || left.item.id.localeCompare(right.item.id))
+}
+
+export function junctionSites(timeline: ShowTimelineViewModel): JunctionSite[] {
+  const sites: JunctionSite[] = []
+  for (const row of timeline.rows) {
+    for (const layer of row.layers) {
+      for (const junction of layer.junctions) {
+        sites.push({ junction, zoneId: row.zoneId, zoneName: row.zoneName, layerId: layer.id })
+      }
+    }
+  }
+  return sites.sort((left, right) => left.junction.startMs - right.junction.startMs
+    || left.junction.id.localeCompare(right.junction.id))
+}
+
+export function describeClip(site: ClipSite): string {
+  return `${site.item.id} (${site.item.patternName} on ${site.zoneName} / ${site.layerName}, ` +
+    `${site.item.startMs}–${site.item.endMs} ms)`
+}
+
+export interface ClipContext {
+  site: ClipSite
+  showEndMs: number
+  siblings: ClipSite[]
+}
+
+/**
+ * Resolve one Clip identity.
+ *
+ * A materialized Group Clip use resolves here too, and the site records its
+ * occurrence: the catalogue addresses Group content through the Group
+ * occurrence commands, so the referent surface must be able to say which
+ * occurrence a described Clip belongs to rather than pretending it is ordinary.
+ */
 export function resolveClip(
   document: ShowGrammarDocument,
   clipId: string,
 ): { ok: true; context: ClipContext } | GrammarRefusal {
-  const timeline = projectShowUnifiedTimeline(document.show, compositionOf(document))
-  const clips: ClipContext['siblings'] = []
-  for (const zone of timeline.zones) {
-    for (const layer of zone.layers) {
-      for (const clip of layer.clips) clips.push({ clip, zoneId: zone.id, zoneName: zone.name })
-    }
-  }
-  const found = clips.find((candidate) => candidate.clip.id === clipId)
+  const timeline = timelineOf(document)
+  const siblings = clipSites(timeline)
+  const found = siblings.find((candidate) => candidate.item.id === clipId)
   if (!found) {
     return refuse({
-      code: 'unknown-clip',
-      message:
-        `No clip has id "${clipId}". Known clips: ${
-          clips.map((candidate) => describeClip(candidate.clip, candidate.zoneName)).join('; ')}.`,
-      candidates: clips.map((candidate) => candidate.clip.id),
+      code: 'unknown-id',
+      message: `No Clip has id "${clipId}". Known Clips: ${siblings.map(describeClip).join('; ') || 'none'}.`,
+      candidates: siblings.map((candidate) => candidate.item.id),
     })
   }
-  return {
-    ok: true,
-    context: {
-      clip: found.clip,
-      zoneName: found.zoneName,
-      timelineDurationMs: timeline.durationMs,
-      siblings: clips,
-    },
-  }
+  return { ok: true, context: { site: found, showEndMs: timeline.showEndMs, siblings } }
 }
 
-export function ownerFor(clip: ShowUnifiedTimelineClipProjection): ShowTimelineClipOwner {
-  return clip.kind === 'main'
-    ? { kind: 'main', sceneId: clip.sceneId, zoneId: clip.zoneId, placementId: clip.id }
-    : {
-        kind: 'overlay',
-        sceneId: clip.sceneId,
-        zoneId: clip.zoneId,
-        layerId: clip.layerId ?? '',
-        placementId: clip.id,
-      }
-}
-
-export interface SceneRange {
-  sceneId: string
-  name: string
-  startMs: number
-  endMs: number
-  durationMs: number
-}
-
-export function sceneRanges(document: ShowGrammarDocument): SceneRange[] {
-  let cursor = 0
-  return document.show.scenes.map((scene) => {
-    const range = {
-      sceneId: scene.id,
-      name: scene.name,
-      startMs: cursor,
-      endMs: cursor + scene.durationMs,
-      durationMs: scene.durationMs,
-    }
-    cursor += scene.durationMs
-    return range
-  })
-}
-
-/** Convert one global time to the Scene-local milliseconds tracks store. */
-export function toSceneLocal(
-  document: ShowGrammarDocument,
-  sceneId: string,
-  globalMs: number,
-): { ok: true; localMs: number } | { ok: false; issue: GrammarIssue } {
-  const range = sceneRanges(document).find((candidate) => candidate.sceneId === sceneId)
-  if (!range) {
-    return {
-      ok: false,
-      issue: { code: 'outside-scene', message: `Scene "${sceneId}" does not exist on the timeline.` },
-    }
-  }
-  if (!Number.isFinite(globalMs) || globalMs < range.startMs || globalMs > range.endMs) {
-    return {
-      ok: false,
-      issue: {
-        code: 'outside-scene',
-        message:
-          `Time ${globalMs} ms is outside Scene "${range.name}", which covers ` +
-          `${range.startMs}–${range.endMs} ms on the global timeline.`,
-        remedy: `Choose a time between ${range.startMs} and ${range.endMs} ms.`,
-      },
-    }
-  }
-  return { ok: true, localMs: Math.round(globalMs - range.startMs) }
-}
-
-/** Turn a refusing engine plan into a typed issue carrying its legible reason. */
-export function planRefusal(
-  plan: { code: string; reason: string },
-  context: string,
-  remedy?: string,
-): GrammarIssue {
-  return {
-    code: plan.code as GrammarIssue['code'],
-    message: `${context}: ${plan.reason}`,
-    ...(remedy ? { remedy } : {}),
-  }
-}
-
-export const easingArgument = z
-  .union([
-    z.enum(['linear', 'ease-in', 'ease-out', 'ease-in-out']),
-    z.record(z.unknown()),
-  ])
-  .optional()
-  .describe(
-    'Interpolation leaving the keyframe: a preset name (linear, ease-in, ease-out, ease-in-out) ' +
-      'or a structured easing record. Defaults to linear.',
-  )
-
-export function toEasing(input: unknown) {
-  return normalizeShowEasing((input ?? 'linear') as ShowTransitionEasing)
-}
-
-export const keyframeArgument = z.object({
-  time_ms: z.number().describe('Global timeline milliseconds'),
-  value: z.number(),
-  easing: easingArgument,
-})
-
+/** Which authored owner's time domain a track lives in. */
 export interface TrackSite {
-  sceneId: string
-  track: ShowPropertyAnimationTrack
+  /** The Show itself, or the Group definition that owns this track's local time. */
+  owner: { kind: 'show' } | { kind: 'group-definition'; definitionId: string }
+  track: ShowPropertyTrackV2
 }
 
-export function describeTarget(target: ShowPropertyAnimationTarget): string {
+export function trackSites(document: ShowGrammarDocument): TrackSite[] {
+  return [
+    ...document.show.composition.propertyTracks.map((track): TrackSite => ({ owner: { kind: 'show' }, track })),
+    ...document.show.composition.groupDefinitions.flatMap((definition) =>
+      definition.propertyTracks.map((track): TrackSite => ({
+        owner: { kind: 'group-definition', definitionId: definition.id },
+        track,
+      }))),
+  ]
+}
+
+export function describeTarget(target: ShowPropertyTargetV2): string {
   switch (target.kind) {
-    case 'placement-opacity': return `opacity of clip ${target.placementId}`
-    case 'instance-control': return `control "${target.exportName}" of instance ${target.instanceId}`
     case 'instance-time-scale': return `time scale of instance ${target.instanceId}`
-    case 'placement-view': return `${target.property} of clip ${target.placementId}`
-    case 'placement-transform': return `${target.property} transform of clip ${target.placementId}`
-    case 'placement-viewport': return `viewport ${target.property} of clip ${target.placementId}`
-    case 'placement-effect': return `${target.effectKind} ${target.parameterId} on clip ${target.placementId}`
+    case 'instance-control': return `control "${target.exportName}" of instance ${target.instanceId}`
+    case 'clip-opacity': return `opacity of Clip ${target.clipId}`
+    case 'clip-view': return `${target.property} of Clip ${target.clipId}`
+    case 'clip-transform': return `${target.property} transform of Clip ${target.clipId}`
+    case 'clip-aperture': return `Aperture ${target.property} of Clip ${target.clipId}`
+    case 'clip-effect': return `${target.effectKind} ${target.parameterId} on Clip ${target.clipId}`
+    case 'layout-occurrence-split-position': return `split position of Layout occurrence ${target.layoutOccurrenceId}`
+    case 'show-repeat-scale': return 'Show repeat scale'
   }
 }
 
-export function targetKey(target: ShowPropertyAnimationTarget): string {
-  return JSON.stringify(Object.fromEntries(Object.entries(target).sort(([a], [b]) => a.localeCompare(b))))
+/** The Clip, instance or Layout occurrence a target names, when it names one. */
+export function targetEntityId(target: ShowPropertyTargetV2): string | undefined {
+  if ('clipId' in target) return target.clipId
+  if ('instanceId' in target) return target.instanceId
+  if ('layoutOccurrenceId' in target) return target.layoutOccurrenceId
+  return undefined
 }
 
 export function findTrack(
   document: ShowGrammarDocument,
   trackId: string,
 ): { ok: true; site: TrackSite } | GrammarRefusal {
-  const sites: TrackSite[] = compositionOf(document).scenes.flatMap((scene) =>
-    (scene.propertyTracks ?? []).map((track) => ({ sceneId: scene.sceneId, track })),
-  )
+  const sites = trackSites(document)
   const site = sites.find((candidate) => candidate.track.id === trackId)
   if (!site) {
     return refuse({
       code: 'unknown-track',
-      message:
-        sites.length === 0
-          ? `No property tracks exist yet; add one with add_property_track.`
-          : `No property track has id "${trackId}". Known tracks: ${
-              sites.map((candidate) => `${candidate.track.id} (${describeTarget(candidate.track.target)})`).join('; ')}.`,
+      message: sites.length === 0
+        ? 'No Property tracks exist yet; add one with add_property_tracks.'
+        : `No Property track has id "${trackId}". Known tracks: ${
+            sites.map((candidate) => `${candidate.track.id} (${describeTarget(candidate.track.target)})`).join('; ')}.`,
       candidates: sites.map((candidate) => candidate.track.id),
     })
   }
   return { ok: true, site }
 }
 
-export function findKeyframe(
-  site: TrackSite,
-  keyframeId: string,
-): { ok: true; keyframe: ShowPropertyAnimationKeyframe } | GrammarRefusal {
-  const keyframe = site.track.keyframes.find((candidate) => candidate.id === keyframeId)
-  if (!keyframe) {
-    return refuse({
-      code: 'unknown-keyframe',
-      message:
-        `Track ${site.track.id} has no keyframe "${keyframeId}". Known keyframes: ${
-          site.track.keyframes.map((candidate) => `${candidate.id} (at ${candidate.timeMs} ms Scene-local)`).join('; ')}.`,
-      candidates: site.track.keyframes.map((candidate) => candidate.id),
-    })
-  }
-  return { ok: true, keyframe }
+export interface DescribedKeyframe {
+  id: string
+  timeMs: number
+  value: number
+  easing: string
+  /** The outgoing segment is a restriction of a longer authored curve. */
+  retainedCurve: boolean
 }
 
-/** Turn an engine identity refusal into typed issues via the track validator. */
-export function engineRefusal(show: ShowRecord, draft: ShowCompositionV1): GrammarIssue[] {
-  const issues = validateShowPropertyTracks(show, draft)
-  if (issues.length > 0) {
-    return issues.map((issue) => ({
-      code: 'engine-refused' as const,
-      message: issue.message,
-      path: issue.path,
-    }))
-  }
-  return [{
-    code: 'engine-refused',
-    message: 'The engine declined this edit. Re-read the clip listing and check the arguments.',
-  }]
-}
-
-export type { DescribedKeyframe, TrackState } from '@/engine/showPropertyAnimation'
-
-export function trackState(document: ShowGrammarDocument, trackId: string): TrackState | null {
-  const found = findTrack(document, trackId)
-  if (!found.ok) return null
-  const sceneStart = sceneRanges(document).find(range => range.sceneId === found.site.sceneId)?.startMs ?? 0
-  return describeShowPropertyTrack(found.site.track, sceneStart)
-}
-
-/**
- * A control edit requires inspectable source and a declared slider export.
- */
-export function controlExportIssue(
-  document: ShowGrammarDocument,
-  instanceId: string,
-  exportName: string,
-): GrammarIssue | null {
-  const instance = compositionOf(document).patternInstances.find((candidate) => candidate.id === instanceId)
-  if (!instance) return { code: 'unknown-control', message: `Unknown Pattern instance "${instanceId}".` }
-  let controls: Array<{ exportName: string; kind: string }>
-  try {
-    if (instance.pattern.kind === 'stock') controls = getStockPattern(instance.pattern.id).controls
-    else {
-      const source = document.inlinePatterns.find(pattern => pattern.id === instance.pattern.id)?.source
-      if (source === undefined) return { code: 'unknown-control', message: `Pattern metadata for "${instance.pattern.id}" is unavailable; supply its source before editing controls.` }
-      controls = inspectPatternMetadata(source).controls
-    }
-  } catch {
-    return { code: 'unknown-control', message: `Pattern metadata for "${instance.pattern.id}" cannot be inspected.` }
-  }
-  const sliders = controls.filter((control) => control.kind === 'slider').map((control) => control.exportName)
-  if (sliders.includes(exportName)) return null
-  const other = controls.find((control) => control.exportName === exportName)
-  const list = sliders.length > 0 ? sliders.join(', ') : 'none'
-  return {
-    code: 'unknown-control',
-    message: other
-      ? `"${exportName}" is a ${other.kind} control on ${instance.patternName}, not a slider; control targets drive sliders only. Slider exports: ${list}.`
-      : `${instance.patternName} has no control export "${exportName}". Its slider exports: ${list}.`,
-    remedy: sliders.length > 0
-      ? 'Use one of the listed export names exactly; do not guess an identifier.'
-      : 'This Pattern exposes no slider controls; tell the user.',
-    candidates: sliders,
-  }
+export function describeKeyframes(track: ShowPropertyTrackV2): DescribedKeyframe[] {
+  return track.keyframes.map((keyframe) => ({
+    id: keyframe.id,
+    timeMs: keyframe.timeMs,
+    value: keyframe.value,
+    easing: keyframe.easing.curve,
+    retainedCurve: keyframe.curveSegment !== undefined,
+  }))
 }

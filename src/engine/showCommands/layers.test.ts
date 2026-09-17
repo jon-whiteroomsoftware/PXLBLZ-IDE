@@ -3,8 +3,6 @@ import { showCommandFixture } from '../../test/showCommandFixture'
 import { showLayerCommandFixture } from '../../test/showLayerCommandFixture'
 import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } from '../showFileBundle'
 import { projectShowUnifiedTimeline } from '../showUnifiedTimelineProjection'
-import { applyShowGrammarOperation } from '../../agent-harness/grammar/registry'
-import { openShowDocument } from '../../agent-harness/grammar/openShow'
 import { applyShowCommand, runShowCommandTransaction } from './registry'
 
 function accepted(record: ReturnType<typeof showCommandFixture>, name: string, input: Record<string, unknown>) {
@@ -172,27 +170,14 @@ describe('consistent Layer addressing (#1012)', () => {
   })
 })
 
+// The canonical-versus-diagnostic adapter comparison that used to open this
+// describe block is retired with the #1039 cutover: the agent harness registers
+// the v2 catalogue and no v1 name, so there is no diagnostic adapter for
+// `reorder_overlay_layer` to compare against. The property it protected — that
+// the diagnostic surface reports the owner's own record, changes and affected
+// collections unchanged — is asserted on v2 by
+// `src/agent-harness/test/catalogueSurface.test.ts`.
 describe('canonical whole-Layer commands (#1013, #1014)', () => {
-  it('returns the same complete records and receipts through the canonical and diagnostic adapters', () => {
-    const before = showLayerCommandFixture()
-    const opened = openShowDocument(before)
-    expect(opened.ok, opened.ok ? '' : JSON.stringify(opened.issues)).toBe(true)
-    if (!opened.ok) return
-    for (const [command, args] of [
-      ['reorder_overlay_layer', { zone_id: 'zone-1', layer_index: 2, target_index: 0 }],
-      ['remove_overlay_layer', { zone_id: 'zone-1', layer_index: 2 }],
-    ] as const) {
-      const canonical = applyShowCommand(before, command, args)
-      const diagnostic = applyShowGrammarOperation(opened.document, command, args)
-      expect(canonical.ok && diagnostic.ok).toBe(true)
-      if (!canonical.ok || !diagnostic.ok) continue
-      expect(diagnostic.document.show).toEqual({ ...canonical.record, updatedAt: diagnostic.document.show.updatedAt })
-      expect(diagnostic.changes).toEqual(canonical.changes.map(({ command: _name, ...change }) => ({
-        ...change, op: command,
-      })))
-    }
-  })
-
   it('reorders by final front-to-back index with compact selected-ID and permutation receipts', () => {
     const before = showLayerCommandFixture()
     const outcome = accepted(before, 'reorder_overlay_layer', {

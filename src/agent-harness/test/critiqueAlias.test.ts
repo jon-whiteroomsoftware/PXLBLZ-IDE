@@ -10,7 +10,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import { RETIRED_STOCK_PATTERN_IDS } from '@/pixelblaze/stock/patterns'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { critiqueShow } from '../shows/critique.js'
+import { toShowRecordV2 } from './support/convertFixture.js'
 import { validateShowDocument } from '../shows/evaluate.js'
 
 const RETIRED_ID = 'DoomFire'
@@ -23,7 +25,7 @@ interface SceneSpec {
 }
 
 /** One Zone, one cell per Scene; Doom Fire cells share a display name so only the id differs. */
-function buildShow(scenes: SceneSpec[]): ShowRecord {
+function buildShow(scenes: SceneSpec[]): ShowRecordV2 {
   const record = {
     id: 'critique-alias-fixture',
     name: 'Critique Alias Fixture',
@@ -57,9 +59,10 @@ function buildShow(scenes: SceneSpec[]): ShowRecord {
     },
     updatedAt: 0,
   } as unknown as ShowRecord
-  const validated = validateShowDocument(record)
+  const converted = toShowRecordV2(record, 'critique fixture')
+  const validated = validateShowDocument(converted)
   expect(validated.errors, JSON.stringify(validated.errors)).toEqual([])
-  return record
+  return converted
 }
 
 describe('critique compares stock sources by canonical id (#945 repair)', () => {
@@ -69,21 +72,23 @@ describe('critique compares stock sources by canonical id (#945 repair)', () => 
   })
 
   it('flags the retired id beside its successor as back-to-back repetition', () => {
+    // Exactly adjacent Clips: the retired id and its successor must read as one
+    // repeated texture across the Cut.
     const mixed = buildShow([
-      { durationMs: 8_000, pattern: RETIRED_ID, transitionKind: 'crossfade' },
+      { durationMs: 8_000, pattern: RETIRED_ID },
       { durationMs: 15_000, pattern: CURRENT_ID, transitionKind: 'wipe' },
       { durationMs: 5_000, pattern: 'Caustics' },
     ])
     const canonical = buildShow([
-      { durationMs: 8_000, pattern: CURRENT_ID, transitionKind: 'crossfade' },
+      { durationMs: 8_000, pattern: CURRENT_ID },
       { durationMs: 15_000, pattern: CURRENT_ID, transitionKind: 'wipe' },
       { durationMs: 5_000, pattern: 'Caustics' },
     ])
     const findings = critiqueShow(mixed)
     expect(findings).toEqual(critiqueShow(canonical))
     const repetition = findings.find((finding) => finding.rule === 'adjacent-pattern-repetition')
-    expect(repetition).toBeDefined()
-    expect(repetition!.where).toBe('Zone "zone-main", Scenes 1–2')
+    expect(repetition, JSON.stringify(findings)).toBeDefined()
+    expect(repetition!.where).toMatch(/^Layer "Main", Clips /)
     expect(repetition!.message).toContain('Doom Fire')
   })
 

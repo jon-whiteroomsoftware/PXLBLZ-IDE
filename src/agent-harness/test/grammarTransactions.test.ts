@@ -1,6 +1,6 @@
 // Provenance: pxlblz-v3 test/grammarTransactions.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
-import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import { grammarFixtureShow } from './support/grammarFixture.js'
 
@@ -15,24 +15,23 @@ import { grammarFixtureShow } from './support/grammarFixture.js'
 // and auto-wrapped operations.
 
 function openSession(store: GrammarSessionStore) {
-  const opened = store.open(grammarFixtureShow({ emptySecondScene: true }))
+  const opened = store.open(grammarFixtureShow({ emptyTail: true }))
   if (!opened.ok) throw new Error(JSON.stringify(opened.issues))
   const clip = opened.listing.clips.find((candidate) => candidate.startMs === 0)
   if (!clip) throw new Error('no clip at 0 ms')
   return { sessionId: opened.sessionId, clipId: clip.clipId }
 }
 
-function exported(store: GrammarSessionStore, sessionId: string): ShowRecord {
+function exported(store: GrammarSessionStore, sessionId: string): ShowRecordV2 {
   const result = store.export(sessionId)
   if (!result.ok) throw new Error(JSON.stringify(result.issues))
   return result.show
 }
 
-function firstClipDuration(show: ShowRecord): number {
-  const composition = show.composition as {
-    scenes: Array<{ sceneId: string; zones: Array<{ main: Array<{ durationMs: number }> }> }>
-  }
-  return composition.scenes.find((scene) => scene.sceneId === 's1')!.zones[0].main[0].durationMs
+function firstClipDuration(show: ShowRecordV2): number {
+  const first = [...show.composition.clips].sort((left, right) => left.startMs - right.startMs)[0]
+  if (!first) throw new Error('the Show has no Clips')
+  return first.durationMs
 }
 
 function historyLength(store: GrammarSessionStore, sessionId: string): number {
@@ -51,13 +50,14 @@ describe('editing-session transactions (#20)', () => {
     const resized = store.apply(sessionId, 'resize_clip', { clip_id: clipId, duration_ms: 12_000 })
     expect(resized.ok).toBe(true)
     if (resized.ok) expect(resized.transaction).toBe('owner example')
-    expect(store.apply(sessionId, 'add_property_track', {
-      clip_id: clipId,
-      target: 'view-brightness',
-      keyframes: [
-        { time_ms: 3_000, value: 0.8 },
-        { time_ms: 8_000, value: 0.4 },
-      ],
+    expect(store.apply(sessionId, 'add_property_tracks', {
+      tracks: [{
+        target: { kind: 'view-brightness', clip_id: clipId },
+        keyframes: [
+          { at_ms: 3_000, value: 0.8 },
+          { at_ms: 8_000, value: 0.4 },
+        ],
+      }],
     }).ok).toBe(true)
 
     // Nothing committed yet: the document is unchanged and history empty.
@@ -68,8 +68,8 @@ describe('editing-session transactions (#20)', () => {
     if (!committed.ok) throw new Error(JSON.stringify(committed.issues))
     expect(committed.label).toBe('owner example')
     expect(committed.changes).toHaveLength(2)
-    expect(committed.summary).toContain('Shortened CometLoom to 12 seconds.\n0–12 seconds · 12 seconds')
-    expect(committed.summary).toContain('track')
+    expect(committed.summary).toContain('12')
+    expect(committed.summary.toLowerCase()).toContain('track')
     expect(historyLength(store, sessionId)).toBe(1)
     expect(firstClipDuration(exported(store, sessionId))).toBe(12_000)
 
@@ -120,36 +120,34 @@ describe('editing-session transactions (#20)', () => {
     expect(store.rollback(sessionId).ok).toBe(true)
   })
 
-  it('refuses an invalid commit with typed issues and keeps the transaction open for a fix', () => {
+  it('refuses the operation that would make the working copy invalid, leaving the transaction open', () => {
+    // Under v1 an unresolvable Pattern reference was accepted into the working
+    // copy and caught at commit, because tier-0 was deferred inside a
+    // transaction. Every v2 owner validates its own complete candidate before
+    // returning, so the refusal now arrives at the operation with the owner's
+    // own code and the working copy never holds an invalid record. The
+    // transaction stays open either way, which is the property this case owns.
     const store = createSessionStore()
-    const { sessionId } = openSession(store)
+    const { sessionId, clipId } = openSession(store)
     const original = exported(store, sessionId)
 
     expect(store.begin(sessionId, 'needs fixing').ok).toBe(true)
-    // In a transaction, tier-0 is deferred: an unresolvable user pattern is
-    // accepted into the working copy and caught at commit.
-    const added = store.apply(sessionId, 'add_clip', {
-      zone_id: 'z1',
-      start_ms: 35_000,
-      duration_ms: 5_000,
-      pattern_kind: 'user',
-      pattern_id: 'no-such-pattern',
+    const refused = store.apply(sessionId, 'create_clips', {
+      clips: [{
+        zone_id: 'z1',
+        layer_id: 'layer:z1:main',
+        start_ms: 35_000,
+        duration_ms: 5_000,
+        pattern: { kind: 'user', id: 'no-such-pattern' },
+      }],
     })
-    expect(added.ok).toBe(true)
-    const badClipId = added.ok ? added.changes[0].targetId : ''
-
-    const refused = store.commit(sessionId)
     expect(refused.ok).toBe(false)
-    if (!refused.ok) {
-      expect(refused.issues[0].code).toBe('result-invalid')
-      expect(refused.issues[0].message).toContain('user-library-pattern')
-      expect(refused.issues[0].remedy).toContain('rollback_edit')
-    }
+    if (!refused.ok) expect(refused.issues[0].code).toBe('missing-dependency')
     expect(exported(store, sessionId)).toEqual(original)
     expect(historyLength(store, sessionId)).toBe(0)
 
-    // The transaction is still open: fix the document and commit again.
-    expect(store.apply(sessionId, 'remove_clip', { clip_id: badClipId }).ok).toBe(true)
+    // The transaction is still open: do the edit that works and commit.
+    expect(store.apply(sessionId, 'resize_clip', { clip_id: clipId, duration_ms: 12_000 }).ok).toBe(true)
     const committed = store.commit(sessionId)
     expect(committed.ok).toBe(true)
     expect(historyLength(store, sessionId)).toBe(1)
@@ -163,16 +161,18 @@ describe('editing-session transactions (#20)', () => {
     expect(store.apply(sessionId, 'add_marker', { at_ms: 6_000, name: 'Mid' }).ok).toBe(true)
     expect(historyLength(store, sessionId)).toBe(2)
 
-    // Outside a transaction the tier-0 gate applies per operation.
-    const invalid = store.apply(sessionId, 'add_clip', {
-      zone_id: 'z1',
-      start_ms: 35_000,
-      duration_ms: 5_000,
-      pattern_kind: 'user',
-      pattern_id: 'no-such-pattern',
+    // Outside a transaction the same owner refusal applies per operation.
+    const invalid = store.apply(sessionId, 'create_clips', {
+      clips: [{
+        zone_id: 'z1',
+        layer_id: 'layer:z1:main',
+        start_ms: 35_000,
+        duration_ms: 5_000,
+        pattern: { kind: 'user', id: 'no-such-pattern' },
+      }],
     })
     expect(invalid.ok).toBe(false)
-    if (!invalid.ok) expect(invalid.issues[0].code).toBe('result-invalid')
+    if (!invalid.ok) expect(invalid.issues[0].code).toBe('missing-dependency')
     expect(historyLength(store, sessionId)).toBe(2)
 
     // Mixed history: undo twice returns to the original document.

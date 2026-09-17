@@ -1,8 +1,11 @@
-// Provenance: pxlblz-v3 src/shows/exportShow.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// Bridge from an agent-authored ShowRecord document to runnable artifacts:
-// the v2-IDE-importable .epe and the bare generated Pattern source. Pure
-// logic — the CLI is a thin wrapper.
-import { buildShowEpeExport } from '@/engine/showEpeExport'
+// Provenance: pxlblz-v3 src/shows/exportShow.ts at 9ecd481f, re-authored onto the
+// version-2 record for #1039 (see src/agent-harness/PROVENANCE.md).
+// Bridge from an agent-authored `ShowRecordV2` to runnable artifacts: the
+// IDE-importable `.epe` and the bare generated Pattern source. Pure logic — the
+// CLI is a thin wrapper. Both come from the production v2 exporters, so a
+// reopened artifact is the one the editor would have produced.
+import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import {
   compileShowDocument,
   prepareShowDocument,
@@ -30,7 +33,6 @@ export type ExportShowResult =
       source: string
       artifactBytes: number
       artifactBudgetRatio: number
-      artifactBlocker?: string
     }
 
 export function exportShowDocument(
@@ -38,21 +40,22 @@ export function exportShowDocument(
   inlinePatterns: InlinePattern[] = [],
   options: ExportShowOptions = {},
 ): ExportShowResult {
-  const compiled = compileShowDocument(input, inlinePatterns, {
-    stageDimension: options.stageDimension,
-    targetPixelCount: options.targetPixelCount,
-  })
+  const compiled = compileShowDocument(input, inlinePatterns, options)
   if (!compiled.ok) return { ok: false, errors: compiled.errors }
 
-  // compileShowDocument already validated the document, so this re-parse
-  // only recovers the typed record for the exporter.
+  // compileShowDocument already validated the document, so this re-parse only
+  // recovers the typed record for the exporter.
   const prepared = prepareShowDocument(input, inlinePatterns)
   if ('errors' in prepared) return { ok: false, errors: prepared.errors }
 
-  const epe = buildShowEpeExport(prepared.prepared.show, compiled.code, {
-    stampedAt: options.stampedAt,
-    id: options.epeId,
+  const epe = buildShowEpeExportV2(prepared.prepared.show as ShowRecordV2, compiled.code, {
+    userMaps: [...(options.maps ?? [])],
+    ...(options.stampedAt !== undefined ? { stampedAt: options.stampedAt } : {}),
+    ...(options.epeId !== undefined ? { id: options.epeId } : {}),
   })
+  if (epe.status === 'refused') {
+    return { ok: false, errors: [{ code: 'delivery', message: epe.message }] }
+  }
   return {
     ok: true,
     epeFilename: epe.filename,
@@ -60,6 +63,5 @@ export function exportShowDocument(
     source: epe.source,
     artifactBytes: compiled.summary.artifactBytes,
     artifactBudgetRatio: compiled.summary.artifactBudgetRatio,
-    ...(compiled.artifactBlocker ? { artifactBlocker: compiled.artifactBlocker } : {}),
   }
 }

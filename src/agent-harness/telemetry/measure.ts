@@ -1,24 +1,24 @@
-// Provenance: pxlblz-v3 src/telemetry/measure.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
-// Tier-1 measurement of a ShowRecord document: compile through the pinned
+// Provenance: pxlblz-v3 src/telemetry/measure.ts at 9ecd481f, re-authored onto the
+// version-2 record for #1039 (see src/agent-harness/PROVENANCE.md).
+// Tier-1 measurement of a Show document: compile through the pinned
 // engine, then run the telemetry harness (including the flicker gate) on the
 // generated artifact. Pure logic — the MCP tool is a thin wrapper.
 //
 // Runtime boundary: this path EXECUTES generated Pattern code. It exists only
 // on the local server and must never join a stateless-hosted tier-0 surface.
 //
-// #945 corrections (integration review): the default window is V2's canonical
-// loop duration (Scene holds plus visual transitions, or a longer explicit
-// end) rather than the Scene-hold sum, so a final transition tail is
-// measured; and every window and frame rate is bounded before execution -
-// an explicit window used to have only a lower bound, so a large request
-// could run the synchronous frame loop without end.
+// #945 corrections (integration review): every window and frame rate is bounded
+// before execution - an explicit window used to have only a lower bound, so a
+// large request could run the synchronous frame loop without end. The default
+// window is the Show's own loop length, which in v2 is `composition.showEndMs`:
+// Show End owns the loop, so a final Transition tail is measured without summing
+// Scene holds.
 //
 // #945 repair (candidate review of a4e11cc0): the envelope is
 // resolveTelemetryBounds in harness.ts, shared with the raw entry, so the
 // direct API cannot bypass it. A non-positive explicit window is refused
 // (it used to clamp up to 1 s); finite positive windows still clamp.
-import type { ShowRecord } from '@/engine/personalContentRecords'
-import { showLoopDurationMs } from '@/engine/showModel'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import {
   compileShowDocument,
   prepareShowDocument,
@@ -39,9 +39,9 @@ export const MEASURE_WINDOW_SECONDS = TELEMETRY_WINDOW_SECONDS
 export const MEASURE_FPS = TELEMETRY_FPS
 
 export interface MeasureShowOptions extends ShowEvaluationOptions {
-  /** Measurement window in seconds; defaults to the Show's canonical loop
-   * duration (showLoopDurationMs). Finite positive values clamp to
-   * [1s, 600s]; non-finite or non-positive values are refused. */
+  /** Measurement window in seconds; defaults to the Show's own loop length
+   * (`composition.showEndMs`). Finite positive values clamp to [1s, 600s];
+   * non-finite or non-positive values are refused. */
   durationSeconds?: number
   /** Modeled pixel count (default 64). */
   pixelCount?: number
@@ -61,14 +61,12 @@ export type MeasureShowResult =
        * fast checking. false means the Show must not run on hardware. */
       flickerGatePassed: boolean
       report: TelemetryReport
-      compile: { artifactBytes: number; artifactBudgetRatio: number; clipCount: number; artifactBlocker?: string }
+      compile: { artifactBytes: number; artifactBudgetRatio: number; clipCount: number }
     }
 
-/** The Show's canonical loop duration, as V2 computes it (#945 correction:
- * this used to sum Scene holds only, omitting visual transitions and a
- * longer explicit composition end). */
-export function showTimelineDurationMs(show: Pick<ShowRecord, 'scenes' | 'transitions' | 'composition'>): number {
-  return showLoopDurationMs(show)
+/** The Show's loop length. Show End owns it in v2 (specification section 3). */
+export function showTimelineDurationMs(show: Pick<ShowRecordV2, 'composition'>): number {
+  return show.composition.showEndMs
 }
 
 /** Bound the requested frame rate and (explicit) window before anything runs. */
@@ -94,10 +92,7 @@ export function measureShowDocument(
   const resolved = resolveOptions(options)
   if (!resolved.ok) return { ok: false, reason: 'invalid-options', error: resolved.error }
 
-  const compiled = compileShowDocument(input, inlinePatterns, {
-    stageDimension: options.stageDimension,
-    targetPixelCount: options.targetPixelCount,
-  })
+  const compiled = compileShowDocument(input, inlinePatterns, options)
   if (!compiled.ok) return { ok: false, reason: 'invalid-show', errors: compiled.errors }
 
   let durationMs: number
@@ -129,7 +124,6 @@ export function measureShowDocument(
         artifactBytes: compiled.summary.artifactBytes,
         artifactBudgetRatio: compiled.summary.artifactBudgetRatio,
         clipCount: compiled.summary.clipCount,
-        ...(compiled.artifactBlocker ? { artifactBlocker: compiled.artifactBlocker } : {}),
       },
     }
   } catch (cause) {

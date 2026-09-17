@@ -6,10 +6,15 @@ import { SHOW_COMMANDS } from '../showCommands/registry'
 import { SHOW_COMMANDS_V2 } from './registry'
 import { SHOW_COMMAND_V2_NAME_MAP } from './coverage'
 
-// The harness grammar, corpus and baseline fixtures replay through the v1 to v2
-// name map. This proves the map is complete for every name those artifacts
-// actually use, so the cutover in #1039 can rewrite them mechanically instead of
-// discovering a missing row at activation time.
+// The v1 to v2 name map, and the harness artifacts it governed.
+//
+// Before the #1039 cutover the harness grammar, corpus and baseline scripts were
+// replayed through the map to prove it was complete for every name they used.
+// The cutover has happened: those artifacts are authored on the v2 catalogue's
+// own names, so the replay cases below now assert the other half of the same
+// property — that no retired v1 name survives in them, and that every name they
+// do use is one the v2 catalogue registers or a named harness bridge tool. The
+// map itself is still proved complete against the v1 registry above.
 
 const repoRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url)))
 
@@ -39,72 +44,18 @@ describe('v1 to v2 name map replay', () => {
     expect(unknown.sort(), 'the map must not name a command the v1 registry does not register').toEqual([])
   })
 
-  it('replays the baseline fixture scripts through the map', () => {
-    const used = namesIn('src/agent-harness/baseline/scripts.ts').filter(name => v1Names.has(name))
-    expect(used.length, 'the baseline scripts must exercise Show commands').toBeGreaterThan(0)
-    const replayed = used.map(name => v1ByName.get(name)!.v2)
-    expect(replayed.filter(name => name !== null && !v2Names.has(name!)), 'every replayed name exists in v2').toEqual([])
-    // Recorded so a later rename shows up here as a diff rather than silently.
-    const renamed = used
-      .filter(name => v1ByName.get(name)!.v2 !== name)
-      .map(name => [name, v1ByName.get(name)!.v2] as const)
-      .sort((left, right) => left[0].localeCompare(right[0]))
-    expect(Object.fromEntries(renamed)).toEqual({
-      add_clip: 'create_clips',
-      add_keyframe: 'edit_property_keyframes',
-      add_overlay_layer: 'create_layers',
-      add_property_track: 'add_property_tracks',
-      delete_keyframe: 'edit_property_keyframes',
-      delete_property_track: 'remove_property_tracks',
-      insert_layer_transition: 'insert_transition',
-      move_clip: 'update_clips',
-      move_marker: 'update_marker',
-      remove_clip: 'remove_clips',
-      reset_layer_transition_to_cut: 'remove_transition',
-      resize_layer_transition: 'resize_transition',
-      set_boundary_layout: 'select_layout',
-      set_boundary_transition: 'insert_transition',
-      set_boundary_transition_timing: 'resize_transition',
-      set_clip_control_target: 'update_clips',
-      set_clip_evaluation: 'update_clips',
-      set_clip_time: 'update_clips',
-      set_clip_view: 'update_clips',
-      update_boundary_transition_parameter: 'update_transition',
-      update_keyframe: 'edit_property_keyframes',
-    })
-  })
-
-  it('replays the dictation corpus cases through the map', () => {
-    const referenced = namesIn('src/agent-harness/experiment/cases.ts')
-    const commands = referenced.filter(name => v1Names.has(name))
-    const unexplained = referenced.filter(name => !v1Names.has(name) && !HARNESS_BRIDGE_TOOLS.has(name))
-    expect(unexplained.sort(), 'every corpus name is a Show command or a named harness bridge tool').toEqual([])
-    expect(commands.length).toBeGreaterThan(20)
-    const renamed = commands
-      .filter(name => v1ByName.get(name)!.v2 !== name)
-      .map(name => [name, v1ByName.get(name)!.v2] as const)
-      .sort((left, right) => left[0].localeCompare(right[0]))
-    // Exactly the corpus rows a v2 replay must rewrite, and what they become.
-    expect(Object.fromEntries(renamed)).toEqual({
-      add_clip: 'create_clips',
-      add_keyframe: 'edit_property_keyframes',
-      add_property_track: 'add_property_tracks',
-      delete_property_track: 'remove_property_tracks',
-      insert_layer_transition: 'insert_transition',
-      move_clip: 'update_clips',
-      move_marker: 'update_marker',
-      remove_clip: 'remove_clips',
-      reset_layer_transition_to_cut: 'remove_transition',
-      resize_layer_transition: 'resize_transition',
-      set_boundary_transition: 'insert_transition',
-      set_boundary_transition_timing: 'resize_transition',
-      set_clip_control_target: 'update_clips',
-      set_clip_evaluation: 'update_clips',
-      set_clip_time: 'update_clips',
-      set_clip_view: 'update_clips',
-      update_boundary_transition_parameter: 'update_transition',
-      update_keyframe: 'edit_property_keyframes',
-    })
+  it.each([
+    ['the baseline fixture scripts', 'src/agent-harness/baseline/scripts.ts'],
+    ['the dictation corpus cases', 'src/agent-harness/experiment/cases.ts'],
+  ])('leaves no retired version-1 name in %s', (_label, path) => {
+    const referenced = namesIn(path)
+    // A retired name is one the map renames; it must not appear at all.
+    const retired = referenced.filter(name => v1ByName.get(name)?.v2 !== undefined && v1ByName.get(name)!.v2 !== name)
+    expect(retired.sort(), 'the cutover retired these names; they must not reappear').toEqual([])
+    const commands = referenced.filter(name => v2Names.has(name))
+    expect(commands.length, 'the artifact must exercise version-2 Show commands').toBeGreaterThan(0)
+    const unexplained = referenced.filter(name => !v2Names.has(name) && !HARNESS_BRIDGE_TOOLS.has(name))
+    expect(unexplained.sort(), 'every name is a v2 Show command or a named harness bridge tool').toEqual([])
   })
 
   it('keeps the harness restart_clip grammar mapped onto the Clip entry policy', () => {
