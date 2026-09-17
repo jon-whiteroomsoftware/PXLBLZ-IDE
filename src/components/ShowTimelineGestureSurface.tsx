@@ -21,6 +21,7 @@ import {
   ShowTimelineMarkerLane,
   ShowTimelineRulerLane,
   showTimelineGeometry,
+  showTimelineLabelInset,
   type ShowTimelineGeometry,
 } from './ShowTimelineLanes'
 import { ShowTimelineViewControls } from './ShowTimelineViewControls'
@@ -427,7 +428,12 @@ function GestureItem({
         className="absolute inset-y-0 flex min-w-px items-center overflow-hidden rounded-[3px] border-l-2 border-zinc-500/60 bg-white/[0.04] px-1 text-[9px] leading-none text-zinc-400 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
         style={box}
       >
-        <span className="truncate">{item.patternName}</span>
+        <span
+          className="truncate"
+          style={{ marginLeft: showTimelineLabelInset(geometry, item.startMs, item.durationMs) }}
+        >
+          {item.patternName}
+        </span>
       </span>
     )
   }
@@ -449,7 +455,12 @@ function GestureItem({
           dragging?.mode === 'move' ? 'opacity-40' : ''
         }`}
       >
-        <span className="truncate">{item.patternName}</span>
+        <span
+          className="truncate"
+          style={{ marginLeft: showTimelineLabelInset(geometry, item.startMs, item.durationMs) }}
+        >
+          {item.patternName}
+        </span>
       </button>
       {(['leading', 'trailing'] as const).map((edge) => (
         <button

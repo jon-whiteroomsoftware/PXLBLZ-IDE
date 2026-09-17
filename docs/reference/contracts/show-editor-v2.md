@@ -267,6 +267,7 @@ opens fitted to the Show.
 | Property | Behavior |
 | --- | --- |
 | Mapping | `timeToViewportPercent` and `durationToViewportPercent`, unclamped. Content that starts before the window or ends after it draws past the lane edge, where the lane clips it, so the visible part keeps its true position and width. |
+| Names | A Clip or Layout occurrence that begins before the window keeps its true left edge, and `showTimelineLabelInset` follows its name in, so a long covering band is never unlabelled. |
 | Pointer | One pixel is one window millisecond per pixel. A drag, an edge drag and a double-click split all name a time in the window. |
 | Drop resolvers | Both receive the window's real `visibleDurationMs` and the measured lane `visibleWidthPx`, so magnetism and the drop grid follow the ruler ticks the author can see. |
 | Zoom independence | The intent a gesture submits is the authored time, so the same target time produces the same owner intent at any zoom. Zoom changes only how finely a pointer can name a time. |

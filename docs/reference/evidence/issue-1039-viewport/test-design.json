@@ -17,11 +17,12 @@
     "Window mapping is unclamped: content outside the window draws past the lane edge and is clipped there, so the visible part keeps its true position and width.",
     "Snap candidates are chosen by the surface and consumed by the resolvers; an omitted list keeps every boundary the view draws, and an empty list removes magnetism while the always-on drop grid still applies.",
     "A changed Show End rescales the window around the playhead and preserves the author's magnification instead of dropping back to fit.",
-    "Shipped v1 behaviour is not narrowed: the v1 workspace renders byte identically across the pinned 47-record corpus, the Magnet and Marker toggles are the same session-store preference on both routes, and a dormant Marker stays drawn at the Show End mark."
+    "Shipped v1 behaviour is not narrowed: the v1 workspace renders byte identically across the pinned 47-record corpus, the Magnet and Marker toggles are the same session-store preference on both routes, and a dormant Marker stays drawn at the Show End mark.",
+    "A box that begins before the window keeps its true left edge and its name follows the window in, so a long covering Clip or Layout occurrence is never an unlabelled band."
   ],
   "partitions": [
     "window: fitted / zoomed with start fixed at zero / zoomed and panned into the interior / panned to the clamp / max-zoom clamp",
-    "geometry: time before the window (negative percent), inside it, after it (>100), exactly at either edge, duration at any zoom",
+    "geometry: time before the window (negative percent), inside it, after it (>100), exactly at either edge, duration at any zoom, name of a box crossing the left edge",
     "gesture: pointer move, edge drag, double-click split, keyboard nudge (deliberately zoom independent)",
     "snap: Magnet on/off, Markers shown/hidden, near an off-grid boundary versus far from any, Alt escape to raw milliseconds",
     "toggles: Markers, Zone Layouts lane, Transition junctions, each on and off and back",
@@ -54,10 +55,11 @@
     "Window mapping clamped to 0-100 percent: killed by 'draws the window ... past the edge' and by the playhead case.",
     "structuralTimesMs dropped from the Clip drop input: killed by the Magnet toggle case and the Marker toggle case.",
     "Reconciliation removed so a changed Show End refits: killed by 'carries a zoomed window onto a changed Show End'.",
-    "Dormant Marker positioned at its raw time: killed by 'keeps a dormant Marker at the Show End mark'."
+    "Dormant Marker positioned at its raw time: killed by 'keeps a dormant Marker at the Show End mark'.",
+    "Label inset always undefined: killed by 'keeps the name of a Clip that begins before the window inside it'."
   ],
   "results": {
-    "focused": "7 files / 142 tests passed: showTimelineViewport, showTimelineGesturesV2, ShowTimelineViewport, ShowTimelineGestureSurface, ShowEditorV2Route, ShowTimelineV1Fingerprint, showEditorSessionStore.",
+    "focused": "8 files / 156 tests passed: showTimelineViewport, showTimelineGesturesV2, ShowTimelineViewport, ShowTimelineGestureSurface, ShowEditorV2Route, ShowTimelineV1Fingerprint, showEditorSessionStore, plus the whole src/components suite (124 files / 1827 tests) after the label-inset correction.",
     "full": "npx vitest run: 819 files / 11854 tests passed, 59 files / 61 tests skipped.",
     "parity": "npm run show:v2-parity: 47 inventoried records matched, report unchanged.",
     "v1": "ShowTimelineV1Fingerprint: 48 tests passed across the pinned corpus; the navigator extraction moved no byte of v1 markup.",

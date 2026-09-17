@@ -46,6 +46,25 @@ export function showTimelineGeometry(viewport: ShowTimelineViewport): ShowTimeli
 }
 
 /**
+ * How far to push a box's own label so it stays inside the visible window.
+ *
+ * A Clip or a Layout occurrence that begins before the window keeps its true
+ * left edge, which puts its name off screen - and a long occupied lane then
+ * reads as an unlabelled band. The label follows the window's left edge
+ * instead, as a percentage of the box it names. Zero, and so absent, whenever
+ * the box begins inside the window.
+ */
+export function showTimelineLabelInset(
+  geometry: ShowTimelineGeometry,
+  startMs: number,
+  durationMs: number,
+): string | undefined {
+  const hiddenMs = geometry.viewport.startMs - startMs
+  if (hiddenMs <= 0 || durationMs <= 0) return undefined
+  return `${Math.min(100, hiddenMs / durationMs * 100)}%`
+}
+
+/**
  * The route's Undo and Redo. Both v2 surfaces draw them, because history
  * belongs to the record rather than to the gestures: a record whose prepared
  * Stage refuses is still edited through the inspectors, and those edits must
@@ -177,7 +196,12 @@ export function ShowTimelineLayoutLane({ view, geometry }: {
           className="absolute inset-y-0 flex items-center overflow-hidden border-l border-zinc-800 px-1 font-mono text-[9px] text-zinc-400 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
           style={{ left: geometry.at(interval.startMs), width: geometry.span(interval.durationMs) }}
         >
-          <span className="truncate">{interval.definitionName}</span>
+          <span
+            className="truncate"
+            style={{ marginLeft: showTimelineLabelInset(geometry, interval.startMs, interval.durationMs) }}
+          >
+            {interval.definitionName}
+          </span>
         </span>
       ))}
     </div>

@@ -13,6 +13,7 @@ import {
   ShowTimelineMarkerLane,
   ShowTimelineRulerLane,
   showTimelineGeometry,
+  showTimelineLabelInset,
   type ShowTimelineGeometry,
 } from './ShowTimelineLanes'
 import { ShowTimelineViewControls } from './ShowTimelineViewControls'
@@ -140,7 +141,12 @@ function ReadOnlyItem({
       className="absolute inset-y-0 flex min-w-px items-center overflow-hidden rounded-[3px] border-l-2 border-live/60 bg-live/10 px-1 text-[9px] leading-none text-zinc-200 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
       style={{ left: geometry.at(item.startMs), width: geometry.span(item.durationMs) }}
     >
-      <span className="truncate">{item.patternName}</span>
+      <span
+        className="truncate"
+        style={{ marginLeft: showTimelineLabelInset(geometry, item.startMs, item.durationMs) }}
+      >
+        {item.patternName}
+      </span>
     </span>
   )
 }

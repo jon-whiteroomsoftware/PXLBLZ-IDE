@@ -94,6 +94,9 @@ const body = (name: string) => screen.getByRole('button', { name: new RegExp(`^C
 const drawn = (name: string) => body(name).closest<HTMLElement>('[data-show-clip-id]') ?? body(name)
 const leftPercent = (element: Element) => Number.parseFloat((element as HTMLElement).style.left)
 const widthPercent = (element: Element) => Number.parseFloat((element as HTMLElement).style.width)
+/** How far the box's own name is pushed in to stay inside the window. */
+const labelInset = (element: Element) =>
+  element.querySelector<HTMLElement>('.truncate')?.style.marginLeft ?? ''
 
 /** Drag "out" so its start lands on `targetMs`, whatever the window is. */
 function dragOutgoingTo(targetMs: number, startMs = 0): void {
@@ -186,6 +189,22 @@ describe('v2 timeline viewport (#1039)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fit timeline to Show' }))
     expect(visibleWindow()).toEqual({ startMs: 0, durationMs: SHOW_END_MS })
     expect(endHandle).toBeInTheDocument()
+  })
+
+  it('keeps the name of a Clip that begins before the window inside it', () => {
+    renderGestures()
+    expect(labelInset(drawn('Outgoing'))).toBe('')
+
+    zoomUntil(SHOW_END_MS / 2)
+    const panThumb = screen.getByRole('slider', { name: 'Pan visible timeline range' })
+    for (let press = 0; press < 12; press += 1) fireEvent.keyDown(panThumb, { key: 'ArrowRight' })
+    const zoomed = visibleWindow()
+
+    // "out" runs off the left edge, so its name follows the window in rather
+    // than leaving an unlabelled band.
+    expect(leftPercent(drawn('Outgoing'))).toBeLessThan(0)
+    expect(Number.parseFloat(labelInset(drawn('Outgoing'))))
+      .toBeCloseTo(Math.min(100, zoomed.startMs / 400 * 100), 0)
   })
 
   it('follows the transport playhead into the window', () => {
