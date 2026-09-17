@@ -20,19 +20,42 @@ a diagnostic Pattern. Record/dependency replacement, navigation and unmount
 retire pending reconstruction through the existing generation checks. Published
 observations use the captured digest/stamp belonging to the accepted artifact.
 
-Presentation uses the native Layout occurrence active at zero rather than the
-first definition in the array. Prepared v2 painting passes the full compiler
-frame through ordinary brightness/camera presentation. It bypasses the legacy
-initial-Layout unstaged/solo mask, which can hide later Layout output. Legacy
-solo inventory and authored-guide controls/overlays are absent from this branch.
-Native time-aware v2 Zone isolation/guides remain later #1038 parity work; the
-legacy branch retains its existing behavior. No default route cutover occurs.
+Presentation uses the native Layout occurrence active at the presented time
+rather than the first definition in the array or a frozen initial mask.
+`showStagePresentationV2` derives one ordered presentation window per Layout
+occurrence, covering `[0, showEndMs)` half-open: the window owns that
+occurrence's Zone/pixel projection, its authored Zone guide rectangles, and its
+global interval. Repeated Layout definitions with equal split positions share
+one projection instance. A positive incoming Layout transfer adds a leading
+blending window whose projection unions destination over source ownership, so
+routed output stays visible while the transfer runs. Preparation builds the
+occurrence-at-zero projection through the same owner, so the published
+presentation layout is unchanged. Occurrence granularity is deliberate: the
+mask follows authored Layout switches, not split-position animation inside one
+occurrence, which keeps each authored occurrence's initial split position.
+
+`ShowStagePreview` masks each prepared frame through the window owning that
+frame's own elapsed playback time, wrapped at Show End exactly like the
+transport position, and drives the Zone solo rows, unstaged-pixel note and
+Zone outline overlay from the window active at the transport position. Solo
+state stays valid across a switch: a Zone the active Layout does not route
+reads as off stage and contributes no pixels. This is presentation only. The
+compiled artifact, replay runtime, seek, checkpoint, prewarm and capture paths,
+transport state, published digest/stamp and generated hardware output are
+untouched; a Zone-complete Layout with no solo paints the compiler frame
+itself. The Selected Clip outline stays a legacy-only control because its
+focus seam is Scene-derived. No default route cutover occurs.
 
 Consumer tests reopen authored bytes and generated source through their
 importers, preserve held nonlinear values and shared full Restart state in
 Fast/Precise, inspect real renderer input across a later Layout, and deliver
 late real replay completions after record/dimension/navigation/unmount changes.
-Fine authored boundaries remain separate from existing 60Hz runtime step
+Pure window tests cover occurrence order and coverage, half-open ownership
+before/at/after a switch, Show End wrap, transfer blending, guide derivation,
+repeated Layouts, logical split reprojection and unmapped strips. Component
+tests assert that solo and guide toggles leave compilation and runtime identity
+unchanged while the presented frame follows the active occurrence. Fine
+authored boundaries remain separate from existing 60Hz runtime step
 association: a binary-safe later-window interior frame proves mask behavior.
 
 The ready bundle owns recursively frozen data-only Pattern, Map, Library and
@@ -46,6 +69,10 @@ runtime-domain or Controller delivery expansion is introduced.
 The committed authenticated Stage flow hydrates a synthetic 31-second Show with
 a held repeat curve, shared Restart and changing physical Layout, then uses the
 existing transport capture in both fidelities and checks narrow playback access.
+A second committed flow hydrates two Zones whose Layout occurrences swap the
+Stage halves, solos one Zone, plays across the switch, and watches that Zone's
+guide and isolation follow it while no preview publication, save or exported
+artifact changes.
 Prepared Group and Layout-split consumer tests retain their native animation
 through codec and generated-source reopen. Browser proof records the actual
 committed UI source identity; isolated synthetic contexts preserve user cookies.

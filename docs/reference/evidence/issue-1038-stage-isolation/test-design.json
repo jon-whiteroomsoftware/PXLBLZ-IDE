@@ -1,0 +1,67 @@
+{
+  "issue": 1038,
+  "scope": "native time-aware Stage Zone isolation, unstaged notes and authored Zone guides for the prepared v2 preview",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "sections": ["8", "9", "10"],
+    "proofRows": ["ROUTE", "LAYOUT-END", "PARITY"]
+  },
+  "base": "cf76983b3a68046ca74b5c46eabc338eabecfb5a",
+  "invariants": [
+    "One presentation window per Layout occurrence covers [0, showEndMs) half-open, in start order, with that occurrence's identity.",
+    "The occurrence-at-zero projection published by preparation is unchanged; preparation and preview share one projection owner.",
+    "Presentation is presentation only: artifact, recipe, replay runtime, seek/checkpoint/prewarm/capture paths, transport state and published digest are untouched by solo, guides or a Layout switch.",
+    "A positive incoming Layout transfer keeps its source Layout's pixels owned while blending, so no routed output is hidden.",
+    "Elapsed playback time wraps at Show End exactly like the transport position the frame reports.",
+    "Zone-complete coverage without solo paints the compiler frame itself; only pixels the active Layout leaves unstaged are dimmed.",
+    "Derivation never mutates the captured record and allocates no identity."
+  ],
+  "partitions": [
+    "installation physical Layouts with swapped/narrowed ranges, portable-2d logical split reprojection, unmapped generic strips",
+    "occurrence boundary: before, exactly at, one step after, fractional frame times, Show End wrap and second loop",
+    "timed incoming transfer interior versus steady occurrence interior",
+    "repeated Layout definition and equal split position sharing one projection; distinct split positions not sharing",
+    "2D draw guides versus 3D draw with no guides; solo on/off; Zone off stage in the active Layout",
+    "Fast and Precise fidelity; desktop 1440 and narrow 390 with keyboard traversal"
+  ],
+  "sequences": [
+    "build windows -> query before/at/after a switch, at Show End and into the second loop -> mask a synthetic frame through the resolved window",
+    "mount prepared bundle -> read paint -> solo a Zone -> seek past the Layout switch -> read paint -> show all Zones",
+    "narrow a later Layout -> seek past the switch -> read paint and the unstaged-pixel note",
+    "enable Zone outlines -> read rect geometry -> seek past the switch -> read rect geometry -> disable",
+    "hydrate native bytes on the real route -> reset transport to zero -> read guides -> solo -> play across the switch -> read guides -> pause -> capture two Fast and two Precise frames before and after the switch -> reopen artifacts -> narrow 390 keyboard traversal"
+  ],
+  "oracles": [
+    "Presented pixels: the packed frame the real renderer receives, compared against an independently created replay runtime's frame masked by an independently built plan for the expected Layout.",
+    "Dev preview-publication digests read from the running page: unchanged across presentation toggles, single digest across the whole flow.",
+    "Zone guide rectangle geometry in the live DOM before and after a real playback Layout switch.",
+    "Provider writes counted on the route: zero for every presentation action; artifacts still reopen through their importers.",
+    "npm run show:v2-parity 47-record report unchanged."
+  ],
+  "redEvidence": [
+    "showStagePresentationV2 tests failed to import a missing module (13 cases).",
+    "Component isolation, unstaged-note and guide tests failed on absent solo/guide controls and an unmasked presented frame (4 cases)."
+  ],
+  "faults": [
+    { "name": "frozen-initial-mask", "mutation": "mask every prepared frame through the window at time zero", "killed": true, "failedTests": 5 },
+    { "name": "closed-window-end", "mutation": "resolve windows with endMs >= time instead of half-open", "killed": true, "failedTests": 3 },
+    { "name": "unwrapped-show-end", "mutation": "drop the Show End modulo from window resolution", "killed": true, "failedTests": 1 },
+    { "name": "transfer-blend-dropped", "mutation": "use the destination projection during a timed transfer", "killed": true, "failedTests": 1 },
+    { "name": "frozen-initial-guides", "mutation": "draw guides from the first window regardless of time", "killed": true, "failedTests": 1 }
+  ],
+  "results": {
+    "focused": "23/23 across showStagePresentationV2 (13), ShowPreparedStageIsolation (4) and ShowPreparedStagePreview (6). Components plus Stage engine sweep 1532/1532 in 117 files.",
+    "static": "npm run lint PASS; npx tsc -b --pretty false PASS; npm run test:staged PASS.",
+    "parity": "npm run show:v2-parity PASS, 47 inventoried records, report unchanged.",
+    "browser": "npx tsx scripts/run-authenticated-playwright.ts e2e/show-v2-prepared-stage.auth.spec.ts 2/2 PASS, zero browser errors; both the existing hold/Restart flow and the new isolation flow.",
+    "layout": "Pre-commit advisory [unmapped-layout-sensitive-change] for ShowStagePreview.tsx: the slice adds no new layout primitives, reusing the legacy Zones section and diagnostics toggles; narrow 390 keyboard traversal and zero control overflow are asserted in the committed route flow."
+  },
+  "residualGaps": [
+    "The Selected Clip outline stays legacy-only: its focus seam (sceneId/placementId) is Scene-derived and the prepared route publishes no Clip focus.",
+    "Isolation follows Layout occurrence boundaries, not split-position animation inside one occurrence; each occurrence keeps its authored initial split position.",
+    "Transfer blending unions source and destination ownership rather than reproducing the compiler's routing crossfade weights.",
+    "Inherited sample-from-position Stage mapping is unchanged; it remains a separate qualification boundary.",
+    "Final authoritative suites, cross-family review and landing are coordinator-owned."
+  ]
+}

@@ -889,6 +889,12 @@ for exact identities, prepared admission and named integration restrictions.
 the additive Show/Group-definition panel, exact captured source/authoritative scalar
 eligibility, six typed track/key operations and retained-curve draft ownership.
 
+The same workspace's Stage preview isolates Zones and draws authored Zone
+guides through the Layout occurrence active at the presented time, so a later
+Layout's output is never hidden by an initial mask. See
+[Prepared v2 Stage preview](contracts/show-v2-prepared-stage.md) for the
+presentation windows, transfer blending and the presentation-only boundary.
+
 `ShowRecord.composition` (`ShowCompositionV1`) holds the editor's Clips,
 Layers, Groups, Markers, explicit Show End, and Property animation; the
 record's Scenes, Zones, boundary Transitions, and routing layouts remain the
