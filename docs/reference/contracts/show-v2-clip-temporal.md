@@ -1,7 +1,8 @@
 # Additive v2 Clip temporal transactions
 
 `editShowClipTemporalV2(record, intent)` owns ordinary authored Clip Move, Trim,
-Extend and Split through existing Transition, Group and repeated Layout topologies.
+Extend, Split and re-placement through existing Transition, Group and repeated
+Layout topologies.
 The canonical [Scene retirement specification](../../plans/scene-retirement-specification.md)
 §§5/6/9 governs. Group children remain definition-local authoring: their materialized
 IDs supply validation, identity and sharing inputs, never a persisted edit target.
@@ -46,6 +47,38 @@ Definitions, bindings, payloads, held Group time and unrelated tracks remain exa
 Complete candidate structure, Layout contribution coverage (including pre-roll and
 outgoing extension), and shared RL08–RL10 placement validation decide admission.
 An adapter refusal is not a compiler limit. No operation extends Show End implicitly.
+
+## Re-placement
+
+`replace-placement` names one ordinary Clip and at least one destination field:
+`zoneId`, `layerId` and an optional `startMs`. It preserves the v1 `move_clip`
+Layer change that canonical §5 keeps as an obligation. Omitted fields keep their
+current value, an already-satisfied destination is unchanged, and any other field,
+a blank Zone/Layer identity or a non-safe-integer start refuses `invalid-intent`.
+
+The destination Zone must exist and the destination Layer must belong to it, or
+`missing-target` refuses naming both. A Clip that is a participant endpoint of any
+Transition refuses `invalid-topology` naming those Transitions when its Zone or
+Layer changes: a participant pair joins exact endpoints on one Zone and Layer, so
+the counterpart would be detached. Nothing is detached, retargeted or stubbed;
+Reset those Transitions explicitly first. A whole-output contributor set is named
+by exact time rather than routing, so a whole-output contributor may change its
+destination while its Transition record stays exact.
+
+A start change translates the full explicit connected component rigidly through the
+same owner as Move, so Clip-owned appearance keys and Clip Property tracks follow
+each moved Clip once, a sole-effective-user instance track follows it, and shared
+instance, Layout and Show tracks stay fixed. No runtime is created, removed or
+rebound, and no Transition duration or setting changes.
+
+One candidate then validates completely: `invalid-result` covers ordinary and
+materialized Group occupancy on the destination Layer, where exact half-open
+adjacency is accepted; `zone-unavailable` covers the destination Zone across the
+Clip's complete contribution interval, including incoming Transition pre-roll and
+outgoing extension; `compiler-ineligible` covers the shared RL08–RL10 placement
+restrictions. Refusal returns the original record identity with empty affected
+collections. A change reports the Clip, and the appearance and Property keys only
+a start change actually moved; Layer records are untouched and are not reported.
 
 ## Result ownership
 
@@ -101,7 +134,13 @@ not an arbitrary-millisecond exact-state claim. The47-record parity corpus and c
 v1 schema gate remain unchanged. Named semantic faults and qualification are in the
 [test design](../evidence/issue-1038-clip-temporal/test-design.json).
 
-`editShowClipV2` delegates Move/Trim/Extend/Split to this pure temporal owner,
+[Re-placement tests](../../../src/engine/showClipReplacePlacementV2.test.ts) compare
+reopened records and reopened `.epe` Fast/Precise output and state against an
+independently authored record already placed at the destination, and prove the
+cross-Zone case lights another Zone than the preimage. Each refusal partition
+asserts the typed code, original record identity and empty affected collections.
+
+`editShowClipV2` delegates Move/Trim/Extend/Split/re-placement to this pure temporal owner,
 including optional explicit `propertyRampProjections` on trim/extend. Identity,
 duplicate and Replace branches retain their owners. Full temporal affected
 collections pass through unchanged; absent-Zone preimages refuse full availability

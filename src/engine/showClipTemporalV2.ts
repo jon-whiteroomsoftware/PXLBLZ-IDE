@@ -8,9 +8,11 @@ import type { ShowTimelineEditAffectedV2 } from './showTimelineV2'
 
 export type ShowClipTemporalIntentV2 =
   | { kind: 'move'; clipId: string; startMs: number }
+  /** Re-placement: the Clip's own Zone/Layer destination, optionally with a new start. */
+  | { kind: 'replace-placement'; clipId: string; zoneId?: string; layerId?: string; startMs?: number }
   | { kind: 'trim' | 'extend'; clipId: string; startMs: number; endMs: number; propertyRampProjections?: readonly ShowTransitionRampProjectionV2[] }
   | { kind: 'split'; clipId: string; atMs: number; rightClipId: string }
-export type ShowClipTemporalRefusalV2 = 'invalid-record' | 'missing-clip' | 'invalid-intent' | 'invalid-topology' | 'unsupported-property-carrier' | 'compiler-ineligible' | 'invalid-result'
+export type ShowClipTemporalRefusalV2 = 'invalid-record' | 'missing-clip' | 'missing-target' | 'invalid-intent' | 'invalid-topology' | 'zone-unavailable' | 'unsupported-property-carrier' | 'compiler-ineligible' | 'invalid-result'
 export type ShowClipTemporalResultV2 = (
   | { status: 'changed' | 'unchanged'; record: ShowRecordV2 }
   | { status: 'refused'; record: ShowRecordV2; code: ShowClipTemporalRefusalV2; message: string }
@@ -27,9 +29,20 @@ function retainedAppearance(clip: ShowClipV2, startMs: number, endMs: number): S
 function validIntent(intent: unknown): intent is ShowClipTemporalIntentV2 {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return false
   const raw = intent as Record<string, unknown>
+  if (typeof raw.clipId !== 'string' || raw.clipId.trim().length === 0) return false
+  if (raw.kind === 'replace-placement') return validPlacementIntent(raw)
   const fields = raw.kind === 'move' ? ['kind', 'clipId', 'startMs'] : raw.kind === 'trim' || raw.kind === 'extend' ? ['kind', 'clipId', 'startMs', 'endMs'] : raw.kind === 'split' ? ['kind', 'clipId', 'atMs', 'rightClipId'] : []
   const optional = raw.kind === 'trim' || raw.kind === 'extend' ? ['propertyRampProjections'] : []
-  return fields.length > 0 && Object.keys(raw).every(field => fields.includes(field) || optional.includes(field)) && fields.every(field => Object.prototype.hasOwnProperty.call(raw, field)) && typeof raw.clipId === 'string' && raw.clipId.trim().length > 0
+  return fields.length > 0 && Object.keys(raw).every(field => fields.includes(field) || optional.includes(field)) && fields.every(field => Object.prototype.hasOwnProperty.call(raw, field))
+}
+/** Re-placement names at least one destination field, each of the exact shape, and nothing else. */
+function validPlacementIntent(raw: Record<string, unknown>): boolean {
+  const destinations = ['zoneId', 'layerId', 'startMs']
+  const has = (field: string): boolean => Object.prototype.hasOwnProperty.call(raw, field)
+  if (!Object.keys(raw).every(field => field === 'kind' || field === 'clipId' || destinations.includes(field))) return false
+  if (!destinations.some(has)) return false
+  if (['zoneId', 'layerId'].some(field => has(field) && (typeof raw[field] !== 'string' || (raw[field] as string).trim().length === 0))) return false
+  return !has('startMs') || (Number.isSafeInteger(raw.startMs) && (raw.startMs as number) >= 0)
 }
 function validProjections(value: unknown, rampCount: number): value is readonly ShowTransitionRampProjectionV2[] {
   if (!Array.isArray(value)) return false
@@ -59,19 +72,43 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   if (!clip) return refuse('missing-clip', `Clip "${intent.clipId}" does not exist.`)
   const effective = materializeShowGroupsV2(record)
   const oldEndMs = clip.startMs + clip.durationMs
-  const startMs = intent.kind === 'split' ? clip.startMs : intent.startMs
-  const endMs = intent.kind === 'split' ? intent.atMs : intent.kind === 'move' ? startMs + clip.durationMs : intent.endMs
+  const destination = intent.kind === 'replace-placement'
+    ? { zoneId: intent.zoneId ?? clip.zoneId, layerId: intent.layerId ?? clip.layerId }
+    : { zoneId: clip.zoneId, layerId: clip.layerId }
+  const reroutes = destination.zoneId !== clip.zoneId || destination.layerId !== clip.layerId
+  const startMs = intent.kind === 'split' ? clip.startMs
+    : intent.kind === 'replace-placement' ? intent.startMs ?? clip.startMs
+      : intent.startMs
+  const endMs = intent.kind === 'split' ? intent.atMs
+    : intent.kind === 'move' || intent.kind === 'replace-placement' ? startMs + clip.durationMs
+      : intent.endMs
   if (!Number.isSafeInteger(startMs) || !Number.isSafeInteger(endMs) || startMs < 0 || endMs <= startMs || endMs > record.composition.showEndMs) return refuse('invalid-intent', 'Clip interval must use safe integer milliseconds within Show End.')
   if (intent.kind === 'trim' && (startMs < clip.startMs || endMs > oldEndMs)) return refuse('invalid-intent', 'Trim must stay inside the current Clip.')
   if (intent.kind === 'extend' && (startMs > clip.startMs || endMs < oldEndMs)) return refuse('invalid-intent', 'Extension must contain the current Clip.')
   if (intent.kind === 'split' && (endMs >= oldEndMs || typeof intent.rightClipId !== 'string' || !intent.rightClipId.trim() || effective.composition.clips.some(candidate => candidate.id === intent.rightClipId))) return refuse('invalid-intent', 'Split requires an interior time and a fresh effective Clip identity.')
   if (startMs === clip.startMs && endMs === oldEndMs && (intent.kind === 'trim' || intent.kind === 'extend') && Object.prototype.hasOwnProperty.call(intent, 'propertyRampProjections')) return refuse('invalid-intent', 'An unchanged interval cannot consume Property ramp projections.')
-  if (startMs === clip.startMs && endMs === oldEndMs) return { status: 'unchanged', record, ...emptyAffected() }
+  if (startMs === clip.startMs && endMs === oldEndMs && !reroutes) return { status: 'unchanged', record, ...emptyAffected() }
+  if (reroutes) {
+    if (!record.zones.some(zone => zone.id === destination.zoneId)) return refuse('missing-target', `Zone "${destination.zoneId}" does not exist.`)
+    const layer = record.composition.layers.find(candidate => candidate.id === destination.layerId)
+    if (!layer || layer.zoneId !== destination.zoneId) return refuse('missing-target', `Layer "${destination.layerId}" is not a Layer of Zone "${destination.zoneId}".`)
+    // A participant pair joins its endpoints on one Zone and Layer, so the
+    // counterpart would be detached. Reset those Transitions explicitly first.
+    const attached = record.composition.transitions.filter(transition => (
+      transition.participants.some(participant => participant.fromClipId === clip.id || participant.toClipId === clip.id)
+    ))
+    if (attached.length) return refuse('invalid-topology', `Clip "${clip.id}" is a participant endpoint of Transition ${attached.map(transition => `"${transition.id}"`).join(', ')}; re-placement never detaches or retargets a Transition.`)
+  }
   const projectionTracks: ShowRecordV2['composition']['propertyTracks'] = []
   let usedProjectionPlan = false
   const next = structuredClone(record)
-  if (intent.kind === 'move') {
+  if (intent.kind === 'move' || intent.kind === 'replace-placement') {
     applyShowTransitionClipShiftV2(record, next, connectedComponent(record, [clip.id]), startMs - clip.startMs)
+    if (reroutes) {
+      const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
+      edited.zoneId = destination.zoneId
+      edited.layerId = destination.layerId
+    }
   } else if (intent.kind === 'split') {
     const authoredTrackIds = new Set(record.composition.propertyTracks.map(track => track.id))
     // Reserve projected identities, then retain only authored owners and the new
@@ -141,7 +178,8 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   const issue = validateShowRecordV2(next)[0]
   if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
   const availability = validateShowLayoutAvailabilityV2(next)[0]
-  if (availability) return refuse('invalid-result', `Zone is unavailable for "${availability.entityId}".`)
+  // Re-placement reports its own routing code; the time-only edges keep theirs.
+  if (availability) return refuse(intent.kind === 'replace-placement' ? 'zone-unavailable' : 'invalid-result', `Zone is unavailable for "${availability.entityId}".`)
   const restriction = firstShowTransitionPlacementRestrictionV2(next)
   if (restriction) return refuse('compiler-ineligible', restriction.message)
   const affected = emptyAffected()

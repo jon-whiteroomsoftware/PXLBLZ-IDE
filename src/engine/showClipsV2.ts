@@ -35,6 +35,7 @@ export type ShowClipEditIntentV2 =
   | { kind: 'make-independent'; clipId: string; independence: ShowIndependentInstancePlanV2 }
   | { kind: 'rejoin'; clipId: string; targetInstanceId: string }
   | { kind: 'move'; clipId: string; startMs: number }
+  | { kind: 'replace-placement'; clipId: string; zoneId?: string; layerId?: string; startMs?: number }
   | { kind: 'trim' | 'extend'; clipId: string; startMs: number; endMs: number; propertyRampProjections?: readonly ShowTransitionRampProjectionV2[] }
   | { kind: 'split'; clipId: string; atMs: number; rightClipId: string }
   | {
@@ -62,7 +63,7 @@ export type ShowClipEditResultV2 = ShowClipIdentityAffectedV2 & (
 
 /** Additive v2 engine owner. Adoption, history and saving remain caller-owned. */
 export function editShowClipV2(record: ShowRecordV2, intent: ShowClipEditIntentV2): ShowClipEditResultV2 {
-  if (intent.kind === 'move' || intent.kind === 'trim' || intent.kind === 'extend' || intent.kind === 'split') {
+  if (intent.kind === 'move' || intent.kind === 'replace-placement' || intent.kind === 'trim' || intent.kind === 'extend' || intent.kind === 'split') {
     const temporal = editShowClipTemporalV2(record, intent)
     if (temporal.status === 'refused') return { ...temporal, affectedClipIds: [], affectedTrackIds: [] }
     if (temporal.status === 'unchanged') return { ...temporal, status: 'unchanged', affectedClipIds: [], affectedTrackIds: [] }
