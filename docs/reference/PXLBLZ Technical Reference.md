@@ -1875,7 +1875,12 @@ configuration, bounded dispatch, allowance accounting, Retry, and recovery.
 dictation bridge, Show grammar and MCP server, dictation corpus with its
 scripted fake agent, and evaluation tools transferred from the private V3
 repository for the #945 baseline (provenance in its `PROVENANCE.md`). It
-imports the live engine but is not imported by `src/main.tsx`. The browser
+imports the live engine but is not imported by `src/main.tsx`. Since the
+Scene-retirement cutover (#1039) it speaks the version-2 record only: its
+registry is the production v2 catalogue exposed through one transport adapter,
+with no v1 name registered and no translation layer, and its tier-0 evaluation
+runs the production route's own checks in the route's own order rather than
+keeping a second opinion about validity. The browser
 bundle excludes diagnostic provider and MCP SDKs; the production Worker uses
 its own provider/schema and authenticated agent modules. Its `npm run agent:*` commands run
 through a Vite module runner (`src/agent-harness/run.ts`) because the stock
