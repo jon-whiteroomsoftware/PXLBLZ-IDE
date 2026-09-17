@@ -79,6 +79,22 @@ records a pre-existing `getRuntimeState` ReferenceError on both independently
 authored and byte-identical formerly admitted sources; checkpoint repair is
 separate integration work.
 
+## Property-track activation beside a participant Transition
+
+When a record carries any participant-scope Transition, preparation currently
+admits a Clip- or instance-targeted Property track only when its activation is
+exactly `[0, showEndMs)`; a section-scoped activation refuses
+`unsupported-transition-property-track`. Layout split-position and Show
+repeat-scale targets are exempt. Two landed consequences follow, and both are
+recorded as unresolved obligations of this owner rather than accepted limits:
+a positive ordinary Transition beside materialized Group instance-control
+animation refuses, and global Insert Time at time zero refuses, because shifting
+a full-Show activation off zero makes the mapped candidate unpreparable. The
+[audit scope map](../evidence/issue-1038-audit/scope-map.md) (R5, R9) holds the
+smallest counterexample; `src/store/showV2IntegratedInsertSequence.test.ts`
+asserts it, including that the same mapped candidate prepares as soon as the
+participant Transition is absent.
+
 ## Global Layout switches with participant Transitions
 
 The [Layout/Transition preparation contract](show-v2-layout-transition-preparation.md)

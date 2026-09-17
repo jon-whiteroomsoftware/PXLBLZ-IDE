@@ -68,9 +68,10 @@ the physical2D case: at125ms the same mapped source produces
 `[1,.25,.75,1,.75,.25]` versus `[1,0,.5,1,1,.5]` with identical private clocks.
 The complete existing flat compiler recipe, augmented with zones, Layouts,
 member-zone bindings and global switches, rejects scene boundary modes. These
-primary consumer witnesses remain an unresolved #1038 adapter/sampling obligation
-at the requested pause. They are not an accepted compiler limit or a guarantee of
-universal combination support. No emitter/domain widening or remapping workaround
+primary consumer witnesses remain an unresolved adapter/sampling obligation,
+carried in the #1038 residual ledger
+([audit scope map](../evidence/issue-1038-audit/scope-map.md), R8). They are not
+an accepted compiler limit or a guarantee of universal combination support. No emitter/domain widening or remapping workaround
 is introduced. Single-Layout admitted source bytes stay identical; qualified
 routed native output, sharing and first-contribution Restart remain covered.
 
@@ -117,7 +118,8 @@ carriers stay exact while an overlong one is clamped to its window. Independent 
 Fast/Precise output qualify the mapping. Previously admitted edge-at-window-start
 records retain their existing source bytes, including the pre-existing 1/99-to-100ms
 coercion in `showModel.ts`'s `clampPropertyDuration`. That older coercion remains
-unresolved #1038 work at the requested pause. It is neither an established compiler
-limit nor a claim of universal exact short-carrier support. The committed
+unresolved, carried in the #1038 residual ledger
+([audit scope map](../evidence/issue-1038-audit/scope-map.md), R11). It is neither
+an established compiler limit nor a claim of universal exact short-carrier support. The committed
 [base/suffix witness](../evidence/issue-1038-global-transition-adapters/short-carrier-witness.json)
 records the same public inputs, outcomes, ramp durations and source hashes.

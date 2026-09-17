@@ -66,5 +66,8 @@ Layer add, rename, reorder and explicit reassignment/removal, with its proof in
 [the Layer test design](../evidence/issue-1038-layers/test-design.json). The Group
 edit owner persists exact held projections during selected-occurrence Ungroup.
 [The timeline edit owner](show-v2-timeline-edits.md) supplies global Insert Time.
-Group delete and production UI/store adoption remain separate #1038 owners; the landed route pilot consumes holds through the existing
-v2 codec and compile-preparation seams rather than redefining them.
+Group occurrence deletion has its own owner, and occurrence adoption is landed on
+the opt-in route ([occurrence adoption](show-v2-group-occurrence-adoption.md)).
+Production adoption remains #1039's work. The landed route pilot consumes holds
+through the existing v2 codec and compile-preparation seams rather than
+redefining them.

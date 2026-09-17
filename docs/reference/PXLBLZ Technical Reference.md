@@ -895,6 +895,18 @@ Layout's output is never hidden by an initial mask. See
 [Prepared v2 Stage preview](contracts/show-v2-prepared-stage.md) for the
 presentation windows, transfer blending and the presentation-only boundary.
 
+The complete opt-in surface, reached only through `?show-v2-pilot=1`, also covers
+ordinary Clip creation, timing, deletion, sharing and Pattern replacement,
+Transition Insert/settings/Reset to Cut, Group creation and occurrence
+operations, Group definition-local Pattern replacement, Layout occurrence edits,
+Markers, global Insert Time and Show End. Every one of those adapters reaches its
+pure owner through one closed prepared-edit admission path that revalidates
+route, provider, revision and captured dependencies, publishes exactly one
+candidate with one history entry and one save, and writes nothing on refusal or
+no-op. Production Shows remain v1 until the #1039 cutover; the
+[audit scope map](evidence/issue-1038-audit/scope-map.md) records which
+behaviors are proved and which residuals are still carried.
+
 `ShowRecord.composition` (`ShowCompositionV1`) holds the editor's Clips,
 Layers, Groups, Markers, explicit Show End, and Property animation; the
 record's Scenes, Zones, boundary Transitions, and routing layouts remain the

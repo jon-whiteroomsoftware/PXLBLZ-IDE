@@ -232,9 +232,13 @@ window conflicts and confirm the same refusals through
 `prepareShowV2ForCompile`; this edit owner does not widen the compiler.
 
 This owner covers Make Unique, occurrence move, linked duplicate and
-selected-occurrence Ungroup and deletion. Global Insert Time, Layer authoring,
-UI and store adoption remain separate #1038 owners. These operations do not
-impose definition deletion or garbage-collection policy.
+selected-occurrence Ungroup and deletion. Global Insert Time and Layer authoring
+have their own owners ([timeline edits](show-v2-timeline-edits.md),
+`showLayersV2.ts`). Route adoption is landed:
+`admitShowV2PilotGroupOccurrenceEdit` and `ShowV2GroupOccurrenceEditor` drive
+these five operations through the closed prepared-edit admission path
+([occurrence adoption](show-v2-group-occurrence-adoption.md)). These operations do
+not impose definition deletion or garbage-collection policy.
 
 Definition-local Clip Pattern replacement has its own pure owner and
 [replacement contract](show-v2-group-replacement.md).
