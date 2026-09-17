@@ -32,6 +32,8 @@ describe('Gallery presentation', () => {
     render(<GalleryPage />)
     const captions = screen.getAllByTestId('gallery-show-facts')
     expect(captions.length).toBeGreaterThan(0)
+    // Every Show band carries the Live chapter caption instead of a count.
+    expect(screen.getAllByTestId('gallery-live-chapter')).toHaveLength(captions.length)
     for (const caption of captions) {
       expect(caption.textContent).toMatch(/\d+s loop/)
       expect(caption.textContent).toMatch(/\d+ zones/)

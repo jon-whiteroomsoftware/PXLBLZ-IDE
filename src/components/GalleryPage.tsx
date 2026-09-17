@@ -23,6 +23,7 @@ import {
   GALLERY_SHOW_CAPTION_WIDTH_RATIO,
   galleryShowBandBox,
   galleryShowPixelCount,
+  galleryShowChapters,
   galleryShowFacts,
   galleryShowInsertionIndexes,
   resolveGalleryShowGeometry,
@@ -181,6 +182,7 @@ function ShowBand({
 }) {
   const navigate = useRouterStore((s) => s.navigate)
   const facts = useMemo(() => galleryShowFacts(show), [show])
+  const chapters = useMemo(() => galleryShowChapters(show), [show])
   const aspect = useMemo(() => resolveGalleryShowGeometry(show).aspect, [show])
   const box = galleryShowBandBox(gridWidth, aspect)
   const anchorId = galleryShowAnchorId(show.slug)
@@ -214,6 +216,7 @@ function ShowBand({
           cost={galleryShowPixelCount(show)}
           loopMs={facts.loopMs}
           label={facts.title}
+          chapters={chapters}
         />
         <span className="pointer-events-none absolute left-[9px] top-[8px] rounded border border-live/35 bg-zinc-950/75 px-[6px] py-[2px] font-mono text-[9.5px] uppercase tracking-[0.08em] text-live">
           Show
