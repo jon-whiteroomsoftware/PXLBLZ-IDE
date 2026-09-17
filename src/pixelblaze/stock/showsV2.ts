@@ -17,7 +17,8 @@
 // converts, so `npm run show:v2-native-parity` compares this builder's output
 // against converted legacy records rather than two outputs of one builder.
 // #1042 retires the legacy builder after migration.
-import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import type { ShowClipEffect, ShowStructuredEasing } from '@/engine/personalContentRecords'
+import type { ShowRecordV2, ShowTransitionV2 } from '@/engine/showCompositionV2'
 import {
   CUBIC_IN,
   CUBIC_IN_OUT,
@@ -1353,6 +1354,90 @@ function lumaSourcesShowcaseV2(): ShowRecordV2 {
   })
 }
 
+/** One passage of a Transition reference: a Clip, and the junction after it. */
+interface TransitionReferenceSpecV2 {
+  /** Chapter name for the passage this Clip opens. */
+  label: string
+  /** How long this Clip holds before its junction. */
+  holdMs: number
+  /**
+   * The junction after this Clip, merged over `junctionDefaults`. Omitting it
+   * is a Cut: the next Clip starts exactly where this one ends, and no
+   * Transition record exists to carry settings.
+   */
+  junction?: Partial<TransitionReferenceJunctionV2>
+}
+
+interface TransitionReferenceJunctionV2 {
+  kind: ShowTransitionV2['kind']
+  durationMs: number
+  easing: ShowStructuredEasing
+  settings: Record<string, unknown>
+}
+
+/**
+ * The shared shape of every Transition reference Show. One Zone, one Layer, two
+ * Pattern instances alternating so each junction exchanges one world for
+ * another, and one chapter per passage. Timing is derived, never authored
+ * twice: each Clip starts where the previous junction finishes, and Show End is
+ * the last Clip's end.
+ */
+function transitionReferenceShowV2(input: {
+  id: string
+  name: string
+  referencePattern: string
+  selectedPattern: string
+  junctionDefaults?: Partial<TransitionReferenceJunctionV2>
+  specs: readonly TransitionReferenceSpecV2[]
+}): ShowRecordV2 {
+  const zones = logicalZones(['Main'], 2_000)
+  const starts: number[] = []
+  let running = 0
+  for (const spec of input.specs) {
+    starts.push(running)
+    running += spec.holdMs + (spec.junction ? { ...input.junctionDefaults, ...spec.junction }.durationMs ?? 0 : 0)
+  }
+  const clipId = (position: number) => `placement-reference-content-${position + 1}`
+  return nativeShowV2({
+    id: input.id,
+    name: input.name,
+    zones,
+    zoneLayouts: [singleLayout(zones)],
+    stageMapId: 'plane',
+    outputContract: portableOutputContract(),
+    executionModel: 'continuous',
+    showEndMs: starts[starts.length - 1] + input.specs[input.specs.length - 1].holdMs,
+    patternInstances: [
+      instance('instance-reference-content-reference', input.referencePattern, LESSON_TIME_SCALE),
+      instance('instance-reference-content-selected', input.selectedPattern, LESSON_TIME_SCALE),
+    ],
+    layers: [mainLayer('zone-1')],
+    clips: input.specs.map((spec, position) => clip(
+      clipId(position),
+      position % 2 === 0 ? 'instance-reference-content-reference' : 'instance-reference-content-selected',
+      'zone-1', mainLayerId('zone-1'), starts[position], spec.holdMs,
+    )),
+    transitions: input.specs.flatMap((spec, position) => {
+      if (!spec.junction) return []
+      const junction = { ...input.junctionDefaults, ...spec.junction }
+      if (junction.kind === undefined || junction.durationMs === undefined) {
+        throw new Error(`Transition reference "${input.id}" junction ${position + 1} has no kind or duration.`)
+      }
+      return [layerTransition(
+        `transition-reference-${position + 1}`, junction.kind, 'zone-1', mainLayerId('zone-1'),
+        clipId(position), clipId(position + 1), junction.durationMs,
+        junction.easing ?? SINE_IN_OUT, junction.settings ?? {},
+      )]
+    }),
+    layoutOccurrences: [
+      occurrence(1, 'layout-main', 0, starts[starts.length - 1] + input.specs[input.specs.length - 1].holdMs),
+    ],
+    markers: input.specs.map((spec, position) => (
+      chapter(`scene-marker:reference-${position + 1}`, starts[position], spec.label)
+    )),
+  })
+}
+
 // Every Transition reference shares the measured diagnostic pair. Probed on
 // the 44x44 plane at the 0.32 clock, MetaballGarden (green, lum 0.45, flux
 // 0.013/200ms) and IQPalettes (warm, lum 0.41, flux 0.016) are the two
@@ -1362,366 +1447,148 @@ function lumaSourcesShowcaseV2(): ShowRecordV2 {
 // follows the packet's editor rule: one slow exemplar per family, then
 // quick cuts of its siblings.
 function blendAndFadeTransitionReferenceV2(): ShowRecordV2 {
-  const zones = logicalZones(['Main'], 2_000)
-  return nativeShowV2({
+  return transitionReferenceShowV2({
     id: 'stock-show-reference-blend-fade-transitions',
     name: 'Blend and Fade Transitions',
-    zones,
-    zoneLayouts: [singleLayout(zones)],
-    stageMapId: 'plane',
-    outputContract: portableOutputContract(),
-    executionModel: 'continuous',
-    showEndMs: 20_500,
-    patternInstances: [
-      instance('instance-reference-content-reference', 'MetaballsOfFire2D', LESSON_TIME_SCALE),
-      instance('instance-reference-content-selected', 'MetaballGarden', LESSON_TIME_SCALE),
-    ],
-    layers: [mainLayer('zone-1')],
-    clips: [
-      clip('placement-reference-content-1', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 0, 3_000),
-      clip('placement-reference-content-2', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 3_000, 3_000),
-      clip('placement-reference-content-3', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 8_500, 4_000),
-      clip('placement-reference-content-4', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 14_500, 2_000),
-      clip('placement-reference-content-5', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 18_500, 2_000),
-    ],
-    transitions: [
-      layerTransition('transition-reference-2', 'crossfade', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-2', 'placement-reference-content-3', 2_500, SINE_IN_OUT, { crossfadePolicy: 'snapshot-live' }),
-      layerTransition('transition-reference-3', 'fade-color', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-3', 'placement-reference-content-4', 2_000, SINE_IN_OUT, { color: '#000000' }),
-      layerTransition('transition-reference-4', 'fade-color', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-4', 'placement-reference-content-5', 2_000, SINE_IN_OUT, { color: '#ffffff' }),
-    ],
-    layoutOccurrences: [
-      occurrence(1, 'layout-main', 0, 20_500),
-    ],
-    markers: [
-      chapter('scene-marker:reference-1', 0, 'Reference'),
-      chapter('scene-marker:reference-2', 3_000, 'Cut'),
-      chapter('scene-marker:reference-3', 8_500, 'Crossfade'),
-      chapter('scene-marker:reference-4', 14_500, 'Fade through black'),
-      chapter('scene-marker:reference-5', 18_500, 'Fade through white'),
+    referencePattern: 'MetaballsOfFire2D',
+    selectedPattern: 'MetaballGarden',
+    junctionDefaults: { easing: SINE_IN_OUT },
+    specs: [
+      { label: 'Reference', holdMs: 3_000 },
+      { label: 'Cut', holdMs: 3_000, junction: { kind: 'crossfade', durationMs: 2_500, settings: { crossfadePolicy: 'snapshot-live' } } },
+      { label: 'Crossfade', holdMs: 4_000, junction: { kind: 'fade-color', durationMs: 2_000, settings: { color: '#000000' } } },
+      { label: 'Fade through black', holdMs: 2_000, junction: { kind: 'fade-color', durationMs: 2_000, settings: { color: '#ffffff' } } },
+      { label: 'Fade through white', holdMs: 2_000 },
     ],
   })
 }
 
 // Wipe sibling of the Transition reference family; see the diagnostic-pair note above.
 function wipeTransitionReferenceV2(): ShowRecordV2 {
-  const zones = logicalZones(['Main'], 2_000)
-  return nativeShowV2({
+  return transitionReferenceShowV2({
     id: 'stock-show-reference-wipe-transitions',
     name: 'Wipes',
-    zones,
-    zoneLayouts: [singleLayout(zones)],
-    stageMapId: 'plane',
-    outputContract: portableOutputContract(),
-    executionModel: 'continuous',
-    showEndMs: 31_000,
-    patternInstances: [
-      instance('instance-reference-content-reference', 'InfinityFlower2D', LESSON_TIME_SCALE),
-      instance('instance-reference-content-selected', 'MetaballGarden', LESSON_TIME_SCALE),
-    ],
-    layers: [mainLayer('zone-1')],
-    clips: [
-      clip('placement-reference-content-1', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 0, 3_000),
-      clip('placement-reference-content-2', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 5_500, 3_000),
-      clip('placement-reference-content-3', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 9_500, 1_500),
-      clip('placement-reference-content-4', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 12_000, 1_500),
-      clip('placement-reference-content-5', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 14_500, 1_500),
-      clip('placement-reference-content-6', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 17_000, 1_500),
-      clip('placement-reference-content-7', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 19_500, 1_500),
-      clip('placement-reference-content-8', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 22_000, 1_500),
-      clip('placement-reference-content-9', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 24_500, 1_500),
-      clip('placement-reference-content-10', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 27_000, 1_500),
-      clip('placement-reference-content-11', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 29_500, 1_500),
-    ],
-    transitions: [
-      layerTransition('transition-reference-1', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-1', 'placement-reference-content-2', 2_500, SINE_IN_OUT, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-2', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-2', 'placement-reference-content-3', 1_000, SINE_IN_OUT, { feather: 0, wipeVariant: 'linear', direction: 0.25, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-3', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-3', 'placement-reference-content-4', 1_000, SINE_IN_OUT, { feather: 0, wipeVariant: 'linear', direction: 0.5, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-4', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-4', 'placement-reference-content-5', 1_000, SINE_IN_OUT, { feather: 0, wipeVariant: 'linear', direction: 0.75, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-5', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-5', 'placement-reference-content-6', 1_000, SINE_IN_OUT, { feather: 0, wipeVariant: 'split', wipeMode: 'center-out', orientation: 'vertical', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-6', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-6', 'placement-reference-content-7', 1_000, SINE_IN_OUT, { feather: 0, wipeVariant: 'barn-doors', wipeMode: 'center-out', centerX: 0.5, centerY: 0.5, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-7', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-7', 'placement-reference-content-8', 1_000, SINE_IN_OUT, { feather: 0, wipeVariant: 'blinds', orientation: 'vertical', count: 8, phase: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-8', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-8', 'placement-reference-content-9', 1_000, SINE_IN_OUT, { feather: 0, wipeVariant: 'clock', centerX: 0.5, centerY: 0.5, phase: 0, clockwise: true, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-9', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-9', 'placement-reference-content-10', 1_000, SINE_IN_OUT, { feather: 0, wipeVariant: 'checker', count: 8, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-10', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-10', 'placement-reference-content-11', 1_000, SINE_IN_OUT, { feather: 0, wipeVariant: 'grid', count: 8, edgePolicy: 'hard' }),
-    ],
-    layoutOccurrences: [
-      occurrence(1, 'layout-main', 0, 31_000),
-    ],
-    markers: [
-      chapter('scene-marker:reference-1', 0, 'Reference'),
-      chapter('scene-marker:reference-2', 5_500, 'Linear wipe east'),
-      chapter('scene-marker:reference-3', 9_500, 'Linear wipe south'),
-      chapter('scene-marker:reference-4', 12_000, 'Linear wipe west'),
-      chapter('scene-marker:reference-5', 14_500, 'Linear wipe north'),
-      chapter('scene-marker:reference-6', 17_000, 'Split center out'),
-      chapter('scene-marker:reference-7', 19_500, 'Barn doors out'),
-      chapter('scene-marker:reference-8', 22_000, 'Vertical blinds'),
-      chapter('scene-marker:reference-9', 24_500, 'Clock clockwise'),
-      chapter('scene-marker:reference-10', 27_000, 'Checker'),
-      chapter('scene-marker:reference-11', 29_500, 'Grid'),
+    referencePattern: 'InfinityFlower2D',
+    selectedPattern: 'MetaballGarden',
+    junctionDefaults: { kind: 'wipe', easing: SINE_IN_OUT },
+    specs: [
+      { label: 'Reference', holdMs: 3_000, junction: { durationMs: 2_500, settings: { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' } } },
+      { label: 'Linear wipe east', holdMs: 3_000, junction: { durationMs: 1_000, settings: { feather: 0, wipeVariant: 'linear', direction: 0.25, edgePolicy: 'hard' } } },
+      { label: 'Linear wipe south', holdMs: 1_500, junction: { durationMs: 1_000, settings: { feather: 0, wipeVariant: 'linear', direction: 0.5, edgePolicy: 'hard' } } },
+      { label: 'Linear wipe west', holdMs: 1_500, junction: { durationMs: 1_000, settings: { feather: 0, wipeVariant: 'linear', direction: 0.75, edgePolicy: 'hard' } } },
+      { label: 'Linear wipe north', holdMs: 1_500, junction: { durationMs: 1_000, settings: { feather: 0, wipeVariant: 'split', wipeMode: 'center-out', orientation: 'vertical', edgePolicy: 'hard' } } },
+      { label: 'Split center out', holdMs: 1_500, junction: { durationMs: 1_000, settings: { feather: 0, wipeVariant: 'barn-doors', wipeMode: 'center-out', centerX: 0.5, centerY: 0.5, edgePolicy: 'hard' } } },
+      { label: 'Barn doors out', holdMs: 1_500, junction: { durationMs: 1_000, settings: { feather: 0, wipeVariant: 'blinds', orientation: 'vertical', count: 8, phase: 0, edgePolicy: 'hard' } } },
+      { label: 'Vertical blinds', holdMs: 1_500, junction: { durationMs: 1_000, settings: { feather: 0, wipeVariant: 'clock', centerX: 0.5, centerY: 0.5, phase: 0, clockwise: true, edgePolicy: 'hard' } } },
+      { label: 'Clock clockwise', holdMs: 1_500, junction: { durationMs: 1_000, settings: { feather: 0, wipeVariant: 'checker', count: 8, edgePolicy: 'hard' } } },
+      { label: 'Checker', holdMs: 1_500, junction: { durationMs: 1_000, settings: { feather: 0, wipeVariant: 'grid', count: 8, edgePolicy: 'hard' } } },
+      { label: 'Grid', holdMs: 1_500 },
     ],
   })
 }
 
 // Dissolve sibling of the Transition reference family; see the diagnostic-pair note above.
 function dissolveTransitionReferenceV2(): ShowRecordV2 {
-  const zones = logicalZones(['Main'], 2_000)
-  return nativeShowV2({
+  return transitionReferenceShowV2({
     id: 'stock-show-reference-dissolve-transitions',
     name: 'Dissolves',
-    zones,
-    zoneLayouts: [singleLayout(zones)],
-    stageMapId: 'plane',
-    outputContract: portableOutputContract(),
-    executionModel: 'continuous',
-    showEndMs: 19_000,
-    patternInstances: [
-      instance('instance-reference-content-reference', 'WavyBands', LESSON_TIME_SCALE),
-      instance('instance-reference-content-selected', 'GeometryMorphingDemo2D', LESSON_TIME_SCALE),
-    ],
-    layers: [mainLayer('zone-1')],
-    clips: [
-      clip('placement-reference-content-1', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 0, 3_000),
-      clip('placement-reference-content-2', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 5_500, 3_000),
-      clip('placement-reference-content-3', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 10_000, 2_000),
-      clip('placement-reference-content-4', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 13_500, 2_000),
-      clip('placement-reference-content-5', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 17_000, 2_000),
-    ],
-    transitions: [
-      layerTransition('transition-reference-1', 'dither', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-1', 'placement-reference-content-2', 2_500, SINE_IN_OUT, { dissolveVariant: 'pixel', seed: 0, edgePolicy: 'dither' }),
-      layerTransition('transition-reference-2', 'dither', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-2', 'placement-reference-content-3', 1_500, SINE_IN_OUT, { dissolveVariant: 'block', seed: 0, blockSize: 8, edgePolicy: 'dither' }),
-      layerTransition('transition-reference-3', 'dither', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-3', 'placement-reference-content-4', 1_500, SINE_IN_OUT, { dissolveVariant: 'coherent-noise', seed: 0, scale: 6, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-4', 'dither', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-4', 'placement-reference-content-5', 1_500, SINE_IN_OUT, { dissolveVariant: 'soft-threshold', seed: 0, scale: 6, softness: 0.15, edgePolicy: 'dither' }),
-    ],
-    layoutOccurrences: [
-      occurrence(1, 'layout-main', 0, 19_000),
-    ],
-    markers: [
-      chapter('scene-marker:reference-1', 0, 'Reference'),
-      chapter('scene-marker:reference-2', 5_500, 'Pixel dissolve'),
-      chapter('scene-marker:reference-3', 10_000, 'Block dissolve'),
-      chapter('scene-marker:reference-4', 13_500, 'Coherent-noise dissolve'),
-      chapter('scene-marker:reference-5', 17_000, 'Soft-threshold dissolve'),
+    referencePattern: 'WavyBands',
+    selectedPattern: 'GeometryMorphingDemo2D',
+    junctionDefaults: { kind: 'dither', easing: SINE_IN_OUT },
+    specs: [
+      { label: 'Reference', holdMs: 3_000, junction: { durationMs: 2_500, settings: { dissolveVariant: 'pixel', seed: 0, edgePolicy: 'dither' } } },
+      { label: 'Pixel dissolve', holdMs: 3_000, junction: { durationMs: 1_500, settings: { dissolveVariant: 'block', seed: 0, blockSize: 8, edgePolicy: 'dither' } } },
+      { label: 'Block dissolve', holdMs: 2_000, junction: { durationMs: 1_500, settings: { dissolveVariant: 'coherent-noise', seed: 0, scale: 6, edgePolicy: 'hard' } } },
+      { label: 'Coherent-noise dissolve', holdMs: 2_000, junction: { durationMs: 1_500, settings: { dissolveVariant: 'soft-threshold', seed: 0, scale: 6, softness: 0.15, edgePolicy: 'dither' } } },
+      { label: 'Soft-threshold dissolve', holdMs: 2_000 },
     ],
   })
 }
 
 // Geometric Shape Reveal sibling of the Transition reference family.
 function shapeRevealGeometricReferenceV2(): ShowRecordV2 {
-  const zones = logicalZones(['Main'], 2_000)
-  return nativeShowV2({
+  return transitionReferenceShowV2({
     id: 'stock-show-reference-shape-reveal-transitions',
     name: 'Shape Reveals: Geometric',
-    zones,
-    zoneLayouts: [singleLayout(zones)],
-    stageMapId: 'plane',
-    outputContract: portableOutputContract(),
-    executionModel: 'continuous',
-    showEndMs: 24_700,
-    patternInstances: [
-      instance('instance-reference-content-reference', 'IridescentFibers', LESSON_TIME_SCALE),
-      instance('instance-reference-content-selected', 'MagneticFilaments', LESSON_TIME_SCALE),
-    ],
-    layers: [mainLayer('zone-1')],
-    clips: [
-      clip('placement-reference-content-1', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 0, 3_000),
-      clip('placement-reference-content-2', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 5_500, 3_000),
-      clip('placement-reference-content-3', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 9_700, 1_500),
-      clip('placement-reference-content-4', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 12_400, 1_500),
-      clip('placement-reference-content-5', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 15_100, 1_500),
-      clip('placement-reference-content-6', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 17_800, 1_500),
-      clip('placement-reference-content-7', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 20_500, 1_500),
-      clip('placement-reference-content-8', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 23_200, 1_500),
-    ],
-    transitions: [
-      layerTransition('transition-reference-1', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-1', 'placement-reference-content-2', 2_500, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'circle', scale: 1, aspect: 1, rotation: 0 }),
-      layerTransition('transition-reference-2', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-2', 'placement-reference-content-3', 1_200, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'circle', scale: 1, aspect: 1, rotation: 0 }),
-      layerTransition('transition-reference-3', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-3', 'placement-reference-content-4', 1_200, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'ellipse', scale: 1, aspect: 1.5, rotation: 0 }),
-      layerTransition('transition-reference-4', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-4', 'placement-reference-content-5', 1_200, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'box', scale: 1, aspect: 1, rotation: 0 }),
-      layerTransition('transition-reference-5', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-5', 'placement-reference-content-6', 1_200, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'rounded-box', scale: 1, aspect: 1, rotation: 0, cornerRadius: 0.3 }),
-      layerTransition('transition-reference-6', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-6', 'placement-reference-content-7', 1_200, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'diamond', scale: 1, rotation: 0, spin: 0 }),
-      layerTransition('transition-reference-7', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-7', 'placement-reference-content-8', 1_200, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'cross', scale: 1, aspect: 1, rotation: 0, crossWidth: 0.32 }),
-    ],
-    layoutOccurrences: [
-      occurrence(1, 'layout-main', 0, 24_700),
-    ],
-    markers: [
-      chapter('scene-marker:reference-1', 0, 'Reference'),
-      chapter('scene-marker:reference-2', 5_500, 'Circle: grow incoming'),
-      chapter('scene-marker:reference-3', 9_700, 'Circle: shrink outgoing'),
-      chapter('scene-marker:reference-4', 12_400, 'Ellipse: grow incoming'),
-      chapter('scene-marker:reference-5', 15_100, 'Box: shrink outgoing'),
-      chapter('scene-marker:reference-6', 17_800, 'Rounded box: grow incoming'),
-      chapter('scene-marker:reference-7', 20_500, 'Diamond: shrink outgoing'),
-      chapter('scene-marker:reference-8', 23_200, 'Cross: grow incoming'),
+    referencePattern: 'IridescentFibers',
+    selectedPattern: 'MagneticFilaments',
+    junctionDefaults: { kind: 'portal', easing: SINE_IN_OUT },
+    specs: [
+      { label: 'Reference', holdMs: 3_000, junction: { durationMs: 2_500, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'circle', scale: 1, aspect: 1, rotation: 0 } } },
+      { label: 'Circle: grow incoming', holdMs: 3_000, junction: { durationMs: 1_200, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'circle', scale: 1, aspect: 1, rotation: 0 } } },
+      { label: 'Circle: shrink outgoing', holdMs: 1_500, junction: { durationMs: 1_200, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'ellipse', scale: 1, aspect: 1.5, rotation: 0 } } },
+      { label: 'Ellipse: grow incoming', holdMs: 1_500, junction: { durationMs: 1_200, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'box', scale: 1, aspect: 1, rotation: 0 } } },
+      { label: 'Box: shrink outgoing', holdMs: 1_500, junction: { durationMs: 1_200, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'rounded-box', scale: 1, aspect: 1, rotation: 0, cornerRadius: 0.3 } } },
+      { label: 'Rounded box: grow incoming', holdMs: 1_500, junction: { durationMs: 1_200, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'diamond', scale: 1, rotation: 0, spin: 0 } } },
+      { label: 'Diamond: shrink outgoing', holdMs: 1_500, junction: { durationMs: 1_200, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'cross', scale: 1, aspect: 1, rotation: 0, crossWidth: 0.32 } } },
+      { label: 'Cross: grow incoming', holdMs: 1_500 },
     ],
   })
 }
 
 // Figure Shape Reveal sibling of the Transition reference family.
 function shapeRevealFigureReferenceV2(): ShowRecordV2 {
-  const zones = logicalZones(['Main'], 2_000)
-  return nativeShowV2({
+  return transitionReferenceShowV2({
     id: 'stock-show-reference-shape-reveal-figures',
     name: 'Shape Reveals: Figures',
-    zones,
-    zoneLayouts: [singleLayout(zones)],
-    stageMapId: 'plane',
-    outputContract: portableOutputContract(),
-    executionModel: 'continuous',
-    showEndMs: 59_350,
-    patternInstances: [
-      instance('instance-reference-content-reference', 'MetaballsOfFire2D', LESSON_TIME_SCALE),
-      instance('instance-reference-content-selected', 'GlyphRain', LESSON_TIME_SCALE),
-    ],
-    layers: [mainLayer('zone-1')],
-    clips: [
-      clip('placement-reference-content-1', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 0, 3_000),
-      clip('placement-reference-content-2', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 6_750, 2_000),
-      clip('placement-reference-content-3', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 12_350, 1_000),
-      clip('placement-reference-content-4', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 16_950, 1_000),
-      clip('placement-reference-content-5', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 21_550, 1_000),
-      clip('placement-reference-content-6', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 26_150, 1_000),
-      clip('placement-reference-content-7', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 30_750, 1_000),
-      clip('placement-reference-content-8', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 35_350, 1_000),
-      clip('placement-reference-content-9', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 39_950, 1_000),
-      clip('placement-reference-content-10', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 44_550, 1_000),
-      clip('placement-reference-content-11', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 49_150, 1_000),
-      clip('placement-reference-content-12', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 53_750, 1_000),
-      clip('placement-reference-content-13', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 58_350, 1_000),
-    ],
-    transitions: [
-      layerTransition('transition-reference-1', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-1', 'placement-reference-content-2', 3_750, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'heart', scale: 1, aspect: 1, rotation: 0 }),
-      layerTransition('transition-reference-2', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-2', 'placement-reference-content-3', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'heart', scale: 1, aspect: 1, rotation: 0 }),
-      layerTransition('transition-reference-3', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-3', 'placement-reference-content-4', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'ring', scale: 1, ringWidth: 0.12 }),
-      layerTransition('transition-reference-4', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-4', 'placement-reference-content-5', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'ring', scale: 1, ringWidth: 0.12 }),
-      layerTransition('transition-reference-5', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-5', 'placement-reference-content-6', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'star', scale: 1, aspect: 1, rotation: 0, starPoints: 5, starInner: 0.38 }),
-      layerTransition('transition-reference-6', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-6', 'placement-reference-content-7', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'star', scale: 1, aspect: 1, rotation: 0, starPoints: 5, starInner: 0.38 }),
-      layerTransition('transition-reference-7', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-7', 'placement-reference-content-8', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'crescent', scale: 1, aspect: 1, rotation: 0, crescentOffset: 0.45 }),
-      layerTransition('transition-reference-8', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-8', 'placement-reference-content-9', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'crescent', scale: 1, aspect: 1, rotation: 0, crescentOffset: 0.45 }),
-      layerTransition('transition-reference-9', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-9', 'placement-reference-content-10', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'polygon', scale: 1, aspect: 1, rotation: 0, polygonSides: 6 }),
-      layerTransition('transition-reference-10', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-10', 'placement-reference-content-11', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'polygon', scale: 1, aspect: 1, rotation: 0, polygonSides: 6 }),
-      layerTransition('transition-reference-11', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-11', 'placement-reference-content-12', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'cat-head', scale: 1, aspect: 1, rotation: 0 }),
-      layerTransition('transition-reference-12', 'portal', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-12', 'placement-reference-content-13', 3_600, SINE_IN_OUT, { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'cat-head', scale: 1, aspect: 1, rotation: 0 }),
-    ],
-    layoutOccurrences: [
-      occurrence(1, 'layout-main', 0, 59_350),
-    ],
-    markers: [
-      chapter('scene-marker:reference-1', 0, 'Reference'),
-      chapter('scene-marker:reference-2', 6_750, 'Heart: shrink outgoing'),
-      chapter('scene-marker:reference-3', 12_350, 'Heart: grow incoming'),
-      chapter('scene-marker:reference-4', 16_950, 'Ring: shrink outgoing'),
-      chapter('scene-marker:reference-5', 21_550, 'Ring: grow incoming'),
-      chapter('scene-marker:reference-6', 26_150, 'Star: shrink outgoing'),
-      chapter('scene-marker:reference-7', 30_750, 'Star: grow incoming'),
-      chapter('scene-marker:reference-8', 35_350, 'Crescent: shrink outgoing'),
-      chapter('scene-marker:reference-9', 39_950, 'Crescent: grow incoming'),
-      chapter('scene-marker:reference-10', 44_550, 'Regular polygon: shrink outgoing'),
-      chapter('scene-marker:reference-11', 49_150, 'Regular polygon: grow incoming'),
-      chapter('scene-marker:reference-12', 53_750, 'Cat head: shrink outgoing'),
-      chapter('scene-marker:reference-13', 58_350, 'Cat head: grow incoming'),
+    referencePattern: 'MetaballsOfFire2D',
+    selectedPattern: 'GlyphRain',
+    junctionDefaults: { kind: 'portal', easing: SINE_IN_OUT },
+    specs: [
+      { label: 'Reference', holdMs: 3_000, junction: { durationMs: 3_750, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'heart', scale: 1, aspect: 1, rotation: 0 } } },
+      { label: 'Heart: shrink outgoing', holdMs: 2_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'heart', scale: 1, aspect: 1, rotation: 0 } } },
+      { label: 'Heart: grow incoming', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'ring', scale: 1, ringWidth: 0.12 } } },
+      { label: 'Ring: shrink outgoing', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'ring', scale: 1, ringWidth: 0.12 } } },
+      { label: 'Ring: grow incoming', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'star', scale: 1, aspect: 1, rotation: 0, starPoints: 5, starInner: 0.38 } } },
+      { label: 'Star: shrink outgoing', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'star', scale: 1, aspect: 1, rotation: 0, starPoints: 5, starInner: 0.38 } } },
+      { label: 'Star: grow incoming', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'crescent', scale: 1, aspect: 1, rotation: 0, crescentOffset: 0.45 } } },
+      { label: 'Crescent: shrink outgoing', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'crescent', scale: 1, aspect: 1, rotation: 0, crescentOffset: 0.45 } } },
+      { label: 'Crescent: grow incoming', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'polygon', scale: 1, aspect: 1, rotation: 0, polygonSides: 6 } } },
+      { label: 'Regular polygon: shrink outgoing', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'polygon', scale: 1, aspect: 1, rotation: 0, polygonSides: 6 } } },
+      { label: 'Regular polygon: grow incoming', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'shrink-outgoing', edgePolicy: 'dither', shape: 'cat-head', scale: 1, aspect: 1, rotation: 0 } } },
+      { label: 'Cat head: shrink outgoing', holdMs: 1_000, junction: { durationMs: 3_600, settings: { feather: 0, centerX: 0.5, centerY: 0.5, featherPolicy: 'dither', revealMode: 'grow-incoming', edgePolicy: 'dither', shape: 'cat-head', scale: 1, aspect: 1, rotation: 0 } } },
+      { label: 'Cat head: grow incoming', holdMs: 1_000 },
     ],
   })
 }
 
 // Slide sibling of the Transition reference family.
 function slideTransitionReferenceV2(): ShowRecordV2 {
-  const zones = logicalZones(['Main'], 2_000)
-  return nativeShowV2({
+  return transitionReferenceShowV2({
     id: 'stock-show-reference-slide-transitions',
     name: 'Slide Transitions',
-    zones,
-    zoneLayouts: [singleLayout(zones)],
-    stageMapId: 'plane',
-    outputContract: portableOutputContract(),
-    executionModel: 'continuous',
-    showEndMs: 23_000,
-    patternInstances: [
-      instance('instance-reference-content-reference', 'ClockworkIris', LESSON_TIME_SCALE),
-      instance('instance-reference-content-selected', 'CompassRose', LESSON_TIME_SCALE),
-    ],
-    layers: [mainLayer('zone-1')],
-    clips: [
-      clip('placement-reference-content-1', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 0, 3_000),
-      clip('placement-reference-content-2', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 5_500, 3_000),
-      clip('placement-reference-content-3', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 10_000, 2_000),
-      clip('placement-reference-content-4', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 13_500, 2_000),
-      clip('placement-reference-content-5', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 16_500, 1_500),
-      clip('placement-reference-content-6', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 19_000, 1_500),
-      clip('placement-reference-content-7', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 21_500, 1_500),
-    ],
-    transitions: [
-      layerTransition('transition-reference-1', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-1', 'placement-reference-content-2', 2_500, SINE_IN_OUT, { motionVariant: 'cover', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-2', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-2', 'placement-reference-content-3', 1_500, SINE_IN_OUT, { motionVariant: 'reveal', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-3', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-3', 'placement-reference-content-4', 1_500, SINE_IN_OUT, { motionVariant: 'push', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-4', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-4', 'placement-reference-content-5', 1_000, SINE_IN_OUT, { motionVariant: 'cover', direction: 0.25, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-5', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-5', 'placement-reference-content-6', 1_000, SINE_IN_OUT, { motionVariant: 'cover', direction: 0.5, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-6', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-6', 'placement-reference-content-7', 1_000, SINE_IN_OUT, { motionVariant: 'cover', direction: 0.75, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-    ],
-    layoutOccurrences: [
-      occurrence(1, 'layout-main', 0, 23_000),
-    ],
-    markers: [
-      chapter('scene-marker:reference-1', 0, 'Reference'),
-      chapter('scene-marker:reference-2', 5_500, 'Cover east'),
-      chapter('scene-marker:reference-3', 10_000, 'Reveal east'),
-      chapter('scene-marker:reference-4', 13_500, 'Push east'),
-      chapter('scene-marker:reference-5', 16_500, 'Cover south'),
-      chapter('scene-marker:reference-6', 19_000, 'Cover west'),
-      chapter('scene-marker:reference-7', 21_500, 'Cover north'),
+    referencePattern: 'ClockworkIris',
+    selectedPattern: 'CompassRose',
+    junctionDefaults: { kind: 'motion', easing: SINE_IN_OUT },
+    specs: [
+      { label: 'Reference', holdMs: 3_000, junction: { durationMs: 2_500, settings: { motionVariant: 'cover', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Cover east', holdMs: 3_000, junction: { durationMs: 1_500, settings: { motionVariant: 'reveal', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Reveal east', holdMs: 2_000, junction: { durationMs: 1_500, settings: { motionVariant: 'push', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Push east', holdMs: 2_000, junction: { durationMs: 1_000, settings: { motionVariant: 'cover', direction: 0.25, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Cover south', holdMs: 1_500, junction: { durationMs: 1_000, settings: { motionVariant: 'cover', direction: 0.5, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Cover west', holdMs: 1_500, junction: { durationMs: 1_000, settings: { motionVariant: 'cover', direction: 0.75, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Cover north', holdMs: 1_500 },
     ],
   })
 }
 
 // Zoom and spin sibling of the Transition reference family.
 function zoomSpinTransitionReferenceV2(): ShowRecordV2 {
-  const zones = logicalZones(['Main'], 2_000)
-  return nativeShowV2({
+  return transitionReferenceShowV2({
     id: 'stock-show-reference-zoom-spin-transitions',
     name: 'Zoom and Spin Transitions',
-    zones,
-    zoneLayouts: [singleLayout(zones)],
-    stageMapId: 'plane',
-    outputContract: portableOutputContract(),
-    executionModel: 'continuous',
-    showEndMs: 24_700,
-    patternInstances: [
-      instance('instance-reference-content-reference', 'Caustics', LESSON_TIME_SCALE),
-      instance('instance-reference-content-selected', 'GlyphRain', LESSON_TIME_SCALE),
-    ],
-    layers: [mainLayer('zone-1')],
-    clips: [
-      clip('placement-reference-content-1', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 0, 3_000),
-      clip('placement-reference-content-2', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 5_500, 3_000),
-      clip('placement-reference-content-3', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 9_700, 1_500),
-      clip('placement-reference-content-4', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 12_400, 1_500),
-      clip('placement-reference-content-5', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 15_100, 1_500),
-      clip('placement-reference-content-6', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 17_800, 1_500),
-      clip('placement-reference-content-7', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 20_500, 1_500),
-      clip('placement-reference-content-8', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 23_200, 1_500),
-    ],
-    transitions: [
-      layerTransition('transition-reference-1', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-1', 'placement-reference-content-2', 2_500, SINE_IN_OUT, { motionVariant: 'content-grow', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-2', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-2', 'placement-reference-content-3', 1_200, SINE_IN_OUT, { motionVariant: 'content-shrink', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-3', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-3', 'placement-reference-content-4', 1_200, SINE_IN_OUT, { motionVariant: 'zoom-in', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.2, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-4', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-4', 'placement-reference-content-5', 1_200, SINE_IN_OUT, { motionVariant: 'zoom-out', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.2, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-5', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-5', 'placement-reference-content-6', 1_200, SINE_IN_OUT, { motionVariant: 'zoom-in', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 1, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-6', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-6', 'placement-reference-content-7', 1_200, SINE_IN_OUT, { motionVariant: 'zoom-in', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 1, spinDirection: 'counterclockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-      layerTransition('transition-reference-7', 'motion', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-7', 'placement-reference-content-8', 1_200, SINE_IN_OUT, { motionVariant: 'zoom-in', direction: 0, anchorX: 0.35, anchorY: 0.65, contentScale: 0.25, rotation: 0.5, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' }),
-    ],
-    layoutOccurrences: [
-      occurrence(1, 'layout-main', 0, 24_700),
-    ],
-    markers: [
-      chapter('scene-marker:reference-1', 0, 'Reference'),
-      chapter('scene-marker:reference-2', 5_500, 'Content grow'),
-      chapter('scene-marker:reference-3', 9_700, 'Content shrink'),
-      chapter('scene-marker:reference-4', 12_400, 'Zoom in'),
-      chapter('scene-marker:reference-5', 15_100, 'Zoom out'),
-      chapter('scene-marker:reference-6', 17_800, 'Spin in clockwise'),
-      chapter('scene-marker:reference-7', 20_500, 'Spin in counterclockwise'),
-      chapter('scene-marker:reference-8', 23_200, 'Zoom and spin clockwise'),
+    referencePattern: 'Caustics',
+    selectedPattern: 'GlyphRain',
+    junctionDefaults: { kind: 'motion', easing: SINE_IN_OUT },
+    specs: [
+      { label: 'Reference', holdMs: 3_000, junction: { durationMs: 2_500, settings: { motionVariant: 'content-grow', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Content grow', holdMs: 3_000, junction: { durationMs: 1_200, settings: { motionVariant: 'content-shrink', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Content shrink', holdMs: 1_500, junction: { durationMs: 1_200, settings: { motionVariant: 'zoom-in', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.2, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Zoom in', holdMs: 1_500, junction: { durationMs: 1_200, settings: { motionVariant: 'zoom-out', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.2, rotation: 0, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Zoom out', holdMs: 1_500, junction: { durationMs: 1_200, settings: { motionVariant: 'zoom-in', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 1, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Spin in clockwise', holdMs: 1_500, junction: { durationMs: 1_200, settings: { motionVariant: 'zoom-in', direction: 0, anchorX: 0.5, anchorY: 0.5, contentScale: 0.01, rotation: 1, spinDirection: 'counterclockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Spin in counterclockwise', holdMs: 1_500, junction: { durationMs: 1_200, settings: { motionVariant: 'zoom-in', direction: 0, anchorX: 0.35, anchorY: 0.65, contentScale: 0.25, rotation: 0.5, spinDirection: 'clockwise', addressPolicy: 'clip', edgePolicy: 'hard' } } },
+      { label: 'Zoom and spin clockwise', holdMs: 1_500 },
     ],
   })
 }
@@ -1838,91 +1705,34 @@ function propertyAnimationReferenceV2(): ShowRecordV2 {
 // One Wipe per easing curve and direction at a fixed 1.8s tempo, so the curves
 // are compared against each other rather than against different durations.
 function easingReferenceV2(): ShowRecordV2 {
-  const zones = logicalZones(['Main'], 2_000)
-  return nativeShowV2({
+  return transitionReferenceShowV2({
     id: 'stock-show-reference-easing',
     name: 'Easing',
-    zones,
-    zoneLayouts: [singleLayout(zones)],
-    stageMapId: 'plane',
-    outputContract: portableOutputContract(),
-    executionModel: 'continuous',
-    showEndMs: 79_000,
-    patternInstances: [
-      instance('instance-reference-content-reference', 'IQPalettes', LESSON_TIME_SCALE),
-      instance('instance-reference-content-selected', 'MetaballGarden', LESSON_TIME_SCALE),
-    ],
-    layers: [mainLayer('zone-1')],
-    clips: [
-      clip('placement-reference-content-1', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 0, 3_000),
-      clip('placement-reference-content-2', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 4_800, 2_000),
-      clip('placement-reference-content-3', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 8_600, 2_000),
-      clip('placement-reference-content-4', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 12_400, 2_000),
-      clip('placement-reference-content-5', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 16_200, 2_000),
-      clip('placement-reference-content-6', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 20_000, 2_000),
-      clip('placement-reference-content-7', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 23_800, 2_000),
-      clip('placement-reference-content-8', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 27_600, 2_000),
-      clip('placement-reference-content-9', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 31_400, 2_000),
-      clip('placement-reference-content-10', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 35_200, 2_000),
-      clip('placement-reference-content-11', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 39_000, 2_000),
-      clip('placement-reference-content-12', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 42_800, 2_000),
-      clip('placement-reference-content-13', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 46_600, 2_000),
-      clip('placement-reference-content-14', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 50_400, 2_000),
-      clip('placement-reference-content-15', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 54_200, 2_000),
-      clip('placement-reference-content-16', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 58_000, 2_000),
-      clip('placement-reference-content-17', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 61_800, 2_000),
-      clip('placement-reference-content-18', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 65_600, 2_000),
-      clip('placement-reference-content-19', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 69_400, 2_000),
-      clip('placement-reference-content-20', 'instance-reference-content-selected', 'zone-1', mainLayerId('zone-1'), 73_200, 2_000),
-      clip('placement-reference-content-21', 'instance-reference-content-reference', 'zone-1', mainLayerId('zone-1'), 77_000, 2_000),
-    ],
-    transitions: [
-      layerTransition('transition-reference-1', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-1', 'placement-reference-content-2', 1_800, LINEAR, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-2', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-2', 'placement-reference-content-3', 1_800, QUADRATIC_IN, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-3', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-3', 'placement-reference-content-4', 1_800, { curve: 'quadratic', direction: 'out' }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-4', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-4', 'placement-reference-content-5', 1_800, { curve: 'quadratic', direction: 'in-out' }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-5', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-5', 'placement-reference-content-6', 1_800, CUBIC_IN, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-6', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-6', 'placement-reference-content-7', 1_800, CUBIC_OUT, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-7', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-7', 'placement-reference-content-8', 1_800, CUBIC_IN_OUT, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-8', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-8', 'placement-reference-content-9', 1_800, { curve: 'sine', direction: 'in' }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-9', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-9', 'placement-reference-content-10', 1_800, SINE_OUT, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-10', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-10', 'placement-reference-content-11', 1_800, SINE_IN_OUT, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-11', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-11', 'placement-reference-content-12', 1_800, { curve: 'cubic-bezier', x1: 0.25, y1: 0.1, x2: 0.25, y2: 1 }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-12', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-12', 'placement-reference-content-13', 1_800, { curve: 'cubic-bezier', x1: 0.42, y1: 0, x2: 1, y2: 1 }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-13', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-13', 'placement-reference-content-14', 1_800, { curve: 'cubic-bezier', x1: 0, y1: 0, x2: 0.58, y2: 1 }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-14', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-14', 'placement-reference-content-15', 1_800, { curve: 'cubic-bezier', x1: 0.42, y1: 0, x2: 0.58, y2: 1 }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-15', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-15', 'placement-reference-content-16', 1_800, { curve: 'steps', steps: 4, position: 'end' }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-16', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-16', 'placement-reference-content-17', 1_800, { curve: 'steps', steps: 4, position: 'start' }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-17', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-17', 'placement-reference-content-18', 1_800, { curve: 'hold', at: 0.5 }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-18', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-18', 'placement-reference-content-19', 1_800, { curve: 'back', direction: 'in', overshoot: 1.70158 }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-19', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-19', 'placement-reference-content-20', 1_800, { curve: 'back', direction: 'out', overshoot: 1.70158 }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-      layerTransition('transition-reference-20', 'wipe', 'zone-1', mainLayerId('zone-1'), 'placement-reference-content-20', 'placement-reference-content-21', 1_800, { curve: 'back', direction: 'in-out', overshoot: 1.70158 }, { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' }),
-    ],
-    layoutOccurrences: [
-      occurrence(1, 'layout-main', 0, 79_000),
-    ],
-    markers: [
-      chapter('scene-marker:reference-1', 0, 'Reference'),
-      chapter('scene-marker:reference-2', 4_800, 'linear'),
-      chapter('scene-marker:reference-3', 8_600, 'quadratic in'),
-      chapter('scene-marker:reference-4', 12_400, 'quadratic out'),
-      chapter('scene-marker:reference-5', 16_200, 'quadratic in/out'),
-      chapter('scene-marker:reference-6', 20_000, 'cubic in'),
-      chapter('scene-marker:reference-7', 23_800, 'cubic out'),
-      chapter('scene-marker:reference-8', 27_600, 'cubic in/out'),
-      chapter('scene-marker:reference-9', 31_400, 'sine in'),
-      chapter('scene-marker:reference-10', 35_200, 'sine out'),
-      chapter('scene-marker:reference-11', 39_000, 'sine in/out'),
-      chapter('scene-marker:reference-12', 42_800, 'CSS ease'),
-      chapter('scene-marker:reference-13', 46_600, 'CSS ease in'),
-      chapter('scene-marker:reference-14', 50_400, 'CSS ease out'),
-      chapter('scene-marker:reference-15', 54_200, 'CSS ease in/out'),
-      chapter('scene-marker:reference-16', 58_000, '4 steps'),
-      chapter('scene-marker:reference-17', 61_800, '4 steps from start'),
-      chapter('scene-marker:reference-18', 65_600, 'Hold until halfway'),
-      chapter('scene-marker:reference-19', 69_400, 'back in'),
-      chapter('scene-marker:reference-20', 73_200, 'back out'),
-      chapter('scene-marker:reference-21', 77_000, 'back in/out'),
+    referencePattern: 'IQPalettes',
+    selectedPattern: 'MetaballGarden',
+    junctionDefaults: { kind: 'wipe', durationMs: 1_800, settings: { feather: 0, wipeVariant: 'linear', direction: 0, edgePolicy: 'hard' } },
+    specs: [
+      { label: 'Reference', holdMs: 3_000, junction: { easing: LINEAR } },
+      { label: 'linear', holdMs: 2_000, junction: { easing: QUADRATIC_IN } },
+      { label: 'quadratic in', holdMs: 2_000, junction: { easing: { curve: 'quadratic', direction: 'out' } } },
+      { label: 'quadratic out', holdMs: 2_000, junction: { easing: { curve: 'quadratic', direction: 'in-out' } } },
+      { label: 'quadratic in/out', holdMs: 2_000, junction: { easing: CUBIC_IN } },
+      { label: 'cubic in', holdMs: 2_000, junction: { easing: CUBIC_OUT } },
+      { label: 'cubic out', holdMs: 2_000, junction: { easing: CUBIC_IN_OUT } },
+      { label: 'cubic in/out', holdMs: 2_000, junction: { easing: { curve: 'sine', direction: 'in' } } },
+      { label: 'sine in', holdMs: 2_000, junction: { easing: SINE_OUT } },
+      { label: 'sine out', holdMs: 2_000, junction: { easing: SINE_IN_OUT } },
+      { label: 'sine in/out', holdMs: 2_000, junction: { easing: { curve: 'cubic-bezier', x1: 0.25, y1: 0.1, x2: 0.25, y2: 1 } } },
+      { label: 'CSS ease', holdMs: 2_000, junction: { easing: { curve: 'cubic-bezier', x1: 0.42, y1: 0, x2: 1, y2: 1 } } },
+      { label: 'CSS ease in', holdMs: 2_000, junction: { easing: { curve: 'cubic-bezier', x1: 0, y1: 0, x2: 0.58, y2: 1 } } },
+      { label: 'CSS ease out', holdMs: 2_000, junction: { easing: { curve: 'cubic-bezier', x1: 0.42, y1: 0, x2: 0.58, y2: 1 } } },
+      { label: 'CSS ease in/out', holdMs: 2_000, junction: { easing: { curve: 'steps', steps: 4, position: 'end' } } },
+      { label: '4 steps', holdMs: 2_000, junction: { easing: { curve: 'steps', steps: 4, position: 'start' } } },
+      { label: '4 steps from start', holdMs: 2_000, junction: { easing: { curve: 'hold', at: 0.5 } } },
+      { label: 'Hold until halfway', holdMs: 2_000, junction: { easing: { curve: 'back', direction: 'in', overshoot: 1.70158 } } },
+      { label: 'back in', holdMs: 2_000, junction: { easing: { curve: 'back', direction: 'out', overshoot: 1.70158 } } },
+      { label: 'back out', holdMs: 2_000, junction: { easing: { curve: 'back', direction: 'in-out', overshoot: 1.70158 } } },
+      { label: 'back in/out', holdMs: 2_000 },
     ],
   })
 }
@@ -2194,9 +2004,45 @@ function zoneLayoutRadialShowcaseV2(): ShowRecordV2 {
 }
 
 // The Redline installation Stage: one panel in the middle and four radial
-// blooms around it, all driven from a single Harmonograph render.
+// blooms around it, all driven from a single Harmonograph render. Eight
+// seven-and-a-half-second phrases score the whole minute; the surrounding
+// blooms are the same machine posed four ways, so the phrase and target
+// indices — not per-Clip tuning — own every pose and entry.
 function redlineInstallationV2(): ShowRecordV2 {
   const zones = physicalZones(['Hero panel', 'Left upper', 'Left lower', 'Right upper', 'Right lower'], [800, 300, 300, 300, 300])
+  const phrases = [
+    ['ignition', 'Ignition'], ['first-lift', 'First lift'], ['countermotion', 'Countermotion'],
+    ['first-drop', 'First drop'], ['vacuum', 'Vacuum'], ['rebuild', 'Rebuild'],
+    ['compression', 'Compression'], ['peak-release', 'Peak and release'],
+  ] as const
+  const PHRASE_MS = 7_500
+  const ROTATIONS = [0, 0.125, -0.125, 0.25]
+  const SCALES = [0.92, 0.84, 0.88, 0.8]
+  const SHEAR_X = [-0.14, 0.1, -0.08, 0.16]
+  const SHEAR_Y = [0.08, -0.12, 0.14, -0.06]
+  // Odd phrases add an eighth turn, and the y coefficients walk one step per
+  // phrase, so a bloom never repeats the pose it held in the previous phrase.
+  const targetEffects = (phraseIndex: number, targetIndex: number): ShowClipEffect[] => [
+    { id: 'target-rotate', kind: 'rotate', turns: ROTATIONS[targetIndex] + (phraseIndex % 2 ? 0.0625 : 0) },
+    { id: 'target-scale', kind: 'scale', x: SCALES[targetIndex], y: SCALES[(targetIndex + phraseIndex) % 4] },
+    { id: 'target-shear', kind: 'shear', x: SHEAR_X[targetIndex], y: SHEAR_Y[(targetIndex + phraseIndex) % 4] },
+    { id: 'target-wrap', kind: 'wrap' },
+  ]
+  // Ignition deals the blooms in one at a time and drops each again; the first
+  // lift and the rebuild stagger their entries but hold to the phrase end;
+  // every other phrase runs all four for the whole phrase.
+  const targetTiming = (phraseIndex: number, targetIndex: number): { startMs: number; durationMs: number } => {
+    if (phraseIndex === 0) return { startMs: targetIndex * 1_875, durationMs: 1_875 }
+    if (phraseIndex === 1) {
+      const startMs = targetIndex < 2 ? targetIndex * 1_875 : 3_750
+      return { startMs, durationMs: PHRASE_MS - startMs }
+    }
+    if (phraseIndex === 5) {
+      const startMs = targetIndex * 750
+      return { startMs, durationMs: PHRASE_MS - startMs }
+    }
+    return { startMs: 0, durationMs: PHRASE_MS }
+  }
   return nativeShowV2({
     id: 'stock-show-showcase-redline-installation',
     name: 'Redline Installation',
@@ -2205,66 +2051,35 @@ function redlineInstallationV2(): ShowRecordV2 {
     stageMapId: 'redline-stage-2d',
     outputContract: installationOutputContract('redline-stage-2d', 2_000),
     executionModel: 'continuous',
-    showEndMs: 60_000,
+    showEndMs: phrases.length * PHRASE_MS,
     patternInstances: [
       instance('redline-machine', 'RedlineMachine', 1, { sliderIntensity: 1, sliderSpeed: 0.5, sliderCyan: 1 }),
     ],
-    layers: [mainLayer('zone-1'), mainLayer('zone-2'), mainLayer('zone-3'), mainLayer('zone-4'), mainLayer('zone-5')],
-    clips: [
-      clip('ignition-center', 'redline-machine', 'zone-1', mainLayerId('zone-1'), 0, 7_500),
-      clip('ignition-target-1', 'redline-machine', 'zone-2', mainLayerId('zone-2'), 0, 1_875, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0 }, { id: 'target-scale', kind: 'scale', x: 0.92, y: 0.92 }, { id: 'target-shear', kind: 'shear', x: -0.14, y: 0.08 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('ignition-target-2', 'redline-machine', 'zone-3', mainLayerId('zone-3'), 1_875, 1_875, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.125 }, { id: 'target-scale', kind: 'scale', x: 0.84, y: 0.84 }, { id: 'target-shear', kind: 'shear', x: 0.1, y: -0.12 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('ignition-target-3', 'redline-machine', 'zone-4', mainLayerId('zone-4'), 3_750, 1_875, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: -0.125 }, { id: 'target-scale', kind: 'scale', x: 0.88, y: 0.88 }, { id: 'target-shear', kind: 'shear', x: -0.08, y: 0.14 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('ignition-target-4', 'redline-machine', 'zone-5', mainLayerId('zone-5'), 5_625, 1_875, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.25 }, { id: 'target-scale', kind: 'scale', x: 0.8, y: 0.8 }, { id: 'target-shear', kind: 'shear', x: 0.16, y: -0.06 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('first-lift-center', 'redline-machine', 'zone-1', mainLayerId('zone-1'), 7_500, 7_500),
-      clip('first-lift-target-1', 'redline-machine', 'zone-2', mainLayerId('zone-2'), 7_500, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.0625 }, { id: 'target-scale', kind: 'scale', x: 0.92, y: 0.84 }, { id: 'target-shear', kind: 'shear', x: -0.14, y: -0.12 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('first-lift-target-2', 'redline-machine', 'zone-3', mainLayerId('zone-3'), 9_375, 5_625, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.1875 }, { id: 'target-scale', kind: 'scale', x: 0.84, y: 0.88 }, { id: 'target-shear', kind: 'shear', x: 0.1, y: 0.14 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('first-lift-target-3', 'redline-machine', 'zone-4', mainLayerId('zone-4'), 11_250, 3_750, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: -0.0625 }, { id: 'target-scale', kind: 'scale', x: 0.88, y: 0.8 }, { id: 'target-shear', kind: 'shear', x: -0.08, y: -0.06 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('first-lift-target-4', 'redline-machine', 'zone-5', mainLayerId('zone-5'), 11_250, 3_750, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.3125 }, { id: 'target-scale', kind: 'scale', x: 0.8, y: 0.92 }, { id: 'target-shear', kind: 'shear', x: 0.16, y: 0.08 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('countermotion-center', 'redline-machine', 'zone-1', mainLayerId('zone-1'), 15_000, 7_500),
-      clip('countermotion-target-1', 'redline-machine', 'zone-2', mainLayerId('zone-2'), 15_000, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0 }, { id: 'target-scale', kind: 'scale', x: 0.92, y: 0.88 }, { id: 'target-shear', kind: 'shear', x: -0.14, y: 0.14 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('countermotion-target-2', 'redline-machine', 'zone-3', mainLayerId('zone-3'), 15_000, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.125 }, { id: 'target-scale', kind: 'scale', x: 0.84, y: 0.8 }, { id: 'target-shear', kind: 'shear', x: 0.1, y: -0.06 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('countermotion-target-3', 'redline-machine', 'zone-4', mainLayerId('zone-4'), 15_000, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: -0.125 }, { id: 'target-scale', kind: 'scale', x: 0.88, y: 0.92 }, { id: 'target-shear', kind: 'shear', x: -0.08, y: 0.08 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('countermotion-target-4', 'redline-machine', 'zone-5', mainLayerId('zone-5'), 15_000, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.25 }, { id: 'target-scale', kind: 'scale', x: 0.8, y: 0.84 }, { id: 'target-shear', kind: 'shear', x: 0.16, y: -0.12 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('first-drop-center', 'redline-machine', 'zone-1', mainLayerId('zone-1'), 22_500, 7_500),
-      clip('first-drop-target-1', 'redline-machine', 'zone-2', mainLayerId('zone-2'), 22_500, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.0625 }, { id: 'target-scale', kind: 'scale', x: 0.92, y: 0.8 }, { id: 'target-shear', kind: 'shear', x: -0.14, y: -0.06 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('first-drop-target-2', 'redline-machine', 'zone-3', mainLayerId('zone-3'), 22_500, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.1875 }, { id: 'target-scale', kind: 'scale', x: 0.84, y: 0.92 }, { id: 'target-shear', kind: 'shear', x: 0.1, y: 0.08 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('first-drop-target-3', 'redline-machine', 'zone-4', mainLayerId('zone-4'), 22_500, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: -0.0625 }, { id: 'target-scale', kind: 'scale', x: 0.88, y: 0.84 }, { id: 'target-shear', kind: 'shear', x: -0.08, y: -0.12 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('first-drop-target-4', 'redline-machine', 'zone-5', mainLayerId('zone-5'), 22_500, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.3125 }, { id: 'target-scale', kind: 'scale', x: 0.8, y: 0.88 }, { id: 'target-shear', kind: 'shear', x: 0.16, y: 0.14 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('vacuum-center', 'redline-machine', 'zone-1', mainLayerId('zone-1'), 30_000, 7_500),
-      clip('vacuum-target-1', 'redline-machine', 'zone-2', mainLayerId('zone-2'), 30_000, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0 }, { id: 'target-scale', kind: 'scale', x: 0.92, y: 0.92 }, { id: 'target-shear', kind: 'shear', x: -0.14, y: 0.08 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('vacuum-target-2', 'redline-machine', 'zone-3', mainLayerId('zone-3'), 30_000, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.125 }, { id: 'target-scale', kind: 'scale', x: 0.84, y: 0.84 }, { id: 'target-shear', kind: 'shear', x: 0.1, y: -0.12 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('vacuum-target-3', 'redline-machine', 'zone-4', mainLayerId('zone-4'), 30_000, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: -0.125 }, { id: 'target-scale', kind: 'scale', x: 0.88, y: 0.88 }, { id: 'target-shear', kind: 'shear', x: -0.08, y: 0.14 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('vacuum-target-4', 'redline-machine', 'zone-5', mainLayerId('zone-5'), 30_000, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.25 }, { id: 'target-scale', kind: 'scale', x: 0.8, y: 0.8 }, { id: 'target-shear', kind: 'shear', x: 0.16, y: -0.06 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('rebuild-center', 'redline-machine', 'zone-1', mainLayerId('zone-1'), 37_500, 7_500),
-      clip('rebuild-target-1', 'redline-machine', 'zone-2', mainLayerId('zone-2'), 37_500, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.0625 }, { id: 'target-scale', kind: 'scale', x: 0.92, y: 0.84 }, { id: 'target-shear', kind: 'shear', x: -0.14, y: -0.12 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('rebuild-target-2', 'redline-machine', 'zone-3', mainLayerId('zone-3'), 38_250, 6_750, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.1875 }, { id: 'target-scale', kind: 'scale', x: 0.84, y: 0.88 }, { id: 'target-shear', kind: 'shear', x: 0.1, y: 0.14 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('rebuild-target-3', 'redline-machine', 'zone-4', mainLayerId('zone-4'), 39_000, 6_000, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: -0.0625 }, { id: 'target-scale', kind: 'scale', x: 0.88, y: 0.8 }, { id: 'target-shear', kind: 'shear', x: -0.08, y: -0.06 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('rebuild-target-4', 'redline-machine', 'zone-5', mainLayerId('zone-5'), 39_750, 5_250, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.3125 }, { id: 'target-scale', kind: 'scale', x: 0.8, y: 0.92 }, { id: 'target-shear', kind: 'shear', x: 0.16, y: 0.08 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('compression-center', 'redline-machine', 'zone-1', mainLayerId('zone-1'), 45_000, 7_500),
-      clip('compression-target-1', 'redline-machine', 'zone-2', mainLayerId('zone-2'), 45_000, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0 }, { id: 'target-scale', kind: 'scale', x: 0.92, y: 0.88 }, { id: 'target-shear', kind: 'shear', x: -0.14, y: 0.14 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('compression-target-2', 'redline-machine', 'zone-3', mainLayerId('zone-3'), 45_000, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.125 }, { id: 'target-scale', kind: 'scale', x: 0.84, y: 0.8 }, { id: 'target-shear', kind: 'shear', x: 0.1, y: -0.06 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('compression-target-3', 'redline-machine', 'zone-4', mainLayerId('zone-4'), 45_000, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: -0.125 }, { id: 'target-scale', kind: 'scale', x: 0.88, y: 0.92 }, { id: 'target-shear', kind: 'shear', x: -0.08, y: 0.08 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('compression-target-4', 'redline-machine', 'zone-5', mainLayerId('zone-5'), 45_000, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.25 }, { id: 'target-scale', kind: 'scale', x: 0.8, y: 0.84 }, { id: 'target-shear', kind: 'shear', x: 0.16, y: -0.12 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('peak-release-center', 'redline-machine', 'zone-1', mainLayerId('zone-1'), 52_500, 7_500),
-      clip('peak-release-target-1', 'redline-machine', 'zone-2', mainLayerId('zone-2'), 52_500, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.0625 }, { id: 'target-scale', kind: 'scale', x: 0.92, y: 0.8 }, { id: 'target-shear', kind: 'shear', x: -0.14, y: -0.06 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('peak-release-target-2', 'redline-machine', 'zone-3', mainLayerId('zone-3'), 52_500, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.1875 }, { id: 'target-scale', kind: 'scale', x: 0.84, y: 0.92 }, { id: 'target-shear', kind: 'shear', x: 0.1, y: 0.08 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('peak-release-target-3', 'redline-machine', 'zone-4', mainLayerId('zone-4'), 52_500, 7_500, { effects: [{ id: 'target-rotate', kind: 'rotate', turns: -0.0625 }, { id: 'target-scale', kind: 'scale', x: 0.88, y: 0.84 }, { id: 'target-shear', kind: 'shear', x: -0.08, y: -0.12 }, { id: 'target-wrap', kind: 'wrap' }] }),
-      clip('peak-release-target-4', 'redline-machine', 'zone-5', mainLayerId('zone-5'), 52_500, 7_500, { view: { mirror: true }, effects: [{ id: 'target-rotate', kind: 'rotate', turns: 0.3125 }, { id: 'target-scale', kind: 'scale', x: 0.8, y: 0.88 }, { id: 'target-shear', kind: 'shear', x: 0.16, y: 0.14 }, { id: 'target-wrap', kind: 'wrap' }] }),
-    ],
+    layers: zones.map(zone => mainLayer(zone.id)),
+    clips: phrases.flatMap(([phraseId], phraseIndex) => {
+      const phraseStartMs = phraseIndex * PHRASE_MS
+      return [
+        clip(`${phraseId}-center`, 'redline-machine', 'zone-1', mainLayerId('zone-1'), phraseStartMs, PHRASE_MS),
+        ...[0, 1, 2, 3].map(targetIndex => {
+          const timing = targetTiming(phraseIndex, targetIndex)
+          return clip(
+            `${phraseId}-target-${targetIndex + 1}`, 'redline-machine',
+            `zone-${targetIndex + 2}`, mainLayerId(`zone-${targetIndex + 2}`),
+            phraseStartMs + timing.startMs, timing.durationMs,
+            {
+              ...(targetIndex % 2 === 1 ? { view: { mirror: true } } : {}),
+              effects: targetEffects(phraseIndex, targetIndex),
+            },
+          )
+        }),
+      ]
+    }),
     layoutOccurrences: [
-      occurrence(1, 'layout-redline-stage', 0, 60_000),
+      occurrence(1, 'layout-redline-stage', 0, phrases.length * PHRASE_MS),
     ],
-    markers: [
-      chapter('scene-marker:ignition', 0, 'Ignition'),
-      chapter('scene-marker:first-lift', 7_500, 'First lift'),
-      chapter('scene-marker:countermotion', 15_000, 'Countermotion'),
-      chapter('scene-marker:first-drop', 22_500, 'First drop'),
-      chapter('scene-marker:vacuum', 30_000, 'Vacuum'),
-      chapter('scene-marker:rebuild', 37_500, 'Rebuild'),
-      chapter('scene-marker:compression', 45_000, 'Compression'),
-      chapter('scene-marker:peak-release', 52_500, 'Peak and release'),
-    ],
+    markers: phrases.map(([phraseId, name], phraseIndex) => (
+      chapter(`scene-marker:${phraseId}`, phraseIndex * PHRASE_MS, name)
+    )),
   })
 }
 

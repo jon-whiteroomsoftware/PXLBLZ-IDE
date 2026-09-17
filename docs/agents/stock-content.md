@@ -87,8 +87,8 @@ migration, and this section retires with it.
 Both catalogues ship in the production bundle for the duration of the
 transition, because the Gallery's chapter projection reads the native records
 while playback still reads the pinned legacy ones. Measured on 2026-09-16 by
-building with and without the native import: **122.6 kB minified, 18.2 kB
-gzipped** on a 4,137 kB / 1,213 kB bundle. That is the deliberate price of
+building with and without the native import: **96.0 kB minified, 16.8 kB
+gzipped** on a 4,111 kB / 1,211 kB bundle. That is the deliberate price of
 naming chapters from `role: chapter` rather than from Scene labels, and #1042
 recovers it by deleting the legacy builder.
 

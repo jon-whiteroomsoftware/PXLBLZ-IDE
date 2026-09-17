@@ -63,8 +63,8 @@ derived from the next chapter start, and the Live preview captions the chapter
 the loop is inside. The v2 pilot's Marker panel shows the same projection
 read-only. Playback, compilation and stored Gallery keyframes still run on the
 pinned legacy v1 record; #1039 owns activation. Both catalogues therefore ship
-until #1042 retires the legacy builder, which costs a measured 122.6 kB
-minified / 18.2 kB gzipped in the production bundle. Prepared Feature Guide wording
+until #1042 retires the legacy builder, which costs a measured 96.0 kB
+minified / 16.8 kB gzipped in the production bundle. Prepared Feature Guide wording
 for the vocabulary is held in
 [chapter wording](../../plans/show-v2-chapter-wording.md) and is unpublished.
 
