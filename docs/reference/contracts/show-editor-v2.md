@@ -606,12 +606,15 @@ Show.
 [`showV2RouteDelivery.ts`](../../../src/engine/showV2RouteDelivery.ts) is the
 pure part. It refuses rather than describing bytes nothing can deliver: an empty
 Show, an invalid record, an export the `.epe` importer does not reopen with the
-compiled Show in it, or a Portable 2D Show whose compiled Patterns cannot render
-onto a 2D surface. That last refusal is the v1 artifact gate
-`compileShowForArtifact` applies, restored on the v2 path (#1039) with its own
-blocking message: preparation and preview accept such a Show in both versions,
+compiled Show in it, an Installation Show whose physical Zone Layout does not own
+every output pixel exactly once, or a Portable 2D Show whose compiled Patterns
+cannot render onto a 2D surface. The last two refusals are the v1 artifact gates
+`compileShowForArtifact` applies, restored on the v2 path (#1039) with their own
+blocking messages: preparation and preview accept such a Show in both versions,
 authoring keeps reporting it as a delivery warning, and delivery is what refuses
-it. It reads the materialized runtime uses the artifact compiles, the way the v1
+it. The two never compete, because the coverage rule returns nothing for a
+Portable contract and the Portable rule nothing for an Installation one. The
+Portable gate reads the materialized runtime uses the artifact compiles, the way the v1
 gate reads `projectShowGroupRuntimePatternInstances`, so a Group definition no
 occurrence materializes blocks neither export nor send. The refusal reaches the
 route as `blockedReason`, which gates Send to Controller and Download `.epe`
@@ -749,7 +752,7 @@ the v2 counterpart of the v1 editor's Zone Layout inspector panel.
 | Routing mode | v1's own mode list, labelled by the engine's `showRoutingLayoutKindLabel`; a mode needing more Zones than the Show has is disabled, and physical ranges are offered only when the contract is not Portable |
 | Zone 1…n | the operator's member Zones, one control per slot; a variable-arity operator can add and remove a member, a fixed-arity one cannot |
 | Operator parameters | Checker and Grid columns and rows, Ring count, Pinwheel arms, twist turns and rotation degrees, Wave axis, bands, amplitude, frequency and phase, Soft split axis and feather - v1's labels and v1's conversions |
-| `<Zone>` ranges | an Installation definition's physical LED ranges as v1's `0-63, 128-191` text, parsed by `parseShowRoutingRanges`, with v1's coverage arithmetic beneath them |
+| `<Zone>` ranges | an Installation definition's physical LED ranges as v1's `0-63, 128-191` text, parsed by `parseShowRoutingRanges`, with v1's coverage arithmetic beneath them, projected through `validateInstallationCoverageV2` - the same owner the authoring warning and the delivery refusal read, so the arithmetic shown here is the arithmetic that refuses |
 | Remove Zone Layout | asks once; refused while a Layout occurrence still names the definition, and absent when one definition is left |
 
 `showV2ZoneLayoutEditorModel` is the projection both sections read: it holds the

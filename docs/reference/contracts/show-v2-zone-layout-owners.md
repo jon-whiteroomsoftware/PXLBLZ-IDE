@@ -77,7 +77,13 @@ wrote silently.
 Ranges that miss, overlap or exceed the output contract's pixel count are
 accepted, because v1 accepts them and reports the gap through Installation
 coverage instead; refusing them would narrow shipped behavior. The editor shows
-the same coverage arithmetic beneath the fields.
+the same coverage arithmetic beneath the fields. Since #1039 that gap is a
+verdict again on the v2 path as well: `validateShowAuthoringV2` reports it as a
+delivery warning and `buildShowV2RouteArtifacts` refuses delivery, exactly where
+v1's two callers do. Both surfaces read `validateInstallationCoverageV2`, the
+same projection the editor's arithmetic comes from, so an owner that accepts the
+edit and a delivery that refuses the result are never disagreeing about the
+numbers.
 
 ## Result shape
 

@@ -787,6 +787,18 @@ dimension. Final-content deletion is accepted where it leaves a validated empty
 Show. A refusal or no-op at any step returns the original record identity and
 creates no history entry, provider save or ordering stamp.
 
+The dependency step also carries the Installation physical-coverage rule.
+`validateShowAuthoringV2` classifies it exactly as `validateShowAuthoring`
+does: a physical Zone Layout that does not own every output pixel exactly once
+is a delivery warning with no diagnostic code, so the Show stays authorable and
+the candidate is admitted. Delivery is where v1 refuses it, and
+`buildShowV2RouteArtifacts` returns the same
+`installationCoverageBlockingMessage` `compileShowForArtifact` produces. The
+prepared-edit owners that can introduce the fault - `set_output_contract`, the
+Zone Layout definition owner's physical ranges, and Zone add and remove - keep
+accepting it, exactly as their v1 counterparts did, and `.pxlshow` import keeps
+the authored ranges untouched.
+
 The dependency step also carries the Portable 2D capability rule, which
 `validateShowAuthoringV2` classifies exactly as `validateShowAuthoring` does:
 renderer and reference-map capability mismatches are delivery diagnostics that

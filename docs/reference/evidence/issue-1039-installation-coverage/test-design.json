@@ -1,0 +1,127 @@
+{
+  "issue": 1039,
+  "scope": "Installation physical-coverage check restored on the v2 authoring and delivery path",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "FAILURE"
+    ],
+    "sections": [
+      "1 (no silent narrowing of accepted behavior)",
+      "9 (admission checks in order, atomic refusal, no history/save/timestamp on refusal)",
+      "12 FAILURE"
+    ]
+  },
+  "base": "0604c125826296d5aac8983fb78e5b30761ab20d",
+  "v1CallerTable": [
+    "src/engine/showAuthoringValidation.ts:211 validateShowAuthoring - pushes installationCoverageBlockingMessage as a WARNING {code:'delivery'} with no diagnosticCode and no path, after the structural early return at line 174 and immediately before the Portable block. The Show stays valid.",
+    "src/engine/showPreviewArtifact.ts:138 compileShowForArtifact - REFUSES with {artifact:null, error:<message>}, before the Portable gate and before any compile.",
+    "src/engine/showPreviewArtifact.ts compileShowForPreview - never consults the rule; preview compiles an incomplete Show.",
+    "src/agent/editorAdmission.ts:223 candidate admission - consumes result.valid and result.errors only, so a coverage warning never refuses a candidate.",
+    "src/store/showResizeAdmission.ts:92 resize admission - consumes result.valid only; same conclusion.",
+    "src/engine/showImportPlan.ts and showFileBundle.ts - .pxlshow import never runs the rule; ranges are imported as authored.",
+    "src/components/ShowEditor.tsx:9864 - v1 editor displays the arithmetic for layouts[0]; display only, no verdict.",
+    "src/agent-harness/shows/evaluate.ts:268 - the harness document validator is a separate v1-only diagnostic surface, untouched here."
+  ],
+  "invariants": [
+    "One rule, not two: validateInstallationCoverage owns the verdict over the projection both record versions satisfy; validateInstallationCoverageV2 supplies only the v2 record's own field name (zoneLayouts for v1's routingLayouts), in the record's authored order, which is the order v1 reports a layout in.",
+    "Classification is v1's, unchanged: an incomplete, overlapping, out-of-range or over-capacity physical Zone Layout is a delivery warning with no diagnostic code that leaves the Show authorable. The v1 counterpart is pinned by 'keeps cross-Layer overlap and incomplete installation coverage through commit and reopen' in src/agent-harness/test/authoringValidation.test.ts, which asserts the reopened document carries a delivery warning.",
+    "Refusal is where v1 refuses: the artifact boundary. buildShowV2RouteArtifacts returns the same installationCoverageBlockingMessage compileShowForArtifact produces, and returns only a message - no adoption, history entry, provider save or ordering stamp.",
+    "The coverage gate and the Portable gate never compete: the coverage rule returns null for a Portable contract and the Portable rule returns null for an Installation one, so v1's caller order (coverage first) is unobservable rather than load-bearing. A test pins both halves.",
+    "No new refusal is introduced. The prepared-edit owners, the candidate admission and .pxlshow import accept exactly what they accepted before; only the diagnostic and the delivery verdict are added.",
+    "A logical Zone Layout in an Installation Show is full-output routing and always covers, exactly as v1 treats it.",
+    "One projection owner: the Zone Layouts editor model reads validateInstallationCoverageV2 too, so the arithmetic the section shows is the arithmetic that refuses."
+  ],
+  "partitions": [
+    "output contract installation versus portable-2d (rule returns null for portable)",
+    "layout kind: physical ranges versus logical routing operator (logical always covers)",
+    "coverage fault: complete, incomplete, overlapping, out of range, fractional endpoints (floored), over capacity, empty range list",
+    "layout scope: the occurrence-backed definition and a definition no occurrence names - v1 validates every entry in routingLayouts, so both are checked",
+    "edit owner introducing the fault: Zone Layout set-physical-ranges (narrow, overlap, past the output), set_output_contract raising the pixel count, Zone add (appended ranges past the output), Zone remove (ranges leave with the Zone), agent candidate delivery, v2 .pxlshow import",
+    "repair: the same owner restoring complete ranges returns the Show to deliverable"
+  ],
+  "sequences": [
+    "Installation Show covering 16 pixels -> deliver (ready) -> set-physical-ranges narrowing one Zone to 8-11 -> applied and saved -> deliver (refused) -> set-physical-ranges restoring 8-15 -> deliver (ready)",
+    "Installation Show -> set-physical-ranges overlapping 4-15 onto 0-7 -> applied -> deliver (refused)",
+    "Installation Show -> set-physical-ranges 8-23 past a 16-pixel output -> applied -> deliver (refused)",
+    "Installation Show -> set_output_contract installation 32 px -> applied, contract saved -> deliver (refused)",
+    "Installation Show -> add Zone 'spare' (8 nominal px) -> owner appends 16-23 -> applied -> deliver (refused)",
+    "Installation Show -> remove Zone 'right' -> its ranges leave the Layouts -> applied -> deliver (refused)",
+    "agent candidate narrowing one Zone's ranges -> admitted with one history entry and one save -> authoring warning present and valid true -> deliver (refused)",
+    "export .pxlshow of an Installation Show with incomplete ranges -> reopen through parseShowFileBundle -> plan and apply v2 import -> ranges identical to the authored ones, record valid -> deliver (refused)"
+  ],
+  "oracles": [
+    "What the consumer sees at delivery: buildShowV2RouteArtifacts' status and message, over a record prepared through prepareShowStageV2 - the same object the route's Download .epe and Send to Controller read as blockedReason.",
+    "What the admission returns and what the provider holds: the real store admissions (admitShowV2PilotLayoutDefinitionEdit, admitShowV2PilotShowMetadata, admitShowV2PilotZoneEdit, deliverShowV2EditCandidate) with the provider write spy, and the saved record's own zoneLayouts and outputContract read back.",
+    "What the authoring validator reports: validateShowAuthoringV2 warnings and errors, compared against installationCoverageBlockingMessage(validateInstallationCoverage(...)) computed from the same authored data - the v1 function itself, not a restated expectation.",
+    "Rule parity: validateInstallationCoverageV2(record) asserted deeply equal to validateInstallationCoverage({outputContract, routingLayouts}) across seven range partitions, with a second assertion that those partitions actually produce different verdicts so the comparison can fail.",
+    "Import identity: the applied record's zoneLayouts asserted equal to the authored clone taken before export.",
+    "Census: npm run show:v2-parity (47 inventoried records) and npm run show:v2-native-parity (40 compared Shows) unchanged, proving no stock Show is newly refused."
+  ],
+  "redEvidence": [
+    "All five test files were authored before the seam existed and run against the base: showInstallationCoverageV2.test.ts failed to import at all (module absent), showAuthoringValidationV2.test.ts 2 failed, showV2RouteDelivery.test.ts 2 failed on the verdict, showImportPlanV2.test.ts 1 failed, and src/store/showV2InstallationCoverageAdmission.test.ts 8 of 8 failed - every one of them on the missing verdict, with the 'applied' half of each pair already passing.",
+    "One authored case was wrong about the rule and was corrected rather than the rule: the delivery test originally claimed to pin v1's coverage-before-Portable caller order. The two gates are mutually exclusive by contract kind, so no record can carry both faults; the case was replaced with one that asserts exactly that mutual exclusivity.",
+    "A second authored case mis-stated the arithmetic: ranges 0.5-15.75 floor to 0-15 and cover a 16-pixel output completely. The fractional partition was changed to 0.5-14.75, which floors to 0-14 and leaves pixel 15 missing.",
+    "Each fault probe below re-establishes red for the named tests."
+  ],
+  "faults": [
+    {
+      "mutation": "validateShowAuthoringV2: pass null to installationCoverageBlockingMessage so no coverage diagnostic is classified.",
+      "killed": [
+        "showAuthoringValidationV2.test.ts: keeps incomplete Installation coverage authorable and reports it as a delivery warning",
+        "showAuthoringValidationV2.test.ts: reports overlapping, out-of-range and over-capacity Installation ranges the same way",
+        "showV2InstallationCoverageAdmission.test.ts: admits an agent candidate that introduces the fault, reporting it as a delivery warning"
+      ],
+      "result": "3 failed | 23 passed; restored to green"
+    },
+    {
+      "mutation": "buildShowV2RouteArtifacts: drop the coverage refusal and deliver anyway.",
+      "killed": [
+        "showV2RouteDelivery.test.ts: refuses to deliver an Installation Show whose physical Layout leaves pixels unassigned",
+        "showV2RouteDelivery.test.ts: refuses overlapping, out-of-range and over-capacity Installation ranges alike",
+        "showV2RouteDelivery.test.ts: keeps the coverage and Portable gates on their own contracts, as v1 does",
+        "showImportPlanV2.test.ts: imports an Installation Show whose physical Layout is incomplete and leaves the refusal to delivery",
+        "showV2InstallationCoverageAdmission.test.ts: all six owner sequences plus the agent-candidate and repair cases"
+      ],
+      "result": "12 failed | 16 passed; restored to green"
+    },
+    {
+      "mutation": "validateInstallationCoverageV2: pass an empty routing-layout list instead of record.zoneLayouts.",
+      "killed": [
+        "showInstallationCoverageV2.test.ts: reads the v2 record's own Zone Layouts, layout by layout",
+        "showInstallationCoverageV2.test.ts: treats a logical Zone Layout in an Installation Show as full-output routing",
+        "showInstallationCoverageV2.test.ts: matches the v1 rule over the same authored data for every coverage fault",
+        "showAuthoringValidationV2.test.ts: the three coverage cases",
+        "showV2RouteDelivery.test.ts: the three Installation delivery cases plus 'delivers the same 3D-only Pattern in an Installation Show'",
+        "showV2ZoneLayoutEditorModel.test.ts: offers physical ranges and Installation coverage only for a physical definition - which is what proves the editor model now shares this owner"
+      ],
+      "result": "11 failed | 32 passed; restored to green"
+    },
+    {
+      "mutation": "validateShowAuthoringV2: classify the coverage message as an error instead of a warning - the over-strict mutation, which restoring a check invites.",
+      "killed": [
+        "showAuthoringValidationV2.test.ts: keeps incomplete Installation coverage authorable and reports it as a delivery warning",
+        "showAuthoringValidationV2.test.ts: reports overlapping, out-of-range and over-capacity Installation ranges the same way",
+        "showV2InstallationCoverageAdmission.test.ts: admits an agent candidate that introduces the fault, reporting it as a delivery warning"
+      ],
+      "result": "3 failed | 36 passed; restored to green. This probe is why the 'nothing stricter than v1' claim is falsifiable and not merely asserted."
+    }
+  ],
+  "results": {
+    "focused": "npx vitest run over showInstallationCoverage.test.ts, showInstallationCoverageV2.test.ts, showAuthoringValidationV2.test.ts, showV2RouteDelivery.test.ts, showImportPlanV2.test.ts, showV2ZoneLayoutEditorModel.test.ts, showPreparedStageV2.test.ts, showV2InstallationCoverageAdmission.test.ts, showV2PortableAdmission.test.ts, showV2CandidateAdmission.test.ts, showV2ZoneLayoutAdmission.test.ts, showV2ShowMetadataAdmission.test.ts, stock/shows.test.ts and stock/showsV2.test.ts: 14 files, 388 tests, all passed.",
+    "staged": "npm run test:staged passed",
+    "static": "npm run lint and npx tsc -b --pretty false passed",
+    "parity": "npm run show:v2-parity: 47 inventoried records matched. npm run show:v2-native-parity: 40 compared Shows matched. No stock Show is newly refused.",
+    "browser": "Not applicable: this slice changes no path matched by wrsp-ui-proof.json (no component TSX, App.tsx or stylesheet). The delivery refusal reaches the existing ShowEditorV2DeliveryPanel through the unchanged blockedReason field, and the Zone Layouts section reads the same projection it already read."
+  },
+  "residualGaps": [
+    "The dispatch expected the counterexample to be refused somewhere on the edit path. It is not, and must not be: v1's product admissions accept it too. validateShowAuthoring classifies coverage as a delivery warning, agent/editorAdmission.ts and store/showResizeAdmission.ts refuse only on errors, and src/agent-harness/test/authoringValidation.test.ts pins that an incomplete-coverage v1 Show commits, exports and reopens with a delivery warning. Refusing at admission would be a new rule beyond v1's and a narrowing of accepted behavior under specification section 1.",
+    "v1 file import never ran the coverage rule, so v2 import does not either. The imported record keeps its authored ranges and delivery refuses; the import test asserts exactly that.",
+    "OPEN, for the coordinator: v1's `validateShowAuthoring` also emits three STRUCTURAL ERRORS about Zone Layouts that have no v2 counterpart at all - `invalid-physical-range` (an endpoint that is not a safe integer), `layout-missing-zone` (a Layout naming a Zone the Show does not have) and `invalid-logical-routing`, plus duplicate-Zone-in-Layout identity. Neither `validateShowRecordV2` nor `validateShowAuthoringV2` checks any of them. Measured counterexample, run against this tip: an Installation Show whose Layout assigns ranges [{start: 0.5, end: 14.75}] over 16 pixels gives v1 `{valid: false, errors: ['invalid-physical-range'], warnings: []}` - the structural error returns before coverage is even computed - and v2 `{valid: true, errors: [], warnings: ['Installation output is incomplete: Both assigns 15 of 16 pixels (1 missing). ...']}`. So the coverage warning this slice restored is all v2 reports where v1 refuses. The editor path cannot introduce it (the Zone Layout owner already requires safe nonnegative integers), so the gap is agent-candidate-only. It is a different missing check in a neighbouring seam, not the coverage rule, so this slice reports it rather than widening into it.",
+    "`presentation.installationCoverage` on the prepared capture is computed over a reordered layout list (active Layout first) while the document-level verdict uses the record's authored order. The `valid` flag and the per-layout entries are identical either way; only which invalid layout a message would name could differ when two layouts are invalid at once. Nothing reads that presentation field as a verdict, and this slice did not change it.",
+    "No Precise/Fast output comparison is claimed: this slice changes no compiled artifact, which the unchanged parity reports evidence.",
+    "src/agent-harness/ is untouched. Its `validateShowDocument` treats coverage as an error on the v1 document surface; that is a v1-only diagnostic surface whose v2 counterpart belongs to #1041.",
+    "Authoritative committed-tip suites, exact-range review and landing are the coordinator's."
+  ]
+}
