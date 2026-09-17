@@ -39,7 +39,9 @@ export function ShowV2LayoutEditor({ capture, submitLayoutEdit, isCurrentCapture
   }, [record, occurrenceId, busy])
   const selected = model.occurrences.find(value => value.id === occurrenceId)
   const available = !busy && (capture.inputCapture?.status === 'qualified' || (!capture.inputCapture && capture.prepared.status === 'ready'))
-  const act = async (kind: ShowV2LayoutEditorIntent['kind']) => {
+  // The pilot panel offers exactly these four; the editor route's Layout lane
+  // owns duplicate, split position and the incoming transfer.
+  const act = async (kind: 'select-layout' | 'move' | 'make-unique' | 'remove') => {
     if (pending.current || !available || !selected) return
     const request = kind === 'move' ? { kind, occurrenceId, startMs: draft.startMs }
       : kind === 'select-layout' ? { kind, occurrenceId, layoutId: draft.layoutId }

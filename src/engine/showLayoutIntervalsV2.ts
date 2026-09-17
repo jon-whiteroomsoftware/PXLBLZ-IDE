@@ -596,6 +596,20 @@ function duplicateLayoutOccurrence(
   }
 }
 
+/**
+ * The exact source identities a content duplication of one occurrence copies,
+ * in the owner's own order, so a caller can allocate one fresh identity each.
+ * Reading this changes nothing; an unknown occurrence returns `null`.
+ */
+export function showLayoutDuplicateSourceIdsV2(
+  record: ShowRecordV2,
+  occurrenceId: string,
+): string[] | null {
+  const source = record.composition.layoutOccurrences.find(occurrence => occurrence.id === occurrenceId)
+  if (!source) return null
+  return duplicatedInterval(record, source, source.startMs + source.durationMs).sourceIds
+}
+
 interface DuplicatedInterval {
   clips: ShowClipV2[]
   tracks: ShowRecordV2['composition']['propertyTracks']

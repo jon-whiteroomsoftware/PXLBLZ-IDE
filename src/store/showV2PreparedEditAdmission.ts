@@ -503,7 +503,8 @@ export async function admitShowV2PilotClipDelete(request: ShowV2PilotClipDeleteR
   }
   return presentOwnerOutcome(outcome, effects)
 }
-export type ShowV2PilotLayoutOccurrenceIntent = Extract<ShowLayoutEditIntentV2, { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' }>
+export type ShowV2PilotLayoutOccurrenceIntent = Extract<ShowLayoutEditIntentV2,
+  { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' }>
 type LayoutOccurrenceEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedMarkerIds' | 'affectedTrackIds' | 'affectedTransitionIds' | 'removedLayoutOccurrenceIds'>
 export type ShowV2PilotLayoutOccurrenceRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotLayoutOccurrenceIntent }
 export type ShowV2PilotLayoutOccurrenceOutcome = PilotOwnerOutcome<ShowLayoutEditResultV2, LayoutOccurrenceEffects>
@@ -519,7 +520,34 @@ function validLayoutOccurrenceIntent(intent: unknown): intent is ShowV2PilotLayo
   if (value.kind === 'move') return exactIntentFields(value, ['kind', 'occurrenceId', 'startMs']) && typeof value.startMs === 'number' && Number.isSafeInteger(value.startMs)
   if (value.kind === 'remove') return exactIntentFields(value, ['kind', 'occurrenceId'])
   if (value.kind === 'select-layout') return exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId']) && text(value.layoutId)
-  return value.kind === 'make-unique' && exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId', 'name']) && text(value.layoutId) && text(value.name)
+  if (value.kind === 'make-unique') return exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId', 'name']) && text(value.layoutId) && text(value.name)
+  if (value.kind === 'set-parameters') {
+    if (!exactIntentFields(value, ['kind', 'occurrenceId', 'parameters']) || !value.parameters || typeof value.parameters !== 'object' || Array.isArray(value.parameters)) return false
+    const parameters = value.parameters as Record<string, unknown>
+    if (!exactIntentFields(parameters, []) && !exactIntentFields(parameters, ['splitPosition'])) return false
+    return parameters.splitPosition === undefined
+      || (typeof parameters.splitPosition === 'number' && Number.isFinite(parameters.splitPosition))
+  }
+  if (value.kind === 'duplicate') {
+    if (!text(value.newOccurrenceId)) return false
+    if (exactIntentFields(value, ['kind', 'occurrenceId', 'newOccurrenceId'])) return true
+    // A content plan names one fresh identity per copied entity; the owner
+    // still checks that the map covers exactly its own source identities.
+    if (!exactIntentFields(value, ['kind', 'occurrenceId', 'newOccurrenceId', 'content'])
+      || !exactIntentFields(value.content, ['idsBySourceId'])) return false
+    const ids = (value.content as Record<string, unknown>).idsBySourceId
+    return !!ids && typeof ids === 'object' && !Array.isArray(ids)
+      && Object.entries(ids).every(([source, id]) => text(source) && text(id))
+  }
+  if (value.kind !== 'set-transfer' || !exactIntentFields(value, ['kind', 'occurrenceId', 'transfer'])) return false
+  if (value.transfer === null) return true
+  if (!value.transfer || typeof value.transfer !== 'object' || Array.isArray(value.transfer)) return false
+  const transfer = value.transfer as Record<string, unknown>
+  if (!exactIntentFields(transfer, ['id', 'durationMs', 'direction'])
+    && !exactIntentFields(transfer, ['id', 'durationMs', 'direction', 'easing'])) return false
+  return text(transfer.id) && typeof transfer.durationMs === 'number' && Number.isSafeInteger(transfer.durationMs)
+    && (transfer.direction === 'forward' || transfer.direction === 'reverse')
+    && (transfer.easing === undefined || (!!transfer.easing && typeof transfer.easing === 'object' && !Array.isArray(transfer.easing)))
 }
 export async function admitShowV2PilotLayoutOccurrenceEdit(request: ShowV2PilotLayoutOccurrenceRequest): Promise<ShowV2PilotLayoutOccurrenceOutcome> {
   if (!validLayoutOccurrenceIntent(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one complete explicit Layout occurrence edit.', ...layoutOccurrenceEffects() }

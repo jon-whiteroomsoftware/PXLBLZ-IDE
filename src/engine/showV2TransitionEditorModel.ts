@@ -1,6 +1,7 @@
 import type { ShowCrossfadePolicy, ShowTransitionKind } from './personalContentRecords'
 import { repeatScaleAt } from './showV2ScalarProperties'
-import { showTransitionChangesForPresentation } from './showTransitionAuthoring'
+import { showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation } from './showTransitionAuthoring'
+import type { ShowToolkitParameterValue } from './showVisualToolkit'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
 import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
 import type { ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
@@ -47,7 +48,23 @@ export interface ShowV2TransitionEditorModel {
 export type ShowV2TransitionEditorRequest =
   | { kind: 'insert'; junctionKey: string; kindKey: string; durationMs: number; crossfadePolicy: ShowCrossfadePolicy }
   | { kind: 'settings'; transitionId: string; kindKey: string; crossfadePolicy: ShowCrossfadePolicy }
+  | { kind: 'parameter'; transitionId: string; parameterId: string; value: ShowToolkitParameterValue }
   | { kind: 'reset'; transitionId: string }
+
+/**
+ * The key a derived Cut junction is addressed by. A Cut is the absence of a
+ * Transition at exact adjacency, so the key carries the boundary time and the
+ * two Clip identities rather than any persisted owner.
+ */
+export function showV2TransitionJunctionKey(cut: {
+  atMs: number
+  zoneId: string
+  layerId: string
+  fromClipId: string
+  toClipId: string
+}): string {
+  return `participant:${cut.atMs}:${cut.zoneId}:${cut.layerId}:${cut.fromClipId}:${cut.toClipId}`
+}
 
 export type ShowV2TransitionEditorPlan =
   | { status: 'ready'; intent: ShowV2TransitionEditorIntent }
@@ -65,7 +82,7 @@ export function buildShowV2TransitionEditorModel(
     .map(item => ({ key: item.key, label: item.label, familyLabel: item.familyLabel, compatible: item.compatible }))
   const clips = record.composition.clips
   const junctions: ShowV2TransitionJunctionOption[] = projectShowTransitionJunctionsV2(record).map(junction => ({
-    key: `participant:${junction.atMs}:${junction.zoneId}:${junction.layerId}:${junction.fromClipId}:${junction.toClipId}`,
+    key: showV2TransitionJunctionKey(junction),
     label: `${junction.atMs} ms · ${junction.zoneId} · ${junction.layerId}`,
     scope: 'participant' as const,
     atMs: junction.atMs,
@@ -126,6 +143,25 @@ export function planShowV2TransitionEdit(
     const projections = planShowV2TransitionRampProjections(record, transition, allocate)
     if (projections.status === 'refused') return projections
     return { status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id, propertyRampProjections: projections.projections } }
+  }
+
+  if (request.kind === 'parameter') {
+    const current = record.composition.transitions.find(candidate => candidate.id === request.transitionId)
+    if (!current) return { status: 'refused', message: 'Select an existing Transition.' }
+    // Duration belongs to the resize owner, which applies its delta once to the
+    // incoming and downstream affected set. A settings edit never moves a Clip.
+    if (request.parameterId === 'durationMs') {
+      return { status: 'refused', message: 'Change a Transition duration with the duration control, which moves the downstream Clips once.' }
+    }
+    const item = buildShowToolkitPresentationCatalogue({ stageDimensions })
+      .find(candidate => candidate.kind === 'transition' && candidate.key === transitionKindKey(current))
+    if (!item) return { status: 'refused', message: 'This Transition kind is unavailable on this Stage.' }
+    const changes = showBoundaryTransitionParameterChanges(current, item, request.parameterId, request.value)
+    if (!changes) return { status: 'refused', message: `"${request.parameterId}" is not a parameter of this Transition.` }
+    return {
+      status: 'ready',
+      intent: { kind: 'update-transition', transition: { ...structuredClone(current), ...changes } as ShowTransitionV2 },
+    }
   }
 
   const settings = kindSettings(request.kindKey, stageDimensions)
