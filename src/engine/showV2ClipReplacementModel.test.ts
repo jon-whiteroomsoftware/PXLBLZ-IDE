@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import { propertyEditGroupRecord, propertyEditRecord } from '../test/showV2PropertyEditsFixture'
 import { captureShowStageEditV2 } from './showPreparedStageV2'
-import { resolveCapturedShowPatternReplacementV2, createShowV2ClipReplacementIntent } from './showV2ClipReplacementModel'
+import { resolveCapturedShowPatternReplacementV2, createShowV2ClipReplacementIntent, previewShowV2ClipReplacement } from './showV2ClipReplacementModel'
 import { editShowClipV2 } from './showClipsV2'
 function setup(group=false){
  const record=group?propertyEditGroupRecord():propertyEditRecord();record.composition.patternInstances[0].pattern={kind:'user',id:'voice'};record.composition.patternInstances[0].patternName='Voice';record.composition.patternInstances[0].controlTargets={sliderGain:.4,sliderLost:.2}
@@ -31,6 +31,18 @@ it('same reference/name compatible no-op allocates nothing while equal text with
 it.each(['missing','bad','blank','materialized','collision'] as const)('refuses %s without guessing source or retrying identity allocation',partition=>{
  const {capture}=setup(true),mint=vi.fn(()=>partition==='collision'?'instance':'fresh');const ref=partition==='blank'?{kind:'user' as const,id:' '}: {kind:'user' as const,id:partition==='missing'?'missing':partition==='bad'?'bad':'other'}
  expect(createShowV2ClipReplacementIntent(capture,partition==='materialized'?'occ-0:child':'clip',ref,mint).status).toBe('refused');expect(mint).toHaveBeenCalledTimes(partition==='collision'?1:0)
+})
+it('reports the incompatible controls one ordinary replacement would drop, before anything is adopted',()=>{
+ const {record,capture}=setup(true),before=structuredClone(record)
+ expect(previewShowV2ClipReplacement(capture,'clip',{kind:'user',id:'other'})).toEqual({status:'ready',discardedControlTargets:[{kind:'instance-control',instanceId:'instance',exportName:'sliderLost'}]})
+ // A compatible destination reports no loss, so the adapter never confirms one.
+ expect(previewShowV2ClipReplacement(capture,'clip',{kind:'user',id:'equal-text'})).toEqual({status:'ready',discardedControlTargets:[]})
+ expect(record).toEqual(before)
+})
+it.each(['missing-clip','materialized','unresolvable'] as const)('refuses a %s replacement preview instead of reporting an empty loss',partition=>{
+ const {capture}=setup(true)
+ expect(previewShowV2ClipReplacement(capture,partition==='materialized'?'occ-0:child':partition==='missing-clip'?'absent':'clip',
+  partition==='unresolvable'?{kind:'user',id:'bad'}:{kind:'user',id:'other'}).status).toBe('refused')
 })
 it('resolves stock and captured Library-dependent personal sources through actual bundle metadata',()=>{
  const {record,dependencies}=setup();const library={id:'fixture-library',name:'Fixture',src:'function signal(){return .5}',updatedAt:1}

@@ -4,6 +4,7 @@ import { LIBRARIES } from '../pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { defaultGroupRuntimeIdV2, materializeShowGroupsV2 } from './showGroupsV2'
 import type { ShowPatternRef } from './personalContentRecords'
+import type { ShowPropertyTargetV2 } from './showCompositionV2'
 import type { ResolvedShowPatternReplacementV2, ShowIndependentInstancePlanV2 } from './showClipsV2'
 import type { ShowV2ClipSharingCapture } from './showV2ClipSharingEditorModel'
 
@@ -41,6 +42,36 @@ export function resolveCapturedShowPatternReplacementV2(capture: ShowV2ClipShari
     const metadata = bundle(source, libraries).metadata
     return { status: 'ready', replacement: { patternReference: { ...reference }, patternName, exportedSliders: metadata.controls.filter(control => control.kind === 'slider').map(control => ({ ...structuredClone(control), kind: 'slider' as const })) } }
   } catch (error) { return { status: 'refused', message: error instanceof Error ? `The selected Pattern cannot be resolved: ${error.message}` : 'The selected Pattern cannot be resolved.' } }
+}
+export type ShowV2ClipReplacementPreview =
+  | { status: 'ready'; discardedControlTargets: ShowPropertyTargetV2[] }
+  | { status: 'refused'; message: string }
+/**
+ * What replacing this ordinary Clip's Pattern would drop, before anything is
+ * adopted. Section 6 keeps the loss report in the pure planner and the required
+ * confirmation at the adapter: a cancelled confirmation adopts nothing.
+ */
+export function previewShowV2ClipReplacement(capture: ShowV2ClipSharingCapture, clipId: string, reference: ShowPatternRef | undefined): ShowV2ClipReplacementPreview {
+  const context = captured(capture), clip = context?.record.composition.clips.find(clip => clip.id === clipId)
+  if (!context || !clip) return { status: 'refused', message: 'Select an available ordinary Clip.' }
+  const resolved = resolveCapturedShowPatternReplacementV2(capture, reference)
+  if (resolved.status === 'refused') return resolved
+  try {
+    const effective = materializeShowGroupsV2(context.record)
+    const source = effective.composition.patternInstances.find(instance => instance.id === clip.instanceId)
+    if (!source) return { status: 'refused', message: 'Select an available ordinary Clip.' }
+    const compatible = new Set(resolved.replacement.exportedSliders.map(control => control.exportName))
+    const incompatible = (target: ShowPropertyTargetV2): boolean => target.kind === 'instance-control' && !compatible.has(target.exportName)
+    const discardedControlTargets = effective.composition.propertyTracks
+      .filter(track => 'instanceId' in track.target && track.target.instanceId === source.id && incompatible(track.target))
+      .map(track => structuredClone(track.target))
+    for (const exportName of Object.keys(source.controlTargets ?? {}).filter(name => !compatible.has(name))) {
+      if (!discardedControlTargets.some(target => target.kind === 'instance-control' && target.exportName === exportName)) {
+        discardedControlTargets.push({ kind: 'instance-control', instanceId: source.id, exportName })
+      }
+    }
+    return { status: 'ready', discardedControlTargets }
+  } catch (error) { return { status: 'refused', message: error instanceof Error ? error.message : 'Pattern replacement cannot be previewed.' } }
 }
 /** One explicit source; sharing is counted over every effective Clip, regardless visibility. */
 export function createShowV2ClipReplacementIntent(capture: ShowV2ClipSharingCapture, clipId: string, reference: ShowPatternRef | undefined, allocate: () => string): ShowV2ClipReplacementPlan {
