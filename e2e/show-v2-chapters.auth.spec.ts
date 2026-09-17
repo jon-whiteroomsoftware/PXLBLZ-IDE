@@ -49,7 +49,7 @@ test('converted Scene labels project as ordered chapters and general Markers sta
   await expect(chapters.getByRole('listitem')).toHaveText([
     'Opening0 ms', 'Middle10000 ms', 'Finale20000 ms',
   ])
-  await expect(markers.getByRole('option')).toHaveCount(4)
+  await expect(markers.getByLabel('Marker', { exact: true }).getByRole('option')).toHaveCount(4)
 
   // The absorbed chapter kept its authored identity and colour.
   await markers.getByLabel('Marker', { exact: true }).selectOption('authored-middle')

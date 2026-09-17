@@ -27,7 +27,7 @@ export async function exerciseShowV2Markers(page: Page) {
   await expect(route.getByText('Marker saved.', { exact: true })).toBeVisible()
   expect(writes).toBe(1)
   await expect(markers.getByLabel('Marker', { exact: true })).toHaveValue('marker:1')
-  await expect(markers.getByRole('option')).toHaveCount(2)
+  await expect(markers.getByLabel('Marker', { exact: true }).getByRole('option')).toHaveCount(2)
   const commit = async (label: string, value: string) => {
     await markers.getByLabel(label, { exact: true }).fill(value)
     await markers.getByLabel(label, { exact: true }).press('Enter')
