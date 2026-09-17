@@ -204,11 +204,19 @@ The second candidate, on the rebuilt editor route:
 
 ## What remains
 
+The flip landed: `SHOW_V2_ROUTE_DEFAULT` is `true`, fresh Shows are version 2,
+the Show list reads both stored versions, `.pxlshow` import accepts a version-2
+bundle beside a version-1 one, and the production MCP catalogue is v2 before
+attachment. Which editor holds one Show follows that Show's stored version, so
+no mixed window exists in either state; see
+[the editor contract](../../contracts/show-editor-v2.md#the-version-gate) and
+[the activation evidence](../issue-1039-activation/README.md).
+
 | Item | State |
 | --- | --- |
-| The command side: `agentPrivateExecutor`, `editorAdmission`, `privateAdmissionOwner`, the store's candidate-delivery admission, the builtin turn/tools, the production MCP catalogue and the agent-harness vocabulary | **the blocker.** All v1-typed; the counterexample is above. This is the work that has to land with the flip |
-| Flipping `SHOW_V2_ROUTE_DEFAULT`, and the consumers that follow it | blocked on the row above; the gate stays off, so every consumer stays consistent |
-| The v1 timeline's zoom, snap and diagnostic toggles on the v2 surface | open pre-flip parity work under section 1; the v2 surface is fit-to-width by construction, so zoom means giving it a viewport |
-| Proof rows ROUTE, MCP, DELETE-READD, REPLACE, LAYOUT-END through the **production** editor and production MCP | blocked with the activation; gated-route equivalents are #1056's, prepared-path equivalents are #1044's and #1041's |
-| Remote row conversion and the deployed-tip transcript | deferred and blocked by the recorded Cloudflare migration authorization failure; no push, deploy or remote migration attempted |
-| Legacy column retirement | #1042, explicitly out of scope here |
+| Remote row conversion and the deployed-tip MCP transcript | deferred and blocked by the recorded Cloudflare migration authorization failure; no push, deploy or remote migration attempted. The local rehearsal is [rehearsal.md](rehearsal.md), re-run on the flipped build |
+| Output contract, Stage map, Zone Map, Zone Layout definition and Show Trails surfaces on the v2 editor | open; the commands exist, the editor surface does not. Named in [the editor contract](../../contracts/show-editor-v2.md#surfaces-the-v1-editor-has-and-this-route-does-not) |
+| The agent harness on v2 vocabulary | open; `src/agent-harness/` still speaks v1 and its checks are offline, so the flip does not break them |
+| Built-in Shows on the native v2 catalogue | open; `STOCK_SHOWS` stays the pinned parity input and the Gallery, keyframes and census still read it, so a built-in Show keeps the v1 editor |
+| Legacy authoring owners and the legacy columns | #1042, explicitly out of scope here |
+| The public vocabulary sweep | #1043 |

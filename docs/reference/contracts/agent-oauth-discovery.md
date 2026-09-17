@@ -186,26 +186,29 @@ read that is deliberately not a `resolve`: a resolve would consume the pending
 binding-moved notice the caller's next `get_connection` is owed, and would spend
 one of that caller's rate-limited agent calls to describe its own tool list.
 This read is exempt from that rate window, writes nothing and takes no slot. An
-unbound or unreachable connection stays on v1, and a client that binds to a v2
-record afterwards sees the v2 tools on its next request, which is the reconnect
-`get_connection` already instructs it to make.
+unbound or unreachable connection describes v2 - the production editor's
+vocabulary since #1039 - and a client that binds to a row still stored as v1
+sees the v1 tools on its next request, which is the reconnect `get_connection`
+already instructs it to make. The change runs the other way too, once the
+operator conversion has rewritten that row.
 
 The browser declares the version at registration, because the open record is
 what commands act on: a v1 stored row opened on the v2 route is a v2 working
 copy that no server-side row inspection would report. The declaration selects
 discovery only. The private executor still dispatches on the record it actually
 captured, so a wrong claim narrows the tools a caller is offered rather than
-admitting a command the candidate would refuse. `SHOW_V2_ROUTE_DEFAULT` is still
-false, so an ordinary production session routes a v1 record and is served the v1
-catalogue; the explicit `catalogue` option remains for tests.
+admitting a command the candidate would refuse. Since #1039 flipped
+`SHOW_V2_ROUTE_DEFAULT`, an ordinary production session routes a v2 record and
+is served the v2 catalogue; a row the operator conversion has not reached yet
+routes v1 and is served v1. The explicit `catalogue` option remains for tests.
 
 The versioned authoring resources are named by version, and the pair a session
 sees always matches the catalogue it was served:
 
 | Catalogue | Schema resource | Reference resource |
 | --- | --- | --- |
-| v1 (a version-1 record, or no binding) | `pxlblz://schemas/clip-layer-authoring/v1` | `pxlblz://docs/clip-layer-authoring/v1` |
-| v2 (a version-2 record) | `pxlblz://schemas/clip-layer-authoring/v2` | `pxlblz://docs/clip-layer-authoring/v2` |
+| v1 (a version-1 record) | `pxlblz://schemas/clip-layer-authoring/v1` | `pxlblz://docs/clip-layer-authoring/v1` |
+| v2 (a version-2 record, or no binding) | `pxlblz://schemas/clip-layer-authoring/v2` | `pxlblz://docs/clip-layer-authoring/v2` |
 
 The v2 resources carry what the compact v2 schema deliberately does not spell
 out: identity addressing, exact half-open global milliseconds, the appearance

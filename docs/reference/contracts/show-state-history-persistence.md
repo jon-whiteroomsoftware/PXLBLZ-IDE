@@ -222,28 +222,38 @@ store revisions; existing manual replacement callers retain their original API.
 - Notice reset: `dismissShowSaveFailure` removes only the recovery notice. It
   changes no record, history, queued operation, or durable baseline.
 
-## Gated version-2 route
+## The version-2 route, and what a still-version-1 row does
 
-Development builds admit a version-2 Show only when
-[`showV2RouteGate.ts`](../../../src/engine/showV2RouteGate.ts) answers yes:
-`SHOW_V2_ROUTE_DEFAULT` is `false`, so today that is the `show-v2-editor=1`
-opt-in, and #1039's activation is that one constant. Every consumer that must
-move together asks the same predicate - the editor route, the Show list, the
-store's version-2 listing, fresh-Show creation and `.pxlshow` import - so no
-window exists where one of them holds a version-2 record while another assumes
-version 1 (specification section 10). A production build answers `false`
-however the URL is written. The route first looks for a stored version-2
-record; when none exists, it converts the selected version-1 record explicitly
-and refuses unsupported input without mutating either form.
+[`showV2RouteGate.ts`](../../../src/engine/showV2RouteGate.ts) answers both
+halves of this since #1039 flipped `SHOW_V2_ROUTE_DEFAULT` to `true`.
 
-Sparse patch and the production build remain version 1. So does `shows`: a
-version-2 row never enters that collection. The store lists those rows
-separately as `showV2Rows` - identity, name and stamp only - which
-`loadShows` fills from `listShowDocumentsV2` while the gate is on, discarding a
-listing whose workspace or provider changed while it was read, and answering a
-failed listing with no rows rather than a failed workspace load. The Show list
-offers them beside the version-1 rows; renaming and duplicating one there
-belong to #1039, so it offers neither.
+`isShowV2RouteEnabled` is now unconditionally yes, and the consumers that must
+move together ask it: fresh-Show creation, the Show list, the store's
+version-2 listing and `.pxlshow` import. `opensOnShowV2Route` then answers per
+routed Show, and that is what keeps specification section 10's two rules
+compatible. A stored version-2 document opens on the version-2 editor. A row
+storage still holds as version 1 - and every built-in Show, which has no stored
+document - keeps the version-1 editor, because section 10 forbids migrating a
+row on read: nothing in the application rewrites a stored row, and
+`npm run show:v2-migrate` is the only writer that converts one. So for any one
+Show the editor, its history, its save queue and its command catalogue are the
+same version in either state, and no mixed window exists.
+
+The development-only `show-v2-editor=1` preview opens an unconverted row on the
+version-2 editor by converting it in memory. It writes nothing - no provider
+call, no row - and a production build ignores it however the URL is written.
+
+Sparse patch remains version 1. So does `shows`: a version-2 row never enters
+that collection. The store lists those rows separately as `showV2Rows` -
+identity, name and stamp only - which `loadShows` fills from
+`listShowDocumentsV2`, discarding a listing whose workspace or provider changed
+while it was read, and answering a failed listing with no rows rather than a
+failed workspace load. `listShowDocumentsV2` reads `/api/shows?show-version=2`,
+which means "do not skip the rows the version-1 list hides" and therefore
+answers with both stored versions; the provider filters it to actual version-2
+records, which is what makes the per-record route answer correct. The Show
+list offers both kinds, renames, duplicates and trashes either, and marks the
+selected row `v1` when storage still holds it that way.
 
 `createNewShowV2(input)` authors a fresh Show natively as version 2 through
 [`createShowV2WithOutputContract`](../../../src/engine/showCreationV2.ts) -

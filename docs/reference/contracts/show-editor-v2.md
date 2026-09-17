@@ -141,13 +141,41 @@ now that a v2 owner writes the instance clock.
 
 ## The version gate
 
-[`showV2RouteGate.ts`](../../../src/engine/showV2RouteGate.ts) answers one
-question - is a `ShowRecordV2` the ordinary Show route? - and every consumer
-that must move together asks it: the route, the Show list, the store's v2
-listing, fresh-Show creation and `.pxlshow` import. `SHOW_V2_ROUTE_DEFAULT` is
-`false`, so today the answer is the dev-only `?show-v2-editor=1` opt-in and a
-production build answers `false` however the URL is written. **#1039's
-activation is that one constant.**
+[`showV2RouteGate.ts`](../../../src/engine/showV2RouteGate.ts) answers two
+questions, and every consumer that must move together asks it rather than
+reading a flag of its own.
+
+**Is v2 the ordinary Show path at all?** `isShowV2RouteEnabled`.
+`SHOW_V2_ROUTE_DEFAULT` is `true` since #1039, so the answer is yes
+unconditionally: a fresh Show is authored as a `ShowRecordV2`, the Show list
+reads stored v2 documents beside whatever is still v1, and `.pxlshow` import
+accepts a version-2 bundle. Ordinary v1 import survives beside it, and a v1
+file still imports as a v1 row.
+
+**Which editor holds this routed Show?** `opensOnShowV2Route`, answered per
+record:
+
+| Routed Show | Editor | Commands |
+| --- | --- | --- |
+| a stored version-2 document | `ShowEditorV2Route` | the v2 catalogue |
+| a row storage still holds as v1 | the v1 `ShowEditor` | the v1 catalogue |
+| a built-in Show (no stored document) | the v1 `ShowEditor` | the v1 catalogue |
+
+The second row is the transition state, and it is deliberate: specification
+section 10 forbids migrating a row on read as firmly as it forbids a window
+where the editor holds v2 while commands assume v1. Nothing in the application
+converts a stored row; `npm run show:v2-migrate` does, with the preserved
+original and the per-row readback the runbook requires. Until it has run, a
+user opening an unconverted Show sees exactly the editor they saw before, the
+Shows rail marks that row `v1` while it is selected, and the agent binding that
+editor registers declares version 1, so its commands match it. After it has
+run, the same URL opens the v2 route and `read_show` answers v2.
+
+`?show-v2-editor=1` remains as what it always was in substance: a
+development-only preview of an unconverted row on the v2 editor. It converts in
+memory for the open session and writes nothing, and a production build ignores
+it however the URL is written. `e2e/show-editor-v2-route.auth.spec.ts` proves
+both states on the production URL with no query flag at all.
 
 `ShowEditorV2Route` resolves the record through
 the existing `openShowV2Pilot` store path, captures it with
@@ -647,14 +675,36 @@ with stored v2 rows"). Every accepted v2 replacement also patches the matching
 `showV2Rows` entry, so a rename is visible in the list without a workspace
 reload, and a rolled-back save restores the durable name with the record.
 
+## Surfaces the v1 editor has and this route does not
+
+Named here because #1039 made this route the production editor for every
+converted Show, and specification section 1 forbids narrowing accepted
+behavior silently. Each of these is reachable on the v1 `ShowEditor` for a row
+still stored as v1, and has no counterpart here:
+
+| Surface | What the v1 editor offers | v2 domain owner that exists |
+| --- | --- | --- |
+| Show output summary and Show properties | the contract kind, pixel count, output or reference map, and editing them | `set_output_contract` |
+| Show stage | choosing the Stage Map | `set_stage_map` |
+| Zone Map | adding, removing and renaming Zones | `update_zone` |
+| Zone Layout definition | routing mode and operator for a Layout definition (the panel here edits occurrences, not definitions) | - |
+| Show Trails | enabling output trails and their retention | `set_output_trails` |
+| Show actions menu | View code, Download .epe from the header (the delivery panel exports both artifacts) | - |
+
+The commands exist for most of them, so this is a missing editor surface
+rather than a missing capability, and an agent can still author them. It is
+what a converted Show loses until that surface lands, and it is why
+`e2e/shows.auth.spec.ts` now seeds version-1 rows explicitly for the tests that
+cover these: those tests describe live behavior for unconverted rows, not a
+creation flow that still produces one.
+
 ## What remains
 
-The route is complete for a v2 record behind the gate, and `ShowV2RoutePilot`
-with `?show-v2-pilot=1` is retired. What #1039 owns is listed in
-[the activation handoff](../evidence/issue-1056-editor-v2-s6/activation-handoff.md):
-flipping `SHOW_V2_ROUTE_DEFAULT`, retyping the store mutators, and the rehearsed
-row conversion. The store's v1 mutators remain v1-typed, and the animation lanes
-report a selection and draw but accept no drag.
+`ShowV2RoutePilot` and `?show-v2-pilot=1` are retired, and #1039 flipped
+`SHOW_V2_ROUTE_DEFAULT`, so this is the production Show editor. The store's v1
+mutators remain v1-typed and #1042 retires them with the rest of the v1
+authoring owners. The animation lanes report a selection and draw but accept no
+drag. The table above lists the surfaces still to build.
 
 The agent binding is no longer among them. The route now mounts the shared
 agent editor lifecycle, declaring version 2 and handing the admission the same

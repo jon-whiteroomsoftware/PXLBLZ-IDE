@@ -1,0 +1,67 @@
+{
+  "issue": 1039,
+  "scope": "the flip: version 2 as the production Show path, with the editor, the Show list, fresh Shows, .pxlshow import and the MCP catalogue moving together and the per-record dispatch that keeps an unconverted row consistent",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "ROUTE",
+      "DELETE-READD",
+      "REPLACE",
+      "LAYOUT-END",
+      "FAILURE",
+      "MCP",
+      "PARITY"
+    ]
+  },
+  "base": "58745a97",
+  "invariants": [
+    "One Show's editor, history, save queue and command catalogue are the same record version at every instant; no window exists where the editor holds v2 while commands assume v1 (specification section 10).",
+    "Nothing in the application rewrites a stored row's version. The operator conversion is the only writer that converts one, so an unconverted row keeps the editor, the vocabulary and the behavior it had before the flip.",
+    "The development preview of an unconverted row converts in memory only: no provider call, no row write, and a production build ignores it however the URL is written.",
+    "Ordinary version-1 .pxlshow import survives the activation beside version-2 import, and a version-2 record never enters the version-1 `shows` collection.",
+    "Discovery before attachment describes exactly one vocabulary, and every surface of that connection - tools, instructions, schema and reference resources, list_commands - describes the same one."
+  ],
+  "partitions": [
+    "routed Show stored as v2 / stored as v1 / a built-in Show with no stored document",
+    "production build versus development build, with and without the preview parameter, and with malformed parameter values",
+    "MCP connection bound to a v2 editor / bound to a v1 editor / unbound / binding unreadable",
+    "fresh Show, imported version-2 bundle, imported version-1 bundle, converted row",
+    "Shows list with both stored versions present, one, or neither"
+  ],
+  "sequences": [
+    "fresh Show on the production URL -> delete the second Clip -> add a replacement at the freed boundary -> Undo -> Redo -> reload saved -> reopen both artifacts",
+    "export .pxlshow -> re-import through the Show list -> the copy is its own version-2 record and the version-1 list stays empty",
+    "seed a version-1 row -> open it on the production URL (v1 editor, marked v1 in the list) -> convert it through the same writer the runbook uses -> open the same URL (v2 route, v2 badge, version-1 list empty)",
+    "creation flow chooses a Portable contract -> the version-2 record carries it -> reload preserves it",
+    "unbound tools/list -> bind a v1 editor -> tools/list again"
+  ],
+  "oracles": [
+    "Which editor mounts on the production URL, asserted at the route in Playwright and at the App component boundary in jsdom - not the predicate alone.",
+    "Provider readback through /api/shows and /api/shows?show-version=2, filtered the way the provider filters it, for what storage actually holds.",
+    "Reopened .pxlshow and .epe through their own importers from the route's delivery panel, plus check:artifact-oracle.",
+    "The registered MCP tool list, server instructions and resource URIs for a given binding version, and the measured discovery byte census for the default catalogue.",
+    "The 47-record and 40-record parity reports, unchanged."
+  ],
+  "redEvidence": [
+    "showV2RouteGate.test.ts: opensOnShowV2Route absent (4 cases failing on a missing export).",
+    "agentMcpRouting.test.ts: the unbound and unreadable-binding catalogue cases failing against the v1 default.",
+    "ShowsRailSection.test.tsx: the selected-row marker case failing against the v2 badge."
+  ],
+  "faults": [
+    "SHOW_V2_ROUTE_DEFAULT reverted to false: 4 tests fail across the gate, the store listing and the App route mount.",
+    "opensOnShowV2Route ignoring storedV2 (falling through to the preview): the stored-v2 gate case and the App v2 mount fail.",
+    "opensOnShowV2Route answering true for an unconverted row in a production build: the gate case, the preview case and ten v1-editor App cases fail.",
+    "resolveCatalogue reverted to the v1 default: 6 MCP tests fail across tools/list, the instructions snapshot, the metadata census and the byte census.",
+    "the rail marking v2 rows instead of v1 rows: the selected-row marker case fails."
+  ],
+  "results": {
+    "lint": "passed",
+    "typecheck": "npx tsc -b --pretty false: passed",
+    "vitest": "824 files, 11920 tests passed, 61 skipped",
+    "parity": "show:v2-parity 47 inventoried records matched; show:v2-native-parity 40 compared Shows matched",
+    "artifactOracle": "check:artifact-oracle passed: show-pxlshow 782 bytes, show-epe 7007 bytes, both reopened",
+    "browser": "e2e/show-editor-v2-route.auth.spec.ts 4/4 on the production URL; e2e/shows.auth.spec.ts 86/87",
+    "uiProof": ".wrsp/ui-proof/1039-cutover.json"
+  }
+}

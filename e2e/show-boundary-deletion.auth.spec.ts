@@ -1,9 +1,11 @@
 import { mkdir } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures/authenticated'
 import type { ShowRecord } from '../src/engine/personalContentRecords'
-import { projectShowTimeline } from '../src/engine/showModel'
+import { createShowWithOutputContract, projectShowTimeline } from '../src/engine/showModel'
+import { createInstallationShowOutputContract } from '../src/engine/showOutputContract'
 import { projectShowUnifiedTimeline } from '../src/engine/showUnifiedTimelineProjection'
 import {
   boundaryClipDeletionFixture,
@@ -26,17 +28,26 @@ async function captureIssue1023(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: join(captureOutput, name), fullPage: true })
 }
 
+/**
+ * Seed one version-1 Installation Show and open it.
+ *
+ * Since #1039 flipped the production default a fresh Show is authored as a
+ * version-2 record on the v2 editor; this spec covers the v1 editor's boundary
+ * behavior, which still holds every row storage keeps as version 1. The record
+ * is what the creation flow's Installation defaults built, including the 2D
+ * output map its map list preselects.
+ */
 async function createInstallationShow(page: Page): Promise<string> {
-  const addShow = page.getByRole('button', { name: 'Add show' })
-  const openShows = page.getByRole('button', { name: 'Open the Shows list' })
-  await expect(addShow.or(openShows).first()).toBeVisible()
-  if (await openShows.isVisible()) await openShows.click()
-  await addShow.click()
-  await page.getByRole('button', { name: 'New show' }).click()
-  await page.getByRole('button', { name: 'Create Installation Show' }).click()
-  await page.getByRole('button', { name: 'Create Show' }).click()
-  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
-  return new URL(page.url()).pathname.split('/').at(-1)!
+  const show = createShowWithOutputContract(
+    randomUUID(),
+    'Untitled Show',
+    createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 256 }),
+  )
+  const created = await page.context().request.post('/api/shows', { data: show })
+  expect(created.ok(), await created.text()).toBe(true)
+  await page.goto(`studio/shows/${show.id}`)
+  await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}$`))
+  return show.id
 }
 
 async function expectFeedbackFitsClip(page: Page, clipId: string): Promise<void> {

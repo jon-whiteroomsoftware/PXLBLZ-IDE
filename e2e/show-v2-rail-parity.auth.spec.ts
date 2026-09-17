@@ -12,10 +12,17 @@ import { expect, test, type Page } from './fixtures/authenticated'
  */
 const GATE = 'show-v2-editor=1'
 
+/**
+ * The stored version-2 documents. `?show-version=2` means "do not skip the rows
+ * the version-1 list hides", so it answers with both stored versions; the
+ * provider filters it to actual version-2 records and so does this. Since #1039
+ * flipped the default, a workspace can hold a version-1 row beside them.
+ */
 async function listV2(page: Page): Promise<Array<{ id: string; name: string }>> {
   const response = await page.request.get('/api/shows?show-version=2')
   expect(response.ok(), await response.text()).toBe(true)
-  return (await response.json()).shows
+  return ((await response.json()).shows as Array<{ version?: number }>)
+    .filter(show => show.version === 2) as Array<{ id: string; name: string }>
 }
 
 async function createFreshShow(page: Page): Promise<string> {

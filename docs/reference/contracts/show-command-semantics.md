@@ -847,13 +847,19 @@ caller's choice and not a deployment switch: the editor a caller is bound to
 holds exactly one record, and the commands it is offered are that record's. An
 external connection learns the bound editor's version from the account before
 the MCP server registers a single tool; a built-in turn reads it off its own
-capture. An unbound connection stays on v1, which is the surface every existing
-client already expects. `SHOW_V2_ROUTE_DEFAULT` is still false, so in an
-ordinary production session the routed record is v1 and so is the catalogue;
-the v2 catalogue is reached through the same development route opt-in that
-puts a v2 record in the editor. `agentMcpRouting` keeps an explicit
-`catalogue` option, which now overrides that resolution for tests rather than
-being the only way to reach v2.
+capture.
+
+An unbound connection - or one whose binding cannot be read - describes **v2**,
+because since #1039 flipped `SHOW_V2_ROUTE_DEFAULT` that is the production
+editor's authored vocabulary: a fresh Show is v2 and the operator conversion
+moves the rest. Discovery before attachment is therefore 59 tools and 52
+mutations rather than v1's 64 and 57, measured in
+`agentMcpSchemaCensus.test.ts`. A connection that then binds to a row storage
+still holds as v1 is answered v1 - the version its editor, its private executor
+and its admission all hold - and the reconnect `get_connection` already
+instructs covers the change either way. `agentMcpRouting` keeps an explicit
+`catalogue` option, which overrides that resolution for tests and for the
+pinned v1 census.
 
 One connection exposes exactly one catalogue. The registered mutation tools,
 the server instructions, the schema and reference resources, and the
