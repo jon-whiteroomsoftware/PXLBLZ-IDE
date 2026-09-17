@@ -174,7 +174,11 @@ the v1 list until #1039 couples them.
 The route lays the timeline column - the surface, the animation lanes and the
 authoring panel - and the Stage preview in the workspace, with the Clip inspector
 and the Show inspector in the side panel beside them above 1024 px, stacked below
-it. Every editable surface reads the one prepared capture
+it. Each of the three keeps the height it draws and the column scrolls when they
+exceed it: the workspace caps the column at half the editor however much the
+route asks for, and a surface squeezed by the lanes below it scrolls its Zone
+rows out of sight, where a Clip is neither visible nor droppable. Every editable
+surface reads the one prepared capture
 [`useShowV2EditCapture`](../../../src/components/useShowV2EditCapture.ts) owns:
 the timeline gestures, the Transition and Layout panel and both inspectors plan
 against the same captured record, dependencies and provider, so one stale-edit
