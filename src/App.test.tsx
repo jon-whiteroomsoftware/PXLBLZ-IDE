@@ -227,6 +227,32 @@ describe('App smoke test', () => {
     expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
   })
 
+  it('clears the active v1 Show when a stored v2 row is routed (#1039)', async () => {
+    // Review of the flip: selecting a v2 row from the rail while a v1 row is
+    // open mounted the v2 route but left the v1 store reporting the old row as
+    // active, so the rail kept highlighting it and the URL sync could steer
+    // back to it. The routed v2 row now clears the v1 selection the way a
+    // built-in Show does.
+    const legacy = { ...transitionV1Show('crossfade'), id: 'still-v1-row', name: 'Still v1' }
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    setStudioLocation(`/studio/shows/${converted.record.id}`)
+    seedSignedInWorkspace()
+    useShowStore.setState({
+      shows: [legacy],
+      showsLoaded: true,
+      activeShowId: legacy.id,
+      showV2Rows: [{ id: converted.record.id, name: converted.record.name, updatedAt: 1 }],
+      showV2Pilots: { [converted.record.id]: converted.record },
+    })
+
+    render(<App />)
+
+    expect(screen.getByTestId('show-editor-v2-route')).toBeInTheDocument()
+    await waitFor(() => expect(useShowStore.getState().activeShowId).toBeNull())
+    expect(window.location.pathname).toBe(`/studio/shows/${converted.record.id}`)
+  })
+
   it('mounts the opt-in v2 Show route when the ordinary v1 list excludes its record', () => {
     const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
     if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
@@ -294,7 +320,9 @@ describe('App smoke test', () => {
         entity: { kind: 'shows', id: sourceB.id },
       })
     })
-    expect(useShowStore.getState().activeShowId).toBe(sourceB.id)
+    // Since the flip a routed row with a stored v2 document clears the v1
+    // selection (#1039), so the route, not the v1 store, is what must hold B.
+    expect(useRouterStore.getState().route).toEqual({ kind: 'studio', entity: { kind: 'shows', id: sourceB.id } })
     await waitFor(() => expect(useShowStore.getState().showV2Pilots[sourceB.id]?.name).toBe(sourceB.name))
 
     delayedA.resolve([structuredClone(convertedA.record), structuredClone(convertedB.record)])

@@ -622,9 +622,12 @@ function StudioApp() {
       }
     } else if (currentRoute.kind === 'studio' && currentRoute.entity !== null && currentRoute.entity.kind === 'shows' && currentRoute.entity.id !== null) {
       const entityId = currentRoute.entity.id
-      if (stockShowById(entityId)) {
+      if (stockShowById(entityId) || routedShowOpensOnV2(entityId)) {
+        // A built-in Show and a stored v2 row are both held outside the v1
+        // Show store; leaving a v1 row active would keep the rail on it and let
+        // the URL sync steer back to it (#1039).
         if (activeShowId !== null) void openShow(null)
-      } else if (!routedShowOpensOnV2(entityId) && shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
+      } else if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
   }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, routedShowOpensOnV2, activeShowId, activeLibraryName, userPatterns, openShow])
 
