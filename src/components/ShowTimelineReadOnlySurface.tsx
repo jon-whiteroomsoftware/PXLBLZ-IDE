@@ -131,7 +131,6 @@ export function ShowTimelineReadOnlySurface({
           <div className="flex items-center gap-1.5 px-2 py-1 text-[11px]">
             <span aria-hidden className="h-3 w-[3px] rounded-sm" style={{ backgroundColor: row.color ?? '#38bdf8' }} />
             <span className="truncate font-medium">{row.zoneName}</span>
-            <span className="text-[9px] text-zinc-600">{row.pixelCount}px</span>
           </div>
           {row.layers.map((layer) => (
             <div

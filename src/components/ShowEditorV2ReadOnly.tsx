@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { SHOW_TIMELINE_MIN_HEIGHT } from '@/engine/showWorkspaceLayout'
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
 import { projectShowTimelineV2 } from '@/engine/showTimelineViewModelV2'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -55,6 +56,7 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
   ), [record, patterns, maps, libraries, profiles, stageMap])
 
   const view = useMemo(() => (record ? projectShowTimelineV2(record) : null), [record])
+  const [previewAspect, setPreviewAspect] = useState(1)
 
   if (!record || !view) {
     return (
@@ -64,9 +66,18 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
     )
   }
 
+  // Reserve the height the read-only surface actually draws, so the Stage
+  // preview never squeezes the timeline out of the workspace.
+  const contentHeight = READ_ONLY_LANES_PX + view.rows.reduce((height, row) => (
+    height + ZONE_HEADER_PX + row.layers.length * LAYER_LANE_PX
+  ), 0)
+
   return (
     <ShowWorkspace
-      previewAspect={1}
+      previewAspect={previewAspect}
+      timelineMinimumHeight={Math.max(SHOW_TIMELINE_MIN_HEIGHT, Math.min(contentHeight, 420))}
+      timelineContentHeight={contentHeight}
+      timelineRequiredHeight={contentHeight}
       timeline={(
         <ShowTimelineReadOnlySurface
           view={view}
@@ -74,7 +85,7 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
         />
       )}
       stage={prepared?.status === 'ready' ? (
-        <ShowStagePreview kind="prepared-v2" bundle={prepared.bundle} />
+        <ShowStagePreview kind="prepared-v2" bundle={prepared.bundle} onPreviewAspectChange={setPreviewAspect} />
       ) : (
         <div role="status" className="flex h-full items-center justify-center px-6 text-center text-sm text-zinc-500">
           {prepared?.status === 'empty'
@@ -85,3 +96,8 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
     />
   )
 }
+
+/** Status line, ruler, Layout lane and Marker lane, plus the surface's padding. */
+const READ_ONLY_LANES_PX = 30 + 28 + 20 + 20 + 8
+const ZONE_HEADER_PX = 27
+const LAYER_LANE_PX = 36
