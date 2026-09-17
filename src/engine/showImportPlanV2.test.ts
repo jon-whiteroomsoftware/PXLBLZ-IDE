@@ -4,6 +4,8 @@ import { validateShowRecordV2 } from './showCompositionV2'
 import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } from './showFileBundle'
 import { applyShowImportPlanV2, planShowImportV2 } from './showImportPlanV2'
 import { compileShowV2PilotArtifact } from './showV2Pilot'
+import { prepareShowStageV2 } from './showPreparedStageV2'
+import { buildShowV2RouteArtifacts } from './showV2RouteDelivery'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
@@ -82,6 +84,29 @@ describe('v2 ordinary Show import planning', () => {
     expect(applied.newPatterns).toEqual([expect.objectContaining({ id: 'pattern-copy', src: expect.stringContaining('Pulse2.wave') })])
     expect(applied.newLibraries).toEqual([expect.objectContaining({ id: 'library-copy', name: 'Pulse2' })])
     expect(show.composition.patternInstances[0].pattern).toEqual({ kind: 'user', id: 'pattern' })
+  })
+
+  it('imports a Portable Show carrying a 3D-only Pattern and leaves the refusal to delivery', async () => {
+    // v1 import never applied the Portable capability rule either: the file
+    // opens, and `compileShowForArtifact` is what refuses to deliver it. The v2
+    // route now refuses at the same boundary, so the imported record stays
+    // recoverable and editable rather than becoming an unopenable file.
+    const show = v2Show()
+    const volume = 'export function render3D(index, x, y, z) { rgb(x, y, z) }'
+    const built = buildShowFileBundle(show, { patterns: [pattern(volume)], maps: [], libraries: [] }, { appVersion: '1039-test', exportedAt: '2026-09-15T00:00:00.000Z' })
+    const reopened = await parseShowFileBundle(await serializeShowFileBundle(built.bundle), { acceptV2: true })
+    if (reopened.version !== 2) throw new Error('Expected v2 bundle')
+    const ids = ['show-copy', 'pattern-copy']
+    const applied = applyShowImportPlanV2(planShowImportV2(reopened, { patterns: [], maps: [], libraries: [], showNames: [] }, { createId: () => ids.shift()!, now: 99 }))
+    expect(applied.show.outputContract.kind).toBe('portable-2d')
+    expect(validateShowRecordV2(applied.show)).toEqual([])
+
+    const prepared = prepareShowStageV2(applied.show, { patterns: applied.newPatterns, maps: [], libraries: [], profiles: [], stageMap: null })
+    if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared))
+    expect(buildShowV2RouteArtifacts(prepared.bundle)).toEqual({
+      status: 'refused',
+      message: expect.stringContaining('defines only render3D.'),
+    })
   })
 
   it('remaps Group-owned Pattern, explicit runtime binding, and custom Map conflicts as one import candidate', async () => {

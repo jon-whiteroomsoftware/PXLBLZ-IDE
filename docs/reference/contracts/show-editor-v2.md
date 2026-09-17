@@ -605,8 +605,17 @@ Show.
 
 [`showV2RouteDelivery.ts`](../../../src/engine/showV2RouteDelivery.ts) is the
 pure part. It refuses rather than describing bytes nothing can deliver: an empty
-Show, an invalid record, or an export the `.epe` importer does not reopen with
-the compiled Show in it. `describeShowArtifactPatternsV2` is the v2 counterpart
+Show, an invalid record, an export the `.epe` importer does not reopen with the
+compiled Show in it, or a Portable 2D Show whose compiled Patterns cannot render
+onto a 2D surface. That last refusal is the v1 artifact gate
+`compileShowForArtifact` applies, restored on the v2 path (#1039) with its own
+blocking message: preparation and preview accept such a Show in both versions,
+authoring keeps reporting it as a delivery warning, and delivery is what refuses
+it. It reads the materialized runtime uses the artifact compiles, the way the v1
+gate reads `projectShowGroupRuntimePatternInstances`, so a Group definition no
+occurrence materializes blocks neither export nor send. The refusal reaches the
+route as `blockedReason`, which gates Send to Controller and Download `.epe`
+together. `describeShowArtifactPatternsV2` is the v2 counterpart
 of the v1 describer - it counts Pattern instances and their effective Clip uses,
 ordinary Clips and materialized Group Clip uses alike (section 4), rather than
 Scene cells.

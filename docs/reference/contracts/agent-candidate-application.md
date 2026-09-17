@@ -787,11 +787,26 @@ dimension. Final-content deletion is accepted where it leaves a validated empty
 Show. A refusal or no-op at any step returns the original record identity and
 creates no history entry, provider save or ordering stamp.
 
+The dependency step also carries the Portable 2D capability rule, which
+`validateShowAuthoringV2` classifies exactly as `validateShowAuthoring` does:
+renderer and reference-map capability mismatches are delivery diagnostics that
+leave the Show authorable, and an uninspectable Pattern or a malformed logical
+Layout is an error. The admission supplies the dimension of the Stage map the
+candidate itself names. Delivery is where a capability mismatch is refused -
+`buildShowV2RouteArtifacts` returns the same blocking message
+`compileShowForArtifact` produces for a v1 Show, over the materialized runtime
+uses the artifact actually compiles, so a Group definition no occurrence
+materializes reports in authoring without blocking export or send.
+
 Evidence: [`showV2CandidateAdmission.test.ts`](../../../src/store/showV2CandidateAdmission.test.ts)
 for the admission's own partitions,
 [`editorAdmissionV2.test.ts`](../../../src/agent/editorAdmissionV2.test.ts) for
 the executor, admission and store together, and
 [`agentV2Command.runtime.test.ts`](../../../src/worker/agent/agentV2Command.runtime.test.ts)
 for the same sequence through a real Worker, OAuth authority, account Durable
-Object and browser session. The design record is
-[`issue-1039-agent-path`](../evidence/issue-1039-agent-path/test-design.json).
+Object and browser session. The Portable rule's own partitions are
+[`showPortableCompatibilityV2.test.ts`](../../../src/engine/showPortableCompatibilityV2.test.ts)
+and [`showV2PortableAdmission.test.ts`](../../../src/store/showV2PortableAdmission.test.ts).
+The design records are
+[`issue-1039-agent-path`](../evidence/issue-1039-agent-path/test-design.json) and
+[`issue-1039-portable-check`](../evidence/issue-1039-portable-check/test-design.json).

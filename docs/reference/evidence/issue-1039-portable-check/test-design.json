@@ -1,0 +1,112 @@
+{
+  "issue": 1039,
+  "scope": "Portable 2D capability check restored on the v2 authoring and delivery path",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "FAILURE"
+    ],
+    "sections": [
+      "1 (no silent narrowing of accepted behavior)",
+      "9 (admission checks in order, atomic refusal, no history/save/timestamp on refusal)",
+      "12 FAILURE"
+    ]
+  },
+  "base": "0ceb93b5e15c817702fcbe582f6b82cfba532655",
+  "invariants": [
+    "One rule, not two: validatePortableShowShapeCompatibility owns the Portable verdict over a projection both record versions satisfy; the v1 entry point and the v2 entry point supply only their own field names (routingLayouts versus zoneLayouts).",
+    "Classification is v1's, unchanged: a renderer or reference-map capability mismatch is a delivery warning that leaves the Show authorable; an uninspectable Pattern and a malformed logical Layout are errors. The v1 counterpart is pinned by 'keeps Portable capability mismatch authorable through the service' in src/agent-harness/test/bridgeAuthoringValidation.test.ts and stated in agent-candidate-application.md ('Portable renderer/reference capability mismatches are delivery diagnostics').",
+    "Refusal is where v1 refuses: the artifact boundary. buildShowV2RouteArtifacts returns the same portableCompatibilityBlockingMessage compileShowForArtifact produces, and returns only a message - no adoption, history entry, provider save or ordering stamp.",
+    "The delivery gate reads the materialized runtime uses the artifact compiles, mirroring v1's projectShowGroupRuntimePatternInstances; a Group definition no occurrence materializes is reported in authoring and blocks nothing.",
+    "No new refusal is introduced. Admissions and import accept exactly what they accepted before; only diagnostics and the delivery verdict are added.",
+    "A site whose Pattern source is unavailable is skipped, never substituted: the dependency validator owns missing references, so a renderer verdict is always a verdict about the Pattern this Show actually uses.",
+    "Identity is reported, never allocated: a diagnostic carries the offending Pattern instance and its Clip ids, and duplicate sources merge identities into the one issue rather than restating it."
+  ],
+  "partitions": [
+    "output contract portable-2d versus installation (rule returns null for installation)",
+    "renderer capability: render2D accepted, render accepted with adaptation advisory, render3D-only refused, no entry point refused, uninspectable source error",
+    "reference map dimension 2 accepted, 3 warned, absent defaulted to 2",
+    "routing layout: logical present, logical absent (physical ranges), logical invalid (owned by validateShowRecordV2 on the v2 path before the Portable rule runs)",
+    "Pattern site scope: authored ordinary instances, authored Group definition slots, materialized effective runtimes, dormant Group definition",
+    "edit owner introducing the fault: Add Clip, Replace Pattern (stock AuroraSphere), set_output_contract installation to portable, agent candidate delivery, v2 .pxlshow import",
+    "source availability: resolvable, unavailable, uninspectable"
+  ],
+  "sequences": [
+    "Portable Show on a 2D Pattern -> deliver (ready) -> Add Clip on a 3D-only Pattern -> deliver (refused)",
+    "Portable Show -> Replace Clip Pattern with stock AuroraSphere -> saved record deliver (refused)",
+    "Installation Show on a 3D-only Pattern -> deliver (ready) -> set_output_contract portable-2d -> deliver (refused)",
+    "agent candidate swapping the instance Pattern to a 3D-only source -> admitted with one history and one save -> authoring warning present -> deliver (refused)",
+    "agent candidate naming an uninspectable Pattern -> refused invalid-candidate with portable-metadata-unavailable -> no history, no save, original record identity and timestamp",
+    "export .pxlshow of a Portable Show carrying a 3D-only Pattern -> reopen through parseShowFileBundle -> plan and apply v2 import -> valid record -> deliver (refused)"
+  ],
+  "oracles": [
+    "What the consumer sees at delivery: buildShowV2RouteArtifacts' status and message, over a record prepared through prepareShowStageV2 - the same object the route's Download .epe and Send to Controller read as blockedReason.",
+    "What the admission returns: the real store admissions (admitShowV2PilotCreateClip, admitShowV2PilotClipReplacementEdit, admitShowV2PilotShowMetadata, deliverShowV2EditCandidate) with the provider write spy, the store's history array, the record identity and its updatedAt.",
+    "What the authoring validator reports: validateShowAuthoringV2 warnings and errors with their diagnostic codes and owner paths, compared against validateShowAuthoring's classification.",
+    "Owner-path parity: showPortablePatternSitesV2 authored paths asserted equal to showPatternSitesV2 owners, so a Portable diagnostic names the owner the rest of the validator names.",
+    "Census: npm run show:v2-parity (47 inventoried records) and npm run show:v2-native-parity (40 compared Shows) unchanged, proving no stock Show is newly refused."
+  ],
+  "redEvidence": [
+    "src/engine/showPortableCompatibilityV2.test.ts and the new cases in showAuthoringValidationV2.test.ts, showV2RouteDelivery.test.ts, showImportPlanV2.test.ts and src/store/showV2PortableAdmission.test.ts were authored against the absent seam; two of them failed on first run against the real implementation and were corrected to the actual v1 classification rather than the assumed one: 'reports a 1D renderer ... as an adaptation advisory' (wrong Pattern name) and the invalid-logical-Layout case, which the v2 record validator already refuses before the Portable rule runs.",
+    "Each fault probe below re-establishes red for the named tests."
+  ],
+  "faults": [
+    {
+      "mutation": "validateShowAuthoringV2: force the Portable result to null so no diagnostic is classified.",
+      "killed": [
+        "showAuthoringValidationV2.test.ts: keeps a Portable capability mismatch authorable and reports it as a delivery warning",
+        "showAuthoringValidationV2.test.ts: reports a 1D renderer in a Portable Show as an adaptation advisory, not an issue",
+        "showAuthoringValidationV2.test.ts: refuses a Portable Show whose Pattern source cannot be inspected for a renderer",
+        "showAuthoringValidationV2.test.ts: warns that a Portable Show names a 3D reference output and stays silent for an Installation Show",
+        "showV2PortableAdmission.test.ts: admits an agent candidate that introduces the mismatch, reporting it as a delivery warning",
+        "showV2PortableAdmission.test.ts: refuses a candidate whose Portable Pattern cannot be inspected, with no history, save or stamp"
+      ],
+      "result": "6 failed | 14 passed; restored to green"
+    },
+    {
+      "mutation": "buildShowV2RouteArtifacts: drop the Portable refusal and deliver anyway.",
+      "killed": [
+        "showV2RouteDelivery.test.ts: refuses to deliver a Portable Show whose Pattern only defines render3D",
+        "showV2RouteDelivery.test.ts: refuses a Portable Show whose only 3D-only use is a materialized Group runtime",
+        "showImportPlanV2.test.ts: imports a Portable Show carrying a 3D-only Pattern and leaves the refusal to delivery",
+        "showV2PortableAdmission.test.ts: adds a 3D-only Clip to a Portable Show, then refuses to deliver it",
+        "showV2PortableAdmission.test.ts: replaces a Clip Pattern with the stock 3D AuroraSphere, then refuses to deliver it",
+        "showV2PortableAdmission.test.ts: moves an Installation Show carrying a 3D-only Pattern to Portable, then refuses to deliver it",
+        "showV2PortableAdmission.test.ts: admits an agent candidate that introduces the mismatch, reporting it as a delivery warning"
+      ],
+      "result": "7 failed | 13 passed; restored to green"
+    },
+    {
+      "mutation": "validatePortableShowCompatibilityV2: pass an empty routing-layout list instead of record.zoneLayouts.",
+      "killed": [
+        "showPortableCompatibilityV2.test.ts: reads the v2 record's own Zone Layouts and reference dimension"
+      ],
+      "result": "1 failed | 7 passed; restored to green"
+    },
+    {
+      "mutation": "buildShowV2RouteArtifacts: read authored Pattern sites instead of the materialized effective scope.",
+      "killed": [
+        "showV2RouteDelivery.test.ts: delivers a Portable Show whose 3D-only Pattern sits in a Group definition no occurrence materializes"
+      ],
+      "result": "1 failed | 7 passed; restored to green. The first run of this probe killed nothing, which exposed that the original Group case did not discriminate the two scopes; the dormant-definition case was added to make the scope choice falsifiable."
+    }
+  ],
+  "results": {
+    "focused": "npx vitest run over showPortableCompatibility.test.ts, showPortableCompatibilityV2.test.ts, showAuthoringValidationV2.test.ts, showV2RouteDelivery.test.ts, showPreparedStageV2.test.ts, showImportPlanV2.test.ts, showV2CandidateAdmission.test.ts, showV2PortableAdmission.test.ts and src/pixelblaze/stock/shows.test.ts: all passed.",
+    "staged": "npm run test:staged passed",
+    "static": "npm run lint and npx tsc -b --pretty false passed",
+    "parity": "npm run show:v2-parity: 47 inventoried records matched. npm run show:v2-native-parity: 40 compared Shows matched. No stock Show is newly refused.",
+    "browser": "Not applicable: this slice changes no path matched by wrsp-ui-proof.json (no component TSX, App.tsx or stylesheet). The delivery refusal reaches the existing ShowEditorV2DeliveryPanel through the unchanged blockedReason field."
+  },
+  "residualGaps": [
+    "The dispatch expected the counterexample to be refused at the v2 admissions. It is not, and must not be: v1's product admissions accept it too. validateShowAuthoring classifies a renderer capability mismatch as a delivery warning, agent/editorAdmission.ts and store/showResizeAdmission.ts refuse only on errors, and src/agent-harness/test/bridgeAuthoringValidation.test.ts pins 'keeps Portable capability mismatch authorable through the service'. Refusing at admission would be a new rule beyond v1's and a narrowing of accepted behavior under specification section 1. Raised for the coordinator.",
+    "v1 file import never ran the Portable rule, so v2 import does not either. The imported record stays recoverable and editable and delivery refuses; the import test asserts exactly that. A refusal at import would likewise be new.",
+    "The harness document validator src/agent-harness/shows/evaluate.ts validateShowDocument treats every Portable issue as an error. That is a v1-only diagnostic surface, unchanged here; its v2 counterpart belongs to #1041, which owns src/agent-harness/.",
+    "src/agent-harness/test/bridgeAuthoringValidation.test.ts is untouched: another worker owns that tree, and its acceptance of this case is the v1 behavior this slice preserves rather than a residual to repair.",
+    "The Portable structure codes portable-logical-zone-missing and portable-logical-routing-invalid are unreachable on the v2 path because validateShowRecordV2 refuses those records first and validateShowAuthoringV2 returns before the Portable rule runs. They are kept in the shared rule for v1 and as defense in depth, and a test pins the ordering.",
+    "Only the sole-Zone 'single' logical routing form is exercised end to end here; the other logical kinds are covered by the existing v1 rule tests, which the shared core still runs unchanged.",
+    "No Precise/Fast output comparison is claimed: this slice changes no compiled artifact, which the unchanged parity reports evidence.",
+    "Authoritative committed-tip suites, exact-range review and landing are the coordinator's."
+  ]
+}

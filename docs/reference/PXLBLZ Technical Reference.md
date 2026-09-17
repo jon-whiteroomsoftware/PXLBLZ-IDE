@@ -1343,8 +1343,10 @@ Stage on hover.
 Pattern preview, reports measured FPS, and omits Pattern-level speed,
 controls, and watch variables — Show transport is the canonical clock. Stage
 preview does not apply artifact gates; `compileShowForArtifact` enforces
-coverage, the 2,000-pixel ceiling, and resource limits for inspection,
-export, Run, Save, and reconciliation. Installation preview uses the
+coverage, Portable 2D capability, the 2,000-pixel ceiling, and resource limits
+for inspection, export, Run, Save, and reconciliation. On the v2 route the same
+Portable gate lives in `buildShowV2RouteArtifacts`, which the delivery panel and
+Send to Controller both read (#1039). Installation preview uses the
 contract's saved count and ranges; Portable preview uses the saved reference,
 never a connected Controller. Zone outlines and timing guides are session-only
 SVG diagnostics that never mutate compiled pixels. `showStageDiagnostics.ts`

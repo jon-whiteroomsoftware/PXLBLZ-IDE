@@ -89,6 +89,25 @@ describe('the v2 route delivery model', () => {
     })
   })
 
+  it('delivers a Portable Show whose 3D-only Pattern sits in a Group definition no occurrence materializes', () => {
+    // v1's artifact gate reads `projectShowGroupRuntimePatternInstances`, which
+    // projects occurrence-backed runtimes only. A dormant definition compiles
+    // nothing, so it blocks nothing; the authoring validator still reports it.
+    const { record, dependencies } = showV2GroupEditorFixture()
+    record.composition.groupDefinitions.push({
+      id: 'dormant', name: 'Dormant', transitions: [], propertyTracks: [],
+      layers: [{ id: 'dormant-layer', name: 'Local', rank: 0 }],
+      clips: [{ id: 'dormant-clip', instanceId: 'slot', layerId: 'dormant-layer', startMs: 0, durationMs: 400, zoneSampleMode: 'span', entryPolicy: 'continue', appearance: { keys: [{ id: 'dormant-key', timeMs: 0, value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] } }] } }],
+      patternInstances: [{ id: 'slot', pattern: { kind: 'user', id: 'volume' }, patternName: 'Volume', time: { timeScale: 1, timeOffsetMs: 0 } }],
+    })
+    const capture = captureShowStageEditV2(record, {
+      ...dependencies,
+      patterns: [...dependencies.patterns, { id: 'volume', name: 'Volume', updatedAt: 1, controls: {}, src: 'export function render3D(i, x, y, z) { rgb(x, y, z) }' }],
+    })
+    if (capture.prepared.status !== 'ready') throw new Error(JSON.stringify(capture.prepared))
+    expect(buildShowV2RouteArtifacts(capture.prepared.bundle).status).toBe('ready')
+  })
+
   it('counts every effective Clip use of an instance, Group uses included', () => {
     const { record, bundle } = prepared()
     const result = buildShowV2RouteArtifacts(bundle)
