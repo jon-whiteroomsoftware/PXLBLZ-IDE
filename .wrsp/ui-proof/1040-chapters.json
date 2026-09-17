@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1040",
+  "route": "/PXLBLZ-IDE/gallery, /PXLBLZ-IDE/s/overture-installation, /PXLBLZ-IDE/studio/shows/chapter-capture-synthetic?show-v2-pilot=1",
+  "operation": "Ran npm run capture:chapters (e2e/capture-chapters.auth.spec.ts) against a candidate-owned runtime serving this worktree at commit 0ccb50a579424b16dd8c3b6d0180f4f2533bdebf, as the synthetic Playwright user. Codex's in-app browser is unavailable to this agent, so repository Playwright drove every route; no capture is a component render. Gallery: hovered the Overture Show band until its Live preview went live, showing the band facts row with no Scene count and the chapter caption THE HOUSE over the loop thermometer. Reading card: opened the Show's public page and waited for the Live caption to paint, showing the same caption plus THE ARC listing the four chapters with their projected spans. Pilot: posted a synthetic three-Scene v1 Show carrying an authored Middle Marker at the second Scene start and a general Camera cue Marker at the same time, opened the v2 pilot route, and captured the Markers panel showing the read-only chapter projection Opening 0 ms, Middle 10000 ms, Finale 20000 ms with the general cue absent.",
+  "captures": [
+    ".wrsp/ui-proof/1040-chapters-gallery.png",
+    ".wrsp/ui-proof/1040-chapters-reading-card.png",
+    ".wrsp/ui-proof/1040-chapters-pilot.png"
+  ],
+  "capturedAtCommit": "0ccb50a579424b16dd8c3b6d0180f4f2533bdebf"
+}
