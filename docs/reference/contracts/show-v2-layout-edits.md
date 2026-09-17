@@ -30,7 +30,9 @@ The accepted intents are:
 - Remove an occurrence without owned track or transfer data, extending its
   predecessor or promoting the next occurrence to zero.
 - Set Show End exactly when no protected authored interval crosses the new end.
+- Duplicate one occurrence immediately after itself, empty or with its content.
 
+A changed result also reports the affected Marker and Transition identities.
 Every accepted result covers `[0, showEndMs)` exactly with positive occurrences.
 Group `layoutOccurrenceId` is recomputed from its start time after a boundary
 edit. A neighboring transfer source is rebound to the newly adjacent occurrence.
@@ -75,6 +77,34 @@ or an overlap with an existing positive routing ramp refuse before compilation.
 The direct composition lowerer refuses this target because only
 `prepareShowV2ForCompile` attaches the transient routed scalar recipe.
 
+## Occurrence duplication
+
+`{ kind: 'duplicate', occurrenceId, newOccurrenceId, content? }` inserts one fresh
+occurrence of the same Layout definition, duration and routing parameters
+immediately after the source occurrence. Show End grows by the source duration.
+Every authored Clip, Property track, Marker, whole-output Transition window,
+Group occurrence and Layout occurrence starting at or after the source end moves
+later by exactly that duration, once. Content inside the source interval keeps its
+authored times. The new occurrence owns no incoming transfer; a following
+occurrence's transfer rebinds to it and is revalidated against both durations.
+
+Content that crosses the duplicated boundary refuses with
+`boundary-crossing-content`: a Clip, Property track or Group occurrence strictly
+spanning the source end, a whole-output window strictly spanning it, a Transition
+whose endpoint Clips fall on both sides, or a Layout transfer strictly spanning it.
+Duplication never extends, splits, holds or reroutes crossing content.
+
+Omitting `content` duplicates an empty span. Supplying it copies the Clips wholly
+inside the interval with their appearance keys, their Clip-owned Property tracks
+and keyframes, the Transitions whose participants are all copied Clips, and the
+Group occurrences starting inside, each shifted by the source duration. The copies
+keep their source `instanceId`, `entryPolicy`, sampling and Group definition and
+runtime bindings, so duplication mints no Pattern runtime. `idsBySourceId` must
+name exactly the copied source identities and map each to a fresh, unique,
+unowned identity; anything else refuses with `invalid-intent` before any change.
+A copied Transition carrying `propertyRamps` refuses with
+`unsupported-content-copy`; project those ramps into tracks first.
+
 ## Show End protection
 
 Extension lengthens only the final Layout occurrence. Shortening protects Clip
@@ -91,7 +121,11 @@ accepted/refused results, half-open lookup, occurrence insertion/move/removal,
 definition uniqueness, transfer rebinding, track protection, Group spanning,
 Transition contribution bounds, codec reopen and exact Show End changes. A
 spanning Clip compiles and executes in Fast and Precise modes with one continuous
-runtime across the switch. The combined
+runtime across the switch. The
+[duplication tests](../../../src/engine/showLayoutIntervalDuplicateV2.test.ts)
+cover the empty and content partitions, single-shift later content, unchanged
+Pattern instances, exact identity-plan refusals and every boundary-crossing
+refusal, reopening each accepted record through the codec. The combined
 [Layout/Transition tests](../../../src/engine/showV2MixedLayout.test.ts) run the
 owner at visual-window start, interior and end partitions and distinguish an
 accepted domain edit from a bounded compiler-adapter refusal. The

@@ -1,11 +1,22 @@
-import { materializeShowGroupsV2 } from './showGroupsV2'
+import { groupOccurrenceDuration, materializeShowGroupsV2 } from './showGroupsV2'
 import {
   validateShowRecordV2,
   type ShowClipV2,
   type ShowLayoutOccurrenceV2,
   type ShowLayoutTransferV2,
+  type ShowPropertyTargetV2,
   type ShowRecordV2,
 } from './showCompositionV2'
+
+/**
+ * Complete fresh identity for every entity a content duplication copies: each
+ * Clip, appearance key, Clip-owned Property track, keyframe, Transition,
+ * Transition participant, Group occurrence and Group-local hold inside the
+ * duplicated interval. Identity is never allocated inside this owner.
+ */
+export interface ShowLayoutDuplicateContentPlanV2 {
+  idsBySourceId: Readonly<Record<string, string>>
+}
 
 export type ShowLayoutEditIntentV2 =
   | { kind: 'insert'; occurrenceId: string; atMs: number; layoutId: string }
@@ -16,6 +27,13 @@ export type ShowLayoutEditIntentV2 =
   | { kind: 'set-parameters'; occurrenceId: string; parameters: { splitPosition?: number } }
   | { kind: 'make-unique'; occurrenceId: string; layoutId: string; name: string }
   | { kind: 'remove'; occurrenceId: string }
+  | {
+    kind: 'duplicate'
+    occurrenceId: string
+    newOccurrenceId: string
+    /** Omitted duplicates an empty span of the same routing. */
+    content?: ShowLayoutDuplicateContentPlanV2
+  }
   | {
     kind: 'set-transfer'
     occurrenceId: string
@@ -31,6 +49,9 @@ export type ShowLayoutEditRefusalV2 =
   | 'meaningful-occurrence-data'
   | 'protected-content'
   | 'owned-track-out-of-bounds'
+  | 'boundary-crossing-content'
+  | 'unsupported-content-copy'
+  | 'time-overflow'
   | 'zone-unavailable'
   | 'invalid-result'
 
@@ -39,7 +60,9 @@ interface ShowLayoutEditAffectedV2 {
   affectedGroupOccurrenceIds: string[]
   affectedLayoutDefinitionIds: string[]
   affectedLayoutOccurrenceIds: string[]
+  affectedMarkerIds: string[]
   affectedTrackIds: string[]
+  affectedTransitionIds: string[]
   removedLayoutOccurrenceIds: string[]
 }
 
@@ -134,7 +157,9 @@ export function editShowLayoutIntervalsV2(
     affectedGroupOccurrenceIds: [],
     affectedLayoutDefinitionIds: [],
     affectedLayoutOccurrenceIds: [],
+    affectedMarkerIds: [],
     affectedTrackIds: [],
+    affectedTransitionIds: [],
     removedLayoutOccurrenceIds: [],
   })
   const refuse = (code: ShowLayoutEditRefusalV2, message: string): ShowLayoutEditResultV2 => ({
@@ -152,7 +177,22 @@ export function editShowLayoutIntervalsV2(
   const next = structuredClone(record)
   let affectedLayoutOccurrenceIds: string[] = []
   let removedLayoutOccurrenceIds: string[] = []
-  if (intent.kind === 'insert') {
+  const duplicated: Pick<
+    ShowLayoutEditAffectedV2,
+    'affectedClipIds' | 'affectedMarkerIds' | 'affectedTrackIds' | 'affectedTransitionIds' | 'affectedGroupOccurrenceIds'
+  > = { affectedClipIds: [], affectedMarkerIds: [], affectedTrackIds: [], affectedTransitionIds: [], affectedGroupOccurrenceIds: [] }
+  if (intent.kind === 'duplicate') {
+    const source = record.composition.layoutOccurrences.find(candidate => candidate.id === intent.occurrenceId)
+    if (!source) return refuse('missing-occurrence', `Layout occurrence "${intent.occurrenceId}" does not exist.`)
+    const outcome = duplicateLayoutOccurrence(record, next, source, intent)
+    if ('code' in outcome) return refuse(outcome.code, outcome.message)
+    affectedLayoutOccurrenceIds = outcome.affectedLayoutOccurrenceIds
+    duplicated.affectedClipIds = outcome.affectedClipIds
+    duplicated.affectedMarkerIds = outcome.affectedMarkerIds
+    duplicated.affectedTrackIds = outcome.affectedTrackIds
+    duplicated.affectedTransitionIds = outcome.affectedTransitionIds
+    duplicated.affectedGroupOccurrenceIds = outcome.affectedGroupOccurrenceIds
+  } else if (intent.kind === 'insert') {
     if (!record.zoneLayouts.some(layout => layout.id === intent.layoutId)) {
       return refuse('missing-layout', `Zone Layout "${intent.layoutId}" does not exist.`)
     }
@@ -357,11 +397,272 @@ export function editShowLayoutIntervalsV2(
     status: 'changed',
     record: next,
     ...empty(),
+    ...duplicated,
     affectedLayoutOccurrenceIds,
     affectedLayoutDefinitionIds,
-    affectedGroupOccurrenceIds,
+    affectedGroupOccurrenceIds: [...new Set([...duplicated.affectedGroupOccurrenceIds, ...affectedGroupOccurrenceIds])].sort(),
     removedLayoutOccurrenceIds,
   }
+}
+
+type DuplicateOutcome =
+  | { code: ShowLayoutEditRefusalV2; message: string }
+  | (Pick<
+      ShowLayoutEditAffectedV2,
+      'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutOccurrenceIds' | 'affectedMarkerIds' | 'affectedTrackIds' | 'affectedTransitionIds'
+    >)
+
+/**
+ * Duplicate one Layout occurrence immediately after itself (D7, issue #1041).
+ * Later authored content moves once by the source duration; content inside the
+ * interval stays, and an explicit plan copies it into the new span sharing the
+ * same Pattern runtimes. Content crossing the boundary refuses.
+ */
+function duplicateLayoutOccurrence(
+  record: ShowRecordV2,
+  next: ShowRecordV2,
+  source: ShowLayoutOccurrenceV2,
+  intent: Extract<ShowLayoutEditIntentV2, { kind: 'duplicate' }>,
+): DuplicateOutcome {
+  const spanMs = source.durationMs
+  const boundaryMs = source.startMs + spanMs
+  const used = ownedShowIdsV2(record)
+  if (typeof intent.newOccurrenceId !== 'string' || !intent.newOccurrenceId.trim() || used.has(intent.newOccurrenceId)) {
+    return { code: 'invalid-intent', message: 'Duplicate requires a fresh nonblank Layout occurrence identity.' }
+  }
+  if (!Number.isSafeInteger(record.composition.showEndMs + spanMs)) {
+    return { code: 'time-overflow', message: 'The duplicated Show End exceeds safe integer milliseconds.' }
+  }
+
+  const effective = record.composition.groupOccurrences.length > 0 ? materializeShowGroupsV2(record) : record
+  const crossing = (startMs: number, endMs: number): boolean => startMs < boundaryMs && endMs > boundaryMs
+  const crossingClip = effective.composition.clips.find(clip => crossing(clip.startMs, clip.startMs + clip.durationMs))
+  if (crossingClip) {
+    return { code: 'boundary-crossing-content', message: `Clip "${crossingClip.id}" crosses the end of Layout occurrence "${source.id}".` }
+  }
+  const crossingTrack = effective.composition.propertyTracks.find(track => crossing(track.activeStartMs, track.activeStartMs + track.activeDurationMs))
+  if (crossingTrack) {
+    return { code: 'boundary-crossing-content', message: `Property track "${crossingTrack.id}" crosses the end of Layout occurrence "${source.id}".` }
+  }
+  for (const group of record.composition.groupOccurrences) {
+    const definition = record.composition.groupDefinitions.find(candidate => candidate.id === group.definitionId)!
+    if (crossing(group.startMs, group.startMs + groupOccurrenceDuration(definition, group))) {
+      return { code: 'boundary-crossing-content', message: `Group occurrence "${group.id}" crosses the end of Layout occurrence "${source.id}".` }
+    }
+  }
+  const shifts = (clipId: string): boolean => {
+    const clip = effective.composition.clips.find(candidate => candidate.id === clipId)
+    return clip !== undefined && clip.startMs >= boundaryMs
+  }
+  for (const transition of effective.composition.transitions) {
+    const scope = transition.wholeOutput
+    if (scope && crossing(scope.startMs, scope.startMs + transition.durationMs)) {
+      return { code: 'boundary-crossing-content', message: `Transition "${transition.id}" crosses the end of Layout occurrence "${source.id}".` }
+    }
+    const endpoints = scope
+      ? [...scope.fromClipIds, ...scope.toClipIds]
+      : transition.participants.flatMap(participant => [participant.fromClipId, participant.toClipId])
+    if (new Set(endpoints.map(shifts)).size > 1) {
+      return { code: 'boundary-crossing-content', message: `Transition "${transition.id}" joins Clips on both sides of the end of Layout occurrence "${source.id}".` }
+    }
+  }
+  const crossingTransfer = record.composition.layoutOccurrences.find(occurrence => (
+    occurrence.incomingTransfer && crossing(occurrence.startMs, occurrence.startMs + occurrence.incomingTransfer.durationMs)
+  ))
+  if (crossingTransfer) {
+    return { code: 'boundary-crossing-content', message: `Layout transfer "${crossingTransfer.incomingTransfer!.id}" crosses the end of Layout occurrence "${source.id}".` }
+  }
+
+  const inside = duplicatedInterval(record, source, boundaryMs)
+  if (intent.content !== undefined) {
+    const unsupported = inside.transitions.find(transition => transition.propertyRamps.length > 0)
+    if (unsupported) {
+      return { code: 'unsupported-content-copy', message: `Transition "${unsupported.id}" carries Property ramps; project them into tracks before duplicating this Layout occurrence with its content.` }
+    }
+  }
+  const plan = intent.content === undefined ? null : resolveDuplicatePlan(intent.content, inside.sourceIds, used)
+  if (plan !== null && 'message' in plan) return { code: 'invalid-intent', message: plan.message }
+
+  const affectedClipIds: string[] = []
+  const affectedTrackIds: string[] = []
+  const affectedMarkerIds: string[] = []
+  const affectedTransitionIds: string[] = []
+  const affectedGroupOccurrenceIds: string[] = []
+  const affectedLayoutOccurrenceIds = [intent.newOccurrenceId]
+
+  for (const clip of next.composition.clips) {
+    if (clip.startMs < boundaryMs) continue
+    clip.startMs += spanMs
+    clip.appearance.keys.forEach(key => { key.timeMs += spanMs })
+    affectedClipIds.push(clip.id)
+  }
+  for (const track of next.composition.propertyTracks) {
+    if (track.activeStartMs < boundaryMs) continue
+    track.activeStartMs += spanMs
+    track.keyframes.forEach(keyframe => { keyframe.timeMs += spanMs })
+    affectedTrackIds.push(track.id)
+  }
+  for (const marker of next.composition.markers) {
+    if (marker.timeMs < boundaryMs) continue
+    marker.timeMs += spanMs
+    affectedMarkerIds.push(marker.id)
+  }
+  for (const transition of next.composition.transitions) {
+    if (!transition.wholeOutput || transition.wholeOutput.startMs < boundaryMs) continue
+    transition.wholeOutput.startMs += spanMs
+    affectedTransitionIds.push(transition.id)
+  }
+  for (const group of next.composition.groupOccurrences) {
+    if (group.startMs < boundaryMs) continue
+    group.startMs += spanMs
+    if (group.trackActivation) group.trackActivation.startMs += spanMs
+    affectedGroupOccurrenceIds.push(group.id)
+  }
+  for (const occurrence of next.composition.layoutOccurrences) {
+    if (occurrence.startMs < boundaryMs) continue
+    occurrence.startMs += spanMs
+    affectedLayoutOccurrenceIds.push(occurrence.id)
+  }
+  next.composition.layoutOccurrences.push({
+    id: intent.newOccurrenceId,
+    layoutId: source.layoutId,
+    startMs: boundaryMs,
+    durationMs: spanMs,
+    parameters: structuredClone(source.parameters),
+  })
+  next.composition.layoutOccurrences.sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+  next.composition.showEndMs += spanMs
+
+  if (plan !== null && !('message' in plan)) {
+    const id = (sourceId: string): string => plan.idsBySourceId[sourceId]
+    for (const clip of inside.clips) {
+      next.composition.clips.push({
+        ...structuredClone(clip),
+        id: id(clip.id),
+        startMs: clip.startMs + spanMs,
+        appearance: {
+          keys: clip.appearance.keys.map(key => ({ ...structuredClone(key), id: id(key.id), timeMs: key.timeMs + spanMs })),
+        },
+      })
+      affectedClipIds.push(id(clip.id))
+    }
+    for (const track of inside.tracks) {
+      next.composition.propertyTracks.push({
+        ...structuredClone(track),
+        id: id(track.id),
+        target: {
+          ...structuredClone(track.target),
+          clipId: id((track.target as { clipId: string }).clipId),
+        } as ShowPropertyTargetV2,
+        activeStartMs: track.activeStartMs + spanMs,
+        keyframes: track.keyframes.map(keyframe => ({ ...structuredClone(keyframe), id: id(keyframe.id), timeMs: keyframe.timeMs + spanMs })),
+      })
+      affectedTrackIds.push(id(track.id))
+    }
+    for (const transition of inside.transitions) {
+      next.composition.transitions.push({
+        ...structuredClone(transition),
+        id: id(transition.id),
+        participants: transition.participants.map(participant => ({
+          ...structuredClone(participant),
+          id: id(participant.id),
+          fromClipId: id(participant.fromClipId),
+          toClipId: id(participant.toClipId),
+        })),
+      })
+      affectedTransitionIds.push(id(transition.id))
+    }
+    for (const group of inside.groups) {
+      next.composition.groupOccurrences.push({
+        ...structuredClone(group),
+        id: id(group.id),
+        startMs: group.startMs + spanMs,
+        holds: group.holds.map(hold => ({ ...structuredClone(hold), id: id(hold.id) })),
+        ...(group.trackActivation
+          ? { trackActivation: { ...group.trackActivation, startMs: group.trackActivation.startMs + spanMs } }
+          : {}),
+      })
+      affectedGroupOccurrenceIds.push(id(group.id))
+    }
+  }
+  return {
+    affectedClipIds: affectedClipIds.sort(),
+    affectedGroupOccurrenceIds: affectedGroupOccurrenceIds.sort(),
+    affectedLayoutOccurrenceIds: affectedLayoutOccurrenceIds.sort(),
+    affectedMarkerIds: affectedMarkerIds.sort(),
+    affectedTrackIds: affectedTrackIds.sort(),
+    affectedTransitionIds: affectedTransitionIds.sort(),
+  }
+}
+
+interface DuplicatedInterval {
+  clips: ShowClipV2[]
+  tracks: ShowRecordV2['composition']['propertyTracks']
+  transitions: ShowRecordV2['composition']['transitions']
+  groups: ShowRecordV2['composition']['groupOccurrences']
+  sourceIds: string[]
+}
+
+/** Every authored entity wholly inside the duplicated interval, with its copyable identities. */
+function duplicatedInterval(record: ShowRecordV2, source: ShowLayoutOccurrenceV2, boundaryMs: number): DuplicatedInterval {
+  const clips = record.composition.clips.filter(clip => clip.startMs >= source.startMs && clip.startMs < boundaryMs)
+  const clipIds = new Set(clips.map(clip => clip.id))
+  const tracks = record.composition.propertyTracks.filter(track => 'clipId' in track.target && clipIds.has(track.target.clipId))
+  const transitions = record.composition.transitions.filter(transition => !transition.wholeOutput
+    && transition.participants.length > 0
+    && transition.participants.every(participant => clipIds.has(participant.fromClipId) && clipIds.has(participant.toClipId)))
+  const groups = record.composition.groupOccurrences.filter(group => group.startMs >= source.startMs && group.startMs < boundaryMs)
+  return {
+    clips,
+    tracks,
+    transitions,
+    groups,
+    sourceIds: [
+      ...clips.flatMap(clip => [clip.id, ...clip.appearance.keys.map(key => key.id)]),
+      ...tracks.flatMap(track => [track.id, ...track.keyframes.map(keyframe => keyframe.id)]),
+      ...transitions.flatMap(transition => [transition.id, ...transition.participants.map(participant => participant.id)]),
+      ...groups.flatMap(group => [group.id, ...group.holds.map(hold => hold.id)]),
+    ],
+  }
+}
+
+function resolveDuplicatePlan(
+  content: ShowLayoutDuplicateContentPlanV2,
+  sourceIds: readonly string[],
+  used: ReadonlySet<string>,
+): ShowLayoutDuplicateContentPlanV2 | { message: string } {
+  const incomplete = { message: 'Duplicate with content requires one fresh, unique, unowned identity for every copied entity.' }
+  const raw: unknown = content
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)
+    || JSON.stringify(Object.keys(raw).sort()) !== JSON.stringify(['idsBySourceId'])) return incomplete
+  const map: unknown = (raw as { idsBySourceId: unknown }).idsBySourceId
+  if (typeof map !== 'object' || map === null || Array.isArray(map)) return incomplete
+  const entries = Object.entries(map as Record<string, unknown>)
+  if (JSON.stringify(entries.map(([key]) => key).sort()) !== JSON.stringify([...sourceIds].sort())) return incomplete
+  const values = entries.map(([, value]) => value)
+  if (values.some(value => typeof value !== 'string' || !value.trim() || used.has(value))) return incomplete
+  if (new Set(values as string[]).size !== values.length) return incomplete
+  return { idsBySourceId: map as Record<string, string> }
+}
+
+/** Every authored identity the record already owns, including materialized Group children. */
+function ownedShowIdsV2(record: ShowRecordV2): Set<string> {
+  const ids = new Set<string>()
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(visit)
+    else if (typeof value === 'object' && value !== null) {
+      const object = value as Record<string, unknown>
+      // A structured Pattern reference names a dependency, not an authored owner.
+      const keys = Object.keys(object)
+      if (keys.length === 2 && keys.includes('kind') && keys.includes('id')
+        && (object.kind === 'stock' || object.kind === 'user')) return
+      if (typeof object.id === 'string') ids.add(object.id)
+      Object.values(object).forEach(visit)
+    }
+  }
+  visit(record)
+  if (record.composition.groupOccurrences.length > 0) visit(materializeShowGroupsV2(record))
+  return ids
 }
 
 function rebindIncomingTransfers(record: ShowRecordV2): string[] {

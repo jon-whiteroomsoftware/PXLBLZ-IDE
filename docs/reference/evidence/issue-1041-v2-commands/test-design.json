@@ -1,0 +1,59 @@
+{
+  "issue": 1041,
+  "scope": "D7 Layout occurrence duplication owner intent, D6 empty-Show verification, and the prepared v2 command catalogue",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "MODEL",
+      "REPLACE",
+      "MCP",
+      "FAILURE",
+      "CATALOGUE",
+      "manual/command parity for owner rows"
+    ]
+  },
+  "base": "d46eeae172c33c669f0587efb79164f055578a02",
+  "invariants": [
+    "D7: duplication inserts one fresh occurrence of the same definition, duration and parameters immediately after the source; Show End grows by exactly that duration.",
+    "D7: every authored entity at or after the source end moves later exactly once; content inside the interval keeps its authored times.",
+    "D7: duplication mints no Pattern runtime; copies retain instanceId, entryPolicy, sampling and Group runtime bindings.",
+    "D7: identity is never allocated inside the owner; an inexact, colliding, blank or duplicated identity plan refuses before any change.",
+    "D7: content crossing the duplicated boundary refuses; the owner never extends, splits, holds or reroutes it.",
+    "D6: final Clip deletion leaves a structurally valid, editable and saveable empty Show; no v1 last-Clip refusal remains on the v2 path.",
+    "Refusal and no-op return the preimage record by reference with empty affected collections and no timestamp."
+  ],
+  "partitions": [
+    "duplicate empty versus duplicate with content",
+    "source occurrence first / interior / final",
+    "boundary content: none crossing / Clip crossing / Property track crossing / Transition endpoints straddling / whole-output window crossing / Group occurrence crossing / Layout transfer crossing",
+    "identity plan: exact / missing key / unknown key / collides with an owned id / blank / duplicated value",
+    "copied Transition with and without propertyRamps"
+  ],
+  "sequences": [
+    "duplicate empty -> reopen through the v2 codec -> validate",
+    "duplicate with content -> reopen -> validate copied Clip, appearance key, Clip track and keyframe identities",
+    "duplicate the final occurrence -> reopen -> set-show-end back to the original end -> original coverage restored"
+  ],
+  "oracles": [
+    "Reopened provisional v2 record through parseProvisionalShowRecordV2/serializeProvisionalShowRecordV2 with an empty validateShowRecordV2 issue list.",
+    "Exact layoutOccurrences, clips, appearance key times, propertyTracks, markers and patternInstances collections after each accepted edit.",
+    "Reference identity of the refused result's record plus deep equality against a structuredClone preimage.",
+    "D6: the landed showV2ClipDeleteAdmission route test's saved provider record with zero Clips, retained Pattern instances and unchanged Show End."
+  ],
+  "redEvidence": [
+    "6/6 duplication cases failed before the owner intent existed: an unknown intent fell through to the shared occurrence branch, and the empty/final-occurrence cases reported the unshifted preimage."
+  ],
+  "faults": [
+    "Dropping the Transition endpoint-straddle guard: 'refuses when authored content crosses the duplicated occurrence boundary' failed (1/6), restored green.",
+    "Shifting later Clip starts without their appearance keys: 'duplicates an occurrence empty, shifting only later content once' and 'copies the interval content under an exact identity plan without cloning a runtime' failed (2/6), restored green."
+  ],
+  "results": {
+    "focused": "npx vitest run src/engine/showLayoutIntervalDuplicateV2.test.ts src/engine/showLayoutIntervalsV2.test.ts src/engine/showV2MixedLayout.test.ts src/store/showV2LayoutOccurrenceAdmission.test.ts src/engine/showV2LayoutEditorModel.test.ts -> 5 files, 59 tests passed",
+    "static": "npm run lint clean; npx tsc -b --pretty false clean"
+  },
+  "residualGaps": [
+    "A copied Transition carrying propertyRamps refuses with unsupported-content-copy rather than projecting them; the caller projects first.",
+    "The v2 command catalogue, census, size oracle, coverage regeneration, grammar/corpus/baseline replay and pilot MCP transcript are the remaining slice steps."
+  ]
+}

@@ -306,10 +306,10 @@ export async function admitShowV2PilotInsertTime(request: ShowV2PilotInsertTimeR
   const outcome = await admitPreparedEdit({ ...request, owner: 'insert-time' as const })
   return presentOwnerOutcome(outcome, timelineEffects('result' in outcome ? outcome.result : undefined))
 }
-type EndEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedTrackIds' | 'removedLayoutOccurrenceIds'>
+type EndEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedMarkerIds' | 'affectedTrackIds' | 'affectedTransitionIds' | 'removedLayoutOccurrenceIds'>
 function endEffects(result?: ShowLayoutEditResultV2): EndEffects {
-  return result ? { affectedClipIds: result.affectedClipIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedLayoutOccurrenceIds: result.affectedLayoutOccurrenceIds, affectedTrackIds: result.affectedTrackIds, removedLayoutOccurrenceIds: result.removedLayoutOccurrenceIds }
-    : { affectedClipIds: [], affectedGroupOccurrenceIds: [], affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedTrackIds: [], removedLayoutOccurrenceIds: [] }
+  return result ? { affectedClipIds: result.affectedClipIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedLayoutOccurrenceIds: result.affectedLayoutOccurrenceIds, affectedMarkerIds: result.affectedMarkerIds, affectedTrackIds: result.affectedTrackIds, affectedTransitionIds: result.affectedTransitionIds, removedLayoutOccurrenceIds: result.removedLayoutOccurrenceIds }
+    : { affectedClipIds: [], affectedGroupOccurrenceIds: [], affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedTrackIds: [], affectedTransitionIds: [], removedLayoutOccurrenceIds: [] }
 }
 export type ShowV2PilotSetShowEndRequest = ShowV2PilotPreparedEditContext & { intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
 export type ShowV2PilotSetShowEndOutcome = PilotOwnerOutcome<ShowLayoutEditResultV2, EndEffects>
@@ -504,12 +504,12 @@ export async function admitShowV2PilotClipDelete(request: ShowV2PilotClipDeleteR
   return presentOwnerOutcome(outcome, effects)
 }
 export type ShowV2PilotLayoutOccurrenceIntent = Extract<ShowLayoutEditIntentV2, { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' }>
-type LayoutOccurrenceEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedTrackIds' | 'removedLayoutOccurrenceIds'>
+type LayoutOccurrenceEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedMarkerIds' | 'affectedTrackIds' | 'affectedTransitionIds' | 'removedLayoutOccurrenceIds'>
 export type ShowV2PilotLayoutOccurrenceRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotLayoutOccurrenceIntent }
 export type ShowV2PilotLayoutOccurrenceOutcome = PilotOwnerOutcome<ShowLayoutEditResultV2, LayoutOccurrenceEffects>
 function layoutOccurrenceEffects(result?: ShowLayoutEditResultV2): LayoutOccurrenceEffects {
-  return result ? { affectedClipIds: result.affectedClipIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedLayoutOccurrenceIds: result.affectedLayoutOccurrenceIds, affectedTrackIds: result.affectedTrackIds, removedLayoutOccurrenceIds: result.removedLayoutOccurrenceIds }
-    : { affectedClipIds: [], affectedGroupOccurrenceIds: [], affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedTrackIds: [], removedLayoutOccurrenceIds: [] }
+  return result ? { affectedClipIds: result.affectedClipIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedLayoutOccurrenceIds: result.affectedLayoutOccurrenceIds, affectedMarkerIds: result.affectedMarkerIds, affectedTrackIds: result.affectedTrackIds, affectedTransitionIds: result.affectedTransitionIds, removedLayoutOccurrenceIds: result.removedLayoutOccurrenceIds }
+    : { affectedClipIds: [], affectedGroupOccurrenceIds: [], affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedTrackIds: [], affectedTransitionIds: [], removedLayoutOccurrenceIds: [] }
 }
 function validLayoutOccurrenceIntent(intent: unknown): intent is ShowV2PilotLayoutOccurrenceIntent {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return false

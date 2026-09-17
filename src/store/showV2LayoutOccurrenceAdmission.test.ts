@@ -25,7 +25,7 @@ function setup() {
 }
 const actions:ShowV2LayoutEditorIntent[]=[{kind:'select-layout',occurrenceId:'later-layout',layoutId:'alternate-layout'},{kind:'make-unique',occurrenceId:'later-layout',layoutId:'solo',name:'Solo'},{kind:'move',occurrenceId:'later-layout',startMs:6000},{kind:'remove',occurrenceId:'later-layout'}]
 function effects(value:object) {return Object.entries(value).filter(([key])=>key.startsWith('affected')||key==='removedLayoutOccurrenceIds')}
-function empty(value:object) {expect(effects(value)).toHaveLength(6);for(const[,array]of effects(value)) expect(array).toEqual([])}
+function empty(value:object) {expect(effects(value)).toHaveLength(8);for(const[,array]of effects(value)) expect(array).toEqual([])}
 it.each(actions)('checked $kind preserves every owner effect and one preparation/history/save',async intent=>{
  const {record,context,write,saved,dependencies}=setup(),expected=editShowLayoutIntervalsV2(record,intent);expect(expected.status).toBe('changed')
  const prepare=vi.spyOn(stage,'prepareShowStageFromCapturedInputsV2')
