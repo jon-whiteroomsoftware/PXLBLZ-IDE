@@ -1,0 +1,119 @@
+{
+  "issue": 1039,
+  "scope": "Measure what creating fresh v2 Shows with `span` Zone sampling would cost, so a fresh Show can gain a second Zone. The flip itself is NOT delivered: the premise it rests on - that with one Zone `span` and `independent` address the same complete domain - is falsified at the consumer surface, so this candidate delivers the measurement, the counterexamples and the contract record, and returns the product decision to Jon.",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "ROUTE"
+    ],
+    "sections": [
+      "1",
+      "6",
+      "10",
+      "12"
+    ]
+  },
+  "base": "0604c125826296d5aac8983fb78e5b30761ab20d",
+  "decision": {
+    "source": "Jon, 2026-09-17 comment on #1039, decision 1",
+    "asDispatched": "Create new v2 Shows with `zoneSampleMode: 'span'`, carrying Fast/Precise proof of identical output for the fresh Show; stop and report the smallest counterexample if outputs differ anywhere.",
+    "outcome": "Stopped. Outputs differ. The fresh Show's sampling mode selects the lowering route, and the two routes are not output-equivalent for a fresh Show even with one Zone."
+  },
+  "invariants": [
+    "A fresh Show's `zoneSampleMode` decides its lowering route: `independent` keeps `continuous-flat`, `span` takes `transition`. The flat artifact is byte-identical to the fresh v1 Show's; the routed one is not.",
+    "Over the fresh Installation Show's own timeline the two routes render identical frames and identical member-exported state at every sampled time.",
+    "The routed emitter wraps its Show clock at Show End; the flat emitter never wraps and holds its last Clip indefinitely.",
+    "A Portable Show's routed artifact is 2D (`render2D`) where its flat artifact is 1D (`render`), so the two disagree before any Transition.",
+    "The routed artifact reports the Zone's declared nominal pixel count to its Pattern; the flat artifact adapts to the Controller's actual pixel count."
+  ],
+  "partitions": [
+    "output contract: installation (60 declared pixels) and portable-2d (120 reference pixels)",
+    "fidelity: fast (float64) and fidelity (16.16 Precise emulation)",
+    "time region: before the Crossfade (0, 16000, 29984), its start and interior (30000, 31008), its exclusive end (32000), after it (45008, 58000), late (61968), the Show End neighbourhood (61984, 62016)",
+    "Controller pixel count: matching the declared Stage (60) and short of it (30)"
+  ],
+  "sequences": [
+    "create fresh Show -> set both Clips to one sampling mode -> prepare -> compile -> export .epe -> reopen through parseEpe -> replay frame by frame at 16 ms steps",
+    "replay both variants side by side from time zero to one frame past Show End, comparing frames and member state at each named time"
+  ],
+  "oracles": [
+    "The reopened `.epe` source (buildShowEpeExportV2 -> parseEpe), replayed through createFastReplayRuntime over one map point per declared Stage pixel: exact per-channel frame equality, and exact equality of each compiled member's own exported scalars keyed by authored identity (deterministic-replay normalized bindings excluded).",
+    "The generated artifact itself for route-level facts: byte equality with the fresh v1 Show's artifact, the emitted `beforeRender` Show clock, and metadata.renderFns.",
+    "Preparation provenance route, asserted rather than inferred from bytes."
+  ],
+  "redEvidence": [
+    "No red-first behavior change was landed: the dispatched flip is withheld pending Jon's decision, so `showCreationV2.ts` is unchanged and no test of a changed default exists.",
+    "The measurement cases were written against current behavior and then qualified by mutation (see faults); the added assertion in showCreationV2.test.ts pins today's `independent` default so any future flip is deliberate and red-first."
+  ],
+  "counterexamples": [
+    {
+      "id": "portable-dimension",
+      "smallest": true,
+      "case": "Fresh Portable Show (referenceMapId null, referencePixelCount 120), one Zone, two stock 1D Clips, first frame at t=0.",
+      "independent": "`export function render(index)` - 1D artifact, byte-identical to the fresh v1 Show's.",
+      "span": "`export function render2D(index, x, y)` - 2D artifact against the Portable 2D reference.",
+      "observed": "Maximum per-channel frame difference 1.0 at t=0, before any Transition or Show End, in both Fast and Precise.",
+      "productQuestion": "A Portable Show promises to run anywhere; emitting a 2D-only artifact from 1D stock Patterns changes what a Controller without a 2D map receives."
+    },
+    {
+      "id": "show-end-wrap",
+      "case": "Fresh Installation Show (60 pixels), replayed at 16 ms steps.",
+      "independent": "`__pxlblz_k = __pxlblz_k + delta / 1000` - never wraps; after 32000 ms it holds Clip 2 forever. This is the fresh v1 Show's shipped behavior.",
+      "span": "`__pxlblz_k = (__pxlblz_k + delta / 1000) % 62` - wraps at Show End and replays the Show.",
+      "observed": "Identical frames and member state at 0, 16000, 29984, 30000, 31008, 32000, 45008, 58000 and 61968 ms in both modes. First difference: Fast at 62016 ms (span reports instance-1 elapsed 32016 ms with instance-2 held at 32000; independent reports the reverse), Precise at 61984 ms, because the emulated 16.16 Show clock accumulates about +25 ms over the Show's 3875 frames and wraps before nominal Show End.",
+      "context": "v1 makes the same switch the moment a second Zone is added (`addShowZone` on a fresh v1 Show compiles to `% 62`), so this is the routed emitter's established behavior arriving one edit earlier - but for a fresh single-Zone Show it is a change at the Controller."
+    },
+    {
+      "id": "mismatched-pixel-count",
+      "case": "Fresh Installation Show (60 declared pixels) replayed on a 30-point map, t=16000 ms.",
+      "independent": "Member pixelCount 30 - the artifact adapts to the pixels actually present.",
+      "span": "Member pixelCount 60 - the artifact addresses the Zone's declared range 0..59.",
+      "observed": "Maximum per-channel frame difference 0.99 from the first Clip. This is the map/pixelCount matching failure mode in `docs/reference/Pixelblaze device behaviour notes.md`."
+    }
+  ],
+  "results": {
+    "focused": "npx vitest run src/engine/showCreationV2ZoneSampling.test.ts src/engine/showCreationV2.test.ts - 12 passed (8 new, 4 existing).",
+    "lint": "npm run lint - passed.",
+    "typecheck": "npx tsc -b --pretty false - passed.",
+    "staged": "npm run test:staged - passed.",
+    "parity": "npm run show:v2-parity - 47 records, report unchanged. npm run show:v2-native-parity - 40 Shows, unchanged. This candidate changes no record, converter or lowerer.",
+    "e2e": "Not run: this candidate changes no route, component or authored default, and `e2e/show-editor-v2-zones-layouts.auth.spec.ts` keeps its existing provider pre-write of `span` because the fresh-Show default is unchanged."
+  },
+  "faults": [
+    {
+      "mutation": "showCompositionLoweringV2.ts canLowerToFlat: `clips.every(clip => clip.zoneSampleMode === 'independent')` -> `clips.every(() => true)`, so the flat route also accepts `span`.",
+      "caught": "6 of 8 cases failed, led by 'lowers installation through a different emitter for each mode'. The two equality cases correctly still passed: with both variants flat, their outputs are equal.",
+      "restored": true
+    },
+    {
+      "mutation": "showCompiler.ts routed transition emitter: dropped `% ${totalMs / 1_000}` from the Show clock.",
+      "caught": "'wraps the Show clock under `span` and never wraps under `independent`' failed.",
+      "coverageBoundary": "'reaches that wrap one frame before Show End in Precise' still passed under this mutation, for a different reason: without the wrap the routed scheduler's last branch (`k < 62`) stops matching once the drifted clock passes 62 s, so the two artifacts still diverge at 61984 ms. That case pins the Precise divergence time, not the wrap's cause.",
+      "restored": true
+    },
+    {
+      "mutation": "showCompositionLoweringV2.ts route selection: forced `'global-sections'` for every non-flat record.",
+      "caught": "All 8 cases failed - preparation refuses this record on that route, so every helper throws.",
+      "restored": true
+    },
+    {
+      "mutation": "showCompositionLoweringV2.ts lowerContinuousToFlat: flat cell adaptation `phase: appearance.view.phase + 0.01`.",
+      "caught": "5 cases failed, including both 'renders identical Installation output and member state' cases - the equality oracle is sensitive to a placement-adaptation fault on one side.",
+      "restored": true
+    },
+    {
+      "mutation": "showCompositionLoweringV2.ts unsupportedRoutedSampling: removed the one-Zone `independent` exemption (`record.zones.length === 1` -> `=== 0`).",
+      "caught": "Nothing failed, and correctly so: `flatEligible` already admits the fresh record through `canLowerToFlat`, so that exemption only governs records that are not flat-eligible. That seam belongs to the #1063 widening, not to this measurement.",
+      "restored": true
+    }
+  ],
+  "residualGaps": [
+    "The dispatched change is not delivered. `src/engine/showCreationV2.ts` still writes `zoneSampleMode: 'independent'`, so a fresh Show still refuses Add Zone with `composition.clips: lowering requires repeat-mode Clip sampling evidence before compilation.` The residual in `docs/reference/contracts/show-v2-zone-layout-owners.md` stands, now with the measured cost recorded.",
+    "Dispatch items 3, 4 and 5 are consequences of the flip and are therefore undone: no fixture, snapshot or e2e expectation changed, `e2e/show-editor-v2-zones-layouts.auth.spec.ts` and `e2e/capture-zones-layouts.auth.spec.ts` keep their provider pre-write of `span`, and neither `show-editor-v2.md` nor the Feature Guide changed.",
+    "Not measured: whether a 2D artifact from 1D stock Patterns is acceptable on a Controller with no map, which is the Portable counterexample's product consequence and needs hardware or firmware evidence, not replay.",
+    "Not measured: converted v1 rows, which keep `independent` by Jon's decision 2 and are unaffected by this candidate.",
+    "Not measured: the third option of widening `showCompositionLoweringV2` to carry a participant Transition on the flat route in a multi-Zone Show, which is filed as #1063 and would let a fresh Show keep `independent` and still gain a Zone."
+  ],
+  "decisionNeeded": "Jon's decision 1 assumed `span` and `independent` are output-equivalent for a fresh single-Zone Show. They are not. Options: (a) accept the three measured differences and flip the default, which is a small follow-up on this evidence; (b) keep `independent` and unblock Add Zone through #1063's lowering widening instead; (c) flip only the Installation contract's default and keep Portable on `independent`, which splits the two contract kinds' authoring model."
+}

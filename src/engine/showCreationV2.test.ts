@@ -43,6 +43,11 @@ describe('the native fresh v2 Show', () => {
     expect(composition.layers).toHaveLength(1)
     expect(composition.clips.map((clip) => [clip.startMs, clip.durationMs, clip.entryPolicy]))
       .toEqual([[0, 30_000, 'continue'], [32_000, 30_000, 'continue']])
+    // Still `independent`, so a fresh Show keeps the flat lowering route and
+    // the fresh v1 Show's exact bytes. Creating with `span` instead is a
+    // measured output change, not a representation change; the cases in
+    // `showCreationV2ZoneSampling.test.ts` hold the evidence.
+    expect(composition.clips.map((clip) => clip.zoneSampleMode)).toEqual(['independent', 'independent'])
     // One Pattern instance per Clip: two different Patterns are two runtimes.
     expect(new Set(composition.clips.map((clip) => clip.instanceId)).size).toBe(2)
     expect(composition.patternInstances.map((instance) => instance.patternName))
