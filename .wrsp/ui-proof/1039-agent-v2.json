@@ -2,11 +2,11 @@
   "version": 1,
   "issue": "1039",
   "route": "/PXLBLZ-IDE/studio/shows/<id>?show-v2-editor=1",
-  "operation": "Created a fresh version-2 Show on the gated route, registered an MCP client with the Worker's own OAuth authority, granted consent on the real consent page as the run's signed-in user, then armed the binding from the Agent drawer (armed.png: the v2 route with the MCP endpoint and Ready to connect). Sent one real tools/call sequence - read_show, begin_edit, rename_show, remove_clips, commit_edit, get_outcome - and captured the result on the route (committed.png: the Show renamed to \"Renamed by MCP\" in the header, rail and route, the second Clip gone, and the drawer's activity entry naming the agent's rename), then reloaded the route to show the durable record (reloaded.png). Captured with repository Playwright through scripts/run-authenticated-playwright.ts as the run's synthetic user; the in-app browser is unavailable to this worker, so this is Playwright provenance, not an in-app-browser capture.",
+  "operation": "Created a fresh version-2 Show on the gated route, registered an MCP client with the Worker's own OAuth authority, granted consent on the real consent page as the run's signed-in user, then armed the binding from the Agent drawer (armed.png: the v2 route with the MCP endpoint and Ready to connect). Sent one real tools/call sequence - read_show, begin_edit, rename_show, remove_clips, commit_edit, get_outcome - and captured the result on the route (committed.png: the Show renamed to \"Renamed by MCP\" in the header, rail and route, the second Clip gone, and the drawer's activity entry naming the agent's rename), then reloaded the route to show the durable record (reloaded.png). Captured with repository Playwright through scripts/run-authenticated-playwright.ts as the run's synthetic user; the in-app browser is unavailable to this worker, so this is Playwright provenance, not an in-app-browser capture. This record is a refresh after the candidate was rebased onto the viewport-slice main (79c5ac13): the same route and operation were re-driven at the rebased tip and recaptured through repository Playwright (Chromium) as the run's synthetic authenticated user, so the images also show the timeline view controls and navigator that slice added.",
   "captures": [
     ".wrsp/ui-proof/1039-agent-v2-armed.png",
     ".wrsp/ui-proof/1039-agent-v2-committed.png",
     ".wrsp/ui-proof/1039-agent-v2-reloaded.png"
   ],
-  "capturedAtCommit": "4e8c1f14e08d63b530ac6e89afb56b268912382e"
+  "capturedAtCommit": "8d065eece10c8c065dbf14bb85e5433ceb3253cb"
 }
