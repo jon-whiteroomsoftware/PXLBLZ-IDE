@@ -59,9 +59,10 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
     )
   }
 
-  // Reserve the height the read-only surface actually draws, so the Stage
-  // preview never squeezes the timeline out of the workspace.
-  const contentHeight = READ_ONLY_LANES_PX + view.rows.reduce((height, row) => (
+  // Reserve the height the timeline column actually draws - the read-only
+  // surface plus the authoring panel with nothing selected - so the Stage
+  // preview never squeezes either out of the workspace.
+  const contentHeight = READ_ONLY_LANES_PX + AUTHORING_PANEL_PX + view.rows.reduce((height, row) => (
     height + ZONE_HEADER_PX + row.layers.length * LAYER_LANE_PX
   ), 0)
 
@@ -112,3 +113,5 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
 const READ_ONLY_LANES_PX = 30 + 28 + 20 + 20 + 8
 const ZONE_HEADER_PX = 27
 const LAYER_LANE_PX = 36
+/** The authoring panel's heading row, status line, boundary chips and Layout lane. */
+const AUTHORING_PANEL_PX = 150

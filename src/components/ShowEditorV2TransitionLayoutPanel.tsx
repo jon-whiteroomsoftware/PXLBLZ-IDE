@@ -60,6 +60,7 @@ export interface ShowV2BoundaryOption {
 }
 
 const fieldStyle = 'mt-1 block w-full min-w-0 rounded-sm border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200'
+const buttonStyle = 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800'
 
 /**
  * Transition authoring and the Zone Layout lane for a `ShowRecordV2` on the
@@ -227,7 +228,7 @@ export function ShowEditorV2TransitionLayoutPanel({
     <section
       aria-label="Transitions and Zone Layouts"
       data-testid="show-editor-v2-transitions-layout"
-      className="flex max-h-[60%] shrink-0 flex-col gap-3 overflow-y-auto border-t border-zinc-800 bg-[#08080b] px-3 py-2.5 text-zinc-300"
+      className="flex max-h-[55%] shrink-0 flex-col gap-3 overflow-y-auto border-t border-zinc-800 bg-[#08080b] px-3 py-2.5 text-zinc-300"
     >
       <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Transitions and Zone Layouts</h2>
       <output
@@ -268,7 +269,7 @@ export function ShowEditorV2TransitionLayoutPanel({
 
         {selectedBoundary && !selectedBoundary.transitionId && (
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Button size="xs" variant="outline" disabled={!available} onClick={() => setPalette('insert')}>Insert Transition</Button>
+            <Button size="xs" variant="outline" className={buttonStyle} disabled={!available} onClick={() => setPalette('insert')}>Insert Transition</Button>
             <span className="text-[10px] text-zinc-600">The incoming Clips move later by the Transition duration.</span>
           </div>
         )}
@@ -283,7 +284,7 @@ export function ShowEditorV2TransitionLayoutPanel({
                 {transition.kind} · {seconds(selectedBoundary.startMs)} to {seconds(selectedBoundary.endMs)}
                 {transition.wholeOutput ? ' · whole output' : ''}
               </span>
-              <Button size="xs" variant="outline" className="ml-auto" disabled={!available} onClick={() => setPalette('kind')}>
+              <Button size="xs" variant="outline" className={`ml-auto ${buttonStyle}`} disabled={!available} onClick={() => setPalette('kind')}>
                 Change kind
               </Button>
             </div>
@@ -340,7 +341,7 @@ export function ShowEditorV2TransitionLayoutPanel({
               />
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="xs" variant="outline" disabled={!available} onClick={() => planTransition(
+              <Button size="xs" variant="outline" className={buttonStyle} disabled={!available} onClick={() => planTransition(
                 { kind: 'reset', transitionId: transition.id }, 'Reset to Cut.', () => '',
               )}>Reset to Cut</Button>
               {transition.propertyRamps.length > 0 && (
@@ -468,15 +469,15 @@ export function ShowEditorV2TransitionLayoutPanel({
               />
             </label>
             <div className="flex flex-wrap gap-2 sm:col-span-2">
-              <Button size="xs" variant="outline" disabled={!available} onClick={() => planLayout(
+              <Button size="xs" variant="outline" className={buttonStyle} disabled={!available} onClick={() => planLayout(
                 { kind: 'make-unique', occurrenceId: occurrence.id, name: uniqueName.current.trim() || occurrence.name },
                 'Layout is unique.',
               )}>Make Layout Unique</Button>
-              <Button size="xs" variant="outline" disabled={!available} onClick={() => planLayout(
+              <Button size="xs" variant="outline" className={buttonStyle} disabled={!available} onClick={() => planLayout(
                 { kind: 'duplicate', occurrenceId: occurrence.id, content: 'copy' },
                 'Layout occurrence duplicated.',
               )}>Duplicate</Button>
-              <Button size="xs" variant="outline" disabled={!available} onClick={() => planLayout(
+              <Button size="xs" variant="outline" className={buttonStyle} disabled={!available} onClick={() => planLayout(
                 { kind: 'remove', occurrenceId: occurrence.id },
                 'Layout occurrence removed; its predecessor extends.',
                 '',
@@ -484,6 +485,7 @@ export function ShowEditorV2TransitionLayoutPanel({
               <Button
                 size="xs"
                 variant="outline"
+                className={buttonStyle}
                 disabled={!available || !occurrence.incomingTransfer}
                 onClick={() => planLayout(
                   { kind: 'set-transfer', occurrenceId: occurrence.id, transfer: null },
