@@ -7,6 +7,7 @@ import { createAgentPrivateExecutor } from '@/engine/agentPrivateExecutor'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { createAgentEditorAdmission } from './agentEditorAdmission'
 import { createAgentPrivateAdmissionOwner } from '@/agent/privateAdmissionOwner'
+import type { ShowCommandContext } from '@/engine/showCommands/registry'
 
 let close = () => {}
 afterEach(() => { close(); resetPersonalContentProvider() })
@@ -144,7 +145,7 @@ it('captures real source metadata and keeps rename private until one history/sav
   const { admission, executor, send, writes } = await setup()
   const metadata = admission.captureCommandContext()!
   expect(metadata.retainedBytes).toBeGreaterThan(0)
-  expect(metadata.commandContext.source({ kind: 'stock', id: Object.keys(DEMOS)[0] })).toBeTruthy()
+  expect((metadata.commandContext as ShowCommandContext).source!({ kind: 'stock', id: Object.keys(DEMOS)[0] })).toBeTruthy()
   expect(send(0, { kind: 'begin_edit', intent: 'Rename' }).code).toBe('begun')
   expect(send(1, { kind: 'command', name: 'rename_show', arguments: { name: 'Private rename' } }).code).toBe('changed')
   expect(useShowStore.getState().shows[0].name).toBe('Original')

@@ -4,6 +4,12 @@ import { resetPersonalContentProvider, setPersonalContentProvider, type Personal
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { createAgentEditorAdmission } from './agentEditorAdmission'
 
+import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowDocument } from '@/engine/showDocument'
+
+/** These diagnostics drive a v1 editor; the shared admission is version-agnostic (#1039). */
+const v1 = (show: ShowDocument): ShowRecord => show as ShowRecord
+
 const state = () => useShowStore.getState()
 const snapshot = () => structuredClone({ shows: state().shows, history: state().showHistories })
 let stop = () => {}
@@ -30,7 +36,7 @@ it.each(['', '?agent', '?agent=0', '?agent=true', '?agent=2', '?agent=1'])('admi
 it('registers before inference and refuses edit-undo ABA without another history/save', async () => {
   const api = await setup()
   const captured = api.beginRequest('op', 'rename', [])!
-  await state().updateShow('test', { ...captured.show, name: 'Manual' })
+  await state().updateShow('test', { ...v1(captured.show), name: 'Manual' })
   await state().undoShow('test')
   const before = snapshot()
   expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request)).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
@@ -103,7 +109,7 @@ it('retains a raw schema diagnostic through the actual editor admission owner', 
 it('retains an actionable zero-duration Scene diagnostic without adopting any partial edit', async () => {
   const api = await setup()
   const captured = api.beginRequest('semantic', 'break duration', [])!
-  const candidate = structuredClone(captured.show)
+  const candidate = structuredClone(v1(captured.show))
   candidate.scenes[0].durationMs = 0
   const before = snapshot()
   const result = api.applyShow(candidate, captured.request)
@@ -189,7 +195,7 @@ it.each(['library', 'map'] as const)('rejects %s metadata change/restore without
 it('refuses newly missing Pattern references at final authoring validation', async () => {
   const api = await setup()
   const captured = api.beginRequest('op', 'rename', [])!
-  const candidate = structuredClone(captured.show)
+  const candidate = structuredClone(v1(captured.show))
   candidate.cells[0].pattern = { kind: 'user', id: 'missing' }
   const before = snapshot()
   expect(api.applyShow(candidate, captured.request).status).toBe('refused')
@@ -240,7 +246,7 @@ it.each(['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 
     const captured = api.beginRequest(action, 'question', [])!
     if (action === 'hydrate') await state().loadShows()
     else {
-      await state().updateShow('test', { ...captured.show, name: 'Manual ' + action })
+      await state().updateShow('test', { ...v1(captured.show), name: 'Manual ' + action })
       if (action === 'aba') await state().undoShow('test')
     }
     expect(state().showRevisions.test).toBeGreaterThan(captured.request.baseRevision)
@@ -300,7 +306,7 @@ it.each(['cancel', 'timeout', 'metadata', 'manual', 'close'] as const)('terminal
       const second = api.beginRequest('second', 'rename', [])!
       expect(api.applyShow({ ...second.show, name: 'Second' }, second.request).status).toBe('waiting')
       api.cancel(second.request)
-    } else if (action === 'manual') await state().updateShow('test', { ...captured.show, name: 'Manual' })
+    } else if (action === 'manual') await state().updateShow('test', { ...v1(captured.show), name: 'Manual' })
     else api.close()
     const before = snapshot()
     const count = writes.mock.calls.length

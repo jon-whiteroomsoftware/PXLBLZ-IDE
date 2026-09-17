@@ -43,6 +43,7 @@ import {
 } from '@/engine/showPreparedStageV2'
 import { validateShowAuthoringV2 } from '@/engine/showAuthoringValidationV2'
 import type { ShowAuthoringBaseline } from '@/engine/showAuthoringValidation'
+import { resolveShowV2StageMap, showV2StageMapAvailable } from './showV2StageMap'
 import type { ShowV2PilotPreparedCapture } from './showV2PreparedEditAdmission'
 
 const schemaCodes: Partial<Record<string, ShowEditDiagnosticCode>> = {
@@ -209,13 +210,23 @@ export function createShowV2CandidateAdmission(owner: ShowV2CandidateAdmissionOw
     // A candidate that writes nothing has no adoption, history entry, save or
     // ordering stamp to publish, and the caller declared changes it did not make.
     if (sameAuthoredRecord(candidate, current)) return refuse('no-candidate')
+    // A command may select another Stage map, which the capture's pinned map
+    // cannot prepare. Resolve the named one the way the route resolves its own,
+    // and refuse a map that is gone or at an unsupported dimension rather than
+    // preparing the Show against geometry it does not name.
+    const movedStage = (candidate.stageMapId ?? null) !== (capture.record.stageMapId ?? null)
+    if (movedStage && !showV2StageMapAvailable(candidate.stageMapId, capture.dependencies.maps)) {
+      return refuse('invalid-candidate', showEditDiagnosticInput('normalized', [{ code: 'map-metadata-unavailable', path: JSON.stringify(['stageMap', candidate.stageMapId]) }]))
+    }
     let prepared: ShowPreparedStageResultV2
     try {
-      prepared = capture.inputCapture?.status === 'qualified'
-        ? prepareShowStageFromCapturedInputsV2(candidate, capture.inputCapture.inputs)
-        : prepareShowStageV2(candidate, capture.prepared.status === 'ready'
-          ? { ...capture.prepared.bundle.assets, stageMap: capture.dependencies.stageMap }
-          : capture.dependencies)
+      prepared = movedStage
+        ? prepareShowStageV2(candidate, { ...capture.dependencies, stageMap: resolveShowV2StageMap(candidate.stageMapId, capture.dependencies.maps) })
+        : capture.inputCapture?.status === 'qualified'
+          ? prepareShowStageFromCapturedInputsV2(candidate, capture.inputCapture.inputs)
+          : prepareShowStageV2(candidate, capture.prepared.status === 'ready'
+            ? { ...capture.prepared.bundle.assets, stageMap: capture.dependencies.stageMap }
+            : capture.dependencies)
     } catch { return refuse('invalid-candidate', admissionUnavailable()) }
     // Section 9: final-content deletion may leave an empty Show, which stays
     // editable and saveable while preview and export are unavailable.

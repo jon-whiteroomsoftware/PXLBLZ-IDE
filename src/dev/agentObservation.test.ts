@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ShowRecord } from '@/engine/personalContentRecords'
 import {
   createObservationLog,
   showRecordDigest,
@@ -15,7 +16,7 @@ const base = {
   transitions: [],
   outputContract: { version: 1, kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 64, compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' } },
   updatedAt: 1,
-} as unknown as Parameters<typeof showRecordDigest>[0]
+} as unknown as ShowRecord
 
 describe('showRecordDigest', () => {
   it('ignores the client stamp and the name but sees choreography', () => {

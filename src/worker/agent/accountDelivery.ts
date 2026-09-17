@@ -7,7 +7,7 @@ import type { AgentDeliveryInput, AgentEditorQuery, ExternalAgentDeliveryInput }
 type Environment = AgentAccessEnvironment & { AGENT_ACCOUNTS?: AgentAccountNamespace }
 export interface ExternalToolConnection extends PrivateEditResult {
   claim?: AgentClaim
-  binding?: AgentClaim & WindowIdentity & { showName?: string }
+  binding?: AgentClaim & WindowIdentity & { showName?: string; showVersion?: 1 | 2 }
   expiresAt?: number
   moveNotice?: ExternalMoveNotice
   retry_after_ms?: number
@@ -27,6 +27,17 @@ export function connectExternalTool(env: Environment, grant: TrustedExternalTool
 }
 export function resolveExternalTool(env: Environment, grant: TrustedExternalTool): Promise<ExternalToolConnection> {
   return sendExternal(env, grant, { type: 'external-tool-resolve' })
+}
+/**
+ * Read the bound editor's record version without connecting (#1039).
+ *
+ * The MCP server needs it before it registers a single tool, and a
+ * `resolve` there would be wrong twice over: it consumes the pending
+ * binding-moved notice the next `get_connection` owes the caller, and it spends
+ * one of that caller's rate-limited agent calls to describe its own tool list.
+ */
+export function inspectExternalToolBinding(env: Environment, grant: TrustedExternalTool): Promise<ExternalToolConnection> {
+  return sendExternal(env, grant, { type: 'external-tool-inspect-binding' })
 }
 export function dispatchExternalTool(env: Environment, grant: TrustedExternalTool, expectedBindingId: string, delivery: ExternalAgentDeliveryInput): Promise<ExternalToolConnection> {
   return sendExternal(env, grant, { type: 'external-tool-dispatch', expectedBindingId, delivery })

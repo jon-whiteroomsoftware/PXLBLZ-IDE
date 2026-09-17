@@ -156,7 +156,7 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
   const ready = (async () => {
     if (!admission.available()) return undefined
     try {
-      const result = await post({ type: 'register', sessionId: admission.sessionId, showId }, abort.signal)
+      const result = await post({ type: 'register', sessionId: admission.sessionId, showId, showVersion: admission.recordVersion }, abort.signal)
       if (!result.registrationId) {
         if (!closed) { connection = { kind: 'refused', code: result.code }; emit({ type: 'connection', connection }) }
         return undefined

@@ -4,7 +4,8 @@ import { captureShowStageEditV2, type ShowPreparedStageEditCaptureV2 } from '@/e
 import type { ShowV2PilotAdoptionReceipt } from '@/store/showV2PreparedEditAdmission'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useLibraryStore } from '@/store/libraryStore'
-import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
+import { useMapStore } from '@/store/mapStore'
+import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 
@@ -40,13 +41,7 @@ export function useShowV2EditCapture(showId: string): ShowV2EditCaptureBinding {
   const profiles = useControllerProfileStore((state) => state.profiles)
   const provider = getPersonalContentProvider()
 
-  const stageMap = useMemo(() => {
-    const selected = STOCK_MAPS.find((map) => map.id === record?.stageMapId)
-      ?? maps.find((map) => (
-        map.id === record?.stageMapId && (map.generator !== 'custom' || (map.points?.length ?? 0) > 0)
-      ))
-    return selected && (selected.dim === 2 || selected.dim === 3) ? resolveMap(selected.id, maps) : null
-  }, [record?.stageMapId, maps])
+  const stageMap = useMemo(() => resolveShowV2StageMap(record?.stageMapId, maps), [record?.stageMapId, maps])
 
   const capture = useMemo(() => (
     record

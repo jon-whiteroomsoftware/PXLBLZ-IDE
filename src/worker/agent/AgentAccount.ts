@@ -35,9 +35,10 @@ type AccountCommand = RendezvousCommand | AgentWindowChannelCommand
   | { type: 'relay-query'; identity: AgentClaim; query: AgentEditorQuery; accountId: string }
   | { type: 'external-tool-connect'; agentId: string; agentName: string; callId?: string; nextCallId?: string; nextBindingId?: string }
   | { type: 'external-tool-resolve'; agentId: string }
+  | { type: 'external-tool-inspect-binding'; agentId: string }
   | { type: 'external-tool-dispatch'; agentId: string; expectedBindingId: string; delivery: ExternalAgentDeliveryInput }
   | { type: 'external-tool-query'; agentId: string; expectedBindingId: string; query: AgentEditorQuery }
-interface AccountBody { code: string; contact?: 'live' | 'lost'; registrationId?: string; binding?: AgentClaim & WindowIdentity & Pick<EditorRegistration, 'showName'>; connection?: ReturnType<typeof windowRendezvousView>; claim?: AgentClaim; expiresAt?: number; moveNotice?: ExternalMoveNotice; retry_after_ms?: number }
+interface AccountBody { code: string; contact?: 'live' | 'lost'; registrationId?: string; binding?: AgentClaim & WindowIdentity & Pick<EditorRegistration, 'showName' | 'showVersion'>; connection?: ReturnType<typeof windowRendezvousView>; claim?: AgentClaim; expiresAt?: number; moveNotice?: ExternalMoveNotice; retry_after_ms?: number }
 interface AccountRead { body: AccountBody; status: number; state: RendezvousState }
 
 /** Private binding only. Never mount this fetch handler at a public Worker URL. */
@@ -57,6 +58,7 @@ export class AgentAccount {
       const read = await this.failClosedExternal(await this.coordinate({ type: 'resolve-external-tool', agentId: command.agentId }, 'agent'), command.agentId)
       return agentResponse(read.body, read.status)
     }
+    if (command.type === 'external-tool-inspect-binding') return this.inspectExternalToolBinding(command.agentId)
     if (command.type === 'external-tool-dispatch' || command.type === 'external-tool-query') {
       const read = await this.failClosedExternal(await this.coordinate({ type: 'resolve-external-tool', agentId: command.agentId, expectedBindingId: command.expectedBindingId }, 'agent'), command.agentId)
       if (read.body.code !== 'bound' || !read.body.claim || !read.body.binding || !this.relay || this.relay.scope.bindingId !== read.body.binding.bindingId) return agentResponse(read.body, read.status)
@@ -131,6 +133,27 @@ export class AgentAccount {
       return agentResponse(read.body, read.status)
     } finally { this.heldCalls -= 1 }
   }
+  /**
+   * Which record version the bound editor holds, as a pure read (#1039).
+   *
+   * The MCP server asks this before it registers a single tool. It stays off
+   * the coordination queue and writes nothing: it must not consume the pending
+   * binding-moved notice, spend one of the caller's agent calls, or serialize
+   * behind in-flight deliveries merely to describe a tool list.
+   */
+  private async inspectExternalToolBinding(agentId: string): Promise<Response> {
+    const stored = await this.storage.get<StoredAccount>('account')
+    const state = stored ? transitionRendezvous(stored.rendezvous, { type: 'inspect-external-tool-binding', agentId }, Date.now()) : undefined
+    const slot = state?.state.slot
+    const target = state?.result.code === 'bound' && slot?.kind === 'bound'
+      ? state.state.registrations.find(item => item.registrationId === slot.registrationId)
+      : undefined
+    if (!state || !target || slot?.kind !== 'bound') return agentResponse({ code: 'no_live_editor' })
+    return agentResponse({
+      code: 'bound',
+      binding: { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, showVersion: target.showVersion === 2 ? 2 : 1 },
+    })
+  }
   private coordinate(command: RendezvousCommand, accounting = accountCommandAccounting(command)): Promise<AccountRead> {
     // Commit order and volatile relay reconciliation share this bounded queue.
     // Held calls, receive and delivery response waits remain outside it.
@@ -152,7 +175,7 @@ export class AgentAccount {
       await storage.put('account', { rendezvous: state, agentThrottle, controlThrottle })
       await scheduleExpiry(storage, state, Math.max(agentThrottle.start, controlThrottle.start) + 60_000)
       const reply = (body: AccountBody, status = 200): AccountRead => ({ body, status, state })
-      if (command.type === 'claim' || command.type === 'inspect' || command.type === 'resolve-builtin' || command.type === 'connect-external' || command.type === 'resolve-external' || command.type === 'resolve-external-tool' || command.type === 'inspect-external-move' || command.type === 'replace-external-binding' || command.type === 'consume-external-move-notice') {
+      if (command.type === 'claim' || command.type === 'inspect' || command.type === 'resolve-builtin' || command.type === 'connect-external' || command.type === 'resolve-external' || command.type === 'resolve-external-tool' || command.type === 'inspect-external-tool-binding' || command.type === 'inspect-external-move' || command.type === 'replace-external-binding' || command.type === 'consume-external-move-notice') {
         const slot = state.slot
         const target = slot?.kind === 'bound' && !slot.retiring ? state.registrations.find(item => item.registrationId === slot.registrationId) : undefined
         const body: AccountBody = { ...result }
@@ -161,7 +184,7 @@ export class AgentAccount {
           body.claim = { agentId: slot.agentId, agentName: slot.agentName, agentKind: slot.agentKind, callId: slot.callId, bindingId: slot.bindingId }
           if (slot.kind === 'pending') body.expiresAt = slot.expiresAt
         }
-        if ((result.code === 'bound' || result.code === 'binding_moved') && target) body.binding = { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, ...(target.showName ? { showName: target.showName } : {}) }
+        if ((result.code === 'bound' || result.code === 'binding_moved') && target) body.binding = { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, ...(target.showName ? { showName: target.showName } : {}), showVersion: target.showVersion === 2 ? 2 : 1 }
         return reply(body)
       }
       if (command.type === 'expire' || ending) return reply(result)
@@ -237,6 +260,8 @@ function accountCommandAccounting(command: RendezvousCommand): 'agent' | 'contro
   switch (command.type) {
     case 'claim': case 'connect-external': case 'resolve-external-tool':
       return 'agent'
+    case 'inspect-external-tool-binding':
+      return 'exempt'
     case 'register': case 'arm': case 'answer': case 'decline': case 'inspect-external-move': case 'replace-external-binding':
       return 'control'
     case 'poll': case 'heartbeat': case 'leave': case 'disarm': case 'disconnect': case 'retirement-ack':

@@ -1,5 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import { runBuiltinTurn } from './builtinTurn'
+import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
+import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 const call = (name: string, args: object) => ({ type: 'function_call', call_id: `call-${name}`, name, arguments: JSON.stringify(args) })
 function fixture(outputs: unknown[][]) {
   const deliveries: Record<string, unknown>[] = []
@@ -102,4 +104,36 @@ it('carries SDK reasoning content through a complete provider-backed edit turn',
   expect(f.deliveries.map(item => item.kind)).toEqual(['begin_edit', 'command', 'commit_edit'])
   expect(requests).toHaveLength(2)
   expect(requests[1].input).toEqual(expect.arrayContaining([reasoning]))
+})
+
+it('offers the v2 catalogue, tools and reference when the captured record is v2', async () => {
+  const f = fixture([[call('rename_show', { name: 'New' })], [call('finish_turn', { outcome: 'apply', message: 'Requested rename' })]])
+  f.deliver.mockImplementation(async (payload: Record<string, unknown>) => {
+    f.deliveries.push(payload)
+    if (payload.kind === 'begin_edit') return { code: 'begun', show: { id: 'show', version: 2 }, context: {} }
+    if (payload.kind === 'command') return { code: 'changed', changes: [{ description: 'Private change' }] }
+    return { code: 'outcome', receipt: { status: 'applied' } }
+  })
+  await runBuiltinTurn(f, 'Rename the Show')
+  const calls = f.dispatch.mock.calls as unknown as Array<[{ input: Array<{ role?: string; content?: string }>; tools: Array<{ name: string }> }]>
+  expect(calls[0][0].input[0]).toMatchObject({ role: 'developer', content: expect.stringContaining('Show authoring uses schema version') })
+  const tools = new Set(calls[0][0].tools.map(tool => tool.name))
+  for (const command of SHOW_COMMANDS_V2) expect(tools, command.name).toContain(command.name)
+  expect(tools.has('finish_turn')).toBe(true)
+  const onlyV1 = SHOW_COMMANDS.filter(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name))
+  expect(onlyV1.length).toBeGreaterThan(0)
+  for (const command of onlyV1) expect(tools, command.name).not.toContain(command.name)
+})
+
+it('refuses a v1 command name against a v2 capture rather than delivering it', async () => {
+  const onlyV1 = SHOW_COMMANDS.find(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name))!
+  const f = fixture([[call(onlyV1.name, {})]])
+  f.deliver.mockImplementation(async (payload: Record<string, unknown>) => {
+    f.deliveries.push(payload)
+    if (payload.kind === 'begin_edit') return { code: 'begun', show: { id: 'show', version: 2 }, context: {} }
+    return { code: 'outcome', receipt: { status: 'completed' } }
+  })
+  await runBuiltinTurn(f, 'Edit')
+  expect(f.deliveries.map(entry => entry.kind)).toEqual(['begin_edit', 'complete_edit'])
+  expect(f.deliveries[1]).toMatchObject({ completion: 'incomplete' })
 })

@@ -24,7 +24,7 @@ import { isAgentMcpError, isAgentMcpResult } from '../../engine/agentMcpResults'
 import type { WorkerEnv } from '../apiRoutes'
 import type { ValidatedAgentGrant } from './AgentOAuthAuthority'
 import { agentGrantLive } from './agentGrant'
-import { connectExternalTool, dispatchExternalTool, queryExternalTool, resolveExternalTool, type ExternalToolConnection } from './accountDelivery'
+import { connectExternalTool, dispatchExternalTool, inspectExternalToolBinding, queryExternalTool, resolveExternalTool, type ExternalToolConnection } from './accountDelivery'
 import { AGENT_MCP_MOVE_INSTRUCTION, AGENT_MCP_OUTPUT_SCHEMAS } from './agentMcpSchemas'
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
@@ -44,13 +44,37 @@ export const AGENT_MCP_INSTRUCTIONS_V2 = [
   SHOW_AUTHORING_V2_SERVER_INTRO,
 ].join('\n\n')
 /**
- * Which authored command catalogue the server exposes. Production stays on v1
- * until the coordinated cutover in #1039; the prepared v2 catalogue is measured
- * and exercised through this explicit opt-in.
+ * Which authored command catalogue the server exposes.
+ *
+ * Normally this is not a choice: the catalogue follows the routed record's
+ * version, so the editor a tool is bound to and the commands it is offered are
+ * always the same version for one Show (specification section 10). An explicit
+ * option overrides that resolution for tests and for the measured opt-in.
  */
 export interface AgentMcpRoutingOptions { catalogue?: 'v1' | 'v2' }
 
+/**
+ * The catalogue the bound editor's record needs (#1039).
+ *
+ * This costs one exempt account read before the server is built, because
+ * `tools/list` has to describe the vocabulary the private executor will
+ * actually accept. It is deliberately not a `resolve`: that would consume the
+ * binding-moved notice the caller's next `get_connection` is owed and spend one
+ * of its rate-limited agent calls. An unbound or unreachable connection stays
+ * on v1 - the surface every existing client already expects - and a client that
+ * binds to a v2 record afterwards sees the v2 tools on its next request, which
+ * is the same reconnect `get_connection` already instructs it to make.
+ */
+async function resolveCatalogue(env: WorkerEnv, grant: ValidatedAgentGrant, options: AgentMcpRoutingOptions): Promise<'v1' | 'v2'> {
+  if (options.catalogue) return options.catalogue
+  try {
+    const inspected = await inspectExternalToolBinding(env, grant)
+    return inspected.binding?.showVersion === 2 ? 'v2' : 'v1'
+  } catch { return 'v1' }
+}
+
 export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant, options: AgentMcpRoutingOptions = {}): Promise<Response> {
+  const selected = await resolveCatalogue(env, grant, options)
   // One catalogue per connection. Every command surface - the registered tools,
   // the server instructions, the schema/reference resources and `list_commands`
   // - describes this same vocabulary, so a caller that discovers a command can
@@ -62,8 +86,8 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     exactlyOne?: readonly string[]
     atLeastOne?: readonly string[]
     atMostOne?: readonly string[]
-  }> = options.catalogue === 'v2' ? SHOW_COMMANDS_V2 : SHOW_COMMANDS
-  const catalogue = options.catalogue === 'v2'
+  }> = selected === 'v2' ? SHOW_COMMANDS_V2 : SHOW_COMMANDS
+  const catalogue = selected === 'v2'
     ? SHOW_COMMANDS_V2.map(descriptor => ({ name: descriptor.name, description: descriptor.description, shape: showCommandV2InputShape(descriptor) }))
     : SHOW_COMMANDS.map(descriptor => ({ name: descriptor.name, description: descriptor.description, shape: showCommandInputShape(descriptor) }))
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
@@ -89,7 +113,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   const toolResult = (resolved: ExternalToolConnection): PrivateEditResult => resolved.code === 'binding_moved'
     ? moved(resolved)
     : resolved.code === 'retirement_unconfirmed' ? { code: 'no_live_editor', ...notice(resolved) } : visible(resolved)
-  const v2 = options.catalogue === 'v2'
+  const v2 = selected === 'v2'
   const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: v2 ? AGENT_MCP_INSTRUCTIONS_V2 : AGENT_MCP_INSTRUCTIONS })
   const output = (untrusted: PrivateEditResult) => {
     const trusted: PrivateEditResult = isAgentMcpResult(untrusted) ? untrusted : { code: 'unknown' }

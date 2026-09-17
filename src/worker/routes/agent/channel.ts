@@ -88,6 +88,10 @@ function parseWindowCommand(value: unknown): AgentWindowChannelCommand | null {
   const types = ['register', 'arm', 'poll', 'heartbeat', 'leave', 'answer', 'decline', 'disconnect', 'disarm', 'receive', 'reply', 'retirement-ack', 'forget', 'move-external']
   if (typeof body.type !== 'string' || !types.includes(body.type)) return null
   const keys = ['type', 'sessionId', 'showId']
+  // The register command may declare which record version the editor holds.
+  if (body.type === 'register' && body.showVersion !== undefined) {
+    if (body.showVersion !== 1 && body.showVersion !== 2) return null
+  }
   if (body.type !== 'register') keys.push('registrationId')
   if (body.type === 'answer' || body.type === 'decline') keys.push('callId')
   if (body.type === 'disconnect' || body.type === 'retirement-ack' || body.type === 'forget') keys.push('bindingId')
@@ -97,7 +101,9 @@ function parseWindowCommand(value: unknown): AgentWindowChannelCommand | null {
     keys.push('lastSeenConnection')
   }
   if (body.type === 'reply') keys.push('bindingId', 'operationId', 'deliveryId', 'result')
-  if (Object.keys(body).length !== keys.length || !keys.filter(key => key !== 'result' && key !== 'lastSeenConnection').every((key) => typeof body[key] === 'string' && (body[key] as string).length > 0 && (body[key] as string).length <= 128)) return null
+  const declaredVersion = body.type === 'register' && body.showVersion !== undefined
+  if (declaredVersion) keys.push('showVersion')
+  if (Object.keys(body).length !== keys.length || !keys.filter(key => key !== 'result' && key !== 'lastSeenConnection' && key !== 'showVersion').every((key) => typeof body[key] === 'string' && (body[key] as string).length > 0 && (body[key] as string).length <= 128)) return null
   if (body.type === 'reply' && (!body.result || typeof body.result !== 'object' || Array.isArray(body.result) || typeof (body.result as Record<string, unknown>).code !== 'string' || ((body.result as Record<string, unknown>).code as string).length > 128)) return null
   if (!Object.keys(body).every((key) => keys.includes(key))) return null
   return { ...body, ...(body.type === 'register' ? { registrationId: crypto.randomUUID() } : {}) } as AgentWindowChannelCommand

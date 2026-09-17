@@ -1,14 +1,22 @@
 import { z } from 'zod'
 import type { AgentResizeIntent } from './agentResizeProtocol'
 import { createDeliveryJournal, MAX_AGENT_DELIVERY_RESULT_BYTES, measureAgentDeliveryResultBytes, type AgentDelivery, type DeliveryScope } from './agentDeliveryJournal'
-import type { ShowRecord } from './personalContentRecords'
 import type { ShowEditCompletion, ShowEditRequest } from './showEditAdmission'
 import { applyShowCommand, type ShowCommandChange, type ShowCommandContext } from './showCommands/registry'
+import { applyShowCommandV2, type ShowCommandV2Change, type ShowCommandV2Context } from './showCommandsV2/registry'
+import { isShowRecordV2, type ShowDocument } from './showDocument'
 import type { AgentMcpResult, AgentMcpResultCode } from './agentMcpResults'
 
+/**
+ * The command context for whichever record version this operation captured
+ * (#1039). Both are the same trusted browser-owned Pattern metadata boundary;
+ * the catalogue that reads it differs with the record.
+ */
+export type PrivateEditCommandContext = ShowCommandContext | ShowCommandV2Context
+
 export interface PrivateEditOwner {
-  capture(operationId: string, intent: string, remainingBytes: number): { request: ShowEditRequest; show: ShowRecord; context: unknown; commandContext: ShowCommandContext; retainedBytes: number } | undefined
-  apply(show: ShowRecord, request: ShowEditRequest, resize?: AgentResizeIntent): unknown
+  capture(operationId: string, intent: string, remainingBytes: number): { request: ShowEditRequest; show: ShowDocument; context: unknown; commandContext: PrivateEditCommandContext; retainedBytes: number } | undefined
+  apply(show: ShowDocument, request: ShowEditRequest, resize?: AgentResizeIntent): unknown
   retry?(request: ShowEditRequest, operationId: string, remainingBytes: number): { request: ShowEditRequest; receipt: unknown; retainedBytes: number } | undefined
   complete(request: ShowEditRequest, completion: ShowEditCompletion): unknown
   cancel(request: ShowEditRequest): unknown
@@ -24,7 +32,33 @@ const payloadSchema = z.discriminatedUnion('kind', [
 ])
 interface Operation {
   request: ShowEditRequest
-  private?: { show: ShowRecord; commandContext: ShowCommandContext; changes: ShowCommandChange[]; commandAttempts: number; resize?: AgentResizeIntent }
+  private?: { show: ShowDocument; commandContext: PrivateEditCommandContext; changes: Array<ShowCommandChange | ShowCommandV2Change>; commandAttempts: number; resize?: AgentResizeIntent }
+}
+
+type CommandOutcome =
+  | { ok: true; record: ShowDocument; changes: Array<ShowCommandChange | ShowCommandV2Change> }
+  | { ok: false; issues: unknown[] }
+
+/**
+ * Apply one canonical command to the private candidate, through the catalogue
+ * that owns the captured record's version (#1039).
+ *
+ * The two catalogues report the same three outcomes in different shapes: v1
+ * answers `ok`/`record`/`changes` or `ok: false`/`issues`, and v2 answers
+ * `status: changed | unchanged | refused` with the record carried on every
+ * one. Folding v2 onto this vocabulary loses nothing: a refusal's record is
+ * the caller's own unchanged private copy, and `unchanged` is exactly v1's
+ * empty change list, which the caller already reports as `noop`.
+ */
+function applyPrivateCommand(show: ShowDocument, name: string, input: Record<string, unknown>, context: PrivateEditCommandContext): CommandOutcome {
+  if (!isShowRecordV2(show)) {
+    const result = applyShowCommand(show, name, input, context as ShowCommandContext)
+    return result.ok ? { ok: true, record: result.record, changes: result.changes } : { ok: false, issues: result.issues }
+  }
+  const result = applyShowCommandV2(show, name, input, context as ShowCommandV2Context)
+  return result.status === 'refused'
+    ? { ok: false, issues: result.issues }
+    : { ok: true, record: result.record, changes: result.changes }
 }
 
 /** One browser-owned private candidate; the injected owner is existing admission. */
@@ -78,7 +112,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
     if (!operation.private) return { code: 'finished' }
     if (payload.kind === 'command') {
       operation.private.commandAttempts += 1
-      const result = applyShowCommand(operation.private.show, payload.name, payload.arguments, operation.private.commandContext)
+      const result = applyPrivateCommand(operation.private.show, payload.name, payload.arguments, operation.private.commandContext)
       if (!result.ok) {
         operation.private.resize = undefined
         return { code: 'refused', issues: result.issues }
@@ -88,7 +122,9 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
         owner.complete(operation.request, 'service-refused')
         return { code: 'result_too_large' }
       }
-      operation.private.resize = operation.private.commandAttempts === 1 && payload.name === 'resize_clip'
+      // Stable diagnostic resize retry is a v1 `resize_clip` qualification; the
+      // v2 catalogue has its own timing commands and no qualified retry.
+      operation.private.resize = !isShowRecordV2(operation.private.show) && operation.private.commandAttempts === 1 && payload.name === 'resize_clip'
         ? { clipId: payload.arguments.clip_id as string, durationMs: payload.arguments.duration_ms as number } : undefined
       operation.private.show = result.record
       operation.private.changes.push(...result.changes)

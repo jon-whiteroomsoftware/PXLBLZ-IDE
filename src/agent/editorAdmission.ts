@@ -1,9 +1,13 @@
 import Ajv, { type ErrorObject } from 'ajv'
 import schemaText from '../../schemas/show-record.schema.json?raw'
-import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowPatternRef, ShowRecord } from '@/engine/personalContentRecords'
 import type { ShowEditRequest, ShowEditReceipt, ShowEditCompletion } from '@/engine/showEditAdmission'
 import type { ShowInputWaitReceipt } from '@/engine/showInputWait'
-import { captureShowAuthoringBaseline, validateShowAuthoring } from '@/engine/showAuthoringValidation'
+import { captureShowAuthoringBaseline, validateShowAuthoring, type ShowAuthoringBaseline } from '@/engine/showAuthoringValidation'
+import { captureAgentShowSnapshotV2, captureShowAuthoringBaselineV2 } from '@/engine/showAuthoringValidationV2'
+import { isShowRecordV2, type ShowDocument } from '@/engine/showDocument'
+import { resolveCapturedShowPatternReplacementV2 } from '@/engine/showV2ClipReplacementModel'
+import type { ShowV2PilotPreparedCapture } from '@/store/showV2PreparedEditAdmission'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useLibraryStore } from '@/store/libraryStore'
@@ -17,7 +21,7 @@ import {
   type AgentPatternDiscoveryFilter,
 } from '@/engine/agentDiscovery'
 export type AgentApplyPhase = 'admitted' | 'adopted' | 'settled' | 'rejected' | 'failed'
-export type AgentAdmissionObserver = (request: ShowEditRequest, phase: AgentApplyPhase, show: ShowRecord | undefined, historyDepth: number) => void
+export type AgentAdmissionObserver = (request: ShowEditRequest, phase: AgentApplyPhase, show: ShowDocument | undefined, historyDepth: number) => void
 import { captureAgentShowSnapshot } from '@/engine/agentShowSnapshot'
 import { parseAgentResizeIntent, sameAgentResizeIntent, type AgentResizeIntent } from '@/engine/agentResizeProtocol'
 import { applyShowCommand } from '@/engine/showCommands/registry'
@@ -91,16 +95,38 @@ export function observeAgentLocation(listener: () => void): () => void {
   }
 }
 
+/**
+ * Which record version this editor holds, and - for a v2 record - its prepared
+ * capture (#1039).
+ *
+ * The version is declared by the route that mounts the admission rather than
+ * guessed from the store, so the editor and the commands attached to it are
+ * always the same version for one Show (specification section 10). The capture
+ * is the route's own prepared context: the same object its typed UI intents
+ * adopt through, so a command sequence and a manual edit are checked against
+ * one Stage preparation.
+ */
+export interface AgentEditorRecordBinding {
+  recordVersion?: 1 | 2
+  capture?: () => ShowV2PilotPreparedCapture | null
+  /** Trusted route-lifetime and captured-dependency check the v2 admission calls back into. */
+  isCurrentCapture?: () => boolean
+}
+
 /** Shared immutable Show admission. No transport callback or caller-supplied
  * validator can bypass the editor revision, metadata, input-wait or save owner. */
-export function createAgentEditorAdmission(showId: string, getContext: () => unknown, bindFieldActivity?: (acquire: () => () => void) => () => void, onObservation?: AgentAdmissionObserver) {
+export function createAgentEditorAdmission(showId: string, getContext: () => unknown, bindFieldActivity?: (acquire: () => () => void) => () => void, onObservation?: AgentAdmissionObserver, binding: AgentEditorRecordBinding = {}) {
   const store = () => useShowStore.getState()
   const pathname = window.location.pathname
+  const v2 = binding.recordVersion === 2
   const sessionId = store().beginShowEditSession(showId)
+  /** The one record this editor holds, in the version the route declared. */
+  const resolveShow = (): ShowDocument | undefined => (v2 ? store().showV2Pilots[showId] : store().resolveEditableShow(showId))
+  const capture = (): ShowV2PilotPreparedCapture | null => binding.capture?.() ?? null
   let retired = false
   const listeners = new Set<() => void>()
   const resizeEntries = new Map<string, { request: ShowEditRequest; intent: AgentResizeIntent }>()
-  const entries = new Map<string, { request: ShowEditRequest; show: ShowRecord; context: unknown; baseline: ReturnType<typeof captureShowAuthoringBaseline>; invalidated: boolean; delivered?: boolean; retryResize?: AgentResizeIntent }>()
+  const entries = new Map<string, { request: ShowEditRequest; show: ShowDocument; context: unknown; baseline: ShowAuthoringBaseline; invalidated: boolean; delivered?: boolean; retryResize?: AgentResizeIntent }>()
   let metadataStops: Array<() => void> = []
   const releaseMetadata = () => {
     if ([...entries.values()].some(entry => store().readShowEdit(sessionId, entry.request.operationId)?.status === 'pending')) return
@@ -108,8 +134,8 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     metadataStops = []
   }
   const observe = (request: ShowEditRequest, phase: AgentApplyPhase) => {
-    const current = store().resolveEditableShow(showId)
-    onObservation?.(request, phase, current, store().showHistories[showId]?.past.length ?? 0)
+    const histories = v2 ? store().showV2Histories : store().showHistories
+    onObservation?.(request, phase, resolveShow(), histories[showId]?.past.length ?? 0)
   }
   const observedSettlement = new Set<string>()
   const observedApplication = new Set<string>()
@@ -182,7 +208,14 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       useMapStore.subscribe((a, b) => { if (a.userMaps !== b.userMaps) invalidate() }),
     ]
   }
-  const validate = (candidate: ShowRecord, entry: { show: ShowRecord; baseline: ReturnType<typeof captureShowAuthoringBaseline> }, stage: 'authoring' | 'normalized'): ShowEditValidationResult => {
+  /** The Stage dimension a v1 snapshot projects at; a v2 record resolves its own. */
+  const v1StageDimension = (record: ShowRecord): 1 | 2 | 3 => (
+    [...STOCK_MAPS, ...useMapStore.getState().userMaps].find(map => map.id === record.stageMapId)?.dim === 3 ? 3 : 2
+  )
+  const authoringBaseline = (show: ShowDocument): ShowAuthoringBaseline => (
+    isShowRecordV2(show) ? captureShowAuthoringBaselineV2(show, metadata()) : captureShowAuthoringBaseline(show, metadata())
+  )
+  const validate = (candidate: ShowRecord, entry: { show: ShowRecord; baseline: ShowAuthoringBaseline }, stage: 'authoring' | 'normalized'): ShowEditValidationResult => {
     const stageMap = [...STOCK_MAPS, ...useMapStore.getState().userMaps].find(map => map.id === candidate.stageMapId)
     if (candidate.stageMapId && candidate.stageMapId !== entry.show.stageMapId && (!stageMap || (stageMap.dim !== 2 && stageMap.dim !== 3))) {
       return { valid: false, diagnostic: showEditDiagnosticInput(stage, [{ code: 'map-metadata-unavailable', path: JSON.stringify(['stageMap', candidate.stageMapId]) }]) }
@@ -233,7 +266,9 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
   return {
     sessionId, available, close,
     onClose(listener: () => void) { if (retired) listener(); else listeners.add(listener); return () => { listeners.delete(listener) } },
-    getShow() { return available() ? structuredClone(store().resolveEditableShow(showId)) : undefined },
+    /** The record this editor holds, in its own version: `read_show` returns v2 for a v2 record. */
+    getShow() { return available() ? structuredClone(resolveShow()) : undefined },
+    recordVersion: v2 ? 2 as const : 1 as const,
     getEditorFocus() { return available() ? structuredClone(getContext()) : undefined },
     getPatterns(filter: AgentPatternDiscoveryFilter = {}) {
       if (!available()) return undefined
@@ -249,6 +284,16 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     captureCommandContext() {
       if (!available()) return undefined
       const { stock, personal, libraries } = capturePatternMetadata()
+      if (v2) {
+        // The v2 catalogue resolves a Pattern through the route's own captured
+        // bundle, so a command and the inspector replace a Pattern identically.
+        const prepared = capture()
+        if (!prepared) return undefined
+        return {
+          commandContext: { resolvePattern: (ref: { kind: string; id: string }) => resolveCapturedShowPatternReplacementV2(prepared, ref as ShowPatternRef) },
+          retainedBytes: new TextEncoder().encode(JSON.stringify({ stock, personal, libraries })).byteLength,
+        }
+      }
       return {
         commandContext: {
           source: (ref: { kind: string; id: string }) => ref.kind === 'stock' ? stock[resolveStockPatternId(ref.id)] : personal[ref.id],
@@ -279,17 +324,20 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     beginRequest(operationId: string, utterance: string, history: unknown, maxCaptureBytes = Infinity) {
       if (!available() || typeof operationId !== 'string' || !operationId || typeof utterance !== 'string') return undefined
       const prior = entries.get(operationId)
-      const current = prior?.show ?? structuredClone(store().resolveEditableShow(showId))
+      const current = prior?.show ?? structuredClone(resolveShow())
       if (!current) return undefined
-      const stageMap = [...STOCK_MAPS, ...useMapStore.getState().userMaps].find(map => map.id === current.stageMapId)
-      const show = prior?.show ?? captureAgentShowSnapshot(current, metadata().source, stageMap?.dim === 3 ? 3 : 2)
+      // A v2 record is already the one representation commands read; a v1 flat
+      // Show is projected into a composition before an agent can address it.
+      const show = prior?.show ?? (isShowRecordV2(current)
+        ? captureAgentShowSnapshotV2(current)
+        : captureAgentShowSnapshot(current, metadata().source, v1StageDimension(current)))
       if (!show) return undefined
       const context = prior?.context ?? structuredClone(getContext())
       const identity = { operationId, payloadKey: JSON.stringify({ utterance, history }), referenceContext: JSON.stringify(context), targets: [showId] }
       if (new TextEncoder().encode(JSON.stringify({ show, context, request: { ...identity, sessionId, showId, baseRevision: Number.MAX_SAFE_INTEGER } })).byteLength > maxCaptureBytes) return undefined
       const result = store().beginShowEdit(sessionId, identity)
       if (result.status !== 'pending') return undefined
-      if (!prior) entries.set(operationId, { request: result.request, show, context, baseline: captureShowAuthoringBaseline(show, metadata()), invalidated: false })
+      if (!prior) entries.set(operationId, { request: result.request, show, context, baseline: authoringBaseline(show), invalidated: false })
       watchMetadata()
       return structuredClone({ request: result.request, show, context })
     },
@@ -298,10 +346,28 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       if (!request || request.sessionId !== sessionId) return invalid(request)
       const entry = entries.get(request.operationId)
       if (!entry || JSON.stringify(request) !== JSON.stringify(entry.request)) return invalid(request)
-      const binding = parseAgentResizeIntent(retryResize)
-      if ((retryResize !== undefined && (!binding || !matchesResize(entry.show, candidate, binding)))
+      if (v2) {
+        const prepared = capture()
+        // The Stage capture is the editor's own; without it there is nothing to
+        // check this candidate against and nothing to adopt it into.
+        if (!prepared) return store().invalidateShowEditCandidate(request) ?? invalid(request)
+        if (retryResize !== undefined || request.retryOf) return store().invalidateShowEditCandidate(request) ?? invalid(request)
+        const existingV2 = store().readShowEditCandidate(sessionId, request.operationId)
+        if (existingV2?.status === 'pending') observe(request, 'admitted')
+        const receipt = store().deliverShowV2EditCandidate({
+          request, candidate, capture: prepared, baseline: entry.baseline,
+          isCurrent: () => (binding.isCurrentCapture?.() ?? true) && capture() === prepared,
+          invalidated: () => entry.invalidated,
+        })
+        observeOutcome(receipt)
+        releaseMetadata()
+        return receipt
+      }
+      const v1Entry = entry as typeof entry & { show: ShowRecord }
+      const resizeBinding = parseAgentResizeIntent(retryResize)
+      if ((retryResize !== undefined && (!resizeBinding || !matchesResize(v1Entry.show, candidate, resizeBinding)))
         || (entry.retryResize && !sameAgentResizeIntent(entry.retryResize, retryResize))
-        || (request.retryOf && (!binding || !matchesResize(entry.show, candidate, binding)))) {
+        || (request.retryOf && (!resizeBinding || !matchesResize(v1Entry.show, candidate, resizeBinding)))) {
         const result = store().invalidateShowEditCandidate(request)
         observeOutcome(result)
         releaseMetadata()
@@ -309,16 +375,16 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       }
       if (!entry.delivered) {
         entry.delivered = true
-        if (binding && matchesResize(entry.show, candidate, binding)) entry.retryResize = binding
+        if (resizeBinding && matchesResize(v1Entry.show, candidate, resizeBinding)) entry.retryResize = resizeBinding
       }
       const existing = store().readShowEditCandidate(sessionId, request.operationId)
       if (existing?.status === 'pending') observe(request, 'admitted')
       const result = store().deliverShowEditCandidate(request, candidate,
-        next => entry.invalidated ? { valid: false, diagnostic: metadataInvalidatedDiagnostic() } : validate(next, entry, 'normalized'),
+        next => entry.invalidated ? { valid: false, diagnostic: metadataInvalidatedDiagnostic() } : validate(next, v1Entry, 'normalized'),
         raw => {
           if (entry.invalidated) return { valid: false, diagnostic: metadataInvalidatedDiagnostic() }
           if (!structural(raw)) return { valid: false, diagnostic: rawSchemaDiagnostic(structural.errors) }
-          return validate(raw as ShowRecord, entry, 'authoring')
+          return validate(raw as ShowRecord, v1Entry, 'authoring')
         })
       observeOutcome(result)
       releaseMetadata()
@@ -348,21 +414,22 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       return result
     },
     beginRetry(operationId: string, original: ShowEditRequest, maxCaptureBytes = Infinity) {
-      if (!available() || !original || typeof operationId !== 'string' || !operationId || operationId === original.operationId) return undefined
+      // Stable resize retry qualifies one v1 `resize_clip`; a v2 record has no
+      // qualified retry, so a v2 editor offers none rather than approximating.
+      if (v2 || !available() || !original || typeof operationId !== 'string' || !operationId || operationId === original.operationId) return undefined
       const entry = entries.get(original.operationId)
       if (!entry?.retryResize || JSON.stringify(original) !== JSON.stringify(entry.request) || !retryEligible(original)) return undefined
       const prior = entries.get(operationId)
-      const current = prior?.show ?? store().resolveEditableShow(showId)
+      const current = (prior?.show ?? store().resolveEditableShow(showId)) as ShowRecord | undefined
       if (!current) return undefined
-      const stageMap = [...STOCK_MAPS, ...useMapStore.getState().userMaps].find(map => map.id === current.stageMapId)
-      const show = prior?.show ?? captureAgentShowSnapshot(current, metadata().source, stageMap?.dim === 3 ? 3 : 2)
+      const show = prior?.show ?? captureAgentShowSnapshot(current, metadata().source, v1StageDimension(current))
       if (!show) return undefined
       const { payloadKey, referenceContext, targets } = entry.request
       const identity = { operationId, retryOf: original.operationId, payloadKey, referenceContext, targets }
       if (new TextEncoder().encode(JSON.stringify({ show, context: entry.context, retryResize: entry.retryResize, request: { ...identity, sessionId, showId, baseRevision: Number.MAX_SAFE_INTEGER } })).byteLength > maxCaptureBytes) return undefined
       const result = store().beginShowEdit(sessionId, identity)
       if (result.status !== 'pending') return undefined
-      if (!prior) entries.set(operationId, { request: result.request, show, context: structuredClone(entry.context), baseline: captureShowAuthoringBaseline(show, metadata()), invalidated: false, retryResize: structuredClone(entry.retryResize) })
+      if (!prior) entries.set(operationId, { request: result.request, show, context: structuredClone(entry.context), baseline: authoringBaseline(show), invalidated: false, retryResize: structuredClone(entry.retryResize) })
       watchMetadata()
       return structuredClone({ request: result.request, show, context: entry.context, retryResize: entry.retryResize })
     },

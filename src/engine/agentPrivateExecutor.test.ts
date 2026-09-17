@@ -4,6 +4,9 @@ import { MAX_AGENT_DELIVERY_RESULT_BYTES } from './agentDeliveryJournal'
 import { createAgentPrivateExecutor, type PrivateEditOwner } from './agentPrivateExecutor'
 import type { ShowEditRequest } from './showEditAdmission'
 import { applyShowCommand } from './showCommands/registry'
+import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { convertibleV1Show } from '../test/showV2TracerFixture'
+import type { ShowRecordV2 } from './showCompositionV2'
 
 describe('browser private edit executor', () => {
   const scope = { bindingId: 'binding', sessionId: 'session' }
@@ -207,4 +210,67 @@ it('expires cached results without permitting an old delivery to execute again',
     expect(owner.capture).toHaveBeenCalledTimes(1)
     expect(executor.getOutcome('op')).toMatchObject({ receipt: { status: 'pending' } })
   } finally { vi.useRealTimers() }
+})
+
+describe('browser private edit executor on a v2 record', () => {
+  const scope = { bindingId: 'binding', sessionId: 'session' }
+  function setup() {
+    const converted = convertShowRecordV1ToV2(convertibleV1Show())
+    if (converted.status !== 'converted') throw new Error('Conversion')
+    let current: ShowRecordV2 = converted.record
+    const request: ShowEditRequest = { ...scope, showId: current.id, operationId: 'binding:op', payloadKey: 'intent', referenceContext: '{}', targets: [current.id], baseRevision: 0 }
+    const owner: PrivateEditOwner = {
+      capture: vi.fn(() => ({ request, show: structuredClone(current), context: {}, commandContext: {}, retainedBytes: 10000 })),
+      apply: vi.fn(show => { current = structuredClone(show) as ShowRecordV2; return { status: 'applied', settlement: 'saved' } }),
+      complete: vi.fn((_request, completion) => ({ status: 'completed', completion })),
+      cancel: vi.fn(() => ({ status: 'cancelled' })),
+      outcome: vi.fn(() => ({ status: 'applied', settlement: 'saved' })),
+    }
+    const executor = createAgentPrivateExecutor(scope, owner)
+    const send = (sequence: number, payload: unknown) => executor.deliver({ ...scope, operationId: 'op', deliveryId: `d${sequence}`, sequence, payload })
+    return { owner, executor, send, current: () => current }
+  }
+  const begin = { kind: 'begin_edit', intent: 'Rename the Show' }
+
+  it('folds the v2 catalogue over the private candidate and adopts the v2 record once', () => {
+    const { owner, send, current } = setup()
+    const before = structuredClone(current())
+    expect(send(0, begin).code).toBe('begun')
+    const changed = send(1, { kind: 'command', name: 'rename_show', arguments: { name: 'Renamed by command' } })
+    expect(changed).toMatchObject({ code: 'changed', changes: [{ command: 'rename_show' }] })
+    expect(current()).toEqual(before)
+    expect(send(2, { kind: 'commit_edit' }).code).toBe('outcome')
+    expect(current().name).toBe('Renamed by command')
+    expect(current().version).toBe(2)
+    expect(owner.apply).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a v2 no-op as noop and a v2 domain refusal with its own issues, keeping the candidate open', () => {
+    const { owner, send, current } = setup()
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, { kind: 'command', name: 'rename_show', arguments: { name: current().name } })).toMatchObject({ code: 'noop', changes: [] })
+    const refused = send(2, { kind: 'command', name: 'remove_clips', arguments: { clip_ids: ['not-a-clip'] } })
+    expect(refused.code).toBe('refused')
+    expect((refused as unknown as { issues: Array<{ code: string; message: string }> }).issues.length).toBeGreaterThan(0)
+    expect(send(3, { kind: 'command', name: 'rename_show', arguments: { name: 'After the refusal' } }).code).toBe('changed')
+    expect(send(4, { kind: 'commit_edit' }).code).toBe('outcome')
+    expect(current().name).toBe('After the refusal')
+    expect(owner.apply).toHaveBeenCalledTimes(1)
+  })
+
+  it('completes a v2 operation that changed nothing without adopting', () => {
+    const { owner, send } = setup()
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, { kind: 'commit_edit' }).code).toBe('outcome')
+    expect(owner.apply).not.toHaveBeenCalled()
+    expect(owner.complete).toHaveBeenCalledWith(expect.anything(), 'nothing-applied')
+  })
+
+  it('offers no stable resize retry for a v2 candidate', () => {
+    const { executor, send } = setup()
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, { kind: 'command', name: 'rename_show', arguments: { name: 'Retryable?' } }).code).toBe('changed')
+    expect(send(2, { kind: 'commit_edit' }).code).toBe('outcome')
+    expect(executor.retry('op', 'retry').code).toBe('not_qualified')
+  })
 })

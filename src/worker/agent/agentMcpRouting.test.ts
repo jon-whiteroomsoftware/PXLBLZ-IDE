@@ -24,12 +24,30 @@ async function request(env: WorkerEnv, method: string, params?: unknown, validat
 
 async function call(owner: { fetch: ReturnType<typeof vi.fn> }, name: string, args: object = {}) {
   const env = {
-    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => owner },
+    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
     ASSETS: { fetch: vi.fn() },
     AGENT_SERVICE_ENABLED: '1',
   } as unknown as WorkerEnv
   const response = await request(env, 'tools/call', { name, arguments: args })
   return (await response.json() as { result: { content: Array<{ text: string }>; structuredContent: Record<string, unknown>; isError?: boolean } }).result
+}
+
+/**
+ * The account stub these tests bind to. The MCP server asks it which record
+ * version the bound editor holds before it registers a tool (#1039), so the
+ * stub answers that read itself and forwards every tool call to the test's own
+ * owner - which keeps "one authoritative owner response per tool call" exact.
+ */
+function account(owner: { fetch: ReturnType<typeof vi.fn> | ((input: Request) => Promise<Response>) }, showVersion?: 1 | 2) {
+  return {
+    fetch: async (input: Request) => {
+      const body = await input.clone().json() as { type?: string }
+      if (body.type === 'external-tool-inspect-binding') {
+        return Response.json(showVersion ? { code: 'bound', binding: { ...claim, showVersion } } : { code: 'no_live_editor' })
+      }
+      return (owner.fetch as (input: Request) => Promise<Response>)(input)
+    },
+  }
 }
 
 function expectCopies(result: { content: Array<{ text: string }>; structuredContent: Record<string, unknown> }) {
@@ -78,7 +96,7 @@ it.each([
 it.each(['list_patterns', 'list_controller_profiles'] as const)('%s rejects an expired grant before contacting the owner', async name => {
   const owner = { fetch: vi.fn() }
   const env = {
-    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => owner },
+    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
     ASSETS: { fetch: vi.fn() },
     AGENT_SERVICE_ENABLED: '1',
   } as unknown as WorkerEnv
@@ -94,7 +112,7 @@ it('preserves no_live_editor for every read query when the browser binding is re
   for (const name of ['read_show', 'get_context', 'list_patterns', 'list_controller_profiles']) {
     const owner = { fetch: vi.fn(async () => Response.json({ code: 'retirement_unconfirmed' })) }
     const env = {
-      AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => owner },
+      AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
       ASSETS: { fetch: vi.fn() },
       AGENT_SERVICE_ENABLED: '1',
     } as unknown as WorkerEnv
@@ -114,7 +132,7 @@ it('serializes the actual retained outcome diagnostic in text and structured MCP
   })!
   const owner = { fetch: vi.fn().mockResolvedValueOnce(Response.json({ code: 'outcome', receipt })) }
   const env = {
-    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => owner },
+    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
     ASSETS: { fetch: vi.fn() },
     AGENT_SERVICE_ENABLED: '1',
   } as unknown as WorkerEnv
@@ -306,7 +324,7 @@ async function catalogueRequest(env: WorkerEnv, method: string, params: unknown,
 async function listedCommands(catalogue: 'v1' | 'v2') {
   const owner = { fetch: vi.fn().mockResolvedValue(Response.json({ code: 'no_live_editor' })) }
   const env = {
-    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => owner },
+    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
     ASSETS: { fetch: vi.fn() },
     AGENT_SERVICE_ENABLED: '1',
   } as unknown as WorkerEnv
@@ -342,4 +360,36 @@ it('list_commands carries each v2 catalogue entry own field metadata', async () 
     expect(entry.fields, descriptor.name).toEqual(descriptor.fields)
     expect(entry.exactlyOne, descriptor.name).toEqual(descriptor.exactlyOne)
   }
+})
+
+it.each([
+  [1, SHOW_COMMANDS],
+  [2, SHOW_COMMANDS_V2],
+] as const)('registers the catalogue the bound editor record version %i needs', async (showVersion, expected) => {
+  const owner = { fetch: vi.fn().mockResolvedValue(Response.json({ code: 'no_live_editor' })) }
+  const env = {
+    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner, showVersion) },
+    ASSETS: { fetch: vi.fn() },
+    AGENT_SERVICE_ENABLED: '1',
+  } as unknown as WorkerEnv
+  const response = await request(env, 'tools/list')
+  const tools = new Set((await response.json() as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
+  for (const command of expected) expect(tools, command.name).toContain(command.name)
+  const absent = (showVersion === 2 ? SHOW_COMMANDS : SHOW_COMMANDS_V2).filter(command => !expected.some(entry => entry.name === command.name))
+  expect(absent.length).toBeGreaterThan(0)
+  for (const command of absent) expect(tools, command.name).not.toContain(command.name)
+  // The binding read is not a tool call: it neither reaches the owner's tool
+  // surface nor consumes one of its rate-limited agent calls.
+  expect(owner.fetch).not.toHaveBeenCalled()
+})
+
+it('falls back to the v1 catalogue when no editor is bound', async () => {
+  const owner = { fetch: vi.fn().mockResolvedValue(Response.json({ code: 'no_live_editor' })) }
+  const env = {
+    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
+    ASSETS: { fetch: vi.fn() },
+    AGENT_SERVICE_ENABLED: '1',
+  } as unknown as WorkerEnv
+  const tools = new Set(((await (await request(env, 'tools/list')).json()) as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
+  for (const command of SHOW_COMMANDS) expect(tools, command.name).toContain(command.name)
 })

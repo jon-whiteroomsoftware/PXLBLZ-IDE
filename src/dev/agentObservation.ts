@@ -7,7 +7,7 @@
 // `import.meta.env.DEV` only, the log holds no transcript, utterance, or
 // Pattern source (a record is reduced to a digest), and the only way out is
 // `window.__pxlblzObservations.read()`, which hands back copies.
-import type { ShowRecord } from '@/engine/personalContentRecords'
+import { isShowRecordV2, type ShowDocument } from '@/engine/showDocument'
 
 export type AgentApplyPhase =
   /** `applyShow` was called with a record for this editor install. */
@@ -94,8 +94,16 @@ export function createObservationLog(capacity = 200): ObservationLog {
  * compiled by the preview yields one digest even though adoption keeps the
  * candidate's captured `updatedAt`.
  */
-export function showRecordDigest(show: ShowRecord): string {
-  const text = JSON.stringify({
+export function showRecordDigest(show: ShowDocument): string {
+  const text = JSON.stringify(isShowRecordV2(show) ? {
+    version: 2,
+    zones: show.zones,
+    zoneLayouts: show.zoneLayouts,
+    composition: show.composition,
+    outputEffects: show.outputEffects ?? null,
+    outputContract: show.outputContract,
+    stageMapId: show.stageMapId ?? null,
+  } : {
     scenes: show.scenes,
     zones: show.zones,
     cells: show.cells,

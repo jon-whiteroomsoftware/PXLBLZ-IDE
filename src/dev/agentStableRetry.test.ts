@@ -5,6 +5,12 @@ import { resetPersonalContentProvider, setPersonalContentProvider, type Personal
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { createAgentEditorAdmission } from './agentEditorAdmission'
 
+import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowDocument } from '@/engine/showDocument'
+
+/** These diagnostics drive a v1 editor; the shared admission is version-agnostic (#1039). */
+const v1 = (show: ShowDocument): ShowRecord => show as ShowRecord
+
 const state = () => useShowStore.getState()
 const intent = { clipId: 'resize-a', durationMs: 6000 }
 let close = () => {}
@@ -19,7 +25,7 @@ it('retains the exact binding through ordinary save rollback and retries without
   const api = createAgentEditorAdmission(show.id, () => ({}))
   close = api.close
   const first = api.beginRequest('first', 'resize first', [])!
-  const candidate = applyShowCommand(first.show, 'resize_clip', { clip_id: 'resize-a', duration_ms: 6000 })
+  const candidate = applyShowCommand(v1(first.show), 'resize_clip', { clip_id: 'resize-a', duration_ms: 6000 })
   if (!candidate.ok) throw new Error('fixture')
   api.applyShow(candidate.record, first.request, intent)
   expect(api.retryIntent(first.request)).toBeUndefined()
@@ -44,7 +50,7 @@ it('retains broad identity while retrying the original Clip against fresh state'
   const api = createAgentEditorAdmission(show.id, () => focus)
   close = api.close
   const original = api.beginRequest('original', 'resize the first Clip', [])!
-  const candidate = applyShowCommand(original.show, 'resize_clip', { clip_id: intent.clipId, duration_ms: intent.durationMs })
+  const candidate = applyShowCommand(v1(original.show), 'resize_clip', { clip_id: intent.clipId, duration_ms: intent.durationMs })
   if (!candidate.ok) throw new Error('invalid fixture')
   await state().updateShow(show.id, { ...state().shows[0], name: 'Manual work' })
   expect(api.applyShow(candidate.record, original.request, intent)).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
@@ -54,7 +60,7 @@ it('retains broad identity while retrying the original Clip against fresh state'
   expect(retry.request.baseRevision).toBeGreaterThan(original.request.baseRevision)
   expect(retry.show.name).toBe('Manual work')
   expect(retry.retryResize).toEqual(intent)
-  const fresh = applyShowCommand(retry.show, 'resize_clip', { clip_id: intent.clipId, duration_ms: intent.durationMs })
+  const fresh = applyShowCommand(v1(retry.show), 'resize_clip', { clip_id: intent.clipId, duration_ms: intent.durationMs })
   if (!fresh.ok) throw new Error('invalid retry fixture')
   expect(api.applyShow(fresh.record, retry.request, intent)).toMatchObject({ status: 'applied' })
   await vi.waitFor(() => expect(api.readOutcome(retry.request)).toMatchObject({ settlement: 'saved' }))
@@ -74,7 +80,7 @@ it.each(['malformed', 'changed-binding', 'stale-candidate', 'foreign-envelope', 
   const api = createAgentEditorAdmission(show.id, () => ({ selection: { kind: 'clip', clipId: 'resize-a' } }))
   close = api.close
   const first = api.beginRequest('first', 'first Clip six seconds', [{ role: 'user', text: 'before' }])!
-  const edited = applyShowCommand(first.show, 'resize_clip', { clip_id: 'resize-a', duration_ms: 6000 })
+  const edited = applyShowCommand(v1(first.show), 'resize_clip', { clip_id: 'resize-a', duration_ms: 6000 })
   if (!edited.ok) throw new Error('fixture')
   expect(api.retryIntent(first.request)).toBeUndefined()
   await state().updateShow(show.id, { ...state().shows[0], name: 'Keep manual work' })
@@ -82,7 +88,7 @@ it.each(['malformed', 'changed-binding', 'stale-candidate', 'foreign-envelope', 
   const retry = api.beginRetry('second', first.request)!
   expect(api.beginRetry('second', first.request)).toEqual(retry)
   expect(api.beginRetry('foreign', { ...first.request, payloadKey: 'changed' })).toBeUndefined()
-  const fresh = applyShowCommand(retry.show, 'resize_clip', { clip_id: 'resize-a', duration_ms: 6000 })
+  const fresh = applyShowCommand(v1(retry.show), 'resize_clip', { clip_id: 'resize-a', duration_ms: 6000 })
   if (!fresh.ok) throw new Error('fixture')
   const before = structuredClone({ shows: state().shows, histories: state().showHistories })
   if (action === 'retry-of-retry') {

@@ -7,6 +7,15 @@ export interface EditorRegistration {
   sessionId: string
   showId: string
   showName?: string
+  /**
+   * The record version this editor holds (#1039). The browser declares it,
+   * because the open record is what commands act on: a v1 row opened on the v2
+   * route is a v2 working copy no server-side row inspection would report.
+   * It selects the command catalogue a connected tool discovers; the private
+   * executor still dispatches on the captured record itself, so a wrong claim
+   * narrows discovery rather than admitting a mismatched command.
+   */
+  showVersion?: 1 | 2
   lastSeenAt: number
 }
 export interface AgentClaim {
@@ -27,7 +36,7 @@ export interface RendezvousState {
 }
 export type WindowIdentity = Pick<EditorRegistration, 'registrationId' | 'sessionId' | 'showId'>
 export type WindowCommand =
-  | ({ type: 'register'; showName?: string } & WindowIdentity)
+  | ({ type: 'register'; showName?: string; showVersion?: 1 | 2 } & WindowIdentity)
   | ({ type: 'arm' | 'poll' | 'heartbeat' | 'leave' | 'disarm' } & WindowIdentity)
   | ({ type: 'answer' | 'decline'; callId: string } & WindowIdentity)
   | ({ type: 'disconnect' | 'retirement-ack'; bindingId: string } & WindowIdentity)
@@ -37,6 +46,7 @@ export type RendezvousCommand = WindowCommand
   | ({ type: 'connect-external' } & AgentClaim)
   | { type: 'resolve-external'; agentId: string; callId?: string }
   | { type: 'resolve-external-tool'; agentId: string; callId?: string; expectedBindingId?: string }
+  | { type: 'inspect-external-tool-binding'; agentId: string }
   | ({ type: 'resolve-builtin' } & WindowIdentity)
   | ({ type: 'disconnect-forget'; bindingId: string } & WindowIdentity)
   | ({ type: 'inspect-external-move'; expectedBindingId: string } & WindowIdentity)
@@ -79,6 +89,14 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
     if (command.type === 'resolve-external') return result('no_live_editor')
     if (command.agentKind !== 'external') return result('invalid_request')
     return transitionRendezvous(state, { ...command, type: 'claim' }, now)
+  }
+  // A read of the bound editor only (#1039): the MCP server asks which record
+  // version it is describing tools for. It consumes no move notice, changes no
+  // slot and is not a tool call, so it is exempt from the agent's rate window.
+  if (command.type === 'inspect-external-tool-binding') {
+    const slot = state.slot
+    if (!slot || slot.kind !== 'bound' || slot.agentKind !== 'external' || slot.agentId !== command.agentId || slot.retiring) return result('no_live_editor')
+    return { state, result: { code: 'bound', claim: slotClaim(slot) } }
   }
   if (command.type === 'resolve-external-tool') {
     const slot = state.slot
@@ -135,7 +153,8 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
     if (state.registrations.some((item) => item.sessionId === command.sessionId || item.registrationId === command.registrationId)) return result('already_registered')
     if (state.registrations.length >= MAX_REGISTRATIONS) return result('capacity')
     const showName = typeof command.showName === 'string' && command.showName.length > 0 && command.showName.length <= 128 ? command.showName : undefined
-    state.registrations.push({ registrationId: command.registrationId, sessionId: command.sessionId, showId: command.showId, ...(showName ? { showName } : {}), lastSeenAt: now })
+    const showVersion = command.showVersion === 2 ? 2 as const : 1 as const
+    state.registrations.push({ registrationId: command.registrationId, sessionId: command.sessionId, showId: command.showId, ...(showName ? { showName } : {}), showVersion, lastSeenAt: now })
     return result('registered')
   }
   if (command.type === 'claim') {
