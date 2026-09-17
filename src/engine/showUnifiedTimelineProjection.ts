@@ -52,6 +52,8 @@ export interface ShowUnifiedTimelineGroupProjection {
 
 export interface ShowUnifiedTimelineLayerProjection {
   id: string
+  /** Authored Layer name; the first Scene owning this overlay ordinal supplies it. */
+  name: string
   kind: 'main' | 'overlay'
   layerIndex: number
   clips: ShowUnifiedTimelineClipProjection[]
@@ -123,6 +125,11 @@ export function projectShowUnifiedTimeline(
         { length: maximumOverlayCount },
         (_, layerIndex) => projectLayer({
           id: `${zone.id}:overlay:${layerIndex}`,
+          name: projectedComposition.scenes.flatMap((sceneComposition) => {
+            const layer = sceneComposition.zones
+              .find((candidate) => candidate.zoneId === zone.id)?.overlays[layerIndex]
+            return layer ? [layer.name] : []
+          })[0] ?? `Layer ${maximumOverlayCount - layerIndex}`,
           kind: 'overlay',
           layerIndex,
           clips: coalesceLogicalClips(projectedComposition.scenes.flatMap((sceneComposition) => {
@@ -149,6 +156,7 @@ export function projectShowUnifiedTimeline(
       )
       const mainLayer = projectLayer({
         id: `${zone.id}:main`,
+        name: 'Main',
         kind: 'main',
         layerIndex: maximumOverlayCount,
         clips: coalesceLogicalClips(projectedComposition.scenes.flatMap((sceneComposition) => {

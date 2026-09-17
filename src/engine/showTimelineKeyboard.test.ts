@@ -28,6 +28,7 @@ const timeline: ShowUnifiedTimelineProjection = {
       layers: [
         {
           id: 'overlay-a',
+          name: 'Atmosphere',
           kind: 'overlay',
           layerIndex: 0,
           junctions: [],
@@ -35,6 +36,7 @@ const timeline: ShowUnifiedTimelineProjection = {
         },
         {
           id: 'main-a',
+          name: 'Main',
           kind: 'main',
           layerIndex: 1,
           junctions: [],
@@ -52,6 +54,7 @@ const timeline: ShowUnifiedTimelineProjection = {
       groups: [],
       layers: [{
         id: 'main-b',
+        name: 'Main',
         kind: 'main',
         layerIndex: 0,
         junctions: [],
