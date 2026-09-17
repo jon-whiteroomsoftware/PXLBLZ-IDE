@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1056",
+  "route": "/PXLBLZ-IDE/studio/shows/show-editor-v2-readonly?show-v2-editor=1",
+  "operation": "Seeded a stored ShowRecordV2 through PUT /api/shows/:id?show-version=2 and opened it on the ordinary Show editor route behind the version gate. Desktop 1440x1000 shows the read-only status line, the ruler, the Full Layout occurrence, the Opening chapter Marker with End 1.00s, the Main Zone row with its overlay and Main Layer lanes, the Outgoing and Incoming Clips with the crossfade junction between them, and the prepared-v2 Stage preview. The focus capture gives the Opening chapter Marker keyboard focus. The narrow capture is 390x844 after Tab traversal from the Layout occurrence to the Marker, with no horizontal overflow. The fourth capture is a v1 Show on the same route at the same commit, rendering the unchanged v1 editor. Driven with repository Playwright through scripts/run-authenticated-playwright.ts as the synthetic authenticated user; the Codex in-app browser is not available to this agent.",
+  "captures": [
+    ".wrsp/ui-proof/1056-s1-desktop.png",
+    ".wrsp/ui-proof/1056-s1-desktop-focus.png",
+    ".wrsp/ui-proof/1056-s1-narrow.png",
+    ".wrsp/ui-proof/1056-s1-v1-route.png"
+  ],
+  "capturedAtCommit": "dfda8cedd2271ce2a684b1388d7893dbb2c00d58"
+}
