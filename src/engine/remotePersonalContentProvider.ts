@@ -160,6 +160,13 @@ export function createRemotePersonalContentProvider(
       const body = await requestJson<{ shows: unknown[] }>(fetcher, '/api/shows?show-version=2')
       return body.shows.filter(isShowRecordV2) as ShowRecordV2[]
     },
+    createShowV2: async (record) => {
+      await requestJson(fetcher, '/api/shows?show-version=2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+      })
+    },
     replaceShowV2: async (id, record) => {
       await requestJson(fetcher, `/api/shows/${encodeURIComponent(id)}?show-version=2`, {
         method: 'PUT',

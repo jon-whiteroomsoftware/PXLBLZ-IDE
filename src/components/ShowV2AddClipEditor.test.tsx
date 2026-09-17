@@ -8,7 +8,7 @@ import {buildShowV2TimelineEditorModel} from '@/engine/showV2TimelineEditorModel
 import {getPersonalContentProvider,resetPersonalContentProvider,setPersonalContentProvider} from '@/engine/personalContentProvider'
 import {showInitialState,useShowStore} from '@/store/showStore'
 import {parseProvisionalShowRecordV2,serializeProvisionalShowRecordV2} from '@/engine/showCompositionV2'
-import {ShowV2ClipTimingEditor} from './ShowV2ClipTimingEditor'
+import {ShowV2AddClipEditor} from './ShowV2AddClipEditor'
 beforeEach(()=>{resetPersonalContentProvider();useShowStore.setState(showInitialState)})
 afterEach(()=>resetPersonalContentProvider())
 function setup(matches=0){
@@ -19,7 +19,7 @@ function setup(matches=0){
  for(let index=0;index<matches;index++)record.composition.patternInstances.push({...fresh(),id:`fresh${index+1}`})
  const dependencies={patterns:[{id:'old',name:'Old Voice',src:'export function render2D(i,x,y){rgb(x,y,0)}',controls:{},updatedAt:1},{id:'fresh',name:'Fresh Voice',src:'export var elapsed=0;export function beforeRender(d){elapsed+=d}export function render2D(i,x,y){rgb(x,y,elapsed/100000)}',controls:{},updatedAt:1}],maps:[],libraries:[],profiles:[],stageMap:null}
  const write=vi.fn(async()=>{});setPersonalContentProvider({...getPersonalContentProvider(),id:'runtime-choice',replaceShowV2:write});useShowStore.setState({showV2Pilots:{[record.id]:record},showV2Histories:{[record.id]:{past:[],future:[]}}})
- function Harness(){const current=useShowStore(s=>s.showV2Pilots[record.id]);const[selected,setSelected]=useState('');const[status,setStatus]=useState('');const capture=useMemo(()=>({record:current,dependencies,prepared:prepareShowStageV2(current,dependencies)}),[current]);const model=buildShowV2TimelineEditorModel(capture);return <><ShowV2ClipTimingEditor capture={capture} sources={model.sources} selectedClipId={selected} onSelectClip={setSelected} isCurrentCapture={()=>useShowStore.getState().showV2Pilots[record.id]===current} isCurrentCompletion={receipt=>useShowStore.getState().showV2Pilots[record.id]===receipt.record} onStatus={setStatus}/><output>{status}</output></>}
+ function Harness(){const current=useShowStore(s=>s.showV2Pilots[record.id]);const[,setSelected]=useState('');const[status,setStatus]=useState('');const capture=useMemo(()=>({record:current,dependencies,prepared:prepareShowStageV2(current,dependencies)}),[current]);const model=buildShowV2TimelineEditorModel(capture);return <><ShowV2AddClipEditor capture={capture} sources={model.sources} onCreated={setSelected} isCurrentCapture={()=>useShowStore.getState().showV2Pilots[record.id]===current} isCurrentCompletion={receipt=>useShowStore.getState().showV2Pilots[record.id]===receipt.record} onStatus={setStatus}/><output>{status}</output></>}
  expect(prepareShowStageV2(record,dependencies).status).toBe('ready');render(<Harness/>);return{record,write,fresh}
 }
 function number(label:string,value:string){fireEvent.change(screen.getByLabelText(label),{target:{value}});fireEvent.keyDown(screen.getByLabelText(label),{key:'Enter'})}

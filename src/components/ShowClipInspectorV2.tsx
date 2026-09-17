@@ -29,6 +29,7 @@ import { useShowStore } from '@/store/showStore'
 import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { ShowPatternInstanceControls } from './ShowPatternInstanceControls'
+import { ShowV2AddClipEditor } from './ShowV2AddClipEditor'
 import { ShowV2AppearanceEditor } from './ShowV2AppearanceEditor'
 import { ShowV2ClipReplacementEditor } from './ShowV2ClipReplacementEditor'
 import { ShowV2GroupCreationEditor } from './ShowV2GroupCreationEditor'
@@ -337,6 +338,21 @@ export function ShowClipInspectorV2({
           onStatus={setStatus}
         />
       )}
+
+      {/*
+        Where a Clip that did not exist comes from. The timeline's gestures move
+        and copy Clips; placing a Pattern, with its explicit runtime choice, is
+        this authored decision (slice 6, specification section 4).
+      */}
+      <ShowV2AddClipEditor
+        key={`add-clip:${record.id}`}
+        capture={capture}
+        sources={sources}
+        onCreated={(clipId) => select({ kind: 'clip', clipId })}
+        isCurrentCapture={isCurrentCapture}
+        isCurrentCompletion={isCurrentCompletion}
+        onStatus={setStatus}
+      />
 
       <ShowV2GroupCreationEditor
         key={`groups:${record.id}`}

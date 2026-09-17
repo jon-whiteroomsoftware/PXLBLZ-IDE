@@ -188,7 +188,7 @@ describe('App smoke test', () => {
   it('mounts the opt-in v2 Show route when the ordinary v1 list excludes its record', () => {
     const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
     if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    setStudioLocation(`/studio/shows/${converted.record.id}?show-v2-pilot=1`)
+    setStudioLocation(`/studio/shows/${converted.record.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
     useShowStore.setState({
       shows: [],
@@ -199,7 +199,7 @@ describe('App smoke test', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: 'V2 route qualification' })).toBeInTheDocument()
+    expect(screen.getByTestId('show-editor-v2-route')).toBeInTheDocument()
     expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
   })
 
@@ -207,11 +207,11 @@ describe('App smoke test', () => {
     const source = transitionV1Show('crossfade')
     const converted = convertShowRecordV1ToV2(source)
     if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    setStudioLocation(`/studio/shows/${source.id}?show-v2-pilot=1`)
+    setStudioLocation(`/studio/shows/${source.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [], showsLoaded: false, activeShowId: null })
     render(<App />)
-    expect(screen.queryByRole('heading', { name: 'V2 route qualification' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('show-editor-v2-route')).not.toBeInTheDocument()
 
     act(() => useShowStore.setState({
       shows: [source],
@@ -219,11 +219,11 @@ describe('App smoke test', () => {
       showV2Pilots: { [source.id]: converted.record },
     }))
 
-    expect(await screen.findByRole('heading', { name: 'V2 route qualification' })).toBeInTheDocument()
-    expect(screen.getByText('V2 record opened in memory.')).toBeInTheDocument()
+    expect(await screen.findByTestId('show-editor-v2-route')).toBeInTheDocument()
+    expect(screen.getByTestId('show-timeline-read-only-status')).toHaveTextContent('Editing this v2 Show.')
   })
 
-  it('keeps the current pilot route when a retired Show open settles', async () => {
+  it('keeps the current v2 editor route when a retired Show open settles', async () => {
     const sourceA = { ...transitionV1Show('crossfade'), id: 'pilot-route-a', name: 'Pilot route A' }
     const sourceB = { ...transitionV1Show('crossfade'), id: 'pilot-route-b', name: 'Pilot route B' }
     const convertedA = convertShowRecordV1ToV2(sourceA)
@@ -239,7 +239,7 @@ describe('App smoke test', () => {
       listShowDocumentsV2,
       setLastActive: async () => {},
     } as unknown as PersonalContentProvider)
-    setStudioLocation(`/studio/shows/${sourceA.id}?show-v2-pilot=1`)
+    setStudioLocation(`/studio/shows/${sourceA.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [sourceA, sourceB], showsLoaded: true, activeShowId: sourceA.id })
 
@@ -269,12 +269,12 @@ describe('App smoke test', () => {
     })).toBeInTheDocument()
   })
 
-  it('keeps an explicit pilot route when the ordinary active Show is stale', async () => {
+  it('keeps an explicit v2 editor route when the ordinary active Show is stale', async () => {
     const sourceA = { ...transitionV1Show('crossfade'), id: 'pilot-active-a', name: 'Ordinary active A' }
     const sourceB = { ...transitionV1Show('crossfade'), id: 'pilot-active-b', name: 'Explicit pilot B' }
     const convertedB = convertShowRecordV1ToV2(sourceB)
     if (convertedB.status !== 'converted') throw new Error(JSON.stringify(convertedB.issues))
-    setStudioLocation(`/studio/shows/${sourceB.id}?show-v2-pilot=1`)
+    setStudioLocation(`/studio/shows/${sourceB.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
     useShowStore.setState({
       shows: [sourceA, sourceB],
@@ -637,7 +637,7 @@ describe('routing (#308)', () => {
     expect(renameShow).toHaveBeenCalledWith(show.id, 'Night Show')
   })
 
-  it('renames the pilot Show through v2 persistence and reloads the durable name', async () => {
+  it('renames the v2 Show through v2 persistence and reloads the durable name', async () => {
     const user = userEvent.setup()
     const legacy = { ...transitionV1Show('crossfade'), id: 'show-v2-header', name: 'Legacy header name' }
     const converted = convertShowRecordV1ToV2({ ...legacy, name: 'V2 header name' })
@@ -652,7 +652,7 @@ describe('routing (#308)', () => {
       listShowDocumentsV2: async () => [structuredClone(persisted)],
       replaceShowV2,
     } as unknown as PersonalContentProvider)
-    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-pilot=1`)
+    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
     useShowStore.setState({
       shows: [legacy],
@@ -682,7 +682,7 @@ describe('routing (#308)', () => {
     expect(within(editorPane).getByRole('button', { name: 'Rename show Durable v2 name' })).toBeInTheDocument()
   })
 
-  it('renames the current pilot record after Undo while the title field retains its original callback', async () => {
+  it('renames the current v2 record after Undo while the title field retains its original callback', async () => {
     const user = userEvent.setup()
     const legacy = { ...transitionV1Show('crossfade'), id: 'show-v2-undo-rename', name: 'Undo rename' }
     const converted = convertShowRecordV1ToV2(legacy)
@@ -701,7 +701,7 @@ describe('routing (#308)', () => {
       replaceShowV2,
       updateShow,
     } as unknown as PersonalContentProvider)
-    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-pilot=1`)
+    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [legacy], showsLoaded: true, activeShowId: legacy.id })
     const opened = await useShowStore.getState().openShowV2Pilot(legacy.id)
@@ -732,7 +732,7 @@ describe('routing (#308)', () => {
     expect(updateShow).not.toHaveBeenCalled()
   })
 
-  it('renames the rolled-back pilot record after a save fails while the title field is open', async () => {
+  it('renames the rolled-back v2 record after a save fails while the title field is open', async () => {
     const user = userEvent.setup()
     const legacy = { ...transitionV1Show('crossfade'), id: 'show-v2-rollback-rename', name: 'Rollback rename' }
     const converted = convertShowRecordV1ToV2(legacy)
@@ -754,7 +754,7 @@ describe('routing (#308)', () => {
       replaceShowV2,
       updateShow,
     } as unknown as PersonalContentProvider)
-    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-pilot=1`)
+    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [legacy], showsLoaded: true, activeShowId: legacy.id })
     const opened = await useShowStore.getState().openShowV2Pilot(legacy.id)

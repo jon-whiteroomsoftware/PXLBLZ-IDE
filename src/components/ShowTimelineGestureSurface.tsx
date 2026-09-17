@@ -70,10 +70,13 @@ export function ShowTimelineGestureSurface({
   view,
   statusLine,
   gestures,
+  transportShowId,
 }: {
   view: ShowTimelineViewModel
   statusLine: string
   gestures: ShowTimelineGestureHandlers
+  /** The Show whose transport draws the ruler's playhead (#1056 slice 6). */
+  transportShowId?: string
 }) {
   const totalMs = Math.max(1, view.showEndMs)
   const percent = showTimelinePercentOf(totalMs)
@@ -300,7 +303,7 @@ export function ShowTimelineGestureSurface({
         </span>
       </div>
 
-      <ShowTimelineRulerLane totalMs={totalMs} percent={percent} />
+      <ShowTimelineRulerLane totalMs={totalMs} percent={percent} {...(transportShowId === undefined ? {} : { transportShowId })} />
       <ShowTimelineLayoutLane view={view} percent={percent} />
       <ShowTimelineMarkerLane view={view} percent={percent} />
 

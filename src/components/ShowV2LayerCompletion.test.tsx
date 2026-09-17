@@ -9,7 +9,7 @@ import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import * as admission from '@/store/showV2PreparedEditAdmission'
-import { ShowV2RoutePilot } from './ShowV2RoutePilot'
+import { ShowEditorV2Route } from './ShowEditorV2Route'
 vi.mock('./ShowStagePreview', () => ({ ShowStagePreview: () => <div data-testid="prepared-stage" /> }))
 beforeEach(() => { resetPersonalContentProvider(); useShowStore.setState(showInitialState); usePatternStore.setState(patternInitialState); useMapStore.setState(mapInitialState); useLibraryStore.setState(libraryInitialState); useControllerProfileStore.setState(controllerProfileInitialState) })
 afterEach(() => { resetPersonalContentProvider(); vi.restoreAllMocks() })
@@ -22,7 +22,7 @@ function setup() {
   useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
   const write = vi.fn(async () => {})
   setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'provider-A', replaceShowV2: write })
-  const view = render(<ShowV2RoutePilot showId={record.id} />)
+  const view = render(<ShowEditorV2Route showId={record.id} />)
   return { record, write, view }
 }
 function addDraft(zoneId: string) {
@@ -42,7 +42,7 @@ it.each(['Layer', 'Marker'] as const)('retained parent %s callback refuses provi
   expect(await owner.mock.results[0].value).toMatchObject({ status: 'refused', code: 'stale-edit' })
   expect(write).not.toHaveBeenCalled(); expect(secondWrite).not.toHaveBeenCalled()
   expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record); expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
-  view.rerender(<ShowV2RoutePilot showId={record.id} />)
+  view.rerender(<ShowEditorV2Route showId={record.id} />)
   fireEvent.click(screen.getByRole('button', { name: editor === 'Layer' ? 'Add Layer at top' : 'Add Marker' }))
   await waitFor(() => expect(secondWrite).toHaveBeenCalledTimes(1))
   expect(await screen.findByText(`${editor} saved.`)).toBeInTheDocument()
@@ -79,7 +79,7 @@ it.each(['record', 'revision', 'Pattern', 'Map', 'Library', 'profile', 'provider
       case 'Library': useLibraryStore.setState({ userLibraries: [] }); break
       case 'profile': useControllerProfileStore.setState({ profiles: [] }); break
       case 'provider': setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'external' }); break
-      case 'route': view.rerender(<ShowV2RoutePilot showId="external" />); break
+      case 'route': view.rerender(<ShowEditorV2Route showId="external" />); break
       case 'unmount': view.unmount(); break
     }
   })

@@ -6,14 +6,15 @@ import {
   admitShowV2PilotSetShowEnd,
 } from '@/store/showV2PreparedEditAdmission'
 import { useShowStore } from '@/store/showStore'
+import { ShowV2LayerEditor } from './ShowV2LayerEditor'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
 import { ShowV2PropertyEditor } from './ShowV2PropertyEditor'
 import { ShowV2ShowTimingEditor } from './ShowV2ShowTimingEditor'
 import type { ShowV2EditCaptureBinding } from './useShowV2EditCapture'
 
 /**
- * The Show-scoped inspector beside the v2 timeline: Property tracks, Markers,
- * Show End and Insert Time.
+ * The Show-scoped inspector beside the v2 timeline: Layers, Property tracks,
+ * Markers, Show End and Insert Time.
  *
  * It holds no record. Every section plans its edit with a landed v2 model and
  * adopts it through the closed prepared-edit admission, so one accepted edit is
@@ -70,6 +71,18 @@ export function ShowEditorV2ShowInspector({
         {...(selection?.kind === 'property-track' ? { selectedTrackId: selection.trackId } : {})}
         onSelectTrack={(trackId) => onSelectionChange?.(trackId ? { kind: 'property-track', trackId } : null)}
       />
+      {/*
+        Layers are authored here because the timeline draws them but offers no
+        Layer operation of its own; slice 6 folded this section in when the
+        pilot route that used to hold it retired.
+      */}
+      <ShowV2LayerEditor
+        key={`layers:${capture.record.id}`}
+        capture={capture}
+        isCurrentCapture={isCurrentCapture}
+        isCurrentCompletion={isCurrentCompletion}
+        onStatus={setStatus}
+      />
       <ShowV2MarkerEditor
         key={`markers:${capture.record.id}`}
         capture={capture}
@@ -78,7 +91,7 @@ export function ShowEditorV2ShowInspector({
         onStatus={setStatus}
       />
       <output aria-live="polite" data-testid="show-inspector-v2-status" className="mt-4 block text-sm leading-6 text-zinc-400">
-        {status || 'Edit the Show timing, Property tracks and Markers here.'}
+        {status || 'Edit the Show timing, Property tracks, Layers and Markers here.'}
       </output>
     </section>
   )

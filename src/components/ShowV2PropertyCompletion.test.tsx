@@ -8,7 +8,7 @@ import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import * as admission from '@/store/showV2PreparedEditAdmission'
-import { ShowV2RoutePilot } from './ShowV2RoutePilot'
+import { ShowEditorV2Route } from './ShowEditorV2Route'
 vi.mock('./ShowStagePreview', () => ({ ShowStagePreview: () => <div data-testid="prepared-stage" /> }))
 beforeEach(() => { resetPersonalContentProvider(); useShowStore.setState(showInitialState); usePatternStore.setState(patternInitialState); useMapStore.setState(mapInitialState); useLibraryStore.setState(libraryInitialState); useControllerProfileStore.setState(controllerProfileInitialState) })
 afterEach(() => { resetPersonalContentProvider(); vi.restoreAllMocks() })
@@ -20,7 +20,7 @@ function setup() {
   usePatternStore.setState({userPatterns:[{id:'voice',name:'Voice',src:'export var elapsed=0;var level=.4;export function sliderGain(v){level=v}export function beforeRender(d){elapsed+=d}export function render2D(i,x,y){rgb(level,x,y)}',controls:{},updatedAt:1}]})
   useShowStore.setState({showV2Pilots:{[record.id]:record},showV2Histories:{[record.id]:{past:[],future:[]}}})
   const write=vi.fn(async()=>{});setPersonalContentProvider({...getPersonalContentProvider(),id:'property-A',replaceShowV2:write})
-  const view=render(<ShowV2RoutePilot showId={record.id}/>),editor=within(screen.getByRole('region',{name:'Properties'}))
+  const view=render(<ShowEditorV2Route showId={record.id}/>),editor=within(screen.getByRole('region',{name:'Properties'}))
   fireEvent.change(editor.getByLabelText('Property owner'),{target:{value:'show'}})
   fireEvent.change(editor.getByLabelText('Property track'),{target:{value:'animation'}})
   return {record,write,view,editor}
@@ -51,7 +51,7 @@ it('retained parent callback rejects provider change before invocation, fresh ca
   setPersonalContentProvider({...getPersonalContentProvider(),id:'property-B',replaceShowV2:other})
   fireEvent.click(editor.getByRole('button',{name:'Apply key'}));await waitFor(()=>expect(owner).toHaveBeenCalledTimes(1))
   expect(await owner.mock.results[0].value).toMatchObject({status:'refused',code:'stale-edit'});expect(write).not.toHaveBeenCalled();expect(other).not.toHaveBeenCalled();expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
-  view.rerender(<ShowV2RoutePilot showId={record.id}/>);fireEvent.click(editor.getByRole('button',{name:'Apply key'}))
+  view.rerender(<ShowEditorV2Route showId={record.id}/>);fireEvent.click(editor.getByRole('button',{name:'Apply key'}))
   expect(await screen.findByText('Property saved.')).toBeInTheDocument();expect(other).toHaveBeenCalledTimes(1)
 })
 it('pending save disables repeats and owned failure restores exact current key/history',async()=>{
@@ -72,7 +72,7 @@ it.each(['Pattern','Map','Library','profile','provider','route','unmount'] as co
     if(partition==='Library')useLibraryStore.setState({userLibraries:[]})
     if(partition==='profile')useControllerProfileStore.setState({profiles:[]})
     if(partition==='provider')setPersonalContentProvider({...getPersonalContentProvider(),id:'property-B'})
-    if(partition==='route'){useShowStore.setState({showV2Pilots:{...useShowStore.getState().showV2Pilots,other:{...record,id:'other'}}});view.rerender(<ShowV2RoutePilot showId="other"/>)}
+    if(partition==='route'){useShowStore.setState({showV2Pilots:{...useShowStore.getState().showV2Pilots,other:{...record,id:'other'}}});view.rerender(<ShowEditorV2Route showId="other"/>)}
     if(partition==='unmount')view.unmount()
   })
   await act(async()=>{release();await pending});expect(screen.queryByText('Property saved.')).not.toBeInTheDocument()

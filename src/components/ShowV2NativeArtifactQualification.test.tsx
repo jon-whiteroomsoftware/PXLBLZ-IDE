@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '@/engine/personalContentProvider'
-import { ShowV2RoutePilot } from './ShowV2RoutePilot'
+import { ShowEditorV2Route } from './ShowEditorV2Route'
 import { ShowStagePreview } from './ShowStagePreview'
 import * as qualification from '@/engine/showV2Pilot'
 import * as stagePreparation from '@/engine/showPreparedStageV2'
@@ -39,7 +39,7 @@ it('qualifies the same ready bundle displayed by Stage without history/save or a
   const compile = vi.spyOn(showCompiler, 'compileShow')
   const qualify = vi.spyOn(qualification, 'qualifyShowV2PilotArtifacts').mockResolvedValue({ importedShow: record, pxlshowBytes: new Uint8Array(3), epeText: '', epeSource: '' })
   try {
-    render(<ShowV2RoutePilot showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
     expect(prepare).toHaveBeenCalledOnce()
     const capture = prepare.mock.results[0].value
     expect(capture.inputCapture.status).toBe('qualified')
@@ -53,7 +53,7 @@ it('qualifies the same ready bundle displayed by Stage without history/save or a
     expect(compile).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: 'Reopen artifacts' }))
     expect(await screen.findByText('Reopened .pxlshow v2 and .epe (3 bytes).')).toBeInTheDocument()
-    expect(qualify).toHaveBeenCalledWith(captured.bundle, { appVersion: 'v2-route-pilot' })
+    expect(qualify).toHaveBeenCalledWith(captured.bundle, { appVersion: __PXLBLZ_APP_VERSION__ })
     expect(qualify.mock.calls[0][0]).toBe(captured.bundle)
     expect(compile).toHaveBeenCalledOnce()
     expect(prepare).toHaveBeenCalledOnce()
@@ -70,7 +70,7 @@ it('does not publish an obsolete qualification after record replacement and a ne
   const current = new Promise<Awaited<ReturnType<typeof qualification.qualifyShowV2PilotArtifacts>>>(resolve => { releaseNew = resolve })
   const qualify = vi.spyOn(qualification, 'qualifyShowV2PilotArtifacts').mockImplementationOnce(() => old).mockImplementationOnce(() => current)
   try {
-    render(<ShowV2RoutePilot showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
     fireEvent.click(screen.getByRole('button', { name: 'Reopen artifacts' }))
     const next = { ...record, name: 'New Capture', updatedAt: 2 }
     act(() => { useShowStore.setState({ showV2Pilots: { [record.id]: next } }) })
@@ -94,7 +94,7 @@ it.each(['Pattern', 'Library', 'Map/dimension', 'profile', 'provider', 'navigati
     const pending = new Promise<Awaited<ReturnType<typeof qualification.qualifyShowV2PilotArtifacts>>>(resolve => { release = resolve })
     const qualify = vi.spyOn(qualification, 'qualifyShowV2PilotArtifacts').mockImplementationOnce(() => pending).mockResolvedValue({ importedShow: record, pxlshowBytes: new Uint8Array(7), epeText: '', epeSource: '' })
     try {
-      const view = render(<ShowV2RoutePilot showId={record.id} />)
+      const view = render(<ShowEditorV2Route showId={record.id} />)
       fireEvent.click(screen.getByRole('button', { name: 'Reopen artifacts' }))
       await waitFor(() => expect(qualify).toHaveBeenCalledOnce())
       act(() => {
@@ -107,7 +107,7 @@ it.each(['Pattern', 'Library', 'Map/dimension', 'profile', 'provider', 'navigati
           case 'navigation': {
             const next = { ...record, id: 'other-show', name: 'Other Show' }
             useShowStore.setState({ showV2Pilots: { [record.id]: record, [next.id]: next } })
-            view.rerender(<ShowV2RoutePilot showId={next.id} />)
+            view.rerender(<ShowEditorV2Route showId={next.id} />)
             break
           }
           case 'unmount': view.unmount(); break
@@ -129,7 +129,7 @@ it('does not publish an obsolete qualification error after record replacement', 
   const pending = new Promise<Awaited<ReturnType<typeof qualification.qualifyShowV2PilotArtifacts>>>((_resolve, fail) => { reject = fail })
   const qualify = vi.spyOn(qualification, 'qualifyShowV2PilotArtifacts').mockImplementation(() => pending)
   try {
-    render(<ShowV2RoutePilot showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
     fireEvent.click(screen.getByRole('button', { name: 'Reopen artifacts' }))
     act(() => { useShowStore.setState({ showV2Pilots: { [record.id]: { ...record, name: 'Current' } } }) })
     await act(async () => { reject(new Error('Obsolete failure')); await pending.catch(() => {}) })

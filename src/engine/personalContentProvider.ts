@@ -57,6 +57,8 @@ export interface PersonalContentProvider {
   /** Explicit #1044 pilot boundary. Ordinary Show methods remain v1-only. */
   listShowDocumentsV2?(): Promise<ShowRecordV2[]>
   replaceShowV2?(id: string, record: ShowRecordV2): Promise<void>
+  /** The same boundary for a Show authored or imported as v2 (#1056 slice 6). */
+  createShowV2?(record: ShowRecordV2): Promise<void>
   listControllerProfiles(): Promise<ControllerProfile[]>
   createControllerProfile(profile: ControllerProfile): Promise<void>
   updateControllerProfile(id: string, changes: Partial<Omit<ControllerProfile, 'id'>>): Promise<void>

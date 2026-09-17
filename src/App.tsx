@@ -126,8 +126,8 @@ import { useStudioPlaceStore } from '@/store/studioPlaceStore'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 import { AgentDrawerWorkspace } from '@/components/agent/AgentDrawer'
-import { ShowV2RoutePilot } from '@/components/ShowV2RoutePilot'
-import { ShowEditorV2ReadOnly } from '@/components/ShowEditorV2ReadOnly'
+import { ShowEditorV2Route } from '@/components/ShowEditorV2Route'
+import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
 
 function Splitter({
   onDrag,
@@ -344,12 +344,10 @@ export default function App() {
 }
 
 function StudioApp() {
-  const showV2PilotEnabled = import.meta.env.DEV
-    && new URLSearchParams(window.location.search).get('show-v2-pilot') === '1'
-  // #1056 slice 1: the ordinary editor route rendering a ShowRecordV2 read-only.
-  // The typed pilot panels stay on their own gate until slice 6 retires them.
-  const showV2EditorEnabled = import.meta.env.DEV
-    && new URLSearchParams(window.location.search).get('show-v2-editor') === '1'
+  // #1056: the ordinary editor route rendering a ShowRecordV2. One gate, which
+  // #1039 flips in `showV2RouteGate.ts`, answers for the route, the Show list
+  // and fresh-Show creation together (specification section 10).
+  const showV2RouteEnabled = isShowV2RouteEnabled()
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
@@ -611,9 +609,9 @@ function StudioApp() {
       const entityId = currentRoute.entity.id
       if (stockShowById(entityId)) {
         if (activeShowId !== null) void openShow(null)
-      } else if (!showV2PilotEnabled && shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
+      } else if (!showV2RouteEnabled && shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, showV2PilotEnabled, activeShowId, activeLibraryName, userPatterns, openShow])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, showV2RouteEnabled, activeShowId, activeLibraryName, userPatterns, openShow])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -637,7 +635,7 @@ function StudioApp() {
     } else if (
       activeShowId !== null &&
       (current.entity === null || current.entity.kind === 'shows') &&
-      !(showV2PilotEnabled && current.entity?.kind === 'shows' && current.entity.id !== null)
+      !(showV2RouteEnabled && current.entity?.kind === 'shows' && current.entity.id !== null)
     ) {
       const target: Route = { kind: 'studio', entity: { kind: 'shows', id: activeShowId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
@@ -650,7 +648,7 @@ function StudioApp() {
       const target: Route = { kind: 'studio', entity: { kind: 'libraries', id: targetId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     }
-  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, editingLibrary, navigate, showV2PilotEnabled])
+  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, editingLibrary, navigate, showV2RouteEnabled])
 
   // Signed-out cold Studio goes through a one-time welcome/sign-in gate. A
   // pattern-detail handoff may carry an active built-in demo into Studio (#310),
@@ -835,14 +833,13 @@ function StudioApp() {
   const routedShowId = showsLoaded && route.kind === 'studio' && route.entity?.kind === 'shows'
     ? route.entity.id
     : null
-  const pilotShowId = showV2PilotEnabled ? routedShowId : null
-  const v2EditorShowId = showV2EditorEnabled && !showV2PilotEnabled ? routedShowId : null
+  const v2EditorShowId = showV2RouteEnabled ? routedShowId : null
   const activeShow = routedStockShowOverride ?? (
-    activeShowId && (pilotShowId === null || activeShowId === pilotShowId)
+    activeShowId && (v2EditorShowId === null || activeShowId === v2EditorShowId)
       ? shows.find((show) => show.id === activeShowId)
       : undefined
   )
-  const activeShowV2Pilot = pilotShowId ? showV2Pilots[pilotShowId] : undefined
+  const activeShowV2Pilot = v2EditorShowId ? showV2Pilots[v2EditorShowId] : undefined
   const activeShowV2PilotId = activeShowV2Pilot?.id
   const activeShowEditor = activeShow ? (
     <ShowEditor
@@ -928,7 +925,7 @@ function StudioApp() {
       : routeEntity.kind === 'shows'
         // A v2 row is absent from the v1 list until #1039 couples them, so the
         // opt-in v2 surfaces resolve the Show themselves.
-        ? pilotShowId === null && v2EditorShowId === null && showsLoaded && !shows.some((show) => show.id === routeEntity.id) && !stockShowById(routeEntity.id)
+        ? v2EditorShowId === null && showsLoaded && !shows.some((show) => show.id === routeEntity.id) && !stockShowById(routeEntity.id)
         : true)
   const invalidDocRoute = route.kind === 'docs' && route.docId !== null && !isDocId(route.docId)
   const activeApiReference = route.kind === 'api-reference'
@@ -1478,10 +1475,8 @@ function StudioApp() {
                     }}
                   />
                 </div>
-              ) : pilotShowId ? (
-                <ShowV2RoutePilot showId={pilotShowId} />
               ) : v2EditorShowId ? (
-                <ShowEditorV2ReadOnly showId={v2EditorShowId} />
+                <ShowEditorV2Route showId={v2EditorShowId} />
               ) : activeShow ? (
                 <ShowWorkspace
                   previewAspect={showStagePreviewAspect}

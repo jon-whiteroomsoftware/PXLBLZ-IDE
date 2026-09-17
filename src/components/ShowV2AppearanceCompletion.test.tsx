@@ -9,7 +9,7 @@ import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import * as admission from '@/store/showV2PreparedEditAdmission'
-import { ShowV2RoutePilot } from './ShowV2RoutePilot'
+import { ShowEditorV2Route } from './ShowEditorV2Route'
 vi.mock('./ShowStagePreview', () => ({ ShowStagePreview: () => <div data-testid="prepared-stage" /> }))
 beforeEach(() => { resetPersonalContentProvider(); useShowStore.setState(showInitialState); usePatternStore.setState(patternInitialState); useMapStore.setState(mapInitialState); useLibraryStore.setState(libraryInitialState); useControllerProfileStore.setState(controllerProfileInitialState) })
 afterEach(() => { resetPersonalContentProvider(); vi.restoreAllMocks() })
@@ -23,8 +23,8 @@ function setup() {
   useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
   const write = vi.fn(async () => {})
   setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'provider-A', replaceShowV2: write })
-  const view = render(<ShowV2RoutePilot showId={record.id} />)
-  fireEvent.click(screen.getByRole('button', { name: / · .* · 0–1000 ms/ }))
+  const view = render(<ShowEditorV2Route showId={record.id} />)
+  fireEvent.change(screen.getByLabelText('Selected Clip'), { target: { value: record.composition.clips[0].id } })
   fireEvent.change(screen.getByLabelText('Appearance scope'), { target: { value: 'whole-clip' } })
   fireEvent.change(screen.getByLabelText('Clip opacity'), { target: { value: '.5' } })
   return { record, write, view }
@@ -38,7 +38,7 @@ it('retained parent appearance callback refuses provider A→B before invocation
   expect(await owner.mock.results[0].value).toMatchObject({ status: 'refused', code: 'stale-edit' })
   expect(write).not.toHaveBeenCalled(); expect(secondWrite).not.toHaveBeenCalled()
   expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record); expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
-  view.rerender(<ShowV2RoutePilot showId={record.id} />)
+  view.rerender(<ShowEditorV2Route showId={record.id} />)
   fireEvent.click(screen.getByRole('button', { name: 'Apply appearance' }))
   expect(await screen.findByText('Appearance saved.')).toBeInTheDocument(); expect(secondWrite).toHaveBeenCalledTimes(1)
 })
@@ -63,7 +63,7 @@ it.each(['Pattern', 'Map', 'Library', 'profile', 'provider', 'route', 'unmount']
     if (partition === 'Library') useLibraryStore.setState({ userLibraries: [] })
     if (partition === 'profile') useControllerProfileStore.setState({ profiles: [] })
     if (partition === 'provider') setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'provider-B' })
-    if (partition === 'route') { useShowStore.setState({ showV2Pilots: { ...useShowStore.getState().showV2Pilots, other: { ...record, id: 'other' } } }); view.rerender(<ShowV2RoutePilot showId="other" />) }
+    if (partition === 'route') { useShowStore.setState({ showV2Pilots: { ...useShowStore.getState().showV2Pilots, other: { ...record, id: 'other' } } }); view.rerender(<ShowEditorV2Route showId="other" />) }
     if (partition === 'unmount') view.unmount()
   })
   await act(async () => { release(); await pending })

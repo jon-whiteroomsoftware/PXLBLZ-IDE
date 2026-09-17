@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { ShowEditorV2ReadOnly } from './ShowEditorV2ReadOnly'
+import { ShowEditorV2Route } from './ShowEditorV2Route'
 import { deriveShowRestartEventsV2 } from '@/engine/showPropertyAnimationV2'
 import { insertShowTimeV2 } from '@/engine/showTimelineV2'
 import { SEQUENCE_DEPENDENCIES, showV2EditorSequenceRecord } from '@/test/showV2EditorSequenceFixture'
@@ -69,7 +69,7 @@ function commit(scope: HTMLElement, label: string, value: string): void {
 
 it('INSERT and GROUP-HOLD: inserting mid-Show through the route holds the crossing Group occurrence', async () => {
   const { record, writes } = seed()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
   const inspector = screen.getByTestId('show-inspector-v2')
 
   commit(inspector, 'Insert Time at (ms)', '5000')
@@ -105,7 +105,7 @@ it('INSERT and GROUP-HOLD: inserting mid-Show through the route holds the crossi
 
 it('LAYOUT-END: shortening past authored content is refused exactly, and extending stretches coverage', async () => {
   const { record, writes } = seed()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
   const inspector = screen.getByTestId('show-inspector-v2')
   const status = screen.getByTestId('show-inspector-v2-status')
 
@@ -129,7 +129,7 @@ it('LAYOUT-END: shortening past authored content is refused exactly, and extendi
 
 it('RESTART: the entry policy toggled on the route resets the shared runtime at first contribution', async () => {
   const { record, writes } = seed()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
   const panel = screen.getByTestId('show-clip-inspector-v2')
 
   fireEvent.change(within(panel).getByLabelText('Selected Clip'), { target: { value: 'reprise' } })
@@ -148,7 +148,7 @@ it('RESTART: the entry policy toggled on the route resets the shared runtime at 
 
 it('CURVE: trimming a Clip restricts its instance curve and keeps the source coefficients', async () => {
   const { record, writes } = seed()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
   const panel = screen.getByTestId('show-clip-inspector-v2')
 
   fireEvent.change(within(panel).getByLabelText('Selected Clip'), { target: { value: 'curve-clip' } })

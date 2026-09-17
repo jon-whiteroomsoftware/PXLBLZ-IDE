@@ -60,7 +60,6 @@ import {
 } from '@/engine/controllerProfilePassRecipe'
 import { prepareControllerArtifactDelivery } from '@/engine/controllerArtifactDelivery'
 import { assessShowCompilePressure } from '@/engine/showCompilePressure'
-import type { ArtifactMapClass } from '@/engine/artifactStamp'
 import { trackEvent } from '@/analytics'
 import {
   addShowRoutingLayout,
@@ -258,12 +257,8 @@ import {
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
 import { applyNormalizeMode } from '@/engine/maps'
-import { buildStudioMapFingerprintCandidates } from '@/engine/mapFingerprint'
-import {
-  resolveInstalledMapIdentity,
-  type InstalledMapSnapshot,
-  type LiveInstalledMapState,
-} from '@/engine/installedMapObservation'
+import { buildShowControllerCompatibilityContext } from '@/engine/showControllerCompatibilityContext'
+import { downloadBrowserFile } from '@/engine/browserDownload'
 import { usePreviewStore } from '@/store/previewStore'
 import {
   canAdvanceShowPlayback,
@@ -930,43 +925,6 @@ interface ShowCompilationSnapshot {
   userMaps: MapRecord[]
   artifact: NonNullable<CompiledShowState['artifact']>
   canonicalExport: ShowEpeExport
-}
-
-function buildControllerCompatibilityContext(
-  profile: ControllerProfile | undefined,
-  maps: MapRecord[],
-  observation: InstalledMapSnapshot | LiveInstalledMapState | undefined,
-) {
-  const pixelCount = profile?.lastKnownPixelCount
-  const identity = observation?.status === 'present'
-    ? resolveInstalledMapIdentity({
-        observation,
-        profile,
-        candidates: buildStudioMapFingerprintCandidates({
-          userMaps: maps,
-          pixelCount: observation.pointCount,
-        }),
-      })
-    : null
-  const installedMap = identity && identity.kind !== 'historical'
-    ? [...STOCK_MAPS, ...maps].find((map) => map.id === identity.id)
-    : undefined
-  const mapClass = installedMap
-    ? ('kind' in installedMap ? installedMap.kind : 'custom') as ArtifactMapClass
-    : undefined
-  return {
-    ...(pixelCount !== undefined ? { pixelCount } : {}),
-    ...(observation?.status === 'present'
-      ? {
-          map: {
-            ...(identity?.id ? { id: identity.id } : {}),
-            ...(identity?.name ? { name: identity.name } : {}),
-            fingerprint: observation.fingerprint,
-            ...(mapClass ? { mapClass } : {}),
-          },
-        }
-      : {}),
-  }
 }
 
 export function ShowEditor({
@@ -1920,7 +1878,7 @@ export function ShowEditor({
     ? activeController.installedMap
     : activeControllerProfile?.lastKnownInstalledMap
   const controllerCompatibilityContext = useMemo(
-    () => buildControllerCompatibilityContext(activeControllerProfile, userMaps, activeInstalledMap),
+    () => buildShowControllerCompatibilityContext(activeControllerProfile, userMaps, activeInstalledMap, STOCK_MAPS),
     [activeControllerProfile, activeInstalledMap, userMaps],
   )
   const preparedControllerArtifact = useMemo(() => {
@@ -3836,20 +3794,6 @@ function useShowExportAction(
     }).finally(() => setExporting(false))
   }
   return { exporting, error, exportShow }
-}
-
-function downloadBrowserFile(filename: string, body: BlobPart, type: string): void {
-  const url = URL.createObjectURL(new Blob([body], { type }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.style.display = 'none'
-  document.body.appendChild(anchor)
-  anchor.click()
-  window.setTimeout(() => {
-    anchor.remove()
-    URL.revokeObjectURL(url)
-  }, 0)
 }
 
 function ShowTimelineWorkspace({

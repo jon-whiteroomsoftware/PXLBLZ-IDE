@@ -208,12 +208,13 @@ export function ShowEditorV2TransitionLayoutPanel({
   const applyPalette = (item: ShowToolkitPresentationItem, durationMs: number) => {
     const mode = palette
     setPalette(null)
-    if (mode === 'insert' && selectedBoundary?.junctionKey) {
-      const boundary = selectedBoundary
+    const boundary = selectedBoundary
+    const junctionKey = boundary?.junctionKey
+    if (mode === 'insert' && boundary && junctionKey) {
       planTransition(
         {
           kind: 'insert',
-          junctionKey: boundary.junctionKey,
+          junctionKey,
           kindKey: item.key,
           durationMs,
           crossfadePolicy: 'live-live',

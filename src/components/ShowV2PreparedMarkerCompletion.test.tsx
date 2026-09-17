@@ -8,7 +8,7 @@ import { patternInitialState, usePatternStore } from '@/store/patternStore'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
-import { ShowV2RoutePilot } from './ShowV2RoutePilot'
+import { ShowEditorV2Route } from './ShowEditorV2Route'
 
 vi.mock('./ShowStagePreview', () => ({ ShowStagePreview: () => <div data-testid="prepared-stage-mock" /> }))
 beforeEach(() => {
@@ -37,7 +37,7 @@ function open() {
 }
 it('keeps normal saved status and newly added Marker selection after its own adopted capture replaces the preimage', async () => {
   const { record, write, pending, release } = open()
-  render(<ShowV2RoutePilot showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add Marker' }))
   await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
   expect(useShowStore.getState().showV2Pilots[record.id]).not.toBe(record)
@@ -50,7 +50,7 @@ it('keeps normal saved status and newly added Marker selection after its own ado
 
 it('suppresses obsolete saved status and selection after an external replacement while its own save awaits', async () => {
   const { record, write, pending, release } = open()
-  render(<ShowV2RoutePilot showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add Marker' }))
   await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
   const adopted = useShowStore.getState().showV2Pilots[record.id]
@@ -66,7 +66,7 @@ it('suppresses obsolete saved status and selection after an external replacement
 
 it('keeps current own-rollback save failure feedback and restores the original Marker draft', async () => {
   const { record, write, pending, reject } = open()
-  render(<ShowV2RoutePilot showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
   const name = screen.getByLabelText('Marker name')
   fireEvent.change(name, { target: { value: 'Unsaved' } })
   fireEvent.keyDown(name, { key: 'Enter' })
@@ -81,7 +81,7 @@ it('keeps current own-rollback save failure feedback and restores the original M
 
 it.each(['Pattern', 'Map/dimension', 'Library', 'profile', 'provider', 'navigation', 'unmount', 'revision'] as const)('retires Marker completion after %s replacement', async partition => {
   const { record, write, pending, release } = open()
-  const view = render(<ShowV2RoutePilot showId={record.id} />)
+  const view = render(<ShowEditorV2Route showId={record.id} />)
   fireEvent.click(screen.getByRole('button', { name: 'Add Marker' }))
   await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
   act(() => {
@@ -94,7 +94,7 @@ it.each(['Pattern', 'Map/dimension', 'Library', 'profile', 'provider', 'navigati
       case 'navigation': {
         const next = { ...record, id: 'other', name: 'Other' }
         useShowStore.setState({ showV2Pilots: { ...useShowStore.getState().showV2Pilots, [next.id]: next } })
-        view.rerender(<ShowV2RoutePilot showId={next.id} />)
+        view.rerender(<ShowEditorV2Route showId={next.id} />)
         break
       }
       case 'unmount': view.unmount(); break

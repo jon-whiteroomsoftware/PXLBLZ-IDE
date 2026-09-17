@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ShowEditorV2ReadOnly } from './ShowEditorV2ReadOnly'
+import { ShowEditorV2Route } from './ShowEditorV2Route'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { transitionV1Show } from '@/test/showV2TracerFixture'
@@ -48,11 +48,11 @@ afterEach(() => {
   resetControllerProvider()
 })
 
-describe('ShowEditorV2ReadOnly (#1056 slices 1-5)', () => {
+describe('ShowEditorV2Route (#1056 slices 1-5)', () => {
   it('renders the Zone rows, Layers, Clips and Show End from the v2 record', () => {
     const record = seededRecord()
     seed(record)
-    render(<ShowEditorV2ReadOnly showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
 
     const surface = screen.getByTestId('show-timeline-read-only')
     expect(surface).toHaveAttribute('data-show-record-version', '2')
@@ -66,7 +66,7 @@ describe('ShowEditorV2ReadOnly (#1056 slices 1-5)', () => {
   it('draws the Layout lane, the Markers lane and the Transition window', () => {
     const record = seededRecord()
     seed(record)
-    render(<ShowEditorV2ReadOnly showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
 
     const layouts = screen.getByRole('group', { name: 'Zone Layouts lane' })
     expect(within(layouts).getByRole('button', { name: /Full Zone Layout, 0\.00s to 1\.00s/ })).toBeInTheDocument()
@@ -80,7 +80,7 @@ describe('ShowEditorV2ReadOnly (#1056 slices 1-5)', () => {
     const user = userEvent.setup()
     const record = seededRecord()
     seed(record)
-    render(<ShowEditorV2ReadOnly showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
 
     const surface = screen.getByTestId('show-timeline-read-only')
     expect(surface).toHaveAttribute('data-show-timeline-editable', 'true')
@@ -101,8 +101,15 @@ describe('ShowEditorV2ReadOnly (#1056 slices 1-5)', () => {
     expect(within(surface).queryAllByRole('textbox')).toHaveLength(0)
     expect(within(surface).queryAllByRole('slider')).toHaveLength(0)
 
+    // The route's own transport leads the tab order (slice 6), and the
+    // timeline's controls follow it without a keyboard trap in between.
+    const transport = within(screen.getByTestId('show-editor-v2-transport')).getAllByRole('button')
     const focusable = within(surface).getAllByRole('button')
     await user.tab()
+    expect(transport).toContain(document.activeElement)
+    for (let step = 0; step < transport.length && !focusable.includes(document.activeElement as HTMLElement); step++) {
+      await user.tab()
+    }
     expect(focusable).toContain(document.activeElement)
     await user.tab()
     expect(focusable).toContain(document.activeElement)
@@ -111,7 +118,7 @@ describe('ShowEditorV2ReadOnly (#1056 slices 1-5)', () => {
   it('states the editing condition in one status line and offers Undo and Redo', () => {
     const record = seededRecord()
     seed(record)
-    render(<ShowEditorV2ReadOnly showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
     expect(screen.getByTestId('show-timeline-read-only-status'))
       .toHaveTextContent('Editing this v2 Show.')
     const history = screen.getByRole('group', { name: 'Show history' })
@@ -124,7 +131,7 @@ describe('ShowEditorV2ReadOnly (#1056 slices 1-5)', () => {
     const record = seededRecord()
     record.composition.patternInstances[0].pattern = { kind: 'user', id: 'absent-source' }
     seed(record)
-    render(<ShowEditorV2ReadOnly showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
 
     const surface = screen.getByTestId('show-timeline-read-only')
     expect(surface).not.toHaveAttribute('data-show-timeline-editable')
@@ -138,7 +145,7 @@ describe('ShowEditorV2ReadOnly (#1056 slices 1-5)', () => {
     const record = seededRecord()
     const before = JSON.stringify(record)
     seed(record)
-    render(<ShowEditorV2ReadOnly showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
     expect(JSON.stringify(useShowStore.getState().showV2Pilots[record.id])).toBe(before)
     expect(useShowStore.getState().showV2Histories[record.id]).toEqual({ past: [], future: [] })
   })
@@ -176,7 +183,7 @@ describe('ShowEditorV2ReadOnly (#1056 slices 1-5)', () => {
       instanceBindings: { [record.composition.patternInstances[0].id]: record.composition.patternInstances[0].id },
     }]
     seed(record)
-    render(<ShowEditorV2ReadOnly showId={record.id} />)
+    render(<ShowEditorV2Route showId={record.id} />)
 
     const item = screen.getByRole('button', { name: /Group Clip Outgoing, 0\.00s to 0\.20s/ })
     expect(item).toHaveAttribute('data-show-group-occurrence', 'occurrence-1')

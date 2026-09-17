@@ -69,6 +69,8 @@ import { createShowInputWait, type ShowEditActivity, type ShowInputWaitReceipt }
 import { isShowEditDiagnosticInput, retainShowEditDiagnostic, type ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { cloneValidShowRecordV2 } from '@/engine/showDocument'
+import { createShowV2WithOutputContract } from '@/engine/showCreationV2'
+import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
 import { convertShowRecordV1ToV2, type ShowV1ToV2Issue } from '@/engine/showRecordV1ToV2'
 import {
   editedHistory,
@@ -192,6 +194,16 @@ interface ShowState {
   showV2Pilots: Record<string, ShowRecordV2>
   showV2Histories: Record<string, ShowV2History>
   showV2SaveFailure: { showId: string; record: ShowRecordV2 } | null
+  /**
+   * The stored v2 rows the Show list offers behind the route gate (#1056
+   * slice 6). A v2 row is absent from `shows`, which stays v1-typed until
+   * #1039, so the list reads this alongside it rather than through it.
+   */
+  showV2Rows: ShowV2ListRow[]
+  /** A native fresh v2 Show, created and persisted behind the route gate. */
+  createNewShowV2: (input: { name?: string; outputContract: ShowOutputContract }) => Promise<ShowRecordV2>
+  /** An imported v2 Show, persisted through the same isolated boundary. */
+  addImportedShowV2: (record: ShowRecordV2) => Promise<void>
   openShowV2Pilot: (showId: string) => Promise<{ status: 'ready'; record: ShowRecordV2 } | { status: 'refused'; issues: ShowV1ToV2Issue[] }>
   updateShowV2Pilot: (showId: string, next: ShowRecordV2) => Promise<void>
   renameShowV2Pilot: (showId: string, name: string) => Promise<void>
@@ -288,6 +300,13 @@ interface ShowState {
 export type ShowHistory = DocumentHistory<ShowRecord>
 export type ShowV2History = DocumentHistory<ShowRecordV2>
 
+/** What the Show list needs of a stored v2 row: its identity and its name. */
+export interface ShowV2ListRow {
+  id: string
+  name: string
+  updatedAt: number
+}
+
 export type { ShowRecord }
 
 export const showInitialState = {
@@ -304,6 +323,7 @@ export const showInitialState = {
   showV2Pilots: {} as Record<string, ShowRecordV2>,
   showV2Histories: {} as Record<string, ShowV2History>,
   showV2SaveFailure: null as { showId: string; record: ShowRecordV2 } | null,
+  showV2Rows: [] as ShowV2ListRow[],
 }
 
 // Convenience mutators resolve quietly when persistence fails (#792): the
@@ -612,13 +632,26 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     // satisfy the next route before its provider has been consulted.
     showV2WorkspaceGeneration += 1
     lastPersistedShowV2Pilots.clear()
-    set({ showV2Pilots: {}, showV2Histories: {}, showV2SaveFailure: null })
+    set({ showV2Pilots: {}, showV2Histories: {}, showV2SaveFailure: null, showV2Rows: [] })
+    const listProvider = getPersonalContentProvider()
+    const listGeneration = showV2WorkspaceGeneration
     const hydration = (async () => {
-    const shows = (await getPersonalContentProvider().listShows())
+    const shows = (await listProvider.listShows())
       .map(normalizeShowRecord)
+    // The v2 rows the list offers beside them. They are a separate read
+    // because `shows` stays v1-typed until #1039, and the gate keeps the
+    // list and the editor route switching together (specification §10).
+    const v2Rows = isShowV2RouteEnabled() && listProvider.listShowDocumentsV2
+      ? (await listProvider.listShowDocumentsV2().catch(() => []))
+        .map((record): ShowV2ListRow => ({ id: record.id, name: record.name, updatedAt: record.updatedAt }))
+      : []
+    // A workspace that changed while the rows were read owns its own listing.
+    const currentWorkspace = showV2WorkspaceGeneration === listGeneration
+      && getPersonalContentProvider() === listProvider
     resizeAdmission.invalidate()
     inputWait.invalidate()
     set((state) => ({
+      ...(currentWorkspace ? { showV2Rows: v2Rows } : {}),
       ...reconcileHydratedShows(state, shows),
       showRevisions: Object.fromEntries(
         [...new Set([...Object.keys(state.showRevisions), ...state.shows.map((show) => show.id), ...shows.map((show) => show.id)])]
@@ -641,6 +674,39 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     const show = createShowWithOutputContract(id, name, input.outputContract)
     await get().addShow(show)
     return show
+  },
+
+  createNewShowV2: async (input) => {
+    const provider = getPersonalContentProvider()
+    if (!provider.createShowV2) throw new Error('This workspace cannot store version-2 Shows.')
+    const id = newPersonalContentId()
+    const taken = [...get().shows.map((show) => show.name), ...get().showV2Rows.map((row) => row.name)]
+    const name = uniquePatternName(input?.name?.trim() || 'Untitled Show', taken)
+    const record = createShowV2WithOutputContract(id, name, input.outputContract)
+    await get().addImportedShowV2(record)
+    trackEntityCreated('show')
+    return record
+  },
+
+  addImportedShowV2: async (record) => {
+    const provider = getPersonalContentProvider()
+    if (!provider.createShowV2) throw new Error('This workspace cannot store version-2 Shows.')
+    // A stale list snapshot resolving after this create would drop the new
+    // row from state; wait for the hydration to apply first (#794).
+    if (showsHydration) await showsHydration.catch(() => {})
+    const stored = cloneValidShowRecordV2(record)
+    await provider.createShowV2(stored)
+    lastPersistedShowV2Pilots.set(stored.id, { record: stored, history: { past: [], future: [] } })
+    set((state) => ({
+      ...revisionPatch(state, stored.id),
+      showV2Rows: [
+        { id: stored.id, name: stored.name, updatedAt: stored.updatedAt },
+        ...state.showV2Rows.filter((row) => row.id !== stored.id),
+      ],
+      showV2Pilots: { ...state.showV2Pilots, [stored.id]: stored },
+      showV2Histories: { ...state.showV2Histories, [stored.id]: { past: [], future: [] } },
+      showsLoaded: true,
+    }))
   },
 
   createShowFromController: async (profile) => {

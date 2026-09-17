@@ -7,6 +7,7 @@ import {
   type ShowTimelineJunctionView,
   type ShowTimelineViewModel,
 } from '@/engine/showTimelineViewModel'
+import { useShowTransportStore } from '@/store/showTransportStore'
 
 /**
  * The lanes every v2 timeline surface draws the same way: the ruler, the Zone
@@ -20,9 +21,11 @@ export function showTimelinePercentOf(totalMs: number): (timeMs: number) => stri
   return (timeMs: number) => `${Math.min(100, Math.max(0, timeMs / totalMs * 100))}%`
 }
 
-export function ShowTimelineRulerLane({ totalMs, percent }: {
+export function ShowTimelineRulerLane({ totalMs, percent, transportShowId }: {
   totalMs: number
   percent: (timeMs: number) => string
+  /** The Show whose transport draws a playhead here (#1056 slice 6). */
+  transportShowId?: string
 }) {
   const { ticks } = showTimelineRulerTicks({
     viewport: fitShowTimelineViewport(totalMs),
@@ -45,6 +48,7 @@ export function ShowTimelineRulerLane({ totalMs, percent }: {
           style={{ left: percent(tick.timeMs) }}
         />
       ))}
+      {transportShowId !== undefined && <ShowTimelinePlayhead showId={transportShowId} percent={percent} />}
       {ticks.filter((tick) => tick.label).map((tick) => (
         <span
           key={`label-${tick.timeMs}`}
@@ -56,6 +60,27 @@ export function ShowTimelineRulerLane({ totalMs, percent }: {
         </span>
       ))}
     </div>
+  )
+}
+
+/**
+ * The transport's playhead. It subscribes to the position itself so playback
+ * repaints this hairline rather than the whole timeline every frame.
+ */
+function ShowTimelinePlayhead({ showId, percent }: {
+  showId: string
+  percent: (timeMs: number) => string
+}) {
+  const positionMs = useShowTransportStore((state) => state.showId === showId ? state.positionMs : null)
+  if (positionMs === null) return null
+  return (
+    <i
+      aria-hidden
+      data-testid="show-timeline-playhead"
+      data-show-playhead-ms={Math.round(positionMs)}
+      className="absolute inset-y-0 z-[3] w-px bg-live"
+      style={{ left: percent(positionMs) }}
+    />
   )
 }
 

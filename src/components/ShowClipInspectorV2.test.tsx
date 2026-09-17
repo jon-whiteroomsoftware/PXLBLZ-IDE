@@ -2,9 +2,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { ShowClipInspectorV2 } from './ShowClipInspectorV2'
-import { ShowV2RoutePilot } from './ShowV2RoutePilot'
 import { useShowV2EditCapture } from './useShowV2EditCapture'
 import { applyShowCommandV2 } from '../engine/showCommandsV2/registry'
+import { editShowClipV2 } from '../engine/showClipsV2'
+import { createShowV2IndependentIntent } from '../engine/showV2ClipSharingEditorModel'
+import { captureShowStageEditV2 as captureForIntent } from '../engine/showPreparedStageV2'
 import { propertyEditGroupRecord } from '../test/showV2PropertyEditsFixture'
 import { showInitialState, useShowStore } from '../store/showStore'
 import { patternInitialState, usePatternStore } from '../store/patternStore'
@@ -96,25 +98,30 @@ async function commitNumber(label: string, value: string) {
   fireEvent.keyDown(screen.getByLabelText(label), { key: 'Enter' })
 }
 
-it('inspector independence adopts the same record the pilot sharing panel adopts', async () => {
+it('inspector independence adopts exactly what the sharing owner returns', async () => {
   const { fireEvent } = await import('@testing-library/react')
-  const pilot = seed()
-  const pilotView = render(<ShowV2RoutePilot showId={pilot.record.id} />)
-  fireEvent.click(await screen.findByRole('button', { name: /^Voice · Main \/ Main/ }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Make Pattern Independent' }))
-  await waitFor(() => expect(pilot.writes).toHaveLength(1))
-  const throughPilot = useShowStore.getState().showV2Pilots[pilot.record.id]
-  pilotView.unmount()
-
-  minted.count = 0
   const inspector = seed()
+  const preimage = structuredClone(inspector.record)
   render(<Harness showId={inspector.record.id} />)
   await selectClip()
   fireEvent.click(await screen.findByRole('button', { name: 'Make Pattern Independent' }))
   await waitFor(() => expect(inspector.writes).toHaveLength(1))
   const throughInspector = useShowStore.getState().showV2Pilots[inspector.record.id]
 
-  expect({ ...throughInspector, id: '', updatedAt: 0 }).toEqual({ ...throughPilot, id: '', updatedAt: 0 })
+  // The oracle is the pure owner on the same preimage with the same minted
+  // identities: the inspector plans one intent and adopts what it returns.
+  minted.count = 0
+  const capture = captureForIntent(preimage, {
+    patterns: usePatternStore.getState().userPatterns, maps: [], libraries: [], profiles: [], stageMap: null,
+  })
+  const plan = createShowV2IndependentIntent(capture, 'clip', () => `minted-${++minted.count}`)
+  expect(plan.status).toBe('ready')
+  if (plan.status !== 'ready') return
+  const owned = editShowClipV2(preimage, plan.intent)
+  expect(owned.status).toBe('changed')
+  if (owned.status !== 'changed') return
+  expect({ ...throughInspector, updatedAt: 0 }).toEqual({ ...owned.record, updatedAt: 0 })
+
   // Independence copies the shared instance's eligible tracks to the fresh
   // runtime; the Group Clip uses keep the original one.
   expect(throughInspector.composition.patternInstances).toHaveLength(2)

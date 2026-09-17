@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { ShowEditorV2ReadOnly } from './ShowEditorV2ReadOnly'
+import { ShowEditorV2Route } from './ShowEditorV2Route'
 import { restrictShowPropertyTrackV2 } from '@/engine/showPropertyTrackTimeMappingV2'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { propertyEditGroupRecord } from '@/test/showV2PropertyEditsFixture'
@@ -108,7 +108,7 @@ afterEach(() => {
 
 it('draws a Property lane whose retained key is marked and whose curve is not a straight line', () => {
   const { record } = seed()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
 
   const lanes = screen.getByTestId('show-v2-animation-lanes')
   const lane = within(lanes).getByRole('button', { name: /Clip clip view brightness/ })
@@ -123,7 +123,7 @@ it('draws a Property lane whose retained key is marked and whose curve is not a 
 
 it('selects a Property track from its lane and shows it in the Show inspector', async () => {
   const { record } = seed()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
 
   fireEvent.click(within(screen.getByTestId('show-v2-animation-lanes'))
     .getByRole('button', { name: /Clip clip view brightness/ }))
@@ -135,7 +135,7 @@ it('selects a Property track from its lane and shows it in the Show inspector', 
 
 it('draws each Group occurrence with its local children and selects it for the Group actions', async () => {
   const { record } = seed()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
 
   const occurrences = within(screen.getByTestId('show-v2-animation-lanes'))
     .getAllByRole('button', { name: /^Group Definition in Zone/ })
@@ -149,7 +149,7 @@ it('draws each Group occurrence with its local children and selects it for the G
 
 it('holds the whole side panel in one scroll container, so its last control is reachable', () => {
   const { record } = seed()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
 
   const panel = screen.getByTestId('show-editor-v2-side-panel')
   expect(panel.className).toContain('overflow-y-auto')
@@ -162,7 +162,7 @@ it('holds the whole side panel in one scroll container, so its last control is r
 
 it('refuses an Insert Time strictly inside a Transition and writes nothing', async () => {
   const { record, writes } = seedCrossfade()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
   const inspector = screen.getByTestId('show-inspector-v2')
 
   const commit = (label: string, value: string) => {
@@ -184,7 +184,7 @@ it('refuses an Insert Time strictly inside a Transition and writes nothing', asy
 
 it('inserts time at zero through the Show inspector without adding a Group hold', async () => {
   const { record, writes } = seed()
-  render(<ShowEditorV2ReadOnly showId={record.id} />)
+  render(<ShowEditorV2Route showId={record.id} />)
   const inspector = screen.getByTestId('show-inspector-v2')
 
   const commit = (label: string, value: string) => {
