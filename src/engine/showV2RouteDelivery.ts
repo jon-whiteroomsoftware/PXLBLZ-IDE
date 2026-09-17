@@ -3,7 +3,9 @@ import type { ShowEpeExport } from './showEpeExport'
 import { buildShowEpeExportV2 } from './showEpeExportV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import type { ShowRecordV2 } from './showCompositionV2'
-import type { ShowPreparedStageBundleV2 } from './showPreparedStageV2'
+import { preparedShowPatternSourceV2, type ShowPreparedStageBundleV2 } from './showPreparedStageV2'
+import { portableCompatibilityBlockingMessage } from './showPortableCompatibility'
+import { showPortablePatternSitesV2, validatePortableShowCompatibilityV2 } from './showPortableCompatibilityV2'
 import {
   buildDeliveredShowSourceInventory,
   buildShowArtifactInventoryModel,
@@ -51,6 +53,17 @@ export function buildShowV2RouteArtifacts(
   } = {},
 ): ShowV2RouteArtifactsResult {
   const { record, assets, artifact } = bundle
+  // The Portable 2D capability gate `compileShowForArtifact` applies to a v1
+  // Show. Preparation compiles a Portable Show the way v1 preview does, without
+  // this gate; delivery is where v1 refuses one, so delivery is where v2 refuses
+  // it too. Nothing is written or adopted here: the caller receives a refusal
+  // and the record it already held.
+  const portable = portableCompatibilityBlockingMessage(validatePortableShowCompatibilityV2(
+    record,
+    showPortablePatternSitesV2(record, ref => preparedShowPatternSourceV2(ref, assets.patterns), { scope: 'effective' }),
+    bundle.presentation.stageDimension,
+  ))
+  if (portable) return { status: 'refused', message: portable }
   const exported = buildShowEpeExportV2(record, artifact.code, {
     userMaps: assets.maps,
     ...(options.exportedAt === undefined ? {} : { stampedAt: options.exportedAt }),

@@ -107,6 +107,58 @@ it('reports a structurally or referentially invalid candidate as a structure err
   expect(result.errors.some(issue => issue.code === 'structure')).toBe(true)
 })
 
+it('keeps a Portable capability mismatch authorable and reports it as a delivery warning', () => {
+  // The v1 counterpart is "keeps Portable capability mismatch authorable
+  // through the service" in the harness bridge suite: a Portable Show carrying
+  // a 3D-only Pattern stays editable, and delivery is what refuses it.
+  const next = record()
+  const instance = next.composition.patternInstances[0]
+  const result = validateShowAuthoringV2(next, { source: source('export function render3D(index, x, y, z) { rgb(x, y, z) }'), libraries: LIBRARIES })
+  expect(result.valid).toBe(true)
+  expect(result.errors).toEqual([])
+  expect(result.warnings).toContainEqual({
+    code: 'delivery',
+    diagnosticCode: 'portable-renderer-unsupported',
+    path: JSON.stringify(['instance', instance.id]),
+    message: `${instance.patternName} defines only render3D.`,
+  })
+})
+
+it('reports a 1D renderer in a Portable Show as an adaptation advisory, not an issue', () => {
+  const next = record()
+  const result = validateShowAuthoringV2(next, { source: source(), libraries: LIBRARIES })
+  expect(result.valid).toBe(true)
+  expect(result.warnings.map(issue => issue.message)).toContain(
+    `${next.composition.patternInstances[0].patternName} uses render; Portable adapts its normalized local position to a resolution-dependent index.`,
+  )
+})
+
+it('refuses a Portable Show whose Pattern source cannot be inspected for a renderer', () => {
+  const result = validateShowAuthoringV2(record(), { source: source('export function render2D(index, x, y) { rgb('), libraries: LIBRARIES })
+  expect(result.valid).toBe(false)
+  expect(result.errors.map(issue => issue.diagnosticCode)).toContain('portable-metadata-unavailable')
+})
+
+it('leaves an invalid logical Zone Layout to the v2 record validator, before the Portable rule runs', () => {
+  const next = record()
+  next.zoneLayouts[0].logical = { kind: 'checker', columns: 0, rows: 4, zoneIds: [next.zones[0].id] } as unknown as typeof next.zoneLayouts[0]['logical']
+  const result = validateShowAuthoringV2(next, { source: source(), libraries: LIBRARIES })
+  expect(result.valid).toBe(false)
+  expect(result.errors.every(issue => issue.code === 'structure')).toBe(true)
+  expect(result.errors.map(issue => issue.diagnosticCode)).not.toContain('portable-logical-routing-invalid')
+})
+
+it('warns that a Portable Show names a 3D reference output and stays silent for an Installation Show', () => {
+  const next = record()
+  const portable = validateShowAuthoringV2(next, { source: source(), libraries: LIBRARIES, stageDimension: 3 })
+  expect(portable.valid).toBe(true)
+  expect(portable.warnings.map(issue => issue.diagnosticCode)).toContain('portable-reference-map-unsupported')
+  next.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 16, resolution: 'fixed' }
+  const installation = validateShowAuthoringV2(next, { source: source('export function render3D(index, x, y, z) { rgb(x, y, z) }'), libraries: LIBRARIES, stageDimension: 3 })
+  expect(installation.valid).toBe(true)
+  expect(installation.warnings.map(issue => issue.diagnosticCode).filter(Boolean)).toEqual([])
+})
+
 it('captures an immutable snapshot of a valid v2 record and refuses an invalid one', () => {
   const next = record()
   const snapshot = captureAgentShowSnapshotV2(next)

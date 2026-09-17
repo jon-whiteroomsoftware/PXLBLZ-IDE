@@ -5,7 +5,7 @@ import { groupRuntimeBindings, effectiveShowClipsV2 } from './showGroupsV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { compileShow, type GeneratedShowArtifact, type ShowRecipe } from './showCompiler'
 import { prepareShowV2ForCompile, type ShowV2CompileProvenance } from './showCompositionLoweringV2'
-import type { LibraryRecord, MapRecord, PatternRecord } from './personalContentRecords'
+import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
 import { applyNormalizeMode, type MapPoint, type PixelMap } from './maps'
 import { buildShowStripsLayout, showLogicalAspectAdvisory, type ShowStageProjection } from './zonePreview'
@@ -119,10 +119,7 @@ function prepareCapturedStage(snapshot: ShowRecordV2, inputs: ShowPreparedStageI
     const sources: Record<string, string> = {}
     const instances = [...snapshot.composition.patternInstances, ...groupRuntimeBindings(snapshot).map(binding => ({ ...binding.instance, id: binding.runtimeId }))]
     for (const instance of instances) {
-      const ref = instance.pattern
-      const source = ref.kind === 'stock'
-        ? Object.prototype.hasOwnProperty.call(DEMOS, resolveStockPatternId(ref.id)) ? DEMOS[resolveStockPatternId(ref.id)] : undefined
-        : assets.patterns.find(pattern => pattern.id === ref.id)?.src
+      const source = preparedShowPatternSourceV2(instance.pattern, assets.patterns)
       if (source !== undefined) sources[instance.id] = source
     }
     const libraries = compileLibraries(LIBRARIES, assets.libraries)
@@ -163,6 +160,17 @@ function prepareCapturedStage(snapshot: ShowRecordV2, inputs: ShowPreparedStageI
   } catch (error) {
     return { status: 'refused', message: error instanceof Error ? error.message : String(error) }
   }
+}
+
+/**
+ * The exact source a prepared v2 Show compiles one Pattern reference from.
+ * `undefined` means unavailable; no substitute is supplied, so a later verdict
+ * about a Pattern is a verdict about the Pattern this Show actually uses.
+ */
+export function preparedShowPatternSourceV2(ref: ShowPatternRef, patterns: readonly PatternRecord[]): string | undefined {
+  return ref.kind === 'stock'
+    ? Object.prototype.hasOwnProperty.call(DEMOS, resolveStockPatternId(ref.id)) ? DEMOS[resolveStockPatternId(ref.id)] : undefined
+    : patterns.find(pattern => pattern.id === ref.id)?.src
 }
 
 function stagePixelCount(record: ShowRecordV2, map: PixelMap, assets: ShowPreparedStageAssetPayloadV2, dimension: 2 | 3): number {

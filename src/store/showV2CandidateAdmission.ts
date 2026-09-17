@@ -197,9 +197,16 @@ export function createShowV2CandidateAdmission(owner: ShowV2CandidateAdmissionOw
       }))))
     }
     const metadata = capturedMetadata(capture)
+    // A command may select another Stage map, which the capture's pinned map
+    // cannot describe. The Portable rule reads the dimension of the map this
+    // candidate actually names, resolved the way step 9 below resolves it.
+    const movedStage = (candidate.stageMapId ?? null) !== (capture.record.stageMapId ?? null)
+    const stageDimension: 1 | 2 | 3 = (movedStage
+      ? resolveShowV2StageMap(candidate.stageMapId, capture.dependencies.maps)?.dim
+      : capture.dependencies.stageMap?.dim) === 3 ? 3 : 2
     let authoring: ReturnType<typeof validateShowAuthoringV2>
     try {
-      authoring = validateShowAuthoringV2(candidate, { ...metadata, baseline: delivery.baseline, allowExistingMissing: true })
+      authoring = validateShowAuthoringV2(candidate, { ...metadata, baseline: delivery.baseline, allowExistingMissing: true, stageDimension })
     } catch { return refuse('invalid-candidate', showEditDiagnosticInput('unexpected-validator-failure', [{ code: 'validation-unavailable' }])) }
     if (!authoring.valid) {
       return refuse('invalid-candidate', showEditDiagnosticInput('authoring', authoring.errors.map(issue => ({
@@ -210,11 +217,9 @@ export function createShowV2CandidateAdmission(owner: ShowV2CandidateAdmissionOw
     // A candidate that writes nothing has no adoption, history entry, save or
     // ordering stamp to publish, and the caller declared changes it did not make.
     if (sameAuthoredRecord(candidate, current)) return refuse('no-candidate')
-    // A command may select another Stage map, which the capture's pinned map
-    // cannot prepare. Resolve the named one the way the route resolves its own,
-    // and refuse a map that is gone or at an unsupported dimension rather than
-    // preparing the Show against geometry it does not name.
-    const movedStage = (candidate.stageMapId ?? null) !== (capture.record.stageMapId ?? null)
+    // The named map must also be one this workspace can still prepare: refuse a
+    // map that is gone or at an unsupported dimension rather than preparing the
+    // Show against geometry it does not name.
     if (movedStage && !showV2StageMapAvailable(candidate.stageMapId, capture.dependencies.maps)) {
       return refuse('invalid-candidate', showEditDiagnosticInput('normalized', [{ code: 'map-metadata-unavailable', path: JSON.stringify(['stageMap', candidate.stageMapId]) }]))
     }

@@ -1,15 +1,16 @@
 // The minimal v2 counterparts of the v1 authoring baseline, authoring validator
 // and private agent snapshot (#1039).
 //
-// The v1 module validates a `ShowRecord`: flat Scenes and cells, composition v1
-// and the portable-compatibility diagnostics that belong to that shape. None of
-// that addresses a `ShowRecordV2`, whose structure and references are owned by
-// `validateShowRecordV2`. What the v1 module owns that v2 has no counterpart for
-// is the *dependency* half - which Pattern sources and Library namespaces an
-// authored record needs, which of those were already missing before this edit,
-// and whether an authored or animated control actually exists in its Pattern.
-// That half is version-independent, so this module reuses the v1 implementation
-// of it and supplies only the v2 record's own sites and structure check.
+// The v1 module validates a `ShowRecord`: flat Scenes and cells and composition
+// v1. None of that addresses a `ShowRecordV2`, whose structure and references
+// are owned by `validateShowRecordV2`. What the v1 module owns that v2 has no
+// counterpart for is the *dependency* half - which Pattern sources and Library
+// namespaces an authored record needs, which of those were already missing
+// before this edit, and whether an authored or animated control actually exists
+// in its Pattern. That half is version-independent, so this module reuses the v1
+// implementation of it and supplies only the v2 record's own sites and structure
+// check. The Portable capability rule is shared the same way, through
+// `showPortableCompatibilityV2`, and classified here exactly as v1 classifies it.
 import { inspectPatternMetadata } from './bundle'
 import type { ShowPatternRef } from './personalContentRecords'
 import {
@@ -20,12 +21,15 @@ import {
   type ShowPatternSite,
 } from './showAuthoringValidation'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
+import { showPortablePatternSitesV2, validatePortableShowCompatibilityV2 } from './showPortableCompatibilityV2'
 
 export interface ShowAuthoringContextV2 {
   /** Exact source lookup. Undefined means unavailable; never substitute. */
   source: (ref: ShowPatternRef) => string | undefined
   baseline?: ShowAuthoringBaseline
   allowExistingMissing?: boolean
+  /** The dimension of the Stage map this candidate names; the v1 context carries the same. */
+  stageDimension?: 1 | 2 | 3
   /** Fixed metadata snapshot for this validation lineage. */
   libraries?: Record<string, string>
 }
@@ -143,6 +147,20 @@ export function validateShowAuthoringV2(record: ShowRecordV2, context: ShowAutho
       }
     } catch { errors.push({ code: 'metadata', diagnosticCode: 'control-metadata-unavailable', path: requirement.path, message: 'Required control metadata cannot be inspected.' }) }
   }
+  // Portable delivery fitness, classified exactly as `validateShowAuthoring`
+  // classifies it: a capability mismatch stays authorable and is reported as a
+  // delivery warning, while an invalid logical Layout or uninspectable Pattern
+  // is an error. The artifact boundary is what blocks delivery in both versions.
+  const portable = validatePortableShowCompatibilityV2(
+    record,
+    showPortablePatternSitesV2(record, context.source),
+    context.stageDimension ?? 2,
+  )
+  for (const issue of portable?.diagnostics ?? []) {
+    if (issue.category === 'capability') warnings.push({ code: 'delivery', diagnosticCode: issue.code, path: issue.path, message: issue.message })
+    else errors.push({ code: issue.category, diagnosticCode: issue.code, path: issue.path, message: issue.message })
+  }
+  for (const message of portable?.advisories ?? []) warnings.push({ code: 'delivery', message })
   return { valid: errors.length === 0, errors, warnings }
 }
 
