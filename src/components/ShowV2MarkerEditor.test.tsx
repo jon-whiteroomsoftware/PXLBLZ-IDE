@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { transitionV1Show } from '@/test/showV2TracerFixture'
@@ -33,7 +33,8 @@ it('adds/selects and commits dormant equal-time Marker fields through one write 
   render(<Harness />)
   fireEvent.click(screen.getByRole('button', { name: 'Add Marker' }))
   await waitFor(() => expect(replaceShowV2).toHaveBeenCalledTimes(1))
-  expect(screen.getAllByRole('option')).toHaveLength(2)
+  // Scoped to the Marker list: the panel also offers the role's own options.
+  expect(within(screen.getByLabelText('Marker')).getAllByRole('option')).toHaveLength(2)
   fireEvent.change(screen.getByLabelText('Marker time'), { target: { value: '9000' } })
   fireEvent.keyDown(screen.getByLabelText('Marker time'), { key: 'Enter' })
   await waitFor(() => expect(replaceShowV2).toHaveBeenCalledTimes(2))

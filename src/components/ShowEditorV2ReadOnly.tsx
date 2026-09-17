@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { SHOW_TIMELINE_MIN_HEIGHT } from '@/engine/showWorkspaceLayout'
+import type { ShowTimelineSelection } from '@/engine/showTimelineViewModel'
 import { projectShowTimelineV2 } from '@/engine/showTimelineViewModelV2'
 import { useShowStore } from '@/store/showStore'
 import { ShowClipInspectorV2 } from './ShowClipInspectorV2'
+import { ShowEditorV2ShowInspector } from './ShowEditorV2ShowInspector'
 import { ShowEditorV2TransitionLayoutPanel } from './ShowEditorV2TransitionLayoutPanel'
 import { ShowStagePreview } from './ShowStagePreview'
 import { ShowTimelineGestureSurface } from './ShowTimelineGestureSurface'
 import { ShowTimelineReadOnlySurface } from './ShowTimelineReadOnlySurface'
+import { ShowV2AnimationLanes } from './ShowV2AnimationLanes'
 import { useShowV2TimelineGestures } from './useShowV2TimelineGestures'
 import { ShowWorkspace } from './ShowWorkspace'
 import { useShowV2EditCapture } from './useShowV2EditCapture'
@@ -18,9 +21,13 @@ import { useShowV2EditCapture } from './useShowV2EditCapture'
  * view model. Slice 2 adds the timeline's direct manipulation of ordinary
  * Clips - move, resize, split, duplicate, delete, Undo and Redo - through the
  * landed v2 owners and the closed prepared-edit admission, slice 3 mounts the
- * Clip inspector beside the workspace, and slice 4 adds Transition authoring
- * and the Zone Layout lane's own operations in a panel beneath the timeline.
- * All three read the one prepared capture `useShowV2EditCapture` owns. A record
+ * Clip inspector beside the workspace, slice 4 adds Transition authoring
+ * and the Zone Layout lane's own operations in a panel beneath the timeline,
+ * and slice 5 draws the animation lanes under the timeline and mounts the
+ * Show inspector - Property tracks, Markers, Show End and Insert Time - in the
+ * side panel. All of them read the one prepared capture
+ * `useShowV2EditCapture` owns, and the timeline owns the route's Undo and
+ * Redo. A record
  * whose prepared Stage refuses keeps a read-only timeline and refuses every
  * authoring control, because admission would refuse every edit on it anyway.
  * The v1 route is untouched, and this surface registers no agent binding, so no
@@ -31,6 +38,7 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
   const open = useShowStore((state) => state.openShowV2Pilot)
   const binding = useShowV2EditCapture(showId)
   const [refusal, setRefusal] = useState<string | null>(null)
+  const [selection, setSelection] = useState<ShowTimelineSelection | null>(null)
 
   useEffect(() => {
     if (record) return
@@ -91,6 +99,7 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
                   gestures={handlers}
                 />
               )}
+              <ShowV2AnimationLanes view={view} selection={selection} onSelect={setSelection} />
               <ShowEditorV2TransitionLayoutPanel showId={showId} view={view} binding={binding} />
             </div>
           )}
@@ -105,8 +114,28 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
           )}
         />
       </div>
-      <div className="min-h-0 shrink-0 basis-[55%] overflow-hidden border-t border-zinc-800 lg:basis-[24rem] lg:border-l lg:border-t-0">
-        <ShowClipInspectorV2 showId={showId} binding={binding} />
+      {/*
+        One scroll container for the whole side panel. The panel's own sections
+        have natural height, so without a bounded scrolling parent everything
+        below the first viewport - the Group sections, Undo/Redo and the status
+        line that carries refusals - is unreachable by ordinary scrolling.
+      */}
+      <div
+        data-testid="show-editor-v2-side-panel"
+        className="min-h-0 shrink-0 basis-[55%] overflow-y-auto overflow-x-hidden border-t border-zinc-800 lg:basis-[24rem] lg:border-l lg:border-t-0"
+      >
+        <ShowClipInspectorV2
+          showId={showId}
+          binding={binding}
+          selection={selection}
+          onSelectionChange={setSelection}
+        />
+        <ShowEditorV2ShowInspector
+          showId={showId}
+          binding={binding}
+          selection={selection}
+          onSelectionChange={setSelection}
+        />
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import type { ShowClipV2, ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
+import type { ShowClipV2, ShowPropertyTargetV2, ShowPropertyTrackV2, ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
 import { groupOccurrenceDuration, materializeShowGroupsV2 } from './showGroupsV2'
 import { resolveShowZonePixelCount } from './showInstallationCoverage'
 import type {
@@ -8,6 +8,8 @@ import type {
   ShowTimelineLayerView,
   ShowTimelineLayoutIntervalView,
   ShowTimelineMarkerView,
+  ShowTimelinePropertyOwnerView,
+  ShowTimelinePropertyTrackView,
   ShowTimelineTransitionView,
   ShowTimelineViewModel,
   ShowTimelineZoneRowView,
@@ -213,6 +215,25 @@ export function projectShowTimelineV2(record: ShowRecordV2): ShowTimelineViewMod
       }
     })
 
+  const instanceNames = new Map(record.composition.patternInstances.map((instance) => [instance.id, instance.patternName]))
+  const propertyTracks = [
+    ...record.composition.propertyTracks.map((track) => (
+      propertyTrackView(track, { kind: 'show' }, instanceNames)
+    )),
+    ...record.composition.groupDefinitions.flatMap((definition) => {
+      const owner: ShowTimelinePropertyOwnerView = {
+        kind: 'group-definition',
+        definitionId: definition.id,
+        definitionName: definition.name,
+        occurrenceIds: record.composition.groupOccurrences
+          .filter((occurrence) => occurrence.definitionId === definition.id)
+          .map((occurrence) => occurrence.id),
+      }
+      const names = new Map(definition.patternInstances.map((instance) => [instance.id, instance.patternName]))
+      return definition.propertyTracks.map((track) => propertyTrackView(track, owner, names))
+    }),
+  ]
+
   return {
     recordVersion: 2,
     showId: record.id,
@@ -220,6 +241,7 @@ export function projectShowTimelineV2(record: ShowRecordV2): ShowTimelineViewMod
     rows,
     transitions,
     layoutIntervals,
+    propertyTracks,
     markers: record.composition.markers.map((marker): ShowTimelineMarkerView => ({
       id: marker.id,
       timeMs: marker.timeMs,
@@ -239,14 +261,78 @@ export function projectShowTimelineV2(record: ShowRecordV2): ShowTimelineViewMod
   }
 }
 
+/**
+ * One authored Property track as a lane description. Times stay in their own
+ * owner's domain: Show tracks are global, Group-definition tracks are
+ * definition-local (specification section 6).
+ */
+function propertyTrackView(
+  track: ShowPropertyTrackV2,
+  owner: ShowTimelinePropertyOwnerView,
+  instanceNames: ReadonlyMap<string, string>,
+): ShowTimelinePropertyTrackView {
+  const keys = [...track.keyframes]
+    .sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+  const entityId = propertyTargetEntityId(track.target)
+  return {
+    id: track.id,
+    owner,
+    target: structuredClone(track.target),
+    ...(entityId === undefined ? {} : { targetEntityId: entityId }),
+    label: propertyTargetLabel(track.target, instanceNames),
+    activeStartMs: track.activeStartMs,
+    activeDurationMs: track.activeDurationMs,
+    activeEndMs: track.activeStartMs + track.activeDurationMs,
+    keys: keys.map((key) => ({
+      id: key.id,
+      timeMs: key.timeMs,
+      value: key.value,
+      easing: structuredClone(key.easing),
+      ...(key.curveSegment === undefined ? {} : { curveSegment: structuredClone(key.curveSegment) }),
+      retainedCurve: key.curveSegment !== undefined,
+    })),
+  }
+}
+
+function propertyTargetEntityId(target: ShowPropertyTargetV2): string | undefined {
+  if ('clipId' in target) return target.clipId
+  if ('instanceId' in target) return target.instanceId
+  return target.kind === 'layout-occurrence-split-position' ? target.layoutOccurrenceId : undefined
+}
+
+function propertyTargetLabel(target: ShowPropertyTargetV2, instanceNames: ReadonlyMap<string, string>): string {
+  const instance = (id: string) => instanceNames.get(id) ?? id
+  switch (target.kind) {
+    case 'instance-time-scale':
+      return `${instance(target.instanceId)} animation speed`
+    case 'instance-control':
+      return `${instance(target.instanceId)} ${target.exportName}`
+    case 'clip-opacity':
+      return `Clip ${target.clipId} opacity`
+    case 'clip-view':
+      return `Clip ${target.clipId} view ${target.property}`
+    case 'clip-transform':
+      return `Clip ${target.clipId} transform ${target.property}`
+    case 'clip-aperture':
+      return `Clip ${target.clipId} aperture ${target.property}`
+    case 'clip-effect':
+      return `Clip ${target.clipId} ${target.effectKind} ${target.parameterId}`
+    case 'layout-occurrence-split-position':
+      return `Layout ${target.layoutOccurrenceId} split position`
+    case 'show-repeat-scale':
+      return 'Show repeat scale'
+  }
+}
+
 function itemView(
   clip: ShowClipV2,
   occurrenceId: string | undefined,
   compiled: boolean,
   patternName: string | undefined,
 ): ShowTimelineItemView {
-  const held = [...clip.appearance.keys]
-    .sort((left, right) => left.timeMs - right.timeMs)[0]?.value
+  const keys = [...clip.appearance.keys]
+    .sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+  const held = keys[0]?.value
   return {
     id: clip.id,
     selection: occurrenceId
@@ -265,6 +351,12 @@ function itemView(
       opacity: held?.opacity ?? 1,
       effectKinds: (held?.effects ?? []).map((effect) => effect.kind),
     },
+    appearanceKeys: keys.map((key) => ({
+      id: key.id,
+      timeMs: key.timeMs,
+      opacity: key.value.opacity,
+      effectKinds: (key.value.effects ?? []).map((effect) => effect.kind),
+    })),
     ...(occurrenceId ? { groupOccurrenceId: occurrenceId } : {}),
     diagnostics: compiled ? [] : [`Pattern instance "${clip.instanceId}" is missing.`],
   }

@@ -48,7 +48,7 @@ afterEach(() => {
   resetControllerProvider()
 })
 
-describe('ShowEditorV2ReadOnly (#1056 slices 1-4)', () => {
+describe('ShowEditorV2ReadOnly (#1056 slices 1-5)', () => {
   it('renders the Zone rows, Layers, Clips and Show End from the v2 record', () => {
     const record = seededRecord()
     seed(record)
@@ -86,7 +86,7 @@ describe('ShowEditorV2ReadOnly (#1056 slices 1-4)', () => {
     expect(surface).toHaveAttribute('data-show-timeline-editable', 'true')
     // Slice 2 owns Clip gestures only. The timeline's own Layout lane and
     // Markers stay inert: slice 4 authors Layouts from the sibling panel, and
-    // Marker editing is slice 5.
+    // slice 5 edits Markers from the Show inspector in the side panel.
     for (const lane of ['Zone Layouts lane', 'Show Markers']) {
       for (const control of within(within(surface).getByRole('group', { name: lane })).getAllByRole('button')) {
         expect(control).toHaveAttribute('aria-disabled', 'true')

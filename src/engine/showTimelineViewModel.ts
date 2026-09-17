@@ -1,9 +1,12 @@
 import type {
   ShowCompositionV1,
   ShowRecord,
+  ShowStructuredEasing,
   ShowTimelineMarker,
   ShowTransitionKind,
 } from './personalContentRecords'
+import type { ShowPropertyTargetV2 } from './showCompositionV2'
+import type { ShowPropertyCurveSegment } from './showPropertyAnimation'
 import type { ShowLayoutInterval } from './showLayoutIntervals'
 import { projectShowLayoutIntervals } from './showLayoutIntervals'
 import type { ShowStripProjection, ShowTimelineProjection } from './showModel'
@@ -34,10 +37,60 @@ export interface ShowTimelineViewModel {
   layoutIntervals: ShowTimelineLayoutIntervalView[]
   markers: ShowTimelineMarkerView[]
   /**
+   * Authored Property tracks, for the animation lanes.
+   *
+   * Absent means this projection resolves none, not that the record has none: a
+   * v1 track is Scene-local and its global identity is conversion work
+   * (#1035/#1037), so the v1 projection omits the collection and the v1 surfaces
+   * keep their own lanes. A renderer draws what is here and nothing when it is
+   * absent; it never reads this as a version test.
+   */
+  propertyTracks?: ShowTimelinePropertyTrackView[]
+  /**
    * Snap candidates in first-appearance order. Version-agnostic contributions
    * come first; a v1 projection appends its Scene and flat-cell boundaries.
    */
   structuralTimesMs: number[]
+}
+
+/** Which owner's time domain a track's activation and key times live in. */
+export type ShowTimelinePropertyOwnerView =
+  | { kind: 'show' }
+  | { kind: 'group-definition'; definitionId: string; definitionName: string; occurrenceIds: string[] }
+
+/**
+ * One authored Property key on a lane.
+ *
+ * `retainedCurve` marks a key whose outgoing segment is a restriction of a
+ * longer authored curve (specification section 6). Such a segment must be drawn
+ * from its descriptor: re-normalizing it to a two-point interpolation between
+ * this key and the next is a lie, because equal endpoint values can enclose a
+ * nonconstant interior.
+ */
+export interface ShowTimelinePropertyKeyView {
+  id: string
+  timeMs: number
+  value: number
+  /** The authored outgoing curve for the segment that starts at this key. */
+  easing: ShowStructuredEasing
+  /** The retained source-curve coefficients, present exactly when `retainedCurve`. */
+  curveSegment?: ShowPropertyCurveSegment
+  retainedCurve: boolean
+}
+
+/** One authored Property track drawn as an animation lane. */
+export interface ShowTimelinePropertyTrackView {
+  id: string
+  owner: ShowTimelinePropertyOwnerView
+  target: ShowPropertyTargetV2
+  /** The Clip, Pattern instance or Layout occurrence the target names, when it names one. */
+  targetEntityId?: string
+  /** Reader-facing name of what this lane animates. */
+  label: string
+  activeStartMs: number
+  activeDurationMs: number
+  activeEndMs: number
+  keys: ShowTimelinePropertyKeyView[]
 }
 
 /** One Zone rail row. `composed` distinguishes an empty Zone from a record with no timeline. */
@@ -71,6 +124,12 @@ export interface ShowTimelineItemHeldAppearanceView {
   effectKinds: string[]
 }
 
+/** One authored held-appearance key inside a Clip, in global milliseconds. */
+export interface ShowTimelineItemAppearanceKeyView extends ShowTimelineItemHeldAppearanceView {
+  id: string
+  timeMs: number
+}
+
 /** A Clip use on one Layer, including one materialized Group Clip use. */
 export interface ShowTimelineItemView {
   id: string
@@ -85,8 +144,14 @@ export interface ShowTimelineItemView {
   durationMs: number
   endMs: number
   entryPolicy: 'continue' | 'restart'
-  /** Held appearance at the item's start. Per-key detail stays with the appearance owners. */
+  /** Held appearance at the item's start. */
   heldAppearance: ShowTimelineItemHeldAppearanceView
+  /**
+   * Every authored held-appearance key in this Clip, earliest first. Absent
+   * where the projection resolves no per-key detail: a v1 placement carries one
+   * held value with no key identity, so the v1 projection omits it.
+   */
+  appearanceKeys?: ShowTimelineItemAppearanceKeyView[]
   groupOccurrenceId?: string
   diagnostics: string[]
   /** Scene-shaped identity the v1 surfaces still address. Never present for a v2 view. */
@@ -205,6 +270,8 @@ export type ShowTimelineSelection =
     }
   | { kind: 'layout-occurrence'; occurrenceId: string }
   | { kind: 'marker'; markerId: string }
+  /** One authored Property track on an animation lane. */
+  | { kind: 'property-track'; trackId: string }
 
 export interface ShowTimelineGroupView {
   id: string
@@ -243,6 +310,8 @@ export function showTimelineSelectionKey(selection: ShowTimelineSelection): stri
       return `layout-occurrence:${selection.occurrenceId}`
     case 'marker':
       return `marker:${selection.markerId}`
+    case 'property-track':
+      return `property-track:${selection.trackId}`
   }
 }
 

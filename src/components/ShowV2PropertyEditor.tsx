@@ -24,22 +24,32 @@ interface EditorProps {
   isCurrentCapture: () => boolean
   isCurrentCompletion: (receipt: ShowV2PilotAdoptionReceipt, phase: 'saved' | 'save-failed') => boolean
   onStatus: (status: string) => void
+  /** A track an outside surface selected, such as an animation lane. */
+  selectedTrackId?: string
+  onSelectTrack?: (trackId: string) => void
 }
 
 /** A typed UI boundary sends authored intent only. The Route binds the prepared Property owner. */
-export function ShowV2PropertyEditor({ capture, submitPropertyEdit, isCurrentCapture, isCurrentCompletion, onStatus }: EditorProps) {
+export function ShowV2PropertyEditor({ capture, submitPropertyEdit, isCurrentCapture, isCurrentCompletion, onStatus, selectedTrackId, onSelectTrack }: EditorProps) {
   const [ownerKey, setOwnerKey] = useState(''), [trackId, setTrackId] = useState(''), [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false), [reset, setReset] = useState(0)
   const pending = useRef(false), live = useRef(true)
   useLayoutEffect(() => { live.current = true; return () => { live.current = false } }, [])
-  const owner: ShowPropertyTrackOwnerV2 | undefined = ownerKey === 'show' ? { kind: 'show' }
-    : ownerKey.startsWith('group:') ? { kind: 'group-definition', definitionId: ownerKey.slice(6) } : undefined
+  const selectTrack = (next: string) => { setTrackId(next); onSelectTrack?.(next) }
+  // A lane selection names a track without naming its owner, so the owner the
+  // panel shows follows the record's own ownership of that track.
+  const ownerOfSelected = selectedTrackId === undefined ? undefined
+    : capture.record.composition.propertyTracks.some(track => track.id === selectedTrackId) ? 'show'
+      : capture.record.composition.groupDefinitions.find(definition => definition.propertyTracks.some(track => track.id === selectedTrackId))?.id
+  const effectiveOwnerKey = ownerOfSelected === undefined ? ownerKey : ownerOfSelected === 'show' ? 'show' : `group:${ownerOfSelected}`
+  const owner: ShowPropertyTrackOwnerV2 | undefined = effectiveOwnerKey === 'show' ? { kind: 'show' }
+    : effectiveOwnerKey.startsWith('group:') ? { kind: 'group-definition', definitionId: effectiveOwnerKey.slice(6) } : undefined
   const model = buildShowV2PropertyEditorModel(capture, owner)
-  const track = model.tracks.find(value => value.id === trackId)
+  const track = model.tracks.find(value => value.id === (selectedTrackId ?? trackId))
   const [draftRecord, setDraftRecord] = useState(capture.record)
   if (!busy && draftRecord !== capture.record) {
     setDraftRecord(capture.record); setReset(value => value + 1)
-    if (trackId && !track) setTrackId('')
+    if (trackId && !track) selectTrack('')
   }
   const submit = async (intent: ShowPropertyEditIntentV2) => {
     if (!owner || pending.current) return
@@ -53,8 +63,8 @@ export function ShowV2PropertyEditor({ capture, submitPropertyEdit, isCurrentCap
       onStatus(outcome.status === 'refused' ? outcome.message : outcome.status === 'unchanged' ? 'Property is unchanged.' : 'Property saved.')
       if (outcome.status === 'refused' || outcome.status === 'unchanged') setReset(value => value + 1)
       if (outcome.status === 'applied') {
-        if (intent.kind === 'add-track') { setTrackId(intent.track.id); setCreating(false) }
-        if (intent.kind === 'remove-track') setTrackId('')
+        if (intent.kind === 'add-track') { selectTrack(intent.track.id); setCreating(false) }
+        if (intent.kind === 'remove-track') selectTrack('')
       }
     } catch (error) {
       const current = adopted.current ? isCurrentCompletion(adopted.current, 'save-failed') : isCurrentCapture()
@@ -64,13 +74,13 @@ export function ShowV2PropertyEditor({ capture, submitPropertyEdit, isCurrentCap
   const available = !busy && (capture.inputCapture?.status === 'qualified' || (!capture.inputCapture && capture.prepared.status !== 'refused'))
   return <section aria-label="Properties" className="mt-7 space-y-3">
     <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-medium text-zinc-200">Properties</h2>
-      <Button size="xs" variant="outline" className={buttonStyle} disabled={!available || !model.selected} onClick={() => { setCreating(true); setTrackId('') }}>New track</Button></div>
-    <label className="block text-xs text-zinc-400">Owner<select aria-label="Property owner" className={fieldStyle} disabled={busy} value={model.selected ? ownerKey : ''} onChange={event => { setOwnerKey(event.target.value); setTrackId(''); setCreating(false) }}>
+      <Button size="xs" variant="outline" className={buttonStyle} disabled={!available || !model.selected} onClick={() => { setCreating(true); selectTrack('') }}>New track</Button></div>
+    <label className="block text-xs text-zinc-400">Owner<select aria-label="Property owner" className={fieldStyle} disabled={busy} value={model.selected ? effectiveOwnerKey : ''} onChange={event => { setOwnerKey(event.target.value); selectTrack(''); setCreating(false) }}>
       <option value="">Choose Show or Group definition</option>{model.owners.map(choice => <option key={choice.key} value={choice.owner.kind === 'show' ? 'show' : `group:${choice.owner.definitionId}`}>{choice.label}</option>)}</select></label>
     {model.selected && <p className="text-xs text-zinc-500">{model.selected.owner.kind === 'show' ? 'Show milliseconds.' : `Definition-local milliseconds. Changes affect ${model.selected.linkedOccurrenceIds.length} linked occurrences.`}</p>}
-    <label className="block text-xs text-zinc-400">Track<select aria-label="Property track" className={fieldStyle} disabled={busy || !model.selected} value={track?.id ?? ''} onChange={event => { setTrackId(event.target.value); setCreating(false) }}>
+    <label className="block text-xs text-zinc-400">Track<select aria-label="Property track" className={fieldStyle} disabled={busy || !model.selected} value={track?.id ?? ''} onChange={event => { selectTrack(event.target.value); setCreating(false) }}>
       <option value="">Choose persisted track</option>{model.tracks.map(value => <option key={value.id} value={value.id}>{value.id} · {value.target.kind}</option>)}</select></label>
-    {model.selected && (creating || track) && <PropertyFields key={`${ownerKey}:${track?.id ?? 'new'}:${reset}`} capture={capture} owner={model.selected.owner} track={track}
+    {model.selected && (creating || track) && <PropertyFields key={`${effectiveOwnerKey}:${track?.id ?? 'new'}:${reset}`} capture={capture} owner={model.selected.owner} track={track}
       available={available} busy={busy} submit={intent => { void submit(intent) }} report={message => { if (isCurrentCapture()) onStatus(message) }} />}
   </section>
 }

@@ -25,9 +25,9 @@ export function ShowV2MarkerEditor({ capture, isCurrentCapture, isCurrentComplet
     return () => { live.current = false }
   }, [])
   const marker = selectedShowMarkerV2(record.composition.markers, selectedId)
-  // Read-only narrative projection (#1040): chapter-role Markers in their
-  // deterministic order. The route still edits general Marker fields only and
-  // never authors or clears a role.
+  // Narrative projection (#1040): chapter-role Markers in their deterministic
+  // order. The role control below authors and clears `role: chapter` through the
+  // same Marker owner; playback is unchanged either way (section 8).
   const chapters = showChaptersV2(record)
   const submit = async (intent: ShowMarkerEditIntentV2): Promise<boolean> => {
     if (pending.current) return false
@@ -95,6 +95,13 @@ export function ShowV2MarkerEditor({ capture, isCurrentCapture, isCurrentComplet
             <label className="block min-w-0 text-xs text-zinc-500">
               Color
               <DraftTextField ariaLabel="Marker color" value={marker.color ?? ''} onApply={color => { void submit({ kind: 'update', markerId: marker.id, patch: { color: color || undefined } }) }} inputProps={{ disabled: busy }} className="mt-1 block w-full" inputClassName="w-full min-w-0 rounded-sm border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-200" />
+            </label>
+            <label className="block min-w-0 text-xs text-zinc-500">
+              Role
+              <select aria-label="Marker role" value={marker.role ?? 'general'} disabled={busy} onChange={event => { void submit({ kind: 'update', markerId: marker.id, patch: { role: event.target.value === 'chapter' ? 'chapter' : undefined } }) }} className="mt-1 block w-full min-w-0 rounded-sm border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-200">
+                <option value="general">General guide</option>
+                <option value="chapter">Chapter</option>
+              </select>
             </label>
             <div className="flex items-end sm:justify-end">
               <Button size="xs" variant="outline" disabled={busy} onClick={() => void submit({ kind: 'remove', markerId: marker.id })}>Remove Marker</Button>

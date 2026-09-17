@@ -2,7 +2,11 @@ import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { effectiveShowClipsV2 } from './showGroupsV2'
 import type { ShowTimelineMarker } from './personalContentRecords'
 
-export function selectedShowMarkerV2(markers: readonly ShowTimelineMarker[], selectedId: string): ShowTimelineMarker | undefined {
+/** Generic in the marker shape so a v2 Marker keeps its `role` for the caller. */
+export function selectedShowMarkerV2<Marker extends { id: string }>(
+  markers: readonly Marker[],
+  selectedId: string,
+): Marker | undefined {
   return markers.find(marker => marker.id === selectedId) ?? markers[0]
 }
 /** Caller-owned deterministic fresh identity for an explicit Add intent. */
