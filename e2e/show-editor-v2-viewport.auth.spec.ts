@@ -60,6 +60,15 @@ test('the v2 timeline zooms, pans, snaps and toggles its lanes on the ordinary r
   await expect(surface).toHaveAttribute('data-show-timeline-editable', 'true')
   await expect(status).toContainText('Editing this v2 Show')
 
+  // The playhead is a snap candidate (#1039), and a running preview moves it.
+  // Hold it at the Show start so every drop below resolves against the grid,
+  // the Marker and the Clip edges this test names, not wherever playback was.
+  const transport = page.getByTestId('show-editor-v2-transport')
+  const pause = transport.getByRole('button', { name: 'Pause Show preview' })
+  if (await pause.count() > 0) await pause.click()
+  await expect(transport.getByRole('button', { name: 'Play Show preview' })).toBeVisible()
+  await transport.getByRole('button', { name: 'Go to Show start' }).click()
+
   /** The window the ruler publishes. */
   const window = async () => ({
     startMs: Number(await ruler.getAttribute('data-show-visible-start-ms')),
