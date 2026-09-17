@@ -60,6 +60,47 @@ describe('Show timeline view model', () => {
       expect(v2.transitions).toEqual([])
     })
 
+    it('reads a stored zero-duration v1 Cut record as the absence of a Transition', () => {
+      // Two Scenes joined by a persisted `kind: 'cut'` boundary: exact
+      // adjacency, so the junction is derived and owns no Transition.
+      const show = convertibleV1Show()
+      show.scenes = [
+        { id: 'scene-a', name: 'Opening', durationMs: 400 },
+        { id: 'scene-b', name: 'Closing', durationMs: 600 },
+      ]
+      show.transitions = [{
+        id: 'boundary-cut', afterSceneId: 'scene-a', kind: 'cut', durationMs: 0, easing: { curve: 'linear' },
+      }]
+      show.composition!.patternInstances.push({
+        id: 'second', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      })
+      show.composition!.scenes = [
+        {
+          sceneId: 'scene-a',
+          zones: [{
+            zoneId: 'zone', overlays: [],
+            main: [{ id: 'clip', instanceId: 'instance', startMs: 0, durationMs: 400, view: { mirror: false, phase: 0, brightness: 1 } }],
+          }],
+        },
+        {
+          sceneId: 'scene-b',
+          zones: [{
+            zoneId: 'zone', overlays: [],
+            main: [{ id: 'clip-2', instanceId: 'second', startMs: 0, durationMs: 600, view: { mirror: false, phase: 0, brightness: 1 } }],
+          }],
+        },
+      ]
+      const v1 = projectShowTimelineViewModel(show)
+      const [junction] = onlyLayer(v1).junctions
+      expect(junction.kind).toBe('cut')
+      expect(junction.scope).toBe('derived-cut')
+      expect(junction.transitionId).toBeNull()
+      expect(junction.legacy).toEqual({ boundaryTransitionId: 'boundary-cut' })
+      expect(v1.transitions).toEqual([])
+      expect(projectShowTimelineV2(convert(show)).transitions).toEqual([])
+    })
+
     it('leaves a 1 ms gap as blank time with no junction', () => {
       const show = adjacentV1Show(1)
       expect(onlyLayer(projectShowTimelineViewModel(show)).junctions).toEqual([])

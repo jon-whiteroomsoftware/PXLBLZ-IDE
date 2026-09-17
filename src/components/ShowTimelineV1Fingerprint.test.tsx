@@ -58,6 +58,10 @@ afterEach(() => {
 
 describe('v1 Show timeline projection and rendering byte identity', () => {
   const corpus = showV2ViewModelCorpus()
+  const updating = process.env.UPDATE_SHOW_TIMELINE_FINGERPRINTS === '1'
+  const baseline = updating
+    ? {}
+    : JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as Record<string, RecordFingerprint>
   const measured: Record<string, RecordFingerprint> = {}
 
   for (const entry of corpus) {
@@ -75,15 +79,16 @@ describe('v1 Show timeline projection and rendering byte identity', () => {
         viewModel: sha256(JSON.stringify(projectShowTimelineViewModel(entry.show, entry.editorComposition))),
         dom: domFingerprint(),
       }
+      if (!updating) expect(measured[entry.corpusId]).toEqual(baseline[entry.corpusId])
     })
   }
 
-  it('matches the committed baseline for every rendered record', () => {
+  it('covers the whole pinned corpus and no other record', () => {
     expect(Object.keys(measured)).toHaveLength(47)
-    if (process.env.UPDATE_SHOW_TIMELINE_FINGERPRINTS === '1') {
+    if (updating) {
       writeFileSync(BASELINE_PATH, `${JSON.stringify(measured, null, 2)}\n`)
+      return
     }
-    const baseline = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as Record<string, RecordFingerprint>
     expect(measured).toEqual(baseline)
   })
 })
