@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1056",
+  "route": "/PXLBLZ-IDE/studio/shows/show-editor-v2-inspector?show-v2-editor=1",
+  "operation": "Seeded a stored ShowRecordV2 through PUT /api/shows/:id?show-version=2 and opened it on the ordinary Show editor route behind the version gate, then drove the Clip inspector beside the read-only timeline. The desktop capture at 1440x1000 selects the ordinary Clip and shows its Pattern, placement and Restart entry policy, the Clip start saved to 500 ms with duration 10000 and end 10500, the Pattern instance panel reading 'Shared by 3 Clips' with the ordinary use and both held Group Clip uses listed, and the Replace Pattern and Appearance sections. The replace-confirm capture shows the required animation-loss confirmation after choosing Inspector Other: 'Replacement drops 1 incompatible control: sliderLost on instance. Its animation is removed.' with Confirm and Cancel. The replaced capture is the state after confirming: the Clip's Pattern is Inspector Other and its instance reads Independent with one use, while both Group Clip uses on the timeline still read Inspector Voice. The narrow capture is 390x844 with the studio drawer dismissed, the timeline stacked above the inspector, the Selected Clip control holding keyboard focus and no control overflowing the viewport. Driven with repository Playwright through scripts/run-authenticated-playwright.ts as the synthetic authenticated user; the Codex in-app browser is not available to this agent.",
+  "captures": [
+    ".wrsp/ui-proof/1056-s3-desktop.png",
+    ".wrsp/ui-proof/1056-s3-replace-confirm.png",
+    ".wrsp/ui-proof/1056-s3-replaced.png",
+    ".wrsp/ui-proof/1056-s3-narrow.png"
+  ],
+  "capturedAtCommit": "f16a7c18aac6424e09f2267317fad0134738300f"
+}
