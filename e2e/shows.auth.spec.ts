@@ -2067,8 +2067,7 @@ test.describe('authenticated Show authoring', () => {
   test('selects discontinuous Installation LED ranges on the saved 2D map at desktop and narrow widths', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
-    const openZonesRail = page.getByRole('button', { name: 'Open Zones' })
-    if (await openZonesRail.count() > 0) await openZonesRail.click()
+    await openZoneRail(page)
     await page.getByRole('button', { name: 'Open zone main properties' }).click()
     await page.getByRole('button', { name: 'Select main LEDs on output map' }).click()
 
@@ -2103,8 +2102,8 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByText(/missing/i).first()).toBeVisible()
 
     await page.reload()
-    const reopenZonesRail = page.getByRole('button', { name: 'Open Zones' })
-    if (await reopenZonesRail.count() > 0) await reopenZonesRail.click()
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    await openZoneRail(page)
     await expect(page.getByRole('region', { name: 'Show timeline' }).getByText(`${selectedCount}px`)).toBeVisible()
     await page.getByRole('button', { name: 'Open zone main properties' }).click()
     await expect(page.getByText(`physical - ${selectedCount} px`)).toBeVisible()
@@ -3078,6 +3077,22 @@ async function createInstallationShow(page: Page): Promise<void> {
   expect(created.ok(), await created.text()).toBe(true)
   await page.goto(`studio/shows/${show.id}`)
   await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}$`))
+  // The row is loaded, not merely routed: the Zone rail toggle is keyed by the
+  // open Show's id, so a click before the editor holds this Show lands nowhere.
+  await expect(page.getByRole('button', { name: 'Rename show Untitled Show' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+}
+
+/**
+ * Open the v1 timeline's Zone rail and wait until it is open. A seeded row
+ * opens with the rail closed (only the creation flow opened it by default), so
+ * the Zone header row, and its "Open zone … properties" button, exist only
+ * after this.
+ */
+async function openZoneRail(page: Page): Promise<void> {
+  const openZones = page.getByRole('button', { name: 'Open Zones' })
+  if (await openZones.count() > 0) await openZones.click()
+  await expect(page.getByRole('button', { name: 'Close Zones' })).toBeVisible()
 }
 
 /**

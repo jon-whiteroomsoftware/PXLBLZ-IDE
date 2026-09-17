@@ -35,8 +35,13 @@ async function createFreshShow(page: Page): Promise<string> {
   await addShow.click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
+  const before = new URL(page.url()).pathname
   await page.getByRole('button', { name: 'Create Show' }).click()
-  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+/)
+  // The Shows place may already sit on the previously active Show's URL, so
+  // "some Show id" is not enough: wait for the id to change to the new record.
+  await expect.poll(() => new URL(page.url()).pathname).not.toBe(before)
+  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+(\?|$)/)
+  await expect(page.getByTestId('show-editor-v2-route')).toBeVisible()
   return new URL(page.url()).pathname.split('/').at(-1)!
 }
 
@@ -307,17 +312,22 @@ test('an unconverted row keeps the v1 editor, and the same row opens here once i
     data: { ...donor, id: source.id, name: source.name },
   })
   expect(written.ok(), await written.text()).toBe(true)
-  const removedDonor = await page.request.delete(`/api/shows/${donorId}`)
-  expect(removedDonor.ok(), await removedDonor.text()).toBe(true)
 
   // After conversion the same URL opens this route, the v1 list no longer
-  // offers the row, and the v2 list does.
+  // offers the row, and the v2 list does. Leave the donor's route before
+  // deleting the donor, so the open editor never asks the API for a row that
+  // is gone.
   await page.goto(`studio/shows/${source.id}`)
   await expect(page.getByTestId('show-editor-v2-route')).toBeVisible()
   await expect(page.getByTestId('show-timeline-read-only')).toHaveAttribute('data-show-record-version', '2')
   await expect(page.getByTestId('show-editor-v2-route-version')).toHaveText('v2')
-  expect((await (await page.request.get('/api/shows')).json()).shows).toEqual([])
-  expect((await listV2(page)).map(show => show.id)).toEqual([source.id])
+  const removedDonor = await page.request.delete(`/api/shows/${donorId}`)
+  expect(removedDonor.ok(), await removedDonor.text()).toBe(true)
+  expect((await (await page.request.get('/api/shows')).json()).shows.map((show: { id: string }) => show.id))
+    .not.toContain(source.id)
+  const v2Ids = (await listV2(page)).map(show => show.id)
+  expect(v2Ids).toContain(source.id)
+  expect(v2Ids).not.toContain(donorId)
 
   expect(errors).toEqual([])
 })

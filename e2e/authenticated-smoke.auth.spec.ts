@@ -72,8 +72,10 @@ test('authenticated Studio creates, renames, and reloads a persisted Show', asyn
   await page.getByRole('button', { name: 'Rename show Untitled Show' }).click()
   await page.getByRole('textbox', { name: 'Show name' }).fill('Opening')
   await page.getByRole('textbox', { name: 'Show name' }).press('Enter')
+  // Since #1039 the creation flow writes a version-2 record; the versioned
+  // listing answers with both stored versions, the bare one with v1 rows only.
   await expect.poll(async () => {
-    const response = await page.context().request.get('/api/shows')
+    const response = await page.context().request.get('/api/shows?show-version=2')
     if (!response.ok()) return false
     const { shows } = await response.json() as {
       shows: Array<{ name: string }>
@@ -877,7 +879,10 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
     () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
     'Show authoring should not create document-level horizontal overflow at 390px',
   ).toBeLessThanOrEqual(1)
-  await expect(page.getByRole('button', { name: 'Show properties' })).toBeInViewport()
+  // A fresh Show opens on the v2 editor since #1039; its transport is the
+  // route's leading control and must stay reachable at 390px.
+  await expect(page.getByTestId('show-editor-v2-route')).toBeVisible()
+  await expect(page.getByTestId('show-editor-v2-transport')).toBeInViewport()
 
   // The Learn number is composed from catalogue level and order at runtime.
   await page.getByRole('button', { name: 'Open the Shows list' }).click()
