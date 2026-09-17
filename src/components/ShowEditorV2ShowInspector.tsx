@@ -9,12 +9,13 @@ import { useShowStore } from '@/store/showStore'
 import { ShowV2LayerEditor } from './ShowV2LayerEditor'
 import { ShowV2MarkerEditor } from './ShowV2MarkerEditor'
 import { ShowV2PropertyEditor } from './ShowV2PropertyEditor'
+import { ShowV2ShowPropertiesEditor } from './ShowV2ShowPropertiesEditor'
 import { ShowV2ShowTimingEditor } from './ShowV2ShowTimingEditor'
 import type { ShowV2EditCaptureBinding } from './useShowV2EditCapture'
 
 /**
- * The Show-scoped inspector beside the v2 timeline: Layers, Property tracks,
- * Markers, Show End and Insert Time.
+ * The Show-scoped inspector beside the v2 timeline: Show properties, Layers,
+ * Property tracks, Markers, Show End and Insert Time.
  *
  * It holds no record. Every section plans its edit with a landed v2 model and
  * adopts it through the closed prepared-edit admission, so one accepted edit is
@@ -52,6 +53,17 @@ export function ShowEditorV2ShowInspector({
       data-testid="show-inspector-v2"
       className="border-t border-zinc-800 bg-zinc-950 px-4 py-4 text-zinc-200"
     >
+      {/*
+        The Show's own output properties - contract, Stage map, Zone Map and
+        Trails - which the flipped route had no surface for at all (#1039).
+      */}
+      <ShowV2ShowPropertiesEditor
+        key={`show-properties:${capture.record.id}`}
+        capture={capture}
+        isCurrentCapture={isCurrentCapture}
+        isCurrentCompletion={isCurrentCompletion}
+        onStatus={setStatus}
+      />
       <ShowV2ShowTimingEditor
         key={`timing:${capture.record.id}`}
         capture={capture}
@@ -91,7 +103,7 @@ export function ShowEditorV2ShowInspector({
         onStatus={setStatus}
       />
       <output aria-live="polite" data-testid="show-inspector-v2-status" className="mt-4 block text-sm leading-6 text-zinc-400">
-        {status || 'Edit the Show timing, Property tracks, Layers and Markers here.'}
+        {status || 'Edit the Show properties, timing, Property tracks, Layers and Markers here.'}
       </output>
     </section>
   )
