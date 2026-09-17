@@ -1,0 +1,90 @@
+{
+  "issue": 1041,
+  "alsoIssue": 1038,
+  "scope": "ordinary Clip re-placement owner intent, update_clips zone/layer wiring, Marker chapter-role pass-through, and the #1018 baseline fixture re-pin decision",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "sections": ["5", "8", "9"],
+    "proofRows": [
+      "MODEL",
+      "REPLACE",
+      "FAILURE",
+      "CATALOGUE",
+      "manual/command parity"
+    ]
+  },
+  "base": "3fb7e307fd24e491a694a046ce1d0a0004cc572e",
+  "invariants": [
+    "Re-placement consumes an immutable preimage: the input record is deep-equal before and after every changed, unchanged and refused result.",
+    "Refusal and no-op return the original record identity with every affected collection empty, and produce no history, save or timestamp.",
+    "Identity is never allocated inside the owner: re-placement creates, removes and rebinds no Pattern instance, Clip, key or track identity.",
+    "Clip-owned appearance keys and Clip Property tracks follow the Clip once; shared Pattern-instance, Layout and Show tracks stay fixed.",
+    "No Transition is detached, retargeted or stubbed: a participant endpoint refuses, and a whole-output contributor keeps its record exact.",
+    "Destination occupancy is exclusive over ordinary and materialized Group Clips, with exact half-open adjacency accepted.",
+    "The destination Zone must be routed across the Clip's complete contribution interval, including incoming Transition pre-roll.",
+    "The command layer restates no domain rule: update_clips passes the owner's record, affected set and typed refusal code through unaltered.",
+    "The Marker owner admits only the enumerated chapter role; promotion and clearing change the role alone."
+  ],
+  "partitions": [
+    "destination: same Zone other Layer / other Zone other Layer / destination plus start / start only / already satisfied",
+    "occupancy: free destination / overlapping ordinary Clip / exact half-open adjacency / overlapping materialized Group child",
+    "availability: routed throughout / absent during the nominal bar / absent only during whole-output pre-roll / same destination with the carrier removed",
+    "Transitions: none attached / participant incoming or outgoing / whole-output contributor",
+    "destination existence: unknown Layer / Layer of another Zone / unknown Zone",
+    "intent shape: blank identity / fractional start / start past Show End / no destination field / unknown field / unknown Clip",
+    "animation ownership: Clip-owned track, sole-user instance track, shared instance track, Show-owned track",
+    "Marker role: authored on add / promoted on update / cleared with null / already clear / unknown role"
+  ],
+  "sequences": [
+    "re-place to another Layer -> reopen .pxlshow -> compare against an independently authored record at the destination",
+    "re-place across Zones with a start -> reopen .epe -> replay Fast and Precise against the independently authored record and against the preimage",
+    "whole-output pre-roll refusal -> remove the carrier -> same destination accepted",
+    "update_clips destination change -> compare record, affected set and refusal code against editShowClipTemporalV2 directly",
+    "add_marker role -> update_marker promote -> update_marker null clear -> repeat clear as a no-op",
+    "closed pilot admission: re-place with one history and save -> unknown destination refusal with zero writes"
+  ],
+  "oracles": [
+    "Reopened .pxlshow through parseProvisionalShowRecordV2: the candidate composition equals an independently authored record already placed at the destination.",
+    "Reopened .epe through buildShowEpeExportV2 and parseEpe: identical generated code and identical frames and exported state at seventeen named times in Fast and Precise, including a cross-Zone case that must differ from the preimage frame.",
+    "showChaptersV2 projection over the reopened record for the Marker role.",
+    "Owner result collections and typed refusal codes, compared command-to-owner rather than asserted twice.",
+    "Real provider write count, history length and prepared-stage capability through the closed pilot admission."
+  ],
+  "redEvidence": [
+    "The owner intent was written before its test file, so red-first was not observed for the owner; five recorded fault injections below stand in for it and each named test failed as predicted.",
+    "The three superseded refusal assertions (showMarkersV2, showChaptersV2, showCommandsV2/commands) failed first against the new pass-through and were rewritten to the landed behaviour.",
+    "The update_clips destination test failed first against the typed unsupported refusal."
+  ],
+  "faults": [
+    "Participant-detachment refusal removed -> 'refuses a Zone change that would leave an attached participant Transition behind' failed.",
+    "Destination availability check skipped for re-placement -> the nominal-interval and whole-output pre-roll refusals both failed.",
+    "Re-placement ignores its explicit start -> the cross-Zone translation, the shared-track isolation and both Fast/Precise oracles failed.",
+    "Destination Layer existence and Zone ownership unchecked -> both missing-target cases failed.",
+    "Intent accepts no destination field -> the 'no destination field' refusal failed."
+  ],
+  "results": {
+    "focused": "showClipReplacePlacementV2 26, showCommandsV2 46, showMarkersV2 and showChaptersV2, showV2ClipTimingAdmission 20, showCommands: 470 passed across the changed seams.",
+    "static": "npm run lint and npx tsc -b --pretty false passed.",
+    "staged": "npm run test:staged passed on both commits through the pre-commit hook.",
+    "parity": "npm run show:v2-parity matched 47 inventoried records, unchanged.",
+    "agent": "npm run agent:smoke PASS; npm run agent:corpus -- --fake 43/43 with no generic-operation use and no failures.",
+    "toolsList": "In-process probe: command inputSchema 64,049 bytes of 65,536; three bulk tools 16,792 of 24,576. The 32-byte rise over the landed 64,017 is the two longer Marker role descriptions.",
+    "baselineFixtures": "npm run agent:baseline:fixtures still differs at the same nine pinned paths. Not re-pinned: see below."
+  },
+  "baselineFixtureFinding": {
+    "claim": "The dispatch expected all nine paths to follow from the #1018 resize_clip summary rewording.",
+    "ordering": "git merge-base --is-ancestor c0ab5995 30a0aa00 confirms the pin (#950, 2026-09-08) precedes the rewording (#1018, 2026-09-12).",
+    "experiment": "Restoring the pre-#1018 description string in src/engine/showCommands/clips.ts and re-running the fixture CLI reduced the drift from nine paths to six: the three bridge.summaries[0] paths matched again, and the six after.pxlshow bytes/contentSha256 paths still differed.",
+    "conclusion": "The .pxlshow drift has a second cause that is not the rewording, so the dispatch's re-pin precondition fails and the fixtures were left pinned.",
+    "sameRecordEvidence": "For all three affected fixtures after.recordSha256, after.clipCount, after.firstClipDurationMs, after.epe.bytes and after.epe.sourceSha256 are identical to the pin. recordSha256 is canonical JSON with sorted keys, while the .pxlshow contentSha256 hashes JSON.stringify(bundle) and bytes is the zip container length, so the surviving difference is the bundle's serialization of a semantically identical record, not a changed Show.",
+    "notInvestigated": "Which commit in c0ab5995..HEAD changed that serialization was not bisected; nineteen commits in the range touch the v1 command or record-writing path."
+  },
+  "residuals": [
+    "The ordinary Clip timing editor is unchanged: no Zone/Layer selects were added, so this slice records no browser proof and touches no wrsp-ui-proof path.",
+    "A Clip with a participant Transition cannot change Zone or Layer at all, matching v1 moveShowClipExactly. Only a whole-output contributor can, so incoming pre-roll is provable only through that partition.",
+    "Destination collision surfaces as invalid-result from complete-candidate validation, consistent with the landed duplicate and creation owners rather than a dedicated occupancy code.",
+    "The four P3 findings from the #1041 review are out of scope and filed as #1053.",
+    "Final authoritative suites and Fable High review remain coordinator-owned."
+  ]
+}
