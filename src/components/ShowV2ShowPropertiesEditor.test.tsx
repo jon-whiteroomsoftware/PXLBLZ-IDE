@@ -15,13 +15,13 @@ beforeEach(() => {
 })
 afterEach(() => resetPersonalContentProvider())
 
-function setup(installation = false) {
+function setup(installation = false, installationMapId = 'plane') {
   // Two routed Zones, so the duplicate-name refusal has a name to collide with.
   const record = commandFixtureV2()
   for (const instance of record.composition.patternInstances) instance.pattern = { kind: 'user', id: 'voice' }
   record.stageMapId = 'plane'
   record.outputContract = installation
-    ? { version: 1, kind: 'installation', outputMapId: 'plane', pixelCount: 300, resolution: 'fixed' }
+    ? { version: 1, kind: 'installation', outputMapId: installationMapId, pixelCount: 300, resolution: 'fixed' }
     : { version: 1, kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 1024, compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' } }
   const dependencies = {
     patterns: [{ id: 'voice', name: 'Voice', src: 'export function render2D(i,x,y){rgb(x,y,0)}', controls: {}, updatedAt: 1 }],
@@ -84,6 +84,19 @@ it('offers a Portable contract only 2D maps', () => {
   const options = [...screen.getByLabelText<HTMLSelectElement>('Reference map').options].map(option => option.value)
   expect(options).toContain('plane')
   expect(options).not.toContain('cube')
+})
+
+it('never submits a map the drafted contract kind cannot show (#1039)', async () => {
+  // Review P2: an Installation Show on a 3D map drafted as Portable showed
+  // "No map" while the form still submitted the hidden 3D id, storing a
+  // Portable contract on a map the surface says Portable cannot use.
+  const { record } = setup(true, 'cube')
+  fireEvent.change(screen.getByLabelText('Output contract'), { target: { value: 'portable-2d' } })
+  expect(screen.getByLabelText('Reference map')).toHaveValue('')
+  fireEvent.click(screen.getByRole('button', { name: 'Apply output contract' }))
+  await waitFor(() => expect(screen.getByRole('status')).not.toHaveTextContent(/^$/))
+  const stored = useShowStore.getState().showV2Pilots[record.id].outputContract
+  expect(stored?.kind === 'portable-2d' ? stored.referenceMapId : null).not.toBe('cube')
 })
 
 it('names the Output map when the contract is an Installation', () => {

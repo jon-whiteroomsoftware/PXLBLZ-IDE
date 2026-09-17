@@ -175,7 +175,9 @@ export function ShowV2ShowPropertiesEditor({ capture, isCurrentCapture, isCurren
           void submit(showV2OutputContractCommand({
             kind: draftKind,
             pixelCount: draftPixels,
-            mapId: draftMapId || null,
+            // Submit what the select shows: a drafted map the drafted kind
+            // cannot use reads "No map", so it is never sent hidden (#1039).
+            mapId: draftMapEligible ? draftMapId || null : null,
           }))
         }}
       >
