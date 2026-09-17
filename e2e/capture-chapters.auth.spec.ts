@@ -1,6 +1,6 @@
 // UI proof captures for #1040's chapter projections, run through
 // `npm run capture:chapters`. Drives the Gallery band, a Show's reading card
-// and the v2 pilot Marker panel and screenshots each under .wrsp/ui-proof.
+// and the v2 editor route's Marker panel and screenshots each under .wrsp/ui-proof.
 // Not a gate: it exists so the review proof is the route actually driven.
 import { expect, test } from './fixtures/authenticated'
 import { convertibleV1Show } from '../src/test/showV2TracerFixture'
@@ -25,7 +25,7 @@ test('captures the Gallery band and the Show reading card chapters', async ({ pa
   await page.screenshot({ path: '.wrsp/ui-proof/1040-chapters-reading-card.png' })
 })
 
-test('captures the editor route's Marker panel chapter projection', async ({ page }) => {
+test('captures the editor route Marker panel chapter projection', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 })
   const source = convertibleV1Show()
   source.id = 'chapter-capture-synthetic'
