@@ -1,0 +1,85 @@
+{
+  "issue": 1039,
+  "scope": "the agent command path on a ShowRecordV2 behind the route gate: the v2 candidate-delivery admission, version dispatch through the executor, editor admission and both command catalogues, and the v2 route's agent binding",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "MCP",
+      "FAILURE",
+      "REPLACE",
+      "DELETE-READD"
+    ]
+  },
+  "base": "2a4180e49a47c7e897a8a413fa32fb43f522cab8",
+  "invariants": [
+    "One writer: an agent candidate adopts through the same store session, revision, history, save queue, rollback and supersession the v2 route's typed UI intents use; the same intent through either path yields deep-equal records and equal history depth.",
+    "Distinct checks, in order: session and revision, Show presence, prepared-capture currency, candidate identity, provisional v2 schema, validateShowRecordV2 domain, Pattern/Library/control dependencies, zero write, compiler eligibility through the captured Stage - never one normalize-and-accept.",
+    "A refusal or no-op returns the original record identity and creates no history entry, provider save or ordering stamp.",
+    "The editor and its commands are one version for one Show: the route declares the version it holds, the executor dispatches on the captured record, and read_show answers in that version.",
+    "Folding applyShowCommandV2 onto the executor's result vocabulary loses nothing: changed, unchanged and refused map to changed, noop and refused with the v2 issues intact, and a refusal keeps the private candidate open.",
+    "Nothing widens: no compiler, schema or command-domain capability is added, and the v2 catalogue is #1041's landed vocabulary used unchanged.",
+    "SHOW_V2_ROUTE_DEFAULT stays false; every v2 surface here is reached only through the development opt-in."
+  ],
+  "partitions": [
+    "record version: a v1 record on the v1 route, a v2 working copy on the gated route, and an unbound connection",
+    "candidate shape: valid, raw-schema-invalid, domain-invalid, an authoring-schema document delivered in place of a record, and byte-equal to the current record",
+    "dependencies: resolvable Pattern source, a newly introduced unavailable source, a pre-existing missing source under the capture baseline, and a Stage map the candidate moves to",
+    "admission currency: current capture, superseded record, replaced dependency set, unmounted route, provider swap",
+    "settlement: saved, superseded by a later adoption, and rolled back by a failed save",
+    "operation identity: first delivery, duplicate delivery of the same candidate, a changed candidate on the same operation, and a duplicate begin key",
+    "content: final-content deletion leaving a validated empty Show, and a Show that still compiles"
+  ],
+  "sequences": [
+    "MCP #1029: get_connection -> read_show -> begin_edit -> create_layers with an inline Clip -> remove_clips -> set_show_end 30000 -> add_property_tracks -> a domain refusal -> commit_edit -> get_outcome -> reopen .pxlshow and .epe",
+    "REPLACE: begin_edit -> replace_clip_pattern against a captured Pattern -> commit -> saved record carries the replacement on the same Clip's runtime",
+    "DELETE-READD: begin_edit -> remove_clips of the last Clip -> create_clips at the freed boundary -> commit -> one Clip, no resurrected Transition, one history entry",
+    "Manual/command parity: the same Show End through admitShowV2PilotSetShowEnd and through set_show_end",
+    "FAILURE: stale revision after a manual edit, duplicate begin key, invalid candidate (schema and domain), raw-schema candidate, missing Pattern source, zero write, failed save with rollback, superseded save"
+  ],
+  "oracles": [
+    "The provider's saved ShowRecordV2, its reopened .pxlshow through parseShowFileBundle and its .epe through buildShowEpeExportV2 - never a generator internal.",
+    "The store's v2 history depth and the record identity held after a refusal (=== the preimage).",
+    "The ShowEditReceipt the agent reads back through get_outcome: applied/saving then saved, superseded or rolled-back, and refused with its typed reason and bounded diagnostic stage.",
+    "The registered MCP tool surface: every v2 command present and every v1-only command absent for a v2 record, and the reverse for a v1 record.",
+    "What the author sees in Chromium on the gated route: the renamed Show in the header and rail, the removed Clip, the drawer's activity entry, and the same record after a reload."
+  ],
+  "redEvidence": [
+    "src/engine/showAuthoringValidationV2.test.ts: 9 cases red on a missing module before the v2 baseline, validator and snapshot existed.",
+    "src/store/showV2CandidateAdmission.test.ts: 13 cases, first red against an absent deliverShowV2EditCandidate store method.",
+    "src/agent/editorAdmissionV2.test.ts: 7 cases red until the editor admission resolved a v2 record and delivered to the v2 candidate admission.",
+    "src/worker/agent/agentMcpRouting.test.ts: the catalogue-by-version cases red while the catalogue was a caller option only.",
+    "src/worker/agent/agentV2Command.runtime.test.ts: get_connection answered no_live_editor until the channel could resolve the Show, then the whole sequence red until the route declared version 2."
+  ],
+  "faults": [
+    "zero-write refusal removed -> src/store/showV2CandidateAdmission.test.ts 'refuses a zero-write candidate' fails.",
+    "compiler-eligibility refusal removed -> 'refuses a candidate the prepared Stage cannot compile' fails.",
+    "capture-currency recheck removed from BOTH the pre-validation and pre-adoption checks -> 'refuses a candidate whose prepared capture is no longer the open record' fails; removing either one alone is still caught by the other, which is the intended defence in depth.",
+    "executor version dispatch forced to v1 -> src/agent/editorAdmissionV2.test.ts '#1029 sequence' fails on the first v2-only command; note that a test using only rename_show does not detect this, because that command exists in both catalogues.",
+    "showVersion dropped from the browser registration -> src/components/ShowEditorV2Route.test.tsx 'registers the editor as version 2' fails.",
+    "catalogue resolution pinned to v1 -> src/worker/agent/agentMcpRouting.test.ts 'registers the catalogue the bound editor record version %i needs' fails.",
+    "v2 control-metadata requirement skipped -> src/engine/showAuthoringValidationV2.test.ts 'refuses a control target and an animated control without authored slider metadata' fails.",
+    "editor admission resolving the v1 collection for a v2 route -> src/agent/editorAdmissionV2.test.ts '#1029 sequence' fails."
+  ],
+  "results": [
+    "npm run lint: passed.",
+    "npx tsc -b --pretty false: passed with no output.",
+    "Focused vitest: showAuthoringValidationV2 9/9, showV2CandidateAdmission 13/13, agentPrivateExecutor 21/21, editorAdmissionV2 7/7, ShowEditorV2Route 9/9, agentMcpRouting 35/35, builtinTurn 12/12, agentV2Command.runtime 4/4.",
+    "npm run show:v2-parity: 47 inventoried records matched, report unchanged.",
+    "npm run agent:smoke and npm run agent:corpus -- --fake: both pass unchanged; the harness stays on v1 vocabulary, as this slice does not flip the gate.",
+    "e2e/show-editor-v2-agent.auth.spec.ts through scripts/run-authenticated-playwright.ts: 1 passed, zero console errors.",
+    "npm run check:ui-proof: .wrsp/ui-proof/1039-agent-v2.json accepted at 4e8c1f14e08d63b530ac6e89afb56b268912382e.",
+    "8/8 fault-sensitivity checks detected, two after the stronger test pairing recorded above."
+  ],
+  "residualGaps": [
+    "SHOW_V2_ROUTE_DEFAULT is still false. Nothing here flips it, and every v2 surface remains behind the development opt-in.",
+    "The agent harness (agent:smoke, agent:corpus, agent:baseline:fixtures) still speaks v1 vocabulary. Its rewrite belongs to the flip, not to this slice, and the dispatch excludes a corpus rewrite.",
+    "Stable diagnostic resize retry has no v2 counterpart: the v2 catalogue has no qualified single-command resize recomputation, so a v2 editor answers not_qualified rather than approximating the intent. Recorded as an accepted narrowing of a v1-only diagnostic, not of authoring.",
+    "The v2 route binds no field-activity scope, so a v2 candidate never waits on active input. The wait machinery is wired and the admission honours a timing deadline; only the route's dirty-field registration is absent.",
+    "The declared affected set from runShowCommandV2Transaction is reported to the caller with each change and is not consumed by admission. No catalogue invariant makes it checkable: rename_show reports a real change with an entirely empty affected set, so refusing an empty declared set would refuse a valid command.",
+    "The MCP server resolves the bound record's version with one exempt account read per request. It is deliberately not a resolve, which would consume the pending binding-moved notice and spend a rate-limited agent call, but it is one extra Durable Object read per MCP request.",
+    "The browser declares its record version at registration. It selects discovery only; the executor still dispatches on the captured record, so a wrong claim narrows the offered tools rather than admitting a mismatched command.",
+    "The runtime MCP test supplies a minimal window surface because esbuild cannot bundle the Worker inside jsdom. The Chromium proof of the same route and binding is the authenticated e2e spec.",
+    "Required committed-tip suites and cross-family review are the coordinator's."
+  ]
+}

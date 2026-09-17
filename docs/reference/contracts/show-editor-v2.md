@@ -642,11 +642,19 @@ reload, and a rolled-back save restores the durable name with the record.
 The route is complete for a v2 record behind the gate, and `ShowV2RoutePilot`
 with `?show-v2-pilot=1` is retired. What #1039 owns is listed in
 [the activation handoff](../evidence/issue-1056-editor-v2-s6/activation-handoff.md):
-flipping `SHOW_V2_ROUTE_DEFAULT`, retyping the store mutators, the executor and
-command admission, switching MCP, and the rehearsed row conversion. Until then
-the store mutators, executor, command admission and MCP surfaces remain
-v1-typed, no surface on this route registers an agent binding, and the animation
-lanes report a selection and draw but accept no drag.
+flipping `SHOW_V2_ROUTE_DEFAULT`, retyping the store mutators, and the rehearsed
+row conversion. The store's v1 mutators remain v1-typed, and the animation lanes
+report a selection and draw but accept no drag.
+
+The agent binding is no longer among them. The route now mounts the shared
+agent editor lifecycle, declaring version 2 and handing the admission the same
+prepared capture `useShowV2EditCapture` owns, so an agent command sequence and
+a manual edit are checked against one Stage preparation and adopted by one
+writer. `read_show` therefore answers v2 for this record, and the executor,
+the editor admission and both command catalogues follow that declaration; see
+[agent candidate application](agent-candidate-application.md#version-2-records-1039).
+The binding registers no field-activity scope, so a v2 candidate never waits on
+active input the way a v1 candidate does while the author is typing.
 
 The v1 timeline's zoom, snap and diagnostic toggles landed with #1039 and are
 described under [The visible window](#the-visible-window). Renaming and

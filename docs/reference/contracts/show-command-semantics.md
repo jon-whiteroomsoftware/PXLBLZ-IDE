@@ -838,21 +838,35 @@ and `RN954`, `SM954`, `CP954`, `UZ954`, `OC954`, `OT954`, `AI954`, `DI954`, `UI9
 
 `applyShowCommandV2` and `runShowCommandV2Transaction` in
 [`src/engine/showCommandsV2/`](../../../src/engine/showCommandsV2/registry.ts)
-are the prepared v2 registry over `ShowRecordV2` and the v2 engine owners. They
-are not activated: `agentMcpRouting` exposes them only under its explicit
-`catalogue: 'v2'` option, and production keeps the v1 registry above until the
-coordinated cutover in #1039. The [coverage report](../show-command-coverage.md)
-carries the complete catalogue, the v1 to v2 name map, the retired addressing
-table and the refusal-code map.
+are the v2 registry over `ShowRecordV2` and the v2 engine owners. The
+[coverage report](../show-command-coverage.md) carries the complete catalogue,
+the v1 to v2 name map, the retired addressing table and the refusal-code map.
+
+**The catalogue follows the routed record's version (#1039).** It is not a
+caller's choice and not a deployment switch: the editor a caller is bound to
+holds exactly one record, and the commands it is offered are that record's. An
+external connection learns the bound editor's version from the account before
+the MCP server registers a single tool; a built-in turn reads it off its own
+capture. An unbound connection stays on v1, which is the surface every existing
+client already expects. `SHOW_V2_ROUTE_DEFAULT` is still false, so in an
+ordinary production session the routed record is v1 and so is the catalogue;
+the v2 catalogue is reached through the same development route opt-in that
+puts a v2 record in the editor. `agentMcpRouting` keeps an explicit
+`catalogue` option, which now overrides that resolution for tests rather than
+being the only way to reach v2.
 
 One connection exposes exactly one catalogue. The registered mutation tools,
 the server instructions, the schema and reference resources, and the
 `list_commands` reply all describe that same vocabulary, so a name a caller
 discovers is always a name it can call. `list_commands` reports each
 descriptor's own `description`, `fields` and `exactlyOne`/`atLeastOne`/
-`atMostOne` groups; under `catalogue: 'v2'` those are the v2 descriptors,
-including their typed nested field kinds. Selecting a catalogue never mixes
-the two (#1039).
+`atMostOne` groups; for a v2 record those are the v2 descriptors, including
+their typed nested field kinds. Selecting a catalogue never mixes the two.
+
+A command sequence over a v2 record adopts through the store's v2
+candidate-delivery admission, not through a second writer; see
+[agent candidate application](agent-candidate-application.md#version-2-records-1039)
+for the admission order and what a refusal leaves behind.
 
 The agreement differs from v1 in five ways, and a descriptor census in
 [`census.test.ts`](../../../src/engine/showCommandsV2/census.test.ts) enforces

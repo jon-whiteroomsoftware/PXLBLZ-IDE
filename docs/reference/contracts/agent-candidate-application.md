@@ -737,3 +737,61 @@ refusal is the exception to terminal error handling: the relay caches that
 refusal, preserves already-admitted followers, and delivers their correction
 in sequence. See the OAuth/MCP and rendezvous contracts for client-key scope,
 queue limits, transport identity and revocation acknowledgement.
+
+## Version-2 records (#1039)
+
+The editor route declares which record version it holds when it mounts the
+shared admission, and everything downstream follows that one declaration. This
+is the whole of what keeps specification section 10's forbidden window closed:
+a command never reaches a record whose version its catalogue does not address.
+
+`createAgentEditorAdmission` takes that declaration and, for a version-2
+record, the route's own prepared Stage capture. It then resolves the open v2
+working copy instead of the v1 collection, so `read_show` answers v2 for a v2
+record; captures the complete validated record as the operation snapshot
+rather than projecting a flat Show; takes its dependency baseline from the v2
+Pattern sites; and resolves a replacement Pattern through the same captured
+bundle the inspector uses. Stable diagnostic resize retry stays version 1's:
+it qualifies one exact `resize_clip` recomputation, and a v2 editor answers
+`not_qualified` rather than approximating that intent with another command.
+
+`agentPrivateExecutor` folds whichever catalogue owns the captured record.
+The two report the same three outcomes in different shapes, and version 2 maps
+onto the executor's vocabulary without loss: `changed`, `unchanged` and
+`refused` become `changed`, `noop` and `refused` with the issues intact, a
+refusal's record is the caller's own unchanged private copy, and a refusal
+keeps the private candidate open for correction exactly as before.
+
+A caller-supplied `ShowRecordV2` adopts through `showV2CandidateAdmission`,
+constructed by the Show store with its own session, input wait, revisions and
+adoption. The v2 route's own edits adopt through `showV2PreparedEditAdmission`,
+which admits typed UI intents; this owner exists because an agent command
+sequence produces its candidate outside the store. Everything around that
+middle is the same writer: one adoption, one history entry, the ordinary save
+queue, and the existing rollback and supersession. The same intent through the
+UI admission and through the command path yields deep-equal records and equal
+history depth.
+
+Section 9 requires schema, domain, dependencies, compiler eligibility and
+revision admission to remain distinct checks rather than one permissive
+normalize-and-accept. They are, in this order: the shared session and revision;
+the Show still present and not pending deletion; the prepared capture still the
+open record, its dependencies, provider and route unchanged; the candidate a
+version-2 record for this Show; the provisional v2 JSON Schema; the
+`validateShowRecordV2` domain rules; Pattern, Library and control availability
+against the operation's captured baseline; a zero-write refusal for a candidate
+equal to the current record; and preparation of the candidate against the
+captured Stage. A command that moves the Stage map re-resolves the named map
+the way the route does and refuses one that is gone or at an unsupported
+dimension. Final-content deletion is accepted where it leaves a validated empty
+Show. A refusal or no-op at any step returns the original record identity and
+creates no history entry, provider save or ordering stamp.
+
+Evidence: [`showV2CandidateAdmission.test.ts`](../../../src/store/showV2CandidateAdmission.test.ts)
+for the admission's own partitions,
+[`editorAdmissionV2.test.ts`](../../../src/agent/editorAdmissionV2.test.ts) for
+the executor, admission and store together, and
+[`agentV2Command.runtime.test.ts`](../../../src/worker/agent/agentV2Command.runtime.test.ts)
+for the same sequence through a real Worker, OAuth authority, account Durable
+Object and browser session. The design record is
+[`issue-1039-agent-path`](../evidence/issue-1039-agent-path/test-design.json).

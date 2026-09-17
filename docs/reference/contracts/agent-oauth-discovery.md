@@ -172,22 +172,40 @@ turning an interim command issue into an operation outcome.
 
 ### Prepared v2 catalogue and resource versions
 
-`agentMcpRouting` accepts an explicit, default-off `catalogue: 'v2'` option that
-replaces the canonical command tools with the
-[prepared v2 catalogue](../show-command-coverage.md#prepared-v2-command-catalogue)
-and the versioned authoring resources with their v2 pair. It changes no part of
-the transport: the same binding, operation identity, idempotency, throttling,
-error signalling, output schemas, read tools and server-instruction structure
-apply. Production keeps the v1 catalogue and the v1 resources until #1039
-activates the editor, providers and commands together.
+`agentMcpRouting` serves the
+[v2 catalogue](../show-command-coverage.md#prepared-v2-command-catalogue) and
+the v2 authoring resources when the bound editor holds a version-2 record, and
+the v1 pair otherwise (#1039). It changes no part of the transport: the same
+binding, operation identity, idempotency, throttling, error signalling, output
+schemas, read tools and server-instruction structure apply.
+
+The server resolves that version before it registers a tool, because
+`tools/list` has to describe the vocabulary the private executor will accept.
+It asks the account for the bound editor's declared record version through a
+read that is deliberately not a `resolve`: a resolve would consume the pending
+binding-moved notice the caller's next `get_connection` is owed, and would spend
+one of that caller's rate-limited agent calls to describe its own tool list.
+This read is exempt from that rate window, writes nothing and takes no slot. An
+unbound or unreachable connection stays on v1, and a client that binds to a v2
+record afterwards sees the v2 tools on its next request, which is the reconnect
+`get_connection` already instructs it to make.
+
+The browser declares the version at registration, because the open record is
+what commands act on: a v1 stored row opened on the v2 route is a v2 working
+copy that no server-side row inspection would report. The declaration selects
+discovery only. The private executor still dispatches on the record it actually
+captured, so a wrong claim narrows the tools a caller is offered rather than
+admitting a command the candidate would refuse. `SHOW_V2_ROUTE_DEFAULT` is still
+false, so an ordinary production session routes a v1 record and is served the v1
+catalogue; the explicit `catalogue` option remains for tests.
 
 The versioned authoring resources are named by version, and the pair a session
 sees always matches the catalogue it was served:
 
 | Catalogue | Schema resource | Reference resource |
 | --- | --- | --- |
-| v1 (production) | `pxlblz://schemas/clip-layer-authoring/v1` | `pxlblz://docs/clip-layer-authoring/v1` |
-| v2 (prepared) | `pxlblz://schemas/clip-layer-authoring/v2` | `pxlblz://docs/clip-layer-authoring/v2` |
+| v1 (a version-1 record, or no binding) | `pxlblz://schemas/clip-layer-authoring/v1` | `pxlblz://docs/clip-layer-authoring/v1` |
+| v2 (a version-2 record) | `pxlblz://schemas/clip-layer-authoring/v2` | `pxlblz://docs/clip-layer-authoring/v2` |
 
 The v2 resources carry what the compact v2 schema deliberately does not spell
 out: identity addressing, exact half-open global milliseconds, the appearance
