@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1039",
+  "route": "/PXLBLZ-IDE/studio/shows?show-v2-editor=1",
+  "operation": "Created a fresh version-2 Show on the gated route, then drove the Shows rail row menu against it: renamed it to \"Renamed v2 Show\" in place, duplicated it to \"Renamed v2 Show copy\", then moved the copy to Trash and emptied the Shows Trash, leaving the surviving v2 row listed and organized. Captured with repository Playwright through scripts/run-authenticated-playwright.ts as the run's synthetic user; the in-app browser is unavailable to this worker, so this is Playwright provenance, not an in-app-browser capture.",
+  "captures": [
+    ".wrsp/ui-proof/1039-rail-v2-rename.png",
+    ".wrsp/ui-proof/1039-rail-v2-duplicate.png",
+    ".wrsp/ui-proof/1039-rail-v2-trash.png"
+  ],
+  "capturedAtCommit": "1339b5c5519c3f8013c4d8efdb00bb7f5a1eca2d"
+}
