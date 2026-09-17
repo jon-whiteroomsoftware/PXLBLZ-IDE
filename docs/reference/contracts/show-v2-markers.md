@@ -8,7 +8,7 @@ Marker is unchanged and carries no role.
 
 Intent contains only its named fields. Add supplies a complete explicit Marker;
 move supplies identity and exact time; update supplies identity and a nonempty
-patch of time/name/color; remove supplies identity. Reject unsupported operations,
+patch of time/name/color/role; remove supplies identity. Reject unsupported operations,
 fields, missing identity, duplicate add identity, missing target and invalid values.
 Time is a nonnegative safe integer; it may exceed Show End. IDs remain exact
 nonempty strings, and names/colors may be empty strings. Explicit `undefined`
@@ -68,12 +68,16 @@ minified / 16.8 kB gzipped in the production bundle. Prepared Feature Guide word
 for the vocabulary is held in
 [chapter wording](../../plans/show-v2-chapter-wording.md) and is unpublished.
 
-The general Marker owner neither authors nor removes roles. `add` and `update`
-intents accept only `id`, `timeMs`, `name` and `color`, so a role-bearing intent
-is `invalid-intent` and returns the original record; `move`, `update` and
-`remove` preserve an existing role exactly. Chapters therefore originate in
-conversion or in a natively authored v2 record, never by accident from an
-alignment Marker.
+The general Marker owner authors the role explicitly. `add` accepts an optional
+`role` on the complete Marker and `update` accepts it in the patch, where explicit
+`undefined` clears it exactly as it clears `name` and `color`. `chapter` is the
+only admitted value, so any other role is `invalid-intent` and returns the
+original record rather than storing an unknown value. Promotion and clearing
+change the role alone: identity, time, name and color stay exactly as authored,
+and `move` and `remove` still preserve an existing role. A role is never inferred,
+so a general alignment Marker becomes a chapter only when an author or the v1
+conversion says so. This supersedes the earlier rule that the general owner could
+not author a role, which #1040 landed before the #1041 command carried the field.
 
 Results use the existing §9 affected collection vocabulary. Changed operations
 report the selected ID in `affectedMarkerIds`; removal also reports it in

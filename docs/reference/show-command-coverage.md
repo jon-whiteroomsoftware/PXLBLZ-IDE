@@ -803,7 +803,7 @@ The harness grammar, corpus and baseline fixtures replay through this map.
 | `create_clips` | `create_clips` | Port with the v2 ClipSpec and the D3 instance policy. |
 | `add_clip` | `create_clips` | Subsumed; the free-time clamp and implicit Show End extension do not survive, exact timing does. |
 | `update_clips` | `update_clips` | Port with the v2 ClipPatch, appearance apply selector and instance_properties. |
-| `move_clip` | `update_clips` | Subsumed by ClipPatch placement, which applies the connected move policy. |
+| `move_clip` | `update_clips` | Subsumed by ClipPatch placement: a time change applies the connected move policy and a Zone or Layer change applies the Clip re-placement intent. |
 | `set_clip_opacity` | `update_clips` | Subsumed by the appearance patch (decision D1). |
 | `set_clip_view` | `update_clips` | Subsumed by the appearance patch (decision D1). |
 | `set_clip_transform` | `update_clips` | Subsumed by the appearance patch (decision D1). |
@@ -832,8 +832,8 @@ The harness grammar, corpus and baseline fixtures replay through this map.
 | (new) | `update_layout_interval` | New: routing parameters only. |
 | (new) | `set_layout_transfer` | New: the incoming timed routing transfer owned by its destination interval. |
 | (new) | `remove_layout_interval` | New: predecessor extension or promotion to zero, refusing on meaningful data. |
-| `add_marker` | `add_marker` | Port plus the chapter role argument. |
-| `update_marker` | `update_marker` | Merged with move_marker. |
+| `add_marker` | `add_marker` | Port plus the chapter role, authored through the Marker owner. |
+| `update_marker` | `update_marker` | Merged with move_marker, plus the nullable chapter role. |
 | `move_marker` | `update_marker` | Merged; at_ms is one field of the update. |
 | `remove_marker` | `remove_marker` | Port; unchanged shape. |
 | `add_clip_effect` | `add_clip_effect` | Port with the apply selector and the compact parameter record. |
@@ -883,7 +883,6 @@ issues and domain refusals stay distinct categories.
 | `missing-dependency` | `unknown-pattern` | Trusted resolved Pattern metadata is unavailable for this source in this session. |
 | `not-a-junction` | `unknown-junction` | The named Clip pair is not exactly adjacent on one Zone and Layer, so it is not a Cut junction. |
 | `duplicate-name` | `duplicate-name` | Another entity already uses that name. |
-| `unsupported` | (new) | The catalogue accepts the argument but no landed owner capability implements it yet; the message names the missing capability. |
 | `invalid-record` | (new) | The preimage Show is not a valid v2 record. |
 | `invalid-intent` | (new) | The owner rejected the requested operation shape. |
 | `invalid-result` | (new) | The complete candidate would be an invalid Show. |

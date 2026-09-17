@@ -1,6 +1,6 @@
 // Marker commands over the v2 Marker owner. Markers are optional narrative
 // guides: they never partition time and never trigger playback.
-import type { ShowTimelineMarker } from '../personalContentRecords'
+import type { ShowMarkerV2 } from '../showCompositionV2'
 import { editShowMarkerV2 } from '../showMarkersV2'
 import { type ShowCommandV2Descriptor } from './registry'
 import {
@@ -10,23 +10,20 @@ import {
   ownedShowIdsV2,
   timeField,
   unknownIdentity,
-  unsupported,
 } from './support'
 
 /**
- * `role: chapter` is specification section 3 delta 7 and lands with #1040's
- * Marker role. Until that field exists on the record, the catalogue accepts the
- * argument and refuses it explicitly rather than silently dropping it.
+ * `role: chapter` is specification section 3 delta 7, landed on the record by
+ * #1040 and authored by the Marker owner. `null` clears the role, so the field
+ * reaches the owner as explicit `undefined` rather than being dropped.
  */
 const ROLE_FIELD = {
   kind: 'string' as const,
   optional: true,
   nullable: true,
   enum: ['chapter'] as const,
-  description: 'Marker role. "chapter" projects the Marker into the Gallery and Live chapter lists; null clears the role. Requires the Marker role field from #1040.',
+  description: 'Marker role. "chapter" projects the Marker into the Gallery and Live chapter lists; null clears the role. A role owns no time partition and never triggers playback.',
 }
-
-const CHAPTER_UNSUPPORTED = 'the Marker role field is not part of the landed v2 record yet; it arrives with the chapter projection in #1040. Add the Marker without a role and set the role after that lands.'
 
 const addMarker: ShowCommandV2Descriptor = {
   name: 'add_marker',
@@ -40,13 +37,13 @@ const addMarker: ShowCommandV2Descriptor = {
     role: ROLE_FIELD,
   },
   apply(record, input) {
-    if (input.role !== undefined && input.role !== null) return unsupported(record, 'add_marker', CHAPTER_UNSUPPORTED)
     const markerId = freshShowIdV2(`marker-${input.at_ms as number}`, ownedShowIdsV2(record))
-    const marker: ShowTimelineMarker = {
+    const marker: ShowMarkerV2 = {
       id: markerId,
       timeMs: input.at_ms as number,
       ...(input.name !== undefined ? { name: input.name as string } : {}),
       ...(input.color !== undefined ? { color: input.color as string } : {}),
+      ...(input.role ? { role: input.role as 'chapter' } : {}),
     }
     return adoptOwnerResult('add_marker', record,
       editShowMarkerV2(record, { kind: 'add', marker }),
@@ -72,11 +69,12 @@ const updateMarker: ShowCommandV2Descriptor = {
     if (!record.composition.markers.some(marker => marker.id === markerId)) {
       return unknownIdentity(record, 'update_marker', 'Marker', markerId, record.composition.markers.map(marker => marker.id))
     }
-    if (input.role !== undefined) return unsupported(record, 'update_marker', CHAPTER_UNSUPPORTED)
     const patch = {
       ...(input.name !== undefined ? { name: input.name as string } : {}),
       ...(input.color !== undefined ? { color: input.color as string } : {}),
       ...(input.at_ms !== undefined ? { timeMs: input.at_ms as number } : {}),
+      // Documented clearing: null reaches the owner as explicit undefined.
+      ...(input.role !== undefined ? { role: (input.role ?? undefined) as 'chapter' | undefined } : {}),
     }
     return adoptOwnerResult('update_marker', record,
       editShowMarkerV2(record, { kind: 'update', markerId, patch }),

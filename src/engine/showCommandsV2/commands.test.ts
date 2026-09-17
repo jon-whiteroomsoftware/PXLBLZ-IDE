@@ -8,6 +8,8 @@ import {
 import { editShowClipAppearanceV2 } from '../showClipAppearanceEditsV2'
 import { editShowTransitionV2 } from '../showTransitionsV2'
 import { editShowLayoutIntervalsV2 } from '../showLayoutIntervalsV2'
+import { showChaptersV2 } from '../showChaptersV2'
+import { editShowClipTemporalV2 } from '../showClipTemporalV2'
 import { applyShowCommandV2, runShowCommandV2Transaction, SHOW_COMMANDS_V2 } from './registry'
 import { commandFixtureV2, fixtureContext } from './fixtures'
 
@@ -178,6 +180,60 @@ describe('v2 Clip commands', () => {
     const transition = moved.record.composition.transitions.find(candidate => candidate.id === transitionId)!
     expect(transition.durationMs).toBe(500)
     expect(transition.participants[0]).toMatchObject({ fromClipId: 'clip-a', toClipId: 'clip-b' })
+  })
+
+  it('re-places a Clip onto another Layer or Zone with the manual owner\'s exact result', () => {
+    const record = commandFixtureV2()
+    // Same Zone, another Layer: command and owner agree on record and affected set.
+    const viaCommand = changed(applyShowCommandV2(record, 'update_clips', {
+      updates: [{ clip_id: 'clip-b', layer_id: 'over' }],
+    }, context))
+    const viaOwner = editShowClipTemporalV2(record, { kind: 'replace-placement', clipId: 'clip-b', zoneId: 'left', layerId: 'over' })
+    expect(viaOwner.status).toBe('changed')
+    if (viaOwner.status !== 'changed') return
+    expect(viaCommand.record.composition).toEqual(viaOwner.record.composition)
+    expect(viaCommand.changes[0].details.clips).toEqual(viaOwner.affectedClipIds)
+    expect(viaCommand.record.composition.patternInstances).toEqual(record.composition.patternInstances)
+
+    // Another Zone, with a start in the same patch: one atomic candidate.
+    const withLayer = changed(applyShowCommandV2(record, 'create_layers', {
+      layers: [{ zone_id: 'right', name: 'Right base' }],
+    }, context))
+    const rightLayerId = withLayer.record.composition.layers.find(layer => layer.zoneId === 'right')!.id
+    const crossed = changed(applyShowCommandV2(withLayer.record, 'update_clips', {
+      updates: [{ clip_id: 'clip-b', zone_id: 'right', layer_id: rightLayerId, start_ms: 6_000 }],
+    }, context))
+    const moved = crossed.record.composition.clips.find(clip => clip.id === 'clip-b')!
+    expect([moved.zoneId, moved.layerId, moved.startMs, moved.durationMs]).toEqual(['right', rightLayerId, 6_000, 4_000])
+    expect(crossed.record.composition.clips.find(clip => clip.id === 'clip-a')).toEqual(record.composition.clips[0])
+  })
+
+  it('refuses a re-placement through update_clips with the owner\'s typed code', () => {
+    const record = commandFixtureV2()
+    const inserted = changed(applyShowCommandV2(record, 'insert_transition', {
+      from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 500, kind: 'crossfade',
+    }))
+    for (const [input, code] of [
+      [{ clip_id: 'clip-b', layer_id: 'over' }, 'invalid-topology'],
+      [{ clip_id: 'clip-c', layer_id: 'absent' }, 'missing-target'],
+      [{ clip_id: 'clip-c', zone_id: 'right', layer_id: 'over' }, 'missing-target'],
+      [{ clip_id: 'clip-c', layer_id: 'base' }, 'invalid-result'],
+    ] as const) {
+      const outcome = applyShowCommandV2(inserted.record, 'update_clips', { updates: [input] }, context)
+      expect(outcome.status, JSON.stringify(input)).toBe('refused')
+      if (outcome.status !== 'refused') continue
+      expect(outcome.issues[0].code, JSON.stringify(input)).toBe(code)
+      const owner = editShowClipTemporalV2(inserted.record, {
+        kind: 'replace-placement', clipId: input.clip_id,
+        ...('zone_id' in input ? { zoneId: input.zone_id } : {}),
+        layerId: input.layer_id,
+      })
+      expect(owner.status).toBe('refused')
+      if (owner.status !== 'refused') continue
+      expect(outcome.issues[0].code).toBe(owner.code)
+      expect(outcome.issues[0].message).toContain(owner.message)
+      expect(outcome.record).toBe(inserted.record)
+    }
   })
 
   it('duplicates sharing the runtime by default and mints one only for explicit independence', () => {
@@ -408,21 +464,28 @@ describe('v2 Layout interval commands', () => {
 })
 
 describe('v2 Marker, Effect and animation commands', () => {
-  it('adds, updates and removes Markers, and refuses the unsupported chapter role', () => {
+  it('adds, updates and removes Markers, and carries the chapter role to the owner', () => {
     const record = commandFixtureV2()
     const added = changed(applyShowCommandV2(record, 'add_marker', { at_ms: 6_000, name: 'Drop' }))
     const markerId = added.changes[0].targetId!
     expect(added.record.composition.markers.map(marker => marker.timeMs)).toEqual([2_000, 6_000])
+    expect(added.record.composition.markers.find(marker => marker.id === markerId)!.role).toBeUndefined()
 
     const updated = changed(applyShowCommandV2(added.record, 'update_marker', { marker_id: markerId, at_ms: 7_000, color: '#ff0000' }))
     expect(updated.record.composition.markers.find(marker => marker.id === markerId))
       .toMatchObject({ timeMs: 7_000, color: '#ff0000' })
 
-    const chapter = applyShowCommandV2(added.record, 'add_marker', { at_ms: 100, role: 'chapter' })
-    expect(chapter.status).toBe('refused')
-    if (chapter.status !== 'refused') return
-    expect(chapter.issues[0].code).toBe('unsupported')
-    expect(chapter.issues[0].message).toContain('#1040')
+    // The role reaches the record, projects as a chapter, and null clears it.
+    const chapter = changed(applyShowCommandV2(updated.record, 'add_marker', { at_ms: 100, name: 'Intro', role: 'chapter' }))
+    const chapterId = chapter.changes[0].targetId!
+    expect(showChaptersV2(reopen(chapter.record)).map(entry => entry.id)).toEqual([chapterId])
+    const promoted = changed(applyShowCommandV2(chapter.record, 'update_marker', { marker_id: markerId, role: 'chapter' }))
+    expect(showChaptersV2(promoted.record).map(entry => entry.id)).toEqual([chapterId, markerId])
+    const cleared = changed(applyShowCommandV2(promoted.record, 'update_marker', { marker_id: markerId, role: null }))
+    expect(cleared.record.composition.markers.find(marker => marker.id === markerId)!.role).toBeUndefined()
+    expect(showChaptersV2(cleared.record).map(entry => entry.id)).toEqual([chapterId])
+    // An already-cleared role is an ordinary no-op, not a refusal.
+    expect(applyShowCommandV2(cleared.record, 'update_marker', { marker_id: markerId, role: null }).status).toBe('unchanged')
 
     const removed = changed(applyShowCommandV2(updated.record, 'remove_marker', { marker_id: markerId }))
     expect(removed.record.composition.markers).toEqual(record.composition.markers)
@@ -574,7 +637,7 @@ describe('v2 command addressing, no-op policy and parity', () => {
       { name: 'set_show_end', input: { end_ms: base.composition.showEndMs } },
       { name: 'rename_layer', input: { layer_id: 'base', name: 'Base' } },
       { name: 'reorder_layer', input: { layer_id: 'base', rank: 0 } },
-      { name: 'update_clips', input: { updates: [{ clip_id: 'clip-c', start_ms: 1_000, duration_ms: 2_000, entry_policy: 'continue', zone_sample_mode: 'span' }] } },
+      { name: 'update_clips', input: { updates: [{ clip_id: 'clip-c', zone_id: 'left', layer_id: 'over', start_ms: 1_000, duration_ms: 2_000, entry_policy: 'continue', zone_sample_mode: 'span' }] } },
       { name: 'resize_clip', input: { clip_id: 'clip-c', duration_ms: 2_000 } },
       { name: 'make_clip_pattern_independent', input: { clip_id: 'clip-c' } },
       { name: 'rejoin_clip_pattern_instance', input: { clip_id: 'clip-c', instance_id: 'inst-b' } },
@@ -584,7 +647,7 @@ describe('v2 command addressing, no-op policy and parity', () => {
       { name: 'update_layout_interval', input: { interval_id: 'interval-2', split_position: 0.5 } },
       { name: 'set_layout_transfer', input: { interval_id: 'interval-2', transfer: null } },
       { name: 'make_layout_interval_unique', input: { interval_id: 'interval-1' } },
-      { name: 'update_marker', input: { marker_id: markerId, name: 'Drop' } },
+      { name: 'update_marker', input: { marker_id: markerId, name: 'Drop', role: null } },
       { name: 'update_clip_effect', input: { clip_id: 'clip-a', effect_id: effectId, parameters: { turns: 0.25 }, apply: { scope: 'whole-clip' } } },
       { name: 'move_clip_effect', input: { clip_id: 'clip-a', effect_id: effectId, direction: 'earlier', apply: { scope: 'whole-clip' } } },
       { name: 'update_property_track', input: { track_id: 'track-a', active_start_ms: 0, active_duration_ms: 4_000 } },

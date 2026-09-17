@@ -25,7 +25,6 @@ import {
   ownedShowIdsV2,
   timeField,
   unknownIdentity,
-  unsupported,
   appearancePatchFromInput,
 } from './support'
 import {
@@ -55,14 +54,6 @@ const createClips: ShowCommandV2Descriptor = {
     return createClipsFromSpecs('create_clips', record, input.clips as Array<Record<string, unknown>>, context)
   },
 }
-
-/**
- * Moving a Clip to another Zone or Layer has no landed v2 owner capability:
- * `editShowClipTemporalV2` owns only the time edges, and `editShowTransitionV2`
- * refuses a connected component that changes Zone or Layer. The command refuses
- * explicitly rather than writing `zoneId`/`layerId` behind the owner's back.
- */
-const ROUTING_UNSUPPORTED = 'moving a Clip to another Zone or Layer has no landed v2 owner intent; showClipTemporalV2 owns only the time edges.'
 
 /**
  * Resize one Clip through the temporal owner, which applies the Transition
@@ -95,7 +86,7 @@ function placementRequest(patch: Record<string, unknown>, clip: { zoneId: string
 const updateClips: ShowCommandV2Descriptor = {
   name: 'update_clips',
   family: 'clips',
-  description: 'Update Clips by identity: placement (Zone, Layer, start, duration), entry policy, Zone sample mode, held appearance and Pattern-instance values. Moving a Transition-connected Clip translates its whole connected component rigidly and preserves Transition identity and settings. An appearance patch applies to the whole Clip or to the held key at one global time, leaving later keys with their own values. Instance values affect every Clip sharing that runtime and are reported in the affected set.',
+  description: 'Update Clips by identity: placement (Zone, Layer, start, duration), entry policy, Zone sample mode, held appearance and Pattern-instance values. Moving a Transition-connected Clip in time translates its whole connected component rigidly and preserves Transition identity and settings. Changing a Clip\'s Zone or Layer carries its held appearance and Clip-owned tracks with it, and refuses when the Clip is a participant endpoint of a Transition, when the destination Layer is occupied, or when the destination Zone is missing from the active Layout for any part of its contribution. An appearance patch applies to the whole Clip or to the held key at one global time, leaving later keys with their own values. Instance values affect every Clip sharing that runtime and are reported in the affected set.',
   touches: ['/composition/clips', '/composition/patternInstances', '/composition/transitions', '/composition/propertyTracks'],
   fields: {
     updates: {
@@ -126,19 +117,19 @@ const updateClips: ShowCommandV2Descriptor = {
       const clipId = patch.clip_id as string
       const clip = record.composition.clips.find(candidate => candidate.id === clipId)!
       const request = placementRequest(patch, clip)
-      if (request.zoneId !== clip.zoneId || request.layerId !== clip.layerId) {
-        return unsupported(record, 'update_clips', ROUTING_UNSUPPORTED,
-          'Create the Clip on the destination Layer and remove the original, or remove the source Layer with an explicit reassign_to_layer_id.')
-      }
+      const reroutes = request.zoneId !== clip.zoneId || request.layerId !== clip.layerId
       if (request.moved || request.resized) {
         steps.push({
           targetId: clipId,
           run: value => {
-            const current = value.composition.clips.find(candidate => candidate.id === clipId)!
+            // A destination change goes through the Clip re-placement intent,
+            // which validates routing, occupancy and Transition consistency in
+            // one candidate; a time-only change keeps the connected move.
             const moved = request.moved
-              ? editShowClipTemporalV2(value, { kind: 'move', clipId, startMs: request.startMs })
+              ? editShowClipTemporalV2(value, reroutes
+                ? { kind: 'replace-placement', clipId, zoneId: request.zoneId, layerId: request.layerId, startMs: request.startMs }
+                : { kind: 'move', clipId, startMs: request.startMs })
               : { status: 'unchanged' as const, record: value }
-            void current
             if (moved.status === 'refused') return moved
             if (!request.resized) return moved
             const afterMove = moved.record

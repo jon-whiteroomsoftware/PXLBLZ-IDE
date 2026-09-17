@@ -34,7 +34,7 @@ export const SHOW_COMMAND_V2_NAME_MAP: ShowCommandV2NameMapEntry[] = [
   { v1: 'create_clips', v2: 'create_clips', reason: 'Port with the v2 ClipSpec and the D3 instance policy.' },
   { v1: 'add_clip', v2: 'create_clips', reason: 'Subsumed; the free-time clamp and implicit Show End extension do not survive, exact timing does.' },
   { v1: 'update_clips', v2: 'update_clips', reason: 'Port with the v2 ClipPatch, appearance apply selector and instance_properties.' },
-  { v1: 'move_clip', v2: 'update_clips', reason: 'Subsumed by ClipPatch placement, which applies the connected move policy.' },
+  { v1: 'move_clip', v2: 'update_clips', reason: 'Subsumed by ClipPatch placement: a time change applies the connected move policy and a Zone or Layer change applies the Clip re-placement intent.' },
   { v1: 'set_clip_opacity', v2: 'update_clips', reason: 'Subsumed by the appearance patch (decision D1).' },
   { v1: 'set_clip_view', v2: 'update_clips', reason: 'Subsumed by the appearance patch (decision D1).' },
   { v1: 'set_clip_transform', v2: 'update_clips', reason: 'Subsumed by the appearance patch (decision D1).' },
@@ -69,8 +69,8 @@ export const SHOW_COMMAND_V2_NAME_MAP: ShowCommandV2NameMapEntry[] = [
   { v1: null, v2: 'remove_layout_interval', reason: 'New: predecessor extension or promotion to zero, refusing on meaningful data.' },
 
   // Markers
-  { v1: 'add_marker', v2: 'add_marker', reason: 'Port plus the chapter role argument.' },
-  { v1: 'update_marker', v2: 'update_marker', reason: 'Merged with move_marker.' },
+  { v1: 'add_marker', v2: 'add_marker', reason: 'Port plus the chapter role, authored through the Marker owner.' },
+  { v1: 'update_marker', v2: 'update_marker', reason: 'Merged with move_marker, plus the nullable chapter role.' },
   { v1: 'move_marker', v2: 'update_marker', reason: 'Merged; at_ms is one field of the update.' },
   { v1: 'remove_marker', v2: 'remove_marker', reason: 'Port; unchanged shape.' },
 
@@ -134,7 +134,6 @@ export const SHOW_COMMAND_V2_REFUSAL_CODES: ShowCommandV2RefusalCode[] = [
   { code: 'missing-dependency', v1: 'unknown-pattern', meaning: 'Trusted resolved Pattern metadata is unavailable for this source in this session.' },
   { code: 'not-a-junction', v1: 'unknown-junction', meaning: 'The named Clip pair is not exactly adjacent on one Zone and Layer, so it is not a Cut junction.' },
   { code: 'duplicate-name', v1: 'duplicate-name', meaning: 'Another entity already uses that name.' },
-  { code: 'unsupported', v1: null, meaning: 'The catalogue accepts the argument but no landed owner capability implements it yet; the message names the missing capability.' },
 
   // Owner domain refusals, passed through with the owner's own code
   { code: 'invalid-record', v1: null, meaning: 'The preimage Show is not a valid v2 record.' },

@@ -882,8 +882,12 @@ input; affected scope is this.
 
 **Owner-backed refusals.** A command never restates a domain rule. It resolves
 identities, mints the fresh identities its owner requires (a pure owner never
-allocates identity), and passes the owner's typed refusal code through. Two
-catalogue rows have no landed owner capability and refuse with a typed
-`unsupported` code naming what is missing: the Marker `role: chapter` argument,
-which arrives with #1040's Marker role, and moving a Clip to another Zone or
-Layer, which no v2 temporal or Transition intent owns.
+allocates identity), and passes the owner's typed refusal code through. Every
+catalogue row now reaches a landed owner capability, so the prepared catalogue
+emits no `unsupported` code and the refusal-code map no longer publishes one.
+The two rows that previously refused that way are landed: the Marker
+`role: chapter` argument goes to the Marker owner, which authors and clears the
+role, and a `update_clips` Zone or Layer change goes to the Clip temporal owner's
+re-placement intent, whose routing, occupancy, contribution-availability and
+participant-Transition refusals pass through with their own codes
+(`missing-target`, `invalid-result`, `zone-unavailable`, `invalid-topology`).

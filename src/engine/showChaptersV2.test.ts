@@ -161,9 +161,37 @@ it('preserves an existing chapter role through Marker moves and updates without 
   expect(showChaptersV2(generalEdit.record).map(chapter => chapter.id)).toEqual(['chapter'])
 })
 
-it('refuses a Marker intent that tries to author a role through the general owner', () => {
+it('authors, promotes and clears the chapter role through the general Marker owner', () => {
+  const record = withMarkers([{ id: 'chapter', timeMs: 0, name: 'Opening', role: 'chapter' }, { id: 'note', timeMs: 100, name: 'Alignment' }], 1_000)
+  const before = structuredClone(record)
+  const added = editShowMarkerV2(record, { kind: 'add', marker: { id: 'new', timeMs: 10, name: 'Verse', role: 'chapter' } })
+  expect(added.status, JSON.stringify(added)).toBe('changed')
+  if (added.status !== 'changed') return
+  expect(showChaptersV2(reopen(added.record)).map(entry => entry.id)).toEqual(['chapter', 'new'])
+  expect(added.affectedMarkerIds).toEqual(['new'])
+  expect(record).toEqual(before)
+
+  const promoted = editShowMarkerV2(added.record, { kind: 'update', markerId: 'note', patch: { role: 'chapter' } })
+  expect(promoted.status).toBe('changed')
+  if (promoted.status !== 'changed') return
+  // Promotion keeps identity, time, name and colour exactly as authored.
+  expect(promoted.record.composition.markers.find(marker => marker.id === 'note'))
+    .toEqual({ ...added.record.composition.markers.find(marker => marker.id === 'note'), role: 'chapter' })
+
+  const cleared = editShowMarkerV2(promoted.record, { kind: 'update', markerId: 'note', patch: { role: undefined } })
+  expect(cleared.status).toBe('changed')
+  if (cleared.status !== 'changed') return
+  expect(cleared.record.composition.markers.find(marker => marker.id === 'note')).not.toHaveProperty('role')
+  expect(showChaptersV2(reopen(cleared.record)).map(entry => entry.id)).toEqual(['chapter', 'new'])
+  // Clearing an absent role is an ordinary no-op on the original record.
+  const again = editShowMarkerV2(cleared.record, { kind: 'update', markerId: 'note', patch: { role: undefined } })
+  expect(again.status).toBe('unchanged')
+  expect(again.record).toBe(cleared.record)
+})
+
+it('refuses an unknown Marker role in the intent instead of storing it', () => {
   const record = withMarkers([{ id: 'chapter', timeMs: 0, name: 'Opening', role: 'chapter' }], 1_000)
-  const added = editShowMarkerV2(record, { kind: 'add', marker: { id: 'new', timeMs: 10, role: 'chapter' } as ShowMarkerV2 })
+  const added = editShowMarkerV2(record, { kind: 'add', marker: { id: 'new', timeMs: 10, role: 'act' } as unknown as ShowMarkerV2 })
   expect(added.status).toBe('refused')
   if (added.status !== 'refused') return
   expect(added.code).toBe('invalid-intent')

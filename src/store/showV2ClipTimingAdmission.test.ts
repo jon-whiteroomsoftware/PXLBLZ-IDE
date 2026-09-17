@@ -53,6 +53,20 @@ it('commits the native move/trim/extend/split/insert/end sequence once per actio
  for(const [at,value] of [[1000,2.02],[1999,2.02],[4000,2.18],[4999,2.18],[5000,2.18],[6000,2.32],[11000,3.62],[11999,3.62]] as const)expect(evaluateShowPropertyTrackV2(track,at)).toBeCloseTo(value,12)
  expect(evaluateShowPropertyTrackV2(track,12000)).toBeUndefined()
 })
+it('re-places a Clip onto another Layer through the closed admission with one history and save',async()=>{
+ const {record,context,write,readSaved}=setup();const id=record.composition.clips[0].id
+ record.composition.layers.push({id:'overlay',zoneId:record.zones[0].id,name:'Over',rank:Math.max(...record.composition.layers.map(layer=>layer.rank))+1})
+ const applied=await admitShowV2PilotClipTemporal({...freshContext(context),intent:{kind:'replace-placement',clipId:id,layerId:'overlay',startMs:2000}})
+ expect(applied).toMatchObject({status:'applied',settlement:'saved',affectedClipIds:[id]})
+ expect(write).toHaveBeenCalledTimes(1);expect(useShowStore.getState().showV2Histories[record.id].past).toHaveLength(1)
+ expect(readSaved().composition.clips[0]).toMatchObject({id,layerId:'overlay',startMs:2000,durationMs:10000})
+ expect(readSaved().composition.patternInstances).toEqual(record.composition.patternInstances)
+ expect(stage.prepareShowStageV2(readSaved(),context.capture.dependencies).status).toBe('ready')
+ // An unknown destination is a typed owner refusal that writes nothing.
+ const refused=await admitShowV2PilotClipTemporal({...freshContext(context),intent:{kind:'replace-placement',clipId:id,layerId:'absent'}})
+ expect(refused).toMatchObject({status:'refused',source:'owner',code:'missing-target'});expect(write).toHaveBeenCalledTimes(1)
+ for(const [name,value]of Object.entries(refused))if(name.startsWith('affected')||name.startsWith('removed'))expect(value).toEqual([])
+})
 function freshContext(context:ReturnType<typeof setup>['context']){
  const record=useShowStore.getState().showV2Pilots[context.showId]
  return {...context,baseRevision:useShowStore.getState().showRevisions[context.showId]??0,capture:{...context.capture,record,prepared:stage.prepareShowStageV2(record,context.capture.dependencies)}}

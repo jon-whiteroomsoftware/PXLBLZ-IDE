@@ -144,14 +144,6 @@ export function invalidArgument(record: ShowRecordV2, command: string, message: 
   return refuseShowCommandV2(record, issue)
 }
 
-export function unsupported(record: ShowRecordV2, command: string, message: string, remedy?: string): ShowCommandV2Outcome {
-  return refuseShowCommandV2(record, {
-    code: 'unsupported',
-    message: `${command}: ${message}`,
-    ...(remedy ? { remedy } : {}),
-  })
-}
-
 export function clipIds(record: ShowRecordV2): string[] {
   return record.composition.clips.map(clip => clip.id)
 }
