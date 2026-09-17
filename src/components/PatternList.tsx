@@ -44,7 +44,7 @@ import {
   profileMatchesLive,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
-import { useShowStore, type ShowRecord } from '@/store/showStore'
+import { personalShowIds, useShowStore, type ShowRecord } from '@/store/showStore'
 import { useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -130,6 +130,7 @@ export function PatternList({
   const userShows = useShowStore((s) => s.shows)
   // Stored v2 rows the list offers behind the one route gate (#1056 slice 6).
   const userShowsV2 = useShowStore((s) => s.showV2Rows)
+  const duplicateShowV2Row = useShowStore((s) => s.duplicateShowV2Row)
   const activeShowId = useShowStore((s) => s.activeShowId)
   const loadShows = useShowStore((s) => s.loadShows)
   const beginShowCreation = useShowStore((s) => s.beginShowCreation)
@@ -873,6 +874,13 @@ export function PatternList({
   }
 
   async function handleDuplicateShow(id: string) {
+    // One rail action, two stored versions: a v2 row copies through its own
+    // owner and opens on the same route (#1039).
+    if (useShowStore.getState().showV2Rows.some((row) => row.id === id)) {
+      const copy = await duplicateShowV2Row(id)
+      if (copy) openShowV2Route(copy.id)
+      return
+    }
     const copy = await duplicateShow(id)
     if (copy) openUserShow(copy)
   }
@@ -981,7 +989,9 @@ export function PatternList({
     for (const showId of showIds) await removeShow(showId)
     await mutateOrganization(
       'shows',
-      useShowStore.getState().shows.map((show) => show.id),
+      // Both stored versions are personal Shows in this one list; reconciling
+      // against the v1 ids alone would prune every surviving v2 row (#1039).
+      personalShowIds(useShowStore.getState()),
       emptyEntityOrganizationTrash,
     )
     if (route.kind === 'studio' && route.entity?.kind === 'shows' && showIds.includes(route.entity.id ?? '')) {

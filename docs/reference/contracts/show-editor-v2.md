@@ -520,6 +520,12 @@ Each command publishes its outcome only while the capture it read is still the
 route's own and it is still the newest such command; `Reload saved v2`, which
 replaces the record itself, asks only the second question.
 
+The action row reads a standing successful push as "sent" and gates both Run and
+Save while it stands, so the route releases a successful result 3.5 s after it
+lands, exactly as the v1 editor does; a failed result stays until its notice is
+dismissed, and a result belonging to another artifact is left alone
+(`ShowV2ControllerDeliveryCompletion.test.tsx`).
+
 ## Adding a Clip
 
 The gesture seam moves, resizes, splits, duplicates and deletes Clips;
@@ -547,6 +553,23 @@ no Scene labels to project (section 8).
 [`show-state-history-persistence.md`](show-state-history-persistence.md) owns
 the store rules for all three.
 
+A stored v2 row is an ordinary personal Show in that list (#1039): it renames,
+duplicates and trashes with the same row actions a v1 row offers.
+
+| Rail action | v2 owner | Behavior |
+| --- | --- | --- |
+| Rename | `renameShow`, dispatching to the v2 row owner | an open Show renames through `renameShowV2Pilot`, so the edit joins its history and save queue; a listed row that is not open is replaced in place and never becomes a working copy |
+| Duplicate | `duplicateShowV2Row` | copies the open working record when there is one, otherwise the stored bytes, under a fresh id and a name free across both collections, then opens the copy |
+| Empty Trash | `removeShow` | one `deleteShow` by id serves both versions; the row, its working copy, its history and any save failure are forgotten together |
+
+The persisted rail organization is keyed by Show id across both stored versions,
+so every reconciliation passes `personalShowIds(...)`. Reconciling against the
+v1 ids alone prunes every surviving v2 row from the organization, which is what
+emptying the Shows Trash used to do (`PatternList.test.tsx`, "the Shows rail
+with stored v2 rows"). Every accepted v2 replacement also patches the matching
+`showV2Rows` entry, so a rename is visible in the list without a workspace
+reload, and a rolled-back save restores the durable name with the record.
+
 ## What remains
 
 The route is complete for a v2 record behind the gate, and `ShowV2RoutePilot`
@@ -558,8 +581,7 @@ the store mutators, executor, command admission and MCP surfaces remain
 v1-typed, no surface on this route registers an agent binding, and the animation
 lanes report a selection and draw but accept no drag.
 
-Two capabilities the v1 route offers are deliberately absent for a v2 record and
-are #1039's or a later slice's: renaming or duplicating a v2 row from the Shows
-rail (the list offers neither rather than sending a rename through the v1 sparse
-patch), and the v1 timeline's zoom, snap and diagnostic toggles, which belong to
-`ShowTimelineWorkspace` and have no v2 surface yet.
+One capability the v1 route offers is still absent for a v2 record: the v1
+timeline's zoom, snap and diagnostic toggles, which belong to
+`ShowTimelineWorkspace` and have no v2 surface yet. Renaming and duplicating a
+v2 row from the Shows rail landed with #1039 and are described above.

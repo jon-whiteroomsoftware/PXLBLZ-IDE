@@ -21,6 +21,9 @@ import { showInitialState, useShowStore } from '@/store/showStore'
 import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { stampArtifact } from '@/engine/artifactStamp'
 import { createDefaultShow } from '@/engine/showModel'
+import { createShowV2WithOutputContract } from '@/engine/showCreationV2'
+import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import type { LastActive } from '@/engine/personalContentProvider'
 import type { Settings } from '@/engine/settings'
 import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
@@ -42,6 +45,7 @@ let mockMixins: MixinRecord[] = []
 let mockLibraries: LibraryRecord[] = []
 let mockControllers: ControllerProfile[] = []
 let mockShows: ReturnType<typeof createDefaultShow>[] = []
+let mockShowsV2: ShowRecordV2[] = []
 let mockLastActive: LastActive | undefined
 let mockDemoOverrides: Record<string, Partial<Settings>> | undefined
 let requests: Array<{ url: string; init?: RequestInit }> = []
@@ -58,6 +62,7 @@ beforeEach(() => {
   mockLibraries = []
   mockControllers = []
   mockShows = []
+  mockShowsV2 = []
   mockLastActive = undefined
   mockDemoOverrides = undefined
   requests = []
@@ -121,6 +126,24 @@ beforeEach(() => {
     }
     if (String(url) === '/api/shows' && init?.method === undefined) {
       return Response.json({ shows: mockShows })
+    }
+    if (String(url) === '/api/shows?show-version=2' && init?.method === undefined) {
+      return Response.json({ shows: mockShowsV2 })
+    }
+    if (String(url) === '/api/shows?show-version=2' && init?.method === 'POST') {
+      mockShowsV2 = [...mockShowsV2, JSON.parse(String(init.body)) as ShowRecordV2]
+      return Response.json({ ok: true }, { status: 201 })
+    }
+    if (String(url).startsWith('/api/shows/') && String(url).endsWith('?show-version=2') && init?.method === 'PUT') {
+      const record = JSON.parse(String(init.body)) as ShowRecordV2
+      mockShowsV2 = mockShowsV2.map((show) => show.id === record.id ? record : show)
+      return Response.json({ ok: true })
+    }
+    if (String(url).startsWith('/api/shows/') && init?.method === 'DELETE') {
+      const id = decodeURIComponent(String(url).replace('/api/shows/', ''))
+      mockShows = mockShows.filter((show) => show.id !== id)
+      mockShowsV2 = mockShowsV2.filter((show) => show.id !== id)
+      return Response.json({ ok: true })
     }
     if (String(url) === '/api/settings/lastActive' && init?.method === undefined) {
       return Response.json({ value: mockLastActive })
@@ -1190,5 +1213,78 @@ describe('PatternList', () => {
     expect(await screen.findByLabelText('No shows yet')).toHaveTextContent('—')
     expect(screen.getByRole('treeitem', { name: /Learn/ })).toHaveClass('text-[12px]')
     expect(screen.getByRole('treeitem', { name: /Showcases/ })).toHaveClass('text-[12px]')
+  })
+
+  /**
+   * A stored v2 row is a personal Show in the Shows rail (#1039). Its rename,
+   * duplicate and Empty Trash actions are the ones a v1 row offers, and the
+   * persisted organization is reconciled against both stored versions.
+   */
+  describe('the Shows rail with stored v2 rows', () => {
+    const V2_CONTRACT = createInstallationShowOutputContract({ outputMapId: null, pixelCount: 60 })
+
+    async function renderShowsRail() {
+      setStudioLocation('/studio?show-v2-editor=1')
+      const user = userEvent.setup()
+      render(<PatternList />)
+      await switchRailMode('Shows')
+      return user
+    }
+
+    it('empties the Shows Trash without pruning the surviving v2 row', async () => {
+      mockShowsV2 = [
+        createShowV2WithOutputContract('v2-keep', 'Kept v2', V2_CONTRACT, 2),
+        createShowV2WithOutputContract('v2-trash', 'Doomed v2', V2_CONTRACT, 1),
+      ]
+      const user = await renderShowsRail()
+      await screen.findByText('Kept v2')
+
+      await user.click(screen.getByRole('button', { name: 'More actions for Doomed v2' }))
+      await user.click(screen.getByRole('button', { name: 'Move to Trash' }))
+      await user.click(screen.getByRole('button', { name: 'Open Trash (1 item)' }))
+      await user.click(screen.getByRole('button', { name: 'Empty Trash' }))
+      const dialog = screen.getByRole('alertdialog', { name: 'Empty Trash?' })
+      await user.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
+
+      await waitFor(() => expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toEqual(['v2-keep']))
+      expect(mockShowsV2.map((show) => show.id)).toEqual(['v2-keep'])
+      const organization = useEntityOrganizationStore.getState().organizations.shows
+      expect(organization.trash).toEqual([])
+      // The surviving row is still organized, not pruned as an unknown id.
+      expect(organization.nodes).toEqual([{ kind: 'entity', entityId: 'v2-keep' }])
+    })
+
+    it('renames a v2 row in place from its row menu', async () => {
+      mockShowsV2 = [createShowV2WithOutputContract('v2-row', 'Before', V2_CONTRACT, 1)]
+      const user = await renderShowsRail()
+      await screen.findByText('Before')
+
+      await user.click(screen.getByRole('button', { name: 'More actions for Before' }))
+      await user.click(screen.getByRole('button', { name: 'Rename' }))
+      const field = screen.getByDisplayValue('Before')
+      await user.clear(field)
+      await user.type(field, 'After{Enter}')
+
+      await waitFor(() => expect(useShowStore.getState().showV2Rows.map((row) => row.name)).toEqual(['After']))
+      expect(mockShowsV2[0].name).toBe('After')
+      expect(await screen.findByText('After')).toBeInTheDocument()
+    })
+
+    it('duplicates a v2 row under a free name and opens the copy', async () => {
+      mockShowsV2 = [createShowV2WithOutputContract('v2-row', 'Source', V2_CONTRACT, 1)]
+      const user = await renderShowsRail()
+      await screen.findByText('Source')
+
+      await user.click(screen.getByRole('button', { name: 'More actions for Source' }))
+      await user.click(screen.getByRole('button', { name: 'Duplicate' }))
+
+      await waitFor(() => expect(useShowStore.getState().showV2Rows).toHaveLength(2))
+      const copy = useShowStore.getState().showV2Rows.find((row) => row.id !== 'v2-row')!
+      expect(copy.name).toBe('Source copy')
+      await waitFor(() => expect(useRouterStore.getState().route).toEqual({
+        kind: 'studio',
+        entity: { kind: 'shows', id: copy.id },
+      }))
+    })
   })
 })

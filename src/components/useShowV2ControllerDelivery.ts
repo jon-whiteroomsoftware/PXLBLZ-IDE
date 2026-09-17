@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { trackEvent } from '@/analytics'
 import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 import { buildShowControllerCompatibilityContext } from '@/engine/showControllerCompatibilityContext'
@@ -120,6 +120,15 @@ export function useShowV2ControllerDelivery(input: {
     lastRunProgramId: activeIp ? lastRunProgramId[activeIp]?.[artifactId] : undefined,
     activeProgramId,
   })
+
+  // The action row reads a standing success as "sent" and gates both Run and
+  // Save while it stands, so the route releases it on the same delay the v1
+  // editor uses. A failure stays until its notice is dismissed.
+  useEffect(() => {
+    if (!pushResult?.ok) return
+    const timeout = window.setTimeout(clearArtifactPushResult, 3_500)
+    return () => window.clearTimeout(timeout)
+  }, [clearArtifactPushResult, pushResult])
 
   const invalidationMessage = (delivery: ShowV2DeliverySnapshot): string | null => {
     const controllerState = useControllerStore.getState()

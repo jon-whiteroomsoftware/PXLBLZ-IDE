@@ -228,6 +228,12 @@ interface ShowState {
    * unknown or the create fails.
    */
   duplicateShow: (sourceId: string, sourceRecord?: ShowRecord) => Promise<ShowRecord | null>
+  /**
+   * Persists a copy of one stored v2 row under a fresh identity and a free
+   * name (#1039), the v2 counterpart of `duplicateShow`. Resolves null when the
+   * row is unknown, the workspace cannot store v2 Shows, or the create fails.
+   */
+  duplicateShowV2Row: (sourceId: string) => Promise<ShowRecordV2 | null>
   updateShow: (id: string, next: ShowRecord) => Promise<void>
   // Resolves the record an edit operation should start from: a personal
   // record, an in-memory built-in draft, or the pristine built-in fixture.
@@ -300,6 +306,15 @@ interface ShowState {
 export type ShowHistory = DocumentHistory<ShowRecord>
 export type ShowV2History = DocumentHistory<ShowRecordV2>
 
+/**
+ * Every personal Show the rail lists, in both stored versions (#1039). The
+ * organization the rail persists is keyed by these ids, so reconciling it
+ * against one collection alone prunes the other's rows.
+ */
+export function personalShowIds(state: { shows: ShowRecord[]; showV2Rows: ShowV2ListRow[] }): string[] {
+  return [...state.shows.map((show) => show.id), ...state.showV2Rows.map((row) => row.id)]
+}
+
 /** What the Show list needs of a stored v2 row: its identity and its name. */
 export interface ShowV2ListRow {
   id: string
@@ -359,6 +374,55 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   const revisionPatch = (state: ShowState, id: string) => ({
     showRevisions: { ...state.showRevisions, [id]: (state.showRevisions[id] ?? 0) + 1 },
   })
+  // The rail reads `showV2Rows`, so every accepted v2 replacement updates the
+  // row it describes; otherwise a renamed Show keeps its old name in the list
+  // until the next workspace load (#1039).
+  const showV2RowPatch = (state: ShowState, record: ShowRecordV2) => (
+    state.showV2Rows.some(row => row.id === record.id)
+      ? {
+        showV2Rows: state.showV2Rows.map(row => (
+          row.id === record.id ? { id: record.id, name: record.name, updatedAt: record.updatedAt } : row
+        )),
+      }
+      : {}
+  )
+  /** Whether this personal Show is stored as a v2 document rather than a v1 record. */
+  const isPersonalShowV2Row = (id: string): boolean => (
+    get().showV2Pilots[id] !== undefined || get().showV2Rows.some(row => row.id === id)
+  )
+  /**
+   * Rename one stored v2 row. An open Show renames through its own adoption
+   * owner, so the edit joins that Show's history and save queue; a listed row
+   * that is not open is replaced in place without becoming a working copy.
+   */
+  const renameShowV2Row = async (showId: string, name: string): Promise<void> => {
+    if (get().showV2Pilots[showId]) {
+      await get().renameShowV2Pilot(showId, name)
+      return
+    }
+    const row = get().showV2Rows.find(candidate => candidate.id === showId)
+    if (!row || row.name === name) return
+    const provider = getPersonalContentProvider()
+    if (!provider.replaceShowV2 || !provider.listShowDocumentsV2) return
+    const workspaceGeneration = showV2WorkspaceGeneration
+    const revision = get().showRevisions[showId] ?? 0
+    await queueShowPersistence(showId, async () => {
+      const current = () => showV2WorkspaceGeneration === workspaceGeneration
+        && getPersonalContentProvider() === provider
+        && (get().showRevisions[showId] ?? 0) === revision
+        && get().showV2Pilots[showId] === undefined
+      if (!current()) return
+      const stored = (await provider.listShowDocumentsV2!()).find(record => record.id === showId)
+      if (!stored || !current()) return
+      const next = {
+        ...cloneValidShowRecordV2({ ...stored, name }),
+        updatedAt: nextShowOrderingStamp(stored.updatedAt),
+      }
+      await provider.replaceShowV2!(showId, next)
+      if (showV2WorkspaceGeneration !== workspaceGeneration || getPersonalContentProvider() !== provider) return
+      set(state => ({ ...revisionPatch(state, showId), ...showV2RowPatch(state, next) }))
+    })
+  }
   const adoptShowV2PilotReplacement = async (
     id: string,
     replacement: ShowRecordV2,
@@ -374,6 +438,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       ...revisionPatch(state, id),
       showV2Pilots: { ...state.showV2Pilots, [id]: adopted },
       showV2Histories: { ...state.showV2Histories, [id]: history },
+      ...showV2RowPatch(state, adopted),
       ...(state.showV2SaveFailure?.showId === id ? { showV2SaveFailure: null } : {}),
     }))
     try {
@@ -391,6 +456,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
           ...revisionPatch(state, id),
           showV2Pilots: { ...state.showV2Pilots, [id]: durable.record },
           showV2Histories: { ...state.showV2Histories, [id]: durable.history },
+          ...showV2RowPatch(state, durable.record),
           showV2SaveFailure: { showId: id, record: adopted },
         }
       })
@@ -770,6 +836,12 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   },
 
   renameShow: async (id, name) => {
+    // The rail is one list of personal Shows; a v2 row renames through its own
+    // owner rather than through the v1 record path (#1039).
+    if (isPersonalShowV2Row(id)) {
+      await renameShowV2Row(id, name)
+      return
+    }
     const existing = get().resolveEditableShow(id)
     if (!existing || existing.name === name) return
     const next = { ...existing, name, updatedAt: Date.now() }
@@ -783,21 +855,58 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     showsPendingDeletion.add(id)
     set((state) => revisionPatch(state, id))
     try {
+      // One delete serves both versions: the stored row is addressed by id and
+      // the session state a v2 Show holds is forgotten with the v1 state.
       await deletePersistedShow(id)
       lastPersistedShowRecords.delete(id)
+      lastPersistedShowV2Pilots.delete(id)
       set((state) => {
         const showHistories = { ...state.showHistories }
         delete showHistories[id]
+        const showV2Pilots = { ...state.showV2Pilots }
+        delete showV2Pilots[id]
+        const showV2Histories = { ...state.showV2Histories }
+        delete showV2Histories[id]
         return {
           shows: state.shows.filter((show) => show.id !== id),
+          showV2Rows: state.showV2Rows.filter((row) => row.id !== id),
+          showV2Pilots,
+          showV2Histories,
           activeShowId: state.activeShowId === id ? null : state.activeShowId,
           showHistories,
           ...(state.showSaveFailure?.showId === id ? { showSaveFailure: null } : {}),
+          ...(state.showV2SaveFailure?.showId === id ? { showV2SaveFailure: null } : {}),
         }
       })
     } finally {
       showsPendingDeletion.delete(id)
     }
+  },
+
+  duplicateShowV2Row: async (sourceId) => {
+    if (showsHydration) await showsHydration.catch(() => {})
+    const provider = getPersonalContentProvider()
+    if (!provider.createShowV2) return null
+    // The open working copy is what the user sees, so it is what gets copied;
+    // a listed row that is not open copies its stored bytes.
+    const source = get().showV2Pilots[sourceId]
+      ?? (provider.listShowDocumentsV2
+        ? (await provider.listShowDocumentsV2()).find((record) => record.id === sourceId)
+        : undefined)
+    if (!source) return null
+    const taken = [...get().shows.map((show) => show.name), ...get().showV2Rows.map((row) => row.name)]
+    const record = cloneValidShowRecordV2({
+      ...source,
+      id: newPersonalContentId(),
+      name: uniquePatternName(`${source.name} copy`, taken),
+      updatedAt: Date.now(),
+    })
+    try {
+      await get().addImportedShowV2(record)
+    } catch {
+      return null
+    }
+    return record
   },
 
   duplicateShow: async (sourceId, sourceRecord) => {

@@ -120,9 +120,10 @@ export function ShowsRailSection({
               organization={personalOrganization}
               items={[
                 ...userShows.map((show) => ({ id: show.id, name: show.name })),
-                // A v2 row opens on the same route; renaming and duplicating it
-                // stay with #1039, so it offers neither here.
-                ...userShowsV2.map((show) => ({ id: show.id, name: show.name, meta: 'v2', canRename: false })),
+                // A v2 row is an ordinary personal Show here: it opens on the
+                // same route and renames, duplicates and trashes like a v1 one
+                // (#1039).
+                ...userShowsV2.map((show) => ({ id: show.id, name: show.name, meta: 'v2' })),
               ]}
               activeEntityId={activeShowId}
               query={query}
