@@ -23,6 +23,8 @@ import { writeShowInstancePropertiesV2, type ShowInstancePropertiesResultV2, typ
 import type { ShowClipEvaluationPolicy } from '@/engine/personalContentRecords'
 import { replaceShowGroupDefinitionClipPatternV2, type ReplaceShowGroupDefinitionClipPatternIntentV2, type ShowGroupReplacementResultV2 } from '@/engine/showGroupReplacementV2'
 import type { ShowV2GroupReplacementIntent } from '@/engine/showV2GroupReplacementEditorModel'
+import { editShowZoneV2, type ShowZoneEditAffectedV2, type ShowZoneEditIntentV2, type ShowZoneEditResultV2 } from '@/engine/showZonesV2'
+import { editShowZoneLayoutDefinitionV2, type ShowZoneLayoutDefinitionAffectedV2, type ShowZoneLayoutDefinitionIntentV2, type ShowZoneLayoutDefinitionResultV2 } from '@/engine/showZoneLayoutDefinitionsV2'
 import { applyShowCommandV2, type ShowCommandV2Outcome } from '@/engine/showCommandsV2/registry'
 import type { ShowV2ShowMetadataCommand } from '@/engine/showV2ShowPropertiesEditorModel'
 import { resolveShowV2StageMap, showV2StageMapAvailable } from './showV2StageMap'
@@ -85,6 +87,8 @@ type Command =
   | { owner: 'property'; propertyOwner: ShowPropertyTrackOwnerV2; intent: ShowPropertyEditIntentV2 }
   | { owner: 'set-show-end'; intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
   | { owner: 'show-metadata'; intent: ShowV2ShowMetadataCommand }
+  | { owner: 'zone'; intent: ShowZoneEditIntentV2 }
+  | { owner: 'layout-definition'; intent: ShowZoneLayoutDefinitionIntentV2 }
 export type ShowV2PilotClipDeleteIntent = Extract<ShowTransitionEditIntentV2, { kind: 'delete-clip' }>
 export type ShowV2PilotClipDeleteRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotClipDeleteIntent }
 export type ShowV2PilotClipDeleteOutcome = PilotOwnerOutcome<ShowTransitionEditResultV2, ShowTimelineEditAffectedV2>
@@ -103,6 +107,8 @@ type OwnerResult<C extends Command> = C extends { owner: 'layout-occurrence' } ?
   : C extends { owner: 'property' } ? ShowPropertyEditResultV2
   : C extends { owner: 'set-show-end' } ? ShowLayoutEditResultV2
   : C extends { owner: 'show-metadata' } ? ShowCommandV2Outcome
+  : C extends { owner: 'zone' } ? ShowZoneEditResultV2
+  : C extends { owner: 'layout-definition' } ? ShowZoneLayoutDefinitionResultV2
   : ShowTransitionEditResultV2
 type CheckedOutcome<R> =
   | { status: 'applied'; settlement: 'saved' | 'superseded'; result: R }
@@ -158,7 +164,11 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
                         ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
                         : command.owner === 'show-metadata'
                           ? applyShowCommandV2(current, command.intent.command, structuredClone(command.intent.input))
-                          : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
+                          : command.owner === 'zone'
+                            ? editShowZoneV2(current, structuredClone(command.intent))
+                            : command.owner === 'layout-definition'
+                              ? editShowZoneLayoutDefinitionV2(current, structuredClone(command.intent))
+                              : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
   if (result.status === 'refused') return { status: 'refused', source: 'owner', result }
   if (result.status === 'unchanged') return { status: 'unchanged', result }
   const { capture } = request
@@ -187,7 +197,9 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
     : capturedInputs?.status === 'qualified'
       ? prepareShowStageFromCapturedInputsV2(result.record, capturedInputs.inputs)
       : prepareShowStageV2(result.record, prepared.status === 'ready' ? { ...prepared.bundle.assets, stageMap: capture.dependencies.stageMap } : capture.dependencies)
-  const deletingToEmpty = ((command.owner === 'group-occurrence' && command.intent.kind === 'delete-occurrence') || command.owner === 'delete-clip') && isValidatedEmptyShowV2(result.record)
+  const deletingToEmpty = ((command.owner === 'group-occurrence' && command.intent.kind === 'delete-occurrence')
+    || (command.owner === 'zone' && command.intent.kind === 'remove')
+    || command.owner === 'delete-clip') && isValidatedEmptyShowV2(result.record)
   const expectedCapability = deletingToEmpty ? 'empty' : command.owner === 'create-clip' || prepared.status === 'refused' ? 'ready' : prepared.status
   if (candidate.status !== expectedCapability) return refuse('unsupported-pilot-record', candidate.status === 'refused' ? candidate.message : 'The edit changed the prepared Show capability.')
   if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
@@ -759,6 +771,99 @@ function validGroupReplacementIntentShape(intent: unknown): intent is ShowV2Grou
     && (plan.kind === 'retain' ? exactIntentFields(plan, ['kind'])
       : plan.kind === 'independent' && exactIntentFields(plan, ['kind', 'instanceId', 'identitiesBySourceTrackId']) && text(plan.instanceId) && validTrackIdentityPlans(plan.identitiesBySourceTrackId)))
 }
+/**
+ * The Show's Zone collection and its Zone Layout definitions (#1039), through
+ * the same closed dispatch every other editor section uses: one accepted edit
+ * is one prepared candidate, one history entry and one save; a refusal or no-op
+ * writes nothing and keeps the record identity.
+ *
+ * Both wrappers check the complete public intent shape before the typed owner,
+ * so a malformed runtime object never reaches preparation or adoption. Removing
+ * the last Zone's content may leave an empty Show, which the dispatch's
+ * `deletingToEmpty` rule already admits for Clip and Group deletion.
+ */
+function validZoneIntent(intent: unknown): intent is ShowZoneEditIntentV2 {
+  const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
+  if (!object(intent)) return false
+  if (intent.kind === 'add') {
+    if (!exactIntentFields(intent, ['kind', 'zone']) || !object(intent.zone)) return false
+    const zone = intent.zone
+    if (Object.keys(zone).some(field => !['id', 'name', 'nominalPixelCount', 'color', 'icon'].includes(field))) return false
+    return text(zone.id) && text(zone.name)
+      && typeof zone.nominalPixelCount === 'number' && Number.isSafeInteger(zone.nominalPixelCount) && zone.nominalPixelCount >= 1
+      && (zone.color === undefined || text(zone.color)) && (zone.icon === undefined || text(zone.icon))
+  }
+  if (intent.kind !== 'remove' || !text(intent.zoneId)) return false
+  if (exactIntentFields(intent, ['kind', 'zoneId'])) return true
+  if (!exactIntentFields(intent, ['kind', 'zoneId', 'clipRemovals']) || !Array.isArray(intent.clipRemovals)) return false
+  return intent.clipRemovals.every(plan => (
+    exactIntentFields(plan, ['clipId', 'propertyRampProjections']) && object(plan) && text(plan.clipId)
+    // One removed Clip's carrier plans are exactly the Clip-deletion plans.
+    && validClipDeleteIntent({ kind: 'delete-clip', clipId: plan.clipId, propertyRampProjections: plan.propertyRampProjections })
+  ))
+}
+function zoneEffects(result?: ShowZoneEditResultV2): ShowZoneEditAffectedV2 {
+  return result ? {
+    affectedZoneIds: result.affectedZoneIds, affectedLayerIds: result.affectedLayerIds, affectedClipIds: result.affectedClipIds,
+    affectedInstanceIds: result.affectedInstanceIds, affectedTransitionIds: result.affectedTransitionIds, affectedTrackIds: result.affectedTrackIds,
+    affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, removedIds: result.removedIds,
+  } : {
+    affectedZoneIds: [], affectedLayerIds: [], affectedClipIds: [], affectedInstanceIds: [], affectedTransitionIds: [],
+    affectedTrackIds: [], affectedLayoutDefinitionIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
+  }
+}
+export type ShowV2PilotZoneEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowZoneEditIntentV2 }
+export type ShowV2PilotZoneEditOutcome = PilotOwnerOutcome<ShowZoneEditResultV2, ShowZoneEditAffectedV2>
+export async function admitShowV2PilotZoneEdit(request: ShowV2PilotZoneEditRequest): Promise<ShowV2PilotZoneEditOutcome> {
+  if (!validZoneIntent(request.intent)) {
+    return { status: 'refused', source: 'owner', code: 'invalid-request', message: 'Give one complete explicit Zone edit.', ...zoneEffects() }
+  }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'zone' as const })
+  return presentOwnerOutcome(outcome, zoneEffects('result' in outcome ? outcome.result : undefined))
+}
+
+function validLayoutDefinitionIntent(intent: unknown): intent is ShowZoneLayoutDefinitionIntentV2 {
+  const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
+  if (!object(intent) || !text(intent.layoutId)) return false
+  if (intent.kind === 'add') return exactIntentFields(intent, ['kind', 'layoutId', 'name']) && text(intent.name)
+  if (intent.kind === 'duplicate') return exactIntentFields(intent, ['kind', 'layoutId', 'name', 'sourceLayoutId']) && text(intent.name) && text(intent.sourceLayoutId)
+  if (intent.kind === 'rename') return exactIntentFields(intent, ['kind', 'layoutId', 'name']) && text(intent.name)
+  if (intent.kind === 'remove') return exactIntentFields(intent, ['kind', 'layoutId'])
+  if (intent.kind === 'set-routing') {
+    if (!exactIntentFields(intent, ['kind', 'layoutId', 'logical'])) return false
+    if (intent.logical === null) return true
+    // The operator's own arity and parameter rules stay with the typed owner.
+    return object(intent.logical) && text(intent.logical.kind)
+      && Array.isArray(intent.logical.zoneIds) && intent.logical.zoneIds.every(text)
+  }
+  if (intent.kind !== 'set-physical-ranges'
+    || !exactIntentFields(intent, ['kind', 'layoutId', 'zoneId', 'ranges'])
+    || !text(intent.zoneId)
+    || !Array.isArray(intent.ranges)) return false
+  return intent.ranges.every(range => (
+    exactIntentFields(range, ['start', 'end']) && object(range)
+    && typeof range.start === 'number' && Number.isSafeInteger(range.start) && range.start >= 0
+    && typeof range.end === 'number' && Number.isSafeInteger(range.end) && range.end >= 0
+  ))
+}
+function layoutDefinitionEffects(result?: ShowZoneLayoutDefinitionResultV2): ShowZoneLayoutDefinitionAffectedV2 {
+  return result ? {
+    affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedLayoutOccurrenceIds: result.affectedLayoutOccurrenceIds,
+    affectedZoneIds: result.affectedZoneIds, removedIds: result.removedIds,
+  } : { affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedZoneIds: [], removedIds: [] }
+}
+export type ShowV2PilotLayoutDefinitionRequest = ShowV2PilotPreparedEditContext & { intent: ShowZoneLayoutDefinitionIntentV2 }
+export type ShowV2PilotLayoutDefinitionOutcome = PilotOwnerOutcome<ShowZoneLayoutDefinitionResultV2, ShowZoneLayoutDefinitionAffectedV2>
+export async function admitShowV2PilotLayoutDefinitionEdit(request: ShowV2PilotLayoutDefinitionRequest): Promise<ShowV2PilotLayoutDefinitionOutcome> {
+  if (!validLayoutDefinitionIntent(request.intent)) {
+    return { status: 'refused', source: 'owner', code: 'invalid-request', message: 'Give one complete explicit Zone Layout edit.', ...layoutDefinitionEffects() }
+  }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'layout-definition' as const })
+  return presentOwnerOutcome(outcome, layoutDefinitionEffects('result' in outcome ? outcome.result : undefined))
+}
+
 export async function admitShowV2PilotGroupReplacementEdit(request: ShowV2PilotGroupReplacementRequest): Promise<ShowV2PilotGroupReplacementOutcome> {
   const groupEffects = () => ({ ...timelineEffects(), hoistedInstanceIds: [] as string[] })
   if (!validGroupReplacementIntentShape(request.intent)) {
