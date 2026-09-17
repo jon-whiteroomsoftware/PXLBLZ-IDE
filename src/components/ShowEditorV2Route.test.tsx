@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ShowEditorV2Route } from './ShowEditorV2Route'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
@@ -15,6 +15,8 @@ import { showTransportInitialState, useShowTransportStore } from '@/store/showTr
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
 import { resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import { resetPersonalContentProvider } from '@/engine/personalContentProvider'
+import { useWorkspaceStore } from '@/store/workspaceStore'
+import { createAgentEditorAdmission } from '@/agent/editorAdmission'
 
 function seededRecord(): ShowRecordV2 {
   const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
@@ -46,6 +48,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   resetControllerProvider()
+  useWorkspaceStore.setState({ agentCapabilities: null } as never)
+  vi.restoreAllMocks()
 })
 
 describe('ShowEditorV2Route (#1056 slices 1-5)', () => {
@@ -199,5 +203,47 @@ describe('ShowEditorV2Route (#1056 slices 1-5)', () => {
     const item = screen.getByRole('button', { name: /Group Clip Outgoing, 0\.00s to 0\.20s/ })
     expect(item).toHaveAttribute('data-show-group-occurrence', 'occurrence-1')
     expect(item).toHaveAttribute('data-show-selection-key', 'group:occurrence-1')
+  })
+})
+
+describe('ShowEditorV2Route agent binding (#1039)', () => {
+  it('registers no binding while no agent capability is granted', () => {
+    const record = seededRecord()
+    seed(record)
+    const registrations: unknown[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      registrations.push(JSON.parse(String((init as RequestInit).body)))
+      return Response.json({ code: 'unavailable' })
+    })
+    render(<ShowEditorV2Route showId={record.id} />)
+    expect(registrations).toEqual([])
+  })
+
+  it('registers the editor as version 2 and answers read_show with the v2 record', async () => {
+    const record = seededRecord()
+    seed(record)
+    useWorkspaceStore.setState({ agentCapabilities: { external: true, builtin: false } } as never)
+    const posted: Array<Record<string, unknown>> = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String((init as RequestInit).body)) as Record<string, unknown>
+      posted.push(body)
+      if (body.type === 'register') return Response.json({ code: 'registered', registrationId: 'registration' })
+      return Response.json({ code: 'unavailable' })
+    })
+    render(<ShowEditorV2Route showId={record.id} />)
+    await vi.waitFor(() => expect(posted.some(entry => entry.type === 'register')).toBe(true))
+    const registration = posted.find(entry => entry.type === 'register')!
+    expect(registration).toMatchObject({ showId: record.id, showVersion: 2 })
+
+    // The one admission the binding holds resolves this route's v2 record.
+    const admission = createAgentEditorAdmission(record.id, () => ({}), undefined, undefined, {
+      recordVersion: 2,
+      capture: () => null,
+      isCurrentCapture: () => true,
+    })
+    try {
+      expect(admission.recordVersion).toBe(2)
+      expect(admission.getShow()).toEqual(record)
+    } finally { admission.close() }
   })
 })

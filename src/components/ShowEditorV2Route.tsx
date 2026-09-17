@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { SHOW_TIMELINE_MIN_HEIGHT } from '@/engine/showWorkspaceLayout'
 import type { ShowTimelineSelection } from '@/engine/showTimelineViewModel'
 import { projectShowTimelineV2 } from '@/engine/showTimelineViewModelV2'
+import { createAgentBrowserSession } from '@/agent/browserSession'
+import { useAgentEditorLifecycle } from '@/agent/editorLifecycle'
 import { useShowStore } from '@/store/showStore'
+import { useShowTransportStore } from '@/store/showTransportStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import { ShowClipInspectorV2 } from './ShowClipInspectorV2'
 import { ShowEditorV2DeliveryPanel } from './ShowEditorV2DeliveryPanel'
 import { ShowEditorV2ShowInspector } from './ShowEditorV2ShowInspector'
@@ -36,8 +40,13 @@ import { useShowV2EditCapture } from './useShowV2EditCapture'
  * whose prepared Stage refuses keeps a read-only timeline and refuses every
  * authoring control, because admission would refuse every edit that reads the
  * prepared Stage; the inspectors that do not still edit it, and those edits
- * stay undoable. The v1 route is untouched, and this surface registers no
- * agent binding, so no command sees a v2 record (specification section 10).
+ * stay undoable. The v1 route is untouched.
+ *
+ * #1039 registers this route's agent binding, in the release that made the
+ * executor, the editor admission and both command catalogues follow the routed
+ * record's version. Before that the binding could not exist: a command reaching
+ * a v2 record while the executor assumed v1 is the window specification
+ * section 10 forbids.
  */
 export function ShowEditorV2Route({ showId }: { showId: string }) {
   const record = useShowStore((state) => state.showV2Pilots[showId])
@@ -61,6 +70,36 @@ export function ShowEditorV2Route({ showId }: { showId: string }) {
   const capture = binding.capture
   const prepared = capture?.prepared ?? null
   const { status, handlers } = useShowV2TimelineGestures({ showId, capture })
+
+  // The agent binding for this v2 record. It reads the same prepared capture
+  // the route's own typed intents adopt through, so a command sequence and a
+  // manual edit are admitted against one Stage preparation, and it is declared
+  // as version 2 so the executor, the admission and both command catalogues
+  // follow the record this editor actually holds (specification section 10).
+  const live = useRef(binding)
+  const selectionRef = useRef(selection)
+  // Layout, not paint: a delivery arriving from the relay must never read a
+  // capture the route has already replaced.
+  useLayoutEffect(() => { live.current = binding; selectionRef.current = selection })
+  const agentCapabilities = useWorkspaceStore((state) => state.agentCapabilities)
+  const getAgentEditorContext = useCallback(() => ({
+    selection: selectionRef.current,
+    playheadMs: useShowTransportStore.getState().showId === showId ? useShowTransportStore.getState().positionMs : 0,
+  }), [showId])
+  const agentRecord = useMemo(() => ({
+    recordVersion: 2 as const,
+    capture: () => live.current.capture,
+    isCurrentCapture: () => live.current.isCurrentCapture(),
+  }), [])
+  useAgentEditorLifecycle({
+    showId,
+    readOnly: false,
+    enabled: Boolean(agentCapabilities?.external || agentCapabilities?.builtin),
+    allowance: agentCapabilities?.allowance,
+    getContext: getAgentEditorContext,
+    record: agentRecord,
+    createChannel: createAgentBrowserSession,
+  })
 
   const view = useMemo(() => (record ? projectShowTimelineV2(record) : null), [record])
   const [previewAspect, setPreviewAspect] = useState(1)

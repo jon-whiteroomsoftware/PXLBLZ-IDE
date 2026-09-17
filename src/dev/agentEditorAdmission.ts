@@ -8,5 +8,5 @@ export function createAgentEditorAdmission(...args: Parameters<typeof createAdmi
     args[3]?.(request, phase, show, historyDepth)
     recordAgentObservation({ kind: 'agent-apply', phase, showId: request.showId, requestId: request.operationId, at: Date.now(),
       ...(show ? { digest: showRecordDigest(show), updatedAt: show.updatedAt } : {}), historyDepth })
-  })
+  }, args[4])
 }
