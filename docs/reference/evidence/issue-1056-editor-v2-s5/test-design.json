@@ -1,0 +1,91 @@
+{
+  "issue": 1056,
+  "scope": "slice 5: animation lanes, Markers, Show End, Insert Time and Group occurrences on the ordinary v2 editor route, plus the two single-writer owner seams slice 3 surfaced - an existing Clip's entry policy and a Pattern instance's values",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "INSERT",
+      "GROUP-HOLD",
+      "CURVE",
+      "ACTIVATION",
+      "LAYOUT-END",
+      "RESTART",
+      "ROUTE",
+      "FAILURE"
+    ]
+  },
+  "base": "a0a0bfee0282b4b2b5568e7042c451dbf8ad8e4b",
+  "invariants": [
+    "A restricted interval keeps the mathematical coefficients of its original curve, so every surface that draws or emits it evaluates the retained descriptor; equal endpoint values can enclose a nonconstant interior and must not be re-normalized to two points (section 6).",
+    "Insert Time maps global authored time once: later content, Markers including dormant ones, Layout switches and Group starts shift; a crossing Clip extends; a crossing Group occurrence gains a local hold at the mapped local time; at p = 0 the first Layout occurrence extends and no hold appears (section 7).",
+    "Insert Time strictly inside a visual Transition or a timed Layout transfer is refused whole, with no partial adoption (section 7).",
+    "A Group-local hold never retriggers a Restart: a child spanning the hold keeps one entry, and its reset fires once at actual first contribution (section 7).",
+    "Set Show End is exact: an invalid shortening refuses rather than cutting or clamping, and extending stretches the final Layout coverage while authored content and Markers stand (section 8).",
+    "Restart is an authored Clip-entry instruction with one writer: the same pure owner serves update_clips and the editor's admission wrapper, it cascades nothing, and the derived reset applies to the existing shared runtime at first contribution (section 4).",
+    "Pattern instance values belong to the runtime: one owner writes them, every effective Clip use observes them, and only sliders the captured Pattern declares are offered (section 4).",
+    "One accepted route edit is one adopted record, one history entry and one provider save; a refusal or no-op returns the original record identity and writes nothing (section 9).",
+    "The view model's new collections are additive and optional: a v1 projection resolves neither, so its serialized view model and rendered markup are byte-identical to the pre-slice baseline.",
+    "The lanes hold no record and register no agent binding, so no command reaches a v2 record (section 10)."
+  ],
+  "partitions": [
+    "retained curve: ordinary two-key segment / restriction with a retained descriptor / constant track with a zero value range / a view that resolves no tracks at all",
+    "lane owner: Show-global time versus definition-local time",
+    "Insert Time position: p = 0 / mid-Show crossing a Group occurrence / strictly inside a visual Transition / a time that shifts a dormant Marker",
+    "Show End: invalid shortening past authored contribution / accepted extension",
+    "entry policy: continue to restart / restart re-selected unchanged / unknown Clip / blank identity / unsupported policy / an intent with an extra field",
+    "instance values: time scale / evaluation policy / declared slider / stepped clock set and cleared / zero step / an unsupported stepped-clock field / a missing Clip / an unchanged value",
+    "Marker: add / move / rename / colour / chapter role set / remove",
+    "Group occurrence: drawn with its local children / duplicated into free time / ungrouped / a duplicate that would overlap on the bound Layer",
+    "currency: superseded record, swapped provider, unmounted route (through the shared admission)",
+    "width: 1440 desktop and 390 narrow, with the side panel scrolled by ordinary user scrolling"
+  ],
+  "sequences": [
+    "select a Property lane -> add a key -> edit that key -> Insert Time at 0 -> Insert Time mid-Show across a Group occurrence -> Set Show End -> add a Marker -> promote it to a chapter -> duplicate a Group occurrence -> ungroup it -> Undo -> Redo -> reload",
+    "INSERT and GROUP-HOLD through the rendered route, compared field by field against insertShowTimeV2's own result for the same request",
+    "LAYOUT-END through the rendered route: refused shortening with zero writes, then an accepted extension",
+    "RESTART: entry policy toggled on the route, derived events checked, then the same write through the wrapper judged at the generated .epe in both runtime modes",
+    "CURVE: a Clip trim restricts its sole-user instance track, and the reopened .epe is compared against the original authored curve at five interior times in both runtime modes"
+  ],
+  "oracles": [
+    "The adopted record in the store and the bytes the provider received, compared against the pure owner's own result for the same request.",
+    "The reopened .pxlshow composition and the generated .epe replayed in Fast and Precise at named times, with the original authored curve as the value oracle rather than the edited record.",
+    "Derived Restart events for the adopted record, and the exported elapsed clock at and around the contribution boundary.",
+    "The stored v2 record read back through GET /api/shows?show-version=2 on the real authenticated route, plus the visible status line, the lane's marked retained keys and the drawn Group children.",
+    "History past/future entries and the counted PUT writes for accepted, refused and no-op operations.",
+    "The v1 fingerprint baseline: the serialized v1 view model and rendered timeline markup for all 47 corpus records, unchanged and not regenerated."
+  ],
+  "redEvidence": [
+    "showClipEntryPolicyV2.test.ts was written first and failed 3 of 8 (no set-entry-policy intent, no unchanged identity, no command equality) until the owner existed.",
+    "showInstancePropertiesV2.test.ts failed on the stepped-clock partitions until the owner accepted and validated stepped_clock, and its first run crashed inside the command validator, exposing an initialization cycle in showCommandsV2 that the store import would have made reachable from the app; moving the owner into src/engine removed the store's dependency on the command package.",
+    "showV2AnimationLaneModel.test.ts failed on the retained-curve oracle until the key view carried the authored easing and the descriptor, showing that a retention flag alone cannot draw the curve honestly.",
+    "The first route sequence run adopted the edit but never showed its status: the Show timing panel was keyed on Show End, so adoption unmounted it before the awaited outcome returned.",
+    "The first authenticated run submitted an incomplete key draft, because Enter inside the Property panel's plain inputs submits its form rather than committing a field."
+  ],
+  "faults": [
+    "retainedSegment re-normalizes a restriction to its two retained endpoints (sourceDurationMs = right.timeMs - startMs, elapsedOffsetMs = 0): killed, 2 failed of 19 - showV2AnimationLaneModel.test.ts 'draws a restricted curve from its retained descriptor' and showV2EditorSequenceArtifacts.test.ts 'CURVE: a restricted instance curve still emits the original authored values'. The two oracles are independent: the lane reads evaluateShowPropertyKeysV2 and the artifact reads the compiled .epe.",
+    "insertShowTimeV2 accepts an insertion strictly inside a visual Transition: killed, 1 failed of 14 - ShowV2AnimationLanes.test.tsx 'refuses an Insert Time strictly inside a Transition and writes nothing'.",
+    "materializeShowGroupsV2 re-enters a spanning Restart child after each hold: killed, 1 failed of 4 - showV2EditorSequenceArtifacts.test.ts 'GROUP-HOLD: a hold inside a Restart child does not retrigger its reset'; the failure surfaces as a refused Insert Time admission rather than a wrong replay, because the retriggered child no longer forms a valid candidate.",
+    "evaluateShowPropertyKeysV2 ignores a key's curveSegment: killed by the lane model test but NOT by the artifact test, which measured that the compiled emitter reads the descriptor through its own kernel; recorded rather than hidden.",
+    "set-entry-policy writes a second collection (checked as a preimage/affected-set assertion rather than injected): the 'one authored flag' equality in ShowClipInspectorV2.test.tsx compares the whole adopted record with only clips substituted."
+  ],
+  "results": {
+    "focused": "npx vitest run src/engine/showClipEntryPolicyV2.test.ts src/engine/showInstancePropertiesV2.test.ts src/engine/showV2AnimationLaneModel.test.ts src/components/ShowV2AnimationLanes.test.tsx src/components/ShowEditorV2AnimationSequences.test.tsx src/components/ShowClipInspectorV2.test.tsx src/store/showV2EditorSequenceArtifacts.test.ts src/test/showV2EditorSequenceFixture.test.ts: all passed.",
+    "static": "npm run lint clean; npx tsc -b --pretty false clean.",
+    "parity": "npm run show:v2-parity: 47 inventoried records matched, report unchanged.",
+    "v1Regression": "src/components/ShowTimelineV1Fingerprint.test.tsx: 48 passed with the committed baseline; the additive view-model fields are omitted for a v1 projection, so no regeneration was needed.",
+    "e2e": "npx tsx scripts/run-authenticated-playwright.ts e2e/show-editor-v2-animation.auth.spec.ts: 1 passed; eleven durable writes, Insert Time at 0 and mid-Show, an exact Show End, a chapter Marker, Group duplicate and Ungroup, Undo/Redo, a reload round trip, 390 px with the side panel scrolled by ordinary scrolling and zero control overflow, zero console errors.",
+    "faultSensitivity": "4 injected faults, 3 killed by this slice's own suites and 1 recorded as reaching only one of the two oracles; every injection reverted and the suites restored green.",
+    "browser": "Committed captures under .wrsp/ui-proof/1056-s5-*, driven on the real route with repository Playwright; every image opened and inspected."
+  },
+  "residualGaps": [
+    "The v1 property lanes still read showPropertyLaneProjection and its Scene-local tracks. The view model's propertyTracks are populated only by the v2 projection, because a v1 track's global identity is conversion work owned by #1035/#1037; migrating the v1 lanes is not in this slice.",
+    "The update_clips descriptor does not expose stepped_clock, so the editor is the only caller that can set a Pattern instance's stutter. Command grammar belongs to #1041; the shared owner validates the field for both callers today.",
+    "The animation lanes report a selection and draw; they accept no drag, and a Property key cannot be moved by pointer. Gesture adapters remain slice 2's.",
+    "Group creation from a multi-selection remains the slice-3 ShowV2GroupCreationEditor's explicit Clip list rather than a timeline marquee.",
+    "A Group-definition lane spans its own activation rather than the definition's full local duration, because the view model does not carry definition duration; a definition-local ruler is not drawn.",
+    "The .epe CURVE and RESTART oracles run in the node environment through the same admission wrappers the route calls, not through the rendered components, because the artifact path needs Blob streaming that jsdom does not provide. Route-to-owner equality is asserted separately on the same fixture.",
+    "The ShowV2PropertyEditor's plain inputs commit through their form button rather than on Enter; the panel keeps the pilot's control shape and no field-level commit was added.",
+    "This slice was built on the slice-3 tip while slices 2 and 4 were in flight; the coordinator's rebase over them, the authoritative committed-tip runner suites, Fable High review and any proof refresh after that rebase are the coordinator's."
+  ]
+}

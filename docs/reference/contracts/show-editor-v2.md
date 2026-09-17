@@ -1,15 +1,17 @@
 # Show editor on v2
 
 Canonical authority is [the Scene-retirement specification](../../plans/scene-retirement-specification.md)
-§3 (record and identity), §5 (Transition edit contract, Cut as absence and
-whole-output scope), §8 (Layers, Layout occurrences, Markers, Show End), §9
-(pure edit and adoption boundary) and §10 (no mixed window), and issue #1056.
-This describes what is landed after slices 1-4: one version-agnostic timeline
-view model, both projections into it, the v1 container consuming it, a v2
-rendering on the ordinary route whose ordinary Clips are directly manipulable
-through the landed v2 owners, the Clip inspector beside it, and Transition
-authoring plus the Zone Layout lane's own operations beneath it. Property lanes,
-animation and Marker editing on a v2 record are not landed.
+§3 (record and identity), §4 (shared animation and Restart), §5 (Transition edit
+contract, Cut as absence and whole-output scope), §6 (retained curves), §7
+(Insert Time and Group-local holds), §8 (Layers, Layout occurrences, Markers,
+Show End), §9 (pure edit and adoption boundary) and §10 (no mixed window), and
+issue #1056. This describes what is landed after slices 1-5: one
+version-agnostic timeline view model, both projections into it, the v1 container
+consuming it, a v2 rendering on the ordinary route whose ordinary Clips are
+directly manipulable through the landed v2 owners, the Clip inspector beside it,
+Transition authoring plus the Zone Layout lane's own operations beneath it, the
+animation and Group lanes under the timeline, and the Show inspector that edits
+Property tracks, Markers, Show End and Insert Time.
 
 ## The view model
 
@@ -27,7 +29,20 @@ animation and Marker editing on a v2 record are not landed.
 | `transitions` | Authored Transitions with their window and either explicit Layer participant pairs or explicit whole-output contributor sets. |
 | `layoutIntervals` | Layout occurrences: occurrence identity, definition identity and name, Zone ids, interval, routing `parameters`, optional `incomingTransfer`. |
 | `markers` | Markers with the optional `chapter` role. |
+| `propertyTracks` | Optional. Authored Property tracks: owner, target, activation and keys, each key carrying its authored easing, its retained `curveSegment` and a `retainedCurve` flag. |
+| `layers[].items[].appearanceKeys` | Optional. Every authored held-appearance key in that Clip, earliest first. |
 | `structuralTimesMs` | Snap candidates in first-appearance order. |
+
+The two optional collections are absent from a v1 projection, and absence means
+this projection resolves none - never a version test inside a renderer. A v1
+Property track is Scene-local and a v1 placement carries one held value with no
+key identity, so resolving either into global identity is conversion work
+(#1035/#1037), not projection; the v1 surfaces keep their own property lanes.
+Because both are omitted rather than emptied, the v1 fingerprint baseline is
+byte-identical and was not regenerated.
+
+`ShowTimelineSelection` gained `{ kind: 'property-track', trackId }` for the
+animation lanes. No v1 projection produces it.
 
 Each row, layer, item, junction, Layout occurrence and Marker carries a
 `selection` from `ShowTimelineSelection`, and `showTimelineSelectionKey` renders
@@ -113,14 +128,16 @@ These v1 seams are unchanged and are slice obligations, not view-model gaps:
 - the per-Clip gesture code, which still consumes
   `ShowUnifiedTimelineClipProjection` and the store's v1 mutators; the v2 surface
   never touches it, and the v1 route behaves exactly as before;
-- property lanes, which the view model does not carry (slice 5).
+- the v1 property lanes, which still read `showPropertyLaneProjection` and its
+  Scene-local tracks rather than the view model's v2-only `propertyTracks`.
 
 `ShowClipEntityDetail` and its `ShowClipInspectorValue`/`onPatch` contract remain
 the v1 inspector, unchanged. Its patch shape carries whole component values and
 no held-key identity, so it cannot express what the v2 appearance owner requires
 (one scope, one selected-time key identity plan, and only the dirty fields). The
 v2 inspector below composes the landed v2 models instead, and reuses the v1 leaf
-that does fit a v2 record: `ShowPatternInstanceControls`.
+that does fit a v2 record: `ShowPatternInstanceControls`, stutter row included
+now that a v2 owner writes the instance clock.
 
 ## The version gate
 
@@ -135,30 +152,31 @@ the existing `openShowV2Pilot` store path, captures it with
 | `ShowTimelineGestureSurface` | the capture prepares (`ready` or `empty`) | the lanes below plus direct manipulation of ordinary Clips |
 | `ShowTimelineReadOnlySurface` | the capture is `refused` | the lanes below, every item a focusable `aria-disabled` element |
 
-`ShowEditorV2TransitionLayoutPanel` mounts beneath whichever surface renders, on
-the same capture, so Transition and Layout authoring is offered wherever the
-timeline is. A refused capture is read-only because the closed admission refuses
-every edit on it with `unsupported-pilot-record`; drawing controls that cannot
-act would misstate the record's condition, so the panel's own controls refuse
-for the same reason. Both surfaces draw the ruler, the Zone Layouts lane and the
-Marker lane from
+`ShowV2AnimationLanes` draws directly under whichever surface renders, and
+`ShowEditorV2TransitionLayoutPanel` mounts beneath those, on the same capture, so
+Transition and Layout authoring is offered wherever the timeline is. A refused
+capture is read-only because the closed admission refuses every edit on it with
+`unsupported-pilot-record`; drawing controls that cannot act would misstate the
+record's condition, so the panel's own controls refuse for the same reason. Both
+surfaces draw the ruler, the Zone Layouts lane and the Marker lane from
 [`ShowTimelineLanes.tsx`](../../../src/components/ShowTimelineLanes.tsx), whose
 items stay inert - slice 4 authors Layout occurrences and Transitions from the
-panel below rather than from the lanes themselves, and Marker editing is slice
-5 - and both state their condition in one status line. Neither surface registers
-an agent binding, so no command can reach a v2 record and §10's forbidden mixed
-window stays closed.
+panel below rather than from the lanes themselves, and slice 5 edits Markers from
+the Show inspector - and both state their condition in one status line. Neither
+surface registers an agent binding, so no command can reach a v2 record and §10's
+forbidden mixed window stays closed.
 
 `?show-v2-pilot=1` still renders `ShowV2RoutePilot` and takes precedence. Without
 either flag the ordinary editor renders a v1 record exactly as before. The route's
 missing-Show guard stands aside for both opt-ins, because a converted row leaves
 the v1 list until #1039 couples them.
 
-The route lays the workspace and the Clip inspector side by side above 1024 px
-and stacks them below it. All three editable surfaces read the one prepared
-capture
+The route lays the timeline column - the surface, the animation lanes and the
+authoring panel - and the Stage preview in the workspace, with the Clip inspector
+and the Show inspector in the side panel beside them above 1024 px, stacked below
+it. Every editable surface reads the one prepared capture
 [`useShowV2EditCapture`](../../../src/components/useShowV2EditCapture.ts) owns:
-the timeline gestures, the Transition and Layout panel and the inspector plan
+the timeline gestures, the Transition and Layout panel and both inspectors plan
 against the same captured record, dependencies and provider, so one stale-edit
 predicate governs all of them.
 
@@ -258,7 +276,9 @@ and re-reads it after every adoption.
 
 | Section | Model that plans it | Admission wrapper |
 | --- | --- | --- |
-| Clip identity, placement, entry policy | `buildShowClipInspectorModelV2` | none; read only |
+| Clip identity and placement | `buildShowClipInspectorModelV2` | none; read only |
+| Entry policy (Continue / Restart) | `buildShowClipInspectorModelV2` | `admitShowV2PilotClipEntryPolicy` |
+| Pattern instance values: animation speed, evaluation policy, declared sliders, stutter | `buildShowClipInspectorModelV2`'s `instanceValues` | `admitShowV2PilotInstanceProperties` |
 | Clip start, duration, end, in exact ms | `ShowClipTemporalIntentV2` | `admitShowV2PilotClipTemporal` |
 | Pattern instance, Make Pattern Independent, Rejoin | `createShowV2IndependentIntent`, `createShowV2RejoinIntent` | `admitShowV2PilotClipSharingEdit` |
 | Replace Pattern | `createShowV2ClipReplacementIntent`, `previewShowV2ClipReplacement` | `admitShowV2PilotClipReplacementEdit` |
@@ -285,12 +305,78 @@ Rules the inspector holds to:
 - **One edit, one history entry.** Every section adopts through the closed
   admission, so a refusal returns the original record identity and writes no
   history, save or timestamp. Undo and Redo settle through the same save queue.
-- **No new owner semantics.** The entry policy is shown and never written here:
-  no landed pure owner or `admitShowV2Pilot*` wrapper sets `clip.entryPolicy`
-  on an existing Clip. The only landed writer is the command layer's
-  `update_clips`, which belongs to #1041. The stutter control is likewise
-  omitted (`steppedClockEditable={false}`) because no v2 owner edits a Pattern
-  instance clock.
+- **One writer per authored field.** The Continue/Restart control and the
+  Pattern instance values call the same owners the command layer calls, so a
+  route write and an `update_clips` write cannot diverge (see below).
+
+## The two single-writer seams slice 5 added
+
+Slice 3 recorded that no exported owner wrote an existing Clip's `entryPolicy`
+and that no admission wrapper wrote a Pattern instance's values. Both are now
+one owner with two callers.
+
+| Authored field | Pure owner | Command caller | Editor caller |
+| --- | --- | --- | --- |
+| `clip.entryPolicy` | `showClipsV2`'s `set-entry-policy` intent | `update_clips`'s `writeClipFlags` | `admitShowV2PilotClipEntryPolicy` |
+| `patternInstances[*]` controls, clock, evaluation policy | `writeShowInstancePropertiesV2` in [`showInstancePropertiesV2.ts`](../../../src/engine/showInstancePropertiesV2.ts) | `update_clips.instance_properties` | `admitShowV2PilotInstanceProperties` |
+
+- `set-entry-policy` changes one Clip, cascades nothing, reports that Clip
+  alone, and refuses an unknown Clip or an unsupported policy (section 4). The
+  derived reset event follows from Clip identity and first contribution, so the
+  flag needs no second persisted list.
+- The Pattern instance owner moved out of the command package into
+  `src/engine/`, so the store no longer imports a command module. It writes only
+  the requested fields, validates one complete candidate, and reports every
+  effective Clip on the runtime, which is what the inspector warns about before
+  the edit. Its `stepped_clock` key restores the v1 stutter row on the v2 route;
+  the `update_clips` descriptor does not expose that key yet, so only the editor
+  supplies it today (#1041 owns the command grammar).
+
+## Animation lanes and the Group lane
+
+[`ShowV2AnimationLanes`](../../../src/components/ShowV2AnimationLanes.tsx) draws
+under the timeline surface from
+[`buildShowV2AnimationLanes`](../../../src/engine/showV2AnimationLaneModel.ts):
+
+- one lane per Property track, with its activation band, key dots and an SVG
+  polyline whose samples come from the shared key evaluator. A key carrying a
+  retained `curveSegment` is drawn **from that descriptor**, never re-normalized
+  to a straight line between the retained endpoints - equal endpoint values can
+  enclose a nonconstant interior (section 6). A retained key is marked, and the
+  lane's `data-show-lane-retained-keys` counts them;
+- a Show-owned track's lane spans global Show time; a Group-definition track's
+  lane spans its own definition-local activation and says so
+  (`alignedToShowTime: false`);
+- one tick per authored held-appearance key for every Clip with more than one;
+- one band per Group occurrence, labelled with its local children, selecting the
+  occurrence for the Clip inspector's Group sections.
+
+Clicking a lane reports a `property-track` selection, which selects the same
+track in the Show inspector.
+
+## The Show inspector
+
+[`ShowEditorV2ShowInspector`](../../../src/components/ShowEditorV2ShowInspector.tsx)
+sits below the Clip inspector in the same scroll container.
+
+| Section | Model that plans it | Admission wrapper |
+| --- | --- | --- |
+| Set Show End, global Insert Time | `ShowV2ShowTimingEditor` | `admitShowV2PilotSetShowEnd`, `admitShowV2PilotInsertTime` |
+| Property tracks and keys | `showV2PropertyEditorModel` | `admitShowV2PilotPropertyEdit` |
+| Markers, including the chapter role | `showMarkerRouteModel`, `showChaptersV2` | `admitShowV2PilotMarkerEdit` |
+
+Both timing edits are exact. Set Show End refuses an invalid shortening rather
+than cutting or clamping content, and extending stretches the final Layout
+coverage only. Insert Time at `p` shifts later content, Markers included,
+extends a crossing Clip, and turns a crossing Group occurrence into a local hold
+at the mapped local time while later occurrences only move; `p = 0` extends the
+first Layout occurrence and adds no hold. An insertion strictly inside a visual
+Transition or a timed Layout transfer is refused with the owner's own message
+and writes nothing.
+
+The side panel is one scroll container (`show-editor-v2-side-panel`), bounded in
+height and scrolling only vertically, so its lower sections and its status line
+are reachable by ordinary scrolling at 1440 px and at 390 px.
 
 ## Transition authoring and the Zone Layout lane
 
@@ -370,11 +456,11 @@ superseded save and a save failure each reach the right surface or none.
 
 ## What remains
 
-Slices 5 and 6 of #1056 own animation and Markers and the remaining route
-content, after which `?show-v2-pilot=1` and `?show-v2-editor=1` both retire.
-Until then a v2 record on the ordinary route can be read, previewed, traversed,
-dragged in its Clip timing, sharing and deletion, edited through the Clip
-inspector, and edited through its Transitions and Zone Layout lane; property
-edits stay on the pilot panels, and the store mutators, executor, command
-admission and MCP surfaces remain v1-typed. Editing a Clip's entry policy on
-this route needs an owner decision that slice 3 deliberately did not take.
+Slice 6 of #1056 owns the remaining route content, after which
+`?show-v2-pilot=1` and `?show-v2-editor=1` both retire. Until then a v2 record on
+the ordinary route can be read, previewed, traversed, dragged in its Clip timing,
+sharing and deletion, edited through the Clip inspector, edited through its
+Transitions and Zone Layout lane, and edited through the Show inspector's
+Property tracks, Markers, Show End and Insert Time; the animation lanes report a
+selection and draw but accept no drag, and the store mutators, executor, command
+admission and MCP surfaces remain v1-typed.
