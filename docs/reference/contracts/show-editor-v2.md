@@ -607,8 +607,9 @@ Show.
 pure part. It refuses rather than describing bytes nothing can deliver: an empty
 Show, an invalid record, an export the `.epe` importer does not reopen with the
 compiled Show in it, an Installation Show whose physical Zone Layout does not own
-every output pixel exactly once, or a Portable 2D Show whose compiled Patterns
-cannot render onto a 2D surface. The last two refusals are the v1 artifact gates
+every output pixel exactly once, a Portable 2D Show whose compiled Patterns
+cannot render onto a 2D surface, or a Show the compiled artifact's own resource
+ledger blocks. The last three refusals are the v1 artifact gates
 `compileShowForArtifact` applies, restored on the v2 path (#1039) with their own
 blocking messages: preparation and preview accept such a Show in both versions,
 authoring keeps reporting it as a delivery warning, and delivery is what refuses
@@ -616,9 +617,18 @@ it. The two never compete, because the coverage rule returns nothing for a
 Portable contract and the Portable rule nothing for an Installation one. The
 Portable gate reads the materialized runtime uses the artifact compiles, the way the v1
 gate reads `projectShowGroupRuntimePatternInstances`, so a Group definition no
-occurrence materializes blocks neither export nor send. The refusal reaches the
-route as `blockedReason`, which gates Send to Controller and Download `.epe`
-together. `describeShowArtifactPatternsV2` is the v2 counterpart
+occurrence materializes blocks neither export nor send. The ledger refusal is
+the third, added by #1039's validation audit: `compileShowForArtifact` compiles
+and then reports `summary.resources.blockers[0].message` as `artifactBlocker`,
+which disables the v1 editor's View code, Export and Send, and this route read
+the same summary for its word gauge while exporting anyway. It now returns that
+message verbatim, in the position v1 applies it - after the coverage and
+Portable gates and after the compile that produces the ledger. The refusal
+reaches the route as `blockedReason`, which gates Send to Controller and
+Download `.epe` together. One v1 artifact gate has no v2 counterpart yet: the
+Portable target-Controller pixel-count blocker, which reads a count nothing
+supplies to v2 preparation; it is residual R4 in
+[`issue-1039-validation-parity/audit.md`](../evidence/issue-1039-validation-parity/audit.md). `describeShowArtifactPatternsV2` is the v2 counterpart
 of the v1 describer - it counts Pattern instances and their effective Clip uses,
 ordinary Clips and materialized Group Clip uses alike (section 4), rather than
 Scene cells.

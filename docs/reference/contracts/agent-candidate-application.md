@@ -799,6 +799,25 @@ Zone Layout definition owner's physical ranges, and Zone add and remove - keep
 accepting it, exactly as their v1 counterparts did, and `.pxlshow` import keeps
 the authored ranges untouched.
 
+Since #1039's validation audit the schema and domain steps also carry the
+structural rules `validateShowAuthoring` has always applied and no v2 path
+asked. `validateShowAuthoringV2` reports them as structural errors, before every
+dependency and delivery question, exactly as v1 does: the Zone Layout family
+through the shared `validateShowZoneLayoutStructure` - a Layout naming an
+unknown Zone, a physical range endpoint that is not a safe integer, invalid
+routing-operator parameters, and a blank or repeated Zone identity inside one
+Layout - and an output pixel count that is not a positive safe integer. An
+output count merely past the compiled capacity stays a delivery warning that
+leaves the Show authorable. `validateShowRecordV2Domain` additionally carries
+v1's composition rules for a Pattern instance's whole-millisecond time offset
+and finite time scale, and for a finite, nonnegative whole-millisecond Marker
+time. Nothing stricter than v1 came with any of them: a negative integer range
+endpoint, a negative instance time offset and a dormant Marker past Show End
+stay admitted, and `.pxlshow` import is unchanged because v1 import never ran
+the authoring validator. The complete enumeration, including the rows that are
+retired by the representation and the five that remain open, is
+[`issue-1039-validation-parity/audit.md`](../evidence/issue-1039-validation-parity/audit.md).
+
 The dependency step also carries the Portable 2D capability rule, which
 `validateShowAuthoringV2` classifies exactly as `validateShowAuthoring` does:
 renderer and reference-map capability mismatches are delivery diagnostics that

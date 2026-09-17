@@ -85,6 +85,29 @@ same projection the editor's arithmetic comes from, so an owner that accepts the
 edit and a delivery that refuses the result are never disagreeing about the
 numbers.
 
+A Zone Layout's *structure*, as distinct from its coverage, is a v1 rule that
+now reaches the v2 path too. `validateShowZoneLayoutStructure` is the one
+implementation both authoring validators read, over the fields each version
+names - `routingLayouts` on a `ShowRecord`, `zoneLayouts` on a `ShowRecordV2`.
+It reports four structural errors, exactly as `validateShowAuthoring` always
+did, before any dependency or delivery question: a Layout naming a Zone the
+Show does not have (`layout-missing-zone`, for a physical entry and for a
+routing operator's member list alike), a physical range endpoint that is not a
+safe integer (`invalid-physical-range`), a routing operator
+`validateShowLogicalRouting` rejects (`invalid-logical-routing`), and a blank or
+repeated Zone identity inside one Layout (`empty-identity`,
+`duplicate-identity`). The definition owner already refuses each of these at the
+owner, so the surface this restores is the agent candidate: before #1039 a
+candidate assigning `[{ start: 0.5, end: 14.75 }]` validated, saved and
+reopened on the v2 path where v1 refuses it.
+
+Nothing stricter than v1 came with it. A *negative* integer endpoint stays
+admitted in both versions and is answered by Installation coverage; unsorted and
+overlapping ranges stay admitted; and v2 `.pxlshow` import keeps an unrepaired
+Layout, because v1 import never ran this rule - it rounded the endpoints through
+`normalizeRoutingLayout` instead, and specification section 3 forbids v2 a
+universal normalizer of its own.
+
 ## Result shape
 
 Each owner consumes an immutable preimage and an explicit intent, applies only

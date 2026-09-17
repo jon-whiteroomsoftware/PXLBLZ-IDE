@@ -1063,6 +1063,14 @@ owns adoption and recovery; the
 records the experimental external-editor boundary and its present limits. The shared
 production admission owner is `src/agent/editorAdmission.ts`; diagnostic
 callers retain a thin observation wrapper over the same session owner.
+Both record versions run one authoring validator over a delivered candidate:
+`validateShowAuthoring` for v1 and `validateShowAuthoringV2` for v2, which share
+the version-independent halves of the rule — dependency and control metadata,
+the Portable 2D capability rule, the Installation coverage rule, the Zone Layout
+structural rule in `showZoneLayoutStructure.ts`, and the output pixel count
+rule. `docs/reference/evidence/issue-1039-validation-parity/audit.md` enumerates
+every v1 Show diagnostic against its v2 counterpart, including the rows the v2
+representation retires and the five that remain open.
 Logical Clip removal shares one validated owner across ordinary manual deletion,
 connected confirmation and the diagnostic descriptor adapter; its dependency
 cleanup and preservation boundary is in the [removal contract](contracts/show-command-semantics.md#logical-clip-removal-951).
@@ -1351,9 +1359,14 @@ preview does not apply artifact gates; `compileShowForArtifact` enforces
 coverage, Portable 2D capability, the 2,000-pixel ceiling, and resource limits
 for inspection, export, Run, Save, and reconciliation. On the v2 route the same
 Installation coverage and Portable gates live in `buildShowV2RouteArtifacts`,
-which the delivery panel and Send to Controller both read (#1039). The two
-never compete: the coverage rule returns nothing for a Portable contract and
-the Portable rule nothing for an Installation one. Installation preview uses the
+which the delivery panel and Send to Controller both read (#1039), together
+with the compiled artifact's own resource ledger, whose first blocker that
+route now returns verbatim the way `compileShowForArtifact` reports it as
+`artifactBlocker`. The coverage and Portable gates never compete: the coverage
+rule returns nothing for a Portable contract and the Portable rule nothing for
+an Installation one. The Portable target-Controller pixel-count blocker has no
+v2 counterpart yet, because nothing supplies a connected Controller's count to
+v2 preparation. Installation preview uses the
 contract's saved count and ranges; Portable preview uses the saved reference,
 never a connected Controller. Zone outlines and timing guides are session-only
 SVG diagnostics that never mutate compiled pixels. `showStageDiagnostics.ts`

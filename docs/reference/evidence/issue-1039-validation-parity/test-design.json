@@ -1,0 +1,143 @@
+{
+  "issue": 1039,
+  "scope": "Audit every v1 Show diagnostic against the v2 path, and port the ones v2 lost",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "FAILURE"
+    ],
+    "sections": [
+      "1 (no silent narrowing of accepted behavior)",
+      "3 (record and identity contract; no universal normalizer)",
+      "5 (RL08-RL10 remain bounded compiler refusals)",
+      "9 (admission checks in order, atomic refusal, no history/save/timestamp on refusal)",
+      "12 FAILURE"
+    ]
+  },
+  "base": "79e98613417ca083fd728760d3b7ea7fe19b6eb0",
+  "audit": "docs/reference/evidence/issue-1039-validation-parity/audit.md",
+  "v1CallerTable": [
+    "src/engine/showAuthoringValidation.ts:131-175 validateShowAuthoring structural block - ERRORS, with an early return before every warning and dependency check. The Zone Layout rules (:163-170) and the output-count rule (:172-173) live here.",
+    "src/engine/showAuthoringValidation.ts:175 - the output-capacity message is the FIRST delivery WARNING, pushed immediately after that early return.",
+    "src/engine/showAuthoringValidation.ts:174 - validateShowComposition issues become ERRORS carrying the composition code through as the diagnostic code.",
+    "src/engine/showPropertyAnimation.ts:125-165, :378-429 validateShowPropertyTracks/validateTarget/validateKeyframe - the animated-value range, missing-control and missing-effect-parameter rules, reached from validateShowComposition.",
+    "src/engine/showCompositionModel.ts:399-406 - Pattern instance time offset and time scale; :303-323 validateShowCompositionTimelineMetadata - composition duration and Marker time.",
+    "src/engine/showPreviewArtifact.ts:138-173 compileShowForArtifact - coverage and Portable refusals before compile; the Portable target-Controller pixel count and summary.resources.blockers[0].message as artifactBlocker after it. compileShowForPreview consults none of them.",
+    "src/agent/editorAdmission.ts:218-232 candidate admission - reads result.valid and result.errors only, so every warning above is admitted.",
+    "src/store/showResizeAdmission.ts:92,99 resize admission - reads result.valid only; same conclusion.",
+    "src/engine/showImportPlan.ts and src/engine/showFileBundle.ts - v1 import never runs validateShowAuthoring; it validates the composition and normalizes routing, transitions and entry state.",
+    "src/engine/showModel.ts normalizeRoutingLayout - rounds, clamps and sorts physical range endpoints and renames a blank Layout, so v1's invalid-physical-range error is reachable only on the raw candidate path.",
+    "src/agent-harness/ - excluded by the dispatch as a diagnostic surface, untouched."
+  ],
+  "invariants": [
+    "One rule, not two: the Zone Layout structural rule is implemented once in showZoneLayoutStructure.ts over a projection both versions satisfy (routingLayouts for v1, zoneLayouts for v2), and the output-count rule once in showAuthoringValidation.ts. v1 calls them in the positions its inline code occupied, so its behavior and issue order are unchanged.",
+    "Classification is v1's, unchanged: the Zone Layout family and a non-positive or non-integer output count are structural errors that return before every dependency and delivery question; the output-capacity message is a delivery warning that leaves the Show authorable.",
+    "Nothing stricter than v1: a negative integer range endpoint stays admitted, an over-capacity output count stays authorable, a negative whole-millisecond instance time offset stays admitted, a dormant Marker past Show End stays admitted, and v2 .pxlshow import keeps an unrepaired Zone Layout because v1 import never ran the rule.",
+    "Refusal is where v1 refuses: the resource-ledger verdict is reported at the artifact boundary, where compileShowForArtifact reports it, and reaches the route as the existing blockedReason that gates View code, Export .epe and Send to Controller. No UI path changed.",
+    "The ported record-level time rules sit in validateShowRecordV2Domain, the seam v1's composition validator occupies: every v2 pure owner, the v2 candidate admission and v2 .pxlshow import run it.",
+    "A v2 check that already exists at a different seam is not re-seated: missing-effect-parameter stays with showClipAppearanceEditsV2, and missing-control stays retired by the v2 owners' accepted design.",
+    "Refusal produces no adoption, history entry, provider save or ordering stamp, and returns the original record identity."
+  ],
+  "partitions": [
+    "Zone Layout fault: complete, fractional endpoints, endpoint outside the safe integer range, negative integer endpoint (admitted), physical entry naming an unknown Zone, routing operator naming an unknown Zone, duplicate Zone in one Layout, blank Zone identity, invalid routing-operator parameters, a fault in a second Layout no occurrence names",
+    "output contract: Installation and Portable, each with a fractional, zero, negative, unsafe, at-capacity and over-capacity count",
+    "artifact boundary: no blocker, a resource blocker with complete coverage, and the existing coverage and Portable gates",
+    "record time: fractional instance time offset, negative whole-millisecond offset (admitted), non-finite time scale, fractional Marker time, negative Marker time, dormant Marker past Show End (admitted)",
+    "v2 surface introducing the fault: agent candidate delivery, the Zone Layout definition owner, the Show metadata command, and v2 .pxlshow import",
+    "property value rules (measured, not ported): target kind across all seven v1 scalar families plus the Effect descriptor; authored value versus a value derived by curve retention"
+  ],
+  "sequences": [
+    "matched v1/v2 pair over the same authored Zone Layouts -> validateShowAuthoring and validateShowAuthoringV2 -> identical filtered structural issue list for all ten partitions",
+    "16-pixel Installation v2 Show -> agent candidate with fractional endpoints / unknown Zone / invalid routing operator / duplicated Zone -> refused at the authoring stage, no write, no history entry, record identity unchanged",
+    "same Show -> agent candidate with a negative integer endpoint -> applied and saved",
+    "same Show -> Zone Layout definition owner set-physical-ranges with a fractional endpoint -> refused at the owner, before admission",
+    "same Show -> agent candidate with pixelCount 16.5 -> refused with invalid-output-count; with pixelCount 2001 and complete coverage -> applied and saved, with the capacity delivery warning present",
+    "Group editor fixture as a 4,000-pixel Installation Show with complete coverage -> prepared ready -> buildShowV2RouteArtifacts refused with the ledger's own message; the same fixture with no blocker -> ready",
+    "export .pxlshow of an Installation v2 Show whose Layout carries fractional endpoints -> reopen through parseShowFileBundle -> plan and apply v2 import -> endpoints identical to the authored ones, record valid",
+    "v1 composition and v2 record carrying the same fractional instance offset, non-finite time scale, fractional Marker time and negative Marker time -> identical diagnostic codes"
+  ],
+  "oracles": [
+    "The v1 validator itself: every Zone Layout, output-count and record-time expectation is compared against validateShowAuthoring or validateShowComposition run over the matching v1 record, never against a restated message.",
+    "What the admission returns and what the provider holds: the real store admissions (deliverShowV2EditCandidate, admitShowV2PilotLayoutDefinitionEdit) with the provider write spy, the history stack and the current record identity.",
+    "What the consumer sees at delivery: buildShowV2RouteArtifacts' status and message over a record prepared through prepareShowStageV2 - the same object the route's Download .epe and Send to Controller read as blockedReason - compared against the bundle's own summary.resources.blockers[0].message.",
+    "Import identity: the applied record's zoneLayouts asserted equal to the authored clone taken before export.",
+    "Census: npm run show:v2-parity (47 inventoried records) and npm run show:v2-native-parity (40 compared Shows) unchanged, proving no stock Show is newly refused."
+  ],
+  "redEvidence": [
+    "showZoneLayoutStructure.test.ts and showV2AuthoringStructureAdmission.test.ts were authored before the v2 wiring existed: with the wiring disabled, 13 of 18 failed - the eight v1/v2 parity partitions that carry a fault, the structural-return case, and the four agent-candidate refusals. The negative-endpoint and complete-Layout partitions passed from the start, which is what makes the 'nothing stricter' claim falsifiable.",
+    "The shared-rule test passed against the base before v1 was rewired, proving the extracted rule reproduces validateShowAuthoring's inline rule for all ten partitions rather than a new one.",
+    "showOutputCountRule.test.ts plus its two admission cases: 9 of 16 failed with the v2 output-count checks disabled, all on the missing verdict.",
+    "showV2RouteDelivery.test.ts 'refuses to deliver a Show the resource ledger blocks': red against the base, which delivered status 'ready' with vmWords 12,012 of 10,240.",
+    "showRecordTimeRules.test.ts: measured against the base, v1 reported not-integer / not-finite / not-integer / out-of-bounds for the four faults and v2 reported [] for all four.",
+    "Two authored rows were wrong about the rule and were corrected rather than the rule. The dispatch described invalid-physical-range as 'endpoint not a safe nonnegative integer'; v1 asks only for a safe integer, so the negative-endpoint partition was added as an admitted case. And the first attempt classified missing-control and missing-effect-parameter as gaps; running the suite showed both are v2 decisions, so they were reverted and became residuals R1 and R2."
+  ],
+  "faults": [
+    {
+      "mutation": "validateShowAuthoringV2: drop the validateShowZoneLayoutStructure loop.",
+      "killed": [
+        "showZoneLayoutStructure.test.ts: the eight faulted v1/v2 parity partitions plus 'returns before the delivery questions'",
+        "showV2AuthoringStructureAdmission.test.ts: all four agent-candidate refusals"
+      ],
+      "result": "13 failed | 5 passed; restored to green"
+    },
+    {
+      "mutation": "validateShowAuthoringV2: drop the invalidShowOutputCountIssue error and the showOutputCapacityMessage warning.",
+      "killed": [
+        "showOutputCountRule.test.ts: the five structural-error partitions and the two over-capacity warning partitions",
+        "showV2AuthoringStructureAdmission.test.ts: 'refuses an agent candidate whose output pixel count is not a positive safe integer' and 'admits an agent candidate whose output count is past the compiled capacity, with the delivery warning'"
+      ],
+      "result": "9 failed | 7 passed; restored to green"
+    },
+    {
+      "mutation": "buildShowV2RouteArtifacts: drop the resource-ledger refusal and deliver anyway.",
+      "killed": [
+        "showV2RouteDelivery.test.ts: 'refuses to deliver a Show the resource ledger blocks, with the ledger's own message'"
+      ],
+      "result": "1 failed | 13 passed; restored to green. Measured before the fix: status 'ready' at 12,012 of 10,240 VM words."
+    },
+    {
+      "mutation": "validateShowAuthoringV2: classify the Zone Layout issues and the output-count issue as delivery warnings instead of structural errors - the under-strict mutation a restored check invites.",
+      "killed": [
+        "showZoneLayoutStructure.test.ts: the eight faulted parity partitions and 'returns before the delivery questions, exactly as v1 returns after its structural pass'",
+        "showOutputCountRule.test.ts: the five structural-error partitions",
+        "showV2AuthoringStructureAdmission.test.ts: all five agent-candidate refusal cases"
+      ],
+      "result": "19 failed | 9 passed across the three files; restored to green"
+    },
+    {
+      "mutation": "showZoneLayoutStructure.ts: widen invalid-physical-range from 'safe integer' to 'safe nonnegative integer', the dispatch's own wording - the over-strict mutation.",
+      "killed": [
+        "showZoneLayoutStructure.test.ts: the negative-integer-endpoint partition, which v1 admits",
+        "showV2AuthoringStructureAdmission.test.ts: 'still admits a negative integer endpoint, which v1 admits too'"
+      ],
+      "result": "2 failed | 18 passed; restored to green. This probe is why the 'nothing stricter than v1' claim is falsifiable rather than asserted. Note what it does NOT kill: the two v1/v2 parity assertions are blind to a mutation inside the shared rule, because both versions now read one implementation and move together. The explicit expected-code list on each partition is what detects it, which is why every partition carries one."
+    },
+    {
+      "mutation": "validateShowRecordV2Domain: drop the patternInstances time loop; separately, drop the markers loop.",
+      "killed": [
+        "showRecordTimeRules.test.ts: 'refuses a fractional Pattern instance time offset, as v1 does' and 'refuses a non-finite Pattern instance time scale, as v1 does'",
+        "showRecordTimeRules.test.ts: 'refuses a fractional Marker time, as v1 does' and 'refuses a negative Marker time, as v1 does'"
+      ],
+      "result": "2 failed | 4 passed for each of the two mutations; restored to green"
+    }
+  ],
+  "results": {
+    "focused": "npx vitest run over showZoneLayoutStructure.test.ts, showOutputCountRule.test.ts, showRecordTimeRules.test.ts, showAuthoringValidationV2.test.ts, showInstallationCoverageV2.test.ts, showV2RouteDelivery.test.ts, showImportPlanV2.test.ts and src/store/showV2AuthoringStructureAdmission.test.ts: all passed.",
+    "full": "npm test: 12,139 passed, 61 skipped, 7 failed under parallel load; all seven (five src/components/ShowEditor.test.tsx cases, one src/components/PatternList.test.tsx case and scripts/wrsp-ui-proof-gate.test.ts) pass in isolation and are load-related, not caused by this slice.",
+    "staged": "npm run test:staged passed on every commit.",
+    "static": "npm run lint and npx tsc -b --pretty false passed.",
+    "parity": "npm run show:v2-parity: 47 inventoried records matched. npm run show:v2-native-parity: 40 compared Shows matched. No stock or census Show is newly refused by any ported check.",
+    "browser": "Not applicable: this slice changes no path matched by wrsp-ui-proof.json (no component TSX, App.tsx or stylesheet). The new delivery refusal reaches the existing ShowEditorV2DeliveryPanel through the unchanged blockedReason field."
+  },
+  "residualGaps": [
+    "R1 missing-control: v1 requires an animated instance-control target to name a control the instance authors. v2 deliberately does not - showPropertyEditsV2Boundaries.test.ts, 'keeps source-dependent controls outside persisted CRUD validation and never seeds their payload', deletes controlTargets and asserts the track add is changed and the record valid. The port was implemented and reverted after it broke that test plus showClipReplaceV2.test.ts and showV2ClipReplacementAdmission.test.ts. Measured: v1 reports missing-control for an animated sliderUnknown, v2 reports nothing, by design. No action.",
+    "R2 missing-effect-parameter: v2 owns exactly v1's rule at showClipAppearanceEditsV2.ts:285-287, but showClipAppearanceEditsV2.test.ts asserts validateShowRecordV2(record) is [] for a record already carrying the fault, so the record stays openable and an agent candidate carrying it is admitted where v1 refuses. Measured: v1 ['missing-effect-parameter: Effect \"turn\" has no numeric parameter \"nope\".'], v2 []. Moving the check to the record validator reverses a landed, named v2 decision: a product decision for the coordinator, not a port.",
+    "R3 animated property value range: v1 bounds every animated value by its target (time scale [0,4]; instance control, Clip opacity and Clip view [0,1]; Transform scale [0.01,8], rotation [-8,8], position [-4,4]; Aperture size [0.01,8], position [-4,4]; Effect parameter inside its toolkit descriptor, whole-numbered when it steps by one). validateShowRecordV2 checks only finiteness. Measured: clip-opacity value 5 gives v1 ['out-of-bounds: Keyframe value must be between 0 and 1.'] and v2 []; instance-time-scale value 40 gives v1 ['out-of-bounds: Keyframe value must be between 0 and 4.'] and v2 []. The port was implemented, measured and reverted: it collides with landed #1037 curve retention, which seeds a retained boundary keyframe from the evaluated original curve. Measured counterexample - animatedRecord()'s clip-view brightness track eased back-in, moved to 200 ms and trimmed to [450, 950), seeds [[450, -0.06413656250000001], [950, 0.1825903124999999]]; with v1's bound in place the trim refuses and the three landed showPropertyAnimationV2.test.ts 'preserves back-* through move, trim, extend, split and reopen' cases fail. The decision the coordinator owns is whether a derived boundary value is exempt from the authored range or whether the bound widens to what the curve reaches. Specification section 6 already settles exactly one of these targets (animated Show repeat scale, 1-8, edit-local), which is why this is a decision and not an oversight. Until it is made, v2 is looser than v1 for every animated property value.",
+    "R4 Portable target-Controller pixel count: compileShowForArtifact blocks export and send for a Portable Show when the connected Controller reports more than SHOW_MAX_OUTPUT_PIXELS pixels (options.targetPixelCount). Nothing supplies a target pixel count to buildShowV2RouteArtifacts or prepareShowStageV2; the Show's own authored count is already covered by this slice's capacity warning and the ledger's output-pixel-limit blocker. Closing the row means passing the connected Controller's reported count from the route into delivery - a UI path change this slice is not authorized to make. Reported, not ported.",
+    "R5 blank Zone Layout name: normalizeRoutingLayout renames a blank name to 'Untitled layout'; editShowZoneLayoutDefinitionV2 refuses one at the owner; no v2 record or authoring rule asks, so a candidate carrying '  ' is admitted where v1 would have renamed it. Porting the repair is forbidden (no new universal normalizer); porting it as a refusal would be stricter than v1's callers, which never refuse it. Reported, not ported.",
+    "R6 RL08-RL10: three of v1's invalid-transition rules are the scheduler restrictions the specification's section 5 ledger keeps as bounded compiler refusals, deferred to #1045. They are not record rules in v2 and this slice did not make them one.",
+    "R7 safe-integer bound: the ported Marker and instance time rules use Number.isSafeInteger, which specification section 3 requires of every v2 time, where v1 used Number.isInteger. The two differ only above 2^53 milliseconds.",
+    "R8 scope: src/agent-harness/ is untouched; its validateShowDocument is a v1-only diagnostic surface whose v2 counterpart belongs to #1041. No compiler, schema or runtime-domain capability was widened, no MCP catalogue changed and no UI path changed. Authoritative committed-tip suites, exact-range review and landing are the coordinator's."
+  ]
+}
