@@ -11,6 +11,7 @@ import { showInitialState, useShowStore } from '../store/showStore'
 import { admitShowV2PilotAppearanceEdit } from '../store/showV2PreparedEditAdmission'
 import type { ShowClipEffect } from './personalContentRecords'
 import neutralResidual from '../../docs/reference/evidence/issue-1038-appearance-adoption/neutral-color-residual.json'
+import removalResidual from '../../docs/reference/evidence/issue-1038-appearance-surface/removal-precise-residual.json'
 
 afterEach(() => resetPersonalContentProvider())
 const dependencies = { patterns: [{ id: 'appearance-voice', name: 'Appearance Voice', src: 'export var elapsed=0; export function beforeRender(d){elapsed+=d} export function render2D(i,x,y){rgb(.2+x/3,.1+y/4,elapsed/50000)}', controls: {}, updatedAt: 1 }], maps: [], libraries: [], profiles: [], stageMap: null }
@@ -106,6 +107,98 @@ it('adopts dirty whole brightness and retained/interior held values against inde
   expect(actual.composition).toEqual(expected.composition); expect(write).toHaveBeenCalledTimes(3)
   expect(useShowStore.getState().showV2Histories[record.id].past).toHaveLength(3)
   compare(actual, expected, before)
+})
+
+/**
+ * Candidate versus an independently authored record stays exact. Against the
+ * preimage the untouched shared runtime must keep its clocks and Fast output;
+ * emptying the ordinary Clip's Effect stack removes the incidental Effect-stage
+ * clamp, so the fixture Pattern's existing Precise `elapsed/50000` divergence
+ * becomes visible on the held Group user at the measured probes below. An
+ * independently authored no-Effect record reproduces it identically, so it is a
+ * measured existing compiler divergence, not a removal cascade.
+ */
+function compareRemoval(actual: ShowRecordV2, expected: ShowRecordV2, preimage: ShowRecordV2) {
+  for (const fidelity of ['fast', 'fidelity'] as const) {
+    const a = runtime(actual, fidelity), b = runtime(expected, fidelity), old = runtime(preimage, fidelity)
+    for (const atMs of [0, 1999, 2000, 5999, 6000, 9000, 9999, 20000, 23000, 24999, 30001]) {
+      const options = { stepMs: 100, forceFullIntermediateRender: true }
+      const left = a.advanceTo(atMs, options), right = b.advanceTo(atMs, options), original = old.advanceTo(atMs, options)
+      expect(left.frame).toEqual(right.frame); expect(left.exports).toEqual(right.exports)
+      if (atMs < 20000 || atMs >= 25000) continue
+      const elapsed = (values: typeof left.exports) => Object.fromEntries(Object.entries(values).filter(([name]) => name.includes('elapsed')))
+      expect(Object.keys(elapsed(left.exports)).length).toBeGreaterThan(0)
+      expect(elapsed(left.exports)).toEqual(elapsed(original.exports))
+      const measured = removalResidual.find(row => row.fidelity === fidelity && row.atMs === atMs)
+      if (!measured) { expect(left.frame).toEqual(original.frame); continue }
+      expect(Array.from(original.frame)).toEqual(measured.preimage)
+      expect(Array.from(left.frame)).toEqual(measured.candidate)
+    }
+  }
+}
+async function adopt(record: ShowRecordV2, intent: Parameters<typeof admitShowV2PilotAppearanceEdit>[0]['intent']) {
+  const current = useShowStore.getState().showV2Pilots[record.id]
+  return admitShowV2PilotAppearanceEdit({ showId: record.id, baseRevision: useShowStore.getState().showRevisions[record.id] ?? 0,
+    capture: { record: current, dependencies, prepared: prepareShowStageV2(current, dependencies) }, isCurrent: () => true, onAdopted: () => {}, intent })
+}
+function seed(id: string): { record: ShowRecordV2; write: ReturnType<typeof vi.fn> } {
+  resetPersonalContentProvider(); useShowStore.setState(showInitialState)
+  const record = JSON.parse(fixtureText) as ShowRecordV2
+  const write = vi.fn(async () => {})
+  setPersonalContentProvider({ ...getPersonalContentProvider(), id, replaceShowV2: write })
+  useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
+  return { record, write }
+}
+
+it('adopts explicit Transform/Aperture/Presentation/Blink components against an independently authored native program', async () => {
+  const { record, write } = seed('optional-components'), before = structuredClone(record), expected = structuredClone(record)
+  const patch = { transform: { positionX: .1, scaleX: .8 }, aperture: { enabled: true, width: .8, aperture: 'ellipse' as const, edge: 'hard' as const, feather: .2 },
+    presentation: { mode: 'live' as const }, blink: { rateHz: 2, duty: .6, phase: .1 } }
+  expect((await adopt(record, { kind: 'appearance', clipId: 'voice', scope: 'whole-clip', patch })).status).toBe('applied')
+  for (const key of expected.composition.clips[0].appearance.keys) {
+    key.value.transform = { positionX: .1, positionY: 0, rotation: 0, scaleX: .8, scaleY: 1 }
+    key.value.aperture = { enabled: true, x: 0, y: 0, width: .8, height: 1, aperture: 'ellipse', edge: 'hard', feather: .2 }
+    key.value.presentation = { mode: 'live' }
+    key.value.blink = { rateHz: 2, duty: .6, phase: .1 }
+  }
+  expect((await adopt(record, { kind: 'appearance', clipId: 'voice', scope: 'whole-clip', patch: { aperture: { feather: null }, blink: null } })).status).toBe('applied')
+  for (const key of expected.composition.clips[0].appearance.keys) { delete key.value.aperture!.feather; delete key.value.blink }
+  const actual = useShowStore.getState().showV2Pilots[record.id]
+  expect(actual.composition).toEqual(expected.composition); expect(write).toHaveBeenCalledTimes(2); expect(record).toEqual(before)
+  compare(actual, expected, before)
+})
+
+it('removes a whole-Clip Effect with exactly its Clip-owned animation and leaves the shared held Group user exact', async () => {
+  const { record, write } = seed('effect-removal')
+  record.composition.propertyTracks.push({ id: 'hue-track', target: { kind: 'clip-effect', clipId: 'voice', effectId: 'hue', effectKind: 'hue', parameterId: 'turns' },
+    activeStartMs: 0, activeDurationMs: 9000,
+    keyframes: [{ id: 'hue-first', timeMs: 0, value: 0, easing: { curve: 'sine', direction: 'in-out' } }, { id: 'hue-last', timeMs: 9000, value: .4, easing: { curve: 'linear' } }] })
+  const before = structuredClone(record), expected = structuredClone(record)
+  const outcome = await adopt(record, { kind: 'remove-effect', clipId: 'voice', scope: 'whole-clip', effectId: 'hue', effectKind: 'hue' })
+  expect(outcome.status, JSON.stringify(outcome)).toBe('applied')
+  expect(outcome.affectedTrackIds).toEqual(['hue-track'])
+  expect(outcome.removedIds).toEqual(['hue-track'])
+  expect(outcome.affectedPropertyKeyIds).toEqual(['hue-first', 'hue-last'])
+  expect(outcome.affectedAppearanceKeyIds).toEqual(['voice-key-0', 'voice-key-1', 'voice-key-2'])
+  for (const key of expected.composition.clips[0].appearance.keys) key.value.effects = []
+  expected.composition.propertyTracks = expected.composition.propertyTracks.filter(track => track.id !== 'hue-track')
+  const actual = useShowStore.getState().showV2Pilots[record.id]
+  expect(actual.composition).toEqual(expected.composition); expect(write).toHaveBeenCalledTimes(1); expect(record).toEqual(before)
+  expect(actual.composition.groupDefinitions).toEqual(before.composition.groupDefinitions)
+  expect(actual.composition.patternInstances).toEqual(before.composition.patternInstances)
+  compareRemoval(actual, expected, before)
+})
+
+it('reproduces the measured Precise no-Effect divergence from an independently authored record, not from the removal owner', () => {
+  const preimage = JSON.parse(fixtureText) as ShowRecordV2
+  const authored = structuredClone(preimage)
+  for (const key of authored.composition.clips[0].appearance.keys) key.value.effects = []
+  for (const row of removalResidual) {
+    const old = runtime(preimage, row.fidelity as 'fast' | 'fidelity'), fresh = runtime(authored, row.fidelity as 'fast' | 'fidelity')
+    const options = { stepMs: 100, forceFullIntermediateRender: true }
+    expect(Array.from(old.advanceTo(row.atMs, options).frame)).toEqual(row.preimage)
+    expect(Array.from(fresh.advanceTo(row.atMs, options).frame)).toEqual(row.candidate)
+  }
 })
 
 it.each(['saturation', 'contrast'] as const)('isolates measured neutral %s arithmetic from selected parameter leakage in both native modes', kind => {

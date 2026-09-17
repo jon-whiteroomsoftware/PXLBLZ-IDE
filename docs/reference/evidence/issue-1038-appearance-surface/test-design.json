@@ -1,0 +1,77 @@
+{
+  "issue": 1038,
+  "scope": "remaining appearance/Effect authoring surface: optional held component exposure and explicit Clip Effect removal",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": ["ACTIVATION", "CURVE", "ROUTE", "FAILURE", "PARITY"]
+  },
+  "base": "8666d8890b1768d0da55268c62c44b540d5395bc",
+  "surfaceAudit": "docs/reference/evidence/issue-1038-appearance-surface/surface-audit.md",
+  "invariants": [
+    "Every optional held component the pure owner patches is reachable from the editor, and nothing else is: the audit maps owner capability to editor, admission ingress and route coverage in both directions.",
+    "Only independently dirty fields enter one patch; the component never clamps, normalizes, or substitutes a default for an absent component or a mixed span.",
+    "Closed discriminated components (presentation, blink) must reach the owner complete; an undirtied member falls back to its uniform authored value and a mixed or absent one is left incomplete for the owner to refuse.",
+    "Removal is one explicit owner-accepted null target, never a side effect of an empty draft.",
+    "Effect removal takes the Effect from the selected held stacks and exactly the Clip-owned clip-effect tracks whose activation intersects a span that no longer carries it, reported in affectedTrackIds/removedIds with their keyframes in affectedPropertyKeyIds.",
+    "Removal never touches another Clip's tracks, instance-target tracks, Group definitions, Group occurrences, pattern instances or any other held component; retained nonlinear curve descriptors survive byte-exact.",
+    "A surviving Transition property ramp on the removed Effect refuses the whole edit atomically, names the Transition and returns the original record identity.",
+    "Refusal and no-op return the original record with all fourteen affected collections empty, produce no history or save, and leave the intent object unmutated.",
+    "Timed Effect reordering keeps its existing refusal; no compiler or lowering capability is widened anywhere in this slice."
+  ],
+  "partitions": [
+    "held component presence: absent in every span / present in one span (mixed) / uniform across spans, per Transform, Aperture, Presentation and Blink field",
+    "component field control kind: numeric draft, boolean select, enumerated select (aperture shape, edge, presentation mode)",
+    "removal target: whole Transform / Aperture / Presentation / Blink, twelve nullable Aperture fields, and rejected non-nullable targets",
+    "closed-component completion: dirty member + uniform authored sibling / dirty member + mixed sibling / dirty member + absent sibling",
+    "Effect removal scope: whole-Clip, selected-time retain, selected-time insert",
+    "Effect removal animation: track spanning every span / track confined to spans that keep the Effect / track crossing the emptied span / track on another Clip with the same Effect ID / instance-control track / Transition property ramp",
+    "Effect removal intent: exact source present in every selected stack / absent in one stack / unknown ID / wrong kind / extra intent field",
+    "selected-time boundary: interior, exact nominal end, negative, beyond end, MAX_SAFE_INTEGER, and outside-bar inherited Transition contribution on both participants",
+    "route: dirty multi-component patch, compiler-restricted Freeze refusal, nested Aperture removal, interior held key, Effect removal, Undo, Redo, provider reload, artifact reopen, cold reload, desktop and 390px"
+  ],
+  "sequences": [
+    "whole-Clip multi-component patch -> nested Aperture removal -> selected-time interior Aperture key -> Effect removal -> Undo -> Redo -> reload -> artifact reopen -> cold reload",
+    "seed Clip-owned Effect track -> whole-Clip removal -> exact removed identities -> reopened .pxlshow/.epe Fast/Precise versus independently authored record",
+    "selected-time insert removal -> track confined to retained spans survives -> crossing track removed -> retained nonlinear descriptor unchanged",
+    "Transition ramp on the removed Effect -> atomic refusal naming the Transition -> original record identity and empty collections",
+    "dirty blink member with absent sibling -> incomplete patch -> owner refusal -> unchanged store record"
+  ],
+  "oracles": [
+    "Reopened v2 record through parseProvisionalShowRecordV2/serializeProvisionalShowRecordV2 compared to a literal independently authored expected graph.",
+    "Native .epe built from the prepared bundle, reparsed through parseEpe, replayed in Fast and Precise at boundary and interior probes: candidate frames and exported state exactly equal the independently authored record, with no tolerance.",
+    "Untouched shared-runtime user: every elapsed clock exactly equal to the preimage; Fast frames exactly equal; the two Precise probes that differ are asserted against literally measured arrays and independently reproduced from an authored no-Effect record.",
+    "Real closed admission: provider write count, history depth, exact affected collections, and store record identity on refusal/no-op.",
+    "Authenticated route: pre-registered PUT count, semantic provider readback of the saved v2 document, keyboard focus order, horizontal containment at 1024 and 390px, and zero browser console errors."
+  ],
+  "redEvidence": [
+    "showClipAppearanceEffectRemovalV2.test.ts: 5 of 15 cases failed against 8666d889 because remove-effect was not an intent; the ten refusal cases passed only through the generic unsupported-operation path and became meaningful after the owner accepted the intent.",
+    "showV2AppearanceEditorModel.test.ts: the four new cases failed to import SHOW_V2_APPEARANCE_COMPONENT_FIELDS, SHOW_V2_APPEARANCE_REMOVALS and appearanceRemovalPatch, which did not exist.",
+    "ShowV2AppearanceEditor.test.tsx: the three new cases failed because no Transform/Aperture/Presentation/Blink control, Clear component control or Remove Effect action was rendered.",
+    "show-v2-appearance-surface.auth.spec.ts: the first route run refused the whole patch with the existing static-cache Freeze restriction, which became a deliberate zero-write FAILURE assertion instead of being worked around."
+  ],
+  "faults": [
+    "Owner cascade disabled (removedTracks always empty): 3 removal cases fail, the whole-Clip case refusing invalid-result. Restored.",
+    "Owner cascade ignores activation/span intersection: 2 cases fail, removing animation that still resolves. Restored.",
+    "Owner cascade ignores target.clipId: the neighbour-Clip case fails, deleting another Clip's identically named Effect track. Restored.",
+    "Closed-component member falls back to 0 instead of NaN: the incomplete-component case fails, inventing a Blink rate. Restored.",
+    "Non-dirty component fields enter the patch: 3 model cases fail, submitting untouched authored values. Restored.",
+    "remove-effect accepts an Effect absent from some selected stack (some -> every): the absent-stack refusal case fails. Restored."
+  ],
+  "results": {
+    "focused": "showClipAppearanceEffectRemovalV2 15/15, showV2AppearanceEditorModel 21/21, ShowV2AppearanceEditor 13/13, showV2AppearanceArtifact 28/28, showClipAppearanceEditsV2 + showClipAppearanceSelectedTimeV2 + showHeldAppearancePreparationV2 unchanged and passing.",
+    "static": "npm run lint and npx tsc -b --pretty false clean.",
+    "staged": "npm run test:staged passed at each commit, including the chromium-layout runner for the component change.",
+    "parity": "npm run show:v2-parity: 47 records unchanged.",
+    "route": "npx tsx scripts/run-authenticated-playwright.ts e2e/show-v2-appearance.auth.spec.ts e2e/show-v2-appearance-surface.auth.spec.ts: 2 passed.",
+    "uiProof": ".wrsp/ui-proof/1038-appearance-surface*.png committed with npm run check:ui-proof passing for the range."
+  },
+  "residualGaps": [
+    "Pending Jon decision, untouched: may unsupported timed Effect reordering refuse unchanged rather than add compiler work? The existing refusal is unchanged and documented as pending.",
+    "Freeze presentation on a multi-key routed Clip refuses through the existing static-cache compiler restriction. Proved as an atomic zero-write route refusal; not repaired here.",
+    "Opposite held Effect order runtime-sharing and participant property restrictions remain named unresolved integration cases refusing atomically.",
+    "Emptying a Clip's Effect stack exposes a measured existing Precise divergence on the shared runtime's other users; reproduced from an independently authored record and recorded literally, not repaired and not tolerated away.",
+    "wrsp advisory unmapped-layout-sensitive-change names ShowV2AppearanceEditor.tsx; the authoritative layout surface map is deliberately unchanged and the new controls are proved by the 1024/390px route checks instead.",
+    "Coordinator owns final authoritative committed-tip suites, cross-family review and landing. Whole #1038 remains in progress."
+  ]
+}

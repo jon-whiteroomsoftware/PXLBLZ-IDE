@@ -211,11 +211,13 @@ it('keeps other Clips, shared runtime users, Group definitions and their same-ID
   const record = fixture(), clip = record.composition.clips[0]
   clip.durationMs = 500
   clip.appearance.keys.forEach(key => { key.timeMs /= 2 })
-  const other = structuredClone(clip)
-  other.id = 'other-clip'; other.startMs = 500
-  for (const key of other.appearance.keys) { key.id = `other:${key.id}`; key.timeMs += 500 }
-  record.composition.clips.push(other)
   record.composition.layers.push({ id: 'group-layer', zoneId: clip.zoneId, name: 'Group', rank: 1 })
+  // The neighbour shares the runtime, the Effect ID and the same interval, so
+  // only the target Clip ID distinguishes their Clip-owned animation.
+  const other = structuredClone(clip)
+  other.id = 'other-clip'; other.layerId = 'group-layer'
+  for (const key of other.appearance.keys) key.id = `other:${key.id}`
+  record.composition.clips.push(other)
   record.composition.groupDefinitions = [{ id: 'group', name: 'Group', patternInstances: [{ ...structuredClone(record.composition.patternInstances[0]), id: 'slot' }],
     layers: [{ id: 'local-layer', name: 'Local', rank: 0 }], clips: [{ id: 'child', instanceId: 'slot', layerId: 'local-layer', startMs: 0, durationMs: 200,
       entryPolicy: 'continue', zoneSampleMode: 'span', appearance: { keys: [{ id: 'local-key', timeMs: 0,
@@ -223,7 +225,8 @@ it('keeps other Clips, shared runtime users, Group definitions and their same-ID
   record.composition.groupOccurrences = [{ id: 'use', definitionId: 'group', zoneId: 'zone', layoutOccurrenceId: record.composition.layoutOccurrences[0].id,
     startMs: 500, translationX: 0, translationY: 0, holds: [], instanceBindings: { slot: 'instance' },
     layerBindings: [{ definitionLayerId: 'local-layer', layerId: 'group-layer' }] }]
-  record.composition.propertyTracks.push(hueTrack('hue-track', 0, 500))
+  record.composition.propertyTracks.push(hueTrack('hue-track', 0, 500),
+    { ...hueTrack('other-hue-track', 0, 500), target: { kind: 'clip-effect', clipId: 'other-clip', effectId: 'hue', effectKind: 'hue', parameterId: 'turns' } })
   expect(validateShowRecordV2(record)).toEqual([])
   const before = structuredClone(record)
   const result = editShowClipAppearanceV2(record, whole({ effectId: 'hue', effectKind: 'hue' }))
@@ -232,7 +235,8 @@ it('keeps other Clips, shared runtime users, Group definitions and their same-ID
   expect(result.record.composition.groupDefinitions).toEqual(before.composition.groupDefinitions)
   expect(result.record.composition.groupOccurrences).toEqual(before.composition.groupOccurrences)
   expect(result.record.composition.patternInstances).toEqual(before.composition.patternInstances)
-  expect(result.record.composition.propertyTracks.map(track => track.id)).toEqual(['level'])
+  expect(result.record.composition.propertyTracks.map(track => track.id)).toEqual(['level', 'other-hue-track'])
+  expect(result.record.composition.propertyTracks[1]).toEqual(before.composition.propertyTracks[2])
   expect(result.removedIds).toEqual(['hue-track'])
   expect(record).toEqual(before)
 })
