@@ -220,7 +220,8 @@
     {
      "id": "scene-marker:scene-a",
      "timeMs": 0,
-     "name": "Opening"
+     "name": "Opening",
+     "role": "chapter"
     }
    ],
    "groupDefinitions": [],
