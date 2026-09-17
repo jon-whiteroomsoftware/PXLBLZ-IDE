@@ -422,3 +422,131 @@ The per-operation adapters introduced by #950/#951 are now replaced by
 semantic owners and diagnostic identity factories. Their canonical adapter and
 bridge tests are consolidated in `test/commandParity.test.ts`. Earlier entries
 retain the names used at their recorded revisions.
+
+## Version-2 rewrite (#1039, with #1055)
+
+The Scene-retirement cutover made the version-2 record the one the editor, the
+store, the providers and the MCP catalogue speak. This harness follows the
+active editor (specification section 13), so it was re-authored on the v2
+vocabulary rather than wrapped. The transferred V3 files stay listed above with
+their original hashes; this section records what the rewrite changed and what it
+retired.
+
+### The shape of the change
+
+- **One registry over the production catalogue.** `grammar/registry.ts` is now
+  `SHOW_COMMANDS_V2` exposed through a single adapter,
+  `grammar/operations/catalogue.ts`, plus the two generic backstops this harness
+  owns. The adapter converts exactly two things: the transport shape of the
+  input schema (a zod shape for the MCP tool list) and the transport shape of the
+  outcome (`changed | unchanged | refused` onto this surface's accepted/refused
+  pair). It renames nothing, widens nothing and narrows nothing. The nine v1
+  per-family operation modules are deleted; no v1 name is registered or aliased.
+- **No projection on open.** A v2 record is already the representation the
+  commands read, so `grammar/openShow.ts` validates and lists; it never rewrites
+  the caller's record into a second shape.
+- **Tier 0 is the production route's own stack, in its own order** — structure,
+  domain, dependencies, compiler eligibility (`shows/evaluate.ts`, mirroring
+  `src/store/showV2CandidateAdmission.ts`). The harness runs the same owners
+  against the same assets instead of keeping a second opinion about validity.
+  The one place it adds words rather than verdicts: an unresolvable *personal*
+  Pattern keeps this server's own remedy ("supply the source in
+  `inline_patterns`") in place of the editor-facing `missing-reference` message,
+  because an agent here has no Library to load.
+- **Identity domains are owner-scoped.** Writing `grammar/identity.ts`'s domain
+  declarations against `validateShowRecordV2Domain` surfaced a point the v1
+  shapes hid: keyframes, Transition participants, Group holds and appearance
+  keys are unique *inside their owner*, not record-wide.
+- **Corpus, critique, telemetry and the MCP server** follow the same move: the
+  corpus is 46 v2 cases (see the README), critique reads Clip durations, exact
+  Clip adjacency and authored Transitions beside derived Cuts, the default
+  measurement window is `composition.showEndMs`, and the server publishes the v2
+  authoring schema and reference and takes no caller-supplied Stage dimension —
+  a v2 record names its own Stage map.
+- **`reference/show-data-model.md`** is re-authored on the v2 record. It is
+  served over MCP, so an agent reading it must not author a Scene or a Cell.
+
+### Suites retired, and why
+
+- `commandParity.test.ts`, `grammarBreadth.test.ts`, `support/grammarGoldens.ts`,
+  `grammarRegistry.test.ts`, `grammarStructure.test.ts` proved *v1 command
+  behaviour* inside the harness, because the harness used to carry its own
+  implementations. It now registers the production catalogue through one
+  adapter, so re-proving each command here would duplicate `showCommandsV2`'s own
+  suites. Replaced by `test/catalogueSurface.test.ts`, which proves what can
+  still drift: which entries reach the tool surface, that each entry's
+  description, family, touches and schema survive, that changed/unchanged/refused
+  map faithfully, that no retired v1 name or refusal code appears, and that an
+  authoring sequence stays valid throughout.
+- `genericIdentityPlacementOrder.test.ts`: its reviewed regression — an
+  overwrite-by-move of a whole collection between two identity domains — is not
+  constructible on a v2 record, because the schema requires every appearance key
+  to keep an `effects` array, so detaching one leaves the source structurally
+  invalid and the patch is refused at that member instead. The tracker rule it
+  pinned is unchanged; its still-constructible half moved into
+  `genericIdentity.test.ts`.
+- `privateClipRearrangement.test.ts` and `descriptorAdapter.test.ts` test
+  surfaces that no longer exist (the v1 private clip-pair move; the v1 descriptor
+  adapter).
+- `authoringValidation.test.ts` is **not** retired: it is re-authored on v2
+  faults, and its own header records which of its v1 cases were dropped as
+  duplicates (naming the test that covers each) and which were dropped because
+  their premise — flat projection, Scene coverage, cells — is retired.
+
+### Narrowed diagnostics, recorded not repaired
+
+Two v1 diagnostics are unreachable from the v2 admission path, because
+`validatePortableShowCompatibility` and `validateInstallationCoverage` are called
+only from `showPreviewArtifact.ts` and `showAuthoringValidation.ts`, both v1-only.
+`showPreparedStageV2.ts` computes the installation coverage fact and puts it on
+the prepared capture's `presentation`, but nothing turns it into a refusal.
+
+The harness pins what actually holds rather than inventing a second opinion
+about validity:
+
+- a 3D-only stock Pattern on a portable-2d Show is authorable
+  (`test/bridgeAuthoringValidation.test.ts`, RESIDUAL);
+- an Installation Show with incomplete, overlapping, out-of-range, fractional or
+  over-capacity pixel ranges is authorable and undiagnosed
+  (`test/authoringValidation.test.ts`, RESIDUAL).
+
+Both are reported to the epic as product gaps, not repaired here.
+
+### Baseline fixtures and the #1055 re-pin
+
+`baseline/fixtures.ts` is deliberately unchanged: those records are the pinned
+legacy inputs of the 47-record parity census (`scripts/show-v2-parity.ts`,
+specification section 2) and of three product suites, so re-authoring them would
+move that census's baseline. The agent baseline instead reads the same pinned
+records and converts them through the app's own `convertShowRecordV1ToV2` in
+`baseline/fixturesV2.ts`, which also keeps `fixtures.ts` importable by Playwright
+without Vite. Parity stays exact at 47.
+
+`baseline/evidence/fixtures.json` is re-pinned on those converted records. The
+drift #1055 reported against the previous pin had two causes, both intended:
+`30a0aa00` (#1018) reworded the Clip-resize confirmation the summaries record,
+and `d15ea7c1` (#952) replaced `normalizeShowComposition(show, draft)` with
+`draft` in `replaceLogicalClipGlobalSpan` and `moveShowClip`, which changed the
+bundle's key order — the canonical sorted-key JSON of the two bundles is
+identical and both are 1881 bytes, but this harness hashes
+`JSON.stringify(bundle)`, which is order-sensitive. See
+`docs/reference/agent-editing-baseline.md` for the full record.
+
+### Product test files this cutover forced
+
+Three product-side *test* files named the harness's v1 surface and had to move
+with it. None changes product behaviour:
+
+- `src/engine/showAuthoringValidation.test.ts` built its v1 subject from the
+  harness's `openGrammarFixture`; it now builds its own from the pinned baseline
+  record through `projectFlatShowToCompositionV1`.
+- `src/engine/showCommands/layers.test.ts` compared the v1 canonical adapter with
+  the harness's diagnostic adapter for `reorder_overlay_layer` and
+  `remove_overlay_layer`. There is no diagnostic adapter for a v1 name any more;
+  the case is removed and its comment names `catalogueSurface.test.ts` as where
+  the property is proved on v2.
+- `src/engine/showCommandsV2/nameMapReplay.test.ts` replayed the harness's
+  scripts and corpus through the v1→v2 name map as *pre-cutover* readiness
+  evidence. The cutover has happened, so those two cases now assert the other
+  half of the same property: no retired v1 name survives in those artifacts, and
+  every name they use is a v2 command or a named harness bridge tool.

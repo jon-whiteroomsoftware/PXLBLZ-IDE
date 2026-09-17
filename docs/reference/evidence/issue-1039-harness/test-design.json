@@ -1,0 +1,86 @@
+{
+  "issue": 1039,
+  "scope": "the diagnostic agent harness re-authored onto the version-2 vocabulary, and the #1055 baseline fixture re-pin",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "MCP",
+      "FAILURE"
+    ]
+  },
+  "base": "15ed7a50cf4cb0b53cf395823045e5969052daab",
+  "invariants": [
+    "The harness registers the production v2 catalogue under each entry's own name and nothing else but the two generic backstops; no retired v1 name or refusal code is reachable on any surface it exposes.",
+    "The adapter converts only transport shape: an entry's description, family, touch paths and typed input schema survive to the tool list, and changed | unchanged | refused map onto accepted-with-changes, accepted-no-op and refused without re-shaping the owner's affected-entity collections.",
+    "A valid request that changes nothing is an accepted no-op: no changes, no history entry, no timestamp, and the original record identity (catalogue rule 4).",
+    "Every refusal leaves the document, the history and the redo stack byte-identical, and the caller's request record is never mutated.",
+    "Tier 0 is the production route's own stack in the route's own order - structure, domain, dependencies, compiler eligibility - run against the same assets; the harness keeps no second opinion about what a valid Show is.",
+    "Inside a transaction tier 0 is deferred to commit; a refused commit leaves the transaction open for correction and commits nothing.",
+    "Identity is never minted on the command path: every v2 owner takes the identities its caller supplies. Identity domains that are owner-scoped in v2 (keyframes, Transition participants, Group holds, appearance keys) are declared owner-scoped, not record-wide.",
+    "Opening a v2 record validates and lists; it never rewrites the caller's record into a second shape.",
+    "The committed coverage report and generic-only snapshot reproduce exactly from the v2 schema and the registry's declared touch paths, and every structural-cascade declaration names a command that really declares that touch.",
+    "A v2 record round-trips whole through .pxlshow: the importer normalizes nothing away."
+  ],
+  "partitions": [
+    "Tool surface: catalogue entry, generic backstop, session/ceremony tool, retired v1 name (absent).",
+    "Outcome: changed, unchanged (accepted no-op), refused at the command, refused by deferred tier 0 at commit, refused by the protocol schema before any owner runs.",
+    "Pattern reference: resolvable stock, unknown stock (hard error in every mode), resolvable personal through inline source, unresolvable personal existing before the edit (tolerated in editing-session mode), unresolvable personal newly introduced (refused).",
+    "Referent source: direct id, hovered, selected, at_ms, at_playhead, pattern name, ordinal within a Zone; resolutions unique, ambiguous, none.",
+    "Document fault at the session boundary: dangling Clip instanceId, missing Layer, missing Zone in the active Layout, malformed routing operator, duplicate Pattern instance, same-Layer overlap, unknown stock id.",
+    "Turn disposition: committed, asked, refused, incomplete, nothing-applied, commit-refused after the one repair opportunity.",
+    "Baseline fixture outcome: changed, refused for a same-Layer neighbour, .epe export error from an unresolvable Library namespace.",
+    "Installation contract shape: complete coverage, incomplete, overlapping, out-of-range, fractional endpoint, over-capacity pixel count, unknown physical Zone."
+  ],
+  "sequences": [
+    "MCP (#1029): open_show -> create_layers -> create_clips -> remove_clips -> set_show_end exactly 30000 -> add_property_tracks -> commit -> outcome -> export and reopen (test/catalogueSurface.test.ts, test/grammarMcp.e2e.test.ts).",
+    "Deferred-validation repair: resize the first Clip -> create an exactly adjacent second Clip -> add a section-scoped view-brightness track on it -> insert a participant Crossfade between them (every owner accepts) -> commit refuses with the compiler's own section-scoped message -> remove_transition inside the still-open transaction -> commit succeeds as one history entry.",
+    "Unrepaired variant of the same sequence: the repair pass changes nothing, the turn ends commit-refused, no candidate is exported and the request record is unchanged.",
+    "Resolve-then-operate: set_editor_context -> resolve_reference (hovered) -> resize_clip by the returned id -> describe_show reports the new duration.",
+    "Stable resize retry: an ordinal-resolved resize binds exactly one Clip identity; a second mutation, a malformed call, a lifecycle call or an extra argument makes the turn ineligible; the retained binding re-executes on moved, reordered, renamed later state.",
+    "Baseline fixture run: every fixture converted to v2, exported as .pxlshow and .epe at a fixed stamp, one scripted bridge turn over real HTTP/NDJSON/MCP, exported again, hashes compared against the committed pin."
+  ],
+  "oracles": [
+    "The reopened .pxlshow through parseShowFileBundle({ acceptV2: true }) and the reopened .epe through parseEpe, including its PXLBLZ show stamp - never a generator internal.",
+    "The MCP client's own tool list, input schemas and resource contents over a real client/server pair.",
+    "The exported session record after commit, and its equality with the pre-edit record after undo.",
+    "The session's history entries and their summaries, and the redo stack after a refusal.",
+    "The committed coverage artifact compared byte-for-byte with the generator's output.",
+    "The committed fixture evidence file, compared path by path against a fresh run.",
+    "The engine's own property evaluator at a named time, read back through evaluate_property_at.",
+    "The 47-record parity census report (npm run show:v2-parity), unchanged."
+  ],
+  "redEvidence": [
+    "The slice began with 81 failing harness cases across 22 files at base 15ed7a50; every one was driven to green by re-authoring the case on a v2 fault or v2 argument shape, never by weakening an assertion. The inventory and its root-cause grouping are in the coordinator handoff for this issue.",
+    "grammarCoverage.test.ts failed at module load (SHOW_STRUCTURE_COMMANDS is not iterable) because it imported the v1 registry; re-authored on SHOW_COMMANDS_V2 and the v2 report.",
+    "showsMcpServer.e2e.test.ts asserted a 77-name v1 tool list; the observed 71-name v2 list was checked entry by entry against SHOW_COMMANDS_V2 before being recorded, and a separate case now asserts each retired v1 name is absent.",
+    "The re-authored authoringValidation suite was written case by case against the v1 suite it replaces; its header names, for every v1 case not carried over, either the test that already covers it or the retired premise that removes it."
+  ],
+  "faults": [
+    "catalogue.ts: map the owner's `unchanged` outcome onto a refusal -> catalogueSurface.test.ts 'unchanged: an already-satisfied valid request is an accepted no-op' fails; restored.",
+    "evaluate.ts: drop the personal-Pattern remedy mapping -> showEvaluate.test.ts 'rejects user-library references with an explanatory error' and 'tolerates an unresolved user reference in editing-session mode' both fail; restored.",
+    "experiment/cases.ts: reintroduce the retired name move_clip in one corpus case -> showCommandsV2/nameMapReplay.test.ts 'leaves no retired version-1 name in the dictation corpus cases' fails; restored.",
+    "grammar/coverage.ts: add a structural-cascade declaration for a touch path insert_time does not declare -> grammarCoverage.test.ts 'keeps every structural cascade declaration anchored to a command that declares that touch' fails; restored.",
+    "grammar/session.ts: close the transaction when a commit is refused -> grammarMcp.e2e.test.ts 'drives a transaction round trip ... including a refused commit' fails. authoringValidation.test.ts did not catch it, so its invalid-final-candidate case was strengthened to assert the open transaction; the mutation then fails there too. Restored."
+  ],
+  "residualGaps": [
+    "The version-2 admission path runs no Portable capability check. A portable-2d Show naming the 3D-only stock Pattern AuroraSphere validates, prepares and compiles, where v1 refused it with portable-compatibility. validatePortableShowCompatibility is reachable only from showPreviewArtifact.ts and showAuthoringValidation.ts, both v1-only. Pinned as current behaviour with a RESIDUAL comment in test/bridgeAuthoringValidation.test.ts; an engine-only port slice is dispatched separately and will flip that pin.",
+    "The version-2 admission path runs no Installation coverage check. Incomplete, overlapping, out-of-range, fractional and over-capacity physical pixel ranges all validate and stay authorable, where v1 diagnosed each. showPreparedStageV2.ts computes the coverage fact onto the prepared capture's presentation but nothing turns it into a refusal. Pinned as current behaviour with a RESIDUAL comment in test/authoringValidation.test.ts; reported to the epic, not repaired here, because making the harness stricter than the route would restore exactly the second opinion this rewrite removed.",
+    "The browser baseline (e2e/agent-baseline.auth.spec.ts) is not re-authored onto the v2 route in this slice. Its 2536 lines seed version-1 rows through POST /api/shows and read them back through version-1 helpers (mainPlacements, firstMain, watchShowWrites), so every sequence drives the v1 editor while the bridge it talks to is version-2 only. Diagnosis, the reproduction and a scoped plan are in docs/reference/agent-editing-baseline.md; the browser-sequence utterance catalogue in baseline/scripts.ts was trimmed to the entries this repository's offline suites actually run, rather than guessing at v2 argument shapes nothing exercises.",
+    "schemas/show-record-v2.provisional.schema.json still describes itself as experimental input not wired to production decoding, persistence, admission, compilation, import or export. It is now the structural validator behind production admission. Routed to the #1043 documentation sweep.",
+    "The harness no longer reports the v1 artifactBlocker advisory for an oversized target pixel count, because the v2 preparation owner has no such advisory and takes no caller-supplied target count; recorded in test/showEvaluate.test.ts.",
+    "Final authoritative committed-tip suites and the exact-range review are the coordinator's, not this worker's."
+  ],
+  "results": {
+    "focused": "npx vitest run src/agent-harness: 50 files, 541 tests passed (from 22 files / 81 cases failing at base).",
+    "productAdjacents": "src/engine/showAuthoringValidation.test.ts, src/engine/showManualClipResize.test.ts, src/engine/showCommands/layers.test.ts, src/engine/showCommandsV2/nameMapReplay.test.ts, src/dev/agentEditorAdmission.test.ts, src/dev/agentChat.test.ts, src/dev/agentStableRetry.test.ts, scripts/show-authoring-mutation.test.ts: all passed after the three forced test-only adaptations recorded in PROVENANCE.md.",
+    "smoke": "npm run agent:smoke PASS, 8/8 checks; candidate exported as a v2 .pxlshow (752 bytes) reopened through the v2 importer, .epe (7723 bytes) reopened with a show stamp.",
+    "corpus": "npm run agent:corpus -- --fake: 46/46 first-try (100%); 83 tool calls, 38 transactions; asked 5/5, refused 3/3; zero generic-operation use; no failures.",
+    "baselineFixtures": "npm run agent:baseline:fixtures: evidence unchanged (7 fixtures) after the re-pin; 4 fixtures change, 3 refuse for a same-Layer neighbour.",
+    "coverage": "npm run agent:coverage: 170 paths, 130 specific, 40 generic-only, 0 unreachable; regeneration is idempotent (re-run leaves both artifacts byte-identical).",
+    "parity": "npm run show:v2-parity: report matches, 47 inventoried records.",
+    "artifactOracle": "npm run check:artifact-oracle: PASS; show-pxlshow 782 bytes, show-epe 7007 bytes.",
+    "static": "npm run lint clean; npx tsc -b --pretty false clean.",
+    "browserBaseline": "npm run test:e2e:agent-baseline: not green; see residualGaps and docs/reference/agent-editing-baseline.md."
+  }
+}

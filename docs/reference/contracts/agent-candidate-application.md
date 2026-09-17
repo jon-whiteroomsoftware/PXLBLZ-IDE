@@ -523,7 +523,7 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   fields, temporary wrapper/container parking, and remove-then-restore
   sequences whose intermediate state is structurally invalid are refused.
   The whole operation still applies to one private clone and remains atomic.
-  The ordinary 43-case corpus and scripted browser baseline use no scratch
+  The ordinary 46-case corpus and scripted browser baseline use no scratch
   transit and no generic-operation script, so this restriction removes no
   corpus dependency.
 

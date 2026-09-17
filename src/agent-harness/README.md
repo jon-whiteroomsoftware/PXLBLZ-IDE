@@ -11,12 +11,34 @@ Read `docs/reference/contracts/agent-candidate-application.md` before changing t
 its editor application path, and `docs/plans/shared-agentic-show-editing-roadmap-prd.md` for
 the roadmap this serves.
 
+## The version-2 vocabulary (#1039)
+
+Since the Scene-retirement cutover this harness speaks **version 2 only**. A Show is one
+composition in global time: Zones, Layers, Clips, Transitions with named participants, Layout
+occurrences, Property tracks, Markers and Groups. There are no Scenes, no Cells and no flat
+projection, and there is no translation layer here — the harness registers the production
+catalogue (`src/engine/showCommandsV2/registry.ts`) through one adapter,
+`grammar/operations/catalogue.ts`, so a caller sends a v2 command's own arguments and gets its
+own affected-entity result back unchanged. No retired v1 name is registered or aliased;
+`SHOW_COMMAND_V2_NAME_MAP` is where a retired name's replacement is recorded, and
+`src/engine/showCommandsV2/nameMapReplay.test.ts` guards against one reappearing here.
+
+Tier 0 runs the production route's own checks in its own order — structure, domain,
+dependencies, compiler eligibility — against the same assets, rather than keeping a second
+opinion about what a valid Show is. Two v1 diagnostics are therefore absent on this path (the
+Portable capability check and Installation coverage); `PROVENANCE.md` records them as reported
+product gaps, and the RESIDUAL cases in `test/bridgeAuthoringValidation.test.ts` and
+`test/authoringValidation.test.ts` pin what actually holds.
+
+`reference/show-data-model.md` is the authoring reference an agent reads for the record, and
+`pxlblz://docs/clip-layer-authoring/v2` is the one it reads for the command vocabulary.
+
 ## Commands
 
 | Command | What it does | Paid calls |
 | --- | --- | --- |
 | `npm run agent:smoke` | One scripted turn through the real bridge (HTTP, NDJSON, MCP, session, turn runner); the candidate is exported as `.pxlshow` and `.epe` and judged after reopening through the V2 importers. Writes `reports/agent-harness/smoke/`. `-- --delay-ms <n>` holds the turn. | none |
-| `npm run agent:corpus -- --fake` | The 43-case dictation corpus through the fake agent; transcripts, `run-manifest.json` and report under `reports/agent-harness/corpus/`. `--replay <dir>` re-scores the transcripts that directory's manifest names (see "Run directory and replay"). | none |
+| `npm run agent:corpus -- --fake` | The 46-case dictation corpus through the fake agent; transcripts, `run-manifest.json` and report under `reports/agent-harness/corpus/`. `--replay <dir>` re-scores the transcripts that directory's manifest names (see "Run directory and replay"). | none |
 | `npm run agent:corpus -- --live --model <id> --effort <e>` | The corpus through the OpenAI Responses API under the paid-call guard below: one accounting unit per case, stops at the first refusal, lists unmeasured cases in `budget.json`. **Refuses before dispatch until a price with explicit terms (`experiment/pricing.ts`) and a provider input ceiling (`experiment/providerLimits.ts`) are accepted for the model and the ledger exists; only `gpt-5.6-luna` is accepted.** | yes, bounded |
 | `npm run agent:held-out:verify` | Verify the sealed v1 held-out manifest, artifact hashes, finite case count and #958 release gate. Prints metadata only; it cannot execute or score a case. | none |
 | `BRIDGE_AGENT=scripted npm run agent:bridge` | The bridge on an ephemeral loopback port with the fake agent; each `/utterance` body carries its `script` and optional `delayMs`. Prints the port and the overlay snippet. | none |
@@ -25,7 +47,7 @@ the roadmap this serves.
 | `npm run agent:coverage` | Regenerates `reference/show-grammar-coverage.md` and the generic-only snapshot from V2's live schema and the grammar registry. | none |
 | `npm run agent:diagnostics` | Known-drift oracles kept verbatim (`test/*.diagnostic.ts`); expected to fail and never part of CI. | none |
 | `npm run test:e2e:agent-baseline` | Eight known-outcome reproductions on the live Show editor route in Chromium through the real overlay and a spawned scripted bridge (#945 browser baseline). Writes `reports/agent-harness/baseline/browser/<run>/`. Explicit diagnostic; not a push gate. | none |
-| `npm run agent:baseline:fixtures` | Every baseline fixture (`baseline/fixtures.ts`) exported as `.pxlshow` and `.epe`, one scripted bridge turn, exported again; hashes compared against the committed `baseline/evidence/fixtures.json` (exit 1 on drift; `-- --write` re-records). | none |
+| `npm run agent:baseline:fixtures` | Every baseline fixture (`baseline/fixtures.ts`, converted to version 2 by `baseline/fixturesV2.ts`) exported as `.pxlshow` and `.epe`, one scripted bridge turn, exported again; hashes compared against the committed `baseline/evidence/fixtures.json` (exit 1 on drift; `-- --write` re-records). | none |
 
 The ordinary suites under `test/*.test.ts` run in the Vitest `node` project with `npm test`.
 
@@ -258,7 +280,7 @@ after the precheck. Jon then approved a narrower completion contract: `apply_pat
 ordinary edits to declared Show structure, every member must preserve structural validity, and
 arbitrary scratch fields, temporary containers, and final-only-valid sequences are refused. A
 move resolves and checks its actual destination after detaching the source, immediately before
-the write. The ordinary 43-case corpus and scripted browser baseline contain no scratch transit
+the write. The ordinary 46-case corpus and scripted browser baseline contain no scratch transit
 or generic-operation scripts. The superseded scratch-provenance suite was removed; direct moves
 between declared owners retain their identity coverage in the smaller transit suite, and
 `genericDeclaredStructure.test.ts` owns the supported/rejected boundary and atomicity proof.

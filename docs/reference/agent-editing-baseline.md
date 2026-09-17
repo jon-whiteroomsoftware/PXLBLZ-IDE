@@ -16,8 +16,9 @@ qualification remain separate from these diagnostic measurements.
 
 The unpaid live-run preflight is pinned in
 [`evidence/issue-945-live-baseline/unpaid-preflight.md`](evidence/issue-945-live-baseline/unpaid-preflight.md).
-It records the initially empty $20 ledger, the 43/43 fake-corpus control, and
-held-out metadata verification before the live run.
+It records the initially empty $20 ledger, the 43/43 fake-corpus control (the
+corpus was 43 v1 cases then; it is 46 v2 cases since #1039), and held-out
+metadata verification before the live run.
 
 Contracts this evidence serves:
 [agent candidate application](contracts/agent-candidate-application.md),
@@ -96,8 +97,8 @@ successful authoring does not claim Controller delivery readiness.
 
 | Command | What it proves | CI |
 | --- | --- | --- |
-| `npm run test:e2e:agent-baseline` | Live editor cases, including #950 exact resize R: B2 exact gating plus A-D stale/session prevention and E-H retained recovery/adoption cases. Writes `reports/agent-harness/baseline/browser/<run>/` (captures, selected phase records and the bridge log). | explicit only; not a push gate |
-| `npm run agent:baseline:fixtures` | Every baseline fixture exported as `.pxlshow` and `.epe` at a fixed stamp, one scripted bridge turn, export again; compares hashes against `src/agent-harness/baseline/evidence/fixtures.json` and exits 1 on drift. `-- --write` re-records after a human has read the diff. | explicit only |
+| `npm run test:e2e:agent-baseline` | Live editor cases, including #950 exact resize R: B2 exact gating plus A-D stale/session prevention and E-H retained recovery/adoption cases. Writes `reports/agent-harness/baseline/browser/<run>/` (captures, selected phase records and the bridge log). **Not green since the #1039 harness cutover** — see "Version-2 harness cutover" below. | explicit only; not a push gate |
+| `npm run agent:baseline:fixtures` | Every baseline fixture converted to version 2, exported as `.pxlshow` and `.epe` at a fixed stamp, one scripted bridge turn, export again; compares hashes against `src/agent-harness/baseline/evidence/fixtures.json` and exits 1 on drift. `-- --write` re-records after a human has read the diff. | explicit only |
 | `npm run agent:smoke`, `npm run agent:corpus -- --fake` | Unchanged from the first slice: bridge path and corpus without an editor. | manual |
 | `npx vitest run src/agent-harness src/dev` | Bridge request-id and phase-clock tests, fixture-set coverage and record-hash pins, the observation log. | `npm test` |
 
@@ -392,3 +393,129 @@ actual manually injected overlay/HTTP/scripted service without paid inference.
 [Fixture R evidence](evidence/issue-950-resize/README.md) records exact boundary
 adoption, valid no-op, capacity refusal and undo/redo through the scripted live
 route. It does not claim paired manual/agent or Layer-independent context proof.
+
+## Version-2 harness cutover (#1039) and the #1055 re-pin
+
+### What moved
+
+The agent harness now speaks **version 2 only**. `src/agent-harness` registers the
+production v2 catalogue through one adapter and no retired v1 name; the bridge,
+the grammar session, the MCP server, the corpus and the evaluation tools all read
+and write `ShowRecordV2`. `src/agent-harness/PROVENANCE.md` records the rewrite,
+the suites it retired and the two version-1 diagnostics that have no version-2
+admission path.
+
+`npm run agent:baseline:fixtures` now converts each pinned legacy fixture through
+the app's own `convertShowRecordV1ToV2` (`baseline/fixturesV2.ts`) before running
+it. `baseline/fixtures.ts` is unchanged: those records are the pinned legacy
+inputs of the 47-record parity census and of three product suites.
+
+### The #1055 re-pin
+
+`src/agent-harness/baseline/evidence/fixtures.json` is re-pinned. #1055's two
+causes were both confirmed intended:
+
+1. `30a0aa00` (#1018, "format Clip resize confirmations for people") reworded the
+   `resize_clip` activity summary the fixture evidence records.
+2. `d15ea7c1` (#952, "converge Layer Transition commands and connected resize")
+   replaced `normalizeShowComposition(show, draft)` with `draft` in
+   `replaceLogicalClipGlobalSpan` and `moveShowClip` in
+   `src/engine/showTimelineClipAuthoring.ts`. Bisected in `c0ab5995..HEAD` with
+   `agent:baseline:fixtures` as the oracle, restoring the pre-#1018 summary
+   string for the bisect only so cause 2 was isolated from cause 1. The change is
+   **key order only**: the good and bad `personal-base` bundles are both 1881
+   bytes, their canonical sorted-key JSON is identical, and the first textual
+   difference is at offset 1029 where `executionModel` moves to the end of
+   `composition`. `recordSha256` never moved, which is why #1055 reported "same
+   Show, different `.pxlshow`" — this harness hashes `JSON.stringify(bundle)`,
+   which is order-sensitive, while `recordSha256` is canonical. #952's own
+   message is "preserve explicit transition settings and validated authored
+   records", and specification section 3 forbids a universal normalizer
+   re-imposing shape on an owner's candidate, so the verdict is re-pin.
+
+The re-pin also reflects the conversion above, so every fixture hash moves. The
+per-fixture outcomes are stable except one, which is intended v2 behaviour:
+
+| Fixture | v1 outcome | v2 outcome |
+| --- | --- | --- |
+| `personal-base`, `personal-library-pattern`, `groups` | changed | changed |
+| `stock-draft`, `animation`, `routing` | refused: "The same-Layer range at this start is 0–5000 ms." | refused: "Clips on one Zone and Layer cannot overlap." |
+| `long-timeline` | refused: "This resize would remove a Scene-boundary Transition." | **changed** |
+
+`long-timeline` changed because a v2 Transition is a participant entity between
+two Clips rather than a Scene boundary: a trailing resize ripples the connected
+component and preserves Transition identity and duration (specification section
+5), so the edit is legal where v1 refused it. The rippled component is reported
+in the summary — twelve Clips for that fixture. `clipCount` and `loopDurationMs`
+are identical to the v1 pin for every fixture, so the conversion preserved each
+timeline.
+
+### The browser baseline is not re-authored (residual)
+
+`npm run test:e2e:agent-baseline` does **not** pass after the cutover. The cause
+is single, measured, and structural rather than per-assertion.
+
+Every sequence in `e2e/agent-baseline.auth.spec.ts` seeds its own **version-1**
+record through `POST /api/shows` (`createShowWithOutputContract`) and opens the
+ordinary Show route, which serves the **version-1 editor** for a stored version-1
+row. The overlay hands that v1 record to the rewritten bridge, which is version-2
+only, so the turn refuses at the service boundary before any tool runs. The
+bridge log of a sequence A run says so verbatim:
+
+```
+[req-463478aa…] turn: "make the first Clip twelve seconds"
+[req-463478aa…] turn done in 0.1s (changed: false)
+[req-463478aa…]   reply: The Show did not open for editing: [schema] document must have required property 'version'
+```
+
+Sequence A therefore fails at `expect(request.applied).toBe(false)` with
+`applied: null` — no verdict, because no candidate was ever offered to the
+editor — and D957 fails at `data-outcome="applied"` for the same reason. This
+supersedes the note on `31485415` that sequence A's failure was pre-existing and
+unrelated: whatever it was before, its cause now is the bridge's version.
+
+**B2 keeps its seeded version-1 row.** Its subject is specifically the version-1
+editor's agent binding and route gating — that is why `31485415` seeded the row
+in the first place — and it passes unchanged. It stays version 1 until the
+version-1 editor itself retires in #1042.
+
+Converting the record inside the bridge was rejected: a v1-to-v2 translation
+layer inside the harness is exactly what the rewrite removed, and it would make
+this diagnostic measure a shim rather than the route.
+
+The browser-sequence utterance catalogue in `src/agent-harness/baseline/scripts.ts`
+was trimmed to the entries this repository's offline suites actually run. The
+retired entries named v1 commands (`move_clip`, `set_clip_view`,
+`set_boundary_transition`, …) whose argument shapes change under the v2
+catalogue; rewriting them with nothing exercising them would be guesses recorded
+as evidence. They return with the re-authoring below.
+
+#### Scoped plan for re-authoring it
+
+1. **Seed version 2.** Replace `createPersonalShow` with a helper that posts a
+   version-2 record (the store's own fresh-Show creation path, which writes v2
+   since the flip) and assert the route mounts the v2 editor. Keep a v1 variant
+   for B2 and D957 only.
+2. **Read back version 2.** `mainPlacements`, `firstMain` and the
+   `watchShowWrites` body reader all destructure
+   `composition.scenes[0].zones[0].main[0]`. Replace them with readers over
+   `composition.clips` keyed by Layer and start time; the existing `MainFacts`
+   shape survives unchanged.
+3. **Restore the utterance catalogue** in `baseline/scripts.ts` on the v2
+   catalogue's own arguments, one entry per browser sequence, each with its
+   `intent` line.
+4. **Re-derive each sequence's expected outcome against the v2 owners, not by
+   renaming.** The fixture re-pin above already shows one sequence flipping from
+   refusal to acceptance; the offline rewrite found three more differences worth
+   checking per sequence: a resize ripples its connected component instead of
+   refusing, an unavailable Pattern refuses at the command instead of at commit,
+   and a participant Transition beside a section-scoped Property activation is
+   refused by the compiler at commit.
+5. **Re-check the UI locators.** The v2 editor's timeline, detail panel and
+   Layer rail are different components; `visibleClipFacts` and the Clip-selection
+   locators need verifying against them.
+
+This is slice-sized work against a route that is still moving — the flip is held
+unlanded pending the Show-surface and Zones slices, and the Portable capability
+check is a separate in-flight slice — so it is handed back rather than started.
+The diagnostic remains explicitly not a push gate.
