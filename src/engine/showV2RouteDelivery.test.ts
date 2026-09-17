@@ -154,6 +154,41 @@ describe('the v2 route delivery model', () => {
     }
   })
 
+  it('refuses to deliver a Show the resource ledger blocks, with the ledger\'s own message', () => {
+    // v1's `compileShowForArtifact` compiles, then reports
+    // `summary.resources.blockers[0].message` as `artifactBlocker`, and the v1
+    // editor disables View code, Export and Send on it. v2 read the same
+    // summary for its gauge and exported anyway. The refusal is the v2 route's
+    // `blockedReason`, which is what disables the same three actions there.
+    const { record, dependencies } = showV2GroupEditorFixture()
+    // A complete physical Layout over more pixels than a compiled Show carries:
+    // coverage is satisfied, and the ledger is what blocks the artifact.
+    const pixelCount = 4_000
+    record.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount, resolution: 'fixed' }
+    record.zoneLayouts = record.zoneLayouts.map(layout => ({
+      id: layout.id,
+      name: 'Only',
+      zones: record.zones.map(zone => ({
+        zoneId: zone.id,
+        ranges: zone.id === record.composition.clips[0].zoneId ? [{ start: 0, end: pixelCount - 1 }] : [],
+      })),
+    }))
+    const capture = captureShowStageEditV2(record, dependencies)
+    if (capture.prepared.status !== 'ready') throw new Error(JSON.stringify(capture.prepared))
+    const blocker = capture.prepared.bundle.artifact.summary.resources.blockers[0]
+    expect(blocker).toBeDefined()
+    expect(buildShowV2RouteArtifacts(capture.prepared.bundle)).toEqual({
+      status: 'refused',
+      message: blocker.message,
+    })
+  })
+
+  it('delivers a Show whose resource ledger reports no blocker', () => {
+    const { bundle } = prepared()
+    expect(bundle.artifact.summary.resources.blockers).toEqual([])
+    expect(buildShowV2RouteArtifacts(bundle).status).toBe('ready')
+  })
+
   it('delivers an Installation Show whose physical Layout covers the output exactly once', () => {
     const { bundle } = installation([{ start: 0, end: 15 }])
     expect(buildShowV2RouteArtifacts(bundle).status).toBe('ready')

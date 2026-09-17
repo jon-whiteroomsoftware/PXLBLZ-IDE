@@ -74,6 +74,15 @@ export function buildShowV2RouteArtifacts(
     bundle.presentation.stageDimension,
   ))
   if (portable) return { status: 'refused', message: portable }
+  // The resource ledger gate `compileShowForArtifact` applies after compiling:
+  // it reports `summary.resources.blockers[0].message` as `artifactBlocker`,
+  // and the v1 editor disables View code, Export and Send on it. This route
+  // already read the same summary for its word gauge but delivered anyway, so
+  // a Show whose render targets, member Patterns or persistent globals exceed
+  // the device budget exported bytes no Controller can run. The refusal is
+  // this route's `blockedReason`, which disables the same three actions.
+  const resourceBlocker = artifact.summary.resources.blockers[0]
+  if (resourceBlocker) return { status: 'refused', message: resourceBlocker.message }
   const exported = buildShowEpeExportV2(record, artifact.code, {
     userMaps: assets.maps,
     ...(options.exportedAt === undefined ? {} : { stampedAt: options.exportedAt }),
