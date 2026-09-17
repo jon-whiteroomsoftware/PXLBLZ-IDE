@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "issue": 1065,
+  "sourceRunId": "bounded-behavior-3",
+  "generatedAt": "2026-09-17T20:25:25.922Z",
+  "gesture": "pointer Clip drag by +2000ms",
+  "outcomes": [
+    {
+      "version": "v1",
+      "available": true,
+      "historyAfterDrag": {
+        "past": 1,
+        "future": 0
+      },
+      "savesAfterDrag": 1,
+      "movedPreservedOnFreshPage": true,
+      "historyAfterUndo": {
+        "past": 0,
+        "future": 1
+      },
+      "savesAfterUndo": 2,
+      "undoRestoredAfterReload": true
+    },
+    {
+      "version": "v2",
+      "available": false,
+      "error": "The ordinary v1 Clip selector was unavailable after 5000ms."
+    }
+  ],
+  "assessmentError": "The ordinary pointer Clip gesture was unavailable on at least one stored row."
+}

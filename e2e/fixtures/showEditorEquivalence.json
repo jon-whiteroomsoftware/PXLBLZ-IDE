@@ -1,0 +1,5630 @@
+{
+  "version": 1,
+  "corpus": [
+    {
+      "key": "fresh",
+      "fixedTimeMs": 5000,
+      "source": {
+        "id": "oracle-fresh-source",
+        "name": "Oracle Fresh Show",
+        "scenes": [
+          {
+            "id": "scene-1",
+            "name": "Scene 1",
+            "durationMs": 30000
+          },
+          {
+            "id": "scene-2",
+            "name": "Scene 2",
+            "durationMs": 30000
+          }
+        ],
+        "zones": [
+          {
+            "id": "zone-1",
+            "name": "main",
+            "nominalPixelCount": 64,
+            "color": "#38bdf8"
+          }
+        ],
+        "cells": [
+          {
+            "id": "cell-1",
+            "zoneId": "zone-1",
+            "sceneId": "scene-1",
+            "sceneSpan": 1,
+            "pattern": {
+              "kind": "stock",
+              "id": "TestPattern1D"
+            },
+            "patternName": "TestPattern1D",
+            "adaptations": {
+              "mirror": false,
+              "phase": 0,
+              "brightness": 1,
+              "timeScale": 1
+            },
+            "restartOnEntry": false
+          },
+          {
+            "id": "cell-2",
+            "zoneId": "zone-1",
+            "sceneId": "scene-2",
+            "sceneSpan": 1,
+            "pattern": {
+              "kind": "stock",
+              "id": "CometLoom"
+            },
+            "patternName": "CometLoom",
+            "adaptations": {
+              "mirror": false,
+              "phase": 0,
+              "brightness": 1,
+              "timeScale": 1
+            },
+            "restartOnEntry": false
+          }
+        ],
+        "routingLayouts": [
+          {
+            "id": "layout-1",
+            "name": "Default",
+            "zones": [
+              {
+                "zoneId": "zone-1",
+                "ranges": [
+                  {
+                    "start": 0,
+                    "end": 63
+                  }
+                ]
+              }
+            ],
+            "logical": {
+              "kind": "single",
+              "zoneIds": [
+                "zone-1"
+              ]
+            }
+          }
+        ],
+        "transitions": [
+          {
+            "id": "transition-scene-1",
+            "afterSceneId": "scene-1",
+            "kind": "crossfade",
+            "durationMs": 2000,
+            "easing": {
+              "curve": "linear"
+            },
+            "crossfadePolicy": "snapshot-live"
+          }
+        ],
+        "stageMapId": "plane",
+        "outputContract": {
+          "version": 1,
+          "kind": "portable-2d",
+          "referenceMapId": "plane",
+          "referencePixelCount": 64,
+          "compatibility": {
+            "dimensions": [
+              2
+            ],
+            "mapClass": "continuous-surface",
+            "resolution": "variable"
+          }
+        },
+        "updatedAt": 1
+      },
+      "converted": {
+        "version": 2,
+        "id": "oracle-fresh-source",
+        "name": "Oracle Fresh Show",
+        "zones": [
+          {
+            "id": "zone-1",
+            "name": "main",
+            "nominalPixelCount": 64,
+            "color": "#38bdf8"
+          }
+        ],
+        "zoneLayouts": [
+          {
+            "id": "layout-1",
+            "name": "Default",
+            "zones": [
+              {
+                "zoneId": "zone-1",
+                "ranges": [
+                  {
+                    "start": 0,
+                    "end": 63
+                  }
+                ]
+              }
+            ],
+            "logical": {
+              "kind": "single",
+              "zoneIds": [
+                "zone-1"
+              ]
+            }
+          }
+        ],
+        "stageMapId": "plane",
+        "outputContract": {
+          "version": 1,
+          "kind": "portable-2d",
+          "referenceMapId": "plane",
+          "referencePixelCount": 64,
+          "compatibility": {
+            "dimensions": [
+              2
+            ],
+            "mapClass": "continuous-surface",
+            "resolution": "variable"
+          }
+        },
+        "composition": {
+          "version": 2,
+          "executionModel": "continuous",
+          "showEndMs": 62000,
+          "sampleRemap": {
+            "repeatScale": 1
+          },
+          "patternInstances": [
+            {
+              "id": "cell-1",
+              "pattern": {
+                "kind": "stock",
+                "id": "TestPattern1D"
+              },
+              "patternName": "TestPattern1D",
+              "time": {
+                "timeScale": 1,
+                "timeOffsetMs": 0
+              }
+            },
+            {
+              "id": "cell-2",
+              "pattern": {
+                "kind": "stock",
+                "id": "CometLoom"
+              },
+              "patternName": "CometLoom",
+              "time": {
+                "timeScale": 1,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "layers": [
+            {
+              "id": "layer:zone-1:main",
+              "zoneId": "zone-1",
+              "name": "Main",
+              "rank": 0
+            }
+          ],
+          "clips": [
+            {
+              "id": "placement-cell-1-scene-1",
+              "instanceId": "cell-1",
+              "zoneId": "zone-1",
+              "layerId": "layer:zone-1:main",
+              "startMs": 0,
+              "durationMs": 30000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "independent",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "placement-cell-1-scene-1:appearance:1",
+                    "timeMs": 0,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "placement-cell-2-scene-2",
+              "instanceId": "cell-2",
+              "zoneId": "zone-1",
+              "layerId": "layer:zone-1:main",
+              "startMs": 32000,
+              "durationMs": 30000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "independent",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "placement-cell-2-scene-2:appearance:1",
+                    "timeMs": 32000,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "transitions": [
+            {
+              "id": "transition-scene-1",
+              "kind": "crossfade",
+              "durationMs": 2000,
+              "easing": {
+                "curve": "linear"
+              },
+              "crossfadePolicy": "snapshot-live",
+              "participants": [
+                {
+                  "id": "transition-scene-1:participant:1",
+                  "zoneId": "zone-1",
+                  "layerId": "layer:zone-1:main",
+                  "fromClipId": "placement-cell-1-scene-1",
+                  "toClipId": "placement-cell-2-scene-2"
+                }
+              ],
+              "propertyRamps": []
+            }
+          ],
+          "layoutOccurrences": [
+            {
+              "id": "layout-occurrence:1",
+              "layoutId": "layout-1",
+              "startMs": 0,
+              "durationMs": 62000,
+              "parameters": {}
+            }
+          ],
+          "propertyTracks": [],
+          "markers": [
+            {
+              "id": "scene-marker:scene-1",
+              "timeMs": 0,
+              "name": "Scene 1",
+              "role": "chapter"
+            },
+            {
+              "id": "scene-marker:scene-2",
+              "timeMs": 32000,
+              "name": "Scene 2",
+              "role": "chapter"
+            }
+          ],
+          "groupDefinitions": [],
+          "groupOccurrences": []
+        },
+        "updatedAt": 1
+      },
+      "conversionReport": {
+        "sourceShowId": "oracle-fresh-source",
+        "accounting": [
+          {
+            "sourcePath": "cells.0.adaptations.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.appearance.keys.*.value.view.brightness"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.appearance.keys.*.value.view.mirror"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.appearance.keys.*.value.view.phase"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.timeScale",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.time.timeScale"
+          },
+          {
+            "sourcePath": "cells.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances/clips"
+          },
+          {
+            "sourcePath": "cells.0.pattern.id",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.pattern.id"
+          },
+          {
+            "sourcePath": "cells.0.pattern.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.pattern.kind"
+          },
+          {
+            "sourcePath": "cells.0.patternName",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.patternName"
+          },
+          {
+            "sourcePath": "cells.0.restartOnEntry",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.id"
+          },
+          {
+            "sourcePath": "cells.0.sceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.startMs"
+          },
+          {
+            "sourcePath": "cells.0.sceneSpan",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.durationMs"
+          },
+          {
+            "sourcePath": "cells.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.zoneId"
+          },
+          {
+            "sourcePath": "cells.1.adaptations.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.appearance.keys.*.value.view.brightness"
+          },
+          {
+            "sourcePath": "cells.1.adaptations.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.appearance.keys.*.value.view.mirror"
+          },
+          {
+            "sourcePath": "cells.1.adaptations.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.appearance.keys.*.value.view.phase"
+          },
+          {
+            "sourcePath": "cells.1.adaptations.timeScale",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.time.timeScale"
+          },
+          {
+            "sourcePath": "cells.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances/clips"
+          },
+          {
+            "sourcePath": "cells.1.pattern.id",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.pattern.id"
+          },
+          {
+            "sourcePath": "cells.1.pattern.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.pattern.kind"
+          },
+          {
+            "sourcePath": "cells.1.patternName",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.patternName"
+          },
+          {
+            "sourcePath": "cells.1.restartOnEntry",
+            "outcome": "mapped",
+            "targetPath": "composition.patternInstances.*.id"
+          },
+          {
+            "sourcePath": "cells.1.sceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.startMs"
+          },
+          {
+            "sourcePath": "cells.1.sceneSpan",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.durationMs"
+          },
+          {
+            "sourcePath": "cells.1.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.*.zoneId"
+          },
+          {
+            "sourcePath": "id",
+            "outcome": "preserved",
+            "targetPath": "id"
+          },
+          {
+            "sourcePath": "name",
+            "outcome": "preserved",
+            "targetPath": "name"
+          },
+          {
+            "sourcePath": "outputContract.compatibility.dimensions.0",
+            "outcome": "preserved",
+            "targetPath": "outputContract.compatibility.dimensions.0"
+          },
+          {
+            "sourcePath": "outputContract.compatibility.mapClass",
+            "outcome": "preserved",
+            "targetPath": "outputContract.compatibility.mapClass"
+          },
+          {
+            "sourcePath": "outputContract.compatibility.resolution",
+            "outcome": "preserved",
+            "targetPath": "outputContract.compatibility.resolution"
+          },
+          {
+            "sourcePath": "outputContract.kind",
+            "outcome": "preserved",
+            "targetPath": "outputContract.kind"
+          },
+          {
+            "sourcePath": "outputContract.referenceMapId",
+            "outcome": "preserved",
+            "targetPath": "outputContract.referenceMapId"
+          },
+          {
+            "sourcePath": "outputContract.referencePixelCount",
+            "outcome": "preserved",
+            "targetPath": "outputContract.referencePixelCount"
+          },
+          {
+            "sourcePath": "outputContract.version",
+            "outcome": "preserved",
+            "targetPath": "outputContract.version"
+          },
+          {
+            "sourcePath": "routingLayouts.0.id",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.id"
+          },
+          {
+            "sourcePath": "routingLayouts.0.logical.kind",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.logical.kind"
+          },
+          {
+            "sourcePath": "routingLayouts.0.logical.zoneIds.0",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.logical.zoneIds.0"
+          },
+          {
+            "sourcePath": "routingLayouts.0.name",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.name"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones.0.ranges.0.end",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones.0.ranges.0.end"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones.0.ranges.0.start",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones.0.ranges.0.start"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones.0.zoneId"
+          },
+          {
+            "sourcePath": "scenes.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/showEndMs/layoutOccurrences"
+          },
+          {
+            "sourcePath": "scenes.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.0.id"
+          },
+          {
+            "sourcePath": "scenes.0.name",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.0.name"
+          },
+          {
+            "sourcePath": "scenes.1.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/showEndMs/layoutOccurrences"
+          },
+          {
+            "sourcePath": "scenes.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.1.id"
+          },
+          {
+            "sourcePath": "scenes.1.name",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.1.name"
+          },
+          {
+            "sourcePath": "stageMapId",
+            "outcome": "preserved",
+            "targetPath": "stageMapId"
+          },
+          {
+            "sourcePath": "transitions.0.afterSceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.transitions.0.participants"
+          },
+          {
+            "sourcePath": "transitions.0.crossfadePolicy",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.crossfadePolicy"
+          },
+          {
+            "sourcePath": "transitions.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.durationMs"
+          },
+          {
+            "sourcePath": "transitions.0.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.easing.curve"
+          },
+          {
+            "sourcePath": "transitions.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.id"
+          },
+          {
+            "sourcePath": "transitions.0.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.kind"
+          },
+          {
+            "sourcePath": "updatedAt",
+            "outcome": "preserved",
+            "targetPath": "updatedAt"
+          },
+          {
+            "sourcePath": "zones.0.color",
+            "outcome": "preserved",
+            "targetPath": "zones.0.color"
+          },
+          {
+            "sourcePath": "zones.0.id",
+            "outcome": "preserved",
+            "targetPath": "zones.0.id"
+          },
+          {
+            "sourcePath": "zones.0.name",
+            "outcome": "preserved",
+            "targetPath": "zones.0.name"
+          },
+          {
+            "sourcePath": "zones.0.nominalPixelCount",
+            "outcome": "preserved",
+            "targetPath": "zones.0.nominalPixelCount"
+          }
+        ],
+        "unaccountedSourcePaths": [],
+        "sceneOffsets": [
+          {
+            "sceneId": "scene-1",
+            "startMs": 0,
+            "endMs": 30000
+          },
+          {
+            "sceneId": "scene-2",
+            "startMs": 32000,
+            "endMs": 62000
+          }
+        ],
+        "layerMappings": [
+          {
+            "sceneId": "scene-1",
+            "zoneId": "zone-1",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-1:main"
+          },
+          {
+            "sceneId": "scene-2",
+            "zoneId": "zone-1",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-1:main"
+          }
+        ],
+        "clipMappings": [
+          {
+            "sourcePlacementIds": [
+              "placement-cell-1-scene-1"
+            ],
+            "clipId": "placement-cell-1-scene-1"
+          },
+          {
+            "sourcePlacementIds": [
+              "placement-cell-2-scene-2"
+            ],
+            "clipId": "placement-cell-2-scene-2"
+          }
+        ],
+        "markerMappings": [
+          {
+            "sourceSceneId": "scene-1",
+            "markerId": "scene-marker:scene-1",
+            "timeMs": 0
+          },
+          {
+            "sourceSceneId": "scene-2",
+            "markerId": "scene-marker:scene-2",
+            "timeMs": 32000
+          }
+        ],
+        "flatProjectionMappings": [
+          {
+            "cellId": "cell-1",
+            "placementIds": [
+              "placement-cell-1-scene-1"
+            ],
+            "patternInstanceIds": [
+              "cell-1"
+            ]
+          },
+          {
+            "cellId": "cell-2",
+            "placementIds": [
+              "placement-cell-2-scene-2"
+            ],
+            "patternInstanceIds": [
+              "cell-2"
+            ]
+          }
+        ],
+        "retiredFlatCellShadows": [],
+        "retiredSilentRuntimeUses": [],
+        "retiredStructuralCuts": [],
+        "retiredNoContributionPropertyTracks": []
+      }
+    },
+    {
+      "key": "installation-layouts",
+      "fixedTimeMs": 8000,
+      "source": {
+        "id": "oracle-installation-layouts-source",
+        "name": "Oracle Installation Layouts",
+        "scenes": [
+          {
+            "id": "full",
+            "name": "Full surface",
+            "durationMs": 5000
+          },
+          {
+            "id": "split",
+            "name": "Split",
+            "durationMs": 6000,
+            "routingTargets": {
+              "splitPosition": 0.5
+            }
+          },
+          {
+            "id": "rings",
+            "name": "Rings",
+            "durationMs": 6000
+          }
+        ],
+        "zones": [
+          {
+            "id": "zone-1",
+            "name": "Weave",
+            "nominalPixelCount": 32,
+            "color": "#38bdf8"
+          },
+          {
+            "id": "zone-2",
+            "name": "Water",
+            "nominalPixelCount": 32,
+            "color": "#f97316"
+          }
+        ],
+        "cells": [
+          {
+            "id": "cell-full-zone-1",
+            "zoneId": "zone-1",
+            "sceneId": "full",
+            "sceneSpan": 1,
+            "pattern": {
+              "kind": "stock",
+              "id": "RibbonLoom"
+            },
+            "patternName": "RibbonLoom",
+            "adaptations": {
+              "mirror": false,
+              "phase": 0,
+              "brightness": 1,
+              "timeScale": 0.32
+            },
+            "restartOnEntry": false
+          },
+          {
+            "id": "cell-split-zone-1",
+            "zoneId": "zone-1",
+            "sceneId": "split",
+            "sceneSpan": 1,
+            "pattern": {
+              "kind": "stock",
+              "id": "RibbonLoom"
+            },
+            "patternName": "RibbonLoom",
+            "adaptations": {
+              "mirror": false,
+              "phase": 0,
+              "brightness": 1,
+              "timeScale": 0.32
+            },
+            "restartOnEntry": false
+          },
+          {
+            "id": "cell-split-zone-2",
+            "zoneId": "zone-2",
+            "sceneId": "split",
+            "sceneSpan": 1,
+            "pattern": {
+              "kind": "stock",
+              "id": "IceFloes2D"
+            },
+            "patternName": "IceFloes2D",
+            "adaptations": {
+              "mirror": false,
+              "phase": 0,
+              "brightness": 1,
+              "timeScale": 0.32
+            },
+            "restartOnEntry": false
+          },
+          {
+            "id": "cell-rings-zone-1",
+            "zoneId": "zone-1",
+            "sceneId": "rings",
+            "sceneSpan": 1,
+            "pattern": {
+              "kind": "stock",
+              "id": "RibbonLoom"
+            },
+            "patternName": "RibbonLoom",
+            "adaptations": {
+              "mirror": false,
+              "phase": 0,
+              "brightness": 1,
+              "timeScale": 0.32
+            },
+            "restartOnEntry": false
+          },
+          {
+            "id": "cell-rings-zone-2",
+            "zoneId": "zone-2",
+            "sceneId": "rings",
+            "sceneSpan": 1,
+            "pattern": {
+              "kind": "stock",
+              "id": "IceFloes2D"
+            },
+            "patternName": "IceFloes2D",
+            "adaptations": {
+              "mirror": false,
+              "phase": 0,
+              "brightness": 1,
+              "timeScale": 0.32
+            },
+            "restartOnEntry": false
+          }
+        ],
+        "routingLayouts": [
+          {
+            "id": "layout-full",
+            "name": "Full Surface",
+            "zones": [
+              {
+                "zoneId": "zone-1",
+                "ranges": [
+                  {
+                    "start": 0,
+                    "end": 63
+                  }
+                ]
+              },
+              {
+                "zoneId": "zone-2",
+                "ranges": []
+              }
+            ]
+          },
+          {
+            "id": "layout-split",
+            "name": "Split",
+            "zones": [
+              {
+                "zoneId": "zone-1",
+                "ranges": [
+                  {
+                    "start": 0,
+                    "end": 31
+                  }
+                ]
+              },
+              {
+                "zoneId": "zone-2",
+                "ranges": [
+                  {
+                    "start": 32,
+                    "end": 63
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "layout-rings",
+            "name": "Alternating Bands",
+            "zones": [
+              {
+                "zoneId": "zone-1",
+                "ranges": [
+                  {
+                    "start": 0,
+                    "end": 15
+                  },
+                  {
+                    "start": 32,
+                    "end": 47
+                  }
+                ]
+              },
+              {
+                "zoneId": "zone-2",
+                "ranges": [
+                  {
+                    "start": 16,
+                    "end": 31
+                  },
+                  {
+                    "start": 48,
+                    "end": 63
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "transitions": [
+          {
+            "id": "transition-full",
+            "afterSceneId": "full",
+            "kind": "cut",
+            "durationMs": 0,
+            "easing": {
+              "curve": "linear"
+            }
+          },
+          {
+            "id": "routing-full-split",
+            "afterSceneId": "full",
+            "kind": "routing",
+            "durationMs": 1500,
+            "easing": {
+              "curve": "sine",
+              "direction": "in-out"
+            },
+            "layoutId": "layout-split",
+            "routingDirection": "forward"
+          },
+          {
+            "id": "transition-split",
+            "afterSceneId": "split",
+            "kind": "cut",
+            "durationMs": 0,
+            "easing": {
+              "curve": "linear"
+            }
+          },
+          {
+            "id": "routing-split-rings",
+            "afterSceneId": "split",
+            "kind": "routing",
+            "durationMs": 0,
+            "easing": {
+              "curve": "linear"
+            },
+            "layoutId": "layout-rings"
+          }
+        ],
+        "stageMapId": "plane",
+        "outputContract": {
+          "version": 1,
+          "kind": "installation",
+          "outputMapId": "plane",
+          "pixelCount": 64,
+          "resolution": "fixed"
+        },
+        "composition": {
+          "version": 1,
+          "patternInstances": [
+            {
+              "id": "loom",
+              "pattern": {
+                "kind": "stock",
+                "id": "RibbonLoom"
+              },
+              "patternName": "RibbonLoom",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            },
+            {
+              "id": "water",
+              "pattern": {
+                "kind": "stock",
+                "id": "IceFloes2D"
+              },
+              "patternName": "IceFloes2D",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "scenes": [
+            {
+              "sceneId": "full",
+              "zones": [
+                {
+                  "zoneId": "zone-1",
+                  "main": [
+                    {
+                      "id": "clip-full-loom",
+                      "instanceId": "loom",
+                      "startMs": 0,
+                      "durationMs": 5000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    }
+                  ],
+                  "overlays": []
+                },
+                {
+                  "zoneId": "zone-2",
+                  "main": [],
+                  "overlays": []
+                }
+              ]
+            },
+            {
+              "sceneId": "split",
+              "zones": [
+                {
+                  "zoneId": "zone-1",
+                  "main": [
+                    {
+                      "id": "clip-split-loom",
+                      "instanceId": "loom",
+                      "startMs": 0,
+                      "durationMs": 6000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    }
+                  ],
+                  "overlays": []
+                },
+                {
+                  "zoneId": "zone-2",
+                  "main": [
+                    {
+                      "id": "clip-split-water",
+                      "instanceId": "water",
+                      "startMs": 0,
+                      "durationMs": 6000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    }
+                  ],
+                  "overlays": []
+                }
+              ]
+            },
+            {
+              "sceneId": "rings",
+              "zones": [
+                {
+                  "zoneId": "zone-1",
+                  "main": [
+                    {
+                      "id": "clip-rings-loom",
+                      "instanceId": "loom",
+                      "startMs": 0,
+                      "durationMs": 6000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    }
+                  ],
+                  "overlays": []
+                },
+                {
+                  "zoneId": "zone-2",
+                  "main": [
+                    {
+                      "id": "clip-rings-water",
+                      "instanceId": "water",
+                      "startMs": 0,
+                      "durationMs": 6000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    }
+                  ],
+                  "overlays": []
+                }
+              ]
+            }
+          ],
+          "durationMs": 17000
+        },
+        "updatedAt": 1
+      },
+      "converted": {
+        "version": 2,
+        "id": "oracle-installation-layouts-source",
+        "name": "Oracle Installation Layouts",
+        "zones": [
+          {
+            "id": "zone-1",
+            "name": "Weave",
+            "nominalPixelCount": 32,
+            "color": "#38bdf8"
+          },
+          {
+            "id": "zone-2",
+            "name": "Water",
+            "nominalPixelCount": 32,
+            "color": "#f97316"
+          }
+        ],
+        "zoneLayouts": [
+          {
+            "id": "layout-full",
+            "name": "Full Surface",
+            "zones": [
+              {
+                "zoneId": "zone-1",
+                "ranges": [
+                  {
+                    "start": 0,
+                    "end": 63
+                  }
+                ]
+              },
+              {
+                "zoneId": "zone-2",
+                "ranges": []
+              }
+            ]
+          },
+          {
+            "id": "layout-split",
+            "name": "Split",
+            "zones": [
+              {
+                "zoneId": "zone-1",
+                "ranges": [
+                  {
+                    "start": 0,
+                    "end": 31
+                  }
+                ]
+              },
+              {
+                "zoneId": "zone-2",
+                "ranges": [
+                  {
+                    "start": 32,
+                    "end": 63
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "layout-rings",
+            "name": "Alternating Bands",
+            "zones": [
+              {
+                "zoneId": "zone-1",
+                "ranges": [
+                  {
+                    "start": 0,
+                    "end": 15
+                  },
+                  {
+                    "start": 32,
+                    "end": 47
+                  }
+                ]
+              },
+              {
+                "zoneId": "zone-2",
+                "ranges": [
+                  {
+                    "start": 16,
+                    "end": 31
+                  },
+                  {
+                    "start": 48,
+                    "end": 63
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "stageMapId": "plane",
+        "outputContract": {
+          "version": 1,
+          "kind": "installation",
+          "outputMapId": "plane",
+          "pixelCount": 64,
+          "resolution": "fixed"
+        },
+        "composition": {
+          "version": 2,
+          "executionModel": "continuous",
+          "showEndMs": 17000,
+          "sampleRemap": {
+            "repeatScale": 1
+          },
+          "patternInstances": [
+            {
+              "id": "loom",
+              "pattern": {
+                "kind": "stock",
+                "id": "RibbonLoom"
+              },
+              "patternName": "RibbonLoom",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            },
+            {
+              "id": "water",
+              "pattern": {
+                "kind": "stock",
+                "id": "IceFloes2D"
+              },
+              "patternName": "IceFloes2D",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "layers": [
+            {
+              "id": "layer:zone-1:main",
+              "zoneId": "zone-1",
+              "name": "Main",
+              "rank": 0
+            },
+            {
+              "id": "layer:zone-2:main",
+              "zoneId": "zone-2",
+              "name": "Main",
+              "rank": 0
+            }
+          ],
+          "clips": [
+            {
+              "id": "clip-full-loom",
+              "instanceId": "loom",
+              "zoneId": "zone-1",
+              "layerId": "layer:zone-1:main",
+              "startMs": 0,
+              "durationMs": 5000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "clip-full-loom:appearance:1",
+                    "timeMs": 0,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "clip-split-loom",
+              "instanceId": "loom",
+              "zoneId": "zone-1",
+              "layerId": "layer:zone-1:main",
+              "startMs": 5000,
+              "durationMs": 6000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "clip-split-loom:appearance:1",
+                    "timeMs": 5000,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "clip-split-water",
+              "instanceId": "water",
+              "zoneId": "zone-2",
+              "layerId": "layer:zone-2:main",
+              "startMs": 5000,
+              "durationMs": 6000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "clip-split-water:appearance:1",
+                    "timeMs": 5000,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "clip-rings-loom",
+              "instanceId": "loom",
+              "zoneId": "zone-1",
+              "layerId": "layer:zone-1:main",
+              "startMs": 11000,
+              "durationMs": 6000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "clip-rings-loom:appearance:1",
+                    "timeMs": 11000,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "clip-rings-water",
+              "instanceId": "water",
+              "zoneId": "zone-2",
+              "layerId": "layer:zone-2:main",
+              "startMs": 11000,
+              "durationMs": 6000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "clip-rings-water:appearance:1",
+                    "timeMs": 11000,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "transitions": [],
+          "layoutOccurrences": [
+            {
+              "id": "layout-occurrence:1",
+              "layoutId": "layout-full",
+              "startMs": 0,
+              "durationMs": 5000,
+              "parameters": {}
+            },
+            {
+              "id": "layout-occurrence:2",
+              "layoutId": "layout-split",
+              "startMs": 5000,
+              "durationMs": 6000,
+              "parameters": {
+                "splitPosition": 0.5
+              },
+              "incomingTransfer": {
+                "id": "routing-full-split",
+                "fromOccurrenceId": "layout-occurrence:1",
+                "durationMs": 1500,
+                "direction": "forward",
+                "easing": {
+                  "curve": "sine",
+                  "direction": "in-out"
+                }
+              }
+            },
+            {
+              "id": "layout-occurrence:3",
+              "layoutId": "layout-rings",
+              "startMs": 11000,
+              "durationMs": 6000,
+              "parameters": {}
+            }
+          ],
+          "propertyTracks": [],
+          "markers": [
+            {
+              "id": "scene-marker:full",
+              "timeMs": 0,
+              "name": "Full surface",
+              "role": "chapter"
+            },
+            {
+              "id": "scene-marker:split",
+              "timeMs": 5000,
+              "name": "Split",
+              "role": "chapter"
+            },
+            {
+              "id": "scene-marker:rings",
+              "timeMs": 11000,
+              "name": "Rings",
+              "role": "chapter"
+            }
+          ],
+          "groupDefinitions": [],
+          "groupOccurrences": []
+        },
+        "updatedAt": 1
+      },
+      "conversionReport": {
+        "sourceShowId": "oracle-installation-layouts-source",
+        "accounting": [
+          {
+            "sourcePath": "cells.0.adaptations.brightness",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.mirror",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.phase",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.timeScale",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.pattern.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.pattern.kind",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.patternName",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.restartOnEntry",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.sceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.sceneSpan",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.zoneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.adaptations.brightness",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.adaptations.mirror",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.adaptations.phase",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.adaptations.timeScale",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.pattern.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.pattern.kind",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.patternName",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.restartOnEntry",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.sceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.sceneSpan",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.1.zoneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.adaptations.brightness",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.adaptations.mirror",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.adaptations.phase",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.adaptations.timeScale",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.pattern.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.pattern.kind",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.patternName",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.restartOnEntry",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.sceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.sceneSpan",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.2.zoneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.adaptations.brightness",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.adaptations.mirror",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.adaptations.phase",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.adaptations.timeScale",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.pattern.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.pattern.kind",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.patternName",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.restartOnEntry",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.sceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.sceneSpan",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.3.zoneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.adaptations.brightness",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.adaptations.mirror",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.adaptations.phase",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.adaptations.timeScale",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.pattern.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.pattern.kind",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.patternName",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.restartOnEntry",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.sceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.sceneSpan",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.4.zoneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "composition.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.showEndMs"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.pattern.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.pattern.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.pattern.kind",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.pattern.kind"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.patternName",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.patternName"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.time.timeOffsetMs",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.time.timeOffsetMs"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.time.timeScale",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.time.timeScale"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.pattern.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.pattern.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.pattern.kind",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.pattern.kind"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.patternName",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.patternName"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.time.timeOffsetMs",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.time.timeOffsetMs"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.time.timeScale",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.time.timeScale"
+          },
+          {
+            "sourcePath": "composition.scenes.0.sceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/clips/propertyTracks"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.durationMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.id"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.instanceId"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.startMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.view.brightness"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.view.mirror"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.view.phase"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.overlays",
+            "outcome": "mapped",
+            "targetPath": "composition.layers"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layers/clips"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.1.main",
+            "outcome": "mapped",
+            "targetPath": "composition.clips"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.1.overlays",
+            "outcome": "mapped",
+            "targetPath": "composition.layers"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.1.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layers/clips"
+          },
+          {
+            "sourcePath": "composition.scenes.1.sceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/clips/propertyTracks"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.0.main.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.durationMs"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.0.main.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.id"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.0.main.0.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.instanceId"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.0.main.0.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.startMs"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.0.main.0.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.view.brightness"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.0.main.0.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.view.mirror"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.0.main.0.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.view.phase"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.0.overlays",
+            "outcome": "mapped",
+            "targetPath": "composition.layers"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layers/clips"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.1.main.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.durationMs"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.1.main.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.id"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.1.main.0.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.instanceId"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.1.main.0.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.startMs"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.1.main.0.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.view.brightness"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.1.main.0.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.view.mirror"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.1.main.0.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.view.phase"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.1.overlays",
+            "outcome": "mapped",
+            "targetPath": "composition.layers"
+          },
+          {
+            "sourcePath": "composition.scenes.1.zones.1.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layers/clips"
+          },
+          {
+            "sourcePath": "composition.scenes.2.sceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/clips/propertyTracks"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.0.main.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.3.durationMs"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.0.main.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.3.id"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.0.main.0.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.3.instanceId"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.0.main.0.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.3.startMs"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.0.main.0.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.3.view.brightness"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.0.main.0.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.3.view.mirror"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.0.main.0.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.3.view.phase"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.0.overlays",
+            "outcome": "mapped",
+            "targetPath": "composition.layers"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layers/clips"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.1.main.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.4.durationMs"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.1.main.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.4.id"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.1.main.0.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.4.instanceId"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.1.main.0.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.4.startMs"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.1.main.0.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.4.view.brightness"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.1.main.0.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.4.view.mirror"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.1.main.0.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.4.view.phase"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.1.overlays",
+            "outcome": "mapped",
+            "targetPath": "composition.layers"
+          },
+          {
+            "sourcePath": "composition.scenes.2.zones.1.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layers/clips"
+          },
+          {
+            "sourcePath": "composition.version",
+            "outcome": "mapped",
+            "targetPath": "composition.version"
+          },
+          {
+            "sourcePath": "id",
+            "outcome": "preserved",
+            "targetPath": "id"
+          },
+          {
+            "sourcePath": "name",
+            "outcome": "preserved",
+            "targetPath": "name"
+          },
+          {
+            "sourcePath": "outputContract.kind",
+            "outcome": "preserved",
+            "targetPath": "outputContract.kind"
+          },
+          {
+            "sourcePath": "outputContract.outputMapId",
+            "outcome": "preserved",
+            "targetPath": "outputContract.outputMapId"
+          },
+          {
+            "sourcePath": "outputContract.pixelCount",
+            "outcome": "preserved",
+            "targetPath": "outputContract.pixelCount"
+          },
+          {
+            "sourcePath": "outputContract.resolution",
+            "outcome": "preserved",
+            "targetPath": "outputContract.resolution"
+          },
+          {
+            "sourcePath": "outputContract.version",
+            "outcome": "preserved",
+            "targetPath": "outputContract.version"
+          },
+          {
+            "sourcePath": "routingLayouts.0.id",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.id"
+          },
+          {
+            "sourcePath": "routingLayouts.0.name",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.name"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones.0.ranges.0.end",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones.0.ranges.0.end"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones.0.ranges.0.start",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones.0.ranges.0.start"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones.0.zoneId"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones.1.ranges",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones.1.ranges"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones.1.zoneId",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones.1.zoneId"
+          },
+          {
+            "sourcePath": "routingLayouts.1.id",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.1.id"
+          },
+          {
+            "sourcePath": "routingLayouts.1.name",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.1.name"
+          },
+          {
+            "sourcePath": "routingLayouts.1.zones.0.ranges.0.end",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.1.zones.0.ranges.0.end"
+          },
+          {
+            "sourcePath": "routingLayouts.1.zones.0.ranges.0.start",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.1.zones.0.ranges.0.start"
+          },
+          {
+            "sourcePath": "routingLayouts.1.zones.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.1.zones.0.zoneId"
+          },
+          {
+            "sourcePath": "routingLayouts.1.zones.1.ranges.0.end",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.1.zones.1.ranges.0.end"
+          },
+          {
+            "sourcePath": "routingLayouts.1.zones.1.ranges.0.start",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.1.zones.1.ranges.0.start"
+          },
+          {
+            "sourcePath": "routingLayouts.1.zones.1.zoneId",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.1.zones.1.zoneId"
+          },
+          {
+            "sourcePath": "routingLayouts.2.id",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.id"
+          },
+          {
+            "sourcePath": "routingLayouts.2.name",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.name"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.0.ranges.0.end",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.0.ranges.0.end"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.0.ranges.0.start",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.0.ranges.0.start"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.0.ranges.1.end",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.0.ranges.1.end"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.0.ranges.1.start",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.0.ranges.1.start"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.0.zoneId"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.1.ranges.0.end",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.1.ranges.0.end"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.1.ranges.0.start",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.1.ranges.0.start"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.1.ranges.1.end",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.1.ranges.1.end"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.1.ranges.1.start",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.1.ranges.1.start"
+          },
+          {
+            "sourcePath": "routingLayouts.2.zones.1.zoneId",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.2.zones.1.zoneId"
+          },
+          {
+            "sourcePath": "scenes.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/showEndMs/layoutOccurrences"
+          },
+          {
+            "sourcePath": "scenes.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.0.id"
+          },
+          {
+            "sourcePath": "scenes.0.name",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.0.name"
+          },
+          {
+            "sourcePath": "scenes.1.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/showEndMs/layoutOccurrences"
+          },
+          {
+            "sourcePath": "scenes.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.1.id"
+          },
+          {
+            "sourcePath": "scenes.1.name",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.1.name"
+          },
+          {
+            "sourcePath": "scenes.1.routingTargets.splitPosition",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.*.parameters.splitPosition"
+          },
+          {
+            "sourcePath": "scenes.2.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/showEndMs/layoutOccurrences"
+          },
+          {
+            "sourcePath": "scenes.2.id",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.2.id"
+          },
+          {
+            "sourcePath": "scenes.2.name",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.2.name"
+          },
+          {
+            "sourcePath": "stageMapId",
+            "outcome": "preserved",
+            "targetPath": "stageMapId"
+          },
+          {
+            "sourcePath": "transitions.0.afterSceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.0.durationMs",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.0.easing.curve",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.0.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.0.kind",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.1.afterSceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.afterSceneId"
+          },
+          {
+            "sourcePath": "transitions.1.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.durationMs"
+          },
+          {
+            "sourcePath": "transitions.1.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.easing.curve"
+          },
+          {
+            "sourcePath": "transitions.1.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.easing.direction"
+          },
+          {
+            "sourcePath": "transitions.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.id"
+          },
+          {
+            "sourcePath": "transitions.1.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.kind"
+          },
+          {
+            "sourcePath": "transitions.1.layoutId",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.layoutId"
+          },
+          {
+            "sourcePath": "transitions.1.routingDirection",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.routingDirection"
+          },
+          {
+            "sourcePath": "transitions.2.afterSceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.2.durationMs",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.2.easing.curve",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.2.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.2.kind",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.clips/markers"
+          },
+          {
+            "sourcePath": "transitions.3.afterSceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.afterSceneId"
+          },
+          {
+            "sourcePath": "transitions.3.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.durationMs"
+          },
+          {
+            "sourcePath": "transitions.3.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.easing.curve"
+          },
+          {
+            "sourcePath": "transitions.3.id",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.id"
+          },
+          {
+            "sourcePath": "transitions.3.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.kind"
+          },
+          {
+            "sourcePath": "transitions.3.layoutId",
+            "outcome": "mapped",
+            "targetPath": "composition.layoutOccurrences.layoutId"
+          },
+          {
+            "sourcePath": "updatedAt",
+            "outcome": "preserved",
+            "targetPath": "updatedAt"
+          },
+          {
+            "sourcePath": "zones.0.color",
+            "outcome": "preserved",
+            "targetPath": "zones.0.color"
+          },
+          {
+            "sourcePath": "zones.0.id",
+            "outcome": "preserved",
+            "targetPath": "zones.0.id"
+          },
+          {
+            "sourcePath": "zones.0.name",
+            "outcome": "preserved",
+            "targetPath": "zones.0.name"
+          },
+          {
+            "sourcePath": "zones.0.nominalPixelCount",
+            "outcome": "preserved",
+            "targetPath": "zones.0.nominalPixelCount"
+          },
+          {
+            "sourcePath": "zones.1.color",
+            "outcome": "preserved",
+            "targetPath": "zones.1.color"
+          },
+          {
+            "sourcePath": "zones.1.id",
+            "outcome": "preserved",
+            "targetPath": "zones.1.id"
+          },
+          {
+            "sourcePath": "zones.1.name",
+            "outcome": "preserved",
+            "targetPath": "zones.1.name"
+          },
+          {
+            "sourcePath": "zones.1.nominalPixelCount",
+            "outcome": "preserved",
+            "targetPath": "zones.1.nominalPixelCount"
+          }
+        ],
+        "unaccountedSourcePaths": [],
+        "sceneOffsets": [
+          {
+            "sceneId": "full",
+            "startMs": 0,
+            "endMs": 5000
+          },
+          {
+            "sceneId": "split",
+            "startMs": 5000,
+            "endMs": 11000
+          },
+          {
+            "sceneId": "rings",
+            "startMs": 11000,
+            "endMs": 17000
+          }
+        ],
+        "layerMappings": [
+          {
+            "sceneId": "full",
+            "zoneId": "zone-1",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-1:main"
+          },
+          {
+            "sceneId": "split",
+            "zoneId": "zone-1",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-1:main"
+          },
+          {
+            "sceneId": "rings",
+            "zoneId": "zone-1",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-1:main"
+          },
+          {
+            "sceneId": "full",
+            "zoneId": "zone-2",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-2:main"
+          },
+          {
+            "sceneId": "split",
+            "zoneId": "zone-2",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-2:main"
+          },
+          {
+            "sceneId": "rings",
+            "zoneId": "zone-2",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-2:main"
+          }
+        ],
+        "clipMappings": [
+          {
+            "sourcePlacementIds": [
+              "clip-full-loom"
+            ],
+            "clipId": "clip-full-loom"
+          },
+          {
+            "sourcePlacementIds": [
+              "clip-split-loom"
+            ],
+            "clipId": "clip-split-loom"
+          },
+          {
+            "sourcePlacementIds": [
+              "clip-split-water"
+            ],
+            "clipId": "clip-split-water"
+          },
+          {
+            "sourcePlacementIds": [
+              "clip-rings-loom"
+            ],
+            "clipId": "clip-rings-loom"
+          },
+          {
+            "sourcePlacementIds": [
+              "clip-rings-water"
+            ],
+            "clipId": "clip-rings-water"
+          }
+        ],
+        "markerMappings": [
+          {
+            "sourceSceneId": "full",
+            "markerId": "scene-marker:full",
+            "timeMs": 0
+          },
+          {
+            "sourceSceneId": "split",
+            "markerId": "scene-marker:split",
+            "timeMs": 5000
+          },
+          {
+            "sourceSceneId": "rings",
+            "markerId": "scene-marker:rings",
+            "timeMs": 11000
+          }
+        ],
+        "flatProjectionMappings": [],
+        "retiredFlatCellShadows": [
+          {
+            "sourceCellId": "cell-full-zone-1",
+            "sourcePath": "cells.0",
+            "outcome": "retired-composition-shadow"
+          },
+          {
+            "sourceCellId": "cell-split-zone-1",
+            "sourcePath": "cells.1",
+            "outcome": "retired-composition-shadow"
+          },
+          {
+            "sourceCellId": "cell-split-zone-2",
+            "sourcePath": "cells.2",
+            "outcome": "retired-composition-shadow"
+          },
+          {
+            "sourceCellId": "cell-rings-zone-1",
+            "sourcePath": "cells.3",
+            "outcome": "retired-composition-shadow"
+          },
+          {
+            "sourceCellId": "cell-rings-zone-2",
+            "sourcePath": "cells.4",
+            "outcome": "retired-composition-shadow"
+          }
+        ],
+        "retiredSilentRuntimeUses": [],
+        "retiredStructuralCuts": [
+          {
+            "sourceTransitionId": "transition-full",
+            "afterSceneId": "full",
+            "atMs": 5000,
+            "outcome": "retired-structural-cut"
+          },
+          {
+            "sourceTransitionId": "transition-split",
+            "afterSceneId": "split",
+            "atMs": 11000,
+            "outcome": "retired-structural-cut"
+          }
+        ],
+        "retiredNoContributionPropertyTracks": []
+      }
+    },
+    {
+      "key": "groups-animation",
+      "fixedTimeMs": 10000,
+      "source": {
+        "id": "oracle-groups-animation-source",
+        "name": "Oracle Groups and Animation",
+        "scenes": [
+          {
+            "id": "reuse",
+            "name": "Reuse",
+            "durationMs": 16000
+          }
+        ],
+        "zones": [
+          {
+            "id": "zone-1",
+            "name": "Main",
+            "nominalPixelCount": 1936,
+            "color": "#38bdf8"
+          }
+        ],
+        "cells": [
+          {
+            "id": "cell-reuse-zone-1",
+            "zoneId": "zone-1",
+            "sceneId": "reuse",
+            "sceneSpan": 1,
+            "pattern": {
+              "kind": "stock",
+              "id": "RibbonLoom"
+            },
+            "patternName": "RibbonLoom",
+            "adaptations": {
+              "mirror": false,
+              "phase": 0,
+              "brightness": 1,
+              "timeScale": 0.32
+            },
+            "restartOnEntry": false
+          }
+        ],
+        "routingLayouts": [
+          {
+            "id": "layout-main",
+            "name": "Main",
+            "zones": [],
+            "logical": {
+              "kind": "single",
+              "zoneIds": [
+                "zone-1"
+              ]
+            }
+          }
+        ],
+        "transitions": [],
+        "stageMapId": "plane",
+        "outputContract": {
+          "version": 1,
+          "kind": "portable-2d",
+          "referenceMapId": "plane",
+          "referencePixelCount": 1936,
+          "compatibility": {
+            "dimensions": [
+              2
+            ],
+            "mapClass": "continuous-surface",
+            "resolution": "variable"
+          }
+        },
+        "composition": {
+          "version": 1,
+          "executionModel": "deterministic-loop",
+          "patternInstances": [
+            {
+              "id": "loom",
+              "pattern": {
+                "kind": "stock",
+                "id": "RibbonLoom"
+              },
+              "patternName": "RibbonLoom",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "scenes": [
+            {
+              "sceneId": "reuse",
+              "zones": [
+                {
+                  "zoneId": "zone-1",
+                  "main": [
+                    {
+                      "id": "clip-loom",
+                      "instanceId": "loom",
+                      "startMs": 0,
+                      "durationMs": 16000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    }
+                  ],
+                  "overlays": []
+                }
+              ]
+            }
+          ],
+          "groupDefinitions": [
+            {
+              "id": "group-pulse",
+              "name": "Mandala pulse",
+              "patternInstances": [
+                {
+                  "id": "pulse",
+                  "pattern": {
+                    "kind": "stock",
+                    "id": "SignalMandala"
+                  },
+                  "patternName": "SignalMandala",
+                  "time": {
+                    "timeScale": 0.32,
+                    "timeOffsetMs": 0
+                  }
+                }
+              ],
+              "placements": [
+                {
+                  "id": "pulse-lead",
+                  "instanceId": "pulse",
+                  "startMs": 0,
+                  "durationMs": 4000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "opacity": 0,
+                  "layerOffset": 0
+                },
+                {
+                  "id": "pulse-echo",
+                  "instanceId": "pulse",
+                  "startMs": 1000,
+                  "durationMs": 3000,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "opacity": 0,
+                  "layerOffset": 1,
+                  "transform": {
+                    "positionX": 0.2,
+                    "positionY": -0.14,
+                    "rotation": 0,
+                    "scaleX": 0.6,
+                    "scaleY": 0.6
+                  }
+                }
+              ],
+              "propertyTracks": [
+                {
+                  "id": "track-pulse-echo",
+                  "target": {
+                    "kind": "placement-opacity",
+                    "placementId": "pulse-echo"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "echo-in",
+                      "timeMs": 1000,
+                      "value": 0,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "echo-peak",
+                      "timeMs": 2500,
+                      "value": 0.55,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "echo-out",
+                      "timeMs": 4000,
+                      "value": 0,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "track-pulse-lead",
+                  "target": {
+                    "kind": "placement-opacity",
+                    "placementId": "pulse-lead"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "lead-in",
+                      "timeMs": 0,
+                      "value": 0,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "lead-peak",
+                      "timeMs": 1500,
+                      "value": 0.9,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "lead-out",
+                      "timeMs": 4000,
+                      "value": 0,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "groupOccurrences": [
+            {
+              "id": "occurrence-first",
+              "definitionId": "group-pulse",
+              "sceneId": "reuse",
+              "zoneId": "zone-1",
+              "startMs": 2000,
+              "baseLayer": 1,
+              "translationX": 0,
+              "translationY": 0
+            },
+            {
+              "id": "occurrence-second",
+              "definitionId": "group-pulse",
+              "sceneId": "reuse",
+              "zoneId": "zone-1",
+              "startMs": 9000,
+              "baseLayer": 1,
+              "translationX": -0.18,
+              "translationY": 0.12
+            }
+          ],
+          "durationMs": 16000
+        },
+        "updatedAt": 1
+      },
+      "converted": {
+        "version": 2,
+        "id": "oracle-groups-animation-source",
+        "name": "Oracle Groups and Animation",
+        "zones": [
+          {
+            "id": "zone-1",
+            "name": "Main",
+            "nominalPixelCount": 1936,
+            "color": "#38bdf8"
+          }
+        ],
+        "zoneLayouts": [
+          {
+            "id": "layout-main",
+            "name": "Main",
+            "zones": [],
+            "logical": {
+              "kind": "single",
+              "zoneIds": [
+                "zone-1"
+              ]
+            }
+          }
+        ],
+        "stageMapId": "plane",
+        "outputContract": {
+          "version": 1,
+          "kind": "portable-2d",
+          "referenceMapId": "plane",
+          "referencePixelCount": 1936,
+          "compatibility": {
+            "dimensions": [
+              2
+            ],
+            "mapClass": "continuous-surface",
+            "resolution": "variable"
+          }
+        },
+        "composition": {
+          "version": 2,
+          "executionModel": "deterministic-loop",
+          "showEndMs": 16000,
+          "sampleRemap": {
+            "repeatScale": 1
+          },
+          "patternInstances": [
+            {
+              "id": "loom",
+              "pattern": {
+                "kind": "stock",
+                "id": "RibbonLoom"
+              },
+              "patternName": "RibbonLoom",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "layers": [
+            {
+              "id": "layer:zone-1:main",
+              "zoneId": "zone-1",
+              "name": "Main",
+              "rank": 0
+            },
+            {
+              "id": "layer:zone-1:overlay:1",
+              "zoneId": "zone-1",
+              "name": "Layer 1",
+              "rank": 1
+            },
+            {
+              "id": "layer:zone-1:overlay:2",
+              "zoneId": "zone-1",
+              "name": "Layer 2",
+              "rank": 2
+            }
+          ],
+          "clips": [
+            {
+              "id": "clip-loom",
+              "instanceId": "loom",
+              "zoneId": "zone-1",
+              "layerId": "layer:zone-1:main",
+              "startMs": 0,
+              "durationMs": 16000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "clip-loom:appearance:1",
+                    "timeMs": 0,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "transitions": [],
+          "layoutOccurrences": [
+            {
+              "id": "layout-occurrence:1",
+              "layoutId": "layout-main",
+              "startMs": 0,
+              "durationMs": 16000,
+              "parameters": {}
+            }
+          ],
+          "propertyTracks": [],
+          "markers": [
+            {
+              "id": "scene-marker:reuse",
+              "timeMs": 0,
+              "name": "Reuse",
+              "role": "chapter"
+            }
+          ],
+          "groupDefinitions": [
+            {
+              "id": "group-pulse",
+              "name": "Mandala pulse",
+              "patternInstances": [
+                {
+                  "id": "pulse",
+                  "pattern": {
+                    "kind": "stock",
+                    "id": "SignalMandala"
+                  },
+                  "patternName": "SignalMandala",
+                  "time": {
+                    "timeScale": 0.32,
+                    "timeOffsetMs": 0
+                  }
+                }
+              ],
+              "layers": [
+                {
+                  "id": "group-pulse:layer:0",
+                  "name": "Layer 0",
+                  "rank": 0
+                },
+                {
+                  "id": "group-pulse:layer:1",
+                  "name": "Layer 1",
+                  "rank": 1
+                }
+              ],
+              "clips": [
+                {
+                  "id": "pulse-lead",
+                  "instanceId": "pulse",
+                  "layerId": "group-pulse:layer:0",
+                  "startMs": 0,
+                  "durationMs": 4000,
+                  "entryPolicy": "continue",
+                  "zoneSampleMode": "span",
+                  "appearance": {
+                    "keys": [
+                      {
+                        "id": "pulse-lead:appearance:1",
+                        "timeMs": 0,
+                        "value": {
+                          "opacity": 0,
+                          "view": {
+                            "mirror": false,
+                            "phase": 0,
+                            "brightness": 1
+                          },
+                          "effects": []
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "pulse-echo",
+                  "instanceId": "pulse",
+                  "layerId": "group-pulse:layer:1",
+                  "startMs": 1000,
+                  "durationMs": 3000,
+                  "entryPolicy": "continue",
+                  "zoneSampleMode": "span",
+                  "appearance": {
+                    "keys": [
+                      {
+                        "id": "pulse-echo:appearance:1",
+                        "timeMs": 1000,
+                        "value": {
+                          "opacity": 0,
+                          "view": {
+                            "mirror": false,
+                            "phase": 0,
+                            "brightness": 1
+                          },
+                          "transform": {
+                            "positionX": 0.2,
+                            "positionY": -0.14,
+                            "rotation": 0,
+                            "scaleX": 0.6,
+                            "scaleY": 0.6
+                          },
+                          "effects": []
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "transitions": [],
+              "propertyTracks": [
+                {
+                  "id": "track-pulse-echo",
+                  "target": {
+                    "kind": "clip-opacity",
+                    "clipId": "pulse-echo"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "echo-in",
+                      "timeMs": 1000,
+                      "value": 0,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "echo-peak",
+                      "timeMs": 2500,
+                      "value": 0.55,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "echo-out",
+                      "timeMs": 4000,
+                      "value": 0,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ],
+                  "activeStartMs": 0,
+                  "activeDurationMs": 4000
+                },
+                {
+                  "id": "track-pulse-lead",
+                  "target": {
+                    "kind": "clip-opacity",
+                    "clipId": "pulse-lead"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "lead-in",
+                      "timeMs": 0,
+                      "value": 0,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "lead-peak",
+                      "timeMs": 1500,
+                      "value": 0.9,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "lead-out",
+                      "timeMs": 4000,
+                      "value": 0,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ],
+                  "activeStartMs": 0,
+                  "activeDurationMs": 4000
+                }
+              ]
+            }
+          ],
+          "groupOccurrences": [
+            {
+              "id": "occurrence-first",
+              "definitionId": "group-pulse",
+              "layoutOccurrenceId": "layout-occurrence:1",
+              "zoneId": "zone-1",
+              "startMs": 2000,
+              "translationX": 0,
+              "translationY": 0,
+              "holds": [],
+              "instanceBindings": {
+                "pulse": "occurrence-first:pulse"
+              },
+              "trackActivation": {
+                "startMs": 0,
+                "durationMs": 16000
+              },
+              "layerBindings": [
+                {
+                  "definitionLayerId": "group-pulse:layer:0",
+                  "layerId": "layer:zone-1:overlay:1"
+                },
+                {
+                  "definitionLayerId": "group-pulse:layer:1",
+                  "layerId": "layer:zone-1:overlay:2"
+                }
+              ]
+            },
+            {
+              "id": "occurrence-second",
+              "definitionId": "group-pulse",
+              "layoutOccurrenceId": "layout-occurrence:1",
+              "zoneId": "zone-1",
+              "startMs": 9000,
+              "translationX": -0.18,
+              "translationY": 0.12,
+              "holds": [],
+              "instanceBindings": {
+                "pulse": "occurrence-second:pulse"
+              },
+              "trackActivation": {
+                "startMs": 0,
+                "durationMs": 16000
+              },
+              "layerBindings": [
+                {
+                  "definitionLayerId": "group-pulse:layer:0",
+                  "layerId": "layer:zone-1:overlay:1"
+                },
+                {
+                  "definitionLayerId": "group-pulse:layer:1",
+                  "layerId": "layer:zone-1:overlay:2"
+                }
+              ]
+            }
+          ]
+        },
+        "updatedAt": 1
+      },
+      "conversionReport": {
+        "sourceShowId": "oracle-groups-animation-source",
+        "accounting": [
+          {
+            "sourcePath": "cells.0.adaptations.brightness",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.mirror",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.phase",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.timeScale",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.pattern.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.pattern.kind",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.patternName",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.restartOnEntry",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.sceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.sceneSpan",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.zoneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "composition.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.showEndMs"
+          },
+          {
+            "sourcePath": "composition.executionModel",
+            "outcome": "mapped",
+            "targetPath": "composition.executionModel"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.name",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.name"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.patternInstances.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.patternInstances.0.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.patternInstances.0.pattern.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.patternInstances.0.pattern.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.patternInstances.0.pattern.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.patternInstances.0.pattern.kind"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.patternInstances.0.patternName",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.patternInstances.0.patternName"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.patternInstances.0.time.timeOffsetMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.patternInstances.0.time.timeOffsetMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.patternInstances.0.time.timeScale",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.patternInstances.0.time.timeScale"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.0.durationMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.0.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.0.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.0.instanceId"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.0.layerOffset",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.0.layerOffset"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.0.opacity",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.0.opacity"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.0.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.0.startMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.0.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.0.view.brightness"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.0.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.0.view.mirror"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.0.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.0.view.phase"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.durationMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.instanceId"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.layerOffset",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.layerOffset"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.opacity",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.opacity"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.startMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.transform.positionX",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.transform.positionX"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.transform.positionY",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.transform.positionY"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.transform.rotation",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.transform.rotation"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.transform.scaleX",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.transform.scaleX"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.transform.scaleY",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.transform.scaleY"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.view.brightness"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.view.mirror"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.placements.1.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.placements.1.view.phase"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.easing.curve"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.easing.direction"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.timeMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.timeMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.value",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.0.value"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.easing.curve"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.easing.direction"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.timeMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.timeMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.value",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.1.value"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.easing.curve"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.easing.direction"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.timeMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.timeMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.value",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.keyframes.2.value"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.target.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.target.kind"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.0.target.placementId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.0.target.placementId"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.easing.curve"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.easing.direction"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.timeMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.timeMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.value",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.0.value"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.easing.curve"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.easing.direction"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.timeMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.timeMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.value",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.1.value"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.easing.curve"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.easing.direction"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.id"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.timeMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.timeMs"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.value",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.keyframes.2.value"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.target.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.target.kind"
+          },
+          {
+            "sourcePath": "composition.groupDefinitions.0.propertyTracks.1.target.placementId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupDefinitions.0.propertyTracks.1.target.placementId"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.0.baseLayer",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.0.baseLayer"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.0.definitionId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.0.definitionId"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.0.id"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.0.sceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.0.sceneId"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.0.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.0.startMs"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.0.translationX",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.0.translationX"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.0.translationY",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.0.translationY"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.0.zoneId"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.1.baseLayer",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.1.baseLayer"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.1.definitionId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.1.definitionId"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.1.id"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.1.sceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.1.sceneId"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.1.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.1.startMs"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.1.translationX",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.1.translationX"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.1.translationY",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.1.translationY"
+          },
+          {
+            "sourcePath": "composition.groupOccurrences.1.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.groupOccurrences.1.zoneId"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.pattern.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.pattern.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.pattern.kind",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.pattern.kind"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.patternName",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.patternName"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.time.timeOffsetMs",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.time.timeOffsetMs"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.time.timeScale",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.time.timeScale"
+          },
+          {
+            "sourcePath": "composition.scenes.0.sceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/clips/propertyTracks"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.durationMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.id"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.instanceId"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.startMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.view.brightness"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.view.mirror"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.view.phase"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.overlays",
+            "outcome": "mapped",
+            "targetPath": "composition.layers"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layers/clips"
+          },
+          {
+            "sourcePath": "composition.version",
+            "outcome": "mapped",
+            "targetPath": "composition.version"
+          },
+          {
+            "sourcePath": "id",
+            "outcome": "preserved",
+            "targetPath": "id"
+          },
+          {
+            "sourcePath": "name",
+            "outcome": "preserved",
+            "targetPath": "name"
+          },
+          {
+            "sourcePath": "outputContract.compatibility.dimensions.0",
+            "outcome": "preserved",
+            "targetPath": "outputContract.compatibility.dimensions.0"
+          },
+          {
+            "sourcePath": "outputContract.compatibility.mapClass",
+            "outcome": "preserved",
+            "targetPath": "outputContract.compatibility.mapClass"
+          },
+          {
+            "sourcePath": "outputContract.compatibility.resolution",
+            "outcome": "preserved",
+            "targetPath": "outputContract.compatibility.resolution"
+          },
+          {
+            "sourcePath": "outputContract.kind",
+            "outcome": "preserved",
+            "targetPath": "outputContract.kind"
+          },
+          {
+            "sourcePath": "outputContract.referenceMapId",
+            "outcome": "preserved",
+            "targetPath": "outputContract.referenceMapId"
+          },
+          {
+            "sourcePath": "outputContract.referencePixelCount",
+            "outcome": "preserved",
+            "targetPath": "outputContract.referencePixelCount"
+          },
+          {
+            "sourcePath": "outputContract.version",
+            "outcome": "preserved",
+            "targetPath": "outputContract.version"
+          },
+          {
+            "sourcePath": "routingLayouts.0.id",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.id"
+          },
+          {
+            "sourcePath": "routingLayouts.0.logical.kind",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.logical.kind"
+          },
+          {
+            "sourcePath": "routingLayouts.0.logical.zoneIds.0",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.logical.zoneIds.0"
+          },
+          {
+            "sourcePath": "routingLayouts.0.name",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.name"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones"
+          },
+          {
+            "sourcePath": "scenes.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/showEndMs/layoutOccurrences"
+          },
+          {
+            "sourcePath": "scenes.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.0.id"
+          },
+          {
+            "sourcePath": "scenes.0.name",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.0.name"
+          },
+          {
+            "sourcePath": "stageMapId",
+            "outcome": "preserved",
+            "targetPath": "stageMapId"
+          },
+          {
+            "sourcePath": "transitions",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.transitions/layoutOccurrences"
+          },
+          {
+            "sourcePath": "updatedAt",
+            "outcome": "preserved",
+            "targetPath": "updatedAt"
+          },
+          {
+            "sourcePath": "zones.0.color",
+            "outcome": "preserved",
+            "targetPath": "zones.0.color"
+          },
+          {
+            "sourcePath": "zones.0.id",
+            "outcome": "preserved",
+            "targetPath": "zones.0.id"
+          },
+          {
+            "sourcePath": "zones.0.name",
+            "outcome": "preserved",
+            "targetPath": "zones.0.name"
+          },
+          {
+            "sourcePath": "zones.0.nominalPixelCount",
+            "outcome": "preserved",
+            "targetPath": "zones.0.nominalPixelCount"
+          }
+        ],
+        "unaccountedSourcePaths": [],
+        "sceneOffsets": [
+          {
+            "sceneId": "reuse",
+            "startMs": 0,
+            "endMs": 16000
+          }
+        ],
+        "layerMappings": [
+          {
+            "sceneId": "reuse",
+            "zoneId": "zone-1",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-1:main"
+          },
+          {
+            "sceneId": "reuse",
+            "zoneId": "zone-1",
+            "sourceLayerId": "reuse:zone-1:group-layer:2",
+            "layerId": "layer:zone-1:overlay:2"
+          },
+          {
+            "sceneId": "reuse",
+            "zoneId": "zone-1",
+            "sourceLayerId": "reuse:zone-1:group-layer:1",
+            "layerId": "layer:zone-1:overlay:1"
+          }
+        ],
+        "clipMappings": [
+          {
+            "sourcePlacementIds": [
+              "clip-loom"
+            ],
+            "clipId": "clip-loom"
+          }
+        ],
+        "markerMappings": [
+          {
+            "sourceSceneId": "reuse",
+            "markerId": "scene-marker:reuse",
+            "timeMs": 0
+          }
+        ],
+        "flatProjectionMappings": [],
+        "retiredFlatCellShadows": [
+          {
+            "sourceCellId": "cell-reuse-zone-1",
+            "sourcePath": "cells.0",
+            "outcome": "retired-composition-shadow"
+          }
+        ],
+        "retiredSilentRuntimeUses": [],
+        "retiredStructuralCuts": [],
+        "retiredNoContributionPropertyTracks": []
+      }
+    },
+    {
+      "key": "stock-lesson",
+      "fixedTimeMs": 4000,
+      "source": {
+        "id": "oracle-stock-lesson-source",
+        "name": "Oracle Stock Lesson",
+        "scenes": [
+          {
+            "id": "passages",
+            "name": "Passages",
+            "durationMs": 16500
+          }
+        ],
+        "zones": [
+          {
+            "id": "zone-1",
+            "name": "Main",
+            "nominalPixelCount": 1936,
+            "color": "#38bdf8"
+          }
+        ],
+        "cells": [
+          {
+            "id": "cell-passages-zone-1",
+            "zoneId": "zone-1",
+            "sceneId": "passages",
+            "sceneSpan": 1,
+            "pattern": {
+              "kind": "stock",
+              "id": "ClockworkIris"
+            },
+            "patternName": "ClockworkIris",
+            "adaptations": {
+              "mirror": false,
+              "phase": 0,
+              "brightness": 1,
+              "timeScale": 0.32
+            },
+            "restartOnEntry": false
+          }
+        ],
+        "routingLayouts": [
+          {
+            "id": "layout-main",
+            "name": "Main",
+            "zones": [],
+            "logical": {
+              "kind": "single",
+              "zoneIds": [
+                "zone-1"
+              ]
+            }
+          }
+        ],
+        "transitions": [],
+        "stageMapId": "plane",
+        "outputContract": {
+          "version": 1,
+          "kind": "portable-2d",
+          "referenceMapId": "plane",
+          "referencePixelCount": 1936,
+          "compatibility": {
+            "dimensions": [
+              2
+            ],
+            "mapClass": "continuous-surface",
+            "resolution": "variable"
+          }
+        },
+        "composition": {
+          "version": 1,
+          "durationMs": 16500,
+          "patternInstances": [
+            {
+              "id": "horizon",
+              "pattern": {
+                "kind": "stock",
+                "id": "EventHorizon"
+              },
+              "patternName": "EventHorizon",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            },
+            {
+              "id": "iris",
+              "pattern": {
+                "kind": "stock",
+                "id": "ClockworkIris"
+              },
+              "patternName": "ClockworkIris",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            },
+            {
+              "id": "mandala",
+              "pattern": {
+                "kind": "stock",
+                "id": "SignalMandala"
+              },
+              "patternName": "SignalMandala",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "transitions": [
+            {
+              "id": "transition-horizon-mandala",
+              "fromPlacementId": "clip-horizon",
+              "toPlacementId": "clip-mandala",
+              "kind": "wipe",
+              "durationMs": 1500,
+              "easing": {
+                "curve": "cubic",
+                "direction": "in-out"
+              },
+              "wipeVariant": "linear",
+              "direction": 0,
+              "feather": 0.08,
+              "edgePolicy": "dither"
+            },
+            {
+              "id": "transition-iris-horizon",
+              "fromPlacementId": "clip-iris",
+              "toPlacementId": "clip-horizon",
+              "kind": "crossfade",
+              "durationMs": 2000,
+              "easing": {
+                "curve": "sine",
+                "direction": "in-out"
+              },
+              "crossfadePolicy": "live-live"
+            }
+          ],
+          "scenes": [
+            {
+              "sceneId": "passages",
+              "propertyTracks": [
+                {
+                  "id": "track-mandala-brightness",
+                  "target": {
+                    "kind": "placement-view",
+                    "placementId": "clip-mandala",
+                    "property": "brightness"
+                  },
+                  "keyframes": [
+                    {
+                      "id": "mandala-arrive",
+                      "timeMs": 12500,
+                      "value": 1,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "mandala-hold",
+                      "timeMs": 14500,
+                      "value": 1,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    },
+                    {
+                      "id": "mandala-settle",
+                      "timeMs": 16500,
+                      "value": 0.45,
+                      "easing": {
+                        "curve": "sine",
+                        "direction": "in-out"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "zones": [
+                {
+                  "zoneId": "zone-1",
+                  "overlays": [],
+                  "main": [
+                    {
+                      "id": "clip-iris",
+                      "instanceId": "iris",
+                      "startMs": 0,
+                      "durationMs": 5000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    },
+                    {
+                      "id": "clip-horizon",
+                      "instanceId": "horizon",
+                      "startMs": 7000,
+                      "durationMs": 4000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    },
+                    {
+                      "id": "clip-mandala",
+                      "instanceId": "mandala",
+                      "startMs": 12500,
+                      "durationMs": 4000,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "updatedAt": 1
+      },
+      "converted": {
+        "version": 2,
+        "id": "oracle-stock-lesson-source",
+        "name": "Oracle Stock Lesson",
+        "zones": [
+          {
+            "id": "zone-1",
+            "name": "Main",
+            "nominalPixelCount": 1936,
+            "color": "#38bdf8"
+          }
+        ],
+        "zoneLayouts": [
+          {
+            "id": "layout-main",
+            "name": "Main",
+            "zones": [],
+            "logical": {
+              "kind": "single",
+              "zoneIds": [
+                "zone-1"
+              ]
+            }
+          }
+        ],
+        "stageMapId": "plane",
+        "outputContract": {
+          "version": 1,
+          "kind": "portable-2d",
+          "referenceMapId": "plane",
+          "referencePixelCount": 1936,
+          "compatibility": {
+            "dimensions": [
+              2
+            ],
+            "mapClass": "continuous-surface",
+            "resolution": "variable"
+          }
+        },
+        "composition": {
+          "version": 2,
+          "executionModel": "continuous",
+          "showEndMs": 16500,
+          "sampleRemap": {
+            "repeatScale": 1
+          },
+          "patternInstances": [
+            {
+              "id": "horizon",
+              "pattern": {
+                "kind": "stock",
+                "id": "EventHorizon"
+              },
+              "patternName": "EventHorizon",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            },
+            {
+              "id": "iris",
+              "pattern": {
+                "kind": "stock",
+                "id": "ClockworkIris"
+              },
+              "patternName": "ClockworkIris",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            },
+            {
+              "id": "mandala",
+              "pattern": {
+                "kind": "stock",
+                "id": "SignalMandala"
+              },
+              "patternName": "SignalMandala",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "layers": [
+            {
+              "id": "layer:zone-1:main",
+              "zoneId": "zone-1",
+              "name": "Main",
+              "rank": 0
+            }
+          ],
+          "clips": [
+            {
+              "id": "clip-iris",
+              "instanceId": "iris",
+              "zoneId": "zone-1",
+              "layerId": "layer:zone-1:main",
+              "startMs": 0,
+              "durationMs": 5000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "clip-iris:appearance:1",
+                    "timeMs": 0,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "clip-horizon",
+              "instanceId": "horizon",
+              "zoneId": "zone-1",
+              "layerId": "layer:zone-1:main",
+              "startMs": 7000,
+              "durationMs": 4000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "clip-horizon:appearance:1",
+                    "timeMs": 7000,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "clip-mandala",
+              "instanceId": "mandala",
+              "zoneId": "zone-1",
+              "layerId": "layer:zone-1:main",
+              "startMs": 12500,
+              "durationMs": 4000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "clip-mandala:appearance:1",
+                    "timeMs": 12500,
+                    "value": {
+                      "opacity": 1,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "transitions": [
+            {
+              "id": "transition-horizon-mandala",
+              "kind": "wipe",
+              "durationMs": 1500,
+              "easing": {
+                "curve": "cubic",
+                "direction": "in-out"
+              },
+              "wipeVariant": "linear",
+              "direction": 0,
+              "feather": 0.08,
+              "edgePolicy": "dither",
+              "participants": [
+                {
+                  "id": "transition-horizon-mandala:participant:1",
+                  "zoneId": "zone-1",
+                  "layerId": "layer:zone-1:main",
+                  "fromClipId": "clip-horizon",
+                  "toClipId": "clip-mandala"
+                }
+              ],
+              "propertyRamps": []
+            },
+            {
+              "id": "transition-iris-horizon",
+              "kind": "crossfade",
+              "durationMs": 2000,
+              "easing": {
+                "curve": "sine",
+                "direction": "in-out"
+              },
+              "crossfadePolicy": "live-live",
+              "participants": [
+                {
+                  "id": "transition-iris-horizon:participant:1",
+                  "zoneId": "zone-1",
+                  "layerId": "layer:zone-1:main",
+                  "fromClipId": "clip-iris",
+                  "toClipId": "clip-horizon"
+                }
+              ],
+              "propertyRamps": []
+            }
+          ],
+          "layoutOccurrences": [
+            {
+              "id": "layout-occurrence:1",
+              "layoutId": "layout-main",
+              "startMs": 0,
+              "durationMs": 16500,
+              "parameters": {}
+            }
+          ],
+          "propertyTracks": [
+            {
+              "id": "track-mandala-brightness",
+              "target": {
+                "kind": "clip-view",
+                "clipId": "clip-mandala",
+                "property": "brightness"
+              },
+              "keyframes": [
+                {
+                  "id": "mandala-arrive",
+                  "timeMs": 12500,
+                  "value": 1,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "mandala-hold",
+                  "timeMs": 14500,
+                  "value": 1,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "mandala-settle",
+                  "timeMs": 16500,
+                  "value": 0.45,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                }
+              ],
+              "activeStartMs": 0,
+              "activeDurationMs": 16500
+            }
+          ],
+          "markers": [
+            {
+              "id": "scene-marker:passages",
+              "timeMs": 0,
+              "name": "Passages",
+              "role": "chapter"
+            }
+          ],
+          "groupDefinitions": [],
+          "groupOccurrences": []
+        },
+        "updatedAt": 1
+      },
+      "conversionReport": {
+        "sourceShowId": "oracle-stock-lesson-source",
+        "accounting": [
+          {
+            "sourcePath": "cells.0.adaptations.brightness",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.mirror",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.phase",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.adaptations.timeScale",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.pattern.id",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.pattern.kind",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.patternName",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.restartOnEntry",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.sceneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.sceneSpan",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "cells.0.zoneId",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition"
+          },
+          {
+            "sourcePath": "composition.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.showEndMs"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.pattern.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.pattern.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.pattern.kind",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.pattern.kind"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.patternName",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.patternName"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.time.timeOffsetMs",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.time.timeOffsetMs"
+          },
+          {
+            "sourcePath": "composition.patternInstances.0.time.timeScale",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.0.time.timeScale"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.pattern.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.pattern.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.pattern.kind",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.pattern.kind"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.patternName",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.patternName"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.time.timeOffsetMs",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.time.timeOffsetMs"
+          },
+          {
+            "sourcePath": "composition.patternInstances.1.time.timeScale",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.1.time.timeScale"
+          },
+          {
+            "sourcePath": "composition.patternInstances.2.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.2.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.2.pattern.id",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.2.pattern.id"
+          },
+          {
+            "sourcePath": "composition.patternInstances.2.pattern.kind",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.2.pattern.kind"
+          },
+          {
+            "sourcePath": "composition.patternInstances.2.patternName",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.2.patternName"
+          },
+          {
+            "sourcePath": "composition.patternInstances.2.time.timeOffsetMs",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.2.time.timeOffsetMs"
+          },
+          {
+            "sourcePath": "composition.patternInstances.2.time.timeScale",
+            "outcome": "preserved",
+            "targetPath": "composition.patternInstances.2.time.timeScale"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.id"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.0.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.0.easing.curve"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.0.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.0.easing.direction"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.0.id"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.0.timeMs",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.0.timeMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.0.value",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.0.value"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.1.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.1.easing.curve"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.1.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.1.easing.direction"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.1.id"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.1.timeMs",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.1.timeMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.1.value",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.1.value"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.2.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.2.easing.curve"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.2.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.2.easing.direction"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.2.id",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.2.id"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.2.timeMs",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.2.timeMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.keyframes.2.value",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.keyframes.2.value"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.target.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.target.kind"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.target.placementId",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.target.placementId"
+          },
+          {
+            "sourcePath": "composition.scenes.0.propertyTracks.0.target.property",
+            "outcome": "mapped",
+            "targetPath": "composition.propertyTracks.0.target.property"
+          },
+          {
+            "sourcePath": "composition.scenes.0.sceneId",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/clips/propertyTracks"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.durationMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.id"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.instanceId"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.startMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.view.brightness"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.view.mirror"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.0.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.0.view.phase"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.1.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.durationMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.id"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.1.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.instanceId"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.1.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.startMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.1.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.view.brightness"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.1.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.view.mirror"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.1.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.1.view.phase"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.2.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.durationMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.2.id",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.id"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.2.instanceId",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.instanceId"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.2.startMs",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.startMs"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.2.view.brightness",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.view.brightness"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.2.view.mirror",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.view.mirror"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.main.2.view.phase",
+            "outcome": "mapped",
+            "targetPath": "composition.clips.2.view.phase"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.overlays",
+            "outcome": "mapped",
+            "targetPath": "composition.layers"
+          },
+          {
+            "sourcePath": "composition.scenes.0.zones.0.zoneId",
+            "outcome": "mapped",
+            "targetPath": "composition.layers/clips"
+          },
+          {
+            "sourcePath": "composition.transitions.0.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.direction"
+          },
+          {
+            "sourcePath": "composition.transitions.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.durationMs"
+          },
+          {
+            "sourcePath": "composition.transitions.0.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.easing.curve"
+          },
+          {
+            "sourcePath": "composition.transitions.0.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.easing.direction"
+          },
+          {
+            "sourcePath": "composition.transitions.0.edgePolicy",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.edgePolicy"
+          },
+          {
+            "sourcePath": "composition.transitions.0.feather",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.feather"
+          },
+          {
+            "sourcePath": "composition.transitions.0.fromPlacementId",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.participants.0.fromClipId"
+          },
+          {
+            "sourcePath": "composition.transitions.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.id"
+          },
+          {
+            "sourcePath": "composition.transitions.0.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.kind"
+          },
+          {
+            "sourcePath": "composition.transitions.0.toPlacementId",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.participants.0.toClipId"
+          },
+          {
+            "sourcePath": "composition.transitions.0.wipeVariant",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.0.wipeVariant"
+          },
+          {
+            "sourcePath": "composition.transitions.1.crossfadePolicy",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.1.crossfadePolicy"
+          },
+          {
+            "sourcePath": "composition.transitions.1.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.1.durationMs"
+          },
+          {
+            "sourcePath": "composition.transitions.1.easing.curve",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.1.easing.curve"
+          },
+          {
+            "sourcePath": "composition.transitions.1.easing.direction",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.1.easing.direction"
+          },
+          {
+            "sourcePath": "composition.transitions.1.fromPlacementId",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.1.participants.0.fromClipId"
+          },
+          {
+            "sourcePath": "composition.transitions.1.id",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.1.id"
+          },
+          {
+            "sourcePath": "composition.transitions.1.kind",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.1.kind"
+          },
+          {
+            "sourcePath": "composition.transitions.1.toPlacementId",
+            "outcome": "mapped",
+            "targetPath": "composition.transitions.1.participants.0.toClipId"
+          },
+          {
+            "sourcePath": "composition.version",
+            "outcome": "mapped",
+            "targetPath": "composition.version"
+          },
+          {
+            "sourcePath": "id",
+            "outcome": "preserved",
+            "targetPath": "id"
+          },
+          {
+            "sourcePath": "name",
+            "outcome": "preserved",
+            "targetPath": "name"
+          },
+          {
+            "sourcePath": "outputContract.compatibility.dimensions.0",
+            "outcome": "preserved",
+            "targetPath": "outputContract.compatibility.dimensions.0"
+          },
+          {
+            "sourcePath": "outputContract.compatibility.mapClass",
+            "outcome": "preserved",
+            "targetPath": "outputContract.compatibility.mapClass"
+          },
+          {
+            "sourcePath": "outputContract.compatibility.resolution",
+            "outcome": "preserved",
+            "targetPath": "outputContract.compatibility.resolution"
+          },
+          {
+            "sourcePath": "outputContract.kind",
+            "outcome": "preserved",
+            "targetPath": "outputContract.kind"
+          },
+          {
+            "sourcePath": "outputContract.referenceMapId",
+            "outcome": "preserved",
+            "targetPath": "outputContract.referenceMapId"
+          },
+          {
+            "sourcePath": "outputContract.referencePixelCount",
+            "outcome": "preserved",
+            "targetPath": "outputContract.referencePixelCount"
+          },
+          {
+            "sourcePath": "outputContract.version",
+            "outcome": "preserved",
+            "targetPath": "outputContract.version"
+          },
+          {
+            "sourcePath": "routingLayouts.0.id",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.id"
+          },
+          {
+            "sourcePath": "routingLayouts.0.logical.kind",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.logical.kind"
+          },
+          {
+            "sourcePath": "routingLayouts.0.logical.zoneIds.0",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.logical.zoneIds.0"
+          },
+          {
+            "sourcePath": "routingLayouts.0.name",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.name"
+          },
+          {
+            "sourcePath": "routingLayouts.0.zones",
+            "outcome": "mapped",
+            "targetPath": "zoneLayouts.0.zones"
+          },
+          {
+            "sourcePath": "scenes.0.durationMs",
+            "outcome": "mapped",
+            "targetPath": "composition.markers/showEndMs/layoutOccurrences"
+          },
+          {
+            "sourcePath": "scenes.0.id",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.0.id"
+          },
+          {
+            "sourcePath": "scenes.0.name",
+            "outcome": "mapped",
+            "targetPath": "composition.markers.0.name"
+          },
+          {
+            "sourcePath": "stageMapId",
+            "outcome": "preserved",
+            "targetPath": "stageMapId"
+          },
+          {
+            "sourcePath": "transitions",
+            "outcome": "retired-source-structure",
+            "targetPath": "composition.transitions/layoutOccurrences"
+          },
+          {
+            "sourcePath": "updatedAt",
+            "outcome": "preserved",
+            "targetPath": "updatedAt"
+          },
+          {
+            "sourcePath": "zones.0.color",
+            "outcome": "preserved",
+            "targetPath": "zones.0.color"
+          },
+          {
+            "sourcePath": "zones.0.id",
+            "outcome": "preserved",
+            "targetPath": "zones.0.id"
+          },
+          {
+            "sourcePath": "zones.0.name",
+            "outcome": "preserved",
+            "targetPath": "zones.0.name"
+          },
+          {
+            "sourcePath": "zones.0.nominalPixelCount",
+            "outcome": "preserved",
+            "targetPath": "zones.0.nominalPixelCount"
+          }
+        ],
+        "unaccountedSourcePaths": [],
+        "sceneOffsets": [
+          {
+            "sceneId": "passages",
+            "startMs": 0,
+            "endMs": 16500
+          }
+        ],
+        "layerMappings": [
+          {
+            "sceneId": "passages",
+            "zoneId": "zone-1",
+            "sourceLayerId": "main",
+            "layerId": "layer:zone-1:main"
+          }
+        ],
+        "clipMappings": [
+          {
+            "sourcePlacementIds": [
+              "clip-iris"
+            ],
+            "clipId": "clip-iris"
+          },
+          {
+            "sourcePlacementIds": [
+              "clip-horizon"
+            ],
+            "clipId": "clip-horizon"
+          },
+          {
+            "sourcePlacementIds": [
+              "clip-mandala"
+            ],
+            "clipId": "clip-mandala"
+          }
+        ],
+        "markerMappings": [
+          {
+            "sourceSceneId": "passages",
+            "markerId": "scene-marker:passages",
+            "timeMs": 0
+          }
+        ],
+        "flatProjectionMappings": [],
+        "retiredFlatCellShadows": [
+          {
+            "sourceCellId": "cell-passages-zone-1",
+            "sourcePath": "cells.0",
+            "outcome": "retired-composition-shadow"
+          }
+        ],
+        "retiredSilentRuntimeUses": [],
+        "retiredStructuralCuts": [],
+        "retiredNoContributionPropertyTracks": []
+      }
+    }
+  ],
+  "behavior": {
+    "source": {
+      "id": "oracle-behavior-source",
+      "name": "Oracle Pointer Drag",
+      "scenes": [
+        {
+          "id": "scene-a",
+          "name": "Opening",
+          "durationMs": 6000
+        }
+      ],
+      "zones": [
+        {
+          "id": "zone",
+          "name": "Main",
+          "nominalPixelCount": 16
+        }
+      ],
+      "cells": [],
+      "routingLayouts": [
+        {
+          "id": "layout",
+          "name": "Full",
+          "zones": [],
+          "logical": {
+            "kind": "single",
+            "zoneIds": [
+              "zone"
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "outputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "referenceMapId": "plane",
+        "referencePixelCount": 16,
+        "compatibility": {
+          "dimensions": [
+            2
+          ],
+          "mapClass": "continuous-surface",
+          "resolution": "variable"
+        }
+      },
+      "composition": {
+        "version": 1,
+        "executionModel": "deterministic-loop",
+        "durationMs": 6000,
+        "patternInstances": [
+          {
+            "id": "instance",
+            "pattern": {
+              "kind": "stock",
+              "id": "TestPattern1D"
+            },
+            "patternName": "TestPattern1D",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            }
+          }
+        ],
+        "scenes": [
+          {
+            "sceneId": "scene-a",
+            "zones": [
+              {
+                "zoneId": "zone",
+                "main": [
+                  {
+                    "id": "clip",
+                    "instanceId": "instance",
+                    "startMs": 0,
+                    "durationMs": 1000,
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    }
+                  }
+                ],
+                "overlays": [
+                  {
+                    "id": "empty-overlay",
+                    "name": "Atmosphere",
+                    "placements": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "updatedAt": 1
+    },
+    "converted": {
+      "version": 2,
+      "id": "oracle-behavior-source",
+      "name": "Oracle Pointer Drag",
+      "zones": [
+        {
+          "id": "zone",
+          "name": "Main",
+          "nominalPixelCount": 16
+        }
+      ],
+      "zoneLayouts": [
+        {
+          "id": "layout",
+          "name": "Full",
+          "zones": [],
+          "logical": {
+            "kind": "single",
+            "zoneIds": [
+              "zone"
+            ]
+          }
+        }
+      ],
+      "outputContract": {
+        "version": 1,
+        "kind": "portable-2d",
+        "referenceMapId": "plane",
+        "referencePixelCount": 16,
+        "compatibility": {
+          "dimensions": [
+            2
+          ],
+          "mapClass": "continuous-surface",
+          "resolution": "variable"
+        }
+      },
+      "composition": {
+        "version": 2,
+        "executionModel": "deterministic-loop",
+        "showEndMs": 6000,
+        "sampleRemap": {
+          "repeatScale": 1
+        },
+        "patternInstances": [
+          {
+            "id": "instance",
+            "pattern": {
+              "kind": "stock",
+              "id": "TestPattern1D"
+            },
+            "patternName": "TestPattern1D",
+            "time": {
+              "timeScale": 1,
+              "timeOffsetMs": 0
+            }
+          }
+        ],
+        "layers": [
+          {
+            "id": "layer:zone:main",
+            "zoneId": "zone",
+            "name": "Main",
+            "rank": 0
+          },
+          {
+            "id": "layer:zone:overlay:1",
+            "zoneId": "zone",
+            "name": "Atmosphere",
+            "rank": 1
+          }
+        ],
+        "clips": [
+          {
+            "id": "clip",
+            "instanceId": "instance",
+            "zoneId": "zone",
+            "layerId": "layer:zone:main",
+            "startMs": 0,
+            "durationMs": 1000,
+            "entryPolicy": "continue",
+            "zoneSampleMode": "span",
+            "appearance": {
+              "keys": [
+                {
+                  "id": "clip:appearance:1",
+                  "timeMs": 0,
+                  "value": {
+                    "opacity": 1,
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "effects": []
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "transitions": [],
+        "layoutOccurrences": [
+          {
+            "id": "layout-occurrence:1",
+            "layoutId": "layout",
+            "startMs": 0,
+            "durationMs": 6000,
+            "parameters": {}
+          }
+        ],
+        "propertyTracks": [],
+        "markers": [
+          {
+            "id": "scene-marker:scene-a",
+            "timeMs": 0,
+            "name": "Opening",
+            "role": "chapter"
+          }
+        ],
+        "groupDefinitions": [],
+        "groupOccurrences": []
+      },
+      "updatedAt": 1
+    },
+    "conversionReport": {
+      "sourceShowId": "oracle-behavior-source",
+      "accounting": [
+        {
+          "sourcePath": "cells",
+          "outcome": "retired-source-structure",
+          "targetPath": "composition"
+        },
+        {
+          "sourcePath": "composition.durationMs",
+          "outcome": "mapped",
+          "targetPath": "composition.showEndMs"
+        },
+        {
+          "sourcePath": "composition.executionModel",
+          "outcome": "mapped",
+          "targetPath": "composition.executionModel"
+        },
+        {
+          "sourcePath": "composition.patternInstances.0.id",
+          "outcome": "preserved",
+          "targetPath": "composition.patternInstances.0.id"
+        },
+        {
+          "sourcePath": "composition.patternInstances.0.pattern.id",
+          "outcome": "preserved",
+          "targetPath": "composition.patternInstances.0.pattern.id"
+        },
+        {
+          "sourcePath": "composition.patternInstances.0.pattern.kind",
+          "outcome": "preserved",
+          "targetPath": "composition.patternInstances.0.pattern.kind"
+        },
+        {
+          "sourcePath": "composition.patternInstances.0.patternName",
+          "outcome": "preserved",
+          "targetPath": "composition.patternInstances.0.patternName"
+        },
+        {
+          "sourcePath": "composition.patternInstances.0.time.timeOffsetMs",
+          "outcome": "preserved",
+          "targetPath": "composition.patternInstances.0.time.timeOffsetMs"
+        },
+        {
+          "sourcePath": "composition.patternInstances.0.time.timeScale",
+          "outcome": "preserved",
+          "targetPath": "composition.patternInstances.0.time.timeScale"
+        },
+        {
+          "sourcePath": "composition.scenes.0.sceneId",
+          "outcome": "mapped",
+          "targetPath": "composition.markers/clips/propertyTracks"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.0.durationMs",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.0.durationMs"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.0.id",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.0.id"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.0.instanceId",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.0.instanceId"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.0.startMs",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.0.startMs"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.0.view.brightness",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.0.view.brightness"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.0.view.mirror",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.0.view.mirror"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.0.view.phase",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.0.view.phase"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.overlays.0.id",
+          "outcome": "mapped",
+          "targetPath": "composition.layers.1.id"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.overlays.0.name",
+          "outcome": "mapped",
+          "targetPath": "composition.layers.1.name"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.overlays.0.placements",
+          "outcome": "mapped",
+          "targetPath": "composition.clips"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.zoneId",
+          "outcome": "mapped",
+          "targetPath": "composition.layers/clips"
+        },
+        {
+          "sourcePath": "composition.version",
+          "outcome": "mapped",
+          "targetPath": "composition.version"
+        },
+        {
+          "sourcePath": "id",
+          "outcome": "preserved",
+          "targetPath": "id"
+        },
+        {
+          "sourcePath": "name",
+          "outcome": "preserved",
+          "targetPath": "name"
+        },
+        {
+          "sourcePath": "outputContract.compatibility.dimensions.0",
+          "outcome": "preserved",
+          "targetPath": "outputContract.compatibility.dimensions.0"
+        },
+        {
+          "sourcePath": "outputContract.compatibility.mapClass",
+          "outcome": "preserved",
+          "targetPath": "outputContract.compatibility.mapClass"
+        },
+        {
+          "sourcePath": "outputContract.compatibility.resolution",
+          "outcome": "preserved",
+          "targetPath": "outputContract.compatibility.resolution"
+        },
+        {
+          "sourcePath": "outputContract.kind",
+          "outcome": "preserved",
+          "targetPath": "outputContract.kind"
+        },
+        {
+          "sourcePath": "outputContract.referenceMapId",
+          "outcome": "preserved",
+          "targetPath": "outputContract.referenceMapId"
+        },
+        {
+          "sourcePath": "outputContract.referencePixelCount",
+          "outcome": "preserved",
+          "targetPath": "outputContract.referencePixelCount"
+        },
+        {
+          "sourcePath": "outputContract.version",
+          "outcome": "preserved",
+          "targetPath": "outputContract.version"
+        },
+        {
+          "sourcePath": "routingLayouts.0.id",
+          "outcome": "mapped",
+          "targetPath": "zoneLayouts.0.id"
+        },
+        {
+          "sourcePath": "routingLayouts.0.logical.kind",
+          "outcome": "mapped",
+          "targetPath": "zoneLayouts.0.logical.kind"
+        },
+        {
+          "sourcePath": "routingLayouts.0.logical.zoneIds.0",
+          "outcome": "mapped",
+          "targetPath": "zoneLayouts.0.logical.zoneIds.0"
+        },
+        {
+          "sourcePath": "routingLayouts.0.name",
+          "outcome": "mapped",
+          "targetPath": "zoneLayouts.0.name"
+        },
+        {
+          "sourcePath": "routingLayouts.0.zones",
+          "outcome": "mapped",
+          "targetPath": "zoneLayouts.0.zones"
+        },
+        {
+          "sourcePath": "scenes.0.durationMs",
+          "outcome": "mapped",
+          "targetPath": "composition.markers/showEndMs/layoutOccurrences"
+        },
+        {
+          "sourcePath": "scenes.0.id",
+          "outcome": "mapped",
+          "targetPath": "composition.markers.0.id"
+        },
+        {
+          "sourcePath": "scenes.0.name",
+          "outcome": "mapped",
+          "targetPath": "composition.markers.0.name"
+        },
+        {
+          "sourcePath": "transitions",
+          "outcome": "retired-source-structure",
+          "targetPath": "composition.transitions/layoutOccurrences"
+        },
+        {
+          "sourcePath": "updatedAt",
+          "outcome": "preserved",
+          "targetPath": "updatedAt"
+        },
+        {
+          "sourcePath": "zones.0.id",
+          "outcome": "preserved",
+          "targetPath": "zones.0.id"
+        },
+        {
+          "sourcePath": "zones.0.name",
+          "outcome": "preserved",
+          "targetPath": "zones.0.name"
+        },
+        {
+          "sourcePath": "zones.0.nominalPixelCount",
+          "outcome": "preserved",
+          "targetPath": "zones.0.nominalPixelCount"
+        }
+      ],
+      "unaccountedSourcePaths": [],
+      "sceneOffsets": [
+        {
+          "sceneId": "scene-a",
+          "startMs": 0,
+          "endMs": 6000
+        }
+      ],
+      "layerMappings": [
+        {
+          "sceneId": "scene-a",
+          "zoneId": "zone",
+          "sourceLayerId": "main",
+          "layerId": "layer:zone:main"
+        },
+        {
+          "sceneId": "scene-a",
+          "zoneId": "zone",
+          "sourceLayerId": "empty-overlay",
+          "layerId": "layer:zone:overlay:1"
+        }
+      ],
+      "clipMappings": [
+        {
+          "sourcePlacementIds": [
+            "clip"
+          ],
+          "clipId": "clip"
+        }
+      ],
+      "markerMappings": [
+        {
+          "sourceSceneId": "scene-a",
+          "markerId": "scene-marker:scene-a",
+          "timeMs": 0
+        }
+      ],
+      "flatProjectionMappings": [],
+      "retiredFlatCellShadows": [],
+      "retiredSilentRuntimeUses": [],
+      "retiredStructuralCuts": [],
+      "retiredNoContributionPropertyTracks": []
+    }
+  }
+}

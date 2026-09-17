@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "issue": 1065,
+  "sourceRunId": "full-final-20260917c",
+  "generatedAt": "2026-09-17T20:51:54.150Z",
+  "filters": {
+    "fixture": null,
+    "viewport": null,
+    "surface": null
+  },
+  "partialCoverage": false,
+  "widths": [
+    1440,
+    390
+  ],
+  "comparisonCount": 80,
+  "verdictCount": 72,
+  "equivalent": false,
+  "classificationCounts": {
+    "product-comparison": 80,
+    "invalid-v1-baseline": 0,
+    "unstable-capture": 0
+  },
+  "reasonCounts": {
+    "dimensions-differ": 24,
+    "pixels-differ": 24,
+    "surface-missing": 32
+  },
+  "missingV1Baselines": 0,
+  "representativeWholeEditor": {
+    "fixture": "fresh",
+    "viewport": "desktop",
+    "v1": {
+      "present": true,
+      "x": 292.390625,
+      "y": 40,
+      "width": 1126,
+      "height": 960,
+      "path": "/tmp/pxlblz-show-editor-equivalence/full-final-20260917c/fresh-desktop-whole-editor-v1-a.png",
+      "sha256": "149312d1b846137c54f48793481c7f290293f57948f77f512aad40dcb4331808"
+    },
+    "v2": {
+      "present": true,
+      "x": 292.390625,
+      "y": 40,
+      "width": 1126,
+      "height": 960,
+      "path": "/tmp/pxlblz-show-editor-equivalence/full-final-20260917c/fresh-desktop-whole-editor-v2-a.png",
+      "sha256": "74be648647aaf2f95bc753b1850175b7a756ce6389e13399bef15a44bf29945c"
+    },
+    "changedPixels": 1031563,
+    "maximumChannelDelta": 255,
+    "reason": "pixels-differ",
+    "stability": {
+      "v1": {
+        "complete": true,
+        "changedPixels": 0,
+        "maximumChannelDelta": 0
+      },
+      "v2": {
+        "complete": true,
+        "changedPixels": 0,
+        "maximumChannelDelta": 0
+      }
+    }
+  }
+}
