@@ -37,8 +37,8 @@ test('converted Scene labels project as ordered chapters and general Markers sta
   const created = await page.request.post('/api/shows', { data: source })
   expect(created.ok(), await created.text()).toBe(true)
 
-  await page.goto(`studio/shows/${source.id}?show-v2-pilot=1`)
-  const route = page.getByTestId('show-v2-route-pilot')
+  await page.goto(`studio/shows/${source.id}?show-v2-editor=1`)
+  const route = page.getByTestId('show-editor-v2-route')
   await expect(route).toBeVisible()
   const markers = route.getByTestId('show-v2-markers')
   const chapters = markers.getByTestId('show-v2-chapters')

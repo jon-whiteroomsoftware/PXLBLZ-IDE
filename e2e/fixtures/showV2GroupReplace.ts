@@ -28,9 +28,9 @@ export async function exerciseShowV2GroupReplace(page: Page) {
   const matches = (url: string) => url.includes(`/api/shows/${legacy.id}?show-version=2`)
   page.on('request', request => { if (request.method() === 'PUT' && matches(request.url())) writes++ })
   page.on('response', response => { if (response.request().method() === 'PUT' && matches(response.url()) && response.ok()) settled++ })
-  await page.goto(`studio/shows/${legacy.id}?show-v2-pilot=1&capture`)
+  await page.goto(`studio/shows/${legacy.id}?show-v2-editor=1&capture`)
 
-  const route = page.getByTestId('show-v2-route-pilot'), stage = page.getByTestId('show-stage-preview')
+  const route = page.getByTestId('show-editor-v2-route'), stage = page.getByTestId('show-stage-preview')
   const panel = route.getByRole('region', { name: 'Replace Group Pattern', exact: true })
   const groups = route.getByRole('region', { name: 'Group occurrences', exact: true })
   const replace = panel.getByRole('button', { name: 'Replace Group Pattern', exact: true })
@@ -127,8 +127,8 @@ export async function exerciseShowV2GroupReplace(page: Page) {
   expect(await readSaved()).toEqual(linked)
 
   // 6. History replays the linked replacement through the provider.
-  await runWrite(route.getByRole('button', { name: 'Undo', exact: true }), 3, record => definitionOf(record, 'group').patternInstances.length === 1, 'Undo saved.')
-  await runWrite(route.getByRole('button', { name: 'Redo', exact: true }), 4, record => definitionOf(record, 'group').patternInstances.length === 2, 'Redo saved.')
+  await runWrite(route.getByRole('group', { name: 'Show history' }).getByRole('button', { name: 'Undo', exact: true }), 3, record => definitionOf(record, 'group').patternInstances.length === 1, 'Undo saved.')
+  await runWrite(route.getByRole('group', { name: 'Show history' }).getByRole('button', { name: 'Redo', exact: true }), 4, record => definitionOf(record, 'group').patternInstances.length === 2, 'Redo saved.')
   expect((await readSaved()).composition).toEqual(linked.composition)
 
   // 7. Make Group Unique first, then replace only that occurrence's definition.

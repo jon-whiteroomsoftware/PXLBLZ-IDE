@@ -11,17 +11,17 @@ export async function exerciseShowV2GroupOccurrences(page: Page, onReady?: (cont
   let writes = 0, settled = 0
   page.on('request', request => { if (request.method() === 'PUT' && request.url().includes(`/api/shows/${record.id}?show-version=2`)) writes++ })
   page.on('response', response => { if (response.request().method() === 'PUT' && response.url().includes(`/api/shows/${record.id}?show-version=2`) && response.ok()) settled++ })
-  await page.goto(`studio/shows/${record.id}?show-v2-pilot=1&capture`)
+  await page.goto(`studio/shows/${record.id}?show-v2-editor=1&capture`)
   const unpin = page.getByRole('button', { name: 'Unpin Shows list', exact: true }); if (await unpin.count()) await unpin.click()
   const close = page.getByRole('button', { name: 'Close Shows list', exact: true }); if (await close.count()) await close.click()
-  const route = page.getByTestId('show-v2-route-pilot'), editor = route.getByRole('region', { name: 'Group occurrences', exact: true }), stage = page.getByTestId('show-stage-preview')
+  const route = page.getByTestId('show-editor-v2-route'), editor = route.getByRole('region', { name: 'Group occurrences', exact: true }), stage = page.getByTestId('show-stage-preview')
   const persisted = async () => { const response = await page.request.get('/api/shows?show-version=2'); expect(response.ok()).toBe(true); return (await response.json()).shows.find((show: { id: string }) => show.id === record.id) }
   const waitSave = async (count: number) => { await expect.poll(() => settled).toBe(count); expect(writes).toBe(count) }
   const applyStart = async (time: string) => { const field = editor.getByLabel('Group start (ms)', { exact: true }); await field.fill(time); await field.press('Enter') }
   await expect(stage).toBeVisible()
-  const timing = route.getByTestId('show-v2-clip-timing')
-  await timing.getByLabel('Insert at', { exact: true }).fill('5000'); await timing.getByLabel('Insert at', { exact: true }).press('Enter')
-  await timing.getByLabel('Insert duration', { exact: true }).fill('1000'); await timing.getByLabel('Insert duration', { exact: true }).press('Enter')
+  const timing = route.getByTestId('show-v2-show-timing')
+  await timing.getByLabel('Insert Time at (ms)', { exact: true }).fill('5000'); await timing.getByLabel('Insert Time at (ms)', { exact: true }).press('Enter')
+  await timing.getByLabel('Insert Time duration (ms)', { exact: true }).fill('1000'); await timing.getByLabel('Insert Time duration (ms)', { exact: true }).press('Enter')
   await timing.getByRole('button', { name: 'Insert Time', exact: true }).click(); await waitSave(1)
   const initial = record.composition.groupOccurrences[0].id
   await editor.getByLabel('Group occurrence', { exact: true }).selectOption(initial)
@@ -47,7 +47,7 @@ export async function exerciseShowV2GroupOccurrences(page: Page, onReady?: (cont
   await editor.getByLabel('Group occurrence', { exact: true }).selectOption(initial)
   await route.getByRole('button', { name: 'Reopen artifacts', exact: true }).click(); await expect(route).toContainText(/Reopened \.pxlshow v2 and \.epe/)
   if (onReady) await onReady({ route, editor, stage, readWrites: () => writes })
-  await route.getByRole('button', { name: 'Undo', exact: true }).click(); await waitSave(6)
+  await route.getByRole('group', { name: 'Show history' }).getByRole('button', { name: 'Undo', exact: true }).click(); await waitSave(6)
   saved = await persisted(); expect(saved.composition.clips).toEqual([]); expect(saved.composition.groupOccurrences).toHaveLength(2)
   await editor.getByLabel('Group occurrence', { exact: true }).selectOption(copied.id)
   await editor.getByRole('button', { name: 'Delete Group', exact: true }).click(); await waitSave(7)
@@ -57,8 +57,8 @@ export async function exerciseShowV2GroupOccurrences(page: Page, onReady?: (cont
   expect(saved.composition.patternInstances).toEqual(record.composition.patternInstances); expect(saved.composition.groupDefinitions).toHaveLength(2)
   await expect(route.getByRole('button', { name: 'Reopen artifacts', exact: true })).toBeDisabled()
   await expect(stage).toBeHidden()
-  await route.getByRole('button', { name: 'Undo', exact: true }).click(); await waitSave(9); await expect(stage).toBeVisible()
-  await route.getByRole('button', { name: 'Redo', exact: true }).click(); await waitSave(10); await expect(stage).toBeHidden()
+  await route.getByRole('group', { name: 'Show history' }).getByRole('button', { name: 'Undo', exact: true }).click(); await waitSave(9); await expect(stage).toBeVisible()
+  await route.getByRole('group', { name: 'Show history' }).getByRole('button', { name: 'Redo', exact: true }).click(); await waitSave(10); await expect(stage).toBeHidden()
   await route.getByRole('button', { name: 'Reload saved v2', exact: true }).click(); await expect(route).toContainText('Reloaded v2 bytes from the provider.')
   await page.reload(); await expect(editor.getByLabel('Group occurrence', { exact: true })).toHaveValue('')
   await expect(route.getByRole('button', { name: 'Reopen artifacts', exact: true })).toBeDisabled(); expect(writes).toBe(10)

@@ -45,11 +45,18 @@ export function ShowV2PropertyEditor({ capture, submitPropertyEdit, isCurrentCap
   const owner: ShowPropertyTrackOwnerV2 | undefined = effectiveOwnerKey === 'show' ? { kind: 'show' }
     : effectiveOwnerKey.startsWith('group:') ? { kind: 'group-definition', definitionId: effectiveOwnerKey.slice(6) } : undefined
   const model = buildShowV2PropertyEditorModel(capture, owner)
-  const track = model.tracks.find(value => value.id === (selectedTrackId ?? trackId))
+  // A selection the caller still holds for a track this record no longer has
+  // selects nothing here, so the panel's own choice stays reachable.
+  const callerTrackId = selectedTrackId !== undefined && model.tracks.some(value => value.id === selectedTrackId)
+    ? selectedTrackId
+    : undefined
+  const track = model.tracks.find(value => value.id === (callerTrackId ?? trackId))
   const [draftRecord, setDraftRecord] = useState(capture.record)
   if (!busy && draftRecord !== capture.record) {
     setDraftRecord(capture.record); setReset(value => value + 1)
-    if (trackId && !track) selectTrack('')
+    // Only this component's own state: notifying the caller here would update
+    // it while this one renders.
+    if (trackId && !track) setTrackId('')
   }
   const submit = async (intent: ShowPropertyEditIntentV2) => {
     if (!owner || pending.current) return

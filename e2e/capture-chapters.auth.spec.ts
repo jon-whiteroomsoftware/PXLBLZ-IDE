@@ -25,7 +25,7 @@ test('captures the Gallery band and the Show reading card chapters', async ({ pa
   await page.screenshot({ path: '.wrsp/ui-proof/1040-chapters-reading-card.png' })
 })
 
-test('captures the pilot Marker panel chapter projection', async ({ page }) => {
+test('captures the editor route's Marker panel chapter projection', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 })
   const source = convertibleV1Show()
   source.id = 'chapter-capture-synthetic'
@@ -50,8 +50,8 @@ test('captures the pilot Marker panel chapter projection', async ({ page }) => {
   const created = await page.request.post('/api/shows', { data: source })
   expect(created.ok(), await created.text()).toBe(true)
 
-  await page.goto(`studio/shows/${source.id}?show-v2-pilot=1`)
-  const markers = page.getByTestId('show-v2-route-pilot').getByTestId('show-v2-markers')
+  await page.goto(`studio/shows/${source.id}?show-v2-editor=1`)
+  const markers = page.getByTestId('show-editor-v2-route').getByTestId('show-v2-markers')
   await expect(markers.getByTestId('show-v2-chapters').getByRole('listitem')).toHaveCount(3)
   await markers.scrollIntoViewIfNeeded()
   await markers.screenshot({ path: '.wrsp/ui-proof/1040-chapters-pilot.png' })

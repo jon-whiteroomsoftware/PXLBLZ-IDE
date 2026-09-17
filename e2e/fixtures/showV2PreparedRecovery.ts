@@ -32,10 +32,12 @@ export async function exerciseShowV2PreparedRecovery(page: Page) {
   expect(seeded.ok(), await seeded.text()).toBe(true)
   let writes = 0
   page.on('request', request => { if (request.method() === 'PUT' && request.url().includes(`/api/shows/${fixture.record.id}?show-version=2`)) writes++ })
-  await page.goto(`studio/shows/${fixture.record.id}?show-v2-pilot=1&capture`)
-  const route = page.getByTestId('show-v2-route-pilot')
+  await page.goto(`studio/shows/${fixture.record.id}?show-v2-editor=1&capture`)
+  const route = page.getByTestId('show-editor-v2-route')
   const editor = route.getByRole('region', { name: 'Layers', exact: true })
-  const refused = route.getByText('composition.clips: lowering requires repeat-mode Clip sampling evidence before compilation.', { exact: true })
+  // The refusal is stated where it matters: beside the Stage that cannot draw
+  // and beside the artifacts that cannot be built.
+  const refused = route.getByText('composition.clips: lowering requires repeat-mode Clip sampling evidence before compilation.', { exact: true }).first()
   await expect(refused).toBeVisible(); await expect(page.getByTestId('show-stage-preview')).toHaveCount(0)
   await expect(route.getByRole('button', { name: 'Reopen artifacts', exact: true })).toBeDisabled()
   await editor.getByLabel('Layer Zone', { exact: true }).selectOption('zone')
@@ -47,10 +49,10 @@ export async function exerciseShowV2PreparedRecovery(page: Page) {
   await expect(route.getByText('Layer saved.', { exact: true })).toBeVisible(); expect(writes).toBe(1)
   await expect(page.getByTestId('show-stage-preview')).toBeVisible()
   await expect(editor.getByLabel('Selected Layer', { exact: true })).toHaveValue('')
-  await route.getByRole('button', { name: 'Undo', exact: true }).click()
+  await route.getByRole('group', { name: 'Show history' }).getByRole('button', { name: 'Undo', exact: true }).click()
   await expect(route.getByText('Undo saved.', { exact: true })).toBeVisible(); await expect(refused).toBeVisible(); expect(writes).toBe(2)
   await expect(page.getByTestId('show-stage-preview')).toHaveCount(0)
-  await route.getByRole('button', { name: 'Redo', exact: true }).click()
+  await route.getByRole('group', { name: 'Show history' }).getByRole('button', { name: 'Redo', exact: true }).click()
   await expect(route.getByText('Redo saved.', { exact: true })).toBeVisible(); expect(writes).toBe(3)
   await expect(page.getByTestId('show-stage-preview')).toBeVisible()
   await route.getByRole('button', { name: 'Reload saved v2', exact: true }).click()

@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Redo2, Undo2 } from 'lucide-react'
 import {
   resolveShowTimelineClipDropV2,
   resolveShowTimelineEdgeDropV2,
@@ -14,6 +13,7 @@ import {
 } from '@/engine/showTimelineViewModel'
 import {
   formatShowTimelineRange,
+  ShowTimelineHistoryControls,
   ShowTimelineJunctionMark,
   ShowTimelineLayoutLane,
   ShowTimelineMarkerLane,
@@ -283,24 +283,13 @@ export function ShowTimelineGestureSurface({
     >
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-live/15 bg-live/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
         <span role="note" data-testid="show-timeline-read-only-status" className="min-w-0 truncate">{statusLine}</span>
-        <span role="group" aria-label="Show history" className="flex shrink-0 items-center gap-1">
-          {([
-            ['Undo', gestures.undo, !gestures.canUndo, Undo2],
-            ['Redo', gestures.redo, !gestures.canRedo, Redo2],
-          ] as const).map(([label, run, off, Icon]) => (
-            <button
-              key={label}
-              type="button"
-              aria-label={label}
-              title={`${label} (${label === 'Undo' ? '⌘Z' : '⇧⌘Z'})`}
-              aria-disabled={off || gestures.busy || undefined}
-              onClick={() => { if (!off && !gestures.busy) run() }}
-              className="flex h-5 w-5 items-center justify-center rounded-sm text-zinc-400 outline-none hover:bg-white/5 focus-visible:ring-1 focus-visible:ring-live/80 aria-disabled:opacity-35"
-            >
-              <Icon size={11} aria-hidden />
-            </button>
-          ))}
-        </span>
+        <ShowTimelineHistoryControls
+          undo={gestures.undo}
+          redo={gestures.redo}
+          canUndo={gestures.canUndo}
+          canRedo={gestures.canRedo}
+          busy={gestures.busy}
+        />
       </div>
 
       <ShowTimelineRulerLane totalMs={totalMs} percent={percent} {...(transportShowId === undefined ? {} : { transportShowId })} />

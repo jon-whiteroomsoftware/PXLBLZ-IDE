@@ -28,11 +28,12 @@ test('the ordinary Show route renders a stored v2 record through the version gat
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto(`studio/shows/${SHOW_ID}?show-v2-editor=1&capture`)
 
-  // The ordinary route holds the v2 record; the typed pilot panels are absent.
+  // The ordinary route holds the v2 record, and it is the only v2 surface:
+  // slice 6 retired the typed pilot route entirely.
   const surface = page.getByTestId('show-timeline-read-only')
   await expect(surface).toBeVisible()
   await expect(surface).toHaveAttribute('data-show-record-version', '2')
-  await expect(page.getByTestId('show-v2-route-pilot')).toHaveCount(0)
+  await expect(page.getByTestId('show-editor-v2-route')).toHaveCount(1)
   await expect(page.getByTestId('show-timeline-read-only-status'))
     .toContainText('Editing this v2 Show')
 

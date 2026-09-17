@@ -32,10 +32,12 @@ import { useShowV2EditCapture } from './useShowV2EditCapture'
  * summary, the artifact inventory, the `.pxlshow` and `.epe` exports and
  * Send to Controller. All of them read the one prepared capture
  * `useShowV2EditCapture` owns, and the timeline owns the route's Undo and
- * Redo. A record whose prepared Stage refuses keeps a read-only timeline and
- * refuses every authoring control, because admission would refuse every edit
- * on it anyway. The v1 route is untouched, and this surface registers no agent
- * binding, so no command sees a v2 record (specification section 10).
+ * Redo - on both surfaces, because history belongs to the record. A record
+ * whose prepared Stage refuses keeps a read-only timeline and refuses every
+ * authoring control, because admission would refuse every edit that reads the
+ * prepared Stage; the inspectors that do not still edit it, and those edits
+ * stay undoable. The v1 route is untouched, and this surface registers no
+ * agent binding, so no command sees a v2 record (specification section 10).
  */
 export function ShowEditorV2Route({ showId }: { showId: string }) {
   const record = useShowStore((state) => state.showV2Pilots[showId])
@@ -124,7 +126,14 @@ export function ShowEditorV2Route({ showId }: { showId: string }) {
                     <ShowTimelineReadOnlySurface
                       view={view}
                       transportShowId={showId}
-                      statusLine={`Read only - this v2 Show cannot be prepared: ${prepared.message}`}
+                      history={{
+                        undo: handlers.undo,
+                        redo: handlers.redo,
+                        canUndo: handlers.canUndo,
+                        canRedo: handlers.canRedo,
+                        busy: handlers.busy,
+                      }}
+                      statusLine={status ?? `Read only - this v2 Show cannot be prepared: ${prepared.message}`}
                     />
                   ) : (
                     <ShowTimelineGestureSurface

@@ -6,6 +6,7 @@ import {
 } from '@/engine/showTimelineViewModel'
 import {
   formatShowTimelineRange,
+  ShowTimelineHistoryControls,
   ShowTimelineJunctionMark,
   ShowTimelineLayoutLane,
   ShowTimelineMarkerLane,
@@ -27,11 +28,17 @@ export function ShowTimelineReadOnlySurface({
   view,
   statusLine,
   transportShowId,
+  history,
 }: {
   view: ShowTimelineViewModel
   statusLine: string
   /** The Show whose transport draws the ruler's playhead (#1056 slice 6). */
   transportShowId?: string
+  /**
+   * The route's Undo and Redo. A refused record offers no Clip gesture, but
+   * the inspectors still edit it, so its history stays reachable here.
+   */
+  history?: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean; busy: boolean }
 }) {
   const totalMs = Math.max(1, view.showEndMs)
   const percent = showTimelinePercentOf(totalMs)
@@ -43,13 +50,14 @@ export function ShowTimelineReadOnlySurface({
       data-show-record-version={view.recordVersion}
       className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#060608] text-zinc-300"
     >
-      <div
-        role="note"
-        data-testid="show-timeline-read-only-status"
-        className="flex shrink-0 items-center gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500"
-      >
+      <div className="flex shrink-0 items-center gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
         <Lock size={12} aria-hidden className="shrink-0 text-amber-300/70" />
-        <span className="min-w-0">{statusLine}</span>
+        <span role="note" data-testid="show-timeline-read-only-status" className="min-w-0 truncate">{statusLine}</span>
+        {history && (
+          <span className="ml-auto">
+            <ShowTimelineHistoryControls {...history} />
+          </span>
+        )}
       </div>
 
       <ShowTimelineRulerLane totalMs={totalMs} percent={percent} {...(transportShowId === undefined ? {} : { transportShowId })} />

@@ -1,3 +1,4 @@
+import { Redo2, Undo2 } from 'lucide-react'
 import {
   fitShowTimelineViewport,
   showTimelineRulerTicks,
@@ -19,6 +20,41 @@ import { useShowTransportStore } from '@/store/showTransportStore'
  */
 export function showTimelinePercentOf(totalMs: number): (timeMs: number) => string {
   return (timeMs: number) => `${Math.min(100, Math.max(0, timeMs / totalMs * 100))}%`
+}
+
+/**
+ * The route's Undo and Redo. Both v2 surfaces draw them, because history
+ * belongs to the record rather than to the gestures: a record whose prepared
+ * Stage refuses is still edited through the inspectors, and those edits must
+ * be undoable (#1056 slice 6).
+ */
+export function ShowTimelineHistoryControls({ undo, redo, canUndo, canRedo, busy }: {
+  undo: () => void
+  redo: () => void
+  canUndo: boolean
+  canRedo: boolean
+  busy: boolean
+}) {
+  return (
+    <span role="group" aria-label="Show history" className="flex shrink-0 items-center gap-1">
+      {([
+        ['Undo', undo, !canUndo, Undo2],
+        ['Redo', redo, !canRedo, Redo2],
+      ] as const).map(([label, run, off, Icon]) => (
+        <button
+          key={label}
+          type="button"
+          aria-label={label}
+          title={`${label} (${label === 'Undo' ? '\u2318Z' : '\u21e7\u2318Z'})`}
+          aria-disabled={off || busy || undefined}
+          onClick={() => { if (!off && !busy) run() }}
+          className="flex h-5 w-5 items-center justify-center rounded-sm text-zinc-400 outline-none hover:bg-white/5 focus-visible:ring-1 focus-visible:ring-live/80 aria-disabled:opacity-35"
+        >
+          <Icon size={11} aria-hidden />
+        </button>
+      ))}
+    </span>
+  )
 }
 
 export function ShowTimelineRulerLane({ totalMs, percent, transportShowId }: {

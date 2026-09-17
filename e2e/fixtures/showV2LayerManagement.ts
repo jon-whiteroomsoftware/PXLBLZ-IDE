@@ -14,8 +14,8 @@ export async function exerciseShowV2LayerManagement(page: Page) {
   for (const [resource, value] of [['maps', layerManagementMap], ['shows', legacy]] as const) { const response = await page.request.post(`/api/${resource}`, { data: value }); expect(response.ok(), await response.text()).toBe(true) }
   const seeded = await page.request.put(`/api/shows/${legacy.id}?show-version=2`, { data: layerManagementRecord }); expect(seeded.ok(), await seeded.text()).toBe(true)
   let writes = 0; page.on('request', request => { if (request.method() === 'PUT' && request.url().includes(`/api/shows/${legacy.id}?show-version=2`)) writes++ })
-  await page.goto(`studio/shows/${legacy.id}?show-v2-pilot=1&capture`)
-  const route = page.getByTestId('show-v2-route-pilot'), editor = route.getByRole('region', { name: 'Layers', exact: true }), stage = page.getByTestId('show-stage-preview')
+  await page.goto(`studio/shows/${legacy.id}?show-v2-editor=1&capture`)
+  const route = page.getByTestId('show-editor-v2-route'), editor = route.getByRole('region', { name: 'Layers', exact: true }), stage = page.getByTestId('show-stage-preview')
   await expect(stage).toBeVisible(); await expect(stage).toContainText('Layer Grid')
   const select = async (id: string) => { await editor.getByLabel('Layer Zone', { exact: true }).selectOption('zone'); await editor.getByLabel('Selected Layer', { exact: true }).selectOption(id) }
   const settled = async (count: number) => { await expect(editor.getByRole('button', { name: 'Add Layer', exact: true })).toBeEnabled(); expect(writes).toBe(count) }
@@ -34,8 +34,8 @@ export async function exerciseShowV2LayerManagement(page: Page) {
   await expect(editor.getByRole('button', { name: 'Reassign and remove' })).toBeDisabled(); expect(writes).toBe(3)
   for (const field of await destinations.all()) { await expect(field).toHaveValue(''); await field.selectOption(addedId) }
   await editor.getByRole('button', { name: 'Reassign and remove' }).click(); await settled(4); await expect(editor.getByLabel('Selected Layer', { exact: true })).toHaveValue('')
-  await route.getByRole('button', { name: 'Undo', exact: true }).click(); await expect(route.getByText('Undo saved.', { exact: true })).toBeVisible(); expect(writes).toBe(5)
-  await route.getByRole('button', { name: 'Redo', exact: true }).click(); await expect(route.getByText('Redo saved.', { exact: true })).toBeVisible(); expect(writes).toBe(6)
+  await route.getByRole('group', { name: 'Show history' }).getByRole('button', { name: 'Undo', exact: true }).click(); await expect(route.getByText('Undo saved.', { exact: true })).toBeVisible(); expect(writes).toBe(5)
+  await route.getByRole('group', { name: 'Show history' }).getByRole('button', { name: 'Redo', exact: true }).click(); await expect(route.getByText('Redo saved.', { exact: true })).toBeVisible(); expect(writes).toBe(6)
   await route.getByRole('button', { name: 'Reload saved v2' }).click(); await expect(route.getByText('Reloaded v2 bytes from the provider.', { exact: true })).toBeVisible(); expect(writes).toBe(6)
   await route.getByRole('button', { name: 'Reopen artifacts' }).click(); await expect(route).toContainText(/Reopened \.pxlshow v2 and \.epe/)
   const response = await page.request.get('/api/shows?show-version=2'); expect(response.ok()).toBe(true)

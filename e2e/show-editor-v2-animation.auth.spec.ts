@@ -118,8 +118,12 @@ test('the ordinary route edits v2 animation, Markers, Show End, Insert Time and 
   }))
   expect(scrollable.overflowY).toBe('auto')
   expect(scrollable.scrollable).toBe(true)
-  // The last control in the panel is reachable by ordinary scrolling.
+  // The last control in the panel is reachable by ordinary scrolling. Slice 6
+  // put the Show summary and its delivery below the inspectors, so that is the
+  // panel's last status line, and the Show inspector's own stays reachable.
   await sidePanel.evaluate(element => { element.scrollTop = element.scrollHeight })
+  await expect(page.getByTestId('show-editor-v2-delivery-status')).toBeInViewport()
+  await page.getByTestId('show-inspector-v2-status').scrollIntoViewIfNeeded()
   await expect(page.getByTestId('show-inspector-v2-status')).toBeInViewport()
   const overflow = await sidePanel.evaluate(root => [...root.querySelectorAll<HTMLElement>('input,select,button')]
     .filter(element => {
