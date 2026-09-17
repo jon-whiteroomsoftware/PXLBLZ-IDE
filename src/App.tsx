@@ -127,6 +127,7 @@ import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 import { AgentDrawerWorkspace } from '@/components/agent/AgentDrawer'
 import { ShowV2RoutePilot } from '@/components/ShowV2RoutePilot'
+import { ShowEditorV2ReadOnly } from '@/components/ShowEditorV2ReadOnly'
 
 function Splitter({
   onDrag,
@@ -345,6 +346,10 @@ export default function App() {
 function StudioApp() {
   const showV2PilotEnabled = import.meta.env.DEV
     && new URLSearchParams(window.location.search).get('show-v2-pilot') === '1'
+  // #1056 slice 1: the ordinary editor route rendering a ShowRecordV2 read-only.
+  // The typed pilot panels stay on their own gate until slice 6 retires them.
+  const showV2EditorEnabled = import.meta.env.DEV
+    && new URLSearchParams(window.location.search).get('show-v2-editor') === '1'
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
@@ -827,9 +832,11 @@ function StudioApp() {
       ref.kind === 'stock' ? ref.id : userPatterns.find((pattern) => pattern.id === ref.id)?.name
     ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), compileLibrarySet))
   }, [compileLibrarySet, routedStockShow, routedStockShowDraft, selectedReferencePatterns, userPatterns])
-  const pilotShowId = showV2PilotEnabled && showsLoaded && route.kind === 'studio' && route.entity?.kind === 'shows'
+  const routedShowId = showsLoaded && route.kind === 'studio' && route.entity?.kind === 'shows'
     ? route.entity.id
     : null
+  const pilotShowId = showV2PilotEnabled ? routedShowId : null
+  const v2EditorShowId = showV2EditorEnabled && !showV2PilotEnabled ? routedShowId : null
   const activeShow = routedStockShowOverride ?? (
     activeShowId && (pilotShowId === null || activeShowId === pilotShowId)
       ? shows.find((show) => show.id === activeShowId)
@@ -1471,6 +1478,8 @@ function StudioApp() {
                 </div>
               ) : pilotShowId ? (
                 <ShowV2RoutePilot showId={pilotShowId} />
+              ) : v2EditorShowId ? (
+                <ShowEditorV2ReadOnly showId={v2EditorShowId} />
               ) : activeShow ? (
                 <ShowWorkspace
                   previewAspect={showStagePreviewAspect}
