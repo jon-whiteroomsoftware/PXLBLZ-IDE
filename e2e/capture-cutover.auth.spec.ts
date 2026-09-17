@@ -55,6 +55,9 @@ test('captures the production Show route after the cutover', async ({ page }) =>
   await expect(route).toHaveCount(0)
   if (await openShows.isVisible()) await openShows.click()
   await expect(page.getByRole('treeitem', { name: /Not Yet Converted/ })).toContainText('v1')
+  // The marker shares its corner with the row's hover actions, so the pointer
+  // has to leave the row for the capture to show what the assertion checked.
+  await page.mouse.move(700, 900)
   await page.screenshot({ path: '.wrsp/ui-proof/1039-cutover-unconverted.png' })
 
   // The converted row opens on the v2 editor from the same list.
