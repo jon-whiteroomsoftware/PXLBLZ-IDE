@@ -140,7 +140,8 @@ describe('renaming and removing a definition', () => {
     const source = record()
     const used = editShowZoneLayoutDefinitionV2(source, { kind: 'remove', layoutId: 'both' })
     expect(used).toMatchObject({ status: 'refused', code: 'definition-in-use' })
-    expect(used.status === 'refused' && used.message).toContain('interval-1')
+    expect(used.status === 'refused' && used.message)
+      .toBe('Layout occurrences "interval-1", "interval-2" still use Zone Layout "both". Select another Zone Layout there first.')
     expect(used.record).toBe(source)
 
     let working = source

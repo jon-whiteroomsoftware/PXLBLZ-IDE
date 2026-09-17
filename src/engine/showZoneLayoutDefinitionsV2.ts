@@ -130,7 +130,7 @@ export function editShowZoneLayoutDefinitionV2(
     if (uses.length > 0) {
       return refuse('definition-in-use', `Layout occurrence${uses.length === 1 ? '' : 's'} ${
         uses.map(occurrence => `"${occurrence.id}"`).join(', ')
-      } still use Zone Layout "${layout.id}". Select another Zone Layout there first.`)
+      } still use${uses.length === 1 ? 's' : ''} Zone Layout "${layout.id}". Select another Zone Layout there first.`)
     }
     const candidate = structuredClone(record)
     candidate.zoneLayouts = candidate.zoneLayouts.filter(entry => entry.id !== layout.id)

@@ -144,7 +144,7 @@ it('reports the refusal when a Layout occurrence still names the definition', as
   const { record, write } = setup()
   fireEvent.click(screen.getByRole('button', { name: 'Remove Zone Layout' }))
   fireEvent.click(screen.getByRole('button', { name: 'Remove Both?' }))
-  await waitFor(() => expect(screen.getByText(/still use Zone Layout "both"/)).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText(/still uses? Zone Layout "both"/)).toBeInTheDocument())
   expect(write).not.toHaveBeenCalled()
   expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record)
 })

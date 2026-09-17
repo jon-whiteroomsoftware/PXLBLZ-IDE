@@ -83,12 +83,16 @@ test('captures the v2 Zone Map and Zone Layouts surface', async ({ page }) => {
   await page.screenshot({ path: '.wrsp/ui-proof/1039-zones-layouts-operator.png' })
 
   // The refusal that keeps a Layout definition in use: nothing is written.
-  await layouts.getByLabel('Zone Layout').selectOption({ label: /^Default/ })
+  await layouts.getByLabel('Zone Layout', { exact: true }).selectOption({ index: 0 })
   await layouts.getByRole('button', { name: 'Remove Zone Layout' }).click()
   await layouts.getByRole('button', { name: 'Remove Default?' }).click()
-  await expect(page.getByTestId('show-inspector-v2-status')).toContainText('still use Zone Layout')
+  const status = page.getByTestId('show-inspector-v2-status')
+  await expect(status).toContainText('still use Zone Layout')
   await layouts.scrollIntoViewIfNeeded()
   await page.screenshot({ path: '.wrsp/ui-proof/1039-zones-layouts-refusal.png' })
+  // The refused message itself lives at the foot of the inspector column.
+  await status.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: '.wrsp/ui-proof/1039-zones-layouts-refusal-status.png' })
 
   // 390 px: the same section, with the routing mode focused. The Shows drawer
   // overlays the editor at this width until it is dismissed.
