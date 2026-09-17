@@ -1,0 +1,85 @@
+{
+  "issue": 1056,
+  "scope": "slice 1: version-agnostic timeline view model, both projections, v1 container consuming it byte-identically, and read-only v2 rendering on the ordinary Show editor route",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "ROUTE",
+      "PARITY"
+    ]
+  },
+  "base": "a178aa48f540ab0e4a464949bb7d93557d337341",
+  "invariants": [
+    "One view model describes the timeline; the v1 record and a ShowRecordV2 both project into it and no renderer branches on record version.",
+    "A Cut is the absence of a Transition at exact adjacency: a derived junction owns no Transition identity, never enters the Transition list, and a 1 ms gap draws nothing.",
+    "A stored zero-duration v1 Cut record is that absence; its identity survives only in an explicitly named legacy sidecar.",
+    "A whole-output Transition owns every item whose contribution meets its window, not only pairs adjacent on one Layer.",
+    "Layer identity is stable with rank zero at the bottom; Zone rows draw top to bottom by descending rank in both projections.",
+    "Layout occurrences cover the Show once, own their routing parameters, and carry their own incoming transfer.",
+    "Selection identity addresses Clips, Groups, Group Clips, Layers, Transitions, derived Cuts, Layout occurrences, Markers and Zones by their own identity, never a ShowCell inside a ShowScene.",
+    "The view model carries no Scene; every Scene concept a v1 surface still needs lives in a named legacy sidecar a v2 projection never populates.",
+    "Projection allocates no identity, writes no store, leaves both records byte-identical and repeats exactly.",
+    "A v1 record on the ordinary route projects and renders byte-identically to the pre-refactor behaviour.",
+    "A v2 record on the ordinary route is read-only: no control can change it, every item stays focusable, and no agent binding is registered, so no command sees a v2 record."
+  ],
+  "partitions": [
+    "exact adjacency, 1 ms gap, stored zero-duration v1 Cut record, positive Layer Transition, whole-output Transition",
+    "record with a persisted composition, record with only flat cells requiring the projected sidecar, record with no composition at all",
+    "single Layer, Main plus named overlay Layers, materialized Group Clip uses, Zone with no Layers",
+    "Layout occurrence with and without routing parameters, repeated occurrences of one definition, incoming transfer present and absent",
+    "authored Marker, converted Scene-label chapter Marker, chapter absorbed into an existing same-name Marker",
+    "entry policy continue and restart",
+    "all 40 stock Shows and 7 agent baseline fixtures, including the three Layout showcases with retired silent runtime uses",
+    "desktop 1440 px and narrow 390 px"
+  ],
+  "sequences": [
+    "convert each pinned record -> project the v1 view -> project the v2 view -> correlate by the conversion report's identity mappings -> account every difference by named cause",
+    "capture the v1 view model and rendered markup before the refactor -> switch the container to the view model -> reassert byte identity for all 47 records",
+    "seed a stored v2 record through the Worker -> open the ordinary route behind the version gate -> read timeline, Layout lane, Markers, Show End -> capture the Stage preview in Fast then Precise -> traverse by keyboard at 390 px",
+    "mutate the seam -> watch the named case fail -> restore -> watch it pass"
+  ],
+  "oracles": [
+    "The version-agnostic view both surfaces render, correlated by the conversion report's clipMappings, layerMappings, markerMappings and retiredSilentRuntimeUses rather than by coincidental equal text.",
+    "Committed per-record hashes of the serialized v1 view model and of the rendered markup of the timeline toolbar, ruler and grid, captured before the refactor.",
+    "The rendered accessible names and roles a reader reaches on the real route: Zone and Layer groups, Clip and Group Clip labels with their global times, the Layout occurrence label, the chapter Marker label, Show End.",
+    "Stage preview frames captured through the existing transport path in Fast and Precise over the prepared-v2 bundle.",
+    "Observed network writes and console errors during a read-only render: both zero.",
+    "The committed 47-record parity report, unchanged."
+  ],
+  "redEvidence": [
+    "Cut junctions: the parity run before classification showed v1 reporting authored Transitions where v2 has none, across 20 records; reading a stored v1 Cut as absence closed it.",
+    "Whole-output contributor sets: before deriving contributors from contribution rather than junction adjacency, four records reported missing contributors such as bands-the-dancer-enters-se.",
+    "Layout occurrence split: the initial run reported 1 v1 occurrence against 4 v2 occurrences for reference-property-animation and animation, which is the named Layout scalar carrier cause.",
+    "Layer names: the unified v1 projection dropped the authored overlay Layer name, so every named overlay mismatched until the projection carried it.",
+    "The read-only route spec first rendered the route's missing-Show page, because a converted row leaves the v1 list.",
+    "The e2e spec failed to load when it imported the converter, whose schema validator does not resolve under the spec runtime."
+  ],
+  "faults": [
+    "Derived a Cut junction across a 1 ms gap in the v2 projection: 'leaves a 1 ms gap as blank time with no junction' failed; reverted, passed.",
+    "Read a stored zero-duration v1 Cut record as an authored Transition: 'reads a stored zero-duration v1 Cut record as the absence of a Transition' failed; reverted, passed.",
+    "Inverted the v2 Layer draw order to ascending rank: 16 corpus parity cases failed; reverted, passed.",
+    "Shifted the v1 view's Show End by one millisecond: all 48 byte-identity cases failed; reverted, passed.",
+    "Removed aria-disabled from a read-only timeline item: 'offers no mutating control and keeps every item keyboard reachable' failed; reverted, passed."
+  ],
+  "results": {
+    "lint": "npm run lint passed",
+    "typecheck": "npx tsc -b --pretty false passed",
+    "focused": "showTimelineViewModel.test.ts 15, showTimelineViewModelParity.test.ts 49, ShowTimelineV1Fingerprint.test.tsx 48, ShowEditorV2ReadOnly.test.tsx 6, ShowEditor.test.tsx 291, App.test.tsx 113 - all passed",
+    "staged": "npm run test:staged passed",
+    "parity": "npm run show:v2-parity - report matches, 47 inventoried records",
+    "e2e": "show-editor-v2-readonly.auth.spec.ts 1 passed; shows.auth.spec.ts 87 passed, unchanged",
+    "browser": "committed UI proof under .wrsp/ui-proof for the ordinary route holding a v2 record at desktop and 390 px"
+  },
+  "residualGaps": [
+    "Editing a v2 record on the ordinary route is not landed; the route is read-only behind the version gate.",
+    "The per-Clip gesture code still consumes the unified v1 projection and the store's v1 mutators; slice 2 moves it onto the view model.",
+    "The per-Scene grid template, the Layout lane's sceneIds addressing and the sample-repeat lane remain a v1-only branch; slice 4 owns them.",
+    "The Clip inspector and its satellites are untouched; slice 3 owns them.",
+    "Property animation tracks and lanes are not in the view model; slice 5 owns them.",
+    "Store mutators, agentPrivateExecutor, editorAdmission and MCP remain v1-typed, so no mixed window opens; #1039 switches them together.",
+    "No native v2 fresh-Show builder exists; slice 6 owns it.",
+    "The 40 stock Shows carry no personal authored exports, so the corpus remains synthetic plus pinned stock, as section 2 records.",
+    "Final authoritative committed-tip suites and Fable High review are the coordinator's."
+  ]
+}
