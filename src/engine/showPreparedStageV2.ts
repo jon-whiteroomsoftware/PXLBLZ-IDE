@@ -8,8 +8,9 @@ import { prepareShowV2ForCompile, type ShowV2CompileProvenance } from './showCom
 import type { LibraryRecord, MapRecord, PatternRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
 import { applyNormalizeMode, type MapPoint, type PixelMap } from './maps'
-import { buildShowStripsLayout, buildShowLogicalStageProjection, buildShowStageProjection, showLogicalAspectAdvisory, type ShowStageProjection } from './zonePreview'
-import { installationPhysicalZones, validateInstallationCoverage, type InstallationCoverage } from './showInstallationCoverage'
+import { buildShowStripsLayout, showLogicalAspectAdvisory, type ShowStageProjection } from './zonePreview'
+import { buildShowStageOccurrenceProjectionV2 } from './showStagePresentationV2'
+import { validateInstallationCoverage, type InstallationCoverage } from './showInstallationCoverage'
 
 export interface ShowPreparedStageDependenciesV2 {
   patterns: readonly PatternRecord[]
@@ -132,7 +133,6 @@ function prepareCapturedStage(snapshot: ShowRecordV2, inputs: ShowPreparedStageI
     const activeLayout = snapshot.zoneLayouts.find(layout => layout.id === occurrence.layoutId)!
     const routingLayouts = [activeLayout, ...snapshot.zoneLayouts.filter(layout => layout !== activeLayout)]
     const presentationInput = { zones: snapshot.zones, outputContract: snapshot.outputContract, routingLayouts }
-    const physical = installationPhysicalZones(presentationInput, activeLayout.id)
     let layout: ShowPreparedStageLayoutV2
     if (!map) {
       const strips = buildShowStripsLayout(snapshot.zones)
@@ -146,9 +146,11 @@ function prepareCapturedStage(snapshot: ShowRecordV2, inputs: ShowPreparedStageI
         return { sample: [...pos], pos }
       })
       const logical = snapshot.outputContract.kind === 'portable-2d' ? activeLayout.logical : undefined
-      const projection = logical
-        ? buildShowLogicalStageProjection(snapshot.zones, mapPoints, logical, { splitPosition: prepared.recipe.routingPropertyRamps?.splitPosition.initial ?? occurrence.parameters.splitPosition ?? 0.5 })
-        : buildShowStageProjection(snapshot.zones, mapPoints.length, { controllerZones: physical })
+      // #1038 shares one Layout-occurrence projection owner with time-aware preview presentation.
+      const projection = buildShowStageOccurrenceProjectionV2(snapshot, activeLayout.id, {
+        mapPoints,
+        splitPosition: prepared.recipe.routingPropertyRamps?.splitPosition.initial ?? occurrence.parameters.splitPosition ?? 0.5,
+      })
       const draw: ShowPreparedStageLayoutV2['draw'] = stageDimension === 3
         ? { kind: '3d', positions: mapPoints.map(point => [point.pos![0], point.pos![1], point.pos![2] ?? 0.5]) }
         : { kind: '2d', positions: mapPoints.map(point => [point.pos![0], point.pos![1]]) }

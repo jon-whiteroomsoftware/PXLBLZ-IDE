@@ -43,7 +43,7 @@ beforeEach(() => {
   useShowEditorSessionStore.setState(showEditorSessionInitialState)
 })
 afterEach(() => { vi.restoreAllMocks() })
-it.each(['fast', 'fidelity'] as const)('prepared%s Stage paints complete compiler frames across Layout switch without recompile/solo/guides', async fidelity => {
+it.each(['fast', 'fidelity'] as const)('prepared%s Stage presents the compiler frame through the active Layout occurrence without recompile', async fidelity => {
   const captured = bundle()
   usePreviewStore.setState({ fidelity })
   useShowEditorSessionStore.setState({ diagnostics: { ...showEditorSessionInitialState.diagnostics, zoneOutlines: true, clipOutlines: true } })
@@ -61,14 +61,21 @@ it.each(['fast', 'fidelity'] as const)('prepared%s Stage paints complete compile
   expect(compile).not.toHaveBeenCalled()
   expect(runtimeFactory).toHaveBeenCalledTimes(1)
   expect(runtimeFactory.mock.calls[0][0]).toMatchObject({ code: captured.artifact.code, metadata: captured.artifact.metadata, dimension: 2 })
-  expect(screen.queryByRole('button', { name: /Solo zone|Show Zone outlines|Show Selected Clip outline/ })).not.toBeInTheDocument()
-  expect(screen.queryByTestId('show-stage-zone-outlines')).not.toBeInTheDocument()
+  // Native Zone isolation and authored guides are the prepared branch's own
+  // controls (#1038); the Scene-derived Clip outline stays legacy-only.
+  expect(screen.getByRole('button', { name: 'Solo zone Main' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Hide Zone outlines' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Selected Clip outline/ })).not.toBeInTheDocument()
   const oracle = createFastReplayRuntime({ ...captured.artifact, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: captured.presentation.layout.mapPoints })
-  expect(paints[0]).toEqual(oracle.renderCurrentFrame().frame)
+  // Pixel 1 belongs to no Zone until the later Layout owns it, so presentation
+  // dims exactly that pixel while the compiler frame reaches the renderer.
+  expect(Array.from(paints[0])).toEqual([...oracle.renderCurrentFrame().frame.slice(0, 3), 0.055, 0.055, 0.06])
   act(() => useShowTransportStore.getState().requestSeek(captured.record.id, 625))
   await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
-  expect(paints[paints.length - 1]).toEqual(oracle.advanceTo(625, { stepMs: 1000 / 60, forceFullIntermediateRender: true }).frame)
+  const later = oracle.advanceTo(625, { stepMs: 1000 / 60, forceFullIntermediateRender: true }).frame.slice()
+  expect(Array.from(paints[paints.length - 1])).toEqual([0.055, 0.055, 0.06, ...later.slice(3)])
   expect(paints[paints.length - 1][3]).toBe(1)
+  expect(screen.getByTestId('show-stage-zone-outlines')).toBeInTheDocument()
 })
 
 

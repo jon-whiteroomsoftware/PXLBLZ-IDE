@@ -29,8 +29,14 @@ import {
   buildShowLogicalStageProjection,
   showLogicalAspectAdvisory,
   buildShowStripsLayout,
+  type ShowStageMaskPlan,
   type ShowStageProjection,
+  type ShowStageZone,
 } from '@/engine/zonePreview'
+import {
+  buildShowStagePresentationWindowsV2,
+  showStagePresentationWindowAtV2,
+} from '@/engine/showStagePresentationV2'
 import { OrbitControls } from '@/components/OrbitControls'
 import { canAdvanceShowPlayback, resolveShowPlaybackStep, useShowTransportStore } from '@/store/showTransportStore'
 import { showLoopDurationMs } from '@/engine/showModel'
@@ -356,7 +362,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       note: logical ? showLogicalAspectAdvisory(mapPoints, logical) : null,
     }
   }, [preparedBundle, danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, userMaps])
-  const effectiveSoloZoneId = !preparedBundle && layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
+  const effectiveSoloZoneId = layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
   const diagnosticFrameAtTime = useMemo(() => show && layout?.draw.kind === '2d'
     ? createShowStageDiagnostics(show, layout.draw.positions, layout.mapPoints, layout.projection, layout.kind === 'map', diagnosticFocus)
     : null, [show, layout, diagnosticFocus])
@@ -373,6 +379,48 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
     () => layout ? createShowStageMaskPlan(layout.projection, layout.mapPoints.length) : null,
     [layout],
   )
+  // Native time-aware Stage presentation (#1038): one window per Layout
+  // occurrence, so isolation, unstaged dimming and Zone guides follow a later
+  // Layout instead of freezing the Layout active at zero.
+  const preparedStageWindows = useMemo(
+    () => preparedBundle
+      ? buildShowStagePresentationWindowsV2(preparedBundle.record, preparedBundle.presentation.layout, {
+          initialSplitPosition: preparedBundle.recipe.routingPropertyRamps?.splitPosition.initial,
+        })
+      : null,
+    [preparedBundle],
+  )
+  const preparedStageMaskPlans = useMemo(() => {
+    if (!preparedStageWindows || !layout) return null
+    const plans = new Map<ShowStageProjection, ShowStageMaskPlan>()
+    // One scratch buffer: exactly one window masks any single synchronous paint.
+    const output = new Float64Array(Math.max(0, layout.mapPoints.length) * 3)
+    for (const window of preparedStageWindows) {
+      if (plans.has(window.projection)) continue
+      plans.set(window.projection, {
+        ...createShowStageMaskPlan(window.projection, layout.mapPoints.length),
+        output,
+      })
+    }
+    return plans
+  }, [layout, preparedStageWindows])
+  const preparedStageWindowAt = useCallback((timeMs: number) => (
+    preparedStageWindows
+      ? showStagePresentationWindowAtV2(preparedStageWindows, durationMs, timeMs)
+      : null
+  ), [durationMs, preparedStageWindows])
+  // Presented-frame state follows the transport instant the renderer reports.
+  // The selector returns the same window object inside one occurrence, so
+  // ordinary playback never repaints these controls.
+  const activePreparedWindow = useShowTransportStore((state) => (
+    preparedStageWindowAt(state.showId === showId ? state.positionMs : 0)
+  ))
+  const stageZones: ShowStageZone[] = (preparedBundle
+    ? activePreparedWindow?.projection.zones
+    : layout?.projection.zones) ?? []
+  const unstagedPixelCount = (preparedBundle
+    ? activePreparedWindow?.projection.unstagedPixelCount
+    : layout?.projection.unstagedPixelCount) ?? 0
   const replayRandomSeed = useMemo(() => stableShowSeed(showId), [showId])
   const replayCheckpointKey = useMemo(() => (
     compiled.artifact && layout
@@ -511,7 +559,11 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       renderer.setZoom(view.zoom)
     }
     const maskStarted = performance.now()
-    const maskedFrame = preparedBundle ? result.frame : applyShowStageMaskPacked(result.frame, stageMaskPlan, effectiveSoloZoneIdRef.current)
+    // The prepared branch masks through the Layout occurrence owning this
+    // frame's own elapsed time; the legacy branch keeps its single plan.
+    const preparedWindow = preparedBundle ? preparedStageWindowAt(result.elapsedMs) : null
+    const plan = (preparedWindow ? preparedStageMaskPlans?.get(preparedWindow.projection) : null) ?? stageMaskPlan
+    const maskedFrame = applyShowStageMaskPacked(result.frame, plan, effectiveSoloZoneIdRef.current)
     const maskEnded = performance.now()
     renderer.paint(
       maskedFrame,
@@ -525,7 +577,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       stageMaskMs: maskEnded - maskStarted,
       webglPaintMs: paintEnded - maskEnded,
     }
-  }, [preparedBundle, layout, stageMaskPlan])
+  }, [preparedBundle, layout, preparedStageMaskPlans, preparedStageWindowAt, stageMaskPlan])
 
   // Dev-only deterministic capture surface (#879). Inert without `?capture`.
   useEffect(() => {
@@ -937,8 +989,9 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
 
   const error = compiled.error ?? runtimeError
   const rendererLabel = fidelity === 'fast' ? 'Fast' : 'Precise'
-  const stageZoneCount = layout?.projection.zones.length ?? 0
-  const showZoneInventory = !preparedBundle && (presentation === 'strip' ? stageZoneCount > 0 : stageZoneCount > 1 || installationCoverage?.valid === false)
+  const stageZoneCount = stageZones.length
+  const showZoneInventory = presentation === 'strip' ? stageZoneCount > 0 : stageZoneCount > 1 || installationCoverage?.valid === false
+  const zoneGuideRects = preparedBundle ? activePreparedWindow?.guideRects ?? [] : diagnosticRects
   const coverage = installationCoverage?.layouts[0]
   const fullCoverage = coverage && installationCoverage
     ? `${coverage.assignedPixelCount} assigned · ${coverage.missingPixelCount} missing · ${coverage.overlappingPixelCount} overlapping · ${coverage.outOfRangePixelCount} out of range · ${installationCoverage.pixelCount} total`
@@ -978,7 +1031,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       >
         <div className="relative inline-block">
           <canvas ref={canvasRef} className="rounded-sm" />
-          {seekStatus === 'idle' && layout?.draw.kind === '2d' && diagnostics.zoneOutlines && diagnosticRects.length > 0 && (
+          {seekStatus === 'idle' && layout?.draw.kind === '2d' && diagnostics.zoneOutlines && zoneGuideRects.length > 0 && (
             <svg
               data-testid="show-stage-zone-outlines"
               aria-label="Zone outlines"
@@ -986,7 +1039,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
               preserveAspectRatio="none"
               className="pointer-events-none absolute inset-0 size-full overflow-visible"
             >
-              {diagnosticRects.map((rect) => (
+              {zoneGuideRects.map((rect) => (
                 <rect
                   key={rect.zoneId}
                   x={rect.x}
@@ -1051,17 +1104,15 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
         <div className="show-preview-rail" role="group" aria-label="Show preview controls">
           <button type="button" aria-label={isRunning ? 'Pause Show preview' : 'Play Show preview'} title={isRunning ? 'Pause Show preview' : 'Play Show preview'} aria-pressed={isRunning} onClick={togglePlayback} className={isRunning ? 'text-green-400' : 'text-red-400'}>{isRunning ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</button>
           <span className="show-preview-rail-separator" />
-          {!preparedBundle && <>
           <StageDiagnosticToggle label="Zone outlines" icon={<Grid2X2 size={13} aria-hidden />} active={diagnostics.zoneOutlines} onChange={active => setDiagnostic('zoneOutlines', active)} />
-          <StageDiagnosticToggle label="Selected Clip outline" icon={<Scan size={13} aria-hidden />} active={diagnostics.clipOutlines} onChange={active => setDiagnostic('clipOutlines', active)} />
-          </>}
+          {!preparedBundle && <StageDiagnosticToggle label="Selected Clip outline" icon={<Scan size={13} aria-hidden />} active={diagnostics.clipOutlines} onChange={active => setDiagnostic('clipOutlines', active)} />}
         </div>
         <div data-testid="show-stage-controls" className="show-strip-controls rail-list-scroll">
           <div className="show-strip-sections" aria-label="Show stage">
             <ShowStripPreviewSection />
             {showZoneInventory && <ShowStripSection label="Zones" summary={<>
               {compactCoverage && <span role="status" aria-label="Zone coverage" title={fullCoverage ?? undefined} className={installationCoverage?.valid ? 'text-emerald-500' : 'text-amber-300'}>{compactCoverage}</span>}
-              {layout?.projection.zones.map(zone => <span key={zone.id} className="inline-flex items-center gap-1"><span className="panel-readout-dot">·</span><span className="size-1.5 rounded-full" style={{ background: zone.color }} /><span>{zone.name}</span></span>)}
+              {stageZones.map(zone => <span key={zone.id} className="inline-flex items-center gap-1"><span className="panel-readout-dot">·</span><span className="size-1.5 rounded-full" style={{ background: zone.color }} /><span>{zone.name}</span></span>)}
             </>} actions={effectiveSoloZoneId && (
               <button
                 type="button"
@@ -1085,7 +1136,8 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
               </div>
             )}
             <ZoneInventoryRows
-              layout={layout}
+              zones={stageZones}
+              mapped={layout?.kind === 'map'}
               effectiveSoloZoneId={effectiveSoloZoneId}
               onSoloZone={setSoloZoneId}
             />
@@ -1100,11 +1152,11 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
             <DeckCell label="kind"><span className="text-zinc-400">{stageIdentityRole}</span></DeckCell>
           </DeckGrid>
             </ShowStripSection>
-        {(layout?.note || (!preparedBundle && layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
+        {(layout?.note || (layout?.kind === 'map' && unstagedPixelCount > 0)) && (
           <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
           {layout?.note && <div className="mt-1 text-amber-300">{layout.note}</div>}
-          {!preparedBundle && layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
-            <div className="mt-1">{layout.projection.unstagedPixelCount} stage pixels are not covered by a show zone.</div>
+          {layout?.kind === 'map' && unstagedPixelCount > 0 && (
+            <div className="mt-1">{unstagedPixelCount} stage pixels are not covered by a show zone.</div>
           )}
           </div>
         )}
@@ -1152,18 +1204,18 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
             <span aria-hidden className="text-zinc-700">·</span>
             <span className="show-stage-pixel-count shrink-0 tabular-nums text-zinc-400">{layout?.mapPoints.length ?? 0} px</span>
           </div>
-        {(layout?.note || (!preparedBundle && layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
+        {(layout?.note || (layout?.kind === 'map' && unstagedPixelCount > 0)) && (
           <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
           {layout?.note && <div className="mt-1 text-amber-300">{layout.note}</div>}
-          {!preparedBundle && layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
-            <div className="mt-1">{layout.projection.unstagedPixelCount} stage pixels are not covered by a show zone.</div>
+          {layout?.kind === 'map' && unstagedPixelCount > 0 && (
+            <div className="mt-1">{unstagedPixelCount} stage pixels are not covered by a show zone.</div>
           )}
           </div>
         )}
           </section>
         <PreviewViewportSection
           profile="show"
-          headerActions={!preparedBundle && (
+          headerActions={(
             <span className="flex items-center gap-1" aria-label="Stage diagnostics">
               <StageDiagnosticToggle
                 label="Zone outlines"
@@ -1171,12 +1223,14 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
                 active={diagnostics.zoneOutlines}
                 onChange={(active) => setDiagnostic('zoneOutlines', active)}
               />
-              <StageDiagnosticToggle
-                label="Selected Clip outline"
-                icon={<Scan size={13} aria-hidden />}
-                active={diagnostics.clipOutlines}
-                onChange={(active) => setDiagnostic('clipOutlines', active)}
-              />
+              {!preparedBundle && (
+                <StageDiagnosticToggle
+                  label="Selected Clip outline"
+                  icon={<Scan size={13} aria-hidden />}
+                  active={diagnostics.clipOutlines}
+                  onChange={(active) => setDiagnostic('clipOutlines', active)}
+                />
+              )}
             </span>
           )}
         />
@@ -1207,7 +1261,8 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
               </div>
             )}
           <ZoneInventoryRows
-            layout={layout}
+            zones={stageZones}
+            mapped={layout?.kind === 'map'}
             effectiveSoloZoneId={effectiveSoloZoneId}
             onSoloZone={setSoloZoneId}
           />
@@ -1219,17 +1274,20 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
 }
 
 function ZoneInventoryRows({
-  layout,
+  zones,
+  mapped,
   effectiveSoloZoneId,
   onSoloZone,
 }: {
-  layout: StageLayout | null
+  /** Zones of the Layout occurrence active at the presented time. */
+  zones: ShowStageZone[]
+  mapped: boolean
   effectiveSoloZoneId: string | null
   onSoloZone: (zoneId: string | null) => void
 }) {
   return (
     <div className="mt-1 divide-y divide-zinc-800">
-      {layout?.projection.zones.map((zone) => {
+      {zones.map((zone) => {
         const active = zone.id === effectiveSoloZoneId
         return (
           <div key={zone.id} className="grid h-6 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
@@ -1237,8 +1295,8 @@ function ZoneInventoryRows({
               <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: zone.color }} />
               <span className="truncate text-zinc-200" title={zone.name}>{zone.name}</span>
             </div>
-            <span className={zone.offStage && layout.kind === 'map' ? 'text-amber-300' : 'text-zinc-500'}>
-              {zone.offStage && layout.kind === 'map' ? (
+            <span className={zone.offStage && mapped ? 'text-amber-300' : 'text-zinc-500'}>
+              {zone.offStage && mapped ? (
                 <span className="inline-flex items-center gap-1">
                   <AlertTriangle size={12} aria-hidden />
                   off stage
