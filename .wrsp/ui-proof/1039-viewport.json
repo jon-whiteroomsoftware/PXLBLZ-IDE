@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "#1039",
+  "route": "/PXLBLZ-IDE/studio/shows/show-editor-v2-viewport?show-v2-editor=1",
+  "operation": "Drove the v2 editor route through repository Playwright (Chromium headed by the auth runner; the Codex in-app browser is not available to this worker) on a seeded 30 s v2 Show. Captured the timeline column fitted to the whole Show; then zoomed to 516% with the navigator's end handle and panned right with its thumb, showing the window's own ruler, the Clip and Layout names following the window in, and content running off the left edge; then fitted again with the Magnet, Markers, Zone Layouts lane and Transition junctions toggled off; then the whole route at 390 px with the view controls beside the truncated status line and keyboard focus on Fit to Show.",
+  "captures": [
+    ".wrsp/ui-proof/1039-viewport-1440-fitted.png",
+    ".wrsp/ui-proof/1039-viewport-1440-zoomed.png",
+    ".wrsp/ui-proof/1039-viewport-1440-toggles-off.png",
+    ".wrsp/ui-proof/1039-viewport-390.png"
+  ],
+  "capturedAtCommit": "c7312c52b29327fe3f82f9aadc8a6091eda9bd57"
+}
