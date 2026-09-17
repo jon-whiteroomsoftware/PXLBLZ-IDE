@@ -1,21 +1,14 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { downloadBrowserFile } from '@/engine/browserDownload'
-import { bytesToBase64 } from '@/engine/RelayWebSocket'
-import { makeProgramId } from '@/engine/bytecodePush'
-import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { buildShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
 import { qualifyShowV2PilotArtifacts } from '@/engine/showV2Pilot'
-import {
-  buildShowV2RouteArtifacts,
-  buildShowV2RouteSummary,
-} from '@/engine/showV2RouteDelivery'
+import { buildShowV2RouteSummary } from '@/engine/showV2RouteDelivery'
 import { useShowStore } from '@/store/showStore'
 import { Button } from './ui/button'
 import { ShowArtifactInventoryBody } from './ShowArtifactInventoryPopover'
 import { useShowV2ControllerDelivery } from './useShowV2ControllerDelivery'
 import type { ShowV2EditCaptureBinding } from './useShowV2EditCapture'
-
-const APP_VERSION = typeof __PXLBLZ_APP_VERSION__ === 'string' ? __PXLBLZ_APP_VERSION__ : 'dev'
+import { downloadShowV2Epe, SHOW_V2_APP_VERSION as APP_VERSION, type ShowV2RouteArtifactState } from './useShowV2RouteArtifacts'
 
 /**
  * The v2 editor route's Show summary, artifact inventory, exports and
@@ -29,9 +22,12 @@ const APP_VERSION = typeof __PXLBLZ_APP_VERSION__ === 'string' ? __PXLBLZ_APP_VE
 export function ShowEditorV2DeliveryPanel({
   showId,
   binding,
+  delivery,
 }: {
   showId: string
   binding: ShowV2EditCaptureBinding
+  /** The one artifact build the route owns; the header's Show actions read it too. */
+  delivery: ShowV2RouteArtifactState
 }) {
   const { capture, isCurrentCapture } = binding
   const reload = useShowStore((state) => state.reloadShowV2Pilot)
@@ -41,23 +37,8 @@ export function ShowEditorV2DeliveryPanel({
   useLayoutEffect(() => { live.current = true; return () => { live.current = false } }, [])
 
   const record = capture?.record ?? null
-  const prepared = capture?.prepared ?? null
-  const bundle = prepared?.status === 'ready' ? prepared.bundle : null
   const summary = useMemo(() => (record ? buildShowV2RouteSummary(record) : null), [record])
-  const built = useMemo(
-    () => (bundle ? buildShowV2RouteArtifacts(bundle, { appVersion: APP_VERSION }) : null),
-    [bundle],
-  )
-  const artifacts = built?.status === 'ready' ? built.artifacts : null
-  const artifactRefusal = built?.status === 'refused' ? built.message : null
-
-  const blockedReason = prepared === null
-    ? 'Preparing Show…'
-    : prepared.status === 'refused'
-      ? prepared.message
-      : prepared.status === 'empty'
-        ? 'Add content to the Show before sending it.'
-        : artifactRefusal
+  const { bundle, artifacts, blockedReason } = delivery
   useShowV2ControllerDelivery({
     showId,
     name: record?.name ?? 'Show',
@@ -100,20 +81,8 @@ export function ShowEditorV2DeliveryPanel({
   })
 
   const exportEpe = () => run('Export', async () => {
-    if (!bundle || !artifacts) throw new Error(artifactRefusal ?? 'This Show cannot be exported yet.')
-    // The downloaded .epe carries its own program id and the preview image the
-    // firmware shows, exactly as the v1 route's download does.
-    const preview = await buildPreviewJpeg(bundle.artifact)
-    if (!preview) throw new Error('Could not render the EPE preview image')
-    const stamped = buildShowV2RouteArtifacts(bundle, {
-      appVersion: APP_VERSION,
-      exportedAt: new Date(bundle.record.updatedAt),
-      id: makeProgramId(),
-      preview: bytesToBase64(preview),
-    })
-    if (stamped.status === 'refused') throw new Error(stamped.message)
-    downloadBrowserFile(stamped.artifacts.epe.filename, stamped.artifacts.epe.text, 'application/json')
-    return `Exported ${stamped.artifacts.epe.filename}.`
+    if (!bundle || !artifacts) throw new Error(blockedReason ?? 'This Show cannot be exported yet.')
+    return downloadShowV2Epe(bundle)
   })
 
   const reopenArtifacts = () => run('Reopen', async () => {

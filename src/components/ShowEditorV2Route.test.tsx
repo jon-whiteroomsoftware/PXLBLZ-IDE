@@ -109,13 +109,16 @@ describe('ShowEditorV2Route (#1056 slices 1-5)', () => {
     expect(within(surface).queryAllByRole('slider').filter((slider) => !viewControls.contains(slider)))
       .toHaveLength(0)
 
-    // The route's own transport leads the tab order (slice 6), and the
-    // timeline's controls follow it without a keyboard trap in between.
+    // The route's own transport leads the tab order (slice 6), the header's
+    // Show actions follow it (#1039), and the timeline's controls come after
+    // them without a keyboard trap in between.
     const transport = within(screen.getByTestId('show-editor-v2-transport')).getAllByRole('button')
+    const showActions = screen.getByRole('button', { name: 'Show actions' })
     const focusable = within(surface).getAllByRole('button')
     await user.tab()
     expect(transport).toContain(document.activeElement)
-    for (let step = 0; step < transport.length && !focusable.includes(document.activeElement as HTMLElement); step++) {
+    const header = [...transport, showActions]
+    for (let step = 0; step < header.length && !focusable.includes(document.activeElement as HTMLElement); step++) {
       await user.tab()
     }
     expect(focusable).toContain(document.activeElement)

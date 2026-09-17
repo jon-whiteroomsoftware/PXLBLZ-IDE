@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Code2 } from 'lucide-react'
 import { SHOW_TIMELINE_MIN_HEIGHT } from '@/engine/showWorkspaceLayout'
 import type { ShowTimelineSelection } from '@/engine/showTimelineViewModel'
 import { projectShowTimelineV2 } from '@/engine/showTimelineViewModelV2'
@@ -18,7 +19,11 @@ import { ShowTimelineReadOnlySurface } from './ShowTimelineReadOnlySurface'
 import { ShowV2AnimationLanes } from './ShowV2AnimationLanes'
 import { useShowV2TimelineGestures } from './useShowV2TimelineGestures'
 import { ShowWorkspace } from './ShowWorkspace'
+import { PixelblazeCodeEditor } from './PixelblazeCodeEditor'
+import { Button } from './ui/button'
 import { useShowV2EditCapture } from './useShowV2EditCapture'
+import { ShowEditorV2ShowActions } from './ShowEditorV2ShowActions'
+import { useShowV2RouteArtifacts } from './useShowV2RouteArtifacts'
 
 /**
  * The ordinary Show editor route holding a `ShowRecordV2`.
@@ -54,6 +59,7 @@ export function ShowEditorV2Route({ showId }: { showId: string }) {
   const binding = useShowV2EditCapture(showId)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [selection, setSelection] = useState<ShowTimelineSelection | null>(null)
+  const [viewingCode, setViewingCode] = useState(false)
 
   useEffect(() => {
     if (record) return
@@ -103,6 +109,10 @@ export function ShowEditorV2Route({ showId }: { showId: string }) {
 
   const view = useMemo(() => (record ? projectShowTimelineV2(record) : null), [record])
   const [previewAspect, setPreviewAspect] = useState(1)
+  // One artifact build for this capture, read by the header's Show actions and
+  // by the delivery panel, so View code, Download .epe, the inventory and a
+  // Controller send all describe the same compiled Show (#1039).
+  const delivery = useShowV2RouteArtifacts(capture)
 
   if (!record || !view || !capture) {
     return (
@@ -139,8 +149,26 @@ export function ShowEditorV2Route({ showId }: { showId: string }) {
           v{record.version}
         </span>
         <span className="ml-auto" />
+        {/*
+          The Show actions sit after the transport, as the v1 header's actions
+          menu does, so the transport still leads this route's tab order.
+        */}
         <ShowEditorV2Transport showId={showId} showEndMs={view.showEndMs} />
+        <ShowEditorV2ShowActions delivery={delivery} onViewCode={() => setViewingCode(true)} />
       </div>
+      {viewingCode && delivery.artifacts && (
+        <div data-testid="show-editor-v2-generated" className="flex min-h-0 flex-1 flex-col bg-zinc-950">
+          <div className="flex h-9 shrink-0 items-center gap-2 border-b border-zinc-800 px-3 font-mono text-xs text-zinc-400">
+            <Code2 size={14} aria-hidden />
+            <span className="flex-1 truncate text-zinc-200">Generated pattern - {record.name}</span>
+            <Button size="xs" variant="outline" onClick={() => setViewingCode(false)}>Back to show</Button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <PixelblazeCodeEditor value={delivery.artifacts.epe.source} readOnly />
+          </div>
+        </div>
+      )}
+      {!viewingCode && (
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="min-h-0 flex-1 overflow-hidden">
           <ShowWorkspace
@@ -221,9 +249,10 @@ export function ShowEditorV2Route({ showId }: { showId: string }) {
             selection={selection}
             onSelectionChange={setSelection}
           />
-          <ShowEditorV2DeliveryPanel showId={showId} binding={binding} />
+          <ShowEditorV2DeliveryPanel showId={showId} binding={binding} delivery={delivery} />
         </div>
       </div>
+      )}
     </div>
   )
 }
