@@ -1,0 +1,322 @@
+{
+  "source": {
+    "id": "show-editor-v2-readonly",
+    "name": "Editor v2 read only",
+    "scenes": [
+      {
+        "id": "scene-a",
+        "name": "Opening",
+        "durationMs": 1000
+      }
+    ],
+    "zones": [
+      {
+        "id": "zone",
+        "name": "Main",
+        "nominalPixelCount": 16
+      }
+    ],
+    "cells": [],
+    "routingLayouts": [
+      {
+        "id": "layout",
+        "name": "Full",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone"
+          ]
+        }
+      }
+    ],
+    "transitions": [],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 16,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 1,
+      "executionModel": "deterministic-loop",
+      "durationMs": 1000,
+      "patternInstances": [
+        {
+          "id": "out-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "Outgoing",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "in-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "Incoming",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "scenes": [
+        {
+          "sceneId": "scene-a",
+          "zones": [
+            {
+              "zoneId": "zone",
+              "main": [
+                {
+                  "id": "out",
+                  "instanceId": "out-instance",
+                  "startMs": 0,
+                  "durationMs": 400,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                },
+                {
+                  "id": "in",
+                  "instanceId": "in-instance",
+                  "startMs": 600,
+                  "durationMs": 400,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  }
+                }
+              ],
+              "overlays": [
+                {
+                  "id": "empty-overlay",
+                  "name": "Atmosphere",
+                  "placements": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "id": "transition-crossfade",
+          "fromPlacementId": "out",
+          "toPlacementId": "in",
+          "kind": "crossfade",
+          "durationMs": 200,
+          "easing": {
+            "curve": "sine",
+            "direction": "in-out"
+          },
+          "crossfadePolicy": "snapshot-live"
+        }
+      ]
+    },
+    "updatedAt": 1,
+    "stageMapId": "plane"
+  },
+  "record": {
+    "version": 2,
+    "id": "show-editor-v2-readonly",
+    "name": "Editor v2 read only",
+    "zones": [
+      {
+        "id": "zone",
+        "name": "Main",
+        "nominalPixelCount": 16
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "layout",
+        "name": "Full",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone"
+          ]
+        }
+      }
+    ],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 16,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "deterministic-loop",
+      "showEndMs": 1000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "out-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "Outgoing",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "in-instance",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "Incoming",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:zone:main",
+          "zoneId": "zone",
+          "name": "Main",
+          "rank": 0
+        },
+        {
+          "id": "layer:zone:overlay:1",
+          "zoneId": "zone",
+          "name": "Atmosphere",
+          "rank": 1
+        }
+      ],
+      "clips": [
+        {
+          "id": "out",
+          "instanceId": "out-instance",
+          "zoneId": "zone",
+          "layerId": "layer:zone:main",
+          "startMs": 0,
+          "durationMs": 400,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "out:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "in",
+          "instanceId": "in-instance",
+          "zoneId": "zone",
+          "layerId": "layer:zone:main",
+          "startMs": 600,
+          "durationMs": 400,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "in:appearance:1",
+                "timeMs": 600,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "id": "transition-crossfade",
+          "kind": "crossfade",
+          "durationMs": 200,
+          "easing": {
+            "curve": "sine",
+            "direction": "in-out"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "participants": [
+            {
+              "id": "transition-crossfade:participant:1",
+              "zoneId": "zone",
+              "layerId": "layer:zone:main",
+              "fromClipId": "out",
+              "toClipId": "in"
+            }
+          ],
+          "propertyRamps": []
+        }
+      ],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "layout",
+          "startMs": 0,
+          "durationMs": 1000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [],
+      "markers": [
+        {
+          "id": "scene-marker:scene-a",
+          "timeMs": 0,
+          "name": "Opening",
+          "role": "chapter"
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 1
+  }
+}

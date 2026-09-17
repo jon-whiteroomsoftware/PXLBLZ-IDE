@@ -926,7 +926,9 @@ function StudioApp() {
       : routeEntity.kind === 'controllers'
         ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
       : routeEntity.kind === 'shows'
-        ? pilotShowId === null && showsLoaded && !shows.some((show) => show.id === routeEntity.id) && !stockShowById(routeEntity.id)
+        // A v2 row is absent from the v1 list until #1039 couples them, so the
+        // opt-in v2 surfaces resolve the Show themselves.
+        ? pilotShowId === null && v2EditorShowId === null && showsLoaded && !shows.some((show) => show.id === routeEntity.id) && !stockShowById(routeEntity.id)
         : true)
   const invalidDocRoute = route.kind === 'docs' && route.docId !== null && !isDocId(route.docId)
   const activeApiReference = route.kind === 'api-reference'
