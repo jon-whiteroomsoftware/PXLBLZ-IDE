@@ -37,7 +37,7 @@ export async function exerciseShowV2AppearanceManagement(page: Page) {
   const intermediate = (await documents.json()).shows.find((show: { id: string }) => show.id === legacy.id)
   const duplicateId = intermediate.composition.clips[0].appearance.keys[0].value.effects[1].id
   await editor.getByLabel('Effect order target').selectOption(duplicateId); await editor.getByLabel('Effect order edge').selectOption('after')
-  await editor.getByRole('button', { name: 'Move Effect' }).click(); await settled(6)
+  await editor.getByRole('button', { name: 'Move Effect', exact: true }).click(); await settled(6)
   await route.getByRole('button', { name: 'Undo', exact: true }).click(); await expect(route.getByText('Undo saved.', { exact: true })).toBeVisible(); expect(writes).toBe(7)
   await route.getByRole('button', { name: 'Redo', exact: true }).click(); await expect(route.getByText('Redo saved.', { exact: true })).toBeVisible(); expect(writes).toBe(8)
   await route.getByRole('button', { name: 'Reload saved v2' }).click(); await expect(route.getByText('Reloaded v2 bytes from the provider.', { exact: true })).toBeVisible(); expect(writes).toBe(8)
