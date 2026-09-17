@@ -4,6 +4,7 @@ import type { WorkerEnv } from '../apiRoutes'
 import { agentMcpRouting } from './agentMcpRouting'
 import { createShowEditSession } from '../../engine/showEditAdmission'
 import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
+import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 
 const grant = {
   accountId: 'account', clientId: 'client', clientName: 'Client', clientOrigins: [], grantId: 'grant', expiresAt: Math.ceil(Date.now() / 1000) + 60,
@@ -285,5 +286,60 @@ it('publishes server-owned identity schemas and rejects legacy delivery fields',
   ]) {
     const response = await request({ ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, 'tools/call', { name: 'begin_edit', arguments: arguments_ })
     expect((await response.json() as { result: { isError?: boolean } }).result.isError).toBe(true)
+  }
+})
+
+// #1039: the server registers one catalogue per connection. `list_commands` is
+// how a caller discovers that vocabulary without attaching to an editor, so it
+// must describe the catalogue that was actually registered. Describing v1 under
+// `catalogue: 'v2'` hands the caller command names that match no registered
+// tool - the same editor-accepts-v2-while-commands-assume-v1 window the
+// scene-retirement specification forbids, in miniature.
+async function catalogueRequest(env: WorkerEnv, method: string, params: unknown, catalogue: 'v1' | 'v2') {
+  return agentMcpRouting(new Request('https://app.test/mcp', {
+    method: 'POST',
+    headers: { Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }),
+  }), env, grant, { catalogue })
+}
+
+async function listedCommands(catalogue: 'v1' | 'v2') {
+  const owner = { fetch: vi.fn().mockResolvedValue(Response.json({ code: 'no_live_editor' })) }
+  const env = {
+    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => owner },
+    ASSETS: { fetch: vi.fn() },
+    AGENT_SERVICE_ENABLED: '1',
+  } as unknown as WorkerEnv
+  const response = await catalogueRequest(env, 'tools/call', { name: 'list_commands', arguments: {} }, catalogue)
+  const result = (await response.json() as {
+    result: { content: Array<{ text: string }>; structuredContent: Record<string, unknown>; isError?: boolean }
+  }).result
+  expect(result.isError).toBeUndefined()
+  expectCopies(result)
+  return (result.structuredContent as {
+    commands: Array<{ name: string; description: string; fields: Record<string, unknown>; exactlyOne?: readonly string[] }>
+  }).commands
+}
+
+it.each(['v1', 'v2'] as const)('list_commands describes the %s catalogue the connection registered', async catalogue => {
+  const expected = (catalogue === 'v2' ? SHOW_COMMANDS_V2 : SHOW_COMMANDS).map(command => command.name)
+  expect((await listedCommands(catalogue)).map(command => command.name)).toEqual(expected)
+})
+
+it.each(['v1', 'v2'] as const)('list_commands names only tools the %s catalogue registered', async catalogue => {
+  const response = await catalogueRequest({ ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, 'tools/list', undefined, catalogue)
+  const tools = new Set((await response.json() as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
+  const listed = await listedCommands(catalogue)
+  expect(listed.length).toBeGreaterThan(0)
+  for (const command of listed) expect(tools, `${catalogue}: ${command.name}`).toContain(command.name)
+})
+
+it('list_commands carries each v2 catalogue entry own field metadata', async () => {
+  const byName = new Map((await listedCommands('v2')).map(command => [command.name, command]))
+  for (const descriptor of SHOW_COMMANDS_V2) {
+    const entry = byName.get(descriptor.name)!
+    expect(entry.description, descriptor.name).toBe(descriptor.description)
+    expect(entry.fields, descriptor.name).toEqual(descriptor.fields)
+    expect(entry.exactlyOne, descriptor.name).toEqual(descriptor.exactlyOne)
   }
 })

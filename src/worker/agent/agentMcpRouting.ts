@@ -51,6 +51,18 @@ export const AGENT_MCP_INSTRUCTIONS_V2 = [
 export interface AgentMcpRoutingOptions { catalogue?: 'v1' | 'v2' }
 
 export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant, options: AgentMcpRoutingOptions = {}): Promise<Response> {
+  // One catalogue per connection. Every command surface - the registered tools,
+  // the server instructions, the schema/reference resources and `list_commands`
+  // - describes this same vocabulary, so a caller that discovers a command can
+  // always call it (#1039).
+  const descriptors: ReadonlyArray<{
+    name: string
+    description: string
+    fields: Record<string, unknown>
+    exactlyOne?: readonly string[]
+    atLeastOne?: readonly string[]
+    atMostOne?: readonly string[]
+  }> = options.catalogue === 'v2' ? SHOW_COMMANDS_V2 : SHOW_COMMANDS
   const catalogue = options.catalogue === 'v2'
     ? SHOW_COMMANDS_V2.map(descriptor => ({ name: descriptor.name, description: descriptor.description, shape: showCommandV2InputShape(descriptor) }))
     : SHOW_COMMANDS.map(descriptor => ({ name: descriptor.name, description: descriptor.description, shape: showCommandInputShape(descriptor) }))
@@ -101,7 +113,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     if (!active()) return output({ code: 'unauthorized' })
     const resolved = await resolveExternalTool(env, grant)
     if (['throttled', 'unauthorized', 'unavailable', 'unknown', 'service_disabled', 'invalid_request'].includes(resolved.code)) return output(visible(resolved))
-    return output({ code: 'commands', commands: SHOW_COMMANDS.map(({ name, description, fields, exactlyOne, atLeastOne, atMostOne }) => ({
+    return output({ code: 'commands', commands: descriptors.map(({ name, description, fields, exactlyOne, atLeastOne, atMostOne }) => ({
       name, description, fields,
       ...(exactlyOne ? { exactlyOne } : {}),
       ...(atLeastOne ? { atLeastOne } : {}),

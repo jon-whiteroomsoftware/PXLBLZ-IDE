@@ -845,6 +845,15 @@ coordinated cutover in #1039. The [coverage report](../show-command-coverage.md)
 carries the complete catalogue, the v1 to v2 name map, the retired addressing
 table and the refusal-code map.
 
+One connection exposes exactly one catalogue. The registered mutation tools,
+the server instructions, the schema and reference resources, and the
+`list_commands` reply all describe that same vocabulary, so a name a caller
+discovers is always a name it can call. `list_commands` reports each
+descriptor's own `description`, `fields` and `exactlyOne`/`atLeastOne`/
+`atMostOne` groups; under `catalogue: 'v2'` those are the v2 descriptors,
+including their typed nested field kinds. Selecting a catalogue never mixes
+the two (#1039).
+
 The agreement differs from v1 in five ways, and a descriptor census in
 [`census.test.ts`](../../../src/engine/showCommandsV2/census.test.ts) enforces
 each of them.
