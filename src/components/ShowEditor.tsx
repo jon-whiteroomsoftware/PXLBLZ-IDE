@@ -145,6 +145,7 @@ import {
   zoomShowTimelineViewport,
   type ShowTimelineViewport,
 } from '@/engine/showTimelineViewport'
+import { fromShowTimelineProjection } from '@/engine/showTimelineViewModel'
 import {
   projectShowUnifiedTimeline,
   type ShowUnifiedTimelineClipProjection,
@@ -3967,6 +3968,17 @@ function ShowTimelineWorkspace({
       ? projectShowUnifiedTimeline(displayShow, timelineComposition)
       : null
   ), [displayShow, timelineComposition])
+  // One version-agnostic description of the surface this workspace draws. The
+  // v1 record reaches it through the adapter; slices 2-6 move the remaining
+  // gesture and inspector seams onto the same view.
+  const timelineView = fromShowTimelineProjection({
+    showId: displayShow.id,
+    timeline,
+    strip,
+    unified: unifiedCompositionTimeline,
+    layoutIntervals,
+    markers: timelineComposition?.markers ?? [],
+  })
   const traversalTargets = useMemo(() => (
     unifiedCompositionTimeline
       ? projectShowTimelineTraversalTargets(unifiedCompositionTimeline, isolatedGroupOccurrenceId)
@@ -3983,7 +3995,7 @@ function ShowTimelineWorkspace({
   }, [unifiedCompositionTimeline])
   const isolatedGroupDefinition = timelineComposition?.groupDefinitions
     ?.find((definition) => definition.id === isolatedGroupOccurrence?.definitionId) ?? null
-  const fittedViewport = useMemo(() => fitShowTimelineViewport(timeline.durationMs), [timeline.durationMs])
+  const fittedViewport = useMemo(() => fitShowTimelineViewport(timelineView.showEndMs), [timelineView.showEndMs])
   const storedViewport = useShowEditorViewStore((state) => state.viewport) ?? fittedViewport
   const timelineAliveRef = useRef(true)
   useEffect(() => {
@@ -4249,20 +4261,9 @@ function ShowTimelineWorkspace({
     })
   }, [show.id])
   const markerTimesMs = markersVisible
-    ? (timelineComposition?.markers ?? []).map((marker) => marker.timeMs)
+    ? timelineView.markers.map((marker) => marker.timeMs)
     : []
-  const structuralTimesWithoutMarkersContributionsMs = [
-    0,
-    timeline.durationMs,
-    ...timeline.scenes.flatMap((scene) => [scene.startMs, scene.endMs]),
-    ...timeline.transitions.flatMap((transition) => [transition.startMs, transition.endMs]),
-    ...timeline.boundaryTransitions.flatMap((transition) => [transition.startMs, transition.endMs]),
-    ...timeline.rows.flatMap((row) => row.cells.flatMap((cell) => [cell.startMs, cell.endMs])),
-    ...(unifiedCompositionTimeline?.zones.flatMap((zone) => (
-      zone.layers.flatMap((layer) => layer.clips.flatMap((clip) => [clip.startMs, clip.endMs]))
-    )) ?? []),
-  ]
-  const structuralTimesWithoutMarkersMs = [...new Set(structuralTimesWithoutMarkersContributionsMs)]
+  const structuralTimesWithoutMarkersMs = timelineView.structuralTimesMs
   const structuralTimesMs = [...new Set([
     ...structuralTimesWithoutMarkersMs,
     ...markerTimesMs,
@@ -4270,7 +4271,7 @@ function ShowTimelineWorkspace({
   const clipMarkerSnapEnabled = markersVisible
   const clipDragStructuralTimesMs = () => [
     positionMsRef.current,
-    ...(snapEnabled ? structuralTimesWithoutMarkersContributionsMs : []),
+    ...(snapEnabled ? structuralTimesWithoutMarkersMs : []),
     ...(clipMarkerSnapEnabled ? markerTimesMs : []),
   ]
   // Timeline drops are quantized by default: whole seconds, or tenths while
@@ -4592,11 +4593,9 @@ function ShowTimelineWorkspace({
     const layout = show.routingLayouts.find((candidate) => candidate.id === layoutId)
     return layout ? showRoutingLayoutKindLabel(layout) : 'Zone Layout'
   }
-  const rowStrides = strip.rows.map((row) => {
+  const rowStrides = timelineView.rows.map((row) => {
     if (collapsedZoneIdSet.has(row.zoneId)) return 1
-    const clipLayerCount = unifiedCompositionTimeline
-      ? unifiedCompositionTimeline.zones.find((zone) => zone.id === row.zoneId)?.layers.length ?? 1
-      : 1
+    const clipLayerCount = row.composed ? row.layers.length || 1 : 1
     return clipLayerCount + (propertyLanesByZone.get(row.zoneId)?.length ?? 0)
   })
   const rowOffsets = rowStrides.reduce<number[]>((offsets, stride) => (
@@ -4623,12 +4622,8 @@ function ShowTimelineWorkspace({
     '28px',
     ...(layoutLaneVisible ? ['26px'] : []),
     ...(hasSampleRemap ? ['26px'] : []),
-    ...strip.rows.flatMap((row) => collapsedZoneIdSet.has(row.zoneId) ? ['28px'] : [
-      ...Array.from({
-        length: unifiedCompositionTimeline
-          ? unifiedCompositionTimeline.zones.find((zone) => zone.id === row.zoneId)?.layers.length ?? 1
-          : 1,
-      }, () => '44px'),
+    ...timelineView.rows.flatMap((row) => collapsedZoneIdSet.has(row.zoneId) ? ['28px'] : [
+      ...Array.from({ length: row.composed ? row.layers.length || 1 : 1 }, () => '44px'),
       ...(propertyLanesByZone.get(row.zoneId) ?? []).map(() => '18px'),
     ]),
     '17px',
@@ -4737,7 +4732,7 @@ function ShowTimelineWorkspace({
     const rect = lane.getBoundingClientRect()
     onDirectManipulationChange(true)
     const startClientX = event.clientX
-    const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
+    const totalMs = Math.max(1, timelineView.showEndMs)
     const owner: ShowTimelineClipOwner = clip.kind === 'main'
       ? {
           kind: 'main',
@@ -5274,7 +5269,7 @@ function ShowTimelineWorkspace({
             title="Fit the complete Show"
             disabled={timelineIsFitted}
             className="shrink-0 bg-transparent text-zinc-500 hover:bg-amber-400/10 hover:text-amber-200"
-            onClick={() => updateViewport(fitShowTimelineViewport(timeline.durationMs))}
+            onClick={() => updateViewport(fitShowTimelineViewport(timelineView.showEndMs))}
           >
             <Maximize2 size={12} aria-hidden />
           </Button>
@@ -5436,7 +5431,7 @@ function ShowTimelineWorkspace({
         <TimelineLayoutBoundaries
           show={show}
           intervals={layoutIntervals}
-          durationMs={timeline.durationMs}
+          durationMs={timelineView.showEndMs}
           gridColumn={`2 / ${timeGridEndLine}`}
           gridRow={rulerRow}
           rowSpan={timelineOverlayRowSpan}
@@ -5525,7 +5520,7 @@ function ShowTimelineWorkspace({
                   const precedingSceneId = precedingInterval.sceneIds[precedingInterval.sceneIds.length - 1]
                   const routingSwitch = showRoutingTransitionAfter(show, precedingSceneId)
                   if (!routingSwitch) return null
-                  const { left } = showLayoutIntervalPercentBounds(interval, timeline.durationMs)
+                  const { left } = showLayoutIntervalPercentBounds(interval, timelineView.showEndMs)
                   const selected = selection.kind === 'transition' && selection.transitionId === routingSwitch.id
                   return (
                     <button
@@ -5619,11 +5614,11 @@ function ShowTimelineWorkspace({
             })}
           </div>
         )}
-        {strip.rows.map((row, rowIndex) => {
+        {timelineView.rows.map((row, rowIndex) => {
           const unifiedZone = unifiedCompositionTimeline?.zones.find((zone) => zone.id === row.zoneId)
           const zone = show.zones.find((candidate) => candidate.id === row.zoneId)
           const collapsed = collapsedZoneIdSet.has(row.zoneId)
-          const clipLayerCount = collapsed ? 1 : unifiedZone?.layers.length ?? 1
+          const clipLayerCount = collapsed ? 1 : row.layers.length || 1
           return (
           <div key={row.zoneId} className="contents">
             {showFullZoneHeaders && <div
@@ -5719,7 +5714,7 @@ function ShowTimelineWorkspace({
                 intervals={layoutIntervals}
                 zoneId={row.zoneId}
                 zoneName={row.zoneName}
-                durationMs={timeline.durationMs}
+                durationMs={timelineView.showEndMs}
                 stickyLeftPx={hasMultipleZones ? ZONE_RAIL_MICRO_PX : 0}
                 gridColumn={`2 / ${columns.length + 1}`}
                 gridRow={rowStart(rowIndex) + contentStartRow + routingLaneRows}
@@ -5810,8 +5805,8 @@ function ShowTimelineWorkspace({
                       className="absolute inset-y-0 min-w-px rounded-sm bg-current/45"
                       style={{
                         color: row.color ?? '#38bdf8',
-                        left: `${clip.startMs / Math.max(1, timeline.durationMs) * 100}%`,
-                        width: `${clip.durationMs / Math.max(1, timeline.durationMs) * 100}%`,
+                        left: `${clip.startMs / Math.max(1, timelineView.showEndMs) * 100}%`,
+                        width: `${clip.durationMs / Math.max(1, timelineView.showEndMs) * 100}%`,
                       }}
                       title={`${clip.patternName}, ${formatShowTime(clip.startMs)} to ${formatShowTime(clip.endMs)}`}
                     />)}
@@ -5826,7 +5821,7 @@ function ShowTimelineWorkspace({
                 <LayoutZoneIntervalOverlay
                   intervals={layoutIntervals}
                   zoneId={row.zoneId}
-                  durationMs={timeline.durationMs}
+                  durationMs={timelineView.showEndMs}
                 />
               </div>
             ) : unifiedZone.layers.map((layer, layerIndex) => (
@@ -5853,7 +5848,7 @@ function ShowTimelineWorkspace({
                   )) return
                   const rect = event.currentTarget.getBoundingClientRect()
                   const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
-                  const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
+                  const totalMs = Math.max(1, timelineView.showEndMs)
                   const rawGlobalTimeMs = fraction * totalMs
                   const snappedGlobalTimeMs = snapClipBoundary(rawGlobalTimeMs, {
                     altKey: event.altKey,
@@ -5952,7 +5947,7 @@ function ShowTimelineWorkspace({
                 <LayoutZoneIntervalOverlay
                   intervals={layoutIntervals}
                   zoneId={row.zoneId}
-                  durationMs={timeline.durationMs}
+                  durationMs={timelineView.showEndMs}
                 />
                 {movePreview?.targetKey === `composition:${layer.id}` && (
                   <i
@@ -5965,8 +5960,8 @@ function ShowTimelineWorkspace({
                         : 'border-amber-300/80 bg-amber-300/10 shadow-[0_0_0_1px_rgba(251,191,36,0.12)]'
                     }`}
                     style={{
-                      left: `${movePreview.startMs / Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs) * 100}%`,
-                      width: `${movePreview.durationMs / Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs) * 100}%`,
+                      left: `${movePreview.startMs / Math.max(1, timelineView.showEndMs) * 100}%`,
+                      width: `${movePreview.durationMs / Math.max(1, timelineView.showEndMs) * 100}%`,
                     }}
                   >
                     <span
@@ -5982,13 +5977,13 @@ function ShowTimelineWorkspace({
                     aria-hidden
                     data-testid="show-clip-resize-time"
                     className="pointer-events-none absolute top-0 z-[40] whitespace-nowrap rounded-sm bg-zinc-950/90 px-1 font-mono text-[9px] leading-3 text-amber-200/90"
-                    style={{ left: `${resizePreview.startMs / Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs) * 100}%` }}
+                    style={{ left: `${resizePreview.startMs / Math.max(1, timelineView.showEndMs) * 100}%` }}
                   >
                     {formatSecondsValue(resizePreview.startMs)}–{formatSecondsValue(resizePreview.startMs + resizePreview.durationMs)}s
                   </span>
                 )}
                 {layer.clips.map((clip, clipIndex) => {
-                  const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
+                  const totalMs = Math.max(1, timelineView.showEndMs)
                   const preview = resizePreview?.clipId === clip.id ? resizePreview : clip
                   const left = preview.startMs / totalMs * 100
                   const width = preview.durationMs / totalMs * 100
@@ -6353,7 +6348,7 @@ function ShowTimelineWorkspace({
                       ...junction.transition,
                       afterSceneId: leftClip.sceneId,
                     } : null)
-                  const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
+                  const totalMs = Math.max(1, timelineView.showEndMs)
                   // A Transition belongs to its pair of Clips, so during a
                   // move drag it follows the dragged Clip's previewed position
                   // instead of waiting for the drop (#63). Duplicate drags
