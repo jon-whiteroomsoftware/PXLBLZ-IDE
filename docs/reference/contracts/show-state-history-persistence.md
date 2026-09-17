@@ -290,6 +290,35 @@ a sparse content or nullable-field edit between validation and replacement is
 preserved and reported as a refusal even when its writer leaves `updated_at` and
 `record_json` unchanged.
 
+Conversion resolves Pattern sources only from trusted metadata its caller
+supplies. A flat version-1 row - Clips in `cells` with no composition sidecar -
+refuses without the exact source per cell, so the migration caller passes the
+lookup it resolves from the stock catalogue and that user's own Patterns. An
+unresolvable reference contributes nothing and that row refuses by name; no row
+converts against a guessed source (#1039).
+
+Readback is storage evidence, not usability evidence. Each unsettled row is
+additionally reopened and compiled as it was read back: the portable `.pxlshow`
+bytes are rebuilt, serialized and re-parsed, required to be version 2 and to
+match the stored record, resolved through the ordinary version-2 import planner,
+then prepared and compiled. A qualified row carries its compiled artifact's hash
+and size, which is what distinguishes a row that compiled from one whose compile
+step was skipped. A qualification refusal is a reported outcome rather than a
+thrown pass: the row keeps its recovery snapshot, is named in the report, and is
+restored by explicit identity (#1039).
+
+`scripts/show-v2-migrate.ts` is the operator entry point for that runbook -
+`inventory`, `convert` and `rollback` over a local D1 store, with `--stop-after`
+for rehearsing an interrupted pass and its resume. Its committed report carries
+identities, source hashes, versions, statuses and bounded refusal details only;
+no Show name, Pattern source, Library source or record content, by construction.
+`rollback` restores exactly the identities it is given and has no
+restore-everything default. There is deliberately no remote backend: the remote
+pass is blocked on a recorded Cloudflare migration authorization failure, and an
+unexercised `--remote` path would be a claim the command cannot support. The
+[cutover rehearsal](../evidence/issue-1039-cutover/rehearsal.md) records the
+local pass, its interruption and resume, its idempotent repeat and its rollback.
+
 Version-2 bundle import reserves destination and bundled Library namespaces
 before allocating conflict copies. A matching Library is reusable only when its
 complete dependency graph remains unchanged after remapping; dependency remaps

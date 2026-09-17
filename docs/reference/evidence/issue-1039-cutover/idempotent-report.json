@@ -1,0 +1,300 @@
+{
+  "command": "convert",
+  "ranAt": "2026-09-17T03:39:20.661Z",
+  "userIdHash": "e9086940",
+  "totals": {
+    "already-v2": 47,
+    "refused": 1
+  },
+  "rows": [
+    {
+      "id": "baseline-animation",
+      "sourceHash": "4055f7f4",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "baseline-groups",
+      "sourceHash": "46b6b738",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "baseline-long-timeline",
+      "sourceHash": "81d8d5bf",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "baseline-personal-base",
+      "sourceHash": "19402352",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "baseline-personal-library-pattern",
+      "sourceHash": "8d28fb57",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "baseline-routing",
+      "sourceHash": "1d23364f",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "baseline-stock-draft",
+      "sourceHash": "cb1ac18a",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "rehearsal-malformed-row",
+      "sourceHash": "51d9c0b3",
+      "sourceVersion": 1,
+      "status": "refused",
+      "detail": "Show rehearsal-malformed-row is missing a valid output contract"
+    },
+    {
+      "id": "stock-show-100-getting-around",
+      "sourceHash": "8daa58bd",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-101-clips-cuts-blank-time",
+      "sourceHash": "4e17265a",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-102-transitions-values",
+      "sourceHash": "a788feec",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-103-clip-transform",
+      "sourceHash": "323c0b94",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-104-effects-and-ordering",
+      "sourceHash": "3377cc3d",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-105-portable-zones",
+      "sourceHash": "bf6f024a",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-106-built-from-basics",
+      "sourceHash": "500f2247",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-201-layers-property-animation",
+      "sourceHash": "23cf2bc2",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-202-content-clip-viewport",
+      "sourceHash": "7738e505",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-203-pattern-instance-lifecycle",
+      "sourceHash": "8aa7ad24",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-204-presentation-modes",
+      "sourceHash": "8e6691b5",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-205-groups-linked-reuse",
+      "sourceHash": "bcc1f883",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-206-changing-zone-layouts",
+      "sourceHash": "5136b37e",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-207-aperture-shapes-edges",
+      "sourceHash": "75693ae5",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-301-installation-mapping",
+      "sourceHash": "31ce79cc",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-302-installation-composition",
+      "sourceHash": "e4973fbf",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-303-compile-simplify-deliver",
+      "sourceHash": "678be21c",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-aperture-icons",
+      "sourceHash": "62a8aa82",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-aperture-shapes",
+      "sourceHash": "d95916df",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-blend-fade-transitions",
+      "sourceHash": "8f72340c",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-dissolve-transitions",
+      "sourceHash": "1243219e",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-easing",
+      "sourceHash": "116c3e18",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-property-animation",
+      "sourceHash": "db1fadf1",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-shape-reveal-figures",
+      "sourceHash": "1f152721",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-shape-reveal-transitions",
+      "sourceHash": "b2ee12e7",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-slide-transitions",
+      "sourceHash": "dcfcfa75",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-wipe-transitions",
+      "sourceHash": "f85044c0",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-reference-zoom-spin-transitions",
+      "sourceHash": "8e8f5610",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-remix-coronal-mass-ejection",
+      "sourceHash": "79984453",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-remix-overture",
+      "sourceHash": "43f22395",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-remix-quadrille",
+      "sourceHash": "064f1d59",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-showcase-color-adjustment-effects",
+      "sourceHash": "b41f91c9",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-showcase-compositing-key-effects",
+      "sourceHash": "164f4c0b",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-showcase-distortion-effects",
+      "sourceHash": "ee1b0e62",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-showcase-luma-sources",
+      "sourceHash": "69fcacef",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-showcase-redline-installation",
+      "sourceHash": "0a406f5a",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-showcase-transform-effects",
+      "sourceHash": "50f94ade",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-showcase-zone-layouts-radial",
+      "sourceHash": "c64fda39",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-showcase-zone-layouts-splits",
+      "sourceHash": "bf47cf86",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    },
+    {
+      "id": "stock-show-showcase-zone-layouts-stripes-grid",
+      "sourceHash": "6a26a247",
+      "sourceVersion": 2,
+      "status": "already-v2"
+    }
+  ]
+}

@@ -1,7 +1,13 @@
 import { expect, it, vi } from 'vitest'
-import { convertibleV1Show } from '../test/showV2TracerFixture'
+import { convertibleV1Show, flatV1Show } from '../test/showV2TracerFixture'
+import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import type { ShowDocument } from './showDocument'
-import type { ShowV2MigrationOutcome, ShowV2MigrationSource, ShowV2MigrationStore } from './showV2Migration'
+import type {
+  ShowV2MigrationOutcome,
+  ShowV2MigrationQualification,
+  ShowV2MigrationSource,
+  ShowV2MigrationStore,
+} from './showV2Migration'
 import { rehearseShowV2Migration, rollbackShowV2Migration } from './showV2Migration'
 
 function memoryMigrationStore(initial: ShowDocument[]) {
@@ -135,4 +141,140 @@ it('refuses conversion when the retained backup belongs to an older source revis
   ])
   expect(writeV2).not.toHaveBeenCalled()
   expect(record).toHaveBeenCalledWith(expect.objectContaining({ status: 'refused' }))
+})
+
+// #1039: section 10's runbook reads back, reopens and compiles each row. The
+// byte-for-byte readback above proves storage; reopening and compiling proves
+// the converted record is still a usable Show. A qualification refusal is a
+// reported, recoverable outcome - the row keeps its snapshot and the operator
+// rolls back exactly the reported ids - not a thrown pass.
+
+it('qualifies each converted row after readback and reports a refusal recoverably', async () => {
+  const good = convertibleV1Show()
+  good.id = 'good'
+  const bad = convertibleV1Show()
+  bad.id = 'bad'
+  const memory = memoryMigrationStore([good, bad])
+  const qualified: string[] = []
+  const qualify = async (record: ShowDocument): Promise<ShowV2MigrationQualification> => {
+    qualified.push(record.id)
+    return record.id === 'bad'
+      ? { status: 'refused', detail: 'Pattern source is unavailable.' }
+      : { status: 'qualified', compiled: { hash: '0e4bd46e', codeBytes: 3282 } }
+  }
+
+  const outcomes = await rehearseShowV2Migration(memory.store, { qualify })
+
+  // Qualification sees the reopened record, once per row, never the candidate.
+  expect(qualified).toEqual(['good', 'bad'])
+  expect(outcomes.map(item => [item.id, item.status])).toEqual([
+    ['good', 'converted'],
+    ['bad', 'refused'],
+  ])
+  expect(outcomes.find(item => item.id === 'bad')?.detail).toBe('Pattern source is unavailable.')
+  // The refused row keeps its recovery snapshot and restores to the original.
+  expect(memory.backups.has('bad')).toBe(true)
+  await rollbackShowV2Migration(memory.store, ['bad'])
+  expect(memory.documents.get('bad')).toEqual(memory.originals.get('bad'))
+  // The qualified row is untouched by that rollback.
+  expect(memory.documents.get('good')).not.toEqual(memory.originals.get('good'))
+})
+
+it('qualifies an already-v2 row without writing it again', async () => {
+  const source = convertibleV1Show()
+  const memory = memoryMigrationStore([source])
+  expect((await rehearseShowV2Migration(memory.store)).map(item => item.status)).toEqual(['converted'])
+
+  const writes: string[] = []
+  const guarded: ShowV2MigrationStore = {
+    ...memory.store,
+    writeV2: async (source_, hash, record) => {
+      writes.push(source_.id)
+      return memory.store.writeV2(source_, hash, record)
+    },
+  }
+  // Clearing the stored outcome forces the already-v2 branch rather than resume.
+  memory.outcomes.delete(source.id)
+
+  let calls = 0
+  const outcomes = await rehearseShowV2Migration(guarded, {
+    qualify: async () => {
+      calls += 1
+      return { status: 'refused', detail: 'Compile refused.' }
+    },
+  })
+  expect(outcomes.map(item => [item.id, item.status, item.sourceVersion])).toEqual([[source.id, 'refused', 2]])
+  expect(outcomes[0].detail).toBe('Compile refused.')
+  expect(writes).toEqual([])
+  expect(calls).toBe(1)
+})
+
+it('reuses a settled outcome without re-qualifying a row that has not changed since it', async () => {
+  const source = convertibleV1Show()
+  const memory = memoryMigrationStore([source])
+  let calls = 0
+  const qualify = async (): Promise<ShowV2MigrationQualification> => {
+    calls += 1
+    return { status: 'qualified', compiled: { hash: '0e4bd46e', codeBytes: 3282 } }
+  }
+  // Pass 1 converts, so the row changes and its next pass sees a new source
+  // hash: pass 2 settles the v2 row as already-v2 and qualifies it once more.
+  expect((await rehearseShowV2Migration(memory.store, { qualify })).map(item => item.status)).toEqual(['converted'])
+  expect(calls).toBe(1)
+  expect((await rehearseShowV2Migration(memory.store, { qualify })).map(item => item.status)).toEqual(['already-v2'])
+  expect(calls).toBe(2)
+  // Pass 3 finds a settled outcome whose hash still matches the stored row, so
+  // it resumes from that outcome and compiles nothing.
+  expect((await rehearseShowV2Migration(memory.store, { qualify })).map(item => item.status)).toEqual(['already-v2'])
+  expect(calls).toBe(2)
+})
+
+it('leaves every outcome unchanged when no qualification is supplied', async () => {
+  const source = convertibleV1Show()
+  const memory = memoryMigrationStore([source])
+  expect((await rehearseShowV2Migration(memory.store)).map(item => item.status)).toEqual(['converted'])
+})
+
+// #1039: a flat v1 row - no composition sidecar, Clips living in `cells` - is
+// exactly the shape an old personal Show has, and the converter refuses it
+// without the exact Pattern source per cell. The runbook therefore has to be
+// able to hand conversion the trusted source metadata its caller already holds;
+// without that, every flat row in a real database refuses and the migration
+// reports nothing but failures.
+
+it('converts a flat v1 row when the caller supplies its Pattern sources', async () => {
+  const flat = flatV1Show()
+  const memory = memoryMigrationStore([flat])
+  const asked: string[] = []
+
+  const withoutSources = await rehearseShowV2Migration(memory.store)
+  expect(withoutSources.map(item => [item.id, item.status])).toEqual([[flat.id, 'refused']])
+  expect(withoutSources[0].detail).toMatch(/requires the exact Pattern source/)
+
+  // The same row converts once the caller resolves its sources.
+  memory.outcomes.delete(flat.id)
+  const outcomes = await rehearseShowV2Migration(memory.store, {
+    sources: show => {
+      asked.push(show.id)
+      return {
+        byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId((cell.pattern as { id: string }).id)]])),
+        byPatternInstanceId: {},
+        stageDimension: 2,
+      }
+    },
+  })
+  expect(asked).toEqual([flat.id])
+  expect(outcomes.map(item => [item.id, item.status])).toEqual([[flat.id, 'converted']])
+})
+
+it('does not ask for sources for a row that already carries a composition', async () => {
+  const memory = memoryMigrationStore([convertibleV1Show()])
+  const asked: string[] = []
+  const outcomes = await rehearseShowV2Migration(memory.store, {
+    sources: show => { asked.push(show.id); return undefined },
+  })
+  expect(outcomes.map(item => item.status)).toEqual(['converted'])
+  // A composition-carrying row converts either way; the hook is still offered
+  // it, because only the converter knows whether the lookup is needed.
+  expect(asked).toEqual(['convertible'])
 })

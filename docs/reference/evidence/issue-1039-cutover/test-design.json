@@ -1,0 +1,109 @@
+{
+  "issue": 1039,
+  "scope": "pre-activation inventory and readiness verdict; MCP list_commands catalogue consistency; the section 10 row-conversion runbook as an operator command, with reopen-and-compile readback, rehearsed on local D1 with rollback",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "FAILURE",
+      "ROUTE",
+      "MCP",
+      "DELETE-READD",
+      "REPLACE",
+      "LAYOUT-END",
+      "PARITY"
+    ],
+    "proofRowsClaimed": [
+      "FAILURE"
+    ],
+    "proofRowsBlocked": [
+      "ROUTE",
+      "MCP",
+      "DELETE-READD",
+      "REPLACE",
+      "LAYOUT-END"
+    ],
+    "proofRowsUnchanged": [
+      "PARITY"
+    ]
+  },
+  "base": "51b36469feac03475e382103e284fad8959658ac",
+  "invariants": [
+    "One MCP connection exposes exactly one command catalogue: registered tools, server instructions, schema and reference resources, and list_commands all describe the same vocabulary, so a name a caller discovers is a name it can call.",
+    "Conversion never writes over a changed original: the write is a compare-and-set over the recorded source columns, and a mismatch refuses that row without touching it.",
+    "An already-v2 row is an idempotent no-op: it is qualified but never written again.",
+    "A settled outcome whose recorded source hash still matches the stored row resumes without reconverting or requalifying; a row that changed since its outcome is rechecked.",
+    "A refused row stays recoverable and reported: its snapshot survives, it is named in the report, and rollback restores it byte for byte against its recorded source hash.",
+    "Qualification observes the row as read back from storage, never the in-memory candidate, and reports a typed refusal instead of throwing.",
+    "Conversion resolves Pattern sources only from trusted metadata the caller supplies; an unresolvable reference refuses that row rather than converting against a guess.",
+    "The committed report carries identities, hashes, versions, statuses and bounded detail only - no Show name, Pattern source, Library source or record content.",
+    "Rollback restores exactly the identities the operator names; it has no restore-everything default.",
+    "The command has no remote backend, so it cannot be pointed at the production database."
+  ],
+  "partitions": [
+    "catalogue v1 versus v2 for tools/list, list_commands names, and per-descriptor description/fields/exactlyOne",
+    "row source version 1 flat (cells, no composition) / 1 with composition sidecar / already 2 / undecodable",
+    "outcome state unrecorded / settled with matching hash / settled with stale hash / interrupted mid-pass",
+    "source resolution: stock reference present, personal Pattern present, personal Pattern absent, stock Pattern retired",
+    "qualification: reopen refusal, compile refusal, qualified with compiled artifact",
+    "conversion refusal versus qualification refusal versus backup-revision conflict versus changed-source CAS miss",
+    "report detail absent / short / multiline / over the 240-character limit",
+    "argument parsing: unknown command, missing --persist-to, missing --user, non-positive --stop-after, flag without a value, positional argument, rollback without --ids",
+    "local D1 discovery: absent directory, directory with no personal_shows table, several namespace databases plus metadata"
+  ],
+  "sequences": [
+    "seed 47 v1 rows plus one malformed row -> inventory -> convert --stop-after 5 (exit 3) -> inventory shows exactly five settled -> convert resumes and finishes -> convert again is wholly already-v2",
+    "convert -> copy the store -> rollback the 47 converted identities on the copy -> inventory the copy reports zero v2",
+    "flat v1 row with no sources supplied (refused) -> same row with sources supplied (converted)",
+    "converted row -> reopen through .pxlshow bytes -> resolve dependencies through the v2 import planner -> prepare and compile"
+  ],
+  "oracles": [
+    "The real MCP server (agentMcpRouting with a fake grant) under each catalogue: list_commands reply compared name for name against tools/list, and field for field against the registry descriptors.",
+    "A real local D1 store through node:sqlite, driven by the production row reader (showRecordFromRow), the production compare-and-set writer (replaceD1ShowV2IfCurrent) and the landed migration store, not a memory fixture.",
+    "Per-row outcomes read back out of personal_show_v2_migration_outcomes between passes, so resume and idempotency are observed in storage rather than in process state.",
+    "Reopened portable .pxlshow bytes compared with the stored record, dependencies resolved through the ordinary v2 import planner, and a compiled artifact whose CRC32 hash and byte length are pinned in the test - a qualification that skipped compilation cannot produce them.",
+    "Rollback judged at a following inventory of the disposable copy plus the owner's own byte-for-byte restore assertion against the recorded source hash.",
+    "The committed report's own key set, asserted to exclude every content-bearing field."
+  ],
+  "redEvidence": [
+    "list_commands under catalogue v2 reported set_clip_aperture, which is not a registered tool, and reported v1 descriptions for shared names such as rename_show (2 of 3 new cases red).",
+    "The qualification hook did not exist: no row was qualified, an already-v2 row could not be refused, and a settled row's requalification could not be observed (3 cases red).",
+    "The sources hook did not exist: a flat v1 row refused for a missing Pattern source (2 cases red).",
+    "On the first real rehearsal, three baseline rows refused with 'Flat conversion requires the exact Pattern source for cell c1' - the defect the sources hook repairs."
+  ],
+  "faults": [
+    {
+      "seam": "agentMcpRouting descriptor selection",
+      "mutation": "pin the descriptor list to SHOW_COMMANDS",
+      "observed": "both v2 rows fail (this was the pre-repair state)"
+    },
+    {
+      "seam": "agentMcpRouting descriptor selection",
+      "mutation": "pin the descriptor list to SHOW_COMMANDS_V2",
+      "observed": "both v1 rows fail"
+    },
+    {
+      "seam": "qualifyMigratedShowV2Record compile step",
+      "mutation": "delete the compileShow call and return the stock record's pinned hash and size",
+      "observed": "'qualifies a record whose Pattern source is a personal Pattern the assets carry' fails, because that record compiles to different bytes"
+    },
+    {
+      "seam": "qualifyMigratedShowV2Record reopen step",
+      "mutation": "use the built bundle instead of serializing and re-parsing it",
+      "observed": "'refuses a structurally invalid record when the portable bytes are parsed back' fails, because only the parser produces that message"
+    }
+  ],
+  "results": {
+    "lint": "pass",
+    "typecheck": "pass",
+    "focused": "src/worker/agent/agentMcpRouting.test.ts, src/engine/showV2Migration.test.ts, src/engine/showV2MigrationQualification.test.ts, src/cloudflare/showV2Migration.test.ts, scripts/show-v2-migrate.test.ts",
+    "rehearsal": "docs/reference/evidence/issue-1039-cutover/rehearsal.md; 42 converted, 5 already-v2 resumed, 1 refused (the deliberately malformed row); idempotent pass 47 already-v2; rollback restored 47 rows on a disposable copy"
+  },
+  "residualGaps": [
+    "Coordinated application activation is not delivered. The ordinary Show editor route is v1-only and has no landed v2 replacement, and the browser command and admission path captures whatever record that route holds, so switching it would either retire shipped authoring or feed the editor compiler-synthesized Scenes and cells. Both need Jon's decision; the counterexample is in inventory.md.",
+    "Proof rows ROUTE, MCP, DELETE-READD, REPLACE and LAYOUT-END through the production editor are blocked with that activation. The prepared-path equivalents remain covered by #1044 and #1041.",
+    "The remote row conversion and the deployed-tip MCP transcript are deferred and blocked by the recorded Cloudflare migration authorization failure. No push, deploy or remote migration was attempted, and the command ships no remote backend.",
+    "The compile step's refusal branch is not reachable by editing a record, because the reopen gate revalidates and resolves dependencies first. A record that exercises a preparation-only refusal (an RL08-RL10 scheduler restriction, say) through migration is future work.",
+    "No personal authored row was converted. Section 10 already records that personal exported files are unavailable and that synthetic fixtures are not personal compatibility evidence; this is a procedure rehearsal."
+  ]
+}
