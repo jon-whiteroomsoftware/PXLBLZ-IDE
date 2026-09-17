@@ -67,24 +67,21 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
     )
   }
 
-  // Reserve the height the timeline column actually draws - the timeline
-  // surface and the animation lanes beneath it. The authoring panel takes a
-  // fraction of that column rather than a fixed strip, so the column has to be
-  // large enough for both to keep their own height in what is left: a Clip lane
-  // the panel covers is neither visible nor droppable, and squeezed lanes hide
-  // the Property curves and Group bands outright.
-  const surfaceHeight = READ_ONLY_LANES_PX
-    + view.rows.reduce((height, row) => (
-      height + ZONE_HEADER_PX + row.layers.length * LAYER_LANE_PX
-    ), 0)
-    + (view.propertyTracks?.length ?? 0) * PROPERTY_LANE_PX
+  // What the timeline column draws at its natural height: the timeline surface
+  // and, beneath it, the animation lanes. The authoring panel takes a fraction
+  // of the column rather than a fixed strip, so the column is asked for enough
+  // height to hold both in what the panel leaves.
+  const surfaceHeight = READ_ONLY_LANES_PX + view.rows.reduce((height, row) => (
+    height + ZONE_HEADER_PX + row.layers.length * LAYER_LANE_PX
+  ), 0)
+  const laneHeight = (view.propertyTracks?.length ?? 0) * PROPERTY_LANE_PX
     + view.rows.reduce((height, row) => (
       height
       + row.groups.length * GROUP_LANE_PX
       + row.layers.reduce((keys, layer) => keys + layer.items
         .filter((item) => (item.appearanceKeys?.length ?? 0) > 1).length, 0) * APPEARANCE_LANE_PX
     ), 0)
-  const contentHeight = Math.ceil(surfaceHeight / (1 - AUTHORING_PANEL_MAX_FRACTION))
+  const contentHeight = Math.ceil((surfaceHeight + laneHeight) / (1 - AUTHORING_PANEL_MAX_FRACTION))
 
   return (
     <div className="flex h-full min-h-0 flex-col lg:flex-row">
@@ -99,18 +96,27 @@ export function ShowEditorV2ReadOnly({ showId }: { showId: string }) {
               data-testid="show-editor-v2-timeline-column"
               className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden"
             >
-              {prepared?.status === 'refused' ? (
-                <ShowTimelineReadOnlySurface
-                  view={view}
-                  statusLine={`Read only - this v2 Show cannot be prepared: ${prepared.message}`}
-                />
-              ) : (
-                <ShowTimelineGestureSurface
-                  view={view}
-                  statusLine={status ?? 'Editing this v2 Show. Drag a Clip to move it, drag its edges to resize.'}
-                  gestures={handlers}
-                />
-              )}
+              {/*
+                The surface keeps its own height rather than absorbing whatever
+                the animation lanes and the authoring panel leave: the workspace
+                caps the column at half the editor, and a squeezed surface
+                scrolls its Zone rows out of sight, where a Clip is neither
+                visible nor droppable. The column above scrolls instead.
+              */}
+              <div className="flex shrink-0 flex-col" style={{ minHeight: surfaceHeight }}>
+                {prepared?.status === 'refused' ? (
+                  <ShowTimelineReadOnlySurface
+                    view={view}
+                    statusLine={`Read only - this v2 Show cannot be prepared: ${prepared.message}`}
+                  />
+                ) : (
+                  <ShowTimelineGestureSurface
+                    view={view}
+                    statusLine={status ?? 'Editing this v2 Show. Drag a Clip to move it, drag its edges to resize.'}
+                    gestures={handlers}
+                  />
+                )}
+              </div>
               <ShowV2AnimationLanes view={view} selection={selection} onSelect={setSelection} />
               <ShowEditorV2TransitionLayoutPanel showId={showId} view={view} binding={binding} />
             </div>
