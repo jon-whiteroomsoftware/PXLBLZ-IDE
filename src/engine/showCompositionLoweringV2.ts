@@ -978,11 +978,21 @@ function lowerPropertyTargetForSection(
 function canLowerToFlat(record: ShowRecordV2, allowEqualAppearanceSegments = false): boolean {
   if (record.composition.transitions.some(transition => transition.wholeOutput)) return false
   const composition = record.composition
+  // A flat Scene boundary blends the whole output, so it represents a
+  // participant Transition exactly only when the two participants are the only
+  // Clips the blend can see. Every other Clip must end strictly before the
+  // outgoing Clip or start strictly after the incoming one: flat sections split
+  // at every Clip edge, so such a Clip is absent from the outgoing hold, the
+  // window and the incoming hold alike, and the blend leaves it untouched. A
+  // Clip that overlaps the window, or merely touches either edge - where the
+  // blend would fade it in or out - refuses here (#1063). The Show's Zone count
+  // does not enter this test: with more than one Zone the flat lowering emits
+  // the same v1 record v1's own `addShowZone` produces, down to the bytes.
   const wholeBoundary = composition.transitions.every(transition => {
     const participant = transition.participants[0]
     const from = composition.clips.find(clip => clip.id === participant.fromClipId)!
     const to = composition.clips.find(clip => clip.id === participant.toClipId)!
-    return record.zones.length === 1 && !composition.clips.some(clip => clip !== from && clip !== to && clip.startMs <= to.startMs && clip.startMs + clip.durationMs >= from.startMs + from.durationMs)
+    return !composition.clips.some(clip => clip !== from && clip !== to && clip.startMs <= to.startMs && clip.startMs + clip.durationMs >= from.startMs + from.durationMs)
   })
   return wholeBoundary
     && composition.propertyTracks.every(track => track.target.kind === 'layout-occurrence-split-position')

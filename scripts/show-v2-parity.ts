@@ -79,16 +79,48 @@ interface CorpusEntry {
   parity?: Parity
 }
 
-export async function main(): Promise<void> {
-  const records = [
+function censusInputs(): Array<{ corpus: CorpusEntry['corpus']; corpusId: string; show: ShowRecord; fixture?: BaselineFixture }> {
+  return [
     ...STOCK_SHOWS.map(item => ({ corpus: 'stock' as const, corpusId: item.id, show: structuredClone(item.show) })),
     ...BASELINE_FIXTURES.map(fixture => ({
       corpus: 'agent-baseline' as const,
-      corpusId: fixture.id,
+      corpusId: fixture.id as string,
       show: resolveBaselineFixtureRecord(fixture, id => stockShowById(id)?.show),
       fixture,
     })),
-  ].map(runEntry)
+  ]
+}
+
+/**
+ * The 47 inventoried records with their exact converted v2 form, Pattern
+ * sources and Libraries, without the report's replay measurement. A lowering
+ * candidate uses this to check that the census keeps its route and generated
+ * bytes; the report itself remains the parity oracle.
+ */
+export function censusLoweringInputs(): Array<{
+  corpus: CorpusEntry['corpus']
+  corpusId: string
+  record: ShowRecordV2
+  lookup: ShowCompileRecipeSourceLookup
+  libraries: Record<string, string>
+}> {
+  return censusInputs().flatMap(input => {
+    if (pinDependencies(input.show, input.fixture).some(item => item.status === 'missing')) return []
+    const lookup = sourceLookup(input.show, input.fixture)
+    const conversion = convertShowRecordV1ToV2(input.show, lookup)
+    if (conversion.status === 'refused') return []
+    return [{
+      corpus: input.corpus,
+      corpusId: input.corpusId,
+      record: conversion.record,
+      lookup: sourceLookupWithFlatProjection(lookup, conversion.report.flatProjectionMappings),
+      libraries: librarySources(input.fixture),
+    }]
+  })
+}
+
+export async function main(): Promise<void> {
+  const records = censusInputs().map(runEntry)
   const report = {
     schemaVersion: 2,
     issue: 1034,

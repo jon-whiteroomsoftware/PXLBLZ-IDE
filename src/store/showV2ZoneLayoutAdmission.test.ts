@@ -3,6 +3,8 @@ import * as stage from '../engine/showPreparedStageV2'
 import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '../engine/personalContentProvider'
 import { commandFixtureV2 } from '../engine/showCommandsV2/fixtures'
 import { validateShowRecordV2, type ShowRecordV2 } from '../engine/showCompositionV2'
+import { createShowV2WithOutputContract } from '../engine/showCreationV2'
+import { createInstallationShowOutputContract } from '../engine/showOutputContract'
 import { showInitialState, useShowStore } from './showStore'
 import {
   admitShowV2PilotLayoutDefinitionEdit,
@@ -95,6 +97,39 @@ it('adds a Zone with one preparation, one history entry and one save, then Undo 
   expect(saved().zones.map(zone => zone.id)).toEqual(['left', 'right'])
   expect(await useShowStore.getState().redoShowV2Pilot(record.id)).toBe(true)
   expect(saved().zones.map(zone => zone.id)).toEqual(['left', 'right', 'spare'])
+})
+
+/**
+ * The fresh Show is the case #1063 unblocked: two Clips joined by a Crossfade,
+ * sampling `independent`. Until the continuous-flat route carried a participant
+ * Transition in a multi-Zone Show, this admission refused the edit outright
+ * because the resulting record could no longer prepare.
+ */
+it('adds a Zone to a fresh Show and keeps it preparing', async () => {
+  const record = createShowV2WithOutputContract('fresh', 'Fresh Show', createInstallationShowOutputContract({ outputMapId: null, pixelCount: 60 }), 1)
+  const dependencies: stage.ShowPreparedStageDependenciesV2 = { patterns: [], maps: [], libraries: [], profiles: [], stageMap: null }
+  let saved = structuredClone(record)
+  const write = vi.fn(async (_id: string, next: ShowRecordV2) => { saved = structuredClone(next) })
+  setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'fresh-zone-test', replaceShowV2: write, listShowDocumentsV2: async () => [structuredClone(saved)] })
+  useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
+  expect(stage.prepareShowStageV2(record, dependencies).status).toBe('ready')
+
+  const outcome = await admitShowV2PilotZoneEdit({
+    showId: record.id,
+    baseRevision: useShowStore.getState().showRevisions[record.id] ?? 0,
+    capture: stage.captureShowStageEditV2(record, dependencies),
+    isCurrent: () => true,
+    onAdopted: vi.fn(),
+    intent: { kind: 'add', zone: { id: 'zone-2', name: 'zone-2', nominalPixelCount: 60, color: '#22d3ee' } },
+  })
+
+  expect(outcome).toMatchObject({ status: 'applied', settlement: 'saved', affectedZoneIds: ['zone-2'] })
+  expect(write).toHaveBeenCalledTimes(1)
+  expect(saved.zones.map(zone => zone.id)).toEqual(['zone-1', 'zone-2'])
+  const prepared = stage.prepareShowStageV2(saved, dependencies)
+  expect(prepared.status).toBe('ready')
+  if (prepared.status !== 'ready') return
+  expect(prepared.bundle.provenance.route).toBe('continuous-flat')
 })
 
 it('removes a Zone with its Layers, Clips and tracks in one save', async () => {
