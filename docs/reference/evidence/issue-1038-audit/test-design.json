@@ -1,0 +1,75 @@
+{
+  "issue": 1038,
+  "scope": "Final integration audit: scope-to-proof map, integrated §12 sequences (SHARING, RESTART, REPLACE, INSERT, GROUP-HOLD, LAYOUT-END, LAYERS) through the real prepared-edit admission path with native artifact oracles, residual reconciliation, and as-built docs synchronization. No product behavior, compiler, schema or Group-format change.",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": ["SHARING", "RESTART", "REPLACE", "INSERT", "GROUP-HOLD", "LAYOUT-END", "LAYERS", "ROUTE", "FAILURE"]
+  },
+  "base": "0287bbb184e0aa856039f1ea495697674929a881",
+  "invariants": [
+    "Plain duplicate, Group repeat and Make Group Unique never create another Pattern runtime; only explicit Make Independent does, and explicit Rejoin collects the orphan.",
+    "Restart resets the clock and Pattern-owned state of the existing shared instance at first contribution; attaching or resizing an incoming Transition can move the trigger, a right split never inherits it, and a Group hold never retriggers it per frame.",
+    "Insert Time seeds one constant hold key at p and one resume key at p + d per affected track, transforms a shared instance track exactly once, and never resets runtime state.",
+    "A Group occurrence hold list, definition identity and instanceBindings survive move, linked duplicate, Make Unique and Ungroup; repeated insertion at one local time extends the same hold identity.",
+    "Layout Make Unique clones only that definition identity; a switch move or removal leaves Clips, Markers, Group choreography and Show End fixed, and Show End edits protect authored content.",
+    "A Layer keeps a stable identity through empty stretches; reorder changes only stacking; a destination whose materialized occupancy would collide refuses atomically.",
+    "Every refusal and no-op returns the original record identity and produces no write, history entry or timestamp."
+  ],
+  "partitions": [
+    "Sharing: ordinary shared Clip, materialized Group child uses, linked Group repeat, unique Group occurrence, independent runtime, rejoined runtime.",
+    "Restart trigger: nominal start, incoming contribution window start after attach, window start after outgoing trailing resize, left split, duplicated placement, deleted placement, next loop crossing, coarse-step cold seek.",
+    "Replace: shared ordinary Clip (fork), definition-local Clip on a unique occurrence (linked definition untouched), Undo, Redo, reopened import.",
+    "Insert Time: gap, static Clip, animated Clip, exact discontinuity key, last key of a still-active track, shared instance track, zero time-scale runtime, Layout switch boundary, p = 0, strictly inside a visual Transition window, strictly inside a timed Layout transfer window.",
+    "Group holds: §7 worked example, repeat insertion inside an existing hold, move, linked duplicate, Make Unique, Ungroup, materialized internal Transition interior, overlapping effective instance track versus exact half-open adjacency.",
+    "Layout/Show End: repeated definition, Make Unique, switch move, plain removal, invalid shortening, valid extension, Undo, dormant Marker beyond Show End.",
+    "Layers: empty named Layer, reorder, colliding Group destination, accepted Group rebinding, plain removal of a vacated Layer, refused removal of a referenced Layer."
+  ],
+  "sequences": [
+    "duplicate → create Group → duplicate occurrence → Make Unique → Make Independent → Rejoin (six admitted edits on one fixture).",
+    "create Group → duplicate occurrence → Make Unique → replace ordinary shared Clip → replace unique definition Clip → Undo → Redo.",
+    "refuse inside visual Transition → refuse inside transfer → insert in gap → insert at discontinuity key → insert at last active key → insert at Layout switch → attempt insert at zero.",
+    "refuse inside internal Group Transition → §7 insert 2000 at 5000 → repeat insert 1000 at 6000 → move occurrence → linked duplicate → Make Unique → Ungroup.",
+    "Make Layout Unique → move switch → remove occurrence → refuse invalid shortening → extend Show End → Undo.",
+    "add empty named Layer → reorder → refuse colliding Group bind → rebind to empty Layer → remove vacated Layer → refuse removal of the referenced Layer.",
+    "attach Transition → resize Transition → trailing resize outgoing → split → duplicate → delete → loop crossing."
+  ],
+  "oracles": [
+    "Real closed admission (`admitShowV2Pilot*`) with a recording provider: write count, history `past` length, refusal with zero writes and preserved preimage identity.",
+    "Delivered native artifacts through `qualifyShowV2PilotArtifacts`: `.pxlshow` reopened by `parseShowFileBundle` equals the saved record, and the reopened import composition equals it.",
+    "Generated `.epe` source replayed by `createFastReplayRuntime` in Fast and Precise: exported `elapsed` against `t − lastReset`, shared advance of exactly one frame step while several users are visible, hold across a widened gap, zero advance for an explicit zero time-scale runtime, authored control curve after reset.",
+    "Compiled member identities: exactly one authored runtime member except where explicit independence or replacement created a second; the compiler's empty routed member is named and excluded rather than ignored.",
+    "Pure evaluation oracle for retained curves: `evaluateShowPropertyTrackV2` at hold interiors, the resume key, the retained source offset, the half-open activation end, and both steps of a preserved two-step kernel.",
+    "Structural equality of untouched owners: Group definitions, `instanceBindings`, Transition records, Markers and Clip arrays compared against pre-edit clones."
+  ],
+  "redEvidence": [
+    "Sharing sequence initially failed on compiled member count because the compiler's empty routed member was counted as an authored runtime; the oracle was corrected to name authored members explicitly.",
+    "Replace sequence initially failed comparing whole records across Undo/Redo because adoption restamps `updatedAt`; the oracle was narrowed to composition equality.",
+    "Insert fixture initially failed public preparation (`unsupported-transition-property-track`) and then failed at p = 0; both were reduced to the smallest counterexample instead of being weakened away.",
+    "Group-hold fixture initially failed record validation because Group-local Transitions use the placement-pair shape, and later failed placement because the duplicate destination overlapped a linked occurrence.",
+    "Structure sequence initially failed on hard-coded Layout occurrence identities from v1 conversion."
+  ],
+  "faults": [
+    "Make Unique drops the explicit occurrence `instanceBindings` (showGroupEditsV2.ts) — killed by the SHARING and GROUP-HOLD sequences.",
+    "Restart event derivation ignores the inferred incoming-Transition contribution start (showPropertyAnimationV2.ts) — killed by the RESTART and GROUP-HOLD sequences.",
+    "Insert Time hold key takes the authored key value instead of the evaluator's right-boundary value (showPropertyTrackTimeMappingV2.ts) — killed by the INSERT sequence after its discontinuity partition was strengthened.",
+    "Layout Make Unique clones the definition but leaves the occurrence pointing at the shared identity (showLayoutIntervalsV2.ts) — killed by the LAYOUT-END sequence.",
+    "Layer reorder keeps existing ranks instead of the requested order (showLayersV2.ts) — killed by the LAYERS sequence.",
+    "Ordinary Replace treats a shared runtime as sole-user and mutates it in place (showClipsV2.ts) — killed by the REPLACE sequence.",
+    "Not killed and reported honestly: weakening the record-level Clip overlap validator (showCompositionV2.ts) left both collision refusals intact, because the Group placement owner refuses first. The collision oracle therefore proves the owner guard, not the record validator."
+  ],
+  "results": {
+    "focused": "npx vitest run src/store/showV2Integrated* — 5 files, 8 tests passed.",
+    "staged": "npm run test:staged — see handoff for verbatim output.",
+    "static": "npm run lint and npx tsc -b --pretty false — see handoff for verbatim output.",
+    "parity": "npm run show:v2-parity — 47-record report unchanged.",
+    "ui": "No component TSX, src/App.tsx or stylesheet changed, so no new browser proof was captured; the Stage/guide obligation rests on the committed .wrsp/ui-proof/1038-stage-isolation.json record."
+  },
+  "residualGaps": [
+    "R9 (new): with a participant-scope positive Transition present, every non-Layout/non-repeat property track must be activated over exactly [0, showEndMs); Insert Time at p = 0 therefore cannot be admitted. Owner: showCompositionLoweringV2.ts. Blocks the INSERT row's p = 0 partition.",
+    "R5 shares R9's guard: positive ordinary Transition plus materialized Group instance-control animation prepares unsupported-transition-property-track.",
+    "R3 opposite held Effect ordering and R8 continuous-flat participant Transitions with multiple Layouts remain bounded representation gaps recorded in their contracts.",
+    "RESTART source partitions (ordinary function, reassigned binding, shadowed local) and the unsupported-restart refusal stay with #1037's owner tests; this slice adds no coverage there.",
+    "Group creation and Group occurrence adoption have committed browser proof and component tests with real admission, but no spec registered in test:e2e:shows."
+  ]
+}
