@@ -317,6 +317,22 @@ export function validateShowRecordV2Domain(record: ShowRecordV2, derivedStructur
   uniqueIndex(issues, 'composition.groupOccurrences', composition.groupOccurrences)
   validateUniqueNestedIds(issues, composition)
 
+  // v1's `validateShowComposition` requires a finite whole-millisecond time
+  // offset and a finite time scale on every Pattern instance, and
+  // `validateShowCompositionTimelineMetadata` requires a finite, nonnegative
+  // whole-millisecond Marker time. The v2 schema types both as plain numbers,
+  // so neither reached a `ShowRecordV2`. Classification is v1's: composition
+  // errors, reported by the record validator every v2 owner and admission runs.
+  composition.patternInstances.forEach((instance, index) => {
+    validateWholeMilliseconds(issues, `composition.patternInstances[${index}].time.timeOffsetMs`, instance.time.timeOffsetMs)
+    if (!Number.isFinite(instance.time.timeScale)) {
+      addIssue(issues, `composition.patternInstances[${index}].time.timeScale`, 'not-finite', 'Animation speed must be finite.')
+    }
+  })
+  composition.markers.forEach((marker, index) => {
+    validateNonnegativeTime(issues, `composition.markers[${index}].timeMs`, marker.timeMs)
+  })
+
   const ranks = new Set<string>()
   composition.layers.forEach((layer, index) => {
     const path = `composition.layers[${index}]`
@@ -580,6 +596,21 @@ function validateUniqueNestedIds(
       }
     })
   })
+}
+
+/**
+ * v1's `validateFiniteInteger`, in the v2 record's own units: a whole
+ * millisecond of unrestricted sign. Specification section 3 makes every v2 time
+ * a *safe* integer, so this asks for a safe one where v1 asked only for an
+ * integer - the two differ only past 2^53 milliseconds.
+ */
+function validateWholeMilliseconds(
+  issues: ShowCompositionV2ValidationIssue[],
+  path: string,
+  value: number,
+): void {
+  if (!Number.isFinite(value)) addIssue(issues, path, 'not-finite', 'Value must be finite.')
+  else if (!Number.isSafeInteger(value)) addIssue(issues, path, 'not-integer', 'Value must be a safe integer.')
 }
 
 function validateNonnegativeTime(
