@@ -258,10 +258,19 @@ export function ShowClipInspectorV2({
       {model && (
         <section aria-label="Pattern instance panel" className="mt-7 space-y-2">
           <h2 className="text-sm font-medium text-zinc-200">Pattern instance</h2>
+          {/*
+            Every instance write - sharing, stutter and the values below - names
+            an ordinary Clip id, and a Group-child selection resolves a
+            materialized use those owners refuse. Report the shared runtime
+            here and leave the edit to the Group rather than offering controls
+            whose every write comes back refused (#1056 slice 5 review).
+          */}
           <ShowPatternInstanceControls
             key={`instance:${record.id}:${model.clipId}`}
             ownership={model.ownership}
             {...(model.instanceValues.steppedClock ? { steppedClock: model.instanceValues.steppedClock } : {})}
+            steppedClockEditable={model.editable}
+            sharingEditable={model.editable}
             onMakeIndependent={() => {
               if (!model.editable) return
               submitSharing(createShowV2IndependentIntent(capture, model.clipId, newPersonalContentId), 'Clip sharing')
@@ -270,10 +279,10 @@ export function ShowClipInspectorV2({
               if (!model.editable) return
               submitSharing(createShowV2RejoinIntent(capture, model.clipId, targetInstanceId), 'Clip sharing')
             }}
-            onSteppedClockChange={(next) => submitInstanceProperties(
-              model.clipId,
-              { stepped_clock: next ? { stepMs: next.stepMs } : null },
-            )}
+            onSteppedClockChange={(next) => {
+              if (!model.editable) return
+              submitInstanceProperties(model.clipId, { stepped_clock: next ? { stepMs: next.stepMs } : null })
+            }}
           />
           <p className="text-xs text-zinc-500">Linked Clips share controls, clock and private state.</p>
           <ShowClipInstanceValues
@@ -281,8 +290,12 @@ export function ShowClipInspectorV2({
             values={model.instanceValues}
             sliders={sliders}
             userCount={model.users.length}
-            disabled={!available}
-            onChange={(properties) => submitInstanceProperties(model.clipId, properties)}
+            disabled={!available || !model.editable}
+            {...(model.editable ? {} : { unavailableReason: 'Edit this Pattern instance through its Group.' })}
+            onChange={(properties) => {
+              if (!model.editable) return
+              submitInstanceProperties(model.clipId, properties)
+            }}
           />
           <ul aria-label="Clip uses of this Pattern instance" className="space-y-1 text-xs text-zinc-400">
             {model.users.map((user) => (
@@ -381,12 +394,15 @@ function ShowClipInstanceValues({
   sliders,
   userCount,
   disabled,
+  unavailableReason,
   onChange,
 }: {
   values: ShowClipInspectorModelV2['instanceValues']
   sliders: string[]
   userCount: number
   disabled: boolean
+  /** Why no value here can be adopted, when the selection admits no write at all. */
+  unavailableReason?: string
   onChange: (properties: ShowV2PilotInstancePropertiesIntent['properties']) => void
 }) {
   return (
@@ -394,6 +410,7 @@ function ShowClipInstanceValues({
       {userCount > 1 && (
         <p className="text-xs text-cyan-300/70">These values affect all {userCount} Clip uses of this Pattern instance.</p>
       )}
+      {unavailableReason && <p className="text-xs text-zinc-500">{unavailableReason}</p>}
       <NumberField
         label="Animation speed"
         value={values.timeScale}

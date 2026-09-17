@@ -182,6 +182,29 @@ describe('v2 timeline gesture surface', () => {
     expect(document.querySelector('[data-show-drop-preview]')).toBeNull()
   })
 
+  it('moves focus to the Clip a pointer pressed, so the next shortcut targets it', () => {
+    const { submit } = renderSurface()
+    // Keyboard focus starts on one Clip; the pointer then presses another.
+    body('Outgoing').focus()
+    fireEvent.pointerDown(body('Incoming'), { button: 0, clientX: 600, pointerId: 9 })
+    fireEvent.pointerUp(window, { clientX: 600, pointerId: 9 })
+
+    // Cancelling the press default suppresses the mouse focus Chromium and
+    // Firefox would give the pressed Clip, so the surface must move focus
+    // itself or Delete acts on the previously focused Clip.
+    expect(body('Incoming')).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'Delete' })
+    expect(submit).toHaveBeenLastCalledWith({ kind: 'delete', clipId: 'in' })
+  })
+
+  it('moves focus to a pressed edge handle', () => {
+    renderSurface()
+    body('Outgoing').focus()
+    fireEvent.pointerDown(edge('End', 'Outgoing'), { button: 0, clientX: 400, pointerId: 11 })
+    fireEvent.pointerUp(window, { clientX: 400, pointerId: 11 })
+    expect(edge('End', 'Outgoing')).toHaveFocus()
+  })
+
   it('follows keyboard focus to a Clip a gesture just created', () => {
     const { onFocused } = renderSurface({ focusClipId: 'in' })
     expect(body('Incoming')).toHaveFocus()

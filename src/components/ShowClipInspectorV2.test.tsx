@@ -247,6 +247,40 @@ it('a Group occurrence selection is inspected through its Group, never edited as
   expect(within(panel).getAllByRole('listitem')).toHaveLength(3)
 })
 
+it('offers no Pattern instance write a Group-child selection cannot adopt', async () => {
+  const { fireEvent } = await import('@testing-library/react')
+  const { record, writes } = seed()
+  function GroupHarness() {
+    return (
+      <ShowClipInspectorV2
+        showId={record.id}
+        binding={useShowV2EditCapture(record.id)}
+        selection={{ kind: 'group', occurrenceId: 'occ-1' }}
+      />
+    )
+  }
+  render(<GroupHarness />)
+  const panel = await screen.findByTestId('show-clip-inspector-v2')
+
+  // Every instance write names an ordinary Clip id. This selection resolves a
+  // materialized Group Clip use, which those owners refuse, so the shared
+  // runtime's values are reported here and edited through the Group.
+  const values = within(panel).getByTestId('show-clip-instance-values')
+  expect(values).toHaveTextContent('Edit this Pattern instance through its Group.')
+  const fields = [...values.querySelectorAll<HTMLElement>('input, select, button')]
+  expect(fields.length).toBeGreaterThan(0)
+  for (const field of fields) expect(field).toBeDisabled()
+  expect(within(panel).queryByLabelText('Stutter Pattern clock')).toBeNull()
+  expect(within(panel).queryByRole('button', { name: 'Make Pattern Independent' })).toBeNull()
+  expect(within(panel).queryByRole('button', { name: 'Rejoin Shared Pattern' })).toBeNull()
+
+  // Nothing the panel still offers reaches a refusing owner.
+  for (const control of within(panel).getAllByRole('button')) fireEvent.click(control)
+  expect(writes).toHaveLength(0)
+  expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record)
+  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
+})
+
 it('the entry policy control writes through the same owner update_clips uses', async () => {
   const { fireEvent } = await import('@testing-library/react')
   const { record, writes } = seed()

@@ -34,6 +34,7 @@ export function ShowPatternInstanceControls({
   ownership,
   steppedClock,
   steppedClockEditable = true,
+  sharingEditable = true,
   onMakeIndependent,
   onRejoin,
   onSteppedClockChange,
@@ -46,6 +47,12 @@ export function ShowPatternInstanceControls({
    * a control nothing can adopt.
    */
   steppedClockEditable?: boolean
+  /**
+   * Whether Make Pattern Independent and Rejoin can be adopted for this
+   * selection. Both owners take an ordinary Clip id, so a materialized Group
+   * Clip use reports its shared runtime without offering a refused write.
+   */
+  sharingEditable?: boolean
   onMakeIndependent: () => void
   onRejoin: (targetInstanceId: string) => void
   onSteppedClockChange: (next: ShowSteppedClock | undefined) => void
@@ -71,7 +78,7 @@ export function ShowPatternInstanceControls({
           <span className={`truncate ${ownership.useCount > 1 ? 'text-cyan-300/80' : 'text-zinc-500'}`}>
             {ownership.useCount > 1 ? `Shared by ${ownership.useCount} Clips` : 'Independent'}
           </span>
-          {ownership.useCount > 1 && (
+          {ownership.useCount > 1 && sharingEditable && (
             <Button
               type="button"
               size="xs"
@@ -125,7 +132,7 @@ export function ShowPatternInstanceControls({
         </span>
       </div>}
 
-      {ownership.compatibleTargets.length > 0 && (
+      {ownership.compatibleTargets.length > 0 && sharingEditable && (
         <div role="row" className="grid h-6 grid-cols-[1.75rem_24%_minmax(0,1fr)] items-center whitespace-nowrap">
           <span role="cell" aria-hidden />
           <span role="rowheader" className="truncate pr-3 text-[10px] font-medium text-zinc-300">Rejoin instance</span>

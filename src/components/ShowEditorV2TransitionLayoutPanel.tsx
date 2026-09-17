@@ -46,8 +46,16 @@ type Outcome =
 export interface ShowV2BoundaryOption {
   /** The view model's own selection key: a derived Cut or a Transition identity. */
   key: string
+  /**
+   * This drawn boundary's own identity: the selection key qualified by the
+   * Layer it was drawn on. A whole-output Transition contributes on several
+   * Layers and draws one junction on each, all naming the same Transition, so
+   * the selection key alone is not unique in this flat list.
+   */
+  optionKey: string
   zoneId: string
   zoneName: string
+  layerId: string
   layerName: string
   fromName: string
   toName: string
@@ -107,7 +115,7 @@ export function ShowEditorV2TransitionLayoutPanel({
     && (capture?.inputCapture?.status === 'qualified' || (!capture?.inputCapture && capture?.prepared.status === 'ready'))
 
   const boundaries = showV2BoundaryOptions(view)
-  const selectedBoundary = boundaries.find((boundary) => boundary.key === boundaryKey) ?? null
+  const selectedBoundary = boundaries.find((boundary) => boundary.optionKey === boundaryKey) ?? null
   const transition = selectedBoundary?.transitionId && record
     ? record.composition.transitions.find((candidate) => candidate.id === selectedBoundary.transitionId) ?? null
     : null
@@ -201,16 +209,18 @@ export function ShowEditorV2TransitionLayoutPanel({
     const mode = palette
     setPalette(null)
     if (mode === 'insert' && selectedBoundary?.junctionKey) {
+      const boundary = selectedBoundary
       planTransition(
         {
           kind: 'insert',
-          junctionKey: selectedBoundary.junctionKey,
+          junctionKey: boundary.junctionKey,
           kindKey: item.key,
           durationMs,
           crossfadePolicy: 'live-live',
         },
         'Transition inserted.',
-        (id) => `transition:${id}`,
+        // The inserted Transition is drawn on the Layer the junction was on.
+        (id) => `${boundary.zoneId}:${boundary.layerId}:transition:${id}`,
       )
       return
     }
@@ -245,15 +255,16 @@ export function ShowEditorV2TransitionLayoutPanel({
         <div className="flex flex-wrap gap-1.5">
           {boundaries.map((boundary) => (
             <button
-              key={boundary.key}
+              key={boundary.optionKey}
               type="button"
-              aria-pressed={boundary.key === boundaryKey}
+              aria-pressed={boundary.optionKey === boundaryKey}
               data-show-selection-key={boundary.key}
+              data-show-boundary-key={boundary.optionKey}
               aria-label={`${boundary.transitionId ? `${boundary.kind} Transition` : 'Cut'} on Layer ${boundary.layerName} in Zone ${
                 boundary.zoneName}, ${boundary.fromName} to ${boundary.toName} at ${seconds(boundary.startMs)}`}
-              onClick={() => { setBoundaryKey(boundary.key); setPalette(null) }}
+              onClick={() => { setBoundaryKey(boundary.optionKey); setPalette(null) }}
               className={`flex items-center gap-1.5 rounded-sm border px-1.5 py-1 font-mono text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-live/80 ${
-                boundary.key === boundaryKey
+                boundary.optionKey === boundaryKey
                   ? 'border-live/70 bg-live/10 text-zinc-100'
                   : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500'}`}
             >
@@ -542,10 +553,13 @@ export function showV2BoundaryOptions(view: ShowTimelineViewModel): ShowV2Bounda
     for (const layer of row.layers) {
       const nameById = new Map(layer.items.map((item) => [item.id, item.patternName]))
       for (const junction of layer.junctions) {
+        const key = showTimelineSelectionKey(junction.selection)
         options.push({
-          key: showTimelineSelectionKey(junction.selection),
+          key,
+          optionKey: `${row.zoneId}:${layer.id}:${key}`,
           zoneId: row.zoneId,
           zoneName: row.zoneName,
+          layerId: layer.id,
           layerName: layer.name,
           fromName: nameById.get(junction.leftItemId) ?? junction.leftItemId,
           toName: nameById.get(junction.rightItemId) ?? junction.rightItemId,
@@ -566,5 +580,5 @@ export function showV2BoundaryOptions(view: ShowTimelineViewModel): ShowV2Bounda
       }
     }
   }
-  return options.sort((left, right) => left.startMs - right.startMs || left.key.localeCompare(right.key))
+  return options.sort((left, right) => left.startMs - right.startMs || left.optionKey.localeCompare(right.optionKey))
 }

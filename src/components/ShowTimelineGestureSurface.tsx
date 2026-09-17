@@ -175,7 +175,14 @@ export function ShowTimelineGestureSurface({
   }, [focusClipId, onFocused, view])
 
   const beginDrag = (event: React.PointerEvent<HTMLElement>, item: ShowTimelineItemView, edge?: 'leading' | 'trailing') => {
-    if (gestures.busy || event.button !== 0) return
+    if (event.button !== 0) return
+    // Starting a drag cancels the press default, which suppresses the mouse
+    // focus Chromium and Firefox would otherwise give the pressed control. The
+    // shortcuts below act on whatever holds focus, so a press that did not move
+    // it would let Delete, S, D and the arrows act on a Clip pressed earlier.
+    // Move focus explicitly rather than relying on a default we cancel.
+    event.currentTarget.focus()
+    if (gestures.busy) return
     const lane = event.currentTarget.closest<HTMLElement>('[data-show-layer-id]')
     const laneWidthPx = lane?.getBoundingClientRect().width ?? 0
     if (laneWidthPx <= 0) return

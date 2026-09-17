@@ -7,6 +7,7 @@ import {
   setPersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import { projectShowTimelineV2 } from '@/engine/showTimelineViewModelV2'
+import { showV2GroupEditorFixture } from '@/test/showV2GroupEditorFixture'
 import { showV2LayoutEditorFixture } from '@/test/showV2LayoutEditorFixture'
 import { showV2TransitionEditorFixture } from '@/test/showV2TransitionEditorFixture'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -53,6 +54,32 @@ function harness(source: { record: ShowRecordV2; dependencies: ShowPreparedStage
 
   render(<Harness />)
   return { record, write, live: () => useShowStore.getState().showV2Pilots[record.id] }
+}
+
+/**
+ * One converted whole-output Transition contributing on two Layers of the same
+ * Zone: `clip` and `verse-a` end at 3000 ms, `main-b` and `verse-b` start at
+ * 4000 ms, and the record names both contributor sets explicitly (§5).
+ */
+function wholeOutputFixture() {
+  const { record, dependencies } = showV2GroupEditorFixture(true)
+  const main = record.composition.clips[0]
+  main.durationMs = 3_000
+  const tail = structuredClone(main)
+  Object.assign(tail, { id: 'main-b', startMs: 4_000, durationMs: 26_000 })
+  tail.appearance.keys[0].timeMs = 4_000
+  record.composition.clips.push(tail)
+  record.composition.transitions = [{
+    id: 'whole-boundary',
+    kind: 'crossfade',
+    crossfadePolicy: 'live-live',
+    durationMs: 1_000,
+    easing: { curve: 'sine', direction: 'in-out' },
+    wholeOutput: { startMs: 3_000, fromClipIds: [main.id, 'verse-a'], toClipIds: ['main-b', 'verse-b'] },
+    participants: [],
+    propertyRamps: [],
+  }]
+  return { record, dependencies }
 }
 
 const status = () => screen.getByTestId('show-editor-v2-authoring-status').textContent
@@ -135,6 +162,28 @@ describe('the v2 editor route Transition authoring', () => {
     expect(write).toHaveBeenCalledTimes(4)
     expect(live().composition.transitions).toEqual([])
     expect(live().composition.clips).toEqual(record.composition.clips)
+  })
+
+  it('lists a whole-output Transition once per contributing Layer, with distinct keys', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    harness(wholeOutputFixture())
+
+    // One chip per Layer the boundary contributes on, each addressable on its
+    // own: a flat list keyed by the shared Transition identity would collide.
+    const chips = screen.getAllByRole('button', { name: /^crossfade Transition on Layer/ })
+    expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
+      'crossfade Transition on Layer Main in Zone Main, Voice to Voice at 3.00s',
+      'crossfade Transition on Layer Atmosphere in Zone Main, Voice to Voice at 3.00s',
+    ])
+    expect(new Set(chips.map((chip) => chip.getAttribute('data-show-boundary-key'))).size).toBe(2)
+    expect(errors.mock.calls.map((call) => String(call[0]))).toEqual([])
+
+    // Selecting one chip selects that Layer's boundary alone; both resolve the
+    // same authored Transition, so its editor opens either way.
+    fireEvent.click(chips[1])
+    expect(chips[1]).toHaveAttribute('aria-pressed', 'true')
+    expect(chips[0]).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByLabelText('Transition duration exact time')).toHaveValue('1')
   })
 
   it('records the admitted insert on the history slice 2 Undo and Redo run', async () => {
