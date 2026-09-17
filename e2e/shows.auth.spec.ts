@@ -3084,7 +3084,19 @@ async function createInstallationShow(page: Page): Promise<void> {
   // The row is loaded, not merely routed: the Zone rail toggle is keyed by the
   // open Show's id, so a click before the editor holds this Show lands nowhere.
   await expect(page.getByRole('button', { name: 'Rename show Untitled Show' })).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+  const timeline = page.getByRole('region', { name: 'Show timeline' })
+  await expect(timeline).toBeVisible()
+  // Opening a seeded row by URL is much quicker than the creation flow these
+  // tests used to drive, so the workspace can still be sizing the timeline
+  // against the Stage when a test measures a Clip or a resize handle. Wait
+  // until the timeline's box holds still before handing the page over.
+  let previous = ''
+  await expect.poll(async () => {
+    const box = JSON.stringify(await timeline.boundingBox())
+    const settled = box === previous
+    previous = box
+    return settled
+  }, { intervals: [150, 150, 150, 250, 250, 500] }).toBe(true)
 }
 
 /**
