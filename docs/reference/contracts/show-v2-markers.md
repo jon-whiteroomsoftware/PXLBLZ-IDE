@@ -45,7 +45,7 @@ source accounting still maps those leaves to that Marker. Every other Marker
 stays general-purpose, including one at the same time with a different name.
 
 `showChaptersV2(record)` in [`showChaptersV2.ts`](../../../src/engine/showChaptersV2.ts)
-is the Gallery, reading-card and Live projection. It selects `role: 'chapter'`
+is the Gallery, reading-card, Live and v2 pilot timeline projection. It selects `role: 'chapter'`
 Markers only, orders them by `(timeMs, id)` with the same exact UTF-16
 code-unit tie-break the Marker owner stores, and derives each chapter's span
 from the next chapter start, clamped to Show End. Equal-time chapters remain
@@ -55,6 +55,16 @@ beyond Show End projects a zero span. A time with no chapter yields no chapter â
 a label. At an exact equal-time start it resolves to the last such chapter in
 projection order, so the current selection is deterministic without merging
 identities.
+
+`galleryShowChapters(show)` applies that projection to the prepared native v2
+stock record behind a Gallery Show. The Gallery band and the public reading card
+print no Scene count, the reading card's arc is the chapter list with each span
+derived from the next chapter start, and the Live preview captions the chapter
+the loop is inside. The v2 pilot's Marker panel shows the same projection
+read-only. Playback, compilation and stored Gallery keyframes still run on the
+pinned legacy v1 record; #1039 owns activation. Prepared Feature Guide wording
+for the vocabulary is held in
+[chapter wording](../../plans/show-v2-chapter-wording.md) and is unpublished.
 
 The general Marker owner neither authors nor removes roles. `add` and `update`
 intents accept only `id`, `timeMs`, `name` and `color`, so a role-bearing intent
@@ -71,7 +81,11 @@ stay empty. Adoption owns clocks, history, save and revision checks.
 [Chapter tests](../../../src/engine/showChaptersV2.test.ts) cover the no-chapter,
 converted Scene label, absorbed same-name/time Marker, general Marker and
 equal-time partitions, the codec refusal, the `.pxlshow` round trip and identical
-compiled output. [Test design](../evidence/issue-1040-native-stock/test-design.json)
+compiled output. [Native catalogue tests](../../../src/pixelblaze/stock/showsV2.test.ts)
+assert every stock Show's chapters reproduce its legacy Scene arc, and
+[the pilot route spec](../../../e2e/show-v2-chapters.auth.spec.ts) drives
+absorption, role preservation and the saved-byte round trip in a real browser.
+[Test design](../evidence/issue-1040-native-stock/test-design.json)
 records their partitions and fault-sensitivity checks.
 [Owner tests](../../../src/engine/showMarkersV2.test.ts) serialize/reopen records,
 assert exact unaffected content and unaliasing, and prepare the existing compiler

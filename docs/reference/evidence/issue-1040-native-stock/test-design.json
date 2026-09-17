@@ -1,0 +1,86 @@
+{
+  "issue": 1040,
+  "scope": "native v2 stock Show catalogue, native-versus-converted comparison harness, and the chapter Marker role with its Gallery/reading-card/Live/pilot projections",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": ["CHAPTERS", "PARITY"]
+  },
+  "base": "cf76983b3a68046ca74b5c46eabc338eabecfb5a",
+  "invariants": [
+    "Chapter is the only enumerated Marker role; an unknown role is a codec refusal, never a silently stripped field.",
+    "The role owns no time partition or execution trigger: compile recipe, generated source, compile summary and runtime state are identical with and without it.",
+    "Conversion marks every former Scene label as a chapter at its original global start; no Scene label mints a duplicate guide.",
+    "Absorption preserves the authored Marker's identity, time, name and colour and promotes only its role, and its source leaves stay accounted.",
+    "A Marker that differs in name or time from a Scene label stays general-purpose; the general Marker owner never authors or clears a role.",
+    "Chapter projection filters on role, then orders by (timeMs, id) with the Marker owner's exact UTF-16 tie-break; equal-time chapters stay distinct entries.",
+    "A time with no started chapter projects no chapter; no label is ever synthesized, and a chapter span never runs past Show End.",
+    "Every native v2 stock record validates, reopens through the v2 codec unchanged and compiles with no converter in the path.",
+    "The native catalogue lists the same Shows, in the same order, with the same names, Zones, Layout definitions and output contracts as the pinned legacy catalogue.",
+    "The pinned legacy v1 builder is independent of the native builder, so the comparison is native output versus converted pinned legacy rather than two outputs of one builder.",
+    "Every native/converted representation difference carries an explicit classification; nothing is allowlisted, and any runtime divergence at matched global times fails the report.",
+    "Native resource ledgers match the legacy compile except the three Zone Layout showcases whose silent runtime use #1036 retired; that set is pinned by name."
+  ],
+  "partitions": [
+    "no chapter / converted Scene label / absorbed same-name-and-time Marker / same-time differently-named general Marker / equal-time chapters / dormant chapter beyond Show End",
+    "chapter lookup before the first start, at an exact start, inside a span, and at an equal-time tie",
+    "Marker intents: add with a role (refused), move, update name, update colour, remove, and each applied to a chapter and to a general Marker",
+    "stock catalogue families: Learn 100/200/300, Effects and compositing showcases, Transition and easing references, Aperture references, Zone Layout showcases, the installation Stage, and the three remixes",
+    "native record features: single and multiple Zones, explicit overlay Layers, Layer-participant and whole-output Transitions, boundary-owned scalar ramps, repeated and transferred Layout occurrences, Group definition with two occurrences, stepped and offset instance clocks, deterministic-loop and continuous lifecycles",
+    "comparison classifications: identical representation, volatile record stamp, unclassified (fails)"
+  ],
+  "sequences": [
+    "convert a multi-Scene v1 Show -> project chapters -> serialize and reopen the v2 record -> project again",
+    "convert with a pre-existing same-name/time Marker and a same-time general Marker -> assert absorption, identity, colour and the untouched general Marker",
+    "move a chapter -> rename it -> rename a general Marker -> assert the roles and the projection after each step",
+    "build every native stock record -> validate -> serialize/reopen -> prepare -> compile -> compare resources against the legacy compile",
+    "build every native stock record -> convert the pinned legacy record -> compare representation, recipe, source, summary, and Fast/Precise output, state and lifecycle at matched global times",
+    "pilot route: open a converted three-Scene Show -> read the chapter projection -> rename the absorbed chapter -> add a general Marker -> reload saved v2 bytes -> re-read the projection and the stored roles"
+  ],
+  "oracles": [
+    "Chapter projection output and index lookup, asserted as complete literal values rather than counts.",
+    "Reopened provisional v2 codec bytes and a reopened v2 .pxlshow bundle, both carrying the role exactly.",
+    "Compiled artifact code for the same record with and without the role, asserted equal.",
+    "prepareShowV2ForCompile + compileShow on each native record: ready status, nonempty code, and no resource blockers.",
+    "compileShowForArtifact on each pinned legacy record: resource ledger compared field for field against the native compile.",
+    "docs/plans/show-v2-native-parity-report.json: per-Show representation, classification, recipe/source/summary equality and RuntimeParity in both fidelities, verified byte-for-byte against the committed report.",
+    "docs/plans/show-v2-parity-report.json: the 47-record legacy report, unchanged apart from its recorded provisional schema hash.",
+    "The real pilot route through repository Playwright: rendered chapter list text, stored v2 roles read back from /api/shows, and zero horizontal overflow at 390px.",
+    "Committed browser captures of the Gallery band, the public reading card and the pilot Marker panel, opened and inspected."
+  ],
+  "redEvidence": [
+    "showChaptersV2 module absent: the whole chapter suite failed to import (13 cases).",
+    "Converted Scene labels carried no role: 2 chapter cases failed against the pinned projection.",
+    "Absorption left the authored Marker general: the identity/colour case failed and conversion accounting reported four unaccounted marker leaves.",
+    "The v2 schema admitted no role: parse of a chapter-bearing record refused until the enum landed.",
+    "galleryShowChapters absent: the Gallery projection cases failed to import.",
+    "show-v2-native-parity report absent: the comparison script had no committed report to verify against."
+  ],
+  "faults": [
+    "Converter omits the role on a new Scene-label Marker -> 2 chapter cases fail (converted arc, general-Marker isolation).",
+    "Converter absorption does not promote the role -> the identity/colour absorption case fails.",
+    "Projection drops the role filter -> 6 cases fail, including the general-Marker and .pxlshow cases.",
+    "Projection orders by time only -> the equal-time selectable-entries case fails.",
+    "Projection does not clamp a span to Show End -> the dormant-chapter case fails.",
+    "Index lookup returns the first rather than the last equal-time chapter -> the exact-start selection case fails.",
+    "Schema widens role to any string -> the codec refusal case fails.",
+    "Native learn101 Clip duration changed by 1s -> the record-equality case, the resource census case and the native parity report's unclassified-difference guard all fail.",
+    "Same mutation with every difference force-classified -> the native parity report's runtime guard fails independently at fast@9999 and precise@9999."
+  ],
+  "residualGaps": [
+    "The chapter role is authored by conversion or by a native record only; no edit owner or route creates one, by design until a product decision assigns that surface.",
+    "The Live caption's per-frame text is driven by the rAF loop, so its content is proven by the browser captures and by showChapterIndexAtV2's unit cases rather than by a jsdom assertion.",
+    "Production playback, compilation and Gallery keyframes still read the pinned legacy v1 records; #1039 owns activation.",
+    "The three Zone Layout showcases census differently from v1 under the accepted #1036 silent-runtime retirement; the difference is measured in the 47-record report, not re-derived here.",
+    "Feature Guide chapter wording is prepared but unpublished: production reference claims land with #1039."
+  ],
+  "qualification": {
+    "mutations": "9/9 focused semantic faults killed across the converter, the projection, the schema, the native catalogue and both guards of the native parity report.",
+    "parity": "47 inventoried legacy records matched; only the recorded provisional schema hash regenerated for the new role enum.",
+    "nativeParity": "40/40 Shows compared: 40 recipe-, source- and summary-equal with exact Fast and Precise parity; 32 structurally identical, 8 classified volatile-record-stamp, 0 unclassified.",
+    "focused": "showChaptersV2 13, showsV2 166, galleryShows 9, ShowDetailPage 3, GalleryPage 13, ShowV2MarkerEditor 2; full src/components suite 1490 passed.",
+    "static": "project TypeScript build and repository ESLint passed.",
+    "browser": "npm run capture:chapters drove the Gallery, reading card and pilot routes at 0ccb50a5; three PNG captures opened and inspected; check:ui-proof accepted the record.",
+    "e2e": "e2e/show-v2-chapters.auth.spec.ts passed on the real pilot route; e2e/show-v2-markers.auth.spec.ts and the 28-test public suite stayed green."
+  }
+}
