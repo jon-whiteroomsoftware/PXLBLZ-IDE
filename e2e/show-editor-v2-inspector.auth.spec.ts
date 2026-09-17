@@ -111,6 +111,11 @@ test('the ordinary route inspects and edits a v2 Clip through the landed owners'
   await select.focus()
   await expect(select).toBeFocused()
   await select.press('Tab')
+  // Slice 5's entry-policy control sits between the Clip select and the timing
+  // fields, so ordinary Tab order reaches it first and the timing fields next.
+  const entryPolicy = narrow.getByLabel('Clip entry policy')
+  await expect(entryPolicy).toBeFocused()
+  await entryPolicy.press('Tab')
   await expect(narrow.getByRole('textbox', { name: 'Clip start', exact: true })).toBeFocused()
   const overflow = await narrow.evaluate(root => [...root.querySelectorAll<HTMLElement>('input,select,button')]
     .filter(element => {
