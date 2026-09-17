@@ -50,6 +50,9 @@ export function createVitestTestProjects() {
         environment: 'node',
         globals: true,
         isolate: false,
+        // Absolute: the discovery guard runs this config against a foreign
+        // `--root`, where a relative setup path would not resolve.
+        setupFiles: [path.resolve(__dirname, 'src/test/nodeStorage.ts')],
         include: ['**/*.test.ts'],
         exclude: [...TEST_DISCOVERY_EXCLUDES, ...JSDOM_TEST_FILES, ...LAYOUT_TEST_FILES],
       },
