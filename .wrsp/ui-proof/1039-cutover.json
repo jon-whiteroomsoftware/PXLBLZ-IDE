@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1039",
+  "route": "/PXLBLZ-IDE/studio/shows/<id>",
+  "operation": "Drove the ordinary Show route on the production URL with no query flag, through repository Playwright (Chromium) against an isolated runtime as the suite's synthetic user; the Codex in-app browser is not available to this worker. Created a Show through the production creation flow and confirmed it opens on the v2 editor as a version-2 record with its two Clips and Crossfade; opened a row storage still holds as version 1 from the same Shows list and confirmed it opens on the previous editor and is marked v1 in the list; opened the converted row and confirmed the v2 editor; then repeated the v2 route at 390 px.",
+  "captures": [
+    ".wrsp/ui-proof/1039-cutover-fresh.png",
+    ".wrsp/ui-proof/1039-cutover-unconverted.png",
+    ".wrsp/ui-proof/1039-cutover-converted.png",
+    ".wrsp/ui-proof/1039-cutover-narrow.png"
+  ],
+  "capturedAtCommit": "443e3cde3fdc6b7f5491fed9823919ab3196a452"
+}
