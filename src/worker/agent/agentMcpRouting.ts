@@ -3,6 +3,8 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { z } from 'zod'
 import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
 import { showCommandInputShape } from '../../engine/showCommands/descriptorSchema'
+import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
+import { showCommandV2InputShape } from '../../engine/showCommandsV2/descriptorSchema'
 import {
   SHOW_AUTHORING_JSON_SCHEMA,
   SHOW_AUTHORING_REFERENCE_MARKDOWN,
@@ -29,7 +31,17 @@ export const AGENT_MCP_INSTRUCTIONS = [
   'begin_edit requires a stable key. Later mutations may use an optional stable idempotency_key; a keyed retry with an identical payload only looks up the original admission. pending means the original call may still finish; unknown means its result is unavailable and never permits replay. After an unkeyed timeout, do not repeat the mutation; call get_outcome with its operation_id. The retry ledger is volatile: after connection or ledger loss, call get_connection, then read_show, and begin a new operation with a new key; never replay an unkeyed call.',
   SHOW_AUTHORING_SERVER_INTRO,
 ].join('\n\n')
-export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant): Promise<Response> {
+/**
+ * Which authored command catalogue the server exposes. Production stays on v1
+ * until the coordinated cutover in #1039; the prepared v2 catalogue is measured
+ * and exercised through this explicit opt-in.
+ */
+export interface AgentMcpRoutingOptions { catalogue?: 'v1' | 'v2' }
+
+export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant, options: AgentMcpRoutingOptions = {}): Promise<Response> {
+  const catalogue = options.catalogue === 'v2'
+    ? SHOW_COMMANDS_V2.map(descriptor => ({ name: descriptor.name, description: descriptor.description, shape: showCommandV2InputShape(descriptor) }))
+    : SHOW_COMMANDS.map(descriptor => ({ name: descriptor.name, description: descriptor.description, shape: showCommandInputShape(descriptor) }))
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
   const active = () => grant.expiresAt * 1000 > Date.now()
   const notice = (resolved: ExternalToolConnection) => resolved.moveNotice ? {
@@ -129,7 +141,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     const resolved = await dispatchExternalTool(env, grant, binding_id, { idempotencyKey: idempotency_key, payload: { kind: 'begin_edit', intent } })
     return output(toolResult(resolved))
   })
-  for (const descriptor of SHOW_COMMANDS) registerMutation(descriptor.name, descriptor.description, showCommandInputShape(descriptor), args => ({ kind: 'command', name: descriptor.name, arguments: args }))
+  for (const entry of catalogue) registerMutation(entry.name, entry.description, entry.shape, args => ({ kind: 'command', name: entry.name, arguments: args }))
   registerMutation('commit_edit', 'Validate and request adoption of the entire private candidate once; command changes describe only the private proposal, waiting/saving are not completion, and invalid-candidate may include bounded validation detail.', {}, () => ({ kind: 'commit_edit' }))
   registerMutation('cancel_edit', 'Retire the private candidate; already-adopted saves retain their receipt.', {}, () => ({ kind: 'cancel_edit' }))
   server.registerResource('clip-layer-authoring-schema-v1', SHOW_AUTHORING_SCHEMA_URI, {

@@ -1,4 +1,5 @@
 import { groupOccurrenceDuration, materializeShowGroupsV2 } from './showGroupsV2'
+import { ownedShowIdsV2 } from './showIdentityV2'
 import {
   validateShowRecordV2,
   type ShowClipV2,
@@ -645,25 +646,6 @@ function resolveDuplicatePlan(
   return { idsBySourceId: map as Record<string, string> }
 }
 
-/** Every authored identity the record already owns, including materialized Group children. */
-function ownedShowIdsV2(record: ShowRecordV2): Set<string> {
-  const ids = new Set<string>()
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) value.forEach(visit)
-    else if (typeof value === 'object' && value !== null) {
-      const object = value as Record<string, unknown>
-      // A structured Pattern reference names a dependency, not an authored owner.
-      const keys = Object.keys(object)
-      if (keys.length === 2 && keys.includes('kind') && keys.includes('id')
-        && (object.kind === 'stock' || object.kind === 'user')) return
-      if (typeof object.id === 'string') ids.add(object.id)
-      Object.values(object).forEach(visit)
-    }
-  }
-  visit(record)
-  if (record.composition.groupOccurrences.length > 0) visit(materializeShowGroupsV2(record))
-  return ids
-}
 
 function rebindIncomingTransfers(record: ShowRecordV2): string[] {
   const affected: string[] = []
