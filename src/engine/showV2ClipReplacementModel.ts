@@ -15,6 +15,10 @@ export interface ShowV2ClipReplacementIntent {
 }
 export type ShowV2PatternReplacementResolution = { status: 'ready'; replacement: ResolvedShowPatternReplacementV2 } | { status: 'refused'; message: string }
 export type ShowV2ClipReplacementPlan = { status: 'ready'; intent: ShowV2ClipReplacementIntent } | { status: 'refused'; message: string }
+/** One immutable captured record/asset boundary shared by every replacement planner. */
+export function capturedShowV2ReplacementContext(capture: ShowV2ClipSharingCapture) {
+  return captured(capture)
+}
 function captured(capture: ShowV2ClipSharingCapture) {
   if (capture.inputCapture?.status === 'invalid') return null
   if (capture.inputCapture?.status === 'qualified') return { record: capture.inputCapture.inputs.record, assets: capture.inputCapture.inputs.assets }

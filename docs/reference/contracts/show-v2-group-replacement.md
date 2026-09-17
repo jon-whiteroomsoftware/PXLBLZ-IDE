@@ -100,5 +100,13 @@ key IDs and dormant-definition preservation.
 Precise Score boundaries can cross before a nominal millisecond; comparisons
 isolate actual contributors and explicitly compare unchanged ordinary output
 after Score wrap. No tolerance or source-eligibility bypass accepts a candidate.
-UI/store adoption/history confirmation, Group deletion and compiler expansion
-remain separate owners.
+Group deletion and compiler expansion remain separate owners. Editor adoption,
+its explicit target context and the required animation-loss confirmation are the
+[adoption contract](show-v2-group-replacement-adoption.md).
+
+Two further specification edges are now pinned by tests rather than only by the
+rules above. A linked `split` that no other local Clip and no original Group
+instance track requires is refused, so the slot splits only where the rules
+demand it. A linked fork leaves an ordinary sharing user's Clips, its attached
+Transition identity and settings, its instance payload and its delivered
+compiled Pattern member exact, with identical Fast output and exported state.

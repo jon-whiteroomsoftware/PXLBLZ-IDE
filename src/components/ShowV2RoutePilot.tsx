@@ -24,8 +24,9 @@ import { useMapStore, resolveMap, STOCK_MAPS } from '@/store/mapStore'
 import { useLibraryStore } from '@/store/libraryStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { ShowV2ClipDeleteEditor } from './ShowV2ClipDeleteEditor'
-import { admitShowV2PilotClipReplacementEdit } from '@/store/showV2PreparedEditAdmission'
+import { admitShowV2PilotClipReplacementEdit, admitShowV2PilotGroupReplacementEdit } from '@/store/showV2PreparedEditAdmission'
 import { ShowV2ClipReplacementEditor } from './ShowV2ClipReplacementEditor'
+import { ShowV2GroupReplacementEditor } from './ShowV2GroupReplacementEditor'
 
 export function ShowV2RoutePilot({ showId }: { showId: string }) {
   const record = useShowStore(state => state.showV2Pilots[showId])
@@ -211,6 +212,7 @@ export function ShowV2RoutePilot({ showId }: { showId: string }) {
           {editCapture && <ShowV2PropertyEditor key={`properties:${editCapture.record.id}`} capture={editCapture} submitPropertyEdit={request => admitShowV2PilotPropertyEdit({ showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0, capture: editCapture, ...request })} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2GroupCreationEditor key={`groups:${editCapture.record.id}`} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2GroupOccurrenceEditor key={`group-occurrences:${editCapture.record.id}`} capture={editCapture} submitGroupOccurrenceEdit={request => admitShowV2PilotGroupOccurrenceEdit({ showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0, capture: editCapture, ...request })} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
+          {editCapture && <ShowV2GroupReplacementEditor key={`group-replacement:${editCapture.record.id}`} capture={editCapture} sources={timingModel.sources} submitGroupReplacement={request => admitShowV2PilotGroupReplacementEdit({ showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0, capture: editCapture, ...request })} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2LayoutEditor key={`layout-occurrences:${editCapture.record.id}`} capture={editCapture} submitLayoutEdit={request => admitShowV2PilotLayoutOccurrenceEdit({ showId, baseRevision: useShowStore.getState().showRevisions[showId] ?? 0, capture: editCapture, ...request })} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           {editCapture && <ShowV2MarkerEditor key={editCapture.record.id} capture={editCapture} isCurrentCapture={isCurrentEditCapture} isCurrentCompletion={isCurrentEditCompletion} onStatus={setStatus} />}
           <div className="mt-7 flex flex-wrap gap-2">

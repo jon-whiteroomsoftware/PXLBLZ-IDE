@@ -19,6 +19,8 @@ import { createShowGroupFromSelectionV2, type CreateShowGroupFromSelectionIntent
 import type { ShowGroupEditAffectedV2 } from '@/engine/showGroupEditsV2'
 import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
 import { resolveCapturedShowPatternReplacementV2, type ShowV2ClipReplacementIntent } from '@/engine/showV2ClipReplacementModel'
+import { replaceShowGroupDefinitionClipPatternV2, type ReplaceShowGroupDefinitionClipPatternIntentV2, type ShowGroupReplacementResultV2 } from '@/engine/showGroupReplacementV2'
+import type { ShowV2GroupReplacementIntent } from '@/engine/showV2GroupReplacementEditorModel'
 export interface ShowV2PilotPreparedCapture {
   readonly record: ShowRecordV2
   readonly dependencies: ShowPreparedStageDependenciesV2
@@ -61,6 +63,7 @@ type Command =
   | { owner: 'layout-occurrence'; intent: ShowV2PilotLayoutOccurrenceIntent }
   | { owner: 'delete-clip'; intent: ShowV2PilotClipDeleteIntent }
   | { owner: 'group-occurrence'; intent: ShowV2PilotGroupOccurrenceEditIntent }
+  | { owner: 'group-replace'; intent: ReplaceShowGroupDefinitionClipPatternIntentV2 }
   | { owner: 'create-group'; intent: CreateShowGroupFromSelectionIntentV2 }
   | { owner: 'marker'; intent: ShowMarkerEditIntentV2 }
   | { owner: 'transition-resize'; intent: ShowV2PilotTransitionResizeIntent }
@@ -79,6 +82,7 @@ export type ShowV2PilotClipDeleteRequest = ShowV2PilotPreparedEditContext & { in
 export type ShowV2PilotClipDeleteOutcome = PilotOwnerOutcome<ShowTransitionEditResultV2, ShowTimelineEditAffectedV2>
 type OwnerResult<C extends Command> = C extends { owner: 'layout-occurrence' } ? ShowLayoutEditResultV2
   : C extends { owner: 'group-occurrence' } ? ShowGroupEditResultV2
+  : C extends { owner: 'group-replace' } ? ShowGroupReplacementResultV2
   : C extends { owner: 'create-group' } ? ShowGroupCreateResultV2
   : C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
@@ -118,6 +122,8 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
     ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
     : command.owner === 'group-occurrence'
         ? groupOccurrenceOwnerResult(current, structuredClone(command.intent))
+        : command.owner === 'group-replace'
+        ? replaceShowGroupDefinitionClipPatternV2(current, structuredClone(command.intent))
         : command.owner === 'create-group'
           ? createShowGroupFromSelectionV2(current, structuredClone(command.intent))
         : command.owner === 'marker'
@@ -538,4 +544,47 @@ export async function admitShowV2PilotClipReplacementEdit(request: ShowV2PilotCl
   const intent: Extract<ShowClipEditIntentV2, { kind: 'replace-pattern' }> = { kind: 'replace-pattern', clipId: request.intent.clipId, replacement: resolved.replacement, ...(request.intent.independence ? { independence: request.intent.independence } : {}) }
   const outcome = await admitPreparedEdit({ ...request, intent, owner: 'clip-replace' as const })
   return presentOwnerOutcome(outcome, sharingEffects(request.capture.record, intent, 'result' in outcome ? outcome.result : undefined))
+}
+export type ShowV2PilotGroupReplacementRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2GroupReplacementIntent }
+export type ShowV2PilotGroupReplacementOutcome = PilotOwnerOutcome<ShowGroupReplacementResultV2, ShowGroupEditAffectedV2>
+function validTrackIdentityPlans(value: unknown): boolean {
+  const object = (item: unknown): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item)
+  const text = (item: unknown): item is string => typeof item === 'string' && item.trim().length > 0
+  return object(value) && Object.entries(value).every(([key, plan]) => text(key) && exactIntentFields(plan, ['trackId', 'keyframeIdsBySourceId']) && object(plan)
+    && text(plan.trackId) && object(plan.keyframeIdsBySourceId) && Object.entries(plan.keyframeIdsBySourceId).every(([source, id]) => text(source) && text(id)))
+}
+function validGroupReplacementIntentShape(intent: unknown): intent is ShowV2GroupReplacementIntent {
+  const object = (item: unknown): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item)
+  const text = (item: unknown): item is string => typeof item === 'string' && item.trim().length > 0
+  if (!object(intent) || intent.kind !== 'replace-group-clip-pattern' || !text(intent.definitionId) || !text(intent.clipId)
+    || !exactIntentFields(intent.patternReference, ['kind', 'id'])) return false
+  const reference = intent.patternReference as Record<string, unknown>
+  if ((reference.kind !== 'stock' && reference.kind !== 'user') || !text(reference.id)) return false
+  if (intent.context === 'dormant-definition') {
+    if (!exactIntentFields(intent, ['kind', 'definitionId', 'clipId', 'patternReference', 'context', 'slot']) || !object(intent.slot)) return false
+    if (intent.slot.kind === 'retain') return exactIntentFields(intent.slot, ['kind'])
+    return intent.slot.kind === 'split' && exactIntentFields(intent.slot, ['kind', 'slotId', 'localTrackIdentitiesBySourceTrackId'])
+      && text(intent.slot.slotId) && validTrackIdentityPlans(intent.slot.localTrackIdentitiesBySourceTrackId)
+  }
+  if (intent.context !== 'linked-occurrences'
+    || !exactIntentFields(intent, ['kind', 'definitionId', 'clipId', 'patternReference', 'context', 'slot', 'runtimePlansBySourceRuntimeId'])
+    || !object(intent.slot)) return false
+  const slot = intent.slot.kind === 'retain' ? exactIntentFields(intent.slot, ['kind'])
+    : intent.slot.kind === 'split' && exactIntentFields(intent.slot, ['kind', 'slotId']) && text(intent.slot.slotId)
+  return slot && object(intent.runtimePlansBySourceRuntimeId) && Object.entries(intent.runtimePlansBySourceRuntimeId).every(([source, plan]) => text(source) && object(plan)
+    && (plan.kind === 'retain' ? exactIntentFields(plan, ['kind'])
+      : plan.kind === 'independent' && exactIntentFields(plan, ['kind', 'instanceId', 'identitiesBySourceTrackId']) && text(plan.instanceId) && validTrackIdentityPlans(plan.identitiesBySourceTrackId)))
+}
+export async function admitShowV2PilotGroupReplacementEdit(request: ShowV2PilotGroupReplacementRequest): Promise<ShowV2PilotGroupReplacementOutcome> {
+  const groupEffects = () => ({ ...timelineEffects(), hoistedInstanceIds: [] as string[] })
+  if (!validGroupReplacementIntentShape(request.intent)) {
+    return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Choose one definition-local Group Clip with complete explicit replacement identities.', ...groupEffects() }
+  }
+  const resolved = resolveCapturedShowPatternReplacementV2(request.capture, request.intent.patternReference)
+  if (resolved.status === 'refused') return { status: 'refused', source: 'admission', code: 'unsupported-pilot-record', message: resolved.message, ...groupEffects() }
+  const { kind: _kind, patternReference: _reference, ...owned } = request.intent
+  const intent = { ...owned, replacement: resolved.replacement } as ReplaceShowGroupDefinitionClipPatternIntentV2
+  const outcome = await admitPreparedEdit({ ...request, intent, owner: 'group-replace' as const })
+  const result = 'result' in outcome ? outcome.result : undefined
+  return presentOwnerOutcome(outcome, { ...timelineEffects(result), hoistedInstanceIds: result?.hoistedInstanceIds ?? [] })
 }

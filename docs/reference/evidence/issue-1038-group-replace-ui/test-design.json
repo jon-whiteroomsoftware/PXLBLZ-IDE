@@ -1,0 +1,77 @@
+{
+  "issue": 1038,
+  "scope": "definition-local Group Clip Replace Pattern owner audit and route-pilot editor adoption",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "sections": ["4", "6 (Replace Pattern and independence)", "9"],
+    "proofRows": ["REPLACE", "SHARING", "RESTART", "ROUTE", "FAILURE", "PARITY"]
+  },
+  "base": "8666d8890b1768d0da55268c62c44b540d5395bc",
+  "invariants": [
+    "The explicit Group-edit target context selects a definition and a definition-local Clip; a materialized occurrence child is never an edit target and occurrence isolation stays an explicit separate Make Group Unique.",
+    "Incoming reference, name and exported sliders come only from the captured bundle boundary; the submitted intent carries a structured patternReference and never guessed controls, names or source text.",
+    "One destination per distinct source runtime: a sole effective use retains its runtime, a shared source takes one explicit fresh destination shared by its selected uses, and distinct sources never coalesce.",
+    "A slot splits only where another local Clip uses it, original Group instance-track ownership must be preserved, or a dormant derived default runtime already has top-level authority.",
+    "Every required fresh identity is allocated exactly once at submission and is fresh against authored, materialized and definition-derived-default IDs; nothing is allocated before refusal, and no allocation happens on cancel.",
+    "The animation-loss confirmation precedes adoption and reports exactly the owner's discarded control targets; cancel adopts nothing and performs zero writes.",
+    "One prepared candidate, one adoption, one history entry and one provider save; refusal and no-op return the original record identity with empty affected collections, no history and no timestamp.",
+    "Unselected owners stay exact: other users' instance payload, controls, tracks and delivered compiled Pattern member, ordinary Clips, Transition identity and settings, holds, Layers and unrelated definitions."
+  ],
+  "partitions": [
+    "linked definition with a shared source, linked definition with a sole source, dormant definition, dormant definition with hoisted derived-default authority",
+    "compatible retained control and time-scale animation versus incompatible control pruning; safely owned sole-runtime local pruning versus mixed sole/shared refusal",
+    "stale local template control without an effective-runtime counterpart versus effective-runtime control loss",
+    "unresolvable, missing, malformed-shape and equal-identity (no-op) sources",
+    "malformed closed-intent ingress: wrong kind, wrong context, incomplete slot plan, non-fresh destination, extra fields, blank identities",
+    "stale record/provider/route lifetime, failed save rollback and explicit retry, double submission guard",
+    "desktop and 390 px narrow layout with keyboard focus and control-bound checks"
+  ],
+  "sequences": [
+    "dormant replace -> same-source no-op -> cancelled confirmation -> linked replace -> mixed refusal -> Undo -> Redo -> Make Group Unique -> unique-occurrence replace -> saved reload -> cold page reload -> native artifact reopen",
+    "plan -> owner apply -> reopen record -> compile Fast and Fidelity -> compare against an independently authored replacement and against the preimage for the retained ordinary user",
+    "failed provider save -> durable rollback -> fresh explicit retry"
+  ],
+  "oracles": [
+    "Reopened v2 records compiled through the shared preparation and replay: Fast and Fidelity frames plus exported Pattern state at named times, candidate versus an independently authored second local slot carrying its own equivalent local animation and its own authored runtime.",
+    "The retained ordinary sharing user's exported state and frames equal its preimage at the same times.",
+    "Real closed admission through the store and provider: actual PUT settlements, semantic D1 readback of the saved record, history entries, and the exact fifteen affected collections.",
+    "Owner-reported discardedControlTargets equal the pre-adoption projection shown in the confirmation.",
+    "Actual pilot route driven in a browser: six awaited durable writes, zero-write refusal/no-op/cancel, Fast and Precise Stage captures, desktop and 390 px keyboard and control-bound checks, zero browser errors."
+  ],
+  "redEvidence": [
+    "showV2GroupReplacementEditorModel.test.ts failed to resolve its missing module (8 cases) before the planner existed.",
+    "showV2GroupReplacementAdmission.test.ts reported admitShowV2PilotGroupReplacementEdit is not a function (7 cases) before the wrapper existed.",
+    "e2e/show-v2-group-replace.auth.spec.ts first failed at the Make Group Unique step: the selected definition had a single occurrence, so the owner correctly returned unchanged. The sequence was corrected to make a two-occurrence definition unique, which is the specification's stated route to occurrence-scoped replacement.",
+    "The first keyboard pass failed because the Pattern combobox is disabled until a Group Clip target is chosen; the check now selects a target first."
+  ],
+  "ownerAudit": {
+    "result": "No behavioral repair required. The landed owner already enforces every §6 definition-local and dormant rule checked.",
+    "rulesChecked": [
+      "definition scope versus unique-occurrence scope; Make Group Unique first, never an implicit runtime clone",
+      "authoritative bound payload versus hoisted definition-qualified default under the same effective runtime ID",
+      "one destination per distinct source runtime; sole retains, shared forks once, different sources never coalesce",
+      "split only when another local Clip uses the slot or original Group-owned animation must be preserved",
+      "exact compatible control and instance time-scale track retention",
+      "atomic refusal of mixed or foreign incompatible Group animation with control, track, runtime and owner identification",
+      "dormant rules including the split when the derived default runtime already has top-level authority"
+    ],
+    "newlyPinned": [
+      "A linked split that no other local Clip and no original Group instance track requires is refused.",
+      "A linked fork leaves an ordinary sharing user's Clips, attached Transition identity and settings, instance payload and delivered compiled member exact, with identical Fast output and exported state."
+    ]
+  },
+  "qualification": {
+    "mutations": "6/6 semantic faults killed, source restored after each: dropped linked local-track split rule (4 cases), planner reusing the source runtime as its destination (4 cases), dropped stale-template loss projection (1 case, added as a missing partition after it first survived), untrusted guessed replacement metadata in the adapter (6 cases), removed closed intent-shape validation (1 case), owner accepting an unnecessary linked split (1 case).",
+    "focused": "showGroupReplacementV2 61, showV2GroupReplacementEditorModel 8, showV2GroupReplacementAdmission 7, showV2ClipReplacementModel and showV2ClipReplacementAdmission adjacents.",
+    "static": "project TypeScript project check and scoped ESLint passed.",
+    "parity": "npm run show:v2-parity reproduced the 47-record report unchanged.",
+    "browser": "Authenticated repository Playwright drove the real pilot route at the code tip; the in-app browser is unavailable to this worker and that provenance is stated in the proof record."
+  },
+  "residualGaps": [
+    "The panel exposes no timeline selection of Group children; the explicit target list is the only Group edit target surface.",
+    "Group deletion, command/MCP surfaces and compiler or schema widening remain separate owners.",
+    "The replace lifecycle partition in the #1038 body still applies: where replacement removes a shared runtime's earliest contributing use or Restart, comparison is against an independently authored replacement, not universal preimage equality.",
+    "Coordinator owns authoritative committed-tip suites, cross-family review, landing and issue state; this candidate claims only this slice."
+  ]
+}
