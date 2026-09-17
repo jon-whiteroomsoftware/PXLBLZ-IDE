@@ -11,6 +11,13 @@ import type { ShowToolkitPresentationItem } from './showVisualToolkitPresentatio
 
 export type ShowTransitionChanges = Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>
 
+/**
+ * Anything that carries Transition presentation settings. A v1
+ * `ShowBoundaryTransition` and a v2 `ShowTransitionV2` both satisfy it, so one
+ * parameter surface reads and patches either without a version branch.
+ */
+export type ShowTransitionSettingsCarrier = Omit<ShowBoundaryTransition, 'afterSceneId'>
+
 export function showBoundaryTransitionPresentationKey(
   transition: Pick<ShowBoundaryTransition, 'kind' | 'wipeVariant' | 'dissolveVariant' | 'shape' | 'motionVariant'>,
 ): string {
@@ -59,7 +66,7 @@ export function showTransitionChangesForPresentation(
 
 export function showBoundaryTransitionParameters(
   item: ShowToolkitPresentationItem,
-  transition: ShowBoundaryTransition,
+  transition: ShowTransitionSettingsCarrier,
 ): ShowToolkitParameterDescriptor[] {
   const family = getShowToolkitFamily('transition', item.familyId)
   if (!family) return []
@@ -70,7 +77,7 @@ export function showBoundaryTransitionParameters(
 }
 
 export function showBoundaryTransitionParameterValue(
-  transition: ShowBoundaryTransition,
+  transition: ShowTransitionSettingsCarrier,
   parameterId: string,
 ): ShowToolkitParameterValue {
   if (parameterId === 'easing') return showEasingOptionId(transition.easing)
@@ -93,7 +100,7 @@ export function updateShowBoundaryTransitionParameter(
 }
 
 export function showBoundaryTransitionParameterChanges(
-  transition: ShowBoundaryTransition,
+  transition: ShowTransitionSettingsCarrier,
   item: ShowToolkitPresentationItem,
   parameterId: string,
   value: ShowToolkitParameterValue,

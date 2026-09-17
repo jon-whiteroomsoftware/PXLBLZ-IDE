@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, X, Zap } from 'lucide-react'
 import type { ShowBoundaryTransition, ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowTransitionSettingsCarrier } from '@/engine/showTransitionAuthoring'
 import { NumberField } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
 import { DomainNumberField } from '@/components/ui/domain-number-field'
@@ -224,20 +225,28 @@ export function ShowTransitionPalette({
   )
 }
 
+/**
+ * The Transition parameter surface. It reads and patches any settings carrier,
+ * so the v1 boundary record and a `ShowTransitionV2` share one control set.
+ */
 export function ShowTransitionParameters({
   transition,
   item,
+  omitParameterIds,
   onPreview,
   onPreviewEnd,
   onChange,
 }: {
-  transition: ShowBoundaryTransition
+  transition: ShowTransitionSettingsCarrier
   item: ShowToolkitPresentationItem
+  /** Parameters another control on the same surface already owns. */
+  omitParameterIds?: readonly string[]
   onPreview?: (parameterId: string, value: ShowToolkitParameterValue) => void
   onPreviewEnd?: () => void
   onChange: (parameterId: string, value: ShowToolkitParameterValue) => void
 }) {
   const parameters = showBoundaryTransitionParameters(item, transition)
+    .filter((parameter) => !omitParameterIds?.includes(parameter.id))
   return (
     <div role="group" aria-label={`${item.label} Transition parameters`} className="grid grid-cols-2 items-end gap-1.5 sm:grid-cols-3">
       {parameters.map((parameter) => {

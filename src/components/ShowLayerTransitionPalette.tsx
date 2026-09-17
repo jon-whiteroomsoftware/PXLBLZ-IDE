@@ -16,6 +16,7 @@ export function ShowLayerTransitionPalette({
   applyError,
   fromName,
   toName,
+  fullCatalogue = false,
   onApply,
   onClose,
 }: {
@@ -25,6 +26,12 @@ export function ShowLayerTransitionPalette({
   applyError?: string | null
   fromName: string
   toName: string
+  /**
+   * Offer every Transition family. The v1 Layer palette withholds Fade and
+   * Motion; the v2 owner decides their eligibility itself and returns the
+   * bounded RL08 refusal in its own words, so the v2 surface asks it.
+   */
+  fullCatalogue?: boolean
   onApply: (item: ShowToolkitPresentationItem, durationMs: number) => void
   onClose: () => void
 }) {
@@ -39,10 +46,10 @@ export function ShowLayerTransitionPalette({
     query,
     compatibleOnly: false,
   }).filter((item) => (
+    // Cut is the absence of a Transition; it is never a palette entry.
     !(item.familyId === 'blend' && item.variantId === 'cut')
-    && item.familyId !== 'fade'
-    && item.familyId !== 'motion'
-  )), [catalogue, query])
+    && (fullCatalogue || (item.familyId !== 'fade' && item.familyId !== 'motion'))
+  )), [catalogue, fullCatalogue, query])
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {

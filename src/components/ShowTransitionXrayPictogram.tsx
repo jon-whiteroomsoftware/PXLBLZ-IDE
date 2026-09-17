@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { applyShowEasing, normalizeShowEasing } from '@/engine/showEasing'
 import { normalizeShowMotionTransition } from '@/engine/showMotionTransition'
-import type { ShowBoundaryTransition, ShowSpatialShape } from '@/engine/personalContentRecords'
+import type { ShowSpatialShape } from '@/engine/personalContentRecords'
+import type { ShowTransitionSettingsCarrier } from '@/engine/showTransitionAuthoring'
 import { normalizeShowWipeSettings } from '@/engine/showWipe'
 
 const OUTGOING = 'rgba(212,212,216,.56)'
@@ -9,7 +10,7 @@ const INCOMING = 'rgba(196,181,253,.66)'
 const BRIGHT = 'rgba(244,244,245,.88)'
 const DARK = '#080a0c'
 
-export function ShowTransitionXrayPictogram({ transition }: { transition: ShowBoundaryTransition }) {
+export function ShowTransitionXrayPictogram({ transition }: { transition: ShowTransitionSettingsCarrier }) {
   const easing = normalizeShowEasing(transition.easing)
   const wipe = transition.kind === 'wipe' ? normalizeShowWipeSettings(transition) : null
   const motion = transition.kind === 'motion' ? normalizeShowMotionTransition(transition) : null
@@ -47,7 +48,7 @@ export function ShowTransitionXrayPictogram({ transition }: { transition: ShowBo
   )
 }
 
-function CrossfadeGlyph({ transition }: { transition: ShowBoundaryTransition }) {
+function CrossfadeGlyph({ transition }: { transition: ShowTransitionSettingsCarrier }) {
   return (
     <g style={{ mixBlendMode: 'screen' }}>
       <path data-crossfade-ramp="outgoing" d={crossfadeRampPath(transition, false)} fill={OUTGOING} />
@@ -56,7 +57,7 @@ function CrossfadeGlyph({ transition }: { transition: ShowBoundaryTransition }) 
   )
 }
 
-function crossfadeRampPath(transition: ShowBoundaryTransition, incoming: boolean): string {
+function crossfadeRampPath(transition: ShowTransitionSettingsCarrier, incoming: boolean): string {
   const samples = Array.from({ length: 17 }, (_, index) => {
     const progress = index / 16
     const eased = applyShowEasing(transition.easing, progress)
@@ -171,7 +172,7 @@ function WipeGlyph({ settings }: { settings: WipeSettings }) {
   )
 }
 
-function DissolveGlyph({ transition }: { transition: ShowBoundaryTransition }) {
+function DissolveGlyph({ transition }: { transition: ShowTransitionSettingsCarrier }) {
   const variant = transition.dissolveVariant ?? 'pixel'
   const seed = transition.seed ?? 0
   if (variant === 'coherent-noise' || variant === 'soft-threshold') {
@@ -222,7 +223,7 @@ function PortalGlyph({
   shape,
   revealMode,
 }: {
-  transition: ShowBoundaryTransition
+  transition: ShowTransitionSettingsCarrier
   shape: ShowSpatialShape
   revealMode: 'grow-incoming' | 'shrink-outgoing'
 }) {
@@ -250,7 +251,7 @@ function PortalGeometry({
   fill,
   stroke,
 }: {
-  transition: ShowBoundaryTransition
+  transition: ShowTransitionSettingsCarrier
   shape: ShowSpatialShape
   fill: string
   stroke: string
