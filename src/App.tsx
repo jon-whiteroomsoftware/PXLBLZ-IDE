@@ -127,7 +127,7 @@ import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 import { AgentDrawerWorkspace } from '@/components/agent/AgentDrawer'
 import { ShowEditorV2Route } from '@/components/ShowEditorV2Route'
-import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
+import { isShowV2RouteEnabled, opensOnShowV2Route } from '@/engine/showV2RouteGate'
 
 function Splitter({
   onDrag,
@@ -344,9 +344,12 @@ export default function App() {
 }
 
 function StudioApp() {
-  // #1056: the ordinary editor route rendering a ShowRecordV2. One gate, which
-  // #1039 flips in `showV2RouteGate.ts`, answers for the route, the Show list
-  // and fresh-Show creation together (specification section 10).
+  // #1056 rebuilt the ordinary editor route on `ShowRecordV2`; #1039 made it
+  // the production default. `showV2RouteEnabled` answers for the workspace -
+  // fresh Shows, the Show list and `.pxlshow` import - and
+  // `routedShowOpensOnV2` answers per Show, because a row still stored as v1
+  // keeps the v1 editor until the operator conversion rewrites it
+  // (specification section 10: no migration on read).
   const showV2RouteEnabled = isShowV2RouteEnabled()
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
@@ -399,7 +402,18 @@ function StudioApp() {
   const shows = useShowStore((s) => s.shows)
   const showsLoaded = useShowStore((s) => s.showsLoaded)
   const showV2Pilots = useShowStore((s) => s.showV2Pilots)
+  const showV2Rows = useShowStore((s) => s.showV2Rows)
   const openShow = useShowStore((s) => s.openShow)
+  // Which editor holds one routed Show (#1039). A stored version-2 document
+  // opens on the v2 route; a row still stored as v1 - and every built-in Show,
+  // which has no stored document at all - keeps the v1 editor until the
+  // operator conversion rewrites it. The agent binding the open editor
+  // registers carries the same answer, so a Show's editor and its commands are
+  // never different versions.
+  const routedShowOpensOnV2 = useCallback(
+    (showId: string) => opensOnShowV2Route({ storedV2: showV2Rows.some((row) => row.id === showId) }),
+    [showV2Rows],
+  )
   const renameShow = useShowStore((s) => s.renameShow)
   const renameShowV2Pilot = useShowStore((s) => s.renameShowV2Pilot)
   const showCreation = useShowStore((s) => s.showCreation)
@@ -610,9 +624,9 @@ function StudioApp() {
       const entityId = currentRoute.entity.id
       if (stockShowById(entityId)) {
         if (activeShowId !== null) void openShow(null)
-      } else if (!showV2RouteEnabled && shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
+      } else if (!routedShowOpensOnV2(entityId) && shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, showV2RouteEnabled, activeShowId, activeLibraryName, userPatterns, openShow])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, routedShowOpensOnV2, activeShowId, activeLibraryName, userPatterns, openShow])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -636,7 +650,7 @@ function StudioApp() {
     } else if (
       activeShowId !== null &&
       (current.entity === null || current.entity.kind === 'shows') &&
-      !(showV2RouteEnabled && current.entity?.kind === 'shows' && current.entity.id !== null)
+      !(current.entity?.kind === 'shows' && current.entity.id !== null && routedShowOpensOnV2(current.entity.id))
     ) {
       const target: Route = { kind: 'studio', entity: { kind: 'shows', id: activeShowId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
@@ -649,7 +663,7 @@ function StudioApp() {
       const target: Route = { kind: 'studio', entity: { kind: 'libraries', id: targetId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     }
-  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, editingLibrary, navigate, showV2RouteEnabled])
+  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, editingLibrary, navigate, routedShowOpensOnV2])
 
   // Signed-out cold Studio goes through a one-time welcome/sign-in gate. A
   // pattern-detail handoff may carry an active built-in demo into Studio (#310),
@@ -834,7 +848,7 @@ function StudioApp() {
   const routedShowId = showsLoaded && route.kind === 'studio' && route.entity?.kind === 'shows'
     ? route.entity.id
     : null
-  const v2EditorShowId = showV2RouteEnabled ? routedShowId : null
+  const v2EditorShowId = routedShowId !== null && routedShowOpensOnV2(routedShowId) ? routedShowId : null
   const activeShow = routedStockShowOverride ?? (
     activeShowId && (v2EditorShowId === null || activeShowId === v2EditorShowId)
       ? shows.find((show) => show.id === activeShowId)

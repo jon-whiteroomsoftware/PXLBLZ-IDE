@@ -60,17 +60,22 @@ export interface AgentMcpRoutingOptions { catalogue?: 'v1' | 'v2' }
  * `tools/list` has to describe the vocabulary the private executor will
  * actually accept. It is deliberately not a `resolve`: that would consume the
  * binding-moved notice the caller's next `get_connection` is owed and spend one
- * of its rate-limited agent calls. An unbound or unreachable connection stays
- * on v1 - the surface every existing client already expects - and a client that
- * binds to a v2 record afterwards sees the v2 tools on its next request, which
- * is the same reconnect `get_connection` already instructs it to make.
+ * of its rate-limited agent calls.
+ *
+ * An unbound or unreachable connection describes v2, because since #1039 that
+ * is the production editor's authored vocabulary: every fresh Show is v2 and
+ * the operator conversion moves the rest. A connection bound to a row storage
+ * still holds as v1 is answered v1, the same version its editor and its
+ * private executor hold, and a client that binds the other way afterwards sees
+ * the other catalogue on its next request - the reconnect `get_connection`
+ * already instructs it to make.
  */
 async function resolveCatalogue(env: WorkerEnv, grant: ValidatedAgentGrant, options: AgentMcpRoutingOptions): Promise<'v1' | 'v2'> {
   if (options.catalogue) return options.catalogue
   try {
     const inspected = await inspectExternalToolBinding(env, grant)
-    return inspected.binding?.showVersion === 2 ? 'v2' : 'v1'
-  } catch { return 'v1' }
+    return inspected.binding?.showVersion === 1 ? 'v1' : 'v2'
+  } catch { return 'v2' }
 }
 
 export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant, options: AgentMcpRoutingOptions = {}): Promise<Response> {

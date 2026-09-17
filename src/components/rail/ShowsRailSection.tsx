@@ -119,11 +119,13 @@ export function ShowsRailSection({
               ref={personalTreeRef}
               organization={personalOrganization}
               items={[
-                ...userShows.map((show) => ({ id: show.id, name: show.name })),
-                // A v2 row is an ordinary personal Show here: it opens on the
-                // same route and renames, duplicates and trashes like a v1 one
-                // (#1039).
-                ...userShowsV2.map((show) => ({ id: show.id, name: show.name, meta: 'v2' })),
+                // A version-2 row is the ordinary personal Show since #1039, so
+                // the list marks the exception instead: a row storage still
+                // holds as v1 opens on the previous editor, with the previous
+                // command vocabulary, until the operator conversion rewrites
+                // it. Both kinds rename, duplicate and trash the same way.
+                ...userShows.map((show) => ({ id: show.id, name: show.name, meta: 'v1' })),
+                ...userShowsV2.map((show) => ({ id: show.id, name: show.name })),
               ]}
               activeEntityId={activeShowId}
               query={query}

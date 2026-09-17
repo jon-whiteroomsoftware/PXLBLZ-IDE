@@ -150,7 +150,8 @@ it('publishes an output schema for every dynamic tool without advertising resour
   expect(initialized.result.capabilities.resources?.listChanged).not.toBe(true)
 
   const listed = await (await request(env, 'tools/list')).json() as { result: { tools: Array<{ name: string; outputSchema?: object; annotations?: { readOnlyHint?: boolean; openWorldHint?: boolean } }> } }
-  expect(listed.result.tools).toHaveLength(SHOW_COMMANDS.length + 10)
+  // The default catalogue is the production one, which is v2 since #1039.
+  expect(listed.result.tools).toHaveLength(SHOW_COMMANDS_V2.length + 10)
   for (const tool of listed.result.tools) expect(tool.outputSchema, tool.name).toMatchObject({ type: 'object' })
   for (const name of ['list_patterns', 'list_controller_profiles']) {
     expect(listed.result.tools.find(tool => tool.name === name)?.annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
@@ -171,7 +172,7 @@ it('publishes the complete external edit protocol in the initialization instruct
 
     begin_edit requires a stable key. Later mutations may use an optional stable idempotency_key; a keyed retry with an identical payload only looks up the original admission. pending means the original call may still finish; unknown means its result is unavailable and never permits replay. After an unkeyed timeout, do not repeat the mutation; call get_outcome with its operation_id. The retry ledger is volatile: after connection or ledger loss, call get_connection, then read_show, and begin a new operation with a new key; never replay an unkeyed call.
 
-    Clip/Layer bulk authoring uses schema version 1: create_clips and create_layers create fresh Pattern instances; update_clips preserves shared instances. Times are exact global milliseconds. Nested objects patch supplied leaves, Effects arrays replace, and controls null clears one export. Each call is atomic and bounded to 128 entries. Read pxlblz://docs/clip-layer-authoring/v1 and pxlblz://schemas/clip-layer-authoring/v1 for the complete reference and examples."
+    Show authoring uses schema version 2. Every command addresses entities by stable identity from read_show; there are no indices, Scenes or time lookups. Times are exact global milliseconds and intervals are half-open; nothing is clamped and Show End never grows on its own. An already-satisfied request returns unchanged with no changes and does not abort the batch. Each bulk array carries 1 to 128 items and applies as one atomic candidate. Read pxlblz://docs/clip-layer-authoring/v2 and pxlblz://schemas/clip-layer-authoring/v2 for Effect and Aperture parameter names, the animation target union, and executable examples."
   `)
 })
 
@@ -181,13 +182,14 @@ it('keeps tool metadata concise and marks exactly the non-claiming read tools re
     result: { tools: Array<{ name: string; description?: string; annotations?: { readOnlyHint?: boolean }; inputSchema: { properties?: Record<string, { description?: string }> } }> }
   }
   const byName = new Map(listed.result.tools.map(tool => [tool.name, tool]))
-  const mutationNames = new Set(['begin_edit', ...SHOW_COMMANDS.map(command => command.name), 'commit_edit', 'cancel_edit'])
+  const mutationNames = new Set(['begin_edit', ...SHOW_COMMANDS_V2.map(command => command.name), 'commit_edit', 'cancel_edit'])
   const mutations = listed.result.tools.filter(tool => mutationNames.has(tool.name))
 
-  expect(mutations).toHaveLength(57)
+  // The v2 catalogue authors the same domain in fewer, bulk commands.
+  expect(mutations).toHaveLength(SHOW_COMMANDS_V2.length + 3)
   expect(mutations.some(tool => tool.description?.includes('Requires the current bound editor'))).toBe(false)
   expect(mutations.some(tool => tool.description?.includes('unkeyed timeouts must be recovered'))).toBe(false)
-  for (const command of SHOW_COMMANDS) expect(byName.get(command.name)?.description, command.name).toBe(command.description)
+  for (const command of SHOW_COMMANDS_V2) expect(byName.get(command.name)?.description, command.name).toBe(command.description)
   expect(byName.get('begin_edit')?.description).toBe('Capture a full immutable Show/context and begin one private operation. The intent is required and displayed to the person in the editor. The relay assigns and returns operation_id.')
   expect(byName.get('begin_edit')?.inputSchema.properties?.intent?.description).toBe('Required nonblank edit intent displayed to the person in the editor; one line, at most 240 characters.')
 
@@ -383,7 +385,11 @@ it.each([
   expect(owner.fetch).not.toHaveBeenCalled()
 })
 
-it('falls back to the v1 catalogue when no editor is bound', async () => {
+it('describes the production v2 catalogue when no editor is bound (#1039)', async () => {
+  // Since the flip, v2 is the authored vocabulary of the production editor, so
+  // an unbound connection is told about it. A connection that then binds to a
+  // row storage still holds as v1 is answered v1 by the dispatch above, and
+  // `get_connection` already instructs that client to reconnect.
   const owner = { fetch: vi.fn().mockResolvedValue(Response.json({ code: 'no_live_editor' })) }
   const env = {
     AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
@@ -391,5 +397,18 @@ it('falls back to the v1 catalogue when no editor is bound', async () => {
     AGENT_SERVICE_ENABLED: '1',
   } as unknown as WorkerEnv
   const tools = new Set(((await (await request(env, 'tools/list')).json()) as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
-  for (const command of SHOW_COMMANDS) expect(tools, command.name).toContain(command.name)
+  for (const command of SHOW_COMMANDS_V2) expect(tools, command.name).toContain(command.name)
+  const v1Only = SHOW_COMMANDS.filter(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name))
+  expect(v1Only.length).toBeGreaterThan(0)
+  for (const command of v1Only) expect(tools, command.name).not.toContain(command.name)
+})
+
+it('describes the production v2 catalogue when the binding cannot be read (#1039)', async () => {
+  const env = {
+    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => ({ fetch: () => { throw new Error('unreachable') } }) },
+    ASSETS: { fetch: vi.fn() },
+    AGENT_SERVICE_ENABLED: '1',
+  } as unknown as WorkerEnv
+  const tools = new Set(((await (await request(env, 'tools/list')).json()) as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
+  for (const command of SHOW_COMMANDS_V2) expect(tools, command.name).toContain(command.name)
 })

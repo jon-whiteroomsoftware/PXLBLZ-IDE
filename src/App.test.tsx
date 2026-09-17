@@ -185,6 +185,48 @@ describe('App smoke test', () => {
     expect(screen.getByTestId('top-bar')).toBeInTheDocument()
   })
 
+  it('mounts the v2 Show route for a stored v2 row with no query flag at all (#1039)', () => {
+    // The flip: on the production URL a converted row opens on the v2 editor.
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    setStudioLocation(`/studio/shows/${converted.record.id}`)
+    seedSignedInWorkspace()
+    useShowStore.setState({
+      shows: [],
+      showsLoaded: true,
+      activeShowId: null,
+      showV2Rows: [{ id: converted.record.id, name: converted.record.name, updatedAt: 1 }],
+      showV2Pilots: { [converted.record.id]: converted.record },
+    })
+
+    render(<App />)
+
+    expect(screen.getByTestId('show-editor-v2-route')).toBeInTheDocument()
+    expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
+  })
+
+  it('leaves a row still stored as v1 on the v1 editor after the flip (#1039)', () => {
+    // Specification section 10 forbids migrating a row on read, so an
+    // unconverted row keeps the editor that matches what storage holds. The
+    // agent binding that editor registers declares the same version, so its
+    // commands never disagree with it.
+    const source = { ...transitionV1Show('crossfade'), id: 'unconverted-v1-row', name: 'Unconverted' }
+    setStudioLocation(`/studio/shows/${source.id}`)
+    seedSignedInWorkspace()
+    useShowStore.setState({
+      shows: [source],
+      showsLoaded: true,
+      activeShowId: source.id,
+      showV2Rows: [],
+      showV2Pilots: {},
+    })
+
+    render(<App />)
+
+    expect(screen.queryByTestId('show-editor-v2-route')).not.toBeInTheDocument()
+    expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
+  })
+
   it('mounts the opt-in v2 Show route when the ordinary v1 list excludes its record', () => {
     const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
     if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))

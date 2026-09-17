@@ -78,6 +78,19 @@ describe('the Shows rail with v2 rows', () => {
     expect(onOpenShow).toHaveBeenCalledWith(legacy)
   })
 
+  it('marks the rows the conversion has not reached, not the ordinary ones (#1039)', () => {
+    // After the flip a version-2 row is the ordinary case, so the selected row
+    // marks the exception: a row storage still holds as v1, which opens on the
+    // previous editor until the operator conversion rewrites it.
+    const rows = { userShowsV2: [{ id: 'v2-show', name: 'Converted Show' }] }
+    renderRail({ ...rows, activeShowId: 'v1-show' })
+    expect(screen.getByRole('tree')).toHaveTextContent('v1')
+    cleanup()
+
+    renderRail({ ...rows, activeShowId: 'v2-show' })
+    expect(screen.getByRole('tree')).not.toHaveTextContent('v2')
+  })
+
   it('offers no v2 row when the gate leaves the list v1-only', () => {
     renderRail()
     expect(screen.queryByText('Converted Show')).toBeNull()

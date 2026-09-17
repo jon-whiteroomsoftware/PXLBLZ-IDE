@@ -50,13 +50,16 @@ afterEach(() => {
 })
 
 describe('the gated v2 Show list', () => {
-  it('lists stored v2 rows beside the v1 list only when the route gate is on', async () => {
+  it('lists stored v2 rows beside the v1 list however the URL is written (#1039)', async () => {
     const record = createShowV2WithOutputContract('listed', 'Listed v2', CONTRACT, 1)
     const { stored } = provider()
     stored.push(record)
 
+    // The gate is the production default now, so the listing no longer depends
+    // on the development preview parameter: a converted row is offered to every
+    // user, beside whatever is still stored as v1.
     await useShowStore.getState().loadShows()
-    expect(useShowStore.getState().showV2Rows).toEqual([])
+    expect(useShowStore.getState().showV2Rows).toEqual([{ id: 'listed', name: 'Listed v2', updatedAt: 1 }])
     expect(useShowStore.getState().shows).toEqual([])
 
     gate(true)
