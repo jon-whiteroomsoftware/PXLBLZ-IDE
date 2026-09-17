@@ -20,6 +20,7 @@ import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef } from './
 import type { ShowV2MigrationQualification } from './showV2Migration'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
+import { SOURCE_STOCK_MAPS } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 export interface ShowV2MigrationAssets {
   patterns: readonly PatternRecord[]
@@ -78,7 +79,7 @@ export async function qualifyMigratedShowV2Record(
 
   try {
     const libraries = compileLibraries(LIBRARIES, assets.libraries)
-    const prepared = prepareShowV2ForCompile(record, sourceLookup(record, assets.patterns), { libraries })
+    const prepared = prepareShowV2ForCompile(record, sourceLookup(record, assets.patterns, assets.maps), { libraries })
     if (prepared.status !== 'ready') {
       const first = prepared.issues[0]
       return { status: 'refused', detail: `Compile preparation refused: ${first ? `${first.path}: ${first.message}` : 'no reason reported'}` }
@@ -94,7 +95,26 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function sourceLookup(record: ShowRecordV2, patterns: readonly PatternRecord[]) {
+/**
+ * The Stage dimension a Show actually compiles at (#1039).
+ *
+ * A 3D Stage lowers differently from a 2D one, so qualifying every migrated row
+ * at 2 would compile a 3D Show against geometry the editor never uses and
+ * report a pass nothing reproduces. The resolution is the editor's own: the
+ * record's Stage map, looked up among the built-in maps and then the owner's,
+ * with 2 for a Show that names no Stage map or names one that is gone.
+ */
+export function resolveShowStageDimensionV2(
+  stageMapId: string | null | undefined,
+  maps: readonly MapRecord[],
+): 2 | 3 {
+  if (!stageMapId) return 2
+  const stock = SOURCE_STOCK_MAPS.find(map => map.id === stageMapId)
+  if (stock) return stock.dim === 3 ? 3 : 2
+  return maps.find(map => map.id === stageMapId)?.dim === 3 ? 3 : 2
+}
+
+function sourceLookup(record: ShowRecordV2, patterns: readonly PatternRecord[], maps: readonly MapRecord[]) {
   const instances = [
     ...record.composition.patternInstances,
     ...record.composition.groupDefinitions.flatMap(definition => definition.patternInstances),
@@ -103,7 +123,7 @@ function sourceLookup(record: ShowRecordV2, patterns: readonly PatternRecord[]) 
     const source = exactPatternSource(instance.pattern, patterns)
     return source === undefined ? [] : [[instance.id, source]]
   }))
-  return { byCellId: {}, byPatternInstanceId, stageDimension: 2 as const }
+  return { byCellId: {}, byPatternInstanceId, stageDimension: resolveShowStageDimensionV2(record.stageMapId, maps) }
 }
 
 function exactPatternSource(reference: ShowPatternRef, patterns: readonly PatternRecord[]): string | undefined {

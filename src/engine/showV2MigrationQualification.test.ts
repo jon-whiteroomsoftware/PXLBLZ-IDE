@@ -4,10 +4,14 @@
 // planner, and a compiled artifact - not at converter internals.
 import { expect, it } from 'vitest'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
-import type { PatternRecord } from './personalContentRecords'
+import type { MapRecord, PatternRecord } from './personalContentRecords'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import type { ShowRecordV2 } from './showCompositionV2'
-import { qualifyMigratedShowV2Record, type ShowV2MigrationAssets } from './showV2MigrationQualification'
+import {
+  qualifyMigratedShowV2Record,
+  resolveShowStageDimensionV2,
+  type ShowV2MigrationAssets,
+} from './showV2MigrationQualification'
 
 const assets: ShowV2MigrationAssets = { patterns: [], maps: [], libraries: [] }
 
@@ -101,4 +105,33 @@ it('refuses a structurally invalid record when the portable bytes are parsed bac
     status: 'refused',
     detail: 'Reopen failed: This Show file has an invalid version-2 Show record.',
   })
+})
+
+/**
+ * The Stage dimension the row actually compiles at (#1039). Qualifying every
+ * migrated row at 2 would compile a 3D Show against geometry the editor never
+ * uses, so a row whose Stage map is 3D would be reported as passing a
+ * compilation nothing reproduces.
+ */
+it('resolves the Stage dimension from the record rather than assuming 2D', () => {
+  const userMap = { id: 'personal-volume', name: 'Personal volume', dim: 3 } as unknown as MapRecord
+  expect(resolveShowStageDimensionV2(null, [])).toBe(2)
+  expect(resolveShowStageDimensionV2(undefined, [])).toBe(2)
+  expect(resolveShowStageDimensionV2('cube', [])).toBe(3)
+  expect(resolveShowStageDimensionV2('square', [])).toBe(2)
+  expect(resolveShowStageDimensionV2('personal-volume', [userMap])).toBe(3)
+  // A named Stage map that is gone compiles at the editor's own fallback.
+  expect(resolveShowStageDimensionV2('retired-map', [])).toBe(2)
+})
+
+// What the dimension changes downstream is the compiler's own domain check:
+// `showModel`'s recipe lookup refuses `portal`, `motion` and a 2D `wipe` unless
+// the Stage is 2D. This slice's fixtures build no such Transition, so the
+// consequence is proved where that gate lives rather than restated here; what
+// is proved here is the resolution the migration hands it, which was the
+// hard-coded value. Recorded as a residual in the #1039 evidence packet.
+it('leaves a Stage map that names a 2D map at the 2D dimension', () => {
+  const record = migrated()
+  record.stageMapId = 'square'
+  expect(resolveShowStageDimensionV2(record.stageMapId, assets.maps)).toBe(2)
 })

@@ -8,6 +8,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it } from 'vitest'
+import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
+import { createShowV2WithOutputContract } from '@/engine/showCreationV2'
+import type { ShowDocument } from '@/engine/showDocument'
+import {
+  rehearseShowV2Migration,
+  type ShowV2MigrationOutcome,
+  type ShowV2MigrationStore,
+} from '@/engine/showV2Migration'
 import {
   buildShowV2MigrateReport,
   openLocalD1,
@@ -15,6 +23,8 @@ import {
   REPORT_DETAIL_LIMIT,
   resolveLocalD1File,
   ShowV2MigrateArgsError,
+  ShowV2MigrateStopped,
+  stopAfterSettledRows,
 } from './show-v2-migrate-lib'
 
 const temporaries: string[] = []
@@ -127,4 +137,58 @@ it('collapses whitespace in a refusal detail so one row stays one line', () => {
     { id: 'show', sourceHash: '1', sourceVersion: 1, status: 'refused', detail: 'first line\n  second line' },
   ], '2026-09-16T00:00:00.000Z')
   expect(report.rows[0].detail).toBe('first line second line')
+})
+
+/**
+ * `--stop-after <n>` rehearses an interrupted pass. What makes the resume
+ * meaningful is where the interruption lands: after exactly n rows have their
+ * outcome durably recorded, so the resumed pass skips those n from the recorded
+ * outcomes and finishes the rest. Stopping inside a row's qualification instead
+ * records nothing for it, so the count the operator asked for and the count the
+ * store settled disagree.
+ */
+function settledStore(ids: readonly string[]) {
+  const outcomes = new Map<string, ShowV2MigrationOutcome>()
+  const order: string[] = []
+  const store: ShowV2MigrationStore = {
+    inventory: async () => ids.map(id => ({ id, sourceVersion: 2, document: v2Document(id), sourceRow: { id } })),
+    outcome: async id => outcomes.get(id),
+    snapshot: async () => 'ready',
+    writeV2: async () => 'written',
+    read: async id => v2Document(id),
+    record: async outcome => { outcomes.set(outcome.id, outcome); order.push(outcome.id) },
+    restore: async () => {},
+  }
+  return { store, outcomes, order }
+}
+
+function v2Document(id: string): ShowDocument {
+  return createShowV2WithOutputContract(id, id, createInstallationShowOutputContract({ outputMapId: null, pixelCount: 60 }), 1)
+}
+
+it('stops a pass only after the requested number of rows are durably settled', async () => {
+  const memory = settledStore(['a', 'b', 'c'])
+
+  await expect(rehearseShowV2Migration(stopAfterSettledRows(memory.store, 2)))
+    .rejects.toBeInstanceOf(ShowV2MigrateStopped)
+
+  expect(memory.order).toEqual(['a', 'b'])
+  expect([...memory.outcomes.keys()]).toEqual(['a', 'b'])
+})
+
+it('resumes from the recorded outcomes and settles only what remains', async () => {
+  const memory = settledStore(['a', 'b', 'c'])
+  await expect(rehearseShowV2Migration(stopAfterSettledRows(memory.store, 2))).rejects.toBeInstanceOf(ShowV2MigrateStopped)
+
+  const resumed = await rehearseShowV2Migration(memory.store)
+
+  expect(resumed.map(outcome => outcome.id)).toEqual(['a', 'b', 'c'])
+  // 'a' and 'b' were settled before the interruption and are not written again.
+  expect(memory.order).toEqual(['a', 'b', 'c'])
+})
+
+it('names the settled count in the message an operator reads', async () => {
+  const memory = settledStore(['a', 'b'])
+  await expect(rehearseShowV2Migration(stopAfterSettledRows(memory.store, 1)))
+    .rejects.toThrow('Stopped after 1 settled row(s) at operator request.')
 })

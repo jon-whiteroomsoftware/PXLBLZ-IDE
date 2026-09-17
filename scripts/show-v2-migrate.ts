@@ -1,8 +1,8 @@
 // #1039: the section 10 personal-row conversion runbook, as an operator command.
 //
-//   tsx scripts/show-v2-migrate.ts inventory --persist-to <dir> --user <id>
-//   tsx scripts/show-v2-migrate.ts convert   --persist-to <dir> --user <id> --report <path>
-//   tsx scripts/show-v2-migrate.ts rollback  --persist-to <dir> --user <id> --ids <a,b>
+//   npm run show:v2-migrate -- inventory --persist-to <dir> --user <id>
+//   npm run show:v2-migrate -- convert   --persist-to <dir> --user <id> --report <path>
+//   npm run show:v2-migrate -- rollback  --persist-to <dir> --user <id> --ids <a,b>
 //
 // The runbook it drives is the landed owner: inventory actual rows, snapshot
 // originals into personal_show_v2_migration_backups, record per-row source
@@ -23,22 +23,25 @@ import { createD1ShowV2MigrationStore } from '@/cloudflare/showV2Migration'
 import { artifactHash } from '@/engine/artifactStamp'
 import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef } from '@/engine/personalContentRecords'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
-import type { ShowDocument } from '@/engine/showDocument'
 import { rehearseShowV2Migration, rollbackShowV2Migration, type ShowV2MigrationOutcome } from '@/engine/showV2Migration'
-import { qualifyMigratedShowV2Record, type ShowV2MigrationAssets } from '@/engine/showV2MigrationQualification'
+import {
+  qualifyMigratedShowV2Record,
+  resolveShowStageDimensionV2,
+  type ShowV2MigrationAssets,
+} from '@/engine/showV2MigrationQualification'
 import {
   buildShowV2MigrateReport,
   openLocalD1,
   parseShowV2MigrateArgs,
   resolveLocalD1File,
   ShowV2MigrateArgsError,
+  ShowV2MigrateStopped,
   showV2MigrateUsage,
+  stopAfterSettledRows,
   type ShowV2MigrateArgs,
 } from './show-v2-migrate-lib'
 
-class StoppedEarly extends Error {}
-
-async function main(): Promise<number> {
+async function runCommand(): Promise<number> {
   let args: ShowV2MigrateArgs
   try {
     args = parseShowV2MigrateArgs(process.argv.slice(2))
@@ -73,17 +76,13 @@ async function main(): Promise<number> {
       return 0
     }
 
-    let processed = 0
     let outcomes: ShowV2MigrationOutcome[] = []
-    let stopped = false
-    const qualify = async (record: ShowDocument) => {
-      const result = await qualifyMigratedShowV2Record(record, assets)
-      processed += 1
-      if (args.stopAfter !== undefined && processed >= args.stopAfter) stopped = true
-      return result
-    }
+    // The interruption belongs after a row's outcome is durably recorded, so
+    // the resume path is exercised exactly as an operator's interrupted run
+    // leaves the store: n settled rows and the rest untouched.
+    const pass = args.stopAfter === undefined ? store : stopAfterSettledRows(store, args.stopAfter)
     try {
-      outcomes = await rehearseShowV2Migration(store, {
+      outcomes = await rehearseShowV2Migration(pass, {
         sources: show => ({
           byCellId: Object.fromEntries(show.cells.flatMap(cell => {
             const source = patternSource(cell.pattern, assets.patterns)
@@ -93,18 +92,13 @@ async function main(): Promise<number> {
             const source = patternSource(instance.pattern, assets.patterns)
             return source === undefined ? [] : [[instance.id, source]]
           })),
-          stageDimension: 2,
+          // The Stage this row actually compiles at, not an assumed 2D one.
+          stageDimension: resolveShowStageDimensionV2(show.stageMapId, assets.maps),
         }),
-        qualify: async record => {
-          const result = await qualify(record)
-          // Throw after the outcome would have been recorded, so the resume
-          // path is exercised on a row the pass genuinely did not finish.
-          if (stopped) throw new StoppedEarly(`Stopped after ${processed} row(s) at operator request.`)
-          return result
-        },
+        qualify: record => qualifyMigratedShowV2Record(record, assets),
       })
     } catch (error) {
-      if (!(error instanceof StoppedEarly)) throw error
+      if (!(error instanceof ShowV2MigrateStopped)) throw error
       console.log(error.message)
       console.log('Re-run the same command to resume from the recorded per-row outcomes.')
       return 3
@@ -187,7 +181,17 @@ function parseJson<T>(text: string | null, fallback: T): T {
   }
 }
 
-main().then(code => { process.exitCode = code }, error => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exitCode = 1
-})
+/**
+ * The entry the module runner awaits. This command runs under
+ * `src/agent-harness/run.ts` rather than plain `tsx`, because it resolves the
+ * built-in Pattern catalogue, which loads its sources through Vite's
+ * `import.meta.glob` and has no Node equivalent.
+ */
+export async function main(): Promise<void> {
+  try {
+    process.exitCode = await runCommand()
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
+}

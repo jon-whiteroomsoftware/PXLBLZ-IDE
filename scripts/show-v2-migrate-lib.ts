@@ -13,7 +13,7 @@ import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { D1ShowV2MigrationDatabaseLike, D1ShowV2MigrationStatementLike } from '@/cloudflare/showV2Migration'
-import type { ShowV2MigrationOutcome } from '@/engine/showV2Migration'
+import type { ShowV2MigrationOutcome, ShowV2MigrationStore } from '@/engine/showV2Migration'
 
 export type ShowV2MigrateCommand = 'inventory' | 'convert' | 'rollback'
 
@@ -27,19 +27,53 @@ export interface ShowV2MigrateArgs {
   /** Restrict a rollback to these Show identities. Required for rollback. */
   ids?: string[]
   /**
-   * Throw after this many rows have been inventoried and processed, so an
-   * interrupted pass and its resume can be rehearsed against real storage.
+   * Interrupt the pass once this many rows have their outcome durably
+   * recorded, so an interrupted pass and its resume can be rehearsed against
+   * real storage.
    */
   stopAfter?: number
 }
 
 export class ShowV2MigrateArgsError extends Error {}
 
+/** The interruption `--stop-after` raises. Not a failure: the pass is resumable. */
+export class ShowV2MigrateStopped extends Error {}
+
+/**
+ * Interrupt a pass after `limit` rows are durably settled (#1039).
+ *
+ * The runbook settles a row by recording its outcome, and the resume path reads
+ * exactly those recorded outcomes. So the interruption belongs immediately
+ * after `record` returns, not inside the qualification that precedes it:
+ * stopping earlier leaves the row unrecorded, which makes the count the
+ * operator asked for and the count the store settled disagree, and rehearses a
+ * resume that redoes the row rather than skipping it.
+ *
+ * A row that a previous pass already settled is not recorded again, so the
+ * limit counts rows this pass settles.
+ */
+export function stopAfterSettledRows(store: ShowV2MigrationStore, limit: number): ShowV2MigrationStore {
+  let settled = 0
+  return {
+    inventory: () => store.inventory(),
+    outcome: id => store.outcome(id),
+    snapshot: (source, sourceHash) => store.snapshot(source, sourceHash),
+    writeV2: (source, sourceHash, record) => store.writeV2(source, sourceHash, record),
+    read: id => store.read(id),
+    restore: id => store.restore(id),
+    record: async outcome => {
+      await store.record(outcome)
+      settled += 1
+      if (settled >= limit) throw new ShowV2MigrateStopped(`Stopped after ${settled} settled row(s) at operator request.`)
+    },
+  }
+}
+
 const USAGE = [
   'Usage:',
-  '  tsx scripts/show-v2-migrate.ts inventory --persist-to <dir> --user <id> [--report <path>]',
-  '  tsx scripts/show-v2-migrate.ts convert   --persist-to <dir> --user <id> [--report <path>] [--stop-after <n>]',
-  '  tsx scripts/show-v2-migrate.ts rollback  --persist-to <dir> --user <id> --ids <a,b,c>',
+  '  npm run show:v2-migrate -- inventory --persist-to <dir> --user <id> [--report <path>]',
+  '  npm run show:v2-migrate -- convert   --persist-to <dir> --user <id> [--report <path>] [--stop-after <n>]',
+  '  npm run show:v2-migrate -- rollback  --persist-to <dir> --user <id> --ids <a,b,c>',
   '',
   'Local D1 only. There is no remote backend; the remote pass is blocked.',
 ].join('\n')
