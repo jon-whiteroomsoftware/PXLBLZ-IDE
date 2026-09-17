@@ -196,9 +196,13 @@ test('the v2 route header views the generated code and downloads the .epe', asyn
   expect(parsed.src).toContain('Compiled PXLBLZ Show: Touring field')
 
   // 390 px: the whole surface stays reachable by keyboard and nothing escapes
-  // the viewport.
+  // the viewport. The Shows drawer overlays the editor until it is dismissed.
   await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByTestId('studio-drawer-layout')).not.toHaveAttribute('data-drawer-mode', 'pinned')
+  await page.mouse.move(380, 800)
   await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('studio-entity-drawer').first()).toBeHidden()
   const panel = properties(page)
   await panel.scrollIntoViewIfNeeded()
   await expect(panel).toBeVisible()

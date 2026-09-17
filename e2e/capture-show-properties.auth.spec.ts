@@ -53,13 +53,21 @@ test('captures the v2 Show properties surface and the header Show actions', asyn
   await expect(page.getByRole('menuitem', { name: 'View code' })).toBeEnabled()
   await page.screenshot({ path: '.wrsp/ui-proof/1039-show-properties-actions.png' })
   await page.getByRole('menuitem', { name: 'View code' }).click()
-  await expect(page.getByTestId('show-editor-v2-generated')).toContainText('Generated pattern - Touring field')
+  const generated = page.getByTestId('show-editor-v2-generated')
+  await expect(generated).toContainText('Generated pattern - Touring field')
+  // The code editor loads lazily; the capture is worthless before it arrives.
+  await expect(generated).toContainText('Compiled PXLBLZ Show', { timeout: 30_000 })
   await page.screenshot({ path: '.wrsp/ui-proof/1039-show-properties-code.png' })
-  await page.getByRole('button', { name: 'Back to show' }).click()
+  await generated.getByRole('button', { name: 'Back to show' }).click()
 
-  // 390 px: the same surface, with the contract control focused.
+  // 390 px: the same surface, with the contract control focused. The Shows
+  // drawer overlays the editor at this width until it is dismissed.
   await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByTestId('studio-drawer-layout')).not.toHaveAttribute('data-drawer-mode', 'pinned')
+  await page.mouse.move(380, 800)
   await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('studio-entity-drawer').first()).toBeHidden()
   await panel.scrollIntoViewIfNeeded()
   await panel.getByLabel('Output contract').focus()
   await expect(panel.getByLabel('Output contract')).toBeFocused()
