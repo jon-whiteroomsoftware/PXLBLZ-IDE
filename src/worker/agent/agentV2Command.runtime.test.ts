@@ -40,7 +40,27 @@ globalThis.Blob = (await import('node:buffer')).Blob as unknown as typeof global
 // this path touches the DOM.
 const routeListeners = new Map<string, Set<() => void>>()
 let routePath = '/'
+// This project shares one process across test files (`isolate: false`), and
+// Zustand's persist middleware captures `window.localStorage` once, when a
+// persisted store module is first imported. A window without storage would
+// leave every such store imported from here on crashing on its first write, in
+// whichever later file touched it, so the shim carries working storage and is
+// removed when this file ends (#1039).
+function memoryStorage(): Storage {
+  const values = new Map<string, string>()
+  return {
+    get length() { return values.size },
+    clear: () => values.clear(),
+    getItem: key => values.get(key) ?? null,
+    key: index => [...values.keys()][index] ?? null,
+    removeItem: key => { values.delete(key) },
+    setItem: (key, value) => { values.set(key, String(value)) },
+  }
+}
+const hadWindow = 'window' in globalThis
 globalThis.window = {
+  localStorage: memoryStorage(),
+  sessionStorage: memoryStorage(),
   location: { get pathname() { return routePath } },
   history: {
     pushState: (_state: unknown, _title: string, url: string) => { routePath = new URL(url, 'https://app.test').pathname },
@@ -67,7 +87,11 @@ beforeAll(async () => {
   script = bundle.outputFiles[0].text
   cookie = `pxlblz_session=${await createSessionToken({ userId: 'github:123', primaryProvider: 'github', primaryHandle: null, displayName: null, avatarUrl: null }, 'v2-command-secret')}`
 }, 60_000)
-afterAll(async () => { await Promise.all(runtimes.map(entry => entry.dispose())); resetPersonalContentProvider() })
+afterAll(async () => {
+  await Promise.all(runtimes.map(entry => entry.dispose()))
+  resetPersonalContentProvider()
+  if (!hadWindow) delete (globalThis as { window?: unknown }).window
+})
 
 function startRuntime() {
   const started = new Miniflare(convertV4MiniflareOptions({
