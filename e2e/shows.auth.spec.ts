@@ -2,9 +2,12 @@ import { expect, test } from './fixtures/authenticated'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import type { Locator, Page } from '@playwright/test'
 import { readFile, mkdir } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { squareWorkspaceShow } from './fixtures/showWorkspace'
 import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
+import { createShowWithOutputContract } from '../src/engine/showModel'
+import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -1461,25 +1464,27 @@ test.describe('authenticated Show authoring', () => {
     await expect(panel.getByRole('button', { name: /Crossfade · Change/ })).toBeVisible()
   })
 
-  test('creates and reloads a Portable output contract at desktop and narrow widths', async ({ page }) => {
+  test('reloads a Portable output contract at desktop and narrow widths', async ({ page }) => {
     test.slow()
     const seriousConsoleErrors: string[] = []
     page.on('console', (message) => {
       if (message.type() === 'error') seriousConsoleErrors.push(message.text())
     })
-    await page.goto('studio/shows')
-    await page.getByRole('button', { name: 'Add show' }).click()
-    await page.getByRole('button', { name: 'New show' }).click()
+    // The creation flow itself is version-agnostic and now produces a v2
+    // record; `show-editor-v2-route.auth.spec.ts` covers it choosing this same
+    // contract. What follows - the output summary, Show properties, the Zone
+    // Map and a Zone Layout's routing mode - are v1 editor surfaces the v2
+    // route has no counterpart for, so this seeds the v1 row they belong to.
+    const portable = createShowWithOutputContract(
+      `v1-portable-${randomUUID()}`,
+      'Touring field',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+    )
+    const created = await page.context().request.post('/api/shows', { data: portable })
+    expect(created.ok(), await created.text()).toBe(true)
+    await page.goto(`studio/shows/${portable.id}`)
 
-    await expect(page.getByText('LED-resolution independent')).toBeVisible()
-    await expect(page.getByText('Exact pixel and map identity')).toBeVisible()
-    await page.getByRole('button', { name: 'Create Portable Show' }).click()
-    await page.getByLabel('Show name').fill('Touring field')
-    const previewPixels = page.getByRole('textbox', { name: 'Preview pixels exact pixel count' })
-    await previewPixels.fill('1024')
-    await page.getByRole('button', { name: 'Create Show' }).click()
-
-    await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
+    await expect(page).toHaveURL(new RegExp(`/studio/shows/${portable.id}$`))
     await expect(page.getByTitle('Show output summary')).toContainText('Portable')
     await waitForCurrentShow(page, (show) => (
       show.outputContract?.kind === 'portable-2d'
@@ -2167,13 +2172,25 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Pixels')).toBeDisabled()
     await page.getByRole('button', { name: 'Create Show' }).click()
 
-    await expect(page.getByTitle('Show output summary')).toContainText('Installation')
-    await waitForCurrentShow(page, (show) => (
-      show.outputContract?.kind === 'installation'
-      && show.outputContract.pixelCount === 4
-      && show.outputContract.outputMapId === map.id
-    ))
-    await page.reload()
+    // The flow is version-agnostic; since #1039 it creates a version-2 record,
+    // so the locked count is read back from the v2 document it wrote.
+    await expect(page.getByTestId('show-editor-v2-route')).toBeVisible()
+    await expect.poll(async () => {
+      const response = await page.context().request.get('/api/shows?show-version=2')
+      const { shows } = await response.json() as { shows: Array<{ outputContract?: Record<string, unknown> }> }
+      return shows[0]?.outputContract
+    }).toMatchObject({ kind: 'installation', pixelCount: 4, outputMapId: map.id })
+
+    // The same contract on a row still stored as v1 reads back through the v1
+    // editor's Show properties, which the v2 route has no counterpart for.
+    const legacy = createShowWithOutputContract(
+      `v1-measured-${randomUUID()}`,
+      'Measured legacy',
+      createInstallationShowOutputContract({ outputMapId: map.id, pixelCount: 4 }),
+    )
+    const seeded = await page.context().request.post('/api/shows', { data: legacy })
+    expect(seeded.ok(), await seeded.text()).toBe(true)
+    await page.goto(`studio/shows/${legacy.id}`)
     await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByText('4 px fixed')).toBeVisible()
     await expect(page.getByLabel('Show stage').getByText('Measured four')).toBeVisible()
@@ -3039,17 +3056,38 @@ async function getShowAction(
   return page.getByRole('menuitem', { name })
 }
 
+/**
+ * Seed one version-1 Installation Show and open it.
+ *
+ * This used to drive the creation flow, but since #1039 flipped the production
+ * default a fresh Show is authored as a version-2 record on the v2 editor. The
+ * tests below cover the v1 editor, which still holds every row storage keeps as
+ * v1 until the operator conversion reaches it, so they now address such a row
+ * explicitly instead of relying on "fresh means v1". The record is exactly what
+ * the flow's Installation defaults built: no output map, 256 pixels, the
+ * default name. The v2 acceptance of the same creation flow is
+ * `show-editor-v2-route.auth.spec.ts`; #1042 retires the v1 editor these cover.
+ */
 async function createInstallationShow(page: Page): Promise<void> {
-  const addShow = page.getByRole('button', { name: 'Add show' })
-  const openShows = page.getByRole('button', { name: 'Open the Shows list' })
-  await expect(addShow.or(openShows).first()).toBeVisible()
-  if (await openShows.isVisible()) await openShows.click()
-  await addShow.click()
-  await page.getByRole('button', { name: 'New show' }).click()
-  await page.getByRole('button', { name: 'Create Installation Show' }).click()
-  await page.getByRole('button', { name: 'Create Show' }).click()
-  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
+  const show = createShowWithOutputContract(
+    randomUUID(),
+    'Untitled Show',
+    createInstallationShowOutputContract(INSTALLATION_DEFAULTS),
+  )
+  const created = await page.context().request.post('/api/shows', { data: show })
+  expect(created.ok(), await created.text()).toBe(true)
+  await page.goto(`studio/shows/${show.id}`)
+  await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}$`))
 }
+
+/**
+ * The output map and pixel count the creation flow defaults to. Its map list
+ * begins with the stock maps and it preselects the first 2D one, `plane` - the
+ * same default the Portable case below asserts - so a fresh Installation Show
+ * has a 2D Stage. Seeding without one leaves every Stage-shaped Transition
+ * unrenderable, which is not what the flow produces.
+ */
+const INSTALLATION_DEFAULTS = { outputMapId: 'plane', pixelCount: 256 } as const
 
 async function listShows(page: Page): Promise<PersistedShow[]> {
   const response = await page.context().request.get('/api/shows')
