@@ -416,7 +416,7 @@ test('Gallery leads with a Show band and opens its detail page (#894)', async ({
   await hero.click()
   await expect(page).toHaveURL(/\/s\/overture-installation$/)
   await expect(page.getByTestId('show-detail-stage')).toBeVisible()
-  await expect(page.getByTestId('show-detail-scenes').locator('li')).toHaveCount(4)
+  await expect(page.getByTestId('show-detail-chapters').locator('li')).toHaveCount(4)
   await page.getByRole('button', { name: 'Gallery', exact: true }).click()
   await expect(page).toHaveURL(/\/gallery#show-overture-installation$/)
 })

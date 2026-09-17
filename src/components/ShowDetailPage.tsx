@@ -1,14 +1,14 @@
 // A Gallery Show's public page at /s/<slug> (#894): the stage preview at full
-// size, the byline and premise, and the Show's arc as a scene list. Where a
-// visitor lands from a band; the Show editor stays behind sign-in.
+// size, the byline and premise, and the Show's arc as its chapter list (#1040).
+// Where a visitor lands from a band; the Show editor stays behind sign-in.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { controlIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import {
+  galleryShowChapters,
   galleryShowFacts,
   galleryShowPixelCount,
-  galleryShowStock,
   resolveGalleryShowGeometry,
   type GalleryShow,
 } from '@/engine/galleryShows'
@@ -19,7 +19,7 @@ import { GalleryLivePreview } from './GalleryLivePreview'
 export function ShowDetailPage({ show }: { show: GalleryShow }) {
   const navigate = useRouterStore((state) => state.navigate)
   const facts = useMemo(() => galleryShowFacts(show), [show])
-  const stock = useMemo(() => galleryShowStock(show), [show])
+  const chapters = useMemo(() => galleryShowChapters(show), [show])
   const aspect = useMemo(() => resolveGalleryShowGeometry(show).aspect, [show])
   const subject = useMemo(() => ({ kind: 'show' as const, id: show.id }), [show.id])
   const frameRef = useRef<HTMLDivElement>(null)
@@ -68,6 +68,7 @@ export function ShowDetailPage({ show }: { show: GalleryShow }) {
               cost={galleryShowPixelCount(show)}
               loopMs={facts.loopMs}
               label={facts.title}
+              chapters={chapters}
             />
           </div>
         </div>
@@ -79,23 +80,24 @@ export function ShowDetailPage({ show }: { show: GalleryShow }) {
           <p className="text-[13px] leading-relaxed text-zinc-300">{show.premise}</p>
           <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-[0.08em] text-structural">
             <span>{facts.loopSeconds}s loop</span>
-            <span>{facts.sceneCount} scenes</span>
             <span>{facts.zoneCount} zones</span>
             <span>{facts.track}</span>
           </div>
         </div>
-        <section aria-label="Scenes" className="font-mono">
-          <h2 className="mb-2 text-[10.5px] uppercase tracking-[0.08em] text-structural">The arc</h2>
-          <ol className="flex flex-col gap-1 text-[12px] text-zinc-300" data-testid="show-detail-scenes">
-            {stock.show.scenes.map((scene, index) => (
-              <li key={scene.id} className="flex items-baseline gap-3">
-                <span className="w-5 shrink-0 text-right text-structural">{index + 1}</span>
-                <span className="min-w-0 truncate">{scene.name}</span>
-                <span className="ml-auto shrink-0 text-[10.5px] text-structural">{Math.round(scene.durationMs / 1000)}s</span>
-              </li>
-            ))}
-          </ol>
-        </section>
+        {chapters.length > 0 && (
+          <section aria-label="Chapters" className="font-mono">
+            <h2 className="mb-2 text-[10.5px] uppercase tracking-[0.08em] text-structural">The arc</h2>
+            <ol className="flex flex-col gap-1 text-[12px] text-zinc-300" data-testid="show-detail-chapters">
+              {chapters.map((chapter, index) => (
+                <li key={chapter.id} className="flex items-baseline gap-3">
+                  <span className="w-5 shrink-0 text-right text-structural">{index + 1}</span>
+                  <span className="min-w-0 truncate">{chapter.name}</span>
+                  <span className="ml-auto shrink-0 text-[10.5px] text-structural">{Math.round(chapter.durationMs / 1000)}s</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </div>
     </main>
   )

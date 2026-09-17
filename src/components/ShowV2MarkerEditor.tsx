@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { NumberField } from './ui/number-field'
 import { DraftTextField } from './ui/draft-text-field'
+import { showChaptersV2 } from '@/engine/showChaptersV2'
 import type { ShowMarkerEditIntentV2 } from '@/engine/showMarkersV2'
 import { newShowPilotMarkerV2, selectedShowMarkerV2 } from '@/engine/showMarkerRouteModel'
 import { admitShowV2PilotMarkerEdit, type ShowV2PilotMarkerCapture, type ShowV2PilotMarkerAdoptionReceipt } from '@/store/showV2MarkerAdmission'
@@ -24,6 +25,10 @@ export function ShowV2MarkerEditor({ capture, isCurrentCapture, isCurrentComplet
     return () => { live.current = false }
   }, [])
   const marker = selectedShowMarkerV2(record.composition.markers, selectedId)
+  // Read-only narrative projection (#1040): chapter-role Markers in their
+  // deterministic order. The route still edits general Marker fields only and
+  // never authors or clears a role.
+  const chapters = showChaptersV2(record)
   const submit = async (intent: ShowMarkerEditIntentV2): Promise<boolean> => {
     if (pending.current) return false
     pending.current = true
@@ -63,6 +68,16 @@ export function ShowV2MarkerEditor({ capture, isCurrentCapture, isCurrentComplet
         <h2 className="text-sm font-medium">Markers</h2>
         <Button size="xs" variant="outline" disabled={busy} onClick={() => void add()}>Add Marker</Button>
       </div>
+      {chapters.length > 0 && (
+        <ol className="mb-3 flex flex-col gap-1 text-xs text-zinc-400" data-testid="show-v2-chapters" aria-label="Chapters">
+          {chapters.map(chapter => (
+            <li key={chapter.id} className="flex min-w-0 items-baseline gap-2">
+              <span className="min-w-0 truncate text-zinc-300">{chapter.name || 'Unnamed'}</span>
+              <span className="ml-auto shrink-0 tabular-nums text-zinc-500">{chapter.timeMs} ms</span>
+            </li>
+          ))}
+        </ol>
+      )}
       {marker && (
         <div className="space-y-3">
           <label className="block text-xs text-zinc-500">

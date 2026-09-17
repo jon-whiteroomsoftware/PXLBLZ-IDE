@@ -29,6 +29,7 @@ import {
   restoreGalleryKeyframe,
   type GalleryKeyframeArtifact,
 } from '@/engine/galleryKeyframes'
+import { showChapterIndexAtV2, type ShowChapterV2 } from '@/engine/showChaptersV2'
 import { gallerySubjectKey, resolveGallerySubject, type GallerySubject } from '@/engine/gallerySubject'
 import { loadGalleryKeyframe } from '@/pixelblaze/stock/galleryKeyframes'
 import { galleryCardWarmed, registerGalleryLiveCard, type GalleryLiveMode } from './galleryLiveCoordinator'
@@ -85,6 +86,7 @@ export function GalleryLivePreview({
   cost,
   loopMs = null,
   label,
+  chapters = [],
 }: {
   subject: GallerySubject
   index: number
@@ -94,6 +96,12 @@ export function GalleryLivePreview({
   loopMs?: number | null
   /** Accessible name for the live canvas. */
   label: string
+  /**
+   * Ordered chapter projection (#1040). When present, the caption under the
+   * thermometer names the chapter the loop is currently inside. An empty list
+   * shows nothing: a Show with no chapter at this time gets no synthetic label.
+   */
+  chapters?: readonly ShowChapterV2[]
 }) {
   const key = gallerySubjectKey(subject)
   // The runtime effect keys on the subject's identity string, never on the
@@ -107,6 +115,14 @@ export function GalleryLivePreview({
   const glCanvasRef = useRef<HTMLCanvasElement>(null)
   const posterCanvasRef = useRef<HTMLCanvasElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
+  const captionRef = useRef<HTMLDivElement>(null)
+  // The runtime effect reads chapters through a ref for the same reason it
+  // reads the subject through one: a new array identity must not rebuild a
+  // live runtime and lose its WebGL context.
+  const chaptersRef = useRef(chapters)
+  useEffect(() => {
+    chaptersRef.current = chapters
+  }, [chapters])
   const runtimeRef = useRef<FastReplayRuntime | null>(null)
   const rendererRef = useRef<Renderer | null>(null)
   const repaintRef = useRef<(() => void) | null>(null)
@@ -267,10 +283,20 @@ export function GalleryLivePreview({
       renderer.setDiffusion(look.diffusion)
 
       const progress = progressRef.current
+      const caption = captionRef.current
+      // DOM-direct like the thermometer: a per-frame chapter name must not
+      // drive a React commit under the rAF loop.
+      let captionText = ''
       const updateProgress = () => {
         if (!progress || loopMs === null || loopMs <= 0) return
-        const fraction = (runtime.getElapsedMs() % loopMs) / loopMs
-        progress.style.transform = `scaleX(${fraction.toFixed(4)})`
+        const elapsedInLoopMs = runtime.getElapsedMs() % loopMs
+        progress.style.transform = `scaleX(${(elapsedInLoopMs / loopMs).toFixed(4)})`
+        if (!caption || chaptersRef.current.length === 0) return
+        const current = chaptersRef.current[showChapterIndexAtV2(chaptersRef.current, elapsedInLoopMs)]
+        const next = current?.name ?? ''
+        if (next === captionText) return
+        captionText = next
+        caption.textContent = next
       }
 
       let lastFrame: Float64Array | null = null
@@ -389,6 +415,14 @@ export function GalleryLivePreview({
           ref={glCanvasRef}
           aria-label={`${label} live preview`}
           className="absolute inset-0 h-full w-full transition-opacity duration-75"
+        />
+      )}
+      {loopMs !== null && chapters.length > 0 && (
+        <div
+          ref={captionRef}
+          data-testid="gallery-live-chapter"
+          aria-live="off"
+          className="pointer-events-none absolute inset-x-2 bottom-[6px] truncate font-mono text-[10px] uppercase tracking-[0.08em] text-zinc-300/80 [text-shadow:0_1px_2px_rgb(0_0_0/0.9)]"
         />
       )}
       {loopMs !== null && (

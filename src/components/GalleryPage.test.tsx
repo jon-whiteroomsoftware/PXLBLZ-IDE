@@ -28,6 +28,17 @@ describe('Gallery presentation', () => {
     expect(card.querySelector('[data-pattern-dimension]')).not.toHaveClass('border', 'rounded')
   })
 
+  it('states a Show band with loop, Zones and track, without a decorative Scene count', () => {
+    render(<GalleryPage />)
+    const captions = screen.getAllByTestId('gallery-show-facts')
+    expect(captions.length).toBeGreaterThan(0)
+    for (const caption of captions) {
+      expect(caption.textContent).toMatch(/\d+s loop/)
+      expect(caption.textContent).toMatch(/\d+ zones/)
+      expect(caption.textContent).not.toMatch(/\bscenes?\b/i)
+    }
+  })
+
   it('renders 1D Patterns as two-column strips', () => {
     render(<GalleryPage />)
     const strip = screen.getByRole('button', { name: /BubbleColumn/ })

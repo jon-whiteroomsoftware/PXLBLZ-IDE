@@ -228,9 +228,8 @@ function ShowBand({
           <span className="text-[11.5px] text-zinc-400"> {show.byline}</span>
         </div>
         <p className="text-[12.5px] leading-relaxed text-zinc-300">{show.premise}</p>
-        <div className="flex flex-wrap gap-3 text-[10px] uppercase tracking-[0.08em] text-structural">
+        <div data-testid="gallery-show-facts" className="flex flex-wrap gap-3 text-[10px] uppercase tracking-[0.08em] text-structural">
           <span>{facts.loopSeconds}s loop</span>
-          <span>{facts.sceneCount} scenes</span>
           <span>{facts.zoneCount} zones</span>
           <span>{facts.track}</span>
         </div>

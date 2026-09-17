@@ -7,7 +7,9 @@ import { applyNormalizeMode, type MapPoint } from './maps'
 import type { PreparedFastReplay } from './fastReplay'
 import { showLoopDurationMs } from './showModel'
 import { compileShowForPreview, resolveShowCompilationControllerZones } from './showPreviewArtifact'
+import { showChaptersV2, type ShowChapterV2 } from './showChaptersV2'
 import { stockShowById, type StockShow } from '@/pixelblaze/stock/shows'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { resolveMap } from '@/store/mapStore'
 
 export interface GalleryShow {
@@ -77,7 +79,6 @@ export interface GalleryShowFacts {
   /** Exact loop length; the thermometer and keyframe window use this. */
   loopMs: number
   loopSeconds: number
-  sceneCount: number
   zoneCount: number
   track: StockShow['track']
 }
@@ -89,10 +90,23 @@ export function galleryShowFacts(show: GalleryShow): GalleryShowFacts {
     title: stock.name,
     loopMs,
     loopSeconds: Math.round(loopMs / 1000),
-    sceneCount: stock.show.scenes.length,
     zoneCount: stock.show.zones.length,
     track: stock.track,
   }
+}
+
+/**
+ * The Show's narrative chapters, for the reading card and the Live caption
+ * (#1040). Chapters come from the prepared native v2 record's `role: chapter`
+ * Markers in their deterministic `(timeMs, id)` order; general Markers never
+ * appear. Playback, compilation and the Gallery's stored keyframes still run on
+ * the pinned v1 record until #1039 activates v2, so this is a narration
+ * projection, not a second playback source. A Show with no chapters returns an
+ * empty list rather than a synthesized label.
+ */
+export function galleryShowChapters(show: GalleryShow): ShowChapterV2[] {
+  const record = stockShowV2ById(show.id)
+  return record ? showChaptersV2(record) : []
 }
 
 export interface GalleryShowGeometry {

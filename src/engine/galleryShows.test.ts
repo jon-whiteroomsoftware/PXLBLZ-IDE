@@ -7,6 +7,7 @@ import {
   galleryShowPixelCount,
   galleryShowStock,
   galleryShowBySlug,
+  galleryShowChapters,
   galleryShowFacts,
   galleryShowInsertionIndexes,
   prepareGalleryShow,
@@ -33,7 +34,6 @@ describe('Gallery Shows catalogue', () => {
       const facts = galleryShowFacts(show)
       expect(facts.title.length).toBeGreaterThan(0)
       expect(facts.loopSeconds).toBeGreaterThan(0)
-      expect(facts.sceneCount).toBeGreaterThan(0)
       const geometry = resolveGalleryShowGeometry(show)
       expect(geometry.mapPoints.length).toBeGreaterThan(100)
       expect(geometry.aspect).toBeGreaterThan(0)
@@ -42,6 +42,28 @@ describe('Gallery Shows catalogue', () => {
       const result = runtime.advanceLive(16)
       expect(result.frame.length).toBe(geometry.mapPoints.length * 3)
     }
+  })
+
+  it('projects named chapters from the prepared native record, ordered and inside the loop', () => {
+    for (const show of GALLERY_SHOWS) {
+      const chapters = galleryShowChapters(show)
+      const facts = galleryShowFacts(show)
+      expect(chapters.length, show.slug).toBeGreaterThan(0)
+      expect(chapters.map(chapter => chapter.timeMs)).toEqual([...chapters.map(chapter => chapter.timeMs)].sort((a, b) => a - b))
+      for (const chapter of chapters) {
+        expect(chapter.name, `${show.slug}:${chapter.id}`).toBeTruthy()
+        expect(chapter.timeMs).toBeLessThan(facts.loopMs)
+        expect(chapter.durationMs).toBeGreaterThan(0)
+      }
+      expect(chapters.reduce((total, chapter) => total + chapter.durationMs, 0)).toBe(facts.loopMs)
+    }
+  })
+
+  it('keeps the Coronal Mass Ejection remix general Markers out of its chapter list', () => {
+    const remix = GALLERY_SHOWS.find(show => show.slug === 'coronal-mass-ejection-remix')!
+    expect(galleryShowChapters(remix).map(chapter => chapter.name)).toEqual(['Intro', 'Gesture'])
+    const markers = galleryShowStock(remix).show.composition!.markers ?? []
+    expect(markers.length).toBeGreaterThan(2)
   })
 
   it('resolves installation Shows at their contract count and portable Shows at the Gallery count', () => {

@@ -70,3 +70,48 @@ it('adds/selects and commits dormant equal-time Marker fields through one write 
   await waitFor(() => expect(replaceShowV2).toHaveBeenCalledTimes(7))
   expect(useShowStore.getState().showV2Pilots[record.id].composition.markers).toEqual([{ id: 'intro', timeMs: 0, name: 'Intro' }])
 })
+
+it('projects chapter Markers read-only and leaves general Marker edits general (#1040)', async () => {
+  const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+  if (converted.status !== 'converted') throw new Error('Conversion failed')
+  const record = converted.record
+  record.composition.markers = [
+    { id: 'zulu-act', timeMs: 4_000, name: 'Second act', role: 'chapter' },
+    { id: 'alpha-act', timeMs: 4_000, name: 'First act', role: 'chapter' },
+    { id: 'cue', timeMs: 1_000, name: 'Camera cue' },
+    { id: 'opening', timeMs: 0, name: 'Opening', role: 'chapter' },
+  ]
+  const replaceShowV2 = vi.fn(async () => {})
+  setPersonalContentProvider({ id: 'marker-chapter-test', replaceShowV2 } as unknown as PersonalContentProvider)
+  useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
+  const dependencies = { patterns: [], maps: [], libraries: [], profiles: [], stageMap: null }
+  function Harness() {
+    const current = useShowStore(state => state.showV2Pilots[record.id])
+    return <ShowV2MarkerEditor capture={{ record: current, dependencies, prepared: prepareShowStageV2(current, dependencies) }} isCurrentCapture={() => useShowStore.getState().showV2Pilots[record.id] === current} isCurrentCompletion={receipt => useShowStore.getState().showV2Pilots[record.id] === receipt.record && (useShowStore.getState().showRevisions[record.id] ?? 0) === receipt.revision && getPersonalContentProvider() === receipt.provider} onStatus={() => {}} />
+  }
+  render(<Harness />)
+
+  // Chapters only, ordered by (timeMs, id); the general cue never appears.
+  expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+    'Opening0 ms', 'First act4000 ms', 'Second act4000 ms',
+  ])
+
+  // An added Marker stays general-purpose and does not join the projection.
+  fireEvent.click(screen.getByRole('button', { name: 'Add Marker' }))
+  await waitFor(() => expect(replaceShowV2).toHaveBeenCalledTimes(1))
+  const addedMarker = useShowStore.getState().showV2Pilots[record.id].composition.markers.find(marker => marker.id.startsWith('marker:'))!
+  expect(addedMarker).not.toHaveProperty('role')
+  expect(screen.getAllByRole('listitem')).toHaveLength(3)
+
+  // Renaming a chapter keeps its role and moves nothing else.
+  fireEvent.change(screen.getByLabelText('Marker'), { target: { value: 'opening' } })
+  fireEvent.change(screen.getByLabelText('Marker name'), { target: { value: 'Overture' } })
+  fireEvent.keyDown(screen.getByLabelText('Marker name'), { key: 'Enter' })
+  await waitFor(() => expect(replaceShowV2).toHaveBeenCalledTimes(2))
+  const markers = useShowStore.getState().showV2Pilots[record.id].composition.markers
+  expect(markers.find(marker => marker.id === 'opening')).toEqual({ id: 'opening', timeMs: 0, name: 'Overture', role: 'chapter' })
+  expect(markers.find(marker => marker.id === 'cue')).toEqual({ id: 'cue', timeMs: 1_000, name: 'Camera cue' })
+  expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+    'Overture0 ms', 'First act4000 ms', 'Second act4000 ms',
+  ])
+})
