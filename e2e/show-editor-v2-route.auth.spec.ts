@@ -280,19 +280,29 @@ test('an unconverted row keeps the v1 editor, and the same row opens here once i
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
 
-  const source = { ...convertibleV1Show(), id: 'cutover-transition-row', name: 'Not Yet Converted' }
+  // The version-2 body the conversion below writes comes from a Show the app
+  // itself authored, so this test never runs the converter outside the browser.
+  // It is authored first, in a clean account: creating it while a last-active
+  // v1 row is still restoring left the creation form unsettled on the runner.
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto('studio/shows')
+  const donorId = await createFreshShow(page)
+  await expect.poll(async () => (await listV2(page)).map(show => show.id)).toContain(donorId)
+  const donor = (await listV2(page)).find(show => show.id === donorId)!
+  expect(donor).toBeDefined()
+
+  const source = { ...convertibleV1Show(), id: `cutover-row-${donorId.slice(0, 8)}`, name: 'Not Yet Converted' }
   const created = await page.request.post('/api/shows', { data: source })
   expect(created.ok(), await created.text()).toBe(true)
 
   // Before conversion: storage holds v1, so the v1 editor holds it too. Section
   // 10 forbids migrating a row on read, and nothing here writes one.
-  await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto(`studio/shows/${source.id}`)
   await expect(page.getByTestId('show-timeline-toolbar')).toBeVisible()
   await expect(page.getByTestId('show-editor-v2-route')).toHaveCount(0)
   expect((await (await page.request.get('/api/shows')).json()).shows.map((show: { id: string }) => show.id))
-    .toEqual([source.id])
-  expect((await listV2(page)).map(show => show.id)).toEqual([])
+    .toContain(source.id)
+  expect((await listV2(page)).map(show => show.id)).not.toContain(source.id)
 
   // The Shows list marks it as the exception while it is selected.
   const openShows = page.getByRole('button', { name: 'Open the Shows list' })
@@ -300,14 +310,7 @@ test('an unconverted row keeps the v1 editor, and the same row opens here once i
   await expect(page.getByRole('treeitem', { name: /Not Yet Converted/ })).toContainText('v1')
   await page.keyboard.press('Escape')
 
-  // Convert the row through the same writer the operator runbook uses. The
-  // version-2 body comes from a Show the app itself authored, so this test
-  // never has to run the converter outside the browser.
-  await page.goto('studio/shows')
-  const donorId = await createFreshShow(page)
-  await expect.poll(async () => (await listV2(page)).map(show => show.id)).toContain(donorId)
-  const donor = (await listV2(page)).find(show => show.id === donorId)!
-  expect(donor).toBeDefined()
+  // Convert the row through the same writer the operator runbook uses.
   const written = await page.request.put(`/api/shows/${source.id}?show-version=2`, {
     data: { ...donor, id: source.id, name: source.name },
   })
