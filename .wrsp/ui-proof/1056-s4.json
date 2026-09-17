@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "1056",
+  "route": "/PXLBLZ-IDE/studio/shows/show-editor-v2-authoring?show-v2-editor=1",
+  "operation": "Seeded a stored ShowRecordV2 with a spanning Main Clip, an exact overlay Cut junction at 3.00s and two Layout occurrences sharing one definition, then authored it on the ordinary Show editor route behind the version gate at 1440x1000. The palette capture shows the Transitions palette open over the route from the selected derived Cut junction, offering every family including Fade through color. The refusal capture shows the bounded RL08 compiler refusal in the status line with the Cut junction and both Clips unchanged and no Transition inserted. The desktop capture shows a Linear wipe inserted at 1.5s: the timeline draws the wipe window between the two overlay Clips, and the panel shows the selected Transition with its X-ray, window, Change kind, Duration, easing, direction, edge and feather, and Reset to Cut. The layout capture shows the Zone Layout lane after moving the switch to 6s and setting a 0.4s incoming transfer, with Layout, Switch, Transfer direction, Transfer, Unique Layout name, Make Layout Unique, Duplicate, Remove and Clear transfer. The narrow capture is 390x844 with the inserted Transition chip holding keyboard focus, no horizontal overflow, and the Stage preview drawing below. Driven with repository Playwright through scripts/run-authenticated-playwright.ts as the synthetic authenticated user; the Codex in-app browser is not available to this agent.",
+  "captures": [
+    ".wrsp/ui-proof/1056-s4-palette.png",
+    ".wrsp/ui-proof/1056-s4-refusal.png",
+    ".wrsp/ui-proof/1056-s4-desktop.png",
+    ".wrsp/ui-proof/1056-s4-layout.png",
+    ".wrsp/ui-proof/1056-s4-narrow.png"
+  ],
+  "capturedAtCommit": "d1b954fbefa867d8b27232f506d5f3edf9d09deb"
+}
