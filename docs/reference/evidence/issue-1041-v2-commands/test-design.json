@@ -1,6 +1,6 @@
 {
   "issue": 1041,
-  "scope": "D7 Layout occurrence duplication owner intent, D6 empty-Show verification, and the prepared v2 command catalogue",
+  "scope": "D7 Layout occurrence duplication owner intent, D6 empty-Show verification, and the complete prepared v2 command catalogue with its census, size oracle, coverage maps, versioned resources and #1029 MCP sequence",
   "specification": {
     "path": "docs/plans/scene-retirement-specification.md",
     "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
@@ -21,39 +21,77 @@
     "D7: identity is never allocated inside the owner; an inexact, colliding, blank or duplicated identity plan refuses before any change.",
     "D7: content crossing the duplicated boundary refuses; the owner never extends, splits, holds or reroutes it.",
     "D6: final Clip deletion leaves a structurally valid, editable and saveable empty Show; no v1 last-Clip refusal remains on the v2 path.",
-    "Refusal and no-op return the preimage record by reference with empty affected collections and no timestamp."
+    "Rule 1: every command addresses entities by stable identity; no scene_id, index, overlay index, Boundary time lookup or target_clip_id survives.",
+    "Rule 2: every _ms field is a bounded safe-integer millisecond; intervals are half-open.",
+    "Rule 3: every name uses the closed verb vocabulary; delete_ and reset_ retire.",
+    "Rule 4: an already-satisfied valid request returns unchanged with zero changes for every command, creates no history, timestamp or save, and never aborts its batch.",
+    "Rule 5: no json field kind; closed sets are enums, described ranges carry schema bounds, null appears only where clearing is documented, bulk arrays are 1-128.",
+    "Rule 6: a changed command reports the same fourteen affected collections, translated from the owner result without invention, widening or loss.",
+    "Rule 7: a v1 refusal code is reused only where its meaning is unchanged; the owner's typed code passes through unaltered.",
+    "Rule 8: tools/list through the in-process probe stays inside the size budget.",
+    "Rule 9: read_show returns the record version the bound editor holds; the v1 double representation ends at cutover.",
+    "Rule 10: a singular command is the bulk schema fragment of one; every retired singular setter stays unregistered.",
+    "A command never restates a domain rule: it resolves identities, mints the fresh identities a pure owner requires, and adopts the owner result.",
+    "Refusal and no-op return the preimage record by reference with no changes.",
+    "The catalogue is prepared, not activated: production MCP keeps v1 until #1039."
   ],
   "partitions": [
-    "duplicate empty versus duplicate with content",
-    "source occurrence first / interior / final",
+    "duplicate empty versus duplicate with content; source occurrence first / interior / final",
     "boundary content: none crossing / Clip crossing / Property track crossing / Transition endpoints straddling / whole-output window crossing / Group occurrence crossing / Layout transfer crossing",
     "identity plan: exact / missing key / unknown key / collides with an owned id / blank / duplicated value",
-    "copied Transition with and without propertyRamps"
+    "D3 instance policy: sole with one match / sole with several / new with none / new with an existing / explicit instance id / unknown instance id",
+    "appearance apply: whole-clip / at-time on an existing key / at-time inserting a fresh key with later keys retained",
+    "replace: shared runtime forked versus sole runtime retained; resolver present / absent / source unresolvable",
+    "descriptor shape: empty bulk array / over 128 items / negative time / unknown field / missing exactly-one / both exactly-one / retired enum member",
+    "addressing: unknown Clip, Transition, Layout interval, Marker, Property track, Layer, Zone Layout and Group occurrence, with and without existing candidates",
+    "no-op matrix: one already-satisfied request per command, alone and inside a batch that still applies its other change"
   ],
   "sequences": [
     "duplicate empty -> reopen through the v2 codec -> validate",
     "duplicate with content -> reopen -> validate copied Clip, appearance key, Clip track and keyframe identities",
-    "duplicate the final occurrence -> reopen -> set-show-end back to the original end -> original coverage restored"
+    "duplicate the final occurrence -> reopen -> set-show-end back -> original coverage restored",
+    "insert_transition -> update_transition -> resize_transition -> remove_transition -> re-insert: no dormant effect resurrects",
+    "create_layers -> rename_layer -> reorder_layer -> remove_layer with and without an explicit reassignment",
+    "make_clip_pattern_independent -> rejoin_clip_pattern_instance: the vacated runtime and its tracks are collected",
+    "#1029: create_layers -> create_clips -> remove_clips -> set_show_end 30000 -> update_clips -> add_property_tracks -> commit -> outcome -> reopen"
   ],
   "oracles": [
-    "Reopened provisional v2 record through parseProvisionalShowRecordV2/serializeProvisionalShowRecordV2 with an empty validateShowRecordV2 issue list.",
-    "Exact layoutOccurrences, clips, appearance key times, propertyTracks, markers and patternInstances collections after each accepted edit.",
-    "Reference identity of the refused result's record plus deep equality against a structuredClone preimage.",
+    "Reopened provisional v2 record through parseProvisionalShowRecordV2/serializeProvisionalShowRecordV2 with an empty validateShowRecordV2 issue list after every accepted command.",
+    "The #1029 saved record reopened through the real .pxlshow bundle importer and the real .epe importer via qualifyShowV2PilotArtifacts.",
+    "Every step of the #1029 sequence accepted at the real MCP tools/call boundary of agentMcpRouting with a fake grant and catalogue: 'v2'; a schema error would surface as a JSON-RPC error, never a transport code.",
+    "tools/list byte measurement through that same in-process probe, before and after, over the command tools' input schemas.",
+    "Direct comparison of the command outcome against the manual owner call for the same intent: identical composition, identical affected collections and the identical typed refusal code.",
+    "Reference identity of the refused or unchanged result's record plus deep equality against a structuredClone preimage.",
     "D6: the landed showV2ClipDeleteAdmission route test's saved provider record with zero Clips, retained Pattern instances and unchanged Show End."
   ],
   "redEvidence": [
-    "6/6 duplication cases failed before the owner intent existed: an unknown intent fell through to the shared occurrence branch, and the empty/final-occurrence cases reported the unshifted preimage."
+    "6/6 duplication cases failed before the owner intent existed: an unknown intent fell through to the shared occurrence branch, and the empty/final-occurrence cases reported the unshifted preimage.",
+    "The catalogue's first full run failed 9/24 behavioural cases, each for a real reason: a stored Transition needs structured easing rather than a preset string; insertion past Show End is an invalid result; a plain resize belongs to the temporal owner, not the Transition owner's connected resize; reassigning a Layer into an occupied Layer is a materialized collision refusal.",
+    "The size oracle failed at 71,043 bytes against the 65,536 budget before the Aperture shape-parameter record and the description trim."
   ],
   "faults": [
-    "Dropping the Transition endpoint-straddle guard: 'refuses when authored content crosses the duplicated occurrence boundary' failed (1/6), restored green.",
-    "Shifting later Clip starts without their appearance keys: 'duplicates an occurrence empty, shifting only later content once' and 'copies the interval content under an exact identity plan without cloning a runtime' failed (2/6), restored green."
+    "Dropping the Transition endpoint-straddle guard in the duplicate owner: 'refuses when authored content crosses the duplicated occurrence boundary' failed (1/6), restored green.",
+    "Shifting later Clip starts without their appearance keys: two duplication cases failed (2/6), restored green.",
+    "Turning the uniform no-op into a refusal: the no-op matrix plus the independence and Layout-uniqueness no-ops failed (3/44), restored green.",
+    "Emptying the candidate list on an unknown identity: the addressing case failed (1/44) after the assertion was strengthened from 'defined' to 'contains the identity that exists'; the first, weaker assertion did not kill it.",
+    "Replacing the owner's typed refusal code with engine-refused: five cases failed (5/44) across Show End protection, Layer reassignment, Layout interval removal, boundary-crossing duplication and owner parity, restored green."
   ],
   "results": {
-    "focused": "npx vitest run src/engine/showLayoutIntervalDuplicateV2.test.ts src/engine/showLayoutIntervalsV2.test.ts src/engine/showV2MixedLayout.test.ts src/store/showV2LayoutOccurrenceAdmission.test.ts src/engine/showV2LayoutEditorModel.test.ts -> 5 files, 59 tests passed",
-    "static": "npm run lint clean; npx tsc -b --pretty false clean"
+    "focused": "npx vitest run src/engine/showCommandsV2/ src/engine/showLayoutIntervalDuplicateV2.test.ts src/engine/showLayoutIntervalsV2.test.ts src/engine/showV2MixedLayout.test.ts src/store/showV2LayoutOccurrenceAdmission.test.ts src/engine/showV2LayoutEditorModel.test.ts src/engine/showCommands/ src/worker/agent/ -> all passed",
+    "static": "npm run lint clean; npx tsc -b --pretty false clean",
+    "parity": "npm run show:v2-parity -> 47 inventoried records match",
+    "sizeBudget": "tools/list in-process probe: v1 54 command tools / 98,045 bytes of input schema / 38,754 bulk; v2 49 command tools / 64,017 bytes / 16,792 bulk. Budget 65,536 total and 24,576 bulk.",
+    "harness": "npm run agent:smoke PASS; npm run agent:corpus -- --fake no failures; npm run agent:baseline:fixtures differs at 9 pinned paths, explained below."
   },
+  "explainedHashDifferences": [
+    "agent:baseline:fixtures differs at fixtures[0|1|3].bridge.summaries[0] and their .after.pxlshow bytes/contentSha256. The cause is the resize_clip activity summary rewording that landed in 'Refine Show agent activity for #1018' (30a0aa00, 2026-09-12), four days after the fixture evidence was pinned by '#950 Stabilize baseline fixture resize evidence' (c0ab5995, 2026-09-08). The base commit d46eeae1 already shows this difference and this slice changes nothing on the v1 harness path, so the pinned evidence is left untouched rather than re-recorded."
+  ],
   "residualGaps": [
-    "A copied Transition carrying propertyRamps refuses with unsupported-content-copy rather than projecting them; the caller projects first.",
-    "The v2 command catalogue, census, size oracle, coverage regeneration, grammar/corpus/baseline replay and pilot MCP transcript are the remaining slice steps."
+    "Moving a Clip to another Zone or Layer has no landed v2 owner intent: showClipTemporalV2 owns only the time edges and editShowTransitionV2 refuses a connected component that changes Zone or Layer. update_clips refuses it with a typed unsupported code naming the missing capability. Smallest counterexample: v1 accepts move_clip { clip_id, layer: 1 }; v2 has no owner intent that writes clip.layerId outside editShowLayerV2's complete removal reassignment.",
+    "Marker role: chapter is specification section 3 delta 7 and lands with #1040. add_marker and update_marker accept the argument and refuse it with a typed unsupported code rather than dropping it silently.",
+    "Duplicating a Layout interval with content refuses a copied Transition that carries propertyRamps (unsupported-content-copy); the caller projects those ramps into tracks first.",
+    "The #1029 transcript is proven at the real MCP tool boundary and over the real v2 catalogue and importers, not through a live browser editor: agentPrivateExecutor and editorAdmission still apply v1 commands to a v1 capture, and binding them to the v2 pilot record is #1039's coordinated activation, whose deployed transcript is that issue's named gate.",
+    "The harness grammar, corpus and baseline fixtures are proven complete against the name map but are not themselves rewritten onto v2; they drive the v1 editor route and move with the same #1039 activation.",
+    "CONTEXT.md is unchanged: every concept a v2 command name surfaces (Clip, Layer, Zone Layout interval, Transition, Marker, Pattern instance, Group occurrence, Show End, Restart) is already defined there. The held appearance key vocabulary belongs to #1038's landed appearance work and #1043's reference sweep."
   ]
 }

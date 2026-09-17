@@ -506,23 +506,34 @@ describe('v2 Marker, Effect and animation commands', () => {
 describe('v2 command addressing, no-op policy and parity', () => {
   it('refuses an unknown identity with candidate identities and leaves the record untouched', () => {
     const record = commandFixtureV2()
-    for (const [name, input, label] of [
-      ['update_clips', { updates: [{ clip_id: 'absent', start_ms: 0 }] }, 'Clip'],
-      ['remove_transition', { transition_id: 'absent' }, 'Transition'],
-      ['select_layout', { interval_id: 'absent', layout_id: 'both' }, 'Layout interval'],
-      ['remove_marker', { marker_id: 'absent' }, 'Marker'],
-      ['remove_property_tracks', { track_ids: ['absent'] }, 'Property track'],
-      ['rename_layer', { layer_id: 'absent', name: 'x' }, 'Layer'],
-      ['ungroup', { group_occurrence_id: 'absent' }, 'Group occurrence'],
+    const inserted = changed(applyShowCommandV2(record, 'insert_transition', {
+      from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 500, kind: 'crossfade',
+    }))
+    for (const [name, input, label, expected] of [
+      ['update_clips', { updates: [{ clip_id: 'absent', start_ms: 0 }] }, 'Clip', 'clip-a'],
+      ['remove_transition', { transition_id: 'absent' }, 'Transition', inserted.record.composition.transitions[0].id],
+      ['select_layout', { interval_id: 'absent', layout_id: 'both' }, 'Layout interval', 'interval-1'],
+      ['remove_marker', { marker_id: 'absent' }, 'Marker', 'marker-1'],
+      ['remove_property_tracks', { track_ids: ['absent'] }, 'Property track', 'track-a'],
+      ['rename_layer', { layer_id: 'absent', name: 'x' }, 'Layer', 'base'],
+      ['select_layout', { interval_id: 'interval-1', layout_id: 'absent' }, 'Zone Layout', 'both'],
     ] as const) {
-      const outcome = applyShowCommandV2(record, name, input as Record<string, unknown>)
+      const outcome = applyShowCommandV2(inserted.record, name, input as Record<string, unknown>)
       expect(outcome.status, name).toBe('refused')
       if (outcome.status !== 'refused') continue
       expect(outcome.issues[0].code, name).toBe('unknown-id')
       expect(outcome.issues[0].message, name).toContain(label)
-      expect(outcome.issues[0].candidates, name).toBeDefined()
-      expect(outcome.record).toBe(record)
+      // Candidates must name the identities that actually exist.
+      expect(outcome.issues[0].candidates, name).toContain(expected)
+      expect(outcome.record).toBe(inserted.record)
     }
+    // An empty collection still answers with candidates rather than nothing.
+    const noGroups = applyShowCommandV2(record, 'ungroup', { group_occurrence_id: 'absent' })
+    expect(noGroups.status).toBe('refused')
+    if (noGroups.status !== 'refused') return
+    expect(noGroups.issues[0].code).toBe('unknown-id')
+    expect(noGroups.issues[0].message).toContain('Group occurrence')
+    expect(noGroups.issues[0].candidates).toEqual([])
   })
 
   it('resolves identities across a Layout switch and a Layer reorder', () => {

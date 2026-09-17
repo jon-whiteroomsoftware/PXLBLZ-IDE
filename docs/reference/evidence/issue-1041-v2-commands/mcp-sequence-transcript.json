@@ -1,0 +1,507 @@
+{
+  "issue": 1029,
+  "catalogue": "v2",
+  "surface": "agentMcpRouting tools/call schema boundary plus the v2 catalogue over the prepared v2 record",
+  "transcript": [
+    {
+      "tool": "create_layers",
+      "arguments": {
+        "layers": [
+          {
+            "zone_id": "right",
+            "name": "Right base"
+          }
+        ]
+      },
+      "status": "changed",
+      "changes": [
+        {
+          "command": "create_layers",
+          "description": "Created Layers layer-right.",
+          "details": {
+            "clips": [],
+            "instances": [],
+            "transitions": [],
+            "tracks": [],
+            "layoutDefinitions": [],
+            "layoutIntervals": [],
+            "groupDefinitions": [],
+            "groupOccurrences": [],
+            "layers": [
+              "layer-right"
+            ],
+            "markers": [],
+            "appearanceKeys": [],
+            "propertyKeys": [],
+            "removed": [],
+            "discardedControlTargets": []
+          }
+        }
+      ]
+    },
+    {
+      "tool": "create_clips",
+      "arguments": {
+        "clips": [
+          {
+            "zone_id": "right",
+            "layer_id": "layer-right",
+            "start_ms": 0,
+            "duration_ms": 10000,
+            "pattern": {
+              "kind": "stock",
+              "id": "TestPattern2D"
+            },
+            "instance": "sole",
+            "appearance": {
+              "opacity": 0.8
+            }
+          }
+        ]
+      },
+      "status": "changed",
+      "changes": [
+        {
+          "command": "create_clips",
+          "description": "Created Clips clip-right-0.",
+          "details": {
+            "clips": [
+              "clip-right-0"
+            ],
+            "instances": [
+              "inst-b"
+            ],
+            "transitions": [],
+            "tracks": [],
+            "layoutDefinitions": [],
+            "layoutIntervals": [],
+            "groupDefinitions": [],
+            "groupOccurrences": [],
+            "layers": [],
+            "markers": [],
+            "appearanceKeys": [
+              "clip-right-0-appearance"
+            ],
+            "propertyKeys": [],
+            "removed": [],
+            "discardedControlTargets": []
+          }
+        }
+      ]
+    },
+    {
+      "tool": "remove_clips",
+      "arguments": {
+        "clip_ids": [
+          "clip-a",
+          "clip-b",
+          "clip-c"
+        ]
+      },
+      "status": "changed",
+      "changes": [
+        {
+          "command": "remove_clips",
+          "description": "Removed Clips clip-a, clip-b, clip-c; Transitions none.",
+          "details": {
+            "clips": [
+              "clip-a",
+              "clip-b",
+              "clip-c"
+            ],
+            "instances": [],
+            "transitions": [],
+            "tracks": [
+              "track-a"
+            ],
+            "layoutDefinitions": [],
+            "layoutIntervals": [],
+            "groupDefinitions": [],
+            "groupOccurrences": [],
+            "layers": [],
+            "markers": [],
+            "appearanceKeys": [],
+            "propertyKeys": [],
+            "removed": [
+              "clip-a",
+              "clip-b",
+              "clip-c",
+              "track-a"
+            ],
+            "discardedControlTargets": []
+          }
+        }
+      ]
+    },
+    {
+      "tool": "set_show_end",
+      "arguments": {
+        "end_ms": 30000
+      },
+      "status": "changed",
+      "changes": [
+        {
+          "command": "set_show_end",
+          "description": "Show End is 30000 ms; Layout intervals interval-2.",
+          "details": {
+            "clips": [],
+            "instances": [],
+            "transitions": [],
+            "tracks": [],
+            "layoutDefinitions": [],
+            "layoutIntervals": [
+              "interval-2"
+            ],
+            "groupDefinitions": [],
+            "groupOccurrences": [],
+            "layers": [],
+            "markers": [],
+            "appearanceKeys": [],
+            "propertyKeys": [],
+            "removed": [],
+            "discardedControlTargets": []
+          },
+          "targetId": "show-end"
+        }
+      ]
+    },
+    {
+      "tool": "update_clips",
+      "arguments": {
+        "updates": [
+          {
+            "clip_id": "clip-right-0",
+            "duration_ms": 30000
+          }
+        ]
+      },
+      "status": "changed",
+      "changes": [
+        {
+          "command": "update_clips",
+          "description": "Updated Clips clip-right-0.",
+          "details": {
+            "clips": [
+              "clip-right-0"
+            ],
+            "instances": [],
+            "transitions": [],
+            "tracks": [],
+            "layoutDefinitions": [],
+            "layoutIntervals": [],
+            "groupDefinitions": [],
+            "groupOccurrences": [],
+            "layers": [],
+            "markers": [],
+            "appearanceKeys": [],
+            "propertyKeys": [],
+            "removed": [],
+            "discardedControlTargets": []
+          }
+        }
+      ]
+    },
+    {
+      "tool": "add_property_tracks",
+      "arguments": {
+        "tracks": [
+          {
+            "target": {
+              "kind": "opacity",
+              "clip_id": "clip-right-0"
+            },
+            "keyframes": [
+              {
+                "at_ms": 0,
+                "value": 0
+              },
+              {
+                "at_ms": 30000,
+                "value": 1,
+                "easing": "ease-in-out"
+              }
+            ]
+          },
+          {
+            "target": {
+              "kind": "time-scale",
+              "instance_id": "inst-b"
+            },
+            "initial_value": 0.5
+          }
+        ]
+      },
+      "status": "changed",
+      "changes": [
+        {
+          "command": "add_property_tracks",
+          "description": "Added Property tracks track-opacity, track-time-scale.",
+          "details": {
+            "clips": [
+              "clip-right-0"
+            ],
+            "instances": [
+              "inst-b"
+            ],
+            "transitions": [],
+            "tracks": [
+              "track-opacity",
+              "track-time-scale"
+            ],
+            "layoutDefinitions": [],
+            "layoutIntervals": [],
+            "groupDefinitions": [],
+            "groupOccurrences": [],
+            "layers": [
+              "layer-right"
+            ],
+            "markers": [],
+            "appearanceKeys": [],
+            "propertyKeys": [
+              "track-opacity-key-1",
+              "track-opacity-key-2",
+              "track-time-scale-key-1",
+              "track-time-scale-key-2"
+            ],
+            "removed": [],
+            "discardedControlTargets": []
+          }
+        }
+      ]
+    }
+  ],
+  "savedRecord": {
+    "version": 2,
+    "id": "v2-pilot-import-0",
+    "name": "Command fixture (2)",
+    "zones": [
+      {
+        "id": "left",
+        "name": "Left",
+        "nominalPixelCount": 8
+      },
+      {
+        "id": "right",
+        "name": "Right",
+        "nominalPixelCount": 8
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "both",
+        "name": "Both",
+        "zones": [],
+        "logical": {
+          "kind": "split",
+          "axis": "x",
+          "zoneIds": [
+            "left",
+            "right"
+          ]
+        }
+      },
+      {
+        "id": "left-only",
+        "name": "Left only",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "left"
+          ]
+        }
+      }
+    ],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 16,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "continuous",
+      "showEndMs": 30000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "inst-a",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "inst-b",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern2D"
+          },
+          "patternName": "TestPattern2D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "base",
+          "zoneId": "left",
+          "name": "Base",
+          "rank": 0
+        },
+        {
+          "id": "over",
+          "zoneId": "left",
+          "name": "Over",
+          "rank": 1
+        },
+        {
+          "id": "layer-right",
+          "zoneId": "right",
+          "name": "Right base",
+          "rank": 0
+        }
+      ],
+      "clips": [
+        {
+          "id": "clip-right-0",
+          "zoneId": "right",
+          "layerId": "layer-right",
+          "startMs": 0,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-right-0-appearance",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 0.8,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          },
+          "instanceId": "inst-b"
+        }
+      ],
+      "transitions": [],
+      "layoutOccurrences": [
+        {
+          "id": "interval-1",
+          "layoutId": "both",
+          "startMs": 0,
+          "durationMs": 5000,
+          "parameters": {}
+        },
+        {
+          "id": "interval-2",
+          "layoutId": "both",
+          "startMs": 5000,
+          "durationMs": 25000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [
+        {
+          "id": "track-opacity",
+          "target": {
+            "kind": "clip-opacity",
+            "clipId": "clip-right-0"
+          },
+          "activeStartMs": 0,
+          "activeDurationMs": 30000,
+          "keyframes": [
+            {
+              "id": "track-opacity-key-1",
+              "timeMs": 0,
+              "value": 0,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-opacity-key-2",
+              "timeMs": 30000,
+              "value": 1,
+              "easing": {
+                "curve": "quadratic",
+                "direction": "in-out"
+              }
+            }
+          ]
+        },
+        {
+          "id": "track-time-scale",
+          "target": {
+            "kind": "instance-time-scale",
+            "instanceId": "inst-b"
+          },
+          "activeStartMs": 0,
+          "activeDurationMs": 30000,
+          "keyframes": [
+            {
+              "id": "track-time-scale-key-1",
+              "timeMs": 0,
+              "value": 0.5,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-time-scale-key-2",
+              "timeMs": 30000,
+              "value": 0.5,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ]
+        }
+      ],
+      "markers": [
+        {
+          "id": "marker-1",
+          "name": "Chorus",
+          "timeMs": 2000
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 2,
+    "importMetadata": {
+      "kind": "show-file",
+      "originalShowId": "command-show",
+      "appVersion": "1041-mcp-sequence",
+      "exportedAt": "2026-09-16T00:00:00.000Z",
+      "importedAt": 2
+    }
+  },
+  "artifacts": {
+    "pxlshowBytes": 952,
+    "epeBytes": 12008
+  }
+}

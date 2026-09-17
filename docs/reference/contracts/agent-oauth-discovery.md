@@ -85,7 +85,10 @@ token endpoint.
 The MCP SDK serves stateless JSON initialization and stable `tools/list` metadata:
 `get_connection`, `list_commands`, `list_patterns`, `list_controller_profiles`,
 `read_show`, `get_context`, `begin_edit`, all canonical `SHOW_COMMANDS`,
-`commit_edit`, `get_outcome` and `cancel_edit`. Listing
+`commit_edit`, `get_outcome` and `cancel_edit`. `read_show` returns the Show the
+bound editor holds in its own record version; when the coordinated cutover in
+#1039 makes the editor v2, that is the v2 record and the legacy `cells` plus
+`composition` double representation ends with it. Listing
 metadata neither claims an account slot nor reads Show contents. There is no GET
 event stream, DELETE session, durable MCP session or tools-list notification.
 Initialization therefore does not advertise resource-list changes. Every listed
@@ -166,6 +169,32 @@ result, then continues with already-admitted successors in sequence. Every other
 command failure terminates the relay operation and settles unsent followers as
 unavailable. This matches the browser executor's refusal boundary without
 turning an interim command issue into an operation outcome.
+
+### Prepared v2 catalogue and resource versions
+
+`agentMcpRouting` accepts an explicit, default-off `catalogue: 'v2'` option that
+replaces the canonical command tools with the
+[prepared v2 catalogue](../show-command-coverage.md#prepared-v2-command-catalogue)
+and the versioned authoring resources with their v2 pair. It changes no part of
+the transport: the same binding, operation identity, idempotency, throttling,
+error signalling, output schemas, read tools and server-instruction structure
+apply. Production keeps the v1 catalogue and the v1 resources until #1039
+activates the editor, providers and commands together.
+
+The versioned authoring resources are named by version, and the pair a session
+sees always matches the catalogue it was served:
+
+| Catalogue | Schema resource | Reference resource |
+| --- | --- | --- |
+| v1 (production) | `pxlblz://schemas/clip-layer-authoring/v1` | `pxlblz://docs/clip-layer-authoring/v1` |
+| v2 (prepared) | `pxlblz://schemas/clip-layer-authoring/v2` | `pxlblz://docs/clip-layer-authoring/v2` |
+
+The v2 resources carry what the compact v2 schema deliberately does not spell
+out: identity addressing, exact half-open global milliseconds, the appearance
+`apply` selector, the generated per-kind Effect parameter table, the per-shape
+Aperture parameters, the animation target union with its short names, the
+uniform no-op and the fourteen affected collections. The final paragraph of the
+server instructions is the only part that differs between catalogues.
 
 An explicit browser move keeps the validated grant while replacing its call and
 binding IDs. The next actual MCP tool handler resolves the current binding once,

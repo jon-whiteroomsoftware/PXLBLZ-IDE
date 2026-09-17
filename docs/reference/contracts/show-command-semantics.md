@@ -5,6 +5,11 @@ The Show command registry defines edits for callers of `applyShowCommand` and
 refusal; the caller owns adoption, history, and persistence. This agreement
 covers the registry, not every direct engine mutation or editor gesture.
 
+This document describes the v1 registry, which is what production MCP exposes.
+The prepared v2 catalogue is a separate registry with its own agreement; see
+[the prepared v2 catalogue](#the-prepared-v2-catalogue) below. Nothing in this
+document changes until the coordinated cutover in #1039.
+
 Command evaluation has no live preview or Controller publication side effects.
 Only the adopted final candidate enters the editor's [preview and delivery
 publication policy](show-state-history-persistence.md#preview-and-delivery-publication).
@@ -828,3 +833,57 @@ The existing [command goldens](../../../src/engine/showCommands/commands.test.ts
 [shared full-record parity](../../../src/agent-harness/test/commandParity.test.ts),
 and `RN954`, `SM954`, `CP954`, `UZ954`, `OC954`, `OT954`, `AI954`, `DI954`, `UI954`
 [admission rows](../../../e2e/agent-baseline.auth.spec.ts) cover the finite surface.
+
+## The prepared v2 catalogue
+
+`applyShowCommandV2` and `runShowCommandV2Transaction` in
+[`src/engine/showCommandsV2/`](../../../src/engine/showCommandsV2/registry.ts)
+are the prepared v2 registry over `ShowRecordV2` and the v2 engine owners. They
+are not activated: `agentMcpRouting` exposes them only under its explicit
+`catalogue: 'v2'` option, and production keeps the v1 registry above until the
+coordinated cutover in #1039. The [coverage report](../show-command-coverage.md)
+carries the complete catalogue, the v1 to v2 name map, the retired addressing
+table and the refusal-code map.
+
+The agreement differs from v1 in five ways, and a descriptor census in
+[`census.test.ts`](../../../src/engine/showCommandsV2/census.test.ts) enforces
+each of them.
+
+**Identity addressing only.** Every command takes stable identities from
+`read_show`: `clip_id`, `layer_id`, `instance_id`, `transition_id`,
+`interval_id`, `track_id`, `keyframe_id`, `marker_id`, `effect_id`,
+`group_occurrence_id`. A derived Cut junction is addressed by its
+`(from_clip_id, to_clip_id)` pair. `scene_id`, `layer: "main" | index`,
+`overlay_layer_index`, the `at_ms` / `after_clip_id` Boundary lookup and
+`target_clip_id` on rejoin all retire with no runtime alias. Layer stacking is
+authored by `rank`, `above_layer_id` or `below_layer_id`; index words retire.
+
+**A uniform no-op.** This supersedes the per-command exceptions in the
+Agreement above. For every v2 command, an already-satisfied valid request
+returns `unchanged` with zero changes, creates no history, timestamp or save,
+and does not abort its containing batch. No v2 command refuses because the
+desired state already exists; setting the current Show End is a no-op, not a
+refusal. Only a genuinely invalid or refused request aborts a transaction.
+
+**Fully typed inputs.** There is no `json` field kind. Closed sets are enums,
+numeric ranges carry schema bounds rather than only descriptions, `null` is
+accepted only where the field documents clearing, and bulk arrays carry 1 to
+128 items. The Effect and Aperture shape parameters are compact records
+validated by the appearance owner, with their names and ranges published in the
+[versioned authoring reference](../../../src/engine/showCommandsV2/authoringReference.ts).
+
+**One affected-entity vocabulary.** A changed command reports the same fourteen
+collections in `changes[].details` — `clips`, `instances`, `transitions`,
+`tracks`, `layoutDefinitions`, `layoutIntervals`, `groupDefinitions`,
+`groupOccurrences`, `layers`, `markers`, `appearanceKeys`, `propertyKeys`,
+`removed` and `discardedControlTargets` — translated from the owner's own
+result without invention, widening or loss. Requested scope is the command
+input; affected scope is this.
+
+**Owner-backed refusals.** A command never restates a domain rule. It resolves
+identities, mints the fresh identities its owner requires (a pure owner never
+allocates identity), and passes the owner's typed refusal code through. Two
+catalogue rows have no landed owner capability and refuse with a typed
+`unsupported` code naming what is missing: the Marker `role: chapter` argument,
+which arrives with #1040's Marker role, and moving a Clip to another Zone or
+Layer, which no v2 temporal or Transition intent owns.
