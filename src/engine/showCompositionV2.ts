@@ -35,6 +35,15 @@ export interface ShowLayerV2 {
   rank: number
 }
 
+/**
+ * A timeline Marker with the optional narrative role. `chapter` is the only
+ * enumerated role: it selects a Marker for the Gallery, reading-card and Live
+ * chapter projections and owns no time partition or execution trigger.
+ */
+export interface ShowMarkerV2 extends ShowTimelineMarker {
+  role?: 'chapter'
+}
+
 export interface ShowClipV2 {
   id: string
   instanceId: string
@@ -195,7 +204,7 @@ export interface ShowCompositionV2 {
   transitions: ShowTransitionV2[]
   layoutOccurrences: ShowLayoutOccurrenceV2[]
   propertyTracks: ShowPropertyTrackV2[]
-  markers: ShowTimelineMarker[]
+  markers: ShowMarkerV2[]
   groupDefinitions: ShowGroupDefinitionV2[]
   groupOccurrences: ShowGroupOccurrenceV2[]
 }

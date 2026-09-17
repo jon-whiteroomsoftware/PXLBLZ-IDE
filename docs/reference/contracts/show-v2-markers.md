@@ -2,8 +2,9 @@
 
 Canonical authority is [the Scene-retirement specification](../../plans/scene-retirement-specification.md)
 §§8–9. `editShowMarkerV2(record, intent)` owns exact general Marker add, move,
-update and remove. The Marker remains `{ id, timeMs, name?, color? }`; chapter
-role/projection belongs to #1040.
+update and remove. The v2 Marker is `{ id, timeMs, name?, color?, role? }`, where
+`role` is the single enumerated narrative value `chapter` (§3 delta 7). The v1
+Marker is unchanged and carries no role.
 
 Intent contains only its named fields. Add supplies a complete explicit Marker;
 move supplies identity and exact time; update supplies identity and a nonempty
@@ -26,11 +27,52 @@ clearing of an already absent field. Empty patches are invalid intent. Refusals
 return the original record identity and no affected entities; validators never
 repair the preimage.
 
+## Chapter role and projection
+
+`role: 'chapter'` marks a Marker as a narrative chapter. It owns no time
+partition, playback trigger or Clip ownership: compiled output, recipes and
+runtime state are identical with and without it. The TypeScript `ShowMarkerV2`,
+the provisional v2 schema, the tracer codec and the domain validator carry the
+role together; the schema admits `chapter` alone, so an unknown role is a codec
+refusal rather than a silently stripped field. Export and reopen through a v2
+`.pxlshow` bundle preserve the role exactly.
+
+V1 conversion marks every former Scene label as a chapter at its original global
+start. When a pre-existing Marker already has that exact name and time, the
+chapter is absorbed into it: identity, time, name and color stay exactly as
+authored and only the role is promoted, so no duplicate guide appears and the
+source accounting still maps those leaves to that Marker. Every other Marker
+stays general-purpose, including one at the same time with a different name.
+
+`showChaptersV2(record)` in [`showChaptersV2.ts`](../../../src/engine/showChaptersV2.ts)
+is the Gallery, reading-card and Live projection. It selects `role: 'chapter'`
+Markers only, orders them by `(timeMs, id)` with the same exact UTF-16
+code-unit tie-break the Marker owner stores, and derives each chapter's span
+from the next chapter start, clamped to Show End. Equal-time chapters remain
+separate selectable entries with zero-length leading spans; a dormant chapter
+beyond Show End projects a zero span. A time with no chapter yields no chapter —
+`showChapterIndexAtV2` returns `-1` before the first start and never synthesizes
+a label. At an exact equal-time start it resolves to the last such chapter in
+projection order, so the current selection is deterministic without merging
+identities.
+
+The general Marker owner neither authors nor removes roles. `add` and `update`
+intents accept only `id`, `timeMs`, `name` and `color`, so a role-bearing intent
+is `invalid-intent` and returns the original record; `move`, `update` and
+`remove` preserve an existing role exactly. Chapters therefore originate in
+conversion or in a natively authored v2 record, never by accident from an
+alignment Marker.
+
 Results use the existing §9 affected collection vocabulary. Changed operations
 report the selected ID in `affectedMarkerIds`; removal also reports it in
 `removedIds`. Every other collection stays empty. No-op/refusal collections all
 stay empty. Adoption owns clocks, history, save and revision checks.
 
+[Chapter tests](../../../src/engine/showChaptersV2.test.ts) cover the no-chapter,
+converted Scene label, absorbed same-name/time Marker, general Marker and
+equal-time partitions, the codec refusal, the `.pxlshow` round trip and identical
+compiled output. [Test design](../evidence/issue-1040-native-stock/test-design.json)
+records their partitions and fault-sensitivity checks.
 [Owner tests](../../../src/engine/showMarkersV2.test.ts) serialize/reopen records,
 assert exact unaffected content and unaliasing, and prepare the existing compiler
 with trusted Libraries. Fixed-provenance `.epe` exports reopen with unchanged

@@ -494,7 +494,8 @@
         "id": { "$ref": "#/$defs/Id" },
         "timeMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
         "name": { "type": "string" },
-        "color": { "type": "string" }
+        "color": { "type": "string" },
+        "role": { "const": "chapter" }
       },
       "required": ["id", "timeMs"],
       "additionalProperties": false

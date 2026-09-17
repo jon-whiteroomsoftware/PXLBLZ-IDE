@@ -1,7 +1,9 @@
 # Show v2 Marker route admission
 
 The opt-in `ShowV2RoutePilot` exposes general Marker add/select/name/time/color/remove.
-Chapter roles belong to #1040; production v1 routing is unchanged. The pure
+The route neither authors nor clears the [chapter role](show-v2-markers.md); it
+edits a chaptered Marker's time, name and color and preserves its role exactly.
+Production v1 routing is unchanged. The pure
 [Marker owner](show-v2-markers.md) remains authoritative for exact fields and
 nonnegative safe-integer milliseconds, including dormant and equal-time guides.
 The adapter supplies deterministic collision-safe add IDs, clears optional fields
