@@ -1,4 +1,5 @@
 import type { ShowRecordV2 } from './showCompositionV2'
+import type { ShowClipEvaluationPolicy, ShowPatternRef, ShowSteppedClock } from './personalContentRecords'
 import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
 import type { ShowClipPatternInstanceOwnership } from './showTimelineClipAuthoring'
 import type { ShowTimelineSelection } from './showTimelineViewModel'
@@ -43,6 +44,18 @@ export interface ShowClipInspectorModelV2 {
   endMs: number
   /** Effective instance ownership, in the v1 inspector leaf's own shape. */
   ownership: ShowClipPatternInstanceOwnership
+  /**
+   * The effective Pattern instance's authored values. They belong to the
+   * runtime, so every Clip in `users` observes an edit to them (section 4).
+   */
+  instanceValues: {
+    patternReference: ShowPatternRef
+    timeScale: number
+    timeOffsetMs: number
+    evaluationPolicy: ShowClipEvaluationPolicy
+    steppedClock?: ShowSteppedClock
+    controlTargets: Readonly<Record<string, number>>
+  }
   /** Every effective use of this Clip's Pattern instance, the selected Clip included. */
   users: ShowClipInspectorUserV2[]
   /**
@@ -119,6 +132,16 @@ export function buildShowClipInspectorModelV2(
               useCount: effectiveShowInstanceUseCountV2(record, candidate.id),
             }]
       )),
+    },
+    instanceValues: {
+      patternReference: structuredClone(instance.pattern),
+      timeScale: instance.time.timeScale,
+      timeOffsetMs: instance.time.timeOffsetMs,
+      evaluationPolicy: instance.evaluationPolicy ?? 'live',
+      ...(instance.time.steppedClock === undefined
+        ? {}
+        : { steppedClock: { ...instance.time.steppedClock } }),
+      controlTargets: { ...(instance.controlTargets ?? {}) },
     },
     users: effective.composition.clips
       .filter((candidate) => candidate.instanceId === instance.id)

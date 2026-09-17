@@ -32,6 +32,7 @@ export interface ShowClipIdentityAffectedV2 extends Partial<Omit<ShowTimelineEdi
 }
 
 export type ShowClipEditIntentV2 =
+  | { kind: 'set-entry-policy'; clipId: string; entryPolicy: ShowClipV2['entryPolicy'] }
   | { kind: 'make-independent'; clipId: string; independence: ShowIndependentInstancePlanV2 }
   | { kind: 'rejoin'; clipId: string; targetInstanceId: string }
   | { kind: 'move'; clipId: string; startMs: number }
@@ -81,10 +82,44 @@ export function editShowClipV2(record: ShowRecordV2, intent: ShowClipEditIntentV
   const index = composition.clips.findIndex(clip => clip.id === intent.clipId)
   if (index < 0) return refuse('missing-clip', `Clip "${intent.clipId}" does not exist.`)
   const clip = composition.clips[index]
+  if (intent.kind === 'set-entry-policy') return setShowClipEntryPolicyV2(record, clip, intent, refuse)
   if (intent.kind === 'make-independent' || intent.kind === 'rejoin') return editShowClipIdentityV2(record, clip, intent)
   if (intent.kind === 'duplicate') return duplicateShowClipV2(record, clip, intent, refuse)
   if (intent.kind === 'replace-pattern') return replaceShowClipPatternV2(record, clip, intent)
   return refuse('invalid-intent', 'Unsupported Clip intent.')
+}
+
+/**
+ * Write one existing Clip's authored entry instruction.
+ *
+ * Restart is a Clip-entry instruction (specification section 4): the derived
+ * reset event follows from Clip identity and first contribution, so setting the
+ * flag cascades nothing and touches no other collection. This is the single
+ * writer: `update_clips` and the editor's admission wrapper both call it.
+ */
+function setShowClipEntryPolicyV2(
+  record: ShowRecordV2,
+  clip: ShowClipV2,
+  intent: Extract<ShowClipEditIntentV2, { kind: 'set-entry-policy' }>,
+  refuse: (code: ShowClipEditRefusalV2, message: string) => ShowClipEditResultV2,
+): ShowClipEditResultV2 {
+  if (Object.keys(intent).length !== 3 || !['continue', 'restart'].includes(intent.entryPolicy)) {
+    return refuse('invalid-intent', 'Give exactly one Clip identity and the entry policy "continue" or "restart".')
+  }
+  if (intent.entryPolicy === clip.entryPolicy) {
+    return { status: 'unchanged', record, affectedClipIds: [], affectedTrackIds: [] }
+  }
+  const next = structuredClone(record)
+  next.composition.clips.find(candidate => candidate.id === clip.id)!.entryPolicy = intent.entryPolicy
+  const resultIssue = validateShowRecordV2(next)[0]
+  if (resultIssue) return refuse('invalid-result', `${resultIssue.path}: ${resultIssue.message}`)
+  return {
+    status: 'changed',
+    record: next,
+    affectedClipIds: [clip.id],
+    affectedTrackIds: [],
+    affectedInstanceIds: [],
+  }
 }
 
 function duplicateShowClipV2(

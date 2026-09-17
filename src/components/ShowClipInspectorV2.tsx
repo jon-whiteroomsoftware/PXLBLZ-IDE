@@ -12,13 +12,18 @@ import {
 } from '@/engine/showV2ClipSharingEditorModel'
 import { buildShowV2TimelineEditorModel } from '@/engine/showV2TimelineEditorModel'
 import type { ShowTimelineSelection } from '@/engine/showTimelineViewModel'
+import { resolveCapturedShowPatternReplacementV2 } from '@/engine/showV2ClipReplacementModel'
+import type { ShowClipInspectorModelV2 } from '@/engine/showClipInspectorV2Model'
 import {
+  admitShowV2PilotClipEntryPolicy,
   admitShowV2PilotClipReplacementEdit,
   admitShowV2PilotClipSharingEdit,
   admitShowV2PilotClipTemporal,
   admitShowV2PilotGroupOccurrenceEdit,
   admitShowV2PilotGroupReplacementEdit,
+  admitShowV2PilotInstanceProperties,
   type ShowV2PilotAdoptionReceipt,
+  type ShowV2PilotInstancePropertiesIntent,
 } from '@/store/showV2PreparedEditAdmission'
 import { useShowStore } from '@/store/showStore'
 import { Button } from './ui/button'
@@ -77,6 +82,13 @@ export function ShowClipInspectorV2({
     () => (capture ? buildShowV2TimelineEditorModel(capture).sources : []),
     [capture],
   )
+  // Exported sliders come from the captured Pattern boundary, never from the
+  // record's own control map, so an undeclared name is never offered.
+  const sliders = useMemo(() => {
+    if (!capture || !model) return []
+    const resolved = resolveCapturedShowPatternReplacementV2(capture, model.instanceValues.patternReference)
+    return resolved.status === 'ready' ? resolved.replacement.exportedSliders.map((control) => control.exportName) : []
+  }, [capture, model])
   const select = (next: ShowTimelineSelection | null) => {
     setOwnSelection(next)
     onSelectionChange?.(next)
@@ -131,6 +143,16 @@ export function ShowClipInspectorV2({
   const submitTemporal = (intent: ShowClipTemporalIntentV2) => {
     void submit((context) => admitShowV2PilotClipTemporal({ ...context, intent }), 'Clip')
   }
+  // One shared Pattern instance write: every Clip on the runtime observes it.
+  const submitInstanceProperties = (
+    clipId: string,
+    properties: ShowV2PilotInstancePropertiesIntent['properties'],
+  ) => {
+    void submit(
+      (context) => admitShowV2PilotInstanceProperties({ ...context, intent: { clipId, properties } }),
+      'Pattern instance',
+    )
+  }
   const submitSharing = (plan: ShowV2ClipSharingPlan, label: string) => {
     if (plan.status !== 'ready') {
       setStatus(plan.status === 'refused' ? plan.message : `${label} is unchanged.`)
@@ -184,6 +206,30 @@ export function ShowClipInspectorV2({
             <dt className="text-zinc-500">Entry policy</dt>
             <dd data-show-entry-policy={model.entryPolicy}>{model.entryPolicy === 'restart' ? 'Restart' : 'Continue'}</dd>
           </dl>
+          {model.editable && (
+            <label className="mt-3 block text-xs text-zinc-400">On entry
+              <select
+                aria-label="Clip entry policy"
+                className={fieldStyle}
+                disabled={!editable}
+                value={model.entryPolicy}
+                onChange={(event) => void submit(
+                  (context) => admitShowV2PilotClipEntryPolicy({
+                    ...context,
+                    intent: {
+                      kind: 'set-entry-policy',
+                      clipId: model.clipId,
+                      entryPolicy: event.target.value === 'restart' ? 'restart' : 'continue',
+                    },
+                  }),
+                  'Entry policy',
+                )}
+              >
+                <option value="continue">Continue</option>
+                <option value="restart">Restart</option>
+              </select>
+            </label>
+          )}
           {model.entryPolicy === 'restart' && (
             <p className="mt-2 text-xs text-zinc-500">Restart resets the whole Pattern instance at this Clip&apos;s first contribution.</p>
           )}
@@ -215,7 +261,7 @@ export function ShowClipInspectorV2({
           <ShowPatternInstanceControls
             key={`instance:${record.id}:${model.clipId}`}
             ownership={model.ownership}
-            steppedClockEditable={false}
+            {...(model.instanceValues.steppedClock ? { steppedClock: model.instanceValues.steppedClock } : {})}
             onMakeIndependent={() => {
               if (!model.editable) return
               submitSharing(createShowV2IndependentIntent(capture, model.clipId, newPersonalContentId), 'Clip sharing')
@@ -224,9 +270,20 @@ export function ShowClipInspectorV2({
               if (!model.editable) return
               submitSharing(createShowV2RejoinIntent(capture, model.clipId, targetInstanceId), 'Clip sharing')
             }}
-            onSteppedClockChange={() => undefined}
+            onSteppedClockChange={(next) => submitInstanceProperties(
+              model.clipId,
+              { stepped_clock: next ? { stepMs: next.stepMs } : null },
+            )}
           />
           <p className="text-xs text-zinc-500">Linked Clips share controls, clock and private state.</p>
+          <ShowClipInstanceValues
+            key={`values:${record.id}:${model.instanceId}:${model.instanceValues.timeScale}:${model.instanceValues.evaluationPolicy}`}
+            values={model.instanceValues}
+            sliders={sliders}
+            userCount={model.users.length}
+            disabled={!available}
+            onChange={(properties) => submitInstanceProperties(model.clipId, properties)}
+          />
           <ul aria-label="Clip uses of this Pattern instance" className="space-y-1 text-xs text-zinc-400">
             {model.users.map((user) => (
               <li key={user.clipId} className="break-words" data-show-instance-user={user.clipId}>
@@ -311,6 +368,71 @@ export function ShowClipInspectorV2({
         {status || 'Select a Clip to edit it.'}
       </output>
     </section>
+  )
+}
+
+/**
+ * Pattern-instance values the shared owner writes: exported slider targets, the
+ * clock and the evaluation policy. They belong to the runtime, so the panel says
+ * how many Clip uses observe the edit before it is made.
+ */
+function ShowClipInstanceValues({
+  values,
+  sliders,
+  userCount,
+  disabled,
+  onChange,
+}: {
+  values: ShowClipInspectorModelV2['instanceValues']
+  sliders: string[]
+  userCount: number
+  disabled: boolean
+  onChange: (properties: ShowV2PilotInstancePropertiesIntent['properties']) => void
+}) {
+  return (
+    <div className="space-y-3 border-t border-zinc-800 pt-3" data-testid="show-clip-instance-values">
+      {userCount > 1 && (
+        <p className="text-xs text-cyan-300/70">These values affect all {userCount} Clip uses of this Pattern instance.</p>
+      )}
+      <NumberField
+        label="Animation speed"
+        value={values.timeScale}
+        disabled={disabled}
+        min={0}
+        max={8}
+        step={0.05}
+        variant="editor"
+        onChange={(timeScale) => onChange({ time_scale: timeScale })}
+      />
+      <label className="block text-xs text-zinc-400">Evaluation
+        <select
+          aria-label="Pattern evaluation policy"
+          className={fieldStyle}
+          disabled={disabled}
+          value={values.evaluationPolicy}
+          onChange={(event) => onChange({ evaluation: event.target.value as ShowClipInspectorModelV2['instanceValues']['evaluationPolicy'] })}
+        >
+          <option value="live">Live</option>
+          <option value="freeze-at-entry">Freeze at entry</option>
+          <option value="rolling-refresh">Rolling refresh</option>
+        </select>
+      </label>
+      {sliders.length === 0
+        ? <p className="text-xs text-zinc-500">This Pattern exports no sliders.</p>
+        : sliders.map((exportName) => (
+          <NumberField
+            key={exportName}
+            label={exportName}
+            value={values.controlTargets[exportName] ?? 0}
+            disabled={disabled}
+            min={0}
+            max={1}
+            step={0.01}
+            variant="editor"
+            onChange={(value) => onChange({ controls: { [exportName]: value } })}
+          />
+        ))}
+    </div>
   )
 }
 

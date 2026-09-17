@@ -19,6 +19,8 @@ import { createShowGroupFromSelectionV2, type CreateShowGroupFromSelectionIntent
 import type { ShowGroupEditAffectedV2 } from '@/engine/showGroupEditsV2'
 import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
 import { resolveCapturedShowPatternReplacementV2, type ShowV2ClipReplacementIntent } from '@/engine/showV2ClipReplacementModel'
+import { writeShowInstancePropertiesV2, type ShowInstancePropertiesResultV2, type ShowInstancePropertyDependenciesV2 } from '@/engine/showInstancePropertiesV2'
+import type { ShowClipEvaluationPolicy } from '@/engine/personalContentRecords'
 import { replaceShowGroupDefinitionClipPatternV2, type ReplaceShowGroupDefinitionClipPatternIntentV2, type ShowGroupReplacementResultV2 } from '@/engine/showGroupReplacementV2'
 import type { ShowV2GroupReplacementIntent } from '@/engine/showV2GroupReplacementEditorModel'
 export interface ShowV2PilotPreparedCapture {
@@ -71,7 +73,9 @@ type Command =
   | { owner: 'create-clip'; intent: CreateShowClipIntentV2 }
   | { owner: 'clip-temporal'; intent: ShowClipTemporalIntentV2 }
   | { owner: 'clip-sharing'; intent: ShowV2PilotClipSharingIntent }
+  | { owner: 'clip-entry-policy'; intent: Extract<ShowClipEditIntentV2, { kind: 'set-entry-policy' }> }
   | { owner: 'clip-replace'; intent: Extract<ShowClipEditIntentV2, { kind: 'replace-pattern' }> }
+  | { owner: 'instance-properties'; intent: ShowV2PilotInstancePropertiesIntent }
   | { owner: 'insert-time'; intent: ShowInsertTimeIntentV2 }
   | { owner: 'layer'; intent: ShowLayerEditIntentV2 }
   | { owner: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
@@ -87,7 +91,8 @@ type OwnerResult<C extends Command> = C extends { owner: 'layout-occurrence' } ?
   : C extends { owner: 'marker' } ? ShowMarkerEditResultV2
   : C extends { owner: 'create-clip' } ? ShowClipCreationResultV2
   : C extends { owner: 'clip-temporal' } ? ShowClipTemporalResultV2
-  : C extends { owner: 'clip-sharing' | 'clip-replace' } ? ShowClipEditResultV2
+  : C extends { owner: 'clip-sharing' | 'clip-replace' | 'clip-entry-policy' } ? ShowClipEditResultV2
+  : C extends { owner: 'instance-properties' } ? ShowInstancePropertiesResultV2
   : C extends { owner: 'insert-time' } ? ShowTimelineEditResultV2
   : C extends { owner: 'layer' } ? ShowLayerEditResultV2
   : C extends { owner: 'appearance' } ? ShowClipAppearanceEditResultV2
@@ -130,8 +135,10 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
           ? editShowMarkerV2(current, structuredClone(command.intent))
           : command.owner === 'create-clip'
             ? createShowClipV2(current, structuredClone(command.intent))
-            : command.owner === 'clip-sharing' || command.owner === 'clip-replace'
+            : command.owner === 'clip-sharing' || command.owner === 'clip-replace' || command.owner === 'clip-entry-policy'
             ? editShowClipV2(current, structuredClone(command.intent))
+            : command.owner === 'instance-properties'
+              ? writeShowInstancePropertiesV2(current, command.intent.clipId, structuredClone(command.intent.properties), capturedPatternResolver(request.capture))
           : command.owner === 'clip-temporal'
               ? editShowClipTemporalV2(current, structuredClone(command.intent))
               : command.owner === 'insert-time'
@@ -432,6 +439,93 @@ export async function admitShowV2PilotClipSharingEdit(request: ShowV2PilotClipSh
   if (!validSharingIntentShape(request.intent)) return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one complete explicit Clip sharing operation.', ...timelineEffects() }
   const outcome = await admitPreparedEdit({ ...request, owner: 'clip-sharing' as const })
   return presentOwnerOutcome(outcome, sharingEffects(request.capture.record, request.intent, 'result' in outcome ? outcome.result : undefined))
+}
+
+export type ShowV2PilotClipEntryPolicyIntent = Extract<ShowClipEditIntentV2, { kind: 'set-entry-policy' }>
+export type ShowV2PilotClipEntryPolicyRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotClipEntryPolicyIntent }
+export type ShowV2PilotClipEntryPolicyOutcome = PilotOwnerOutcome<ShowClipEditResultV2, ShowTimelineEditAffectedV2>
+/**
+ * Write one existing Clip's Continue/Restart instruction through the same
+ * `set-entry-policy` owner `update_clips` calls, so the editor and the command
+ * are one writer (specification section 4).
+ */
+export async function admitShowV2PilotClipEntryPolicy(request: ShowV2PilotClipEntryPolicyRequest): Promise<ShowV2PilotClipEntryPolicyOutcome> {
+  const intent: unknown = request.intent
+  if (!exactIntentFields(intent, ['kind', 'clipId', 'entryPolicy'])
+    || (intent as ShowV2PilotClipEntryPolicyIntent).kind !== 'set-entry-policy'
+    || typeof (intent as ShowV2PilotClipEntryPolicyIntent).clipId !== 'string'
+    || !(intent as ShowV2PilotClipEntryPolicyIntent).clipId.trim()
+    || !['continue', 'restart'].includes((intent as ShowV2PilotClipEntryPolicyIntent).entryPolicy)) {
+    return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Choose Continue or Restart for one ordinary Clip.', ...timelineEffects() }
+  }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'clip-entry-policy' as const })
+  const result = 'result' in outcome ? outcome.result : undefined
+  const effects = timelineEffects()
+  if (result && result.status !== 'refused') effects.affectedClipIds = result.affectedClipIds
+  return presentOwnerOutcome(outcome, effects)
+}
+
+/**
+ * Pattern-instance values in the shared owner's own field names. The wrapper
+ * hands them to `writeInstanceProperties` unchanged, so an editor write and an
+ * `update_clips.instance_properties` write are the same write.
+ */
+export interface ShowV2PilotInstancePropertiesIntent {
+  clipId: string
+  properties: {
+    controls?: Record<string, number>
+    time_scale?: number
+    time_offset_ms?: number
+    evaluation?: ShowClipEvaluationPolicy
+    /** `null` clears the stutter; the command descriptor does not expose this key yet. */
+    stepped_clock?: { stepMs: number } | null
+  }
+}
+type InstancePropertiesEffects = Pick<ShowTimelineEditAffectedV2, 'affectedClipIds' | 'affectedInstanceIds'>
+export type ShowV2PilotInstancePropertiesRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotInstancePropertiesIntent }
+export type ShowV2PilotInstancePropertiesOutcome =
+  | ({ status: 'applied'; settlement: 'saved' | 'superseded' } & InstancePropertiesEffects)
+  | ({ status: 'unchanged' } & InstancePropertiesEffects)
+  | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & InstancePropertiesEffects)
+  | ({ status: 'refused'; source: 'owner'; code: string; message: string } & InstancePropertiesEffects)
+/** Trusted captured Pattern metadata, the only source the control check accepts. */
+function capturedPatternResolver(capture: ShowV2PilotPreparedCapture): ShowInstancePropertyDependenciesV2 {
+  return { resolvePattern: reference => resolveCapturedShowPatternReplacementV2(capture, reference) }
+}
+function validInstancePropertiesIntent(intent: unknown): intent is ShowV2PilotInstancePropertiesIntent {
+  const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  const unit = (value: unknown): boolean => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+  if (!exactIntentFields(intent, ['clipId', 'properties']) || !object(intent)) return false
+  if (typeof intent.clipId !== 'string' || !intent.clipId.trim() || !object(intent.properties)) return false
+  const properties = intent.properties
+  const names = Object.keys(properties)
+  if (!names.length || names.some(name => !['controls', 'time_scale', 'time_offset_ms', 'evaluation', 'stepped_clock'].includes(name))) return false
+  if (properties.controls !== undefined && (!object(properties.controls) || !Object.values(properties.controls).every(unit))) return false
+  if (properties.time_scale !== undefined && (typeof properties.time_scale !== 'number' || !Number.isFinite(properties.time_scale) || properties.time_scale < 0 || properties.time_scale > 8)) return false
+  if (properties.time_offset_ms !== undefined && (typeof properties.time_offset_ms !== 'number' || !Number.isSafeInteger(properties.time_offset_ms))) return false
+  if (properties.evaluation !== undefined && !['live', 'freeze-at-entry', 'rolling-refresh'].includes(properties.evaluation as string)) return false
+  if (properties.stepped_clock === undefined || properties.stepped_clock === null) return true
+  return exactIntentFields(properties.stepped_clock, ['stepMs'])
+    && typeof (properties.stepped_clock as { stepMs: unknown }).stepMs === 'number'
+    && Number.isFinite((properties.stepped_clock as { stepMs: number }).stepMs)
+    && (properties.stepped_clock as { stepMs: number }).stepMs > 0
+}
+export async function admitShowV2PilotInstanceProperties(request: ShowV2PilotInstancePropertiesRequest): Promise<ShowV2PilotInstancePropertiesOutcome> {
+  const empty: InstancePropertiesEffects = { affectedClipIds: [], affectedInstanceIds: [] }
+  if (!validInstancePropertiesIntent(request.intent)) {
+    return { status: 'refused', source: 'owner', code: 'invalid-argument', message: 'Give one Clip and at least one supported Pattern-instance value.', ...empty }
+  }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'instance-properties' as const })
+  if (outcome.status === 'refused' && outcome.source === 'admission') return { ...outcome, ...empty }
+  if (outcome.status === 'refused') {
+    return { status: 'refused', source: 'owner', code: outcome.result.code ?? 'engine-refused', message: outcome.result.message ?? 'The owner declined this edit.', ...empty }
+  }
+  if (outcome.status === 'unchanged') return { status: 'unchanged', ...empty }
+  const effects: InstancePropertiesEffects = {
+    affectedClipIds: outcome.result.affectedClipIds ?? [],
+    affectedInstanceIds: outcome.result.affectedInstanceIds ?? [],
+  }
+  return { status: 'applied', settlement: outcome.settlement, ...effects }
 }
 export type ShowV2PilotGroupOccurrenceEditIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2
 export type ShowV2PilotGroupOccurrenceEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotGroupOccurrenceEditIntent }

@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { ShowClipInspectorV2 } from './ShowClipInspectorV2'
 import { ShowV2RoutePilot } from './ShowV2RoutePilot'
 import { useShowV2EditCapture } from './useShowV2EditCapture'
+import { applyShowCommandV2 } from '../engine/showCommandsV2/registry'
 import { propertyEditGroupRecord } from '../test/showV2PropertyEditsFixture'
 import { showInitialState, useShowStore } from '../store/showStore'
 import { patternInitialState, usePatternStore } from '../store/patternStore'
@@ -244,6 +245,72 @@ it('a Group occurrence selection is inspected through its Group, never edited as
   // The instance panel still counts every effective use, Group Clip uses included.
   expect(within(panel).getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Shared by 3 Clips')
   expect(within(panel).getAllByRole('listitem')).toHaveLength(3)
+})
+
+it('the entry policy control writes through the same owner update_clips uses', async () => {
+  const { fireEvent } = await import('@testing-library/react')
+  const { record, writes } = seed()
+  render(<Harness showId={record.id} />)
+  await selectClip()
+  expect(screen.getByLabelText('Clip entry policy')).toHaveValue('continue')
+
+  fireEvent.change(screen.getByLabelText('Clip entry policy'), { target: { value: 'restart' } })
+  await waitFor(() => expect(writes).toHaveLength(1))
+  const adopted = useShowStore.getState().showV2Pilots[record.id]
+  expect(adopted.composition.clips[0].entryPolicy).toBe('restart')
+  // One authored flag, one history entry, nothing else moved.
+  expect({ ...adopted, composition: { ...adopted.composition, clips: record.composition.clips } })
+    .toEqual({ ...record, updatedAt: adopted.updatedAt })
+  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([record])
+
+  const viaCommand = applyShowCommandV2(structuredClone(record), 'update_clips', {
+    updates: [{ clip_id: 'clip', entry_policy: 'restart' }],
+  })
+  expect(viaCommand.status).toBe('changed')
+  if (viaCommand.status !== 'changed') return
+  expect({ ...adopted, updatedAt: 0 }).toEqual({ ...viaCommand.record, updatedAt: 0 })
+})
+
+it('re-selecting the authored entry policy is a no-op that writes nothing', async () => {
+  const { fireEvent } = await import('@testing-library/react')
+  const { record, writes } = seed()
+  render(<Harness showId={record.id} />)
+  await selectClip()
+  fireEvent.change(screen.getByLabelText('Clip entry policy'), { target: { value: 'continue' } })
+
+  expect(await screen.findByText('Entry policy is unchanged.')).toBeInTheDocument()
+  expect(writes).toHaveLength(0)
+  expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record)
+  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
+})
+
+it('Pattern instance values write through the shared owner and every Clip use sees them', async () => {
+  const { fireEvent } = await import('@testing-library/react')
+  const { record, writes } = seed()
+  render(<Harness showId={record.id} />)
+  await selectClip()
+  // The panel warns that the write is shared before it is made.
+  expect(screen.getByTestId('show-clip-instance-values'))
+    .toHaveTextContent('These values affect all 3 Clip uses of this Pattern instance.')
+  // Only the Pattern's declared sliders are offered, never the record's own map.
+  expect(screen.getByLabelText('sliderGain')).toBeInTheDocument()
+  expect(screen.queryByLabelText('sliderUndeclared')).toBeNull()
+
+  await commitNumber('Animation speed', '0.5')
+  await waitFor(() => expect(writes).toHaveLength(1))
+  expect(useShowStore.getState().showV2Pilots[record.id].composition.patternInstances[0].time.timeScale).toBe(0.5)
+
+  fireEvent.click(screen.getByLabelText('Stutter Pattern clock'))
+  await waitFor(() => expect(writes).toHaveLength(2))
+  const stuttered = useShowStore.getState().showV2Pilots[record.id]
+  expect(stuttered.composition.patternInstances[0].time.steppedClock).toEqual({ stepMs: 250 })
+
+  const viaCommand = applyShowCommandV2(structuredClone(record), 'update_clips', {
+    updates: [{ clip_id: 'clip', instance_properties: { time_scale: 0.5 } }],
+  })
+  expect(viaCommand.status).toBe('changed')
+  if (viaCommand.status !== 'changed') return
+  expect(writes[0].composition.patternInstances).toEqual(viaCommand.record.composition.patternInstances)
 })
 
 function compiledMember(record: ShowRecordV2): string {

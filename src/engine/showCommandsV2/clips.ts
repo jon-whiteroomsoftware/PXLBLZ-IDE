@@ -193,7 +193,12 @@ function combineResults(
   return merged as unknown as { status: 'changed'; record: ShowRecordV2 }
 }
 
-/** Clip entry policy and Zone sample mode: authored flags with no owner cascade. */
+/**
+ * Clip entry policy and Zone sample mode: authored flags with no owner cascade.
+ * The entry policy goes through the shared `set-entry-policy` owner in
+ * `showClipsV2`, which the editor's admission wrapper also calls, so the command
+ * and the editor cannot write that flag two different ways.
+ */
 function writeClipFlags(
   record: ShowRecordV2,
   clipId: string,
@@ -202,11 +207,15 @@ function writeClipFlags(
   const clip = record.composition.clips.find(candidate => candidate.id === clipId)!
   const entryPolicy = (patch.entry_policy as 'continue' | 'restart' | undefined) ?? clip.entryPolicy
   const zoneSampleMode = (patch.zone_sample_mode as ShowRecordV2['composition']['clips'][number]['zoneSampleMode'] | undefined) ?? clip.zoneSampleMode
-  if (entryPolicy === clip.entryPolicy && zoneSampleMode === clip.zoneSampleMode) return { status: 'unchanged', record }
-  const next = structuredClone(record)
-  const edited = next.composition.clips.find(candidate => candidate.id === clipId)!
-  edited.entryPolicy = entryPolicy
-  edited.zoneSampleMode = zoneSampleMode
+  const policy = editShowClipV2(record, { kind: 'set-entry-policy', clipId, entryPolicy })
+  if (policy.status === 'refused') return { status: 'refused', record, code: policy.code, message: policy.message }
+  if (zoneSampleMode === clip.zoneSampleMode) {
+    return policy.status === 'changed'
+      ? { status: 'changed', record: policy.record, affectedClipIds: [clipId] }
+      : { status: 'unchanged', record }
+  }
+  const next = structuredClone(policy.record)
+  next.composition.clips.find(candidate => candidate.id === clipId)!.zoneSampleMode = zoneSampleMode
   return { status: 'changed', record: next, affectedClipIds: [clipId] }
 }
 
