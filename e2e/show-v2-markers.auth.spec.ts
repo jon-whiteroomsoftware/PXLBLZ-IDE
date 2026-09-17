@@ -14,7 +14,7 @@ test('v2 Marker changes, refusal, Undo/Redo and saved-byte reopen share one hist
   await page.setViewportSize({ width: 390, height: 844 })
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
-  await expect(page.getByTestId('studio-entity-drawer')).toBeHidden()
+  await expect(page.locator('[data-testid="studio-entity-drawer"][data-studio-drawer-owner="studio-entity-list"]')).toBeHidden()
   await markers.getByLabel('Marker time', { exact: true }).scrollIntoViewIfNeeded()
   await expect(markers.getByLabel('Marker time', { exact: true })).toBeVisible()
   const overflows = await route.evaluate(root => [...root.querySelectorAll<HTMLElement>('input,select,button')].filter(element => element.getBoundingClientRect().right > window.innerWidth + 1).map(element => element.getAttribute('aria-label') || element.textContent))
