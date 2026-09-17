@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
   "issue": 1065,
-  "sourceRunId": "bounded-behavior-3",
-  "generatedAt": "2026-09-17T20:25:25.922Z",
+  "sourceRunId": "repair-behavior-20260917",
+  "generatedAt": "2026-09-17T21:13:49.428Z",
+  "pairSeedingValidity": "qualified-persisted-v1-derived-v2",
   "gesture": "pointer Clip drag by +2000ms",
   "outcomes": [
     {

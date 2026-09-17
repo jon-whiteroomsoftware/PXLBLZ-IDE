@@ -11,7 +11,7 @@ npm run show:editor-equivalence:fixtures
 npm run show:editor-equivalence
 ```
 
-The second command provisions an isolated authenticated runtime, stores each v1 source and its converter-produced v2 record as separate rows, and runs both visual and pointer-gesture tests. A complete run is expected to exit nonzero until the v2 record opens in the existing editor. This diagnostic is deliberately excluded from the ordinary `test:e2e:shows` and final-suite commands while it records that known mismatch.
+The second command provisions an isolated authenticated runtime, stores each v1 source, reads its persisted representation back, and converts that persisted representation into the independently stored v2 row. It also checks the raw committed v1/v2 fixture pair against the current converter so fixture drift still fails closed. It then runs both visual and pointer-gesture tests. A complete run is expected to exit nonzero until the v2 record opens in the existing editor. This diagnostic is deliberately excluded from the ordinary `test:e2e:shows` and final-suite commands while it records that known mismatch.
 
 For manual inspection on the managed #1065 runtime:
 
@@ -19,7 +19,7 @@ For manual inspection on the managed #1065 runtime:
 npm run show:editor-equivalence:seed -- --issue 1065 --url http://localhost:5178/PXLBLZ-IDE/
 ```
 
-The seed command prints the synthetic user's ordinary v1 and v2 routes without printing the session token or signing secret. Before storing a v2 row, the Playwright oracle reruns the current browser converter and rejects a committed fixture whose converted record has gone stale.
+The seed command prints the synthetic user's ordinary v1 and v2 routes without printing the session token or signing secret. It applies the same persisted-v1 conversion sequence as the Playwright oracle. Before storing that v2 row, both paths rerun the current converter and reject a committed fixture whose raw conversion has gone stale.
 
 Raw captures and reports go to a run-specific directory under `/tmp/pxlblz-show-editor-equivalence/`. Set `PXLBLZ_EQUIVALENCE_RUN_ID` for a stable run name or `PXLBLZ_EQUIVALENCE_OUTPUT` for an explicit directory. Optional exact filters are:
 
@@ -46,7 +46,7 @@ The committed corpus contains:
 
 Every case runs at 1440×1000 and 390×844. The strict consumer boundary is the complete existing editor pane. Named verdict surfaces include its header, timeline, toolbar, Stage canvas, preview strip, actions, Clip/Transition/Zone Layout/Show detail surfaces, transition palette, actual property-animation popover, computed open Zone rail, and Zone Map. The unmodified full window is retained as diagnostic evidence but excluded from the equivalence verdict because the library's selected-row position necessarily follows the two different storage IDs.
 
-Every endpoint records x/y position, width, height, SHA-256, and exact RGBA comparison metrics. A moved surface fails even when its cropped pixels are identical. Every v1 and v2 capture is repeated; any nonzero repeat difference is classified as unstable evidence and fails before the cross-version result is considered. Missing v1 baselines are not accepted as expected red. Animations, transitions, caret, font readiness, transport time, and pointer parking are deterministic; no pixels or surfaces are masked and there is no tolerance.
+Every endpoint records x/y position, width, height, SHA-256, and exact RGBA comparison metrics. A moved surface fails even when its cropped pixels are identical. Before every independent capture, setup writes the persisted per-Show Zones rail state to the same closed baseline; a surface that opens the rail cannot contaminate any later surface or viewport. Every v1 and v2 capture is repeated; any nonzero repeat difference is classified as unstable evidence and fails before the cross-version result is considered. Missing v1 baselines are not accepted as expected red. Animations, transitions, caret, font readiness, transport time, and pointer parking are deterministic; no pixels or surfaces are masked and there is no tolerance.
 
 ## Behavioral verdict
 
@@ -61,6 +61,16 @@ A missing ordinary v1 gesture or control on the v2 route is a product-unavailabl
 
 ## Recorded run
 
-The compact JSON summaries and representative v1/v2 editor captures in this directory come from the 2026-09-17 oracle qualification. Raw run directories remain external because the full matrix produces many PNGs and verbose converter accounting.
+The compact JSON summaries and representative v1/v2 editor captures in this directory come from the 2026-09-17 oracle work. Raw run directories remain external because the full matrix produces many PNGs and verbose converter accounting.
 
-The final full run `full-final-20260917c` produced 80 comparisons and 72 strict verdict rows. All rows were stable product comparisons: zero unstable captures and zero invalid or missing v1 baselines. Its verdict remained red: 24 pixel mismatches, 24 dimension mismatches, and 32 missing v2 surfaces. The representative fresh desktop whole-editor row was stable in both versions and then differed by 1,031,563 pixels with maximum channel delta 255. The bounded behavior row fully passed the v1 reference path: one save, history depth one, exact moved-state hydration, then one Undo save and exact preimage restoration. The rejected v2 route did not expose the v1 Clip gesture, so the behavioral verdict stayed red.
+The historical full run `full-final-20260917c` produced 80 comparisons and 72 strict verdict rows, but it is superseded as acceptance evidence. Its capture preparation persisted an opened Zones rail, so later surfaces and viewports were not guaranteed to begin from the same UI state. Its reported counts remain in `visual-summary.json` only as diagnostic provenance; they must not be cited as a qualified complete matrix. The representative whole-editor image preceded the Zones surface and remains illustrative, not acceptance proof.
+
+The corrective focused run `repair-focused-20260917` passed both repair checks in an isolated authenticated browser: it opened and persisted the Installation fixture's Zones rail, then proved the next independent capture setup restored the closed baseline; it also proved that storage added `stageMapId: null` to v1, that the v2 row retained it, and that converting the persisted v1 row matched the stored v2 row after removing only row identity and timestamp. The pure oracle separately proves that `stageMapId` differences remain observable.
+
+The corrected complete run `repair-full-20260917` produced all 80 comparisons and 72 strict verdict rows. All 80 were stable product comparisons, with zero unstable captures and zero invalid or missing v1 baselines. The strict verdict remains red: 24 dimension mismatches, 16 pixel mismatches and 32 missing v2 surfaces. Eight additional full-window diagnostics differed by pixels. The authenticated browser boundary also reported 155 HTTP 409 console errors during the run; they did not make any capture incomplete or unstable, but remain recorded diagnostic noise rather than accepted behavior.
+
+The coordinator also opened the corrected persisted-v1-derived Installation pair on the ordinary managed routes and captured `repair-installation-v1.png` and `repair-installation-v2.png` at 1280×720. The pair confirms the v1 route retains the ordinary rail and layout while the v2 route remains the rejected form UI. The transport times differ, so this manual gross-layout comparison is provenance for the opened rows, not deterministic pixel evidence.
+
+The bounded behavior run `repair-behavior-20260917` used the corrected persisted pair. Its v1 reference path again qualified one drag, one save, history depth one, exact moved-state hydration, then one Undo save and exact preimage restoration. The rejected v2 route did not expose the ordinary v1 Clip gesture, so the diagnostic exited red as designed.
+
+Two P3 limitations remain filed on #1064 and were deliberately not widened into this repair: save counting observes request emission before the matching persistence response settles, and empty-string environment filters are interpreted as absent rather than rejected. Filtered probes therefore remain diagnostic only, and save-settlement precision must not be inferred from this evidence.

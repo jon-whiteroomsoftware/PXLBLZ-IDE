@@ -77,6 +77,9 @@ describe('Show editor equivalence oracle fault sensitivity', () => {
       ...base,
       composition: { clips: [{ id: 'clip', startMs: 1_001 }] },
     }))
+    expect(normalizeShowEquivalenceRecord({ ...base, stageMapId: null })).not.toEqual(
+      normalizeShowEquivalenceRecord(base),
+    )
   })
 
   it('rejects unequal records, history depth, save count, or Undo restoration', () => {

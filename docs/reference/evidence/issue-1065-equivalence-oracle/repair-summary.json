@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "issue": 1065,
+  "sourceRunId": "repair-focused-20260917",
+  "generatedAt": "2026-09-17T21:15:25Z",
+  "result": "passed",
+  "tests": {
+    "passed": 2,
+    "failed": 0
+  },
+  "zonesCaptureBaseline": {
+    "fixture": "installation-layouts",
+    "persistedOpenBeforeNextCapture": true,
+    "persistedOpenAfterNextCaptureSetup": false
+  },
+  "persistedPair": {
+    "fixture": "pointer-drag",
+    "v1StageMapId": null,
+    "v2StageMapId": null,
+    "convertedPersistedV1EqualsStoredV2": true,
+    "normalization": [
+      "id",
+      "updatedAt"
+    ]
+  },
+  "visualMatrix": {
+    "sourceRunId": "repair-full-20260917",
+    "comparisons": 80,
+    "strictVerdicts": 72,
+    "productComparisons": 80,
+    "invalidV1Baselines": 0,
+    "unstableCaptures": 0,
+    "strictDifferences": {
+      "dimensions": 24,
+      "pixels": 16,
+      "missingV2Surfaces": 32
+    },
+    "fullWindowDiagnosticPixelDifferences": 8,
+    "browserConsoleHttp409Conflicts": 155
+  },
+  "coordinatorInspection": {
+    "viewport": "1280x720",
+    "scope": "gross-layout comparison on ordinary managed routes; transport times differ",
+    "v1Capture": {
+      "path": "repair-installation-v1.png",
+      "sha256": "5a8cc1e5d6eea5c0ab48763af7f0b27b28d33230769a9b4fdc98d652708f7ede"
+    },
+    "v2Capture": {
+      "path": "repair-installation-v2.png",
+      "sha256": "eab615ffbaf3413bd80c1d9e1f9de976d493d9ee85ab0ac346e52680131e19d1"
+    }
+  },
+  "residuals": [
+    "The current rejected v2 route still lacks the ordinary v1 Clip gesture.",
+    "Save counting observes request emission before the matching persistence response settles (#1064 P3).",
+    "Empty-string environment filters are interpreted as absent rather than rejected (#1064 P3)."
+  ]
+}

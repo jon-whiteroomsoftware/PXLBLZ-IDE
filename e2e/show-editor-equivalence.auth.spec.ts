@@ -102,6 +102,42 @@ if (activeFixtures.length === 0) throw new Error(`Unknown Show editor equivalenc
 if (activeViewports.length === 0) throw new Error(`Unknown Show editor equivalence viewport filter: ${viewportFilter}`)
 if (activeSurfaces.length === 0) throw new Error(`Unknown Show editor equivalence surface filter: ${surfaceFilter}`)
 
+test('capture setup resets persisted per-Show Zones rail state before every capture', async ({ page }) => {
+  page.setDefaultTimeout(10_000)
+  const fixture = manifest.corpus.find(item => item.key === 'installation-layouts')!
+  const pair = await seedPair(page, fixture.key, fixture)
+  const viewport = viewportCases[0]
+
+  await openAtFixedState(page, pair.v1Id, fixture.fixedTimeMs, viewport)
+  await page.getByRole('button', { name: 'Open Zones' }).click()
+  await expect(page.getByRole('button', { name: 'Close Zones' })).toBeVisible()
+  expect(await readZoneWorkspaceOpen(page, pair.v1Id)).toBe(true)
+
+  await openAtFixedState(page, pair.v1Id, fixture.fixedTimeMs, viewport)
+  await expect(page.getByRole('button', { name: 'Open Zones' })).toBeVisible()
+  expect(await readZoneWorkspaceOpen(page, pair.v1Id)).toBe(false)
+})
+
+test('pair seeding converts the persisted v1 representation without erasing storage defaults', async ({ page }) => {
+  const pair = await seedPair(page, 'pointer-drag', manifest.behavior)
+  expect(Object.hasOwn(pair.v1, 'stageMapId')).toBe(true)
+  expect(pair.v1.stageMapId).toBeNull()
+  expect(Object.hasOwn(pair.v2, 'stageMapId')).toBe(true)
+  expect(pair.v2.stageMapId).toBeNull()
+
+  const persistedSource = {
+    ...structuredClone(pair.v1),
+    id: pair.v2Id,
+    updatedAt: 1,
+  }
+  const conversion = await convertInBrowser(page, persistedSource, 'pointer-drag-persisted-proof')
+  expect(conversion.status).toBe('converted')
+  if (conversion.status !== 'converted') return
+  expect(normalizeShowEquivalenceRecord(conversion.record)).toEqual(
+    normalizeShowEquivalenceRecord(pair.v2),
+  )
+})
+
 test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({ page }) => {
   test.setTimeout(10 * 60_000)
   page.setDefaultTimeout(10_000)
@@ -311,27 +347,56 @@ async function seedPair(page: Page, key: string, fixture: FixturePair): Promise<
   const name = fixture.source.name
   const v1Id = `oracle-${key}-v1`
   const v2Id = `oracle-${key}-v2`
-  const v1 = { ...structuredClone(fixture.source), id: v1Id, name, updatedAt: 1 }
-  const v2Source = { ...structuredClone(fixture.source), id: v2Id, name, updatedAt: 1 }
-  const v2 = { ...structuredClone(fixture.converted), id: v2Id, name, updatedAt: 1 }
+  const rawV1 = { ...structuredClone(fixture.source), id: v1Id, name, updatedAt: 1 }
+  const rawV2Source = { ...structuredClone(fixture.source), id: v2Id, name, updatedAt: 1 }
+  const committedV2 = { ...structuredClone(fixture.converted), id: v2Id, name, updatedAt: 1 }
   if (fixture.conversionReport.retiredSilentRuntimeUses.length > 0) {
     throw new Error(`${key} carries retired silent runtime use and is unsuitable for the basic equivalence corpus.`)
   }
-  const currentConversion = await convertInBrowser(page, v2Source, key)
-  if (currentConversion.status !== 'converted') {
-    throw new Error(`${key} current conversion refused: ${JSON.stringify(currentConversion.issues)}`)
+
+  // The committed fixture still detects converter drift. It is not the row
+  // seeded for comparison: storage may add authored defaults such as
+  // stageMapId:null, so the actual pair must be based on the persisted v1 row.
+  const fixtureConversion = await convertInBrowser(page, rawV2Source, `${key}-fixture-freshness`)
+  if (fixtureConversion.status !== 'converted') {
+    throw new Error(`${key} current fixture conversion refused: ${JSON.stringify(fixtureConversion.issues)}`)
   }
-  if (!isDeepStrictEqual(currentConversion.record, v2)) {
+  if (!isDeepStrictEqual(fixtureConversion.record, committedV2)) {
     throw new Error(`${key} committed converted fixture is stale against the runtime converter.`)
   }
+
   for (const id of [v1Id, v2Id]) await page.request.delete(`/api/shows/${id}`)
-  for (const source of [v1, v2Source]) {
-    const created = await page.request.post('/api/shows', { data: source })
-    expect(created.ok(), await created.text()).toBe(true)
+  const createdV1 = await page.request.post('/api/shows', { data: rawV1 })
+  expect(createdV1.ok(), await createdV1.text()).toBe(true)
+  const persistedV1 = await readStoredShow(page, v1Id, 'v1') as ShowRecord
+  const persistedV2Source = {
+    ...structuredClone(persistedV1),
+    id: v2Id,
+    name,
+    updatedAt: 1,
   }
-  const stored = await page.request.put(`/api/shows/${v2Id}?show-version=2`, { data: v2 })
+  const createdV2Source = await page.request.post('/api/shows', { data: persistedV2Source })
+  expect(createdV2Source.ok(), await createdV2Source.text()).toBe(true)
+
+  const persistedConversion = await convertInBrowser(page, persistedV2Source, `${key}-persisted-v1`)
+  if (persistedConversion.status !== 'converted') {
+    throw new Error(`${key} persisted v1 conversion refused: ${JSON.stringify(persistedConversion.issues)}`)
+  }
+  if (persistedConversion.report.retiredSilentRuntimeUses.length > 0) {
+    throw new Error(`${key} persisted v1 row carries retired silent runtime use.`)
+  }
+  const stored = await page.request.put(`/api/shows/${v2Id}?show-version=2`, { data: persistedConversion.record })
   expect(stored.ok(), await stored.text()).toBe(true)
-  return { key, name, v1Id, v2Id, v1, v2, conversionReport: fixture.conversionReport }
+  const persistedV2 = await readStoredShow(page, v2Id, 'v2') as ShowRecordV2
+  return {
+    key,
+    name,
+    v1Id,
+    v2Id,
+    v1: persistedV1,
+    v2: persistedV2,
+    conversionReport: persistedConversion.report,
+  }
 }
 
 async function convertInBrowser(page: Page, source: ShowRecord, key: string) {
@@ -359,6 +424,7 @@ async function openAtFixedState(page: Page, id: string, fixedTimeMs: number, vie
   await page.setViewportSize(viewport)
   await page.goto(`studio/shows/${id}?capture`, { waitUntil: 'domcontentloaded', timeout: 15_000 })
   await expect(page.getByTestId('show-stage-preview')).toBeVisible()
+  await resetCaptureSessionState(page, id)
   await closeAgentDrawer(page)
   await page.waitForFunction(() => Boolean(window.__pxlblzShow))
   const pause = page.getByRole('button', { name: 'Pause Show preview' }).first()
@@ -392,6 +458,23 @@ async function openAtFixedState(page: Page, id: string, fixedTimeMs: number, vie
   await page.keyboard.press('Escape')
   await page.mouse.move(viewport.width / 2, 2)
   await page.evaluate(() => new Promise<void>(resolveFrame => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()))))
+}
+
+async function resetCaptureSessionState(page: Page, showId: string): Promise<void> {
+  await page.evaluate(async (id) => {
+    const load = (path: string) => import(path)
+    const { useShowEditorSessionStore } = await load('/PXLBLZ-IDE/src/store/showEditorSessionStore.ts')
+    useShowEditorSessionStore.getState().setZoneWorkspaceOpen(id, false)
+  }, showId)
+  await expect.poll(() => readZoneWorkspaceOpen(page, showId)).toBe(false)
+}
+
+async function readZoneWorkspaceOpen(page: Page, showId: string): Promise<boolean | undefined> {
+  return page.evaluate(async (id) => {
+    const load = (path: string) => import(path)
+    const { useShowEditorSessionStore } = await load('/PXLBLZ-IDE/src/store/showEditorSessionStore.ts')
+    return useShowEditorSessionStore.getState().zoneWorkspaceOpenByShowId[id]
+  }, showId)
 }
 
 async function closeAgentDrawer(page: Page): Promise<void> {

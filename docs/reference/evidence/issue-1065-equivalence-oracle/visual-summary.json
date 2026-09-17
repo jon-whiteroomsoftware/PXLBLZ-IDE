@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
   "issue": 1065,
-  "sourceRunId": "full-final-20260917c",
-  "generatedAt": "2026-09-17T20:51:54.150Z",
+  "sourceRunId": "repair-full-20260917",
+  "generatedAt": "2026-09-17T21:26:04.226Z",
+  "validity": "qualified-corrected-capture-state",
   "filters": {
     "fixture": null,
     "viewport": null,
@@ -21,10 +22,17 @@
     "invalid-v1-baseline": 0,
     "unstable-capture": 0
   },
-  "reasonCounts": {
+  "strictVerdictReasonCounts": {
     "dimensions-differ": 24,
-    "pixels-differ": 24,
+    "pixels-differ": 16,
     "surface-missing": 32
+  },
+  "diagnosticReasonCounts": {
+    "pixels-differ": 8
+  },
+  "browserConsoleResidual": {
+    "http409Conflicts": 155,
+    "effectOnCaptureEvidence": "none incomplete or unstable"
   },
   "missingV1Baselines": 0,
   "representativeWholeEditor": {
@@ -36,7 +44,7 @@
       "y": 40,
       "width": 1126,
       "height": 960,
-      "path": "/tmp/pxlblz-show-editor-equivalence/full-final-20260917c/fresh-desktop-whole-editor-v1-a.png",
+      "path": "/tmp/pxlblz-show-editor-equivalence/repair-full-20260917/fresh-desktop-whole-editor-v1-a.png",
       "sha256": "149312d1b846137c54f48793481c7f290293f57948f77f512aad40dcb4331808"
     },
     "v2": {
@@ -45,7 +53,7 @@
       "y": 40,
       "width": 1126,
       "height": 960,
-      "path": "/tmp/pxlblz-show-editor-equivalence/full-final-20260917c/fresh-desktop-whole-editor-v2-a.png",
+      "path": "/tmp/pxlblz-show-editor-equivalence/repair-full-20260917/fresh-desktop-whole-editor-v2-a.png",
       "sha256": "74be648647aaf2f95bc753b1850175b7a756ce6389e13399bef15a44bf29945c"
     },
     "changedPixels": 1031563,

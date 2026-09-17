@@ -1,6 +1,7 @@
 # Connect the existing Show editor to v2
 
-Decision requested under #1065. This recommendation does not authorize the tracer.
+Jon accepted recommendation B on 2026-09-17 for the bounded #1065 tracer.
+This document does not authorize #1066, #1067, publication or deployment.
 The current base is `4cbfb23f5bed833bb5d826147999504f452ea257`. The gate remains on
 by Jon's direction; nothing may be pushed. The governing specification is
 [Scene retirement](scene-retirement-specification.md), last changed at
@@ -89,15 +90,17 @@ per-surface adapters; do not spread a `ShowRecord | ShowRecordV2` union through
 every leaf. Preserve the v1 branch while each v2 connection is proved.
 No elapsed-time estimate is justified before the tracer qualifies these seams.
 
-## Tracer boundaries after Jon chooses
+## Accepted tracer boundaries
 
 The tracer should connect the existing route/workspace to authoritative v2 data,
 render every named oracle surface for the complete requested corpus, and implement one
 ordinary pointer Clip move. The gesture retains its existing hit targets,
-quantization, snapping and visual feedback; the v2 planner resolves an intent and
-the closed prepared-edit admission owns adoption. One accepted move must create
-one history entry and one save, survive reload, and compare equal through the
-converter. Undo restores the exact preimage through the same history owner.
+quantization, snapping and visual feedback. Translate the settled ordinary v1
+move into the documented `ShowClipTemporalIntentV2`, then let the closed
+prepared-edit admission own adoption. Do not reuse the rejected
+`showTimelineGesturesV2` helper. One accepted move must create one history entry
+and one save, survive reload, and compare equal through the converter. Undo
+restores the exact preimage through the same history owner.
 
 The tracer must stop for diagnosis if it needs any of the following:
 
@@ -138,4 +141,5 @@ history entry, exact moved-state hydration and exact Undo restoration. No produc
 UI or engine behavior changed in this slice. The oracle must become green through
 the connection work; the rejected screen cannot become its accepted baseline.
 
-**Decision pending. No tracer, #1066 or #1067 implementation is authorized by this document.**
+**Decision accepted 2026-09-17: proceed with the bounded #1065 tracer after the
+oracle corrections. #1066 and #1067 remain out of scope, and nothing may be pushed.**
