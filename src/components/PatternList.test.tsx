@@ -24,6 +24,7 @@ import { createDefaultShow } from '@/engine/showModel'
 import { createShowV2WithOutputContract } from '@/engine/showCreationV2'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import type { LastActive } from '@/engine/personalContentProvider'
 import type { Settings } from '@/engine/settings'
 import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
@@ -47,6 +48,7 @@ let mockControllers: ControllerProfile[] = []
 let mockShows: ReturnType<typeof createDefaultShow>[] = []
 let mockShowsV2: ShowRecordV2[] = []
 let mockLastActive: LastActive | undefined
+let mockShowOrganization: EntityOrganizationV1 | undefined
 let mockDemoOverrides: Record<string, Partial<Settings>> | undefined
 let requests: Array<{ url: string; init?: RequestInit }> = []
 let blockedWrite: { path: string; method: string } | null = null
@@ -64,6 +66,7 @@ beforeEach(() => {
   mockShows = []
   mockShowsV2 = []
   mockLastActive = undefined
+  mockShowOrganization = undefined
   mockDemoOverrides = undefined
   requests = []
   blockedWrite = null
@@ -151,6 +154,13 @@ beforeEach(() => {
     if (String(url) === '/api/settings/demoOverrides' && init?.method === undefined) {
       return Response.json({ value: mockDemoOverrides })
     }
+    if (String(url) === '/api/settings/showOrganization' && init?.method === undefined) {
+      return Response.json({ value: mockShowOrganization })
+    }
+    if (String(url) === '/api/settings/showOrganization' && init?.method === 'PUT') {
+      mockShowOrganization = (JSON.parse(String(init.body)) as { value: EntityOrganizationV1 }).value
+      return Response.json({ ok: true })
+    }
     if (String(url).startsWith('/api/settings/') && init?.method === undefined) {
       return Response.json({})
     }
@@ -213,6 +223,13 @@ async function switchRailMode(mode: 'Patterns' | 'Shows' | 'Maps' | 'Controllers
 
 async function switchToMaps(_user: ReturnType<typeof userEvent.setup>) { await switchRailMode('Maps') }
 async function switchToMixins(_user: ReturnType<typeof userEvent.setup>) { await switchRailMode('Mixins') }
+
+/** Every persisted write of the Shows organization this render performed. */
+function showOrganizationWrites(): EntityOrganizationV1[] {
+  return requests
+    .filter((request) => request.url === '/api/settings/showOrganization' && request.init?.method === 'PUT')
+    .map((request) => (JSON.parse(String(request.init!.body)) as { value: EntityOrganizationV1 }).value)
+}
 
 function setStudioLocation(path = '/studio') {
   window.history.replaceState(null, '', path)
@@ -1285,6 +1302,38 @@ describe('PatternList', () => {
         kind: 'studio',
         entity: { kind: 'shows', id: copy.id },
       }))
+    })
+
+    /**
+     * The startup hydration load is the one reconciliation that runs on every
+     * page load, so reconciling it against the v1 ids alone pruned a v2 row out
+     * of its folder and persisted the pruned organization, after which the rail's
+     * id-sync effect re-appended the row at the root (#1039).
+     */
+    it('keeps a v2 row inside its folder on the startup organization load, and writes nothing', async () => {
+      mockShowsV2 = [createShowV2WithOutputContract('v2-folded', 'Folded v2', V2_CONTRACT, 1)]
+      mockShowOrganization = {
+        version: 1,
+        nodes: [{
+          kind: 'folder',
+          id: 'folder-1',
+          name: 'Installations',
+          children: [{ kind: 'entity', entityId: 'v2-folded' }],
+        }],
+        trash: [],
+        collapsedFolderIds: [],
+      }
+      await renderShowsRail()
+      await screen.findByText('Folded v2')
+
+      await waitFor(() => expect(useEntityOrganizationStore.getState().loaded.shows).toBe(true))
+      await waitFor(() => expect(useEntityOrganizationStore.getState().organizations.shows.nodes).toEqual([{
+        kind: 'folder',
+        id: 'folder-1',
+        name: 'Installations',
+        children: [{ kind: 'entity', entityId: 'v2-folded' }],
+      }]))
+      expect(showOrganizationWrites()).toEqual([])
     })
   })
 })

@@ -1,12 +1,14 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ShowTimelineGestureSurface, type ShowTimelineGestureHandlers } from './ShowTimelineGestureSurface'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { projectShowTimelineV2 } from '@/engine/showTimelineViewModelV2'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { transitionV1Show } from '@/test/showV2TracerFixture'
 
 const LANE_WIDTH_PX = 1_000
+const SHOW_ID = 'transport-show'
 
 /** "out" 0-400 and "in" 600-1000 on one Layer, inside a four-second Show. */
 function record(): ShowRecordV2 {
@@ -17,7 +19,10 @@ function record(): ShowRecordV2 {
   return converted.record
 }
 
-function renderSurface(overrides: Partial<ShowTimelineGestureHandlers> = {}) {
+function renderSurface(
+  overrides: Partial<ShowTimelineGestureHandlers> = {},
+  transportShowId?: string,
+) {
   const submit = vi.fn()
   const undo = vi.fn()
   const redo = vi.fn()
@@ -30,6 +35,7 @@ function renderSurface(overrides: Partial<ShowTimelineGestureHandlers> = {}) {
       view={projectShowTimelineV2(record())}
       statusLine="Editing this v2 Show."
       gestures={handlers}
+      {...(transportShowId === undefined ? {} : { transportShowId })}
     />,
   )
   return { submit, undo, redo, onFocused }
@@ -40,6 +46,7 @@ const edge = (side: 'Start' | 'End', name: string) =>
   screen.getByRole('button', { name: new RegExp(`^${side} edge of Clip ${name},`) })
 
 beforeEach(() => {
+  useShowTransportStore.setState(showTransportInitialState)
   // jsdom reports a zero-sized layout; the lane needs a width to map pixels to time.
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
     x: 0, y: 0, top: 0, left: 0, right: LANE_WIDTH_PX, bottom: 32, width: LANE_WIDTH_PX, height: 32,
@@ -209,5 +216,43 @@ describe('v2 timeline gesture surface', () => {
     const { onFocused } = renderSurface({ focusClipId: 'in' })
     expect(body('Incoming')).toHaveFocus()
     expect(onFocused).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * The playhead is a magnetic boundary, and it is the only one that moves
+   * while the surface is mounted. Reading the transport once at render time
+   * magnetized drops to a playhead that is no longer drawn and gave the live
+   * one no magnetism at all (#1039).
+   */
+  it('magnetizes a drop to the playhead the transport moved to, not the one at mount', () => {
+    act(() => useShowTransportStore.getState().openShow(SHOW_ID, 4_000))
+    act(() => useShowTransportStore.getState().setPosition(SHOW_ID, 1_234))
+    const { submit } = renderSurface({}, SHOW_ID)
+
+    act(() => useShowTransportStore.getState().setPosition(SHOW_ID, 2_345))
+
+    // 583 px of a 1 000 px lane over a 4 000 ms window is 2 332 ms: inside the
+    // ten-pixel (40 ms) magnetic threshold of the new playhead, far outside the
+    // old one's.
+    fireEvent.pointerDown(body('Outgoing'), { button: 0, clientX: 0, pointerId: 21 })
+    fireEvent.pointerMove(window, { clientX: 583, pointerId: 21 })
+    fireEvent.pointerUp(window, { clientX: 583, pointerId: 21 })
+
+    expect(submit).toHaveBeenLastCalledWith({
+      kind: 'move', clipId: 'out', startMs: 2_345, zoneId: 'zone', layerId: 'layer:zone:main',
+    })
+  })
+
+  it('gives the playhead no magnetism while another Show holds the transport', () => {
+    act(() => useShowTransportStore.getState().openShow('other-show', 4_000))
+    act(() => useShowTransportStore.getState().setPosition('other-show', 2_345))
+    const { submit } = renderSurface({}, SHOW_ID)
+
+    fireEvent.pointerDown(body('Outgoing'), { button: 0, clientX: 0, pointerId: 22 })
+    fireEvent.pointerMove(window, { clientX: 583, pointerId: 22 })
+    fireEvent.pointerUp(window, { clientX: 583, pointerId: 22 })
+
+    // 2 400 is the ordinary drop grid's answer for 2 332: no boundary claimed it.
+    expect(submit).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'move', startMs: 2_400 }))
   })
 })

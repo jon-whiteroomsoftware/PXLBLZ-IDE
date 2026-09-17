@@ -101,25 +101,47 @@ export function ShowTimelineGestureSurface({
   const dragRef = useRef<Drag | null>(null)
 
   /**
-   * What a pointer gesture may magnetize to, as the v1 toolbar composes it: the
-   * playhead always, the drawn structural boundaries while the Magnet toggle is
-   * on, and Marker times while Markers are shown. The drop grid is separate and
-   * always applies; Alt is still the per-gesture escape to raw milliseconds.
+   * What a pointer gesture may magnetize to besides the playhead, as the v1
+   * toolbar composes it: the drawn structural boundaries while the Magnet
+   * toggle is on, and Marker times while Markers are shown. The drop grid is
+   * separate and always applies; Alt is still the per-gesture escape to raw
+   * milliseconds.
    */
-  const snapTimesMs = useMemo(() => {
-    const transport = useShowTransportStore.getState()
-    return [
-      ...(transportShowId !== undefined && transport.showId === transportShowId ? [transport.positionMs] : []),
-      ...(snapEnabled ? view.structuralTimesMs : []),
-      ...(markersVisible ? view.markers.map((marker) => marker.timeMs) : []),
-    ]
-  }, [markersVisible, snapEnabled, transportShowId, view])
+  const staticSnapTimesMs = useMemo(() => [
+    ...(snapEnabled ? view.structuralTimesMs : []),
+    ...(markersVisible ? view.markers.map((marker) => marker.timeMs) : []),
+  ], [markersVisible, snapEnabled, view])
+
+  /**
+   * The playhead is the one magnetic boundary that moves while this surface is
+   * mounted, so it is read per pointer sample rather than memoized: a seek or a
+   * running transport must magnetize to where the playhead is drawn now (#1039,
+   * matching v1's `positionMsRef`).
+   */
+  const initialTransport = useShowTransportStore.getState()
+  const playheadMsRef = useRef(
+    transportShowId !== undefined && initialTransport.showId === transportShowId
+      ? initialTransport.positionMs
+      : null,
+  )
+  useEffect(() => {
+    const read = (state: { showId: string | null; positionMs: number }) => {
+      playheadMsRef.current = transportShowId !== undefined && state.showId === transportShowId
+        ? state.positionMs
+        : null
+    }
+    read(useShowTransportStore.getState())
+    return useShowTransportStore.subscribe(read)
+  }, [transportShowId])
+  const snapTimesMs = () => (
+    playheadMsRef.current === null ? staticSnapTimesMs : [playheadMsRef.current, ...staticSnapTimesMs]
+  )
 
   // A live drag reads the newest view, window and handlers without restarting.
   const live = useRef({ view, gestures, viewport, snapTimesMs })
   useLayoutEffect(() => {
     live.current = { view, gestures, viewport, snapTimesMs }
-  }, [gestures, snapTimesMs, view, viewport])
+  })
   const update = (next: Drag | null) => { dragRef.current = next; setDrag(next) }
 
   useEffect(() => {
@@ -132,7 +154,8 @@ export function ShowTimelineGestureSurface({
     const onMove = (event: PointerEvent) => {
       const current = dragRef.current
       if (!current || event.pointerId !== current.pointerId) return
-      const { view: model, viewport: visible, snapTimesMs: snapTimes } = live.current
+      const { view: model, viewport: visible } = live.current
+      const snapTimes = live.current.snapTimesMs()
       if (current.mode === 'edge') {
         const resolved = resolveShowTimelineEdgeDropV2(model, {
           itemId: current.itemId,

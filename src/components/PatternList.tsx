@@ -567,7 +567,10 @@ export function PatternList({
       }
       await loadOrganization('patterns', usePatternStore.getState().userPatterns.map((pattern) => pattern.id))
       if (cancelled) return
-      await loadOrganization('shows', useShowStore.getState().shows.map((show) => show.id))
+      // Both stored versions are personal Shows in this one list; reconciling
+      // the startup load against the v1 ids alone pruned every v2 row out of
+      // its folder and persisted the pruned organization (#1039).
+      await loadOrganization('shows', personalShowIds(useShowStore.getState()))
       if (cancelled) return
       await loadOrganization('maps', useMapStore.getState().userMaps.map((map) => map.id))
       if (cancelled) return

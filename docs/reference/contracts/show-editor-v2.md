@@ -303,6 +303,13 @@ on, and Marker times while Markers are shown. They reach the resolvers as
 `structuralTimesMs` on the drop inputs; omitting that field keeps every boundary
 the view draws.
 
+The Marker, Clip-edge and Show-End candidates are memoized on the view, but the
+playhead is read per pointer sample from a ref a transport subscription keeps
+current, because it is the one candidate that moves while the surface stays
+mounted. A seek or a running transport therefore magnetizes to the playhead
+where it is drawn now, and a position the transport has left attracts nothing.
+A transport bound to another Show contributes no playhead candidate at all.
+
 These v1 controls have no v2 meaning and are intentionally absent:
 
 | v1 control | Why it is absent |
@@ -630,9 +637,12 @@ duplicates and trashes with the same row actions a v1 row offers.
 | Empty Trash | `removeShow` | one `deleteShow` by id serves both versions; the row, its working copy, its history and any save failure are forgotten together |
 
 The persisted rail organization is keyed by Show id across both stored versions,
-so every reconciliation passes `personalShowIds(...)`. Reconciling against the
-v1 ids alone prunes every surviving v2 row from the organization, which is what
-emptying the Shows Trash used to do (`PatternList.test.tsx`, "the Shows rail
+so every reconciliation passes `personalShowIds(...)` - the startup hydration
+load as well as each mutation. Reconciling against the v1 ids alone prunes every
+surviving v2 row from the organization, which is what emptying the Shows Trash
+and, on every page load, the startup load used to do; the startup case also
+persisted the pruned organization, after which the rail's id-sync effect
+re-appended each v2 row at the root (`PatternList.test.tsx`, "the Shows rail
 with stored v2 rows"). Every accepted v2 replacement also patches the matching
 `showV2Rows` entry, so a rename is visible in the list without a workspace
 reload, and a rolled-back save restores the durable name with the record.
