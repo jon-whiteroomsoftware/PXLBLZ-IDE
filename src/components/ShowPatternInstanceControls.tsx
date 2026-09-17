@@ -33,12 +33,19 @@ const JUMPS_PER_SECOND_PRESENTATION = resolveLinearNumberPresentation({
 export function ShowPatternInstanceControls({
   ownership,
   steppedClock,
+  steppedClockEditable = true,
   onMakeIndependent,
   onRejoin,
   onSteppedClockChange,
 }: {
   ownership: ShowClipPatternInstanceOwnership
   steppedClock?: ShowSteppedClock
+  /**
+   * Whether this record's owners accept a stutter edit. The v2 editor route has
+   * no landed instance-clock owner yet, so it omits the row rather than offering
+   * a control nothing can adopt.
+   */
+  steppedClockEditable?: boolean
   onMakeIndependent: () => void
   onRejoin: (targetInstanceId: string) => void
   onSteppedClockChange: (next: ShowSteppedClock | undefined) => void
@@ -78,7 +85,7 @@ export function ShowPatternInstanceControls({
         </span>
       </div>
 
-      <div
+      {steppedClockEditable && <div
         role="row"
         data-show-clip-summary-target="stutter"
         tabIndex={-1}
@@ -116,7 +123,7 @@ export function ShowPatternInstanceControls({
           )}
           {!steppedClock && ownership.useCount === 1 && <span aria-hidden className="text-zinc-700">—</span>}
         </span>
-      </div>
+      </div>}
 
       {ownership.compatibleTargets.length > 0 && (
         <div role="row" className="grid h-6 grid-cols-[1.75rem_24%_minmax(0,1fr)] items-center whitespace-nowrap">
