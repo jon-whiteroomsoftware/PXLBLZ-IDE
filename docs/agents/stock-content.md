@@ -56,6 +56,39 @@ verified with a `hsv(0, 0, y)` gradient capture, #819). An earlier note here
 claimed the opposite and cost a review cycle — probe with a gradient before
 relying on either axis for directional behaviour.
 
+## Two stock Show builders during the Scene retirement
+
+The catalogue is authored twice until #1039 activates v2 (#1040):
+
+- `src/pixelblaze/stock/shows.ts` is the **pinned legacy v1 builder**. Production,
+  the Gallery, keyframes and every census suite still read it, and the 47-record
+  conversion report converts it. Treat it as pinned input: change it only when
+  production content must change, and never derive it from the native builder.
+- `src/pixelblaze/stock/showsV2.ts` is the **native v2 builder**, with its
+  authoring vocabulary in `showsV2Authoring.ts` and its compile inputs in
+  `showsV2Compile.ts`. Every entry validates and compiles straight from native v2
+  authoring, with no converter in the path.
+
+`npm run show:v2-native-parity` compares them: native-builder output against the
+converted pinned legacy record, per Show. It reports record representation,
+compile recipe, generated source, compile summary and deterministic Fast/Precise
+output, state and lifecycle at matched global times, and fails on any
+unclassified representation difference or any runtime divergence. Today all 40
+records are recipe-, source- and summary-equal with exact Fast/Precise parity;
+eight differ only in the volatile `updatedAt` stamp, which the legacy builder
+restamps through `updateShowBoundaryTransition` and the native builder pins to
+the catalogue vintage.
+
+Changing a stock Show therefore means changing **both** builders and re-running
+both reports. A change to one alone fails `show:v2-native-parity` — that is the
+point of keeping the inputs independent. `#1042` retires the legacy builder after
+migration, and this section retires with it.
+
+The three Zone Layout showcases census differently between the two paths on
+purpose: their v1 placements ran inside intervals where their Zone was unrouted,
+and #1036 retired that silent runtime use. `showsV2.test.ts` pins exactly those
+three and fails if the set grows.
+
 ## Changing the stock Show catalogue
 
 Editing `src/pixelblaze/stock/shows.ts` fans out in this order:
@@ -75,7 +108,12 @@ Editing `src/pixelblaze/stock/shows.ts` fans out in this order:
    the fixture rather than accepting a flipped verdict. Adding a stock *Pattern*
    also moves 514's pattern corpus, 536's member-global totals, and 540's field
    and shading census.
-5. **Qualification suites and disclosure strings** are keyed to specific
+5. **`showsV2.test.ts` native census** — entry count, id and name order, Zones,
+   Layout definitions and output contracts must match the legacy rows, every
+   native record must validate, reopen and compile, its chapter Markers must
+   reproduce the legacy Scene arc, and its resource ledger must match the legacy
+   compile apart from the three pinned retirement records.
+6. **Qualification suites and disclosure strings** are keyed to specific
    reference fixture ids and exact compile-bar text. When a fixture retires,
    preserve its shape as an engine test fixture rather than losing the
    qualification subject.

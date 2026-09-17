@@ -32,7 +32,7 @@ type Parity = {
   fast: RuntimeParity
   precise: RuntimeParity
 }
-type RuntimeParity = {
+export type RuntimeParity = {
   matched: boolean
   sampledMs: number[]
   firstMismatchMs?: number
@@ -648,7 +648,7 @@ function differentKeys(left: Record<string, unknown>, right: Record<string, unkn
     .filter(key => stableJson(left[key]) !== stableJson(right[key])))
 }
 
-function stableJson(value: unknown): string {
+export function stableJson(value: unknown): string {
   return JSON.stringify(sortValue(value))
 }
 
@@ -660,7 +660,7 @@ function sortValue(value: unknown): unknown {
   return value
 }
 
-function sha256(value: string): string {
+export function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex')
 }
 
