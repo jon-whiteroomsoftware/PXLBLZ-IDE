@@ -137,3 +137,37 @@ it('keeps an already-satisfied request a true no-op with no save', async () => {
   expect(write).not.toHaveBeenCalled()
   expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])
 })
+
+it('adds a Zone with v1 seeds and routes it in every Zone Layout (#1039)', async () => {
+  const { record, write } = setup()
+  fireEvent.click(screen.getByRole('button', { name: 'Add Zone' }))
+  await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
+  const current = useShowStore.getState().showV2Pilots[record.id]
+  expect(current.zones).toHaveLength(3)
+  expect(current.zones[2]).toMatchObject({ name: 'zone-3', nominalPixelCount: 60, color: '#a78bfa' })
+  // The counterexample the missing owner produced: a Zone no Layout routes
+  // stops the whole Show preparing. Every definition names it now.
+  for (const layout of current.zoneLayouts) {
+    expect(layout.logical?.zoneIds).toContain(current.zones[2].id)
+    expect(layout.zones.some(entry => entry.zoneId === current.zones[2].id)).toBe(true)
+  }
+  expect(screen.getByLabelText<HTMLSelectElement>('Zone').options).toHaveLength(4)
+})
+
+it('removes a Zone with its content after one confirmation, and keeps the last Zone (#1039)', async () => {
+  const { record, write } = setup()
+  fireEvent.change(screen.getByLabelText('Zone'), { target: { value: 'left' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Remove Zone' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Left and its Clips?' }))
+  await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
+  const current = useShowStore.getState().showV2Pilots[record.id]
+  expect(current.zones.map(zone => zone.id)).toEqual(['right'])
+  expect(current.composition.clips).toEqual([])
+  expect(current.composition.layers).toEqual([])
+  expect(current.composition.propertyTracks).toEqual([])
+  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([record])
+
+  // One Zone left: the control is absent rather than refusing on click.
+  fireEvent.change(screen.getByLabelText('Zone'), { target: { value: 'right' } })
+  expect(screen.queryByRole('button', { name: 'Remove Zone' })).toBeNull()
+})

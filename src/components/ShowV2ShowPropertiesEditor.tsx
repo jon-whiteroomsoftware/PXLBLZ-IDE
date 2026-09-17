@@ -12,8 +12,12 @@ import {
   type ShowV2MapChoice,
   type ShowV2ShowMetadataCommand,
 } from '@/engine/showV2ShowPropertiesEditorModel'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { showV2AddZoneIntent } from '@/engine/showV2ZoneLayoutEditorModel'
+import type { ShowZoneEditIntentV2 } from '@/engine/showZonesV2'
 import {
   admitShowV2PilotShowMetadata,
+  admitShowV2PilotZoneEdit,
   type ShowV2PilotAdoptionReceipt,
   type ShowV2PilotPreparedCapture,
 } from '@/store/showV2PreparedEditAdmission'
@@ -63,6 +67,7 @@ export function ShowV2ShowPropertiesEditor({ capture, isCurrentCapture, isCurren
   const [busy, setBusy] = useState(false)
   const [reset, setReset] = useState(0)
   const [zoneId, setZoneId] = useState('')
+  const [confirmRemoveZoneId, setConfirmRemoveZoneId] = useState('')
   const [draftKind, setDraftKind] = useState(model.contract.kind)
   const [draftMapId, setDraftMapId] = useState(model.contract.mapId ?? '')
   const [draftPixels, setDraftPixels] = useState(model.contract.pixelCount)
@@ -89,17 +94,29 @@ export function ShowV2ShowPropertiesEditor({ capture, isCurrentCapture, isCurren
   const draftMapOptions = draftKind === 'portable-2d' ? catalogue.filter(map => map.dim === 2) : catalogue
   const draftMapEligible = !draftMapId || draftMapOptions.some(map => map.id === draftMapId)
 
-  const submit = async (intent: ShowV2ShowMetadataCommand): Promise<boolean> => {
+  // One adoption path for both writers this section uses: the registry command
+  // owner for the Show's own fields, and the Zone owner for the Zone Map's
+  // structural add and remove.
+  const run = async (
+    perform: (context: {
+      showId: string
+      baseRevision: number
+      capture: ShowV2PilotPreparedCapture
+      isCurrent: () => boolean
+      onAdopted: (receipt: ShowV2PilotAdoptionReceipt) => void
+    }) => Promise<{ status: 'applied'; settlement: 'saved' | 'superseded' } | { status: 'unchanged' } | { status: 'refused'; message: string }>,
+    unchangedMessage: string,
+    savedMessage: string,
+  ): Promise<boolean> => {
     if (pending.current || !available) return false
     pending.current = true
     setBusy(true)
     const adoption: { current: ShowV2PilotAdoptionReceipt | null } = { current: null }
     try {
-      const outcome = await admitShowV2PilotShowMetadata({
+      const outcome = await perform({
         showId: record.id,
         baseRevision: useShowStore.getState().showRevisions[record.id] ?? 0,
         capture,
-        intent,
         isCurrent: () => live.current && isCurrentCapture(),
         onAdopted: receipt => { adoption.current = receipt },
       })
@@ -110,7 +127,7 @@ export function ShowV2ShowPropertiesEditor({ capture, isCurrentCapture, isCurren
       if (outcome.status !== 'applied') setReset(value => value + 1)
       onStatus(outcome.status === 'refused'
         ? outcome.message
-        : outcome.status === 'unchanged' ? 'Show properties are unchanged.' : 'Show properties saved.')
+        : outcome.status === 'unchanged' ? unchangedMessage : savedMessage)
       return outcome.status === 'applied'
     } catch (error) {
       const current = adoption.current ? isCurrentCompletion(adoption.current, 'save-failed') : isCurrentCapture()
@@ -123,6 +140,21 @@ export function ShowV2ShowPropertiesEditor({ capture, isCurrentCapture, isCurren
       pending.current = false
       if (live.current) setBusy(false)
     }
+  }
+
+  const submit = (intent: ShowV2ShowMetadataCommand): Promise<boolean> => run(
+    context => admitShowV2PilotShowMetadata({ ...context, intent }),
+    'Show properties are unchanged.',
+    'Show properties saved.',
+  )
+  const submitZone = async (intent: ShowZoneEditIntentV2): Promise<boolean> => {
+    const applied = await run(
+      context => admitShowV2PilotZoneEdit({ ...context, intent }),
+      'The Zone Map is unchanged.',
+      intent.kind === 'add' ? 'Zone added.' : 'Zone removed with its content.',
+    )
+    if (applied && live.current) setConfirmRemoveZoneId('')
+    return applied
   }
 
   return (
@@ -213,7 +245,18 @@ export function ShowV2ShowPropertiesEditor({ capture, isCurrentCapture, isCurren
       </p>
 
       <div className="space-y-3">
-        <h3 className="text-xs font-medium text-zinc-300">Zone Map</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-medium text-zinc-300">Zone Map</h3>
+          <Button
+            size="xs"
+            variant="outline"
+            className={buttonStyle}
+            disabled={!available}
+            onClick={() => void submitZone(showV2AddZoneIntent(record, newPersonalContentId()))}
+          >
+            Add Zone
+          </Button>
+        </div>
         <label className="block text-xs text-zinc-400">
           Zone
           <select
@@ -256,6 +299,38 @@ export function ShowV2ShowPropertiesEditor({ capture, isCurrentCapture, isCurren
               disabled={!available}
               onChange={next => void submit(showV2ZoneCommand(zone.id, { nominalPixelCount: next }))}
             />
+            {/*
+              Removing a Zone takes its Layers, Clips, Transitions, Group
+              occurrences and Clip-owned Property tracks with it, so it asks
+              once, the way the v1 Zone Map's Delete? confirmation does. A Show
+              keeps its last Zone.
+            */}
+            {record.zones.length > 1 && (confirmRemoveZoneId === zone.id ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                  disabled={!available}
+                  onClick={() => void submitZone({ kind: 'remove', zoneId: zone.id })}
+                >
+                  {`Delete ${zone.name} and its Clips?`}
+                </Button>
+                <Button size="xs" variant="outline" className={buttonStyle} disabled={busy} onClick={() => setConfirmRemoveZoneId('')}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="xs"
+                variant="outline"
+                className={buttonStyle}
+                disabled={!available}
+                onClick={() => setConfirmRemoveZoneId(zone.id)}
+              >
+                Remove Zone
+              </Button>
+            ))}
           </>
         )}
       </div>
