@@ -54,8 +54,42 @@ export function rangeThumbCenterOffsetPx(percent: number, thumbWidthPx: number):
   return Math.max(0, thumbWidthPx) / 2 * (1 - 2 * fraction)
 }
 
+/**
+ * Where a time sits in the visible window, as a CSS percentage.
+ *
+ * Deliberately unclamped: content that starts before the window or ends after
+ * it must draw past the edge and be clipped there, so the part inside the
+ * window keeps its true position and width. Clamping would squash every such
+ * Clip against the edge and lie about where it begins.
+ */
 export function timeToViewportPercent(viewport: ShowTimelineViewport, timeMs: number): number {
   return (timeMs - viewport.startMs) / viewport.durationMs * 100
+}
+
+/** How wide a duration draws in the visible window, as a CSS percentage. */
+export function durationToViewportPercent(viewport: ShowTimelineViewport, durationMs: number): number {
+  return durationMs / viewport.durationMs * 100
+}
+
+/**
+ * Carry a visible window onto a changed Show End.
+ *
+ * The viewport is presentation state derived from a total that edits move -
+ * Insert Time, Set Show End, a Clip dragged past the end. The zoom factor the
+ * user chose is what survives; the window is re-anchored around `anchorMs`
+ * (the playhead, where the caller has one) and clamped into the new total.
+ * An unchanged total returns the same viewport identity, so a caller can store
+ * the result without notifying subscribers of a change that did not happen.
+ */
+export function reconcileShowTimelineViewport(
+  viewport: ShowTimelineViewport,
+  totalMs: number,
+  anchorMs: number,
+): ShowTimelineViewport {
+  const fitted = fitShowTimelineViewport(totalMs)
+  if (viewport.totalMs === fitted.totalMs) return viewport
+  const zoom = viewport.totalMs / viewport.durationMs
+  return zoomShowTimelineViewport(fitted, zoom, clamp(anchorMs, 0, fitted.totalMs))
 }
 
 export function viewportPercentToTime(viewport: ShowTimelineViewport, percent: number): number {

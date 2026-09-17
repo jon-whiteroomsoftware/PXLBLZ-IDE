@@ -206,6 +206,14 @@ export interface ShowTimelineClipDropInputV2 {
   shiftKey: boolean
   visibleDurationMs: number
   visibleWidthPx: number
+  /**
+   * Which times this gesture may magnetize to. The surface owns the choice,
+   * because the snap toggle, Marker visibility and the playhead are view state
+   * the view model does not carry; omitting it keeps every boundary the view
+   * draws. An empty list is the Magnet toggle off: nothing attracts, and the
+   * always-on drop grid still applies.
+   */
+  structuralTimesMs?: number[]
   previousPlacement?: ShowTimelineClipDragPlacement
 }
 
@@ -244,7 +252,7 @@ export function resolveShowTimelineClipDropV2(
       totalMs: view.showEndMs,
       visibleDurationMs: input.visibleDurationMs,
       visibleWidthPx: input.visibleWidthPx,
-      structuralTimesMs: view.structuralTimesMs,
+      structuralTimesMs: input.structuralTimesMs ?? view.structuralTimesMs,
       excludedStructuralTimesMs: moved.flatMap(candidate => [candidate.startMs, candidate.endMs]),
       altKey: input.altKey,
       shiftKey: input.shiftKey,
@@ -280,6 +288,8 @@ export interface ShowTimelineEdgeDropInputV2 {
   shiftKey: boolean
   visibleDurationMs: number
   visibleWidthPx: number
+  /** The times this gesture may magnetize to; see the Clip drop input. */
+  structuralTimesMs?: number[]
 }
 
 /**
@@ -300,7 +310,7 @@ export function resolveShowTimelineEdgeDropV2(
     visibleWidthPx: input.visibleWidthPx,
     structuralTimesMs: input.altKey
       ? []
-      : view.structuralTimesMs.filter(timeMs => !ownEdges.includes(timeMs)),
+      : (input.structuralTimesMs ?? view.structuralTimesMs).filter(timeMs => !ownEdges.includes(timeMs)),
     gridEnabled: !input.altKey,
     ...(input.altKey
       ? {}

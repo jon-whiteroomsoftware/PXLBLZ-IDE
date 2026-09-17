@@ -1,8 +1,10 @@
 import {
+  durationToViewportPercent,
   fitShowTimelineViewport,
   formatShowTimelineRulerTime,
   panShowTimelineViewport,
   rangeThumbCenterOffsetPx,
+  reconcileShowTimelineViewport,
   resolveShowTimelineClipDragPlacement,
   resizeShowTimelineViewport,
   showTimelineRulerTicks,
@@ -231,6 +233,51 @@ describe('Show timeline viewport (#420)', () => {
       ...options,
       previousPlacement: movedOffBoundary,
     })).toEqual({ startMs: 5_337, magnetized: true })
+  })
+
+  it('maps a duration to the visible window, not to the whole Show (#1039)', () => {
+    const fit = fitShowTimelineViewport(60_000)
+    const zoomed = zoomShowTimelineViewport(fit, 4, 30_000)
+
+    expect(durationToViewportPercent(fit, 15_000)).toBe(25)
+    // The same Clip fills four times the width once the window is a quarter.
+    expect(durationToViewportPercent(zoomed, 15_000)).toBe(100)
+    expect(durationToViewportPercent(zoomed, 0)).toBe(0)
+  })
+
+  it('places content outside the window beyond its edges rather than clamping it (#1039)', () => {
+    const zoomed = { totalMs: 60_000, startMs: 20_000, durationMs: 10_000, minDurationMs: 3_750 }
+
+    expect(timeToViewportPercent(zoomed, 20_000)).toBe(0)
+    expect(timeToViewportPercent(zoomed, 30_000)).toBe(100)
+    // A Clip that begins before the window must draw off the left edge, so the
+    // visible part of it keeps its true width.
+    expect(timeToViewportPercent(zoomed, 15_000)).toBe(-50)
+    expect(timeToViewportPercent(zoomed, 45_000)).toBe(250)
+  })
+
+  it('rescales a stored window onto a changed Show End, keeping its zoom (#1039)', () => {
+    const zoomed = zoomShowTimelineViewport(fitShowTimelineViewport(60_000), 4, 30_000)
+    expect(zoomed).toMatchObject({ totalMs: 60_000, startMs: 22_500, durationMs: 15_000 })
+
+    // Insert Time lengthened the Show: the same 4x zoom stays, anchored where
+    // the caller is looking.
+    const longer = reconcileShowTimelineViewport(zoomed, 120_000, 30_000)
+    expect(longer).toMatchObject({ totalMs: 120_000, durationMs: 30_000, startMs: 22_500 })
+
+    // Shortening clamps the window inside the new total instead of hanging past it.
+    const shorter = reconcileShowTimelineViewport(zoomed, 20_000, 30_000)
+    expect(shorter).toMatchObject({ totalMs: 20_000, durationMs: 5_000, startMs: 15_000 })
+  })
+
+  it('returns the same viewport identity when the Show End has not moved (#1039)', () => {
+    const zoomed = zoomShowTimelineViewport(fitShowTimelineViewport(60_000), 2, 15_000)
+    expect(reconcileShowTimelineViewport(zoomed, 60_000, 15_000)).toBe(zoomed)
+  })
+
+  it('fits a window whose Show End changed while it was fitted (#1039)', () => {
+    const fit = fitShowTimelineViewport(60_000)
+    expect(reconcileShowTimelineViewport(fit, 90_000, 0)).toEqual(fitShowTimelineViewport(90_000))
   })
 
   it('can snap to explicit boundaries without enabling the time grid', () => {

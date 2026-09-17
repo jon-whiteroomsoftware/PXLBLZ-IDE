@@ -22,6 +22,18 @@ export interface ShowEditorSessionState {
   referencePatternsByShowId: Record<string, Record<number, ShowPatternRef>>
   setReferencePattern: (showId: string, slotIndex: number, pattern: ShowPatternRef | null) => void
   clearReferencePatterns: (showId: string) => void
+  /**
+   * Which diagnostic lanes the v2 timeline surface draws (#1039). Session-only,
+   * like the Stage diagnostics below: a hidden lane is a way of looking at a
+   * Show, not a preference worth surviving a reload. Marker visibility is not
+   * here because it is the shipped v1 control above, and it also governs
+   * whether Markers are snap targets.
+   */
+  timelineLanes: {
+    zoneLayouts: boolean
+    junctions: boolean
+  }
+  setTimelineLane: (kind: keyof ShowEditorSessionState['timelineLanes'], visible: boolean) => void
   diagnostics: {
     zoneOutlines: boolean
     clipOutlines: boolean
@@ -46,6 +58,10 @@ export const showEditorSessionInitialState = {
   collapsedZoneIdsByShowId: {} as Record<string, string[]>,
   focusedZoneIdByShowId: {} as Record<string, string>,
   referencePatternsByShowId: {} as Record<string, Record<number, ShowPatternRef>>,
+  timelineLanes: {
+    zoneLayouts: true,
+    junctions: true,
+  },
   diagnostics: {
     zoneOutlines: false,
     clipOutlines: false,
@@ -153,6 +169,9 @@ export const useShowEditorSessionStore = create<ShowEditorSessionState>()(
         delete referencePatternsByShowId[showId]
         return { referencePatternsByShowId }
       }),
+      setTimelineLane: (kind, visible) => set((state) => ({
+        timelineLanes: { ...state.timelineLanes, [kind]: visible },
+      })),
       setDiagnostic: (kind, enabled) => set((state) => ({
         diagnostics: { ...state.diagnostics, [kind]: enabled },
       })),

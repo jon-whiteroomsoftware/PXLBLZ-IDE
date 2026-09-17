@@ -313,6 +313,37 @@ describe('v2 timeline gesture adapters', () => {
     })).toMatchObject({ startMs: 604, magnetized: false })
   })
 
+  it('resolves a drop against the snap candidates the surface offers, not the whole view (#1039)', () => {
+    const view = projectShowTimelineV2(detached())
+    const drop = (structuralTimesMs?: number[]) => resolveShowTimelineClipDropV2(view, {
+      itemId: 'out', candidateStartMs: 604, altKey: false, shiftKey: false,
+      visibleDurationMs: view.showEndMs, visibleWidthPx: 1_000,
+      ...(structuralTimesMs ? { structuralTimesMs } : {}),
+    })
+
+    // No override: the view's own boundaries magnetize, exactly as before.
+    expect(drop()).toMatchObject({ startMs: 600, magnetized: true })
+    // Magnet off: nothing attracts, and the always-on drop grid still rounds
+    // the raw pointer time onto a visible tick rather than raw milliseconds.
+    expect(drop([])).toMatchObject({ startMs: 600, magnetized: false })
+    // The surface may also offer a time the view model does not carry, such as
+    // a Marker or the playhead the v1 toolbar snaps to.
+    expect(drop([610])).toMatchObject({ startMs: 610, magnetized: true })
+  })
+
+  it('resolves an edge drag against the offered snap candidates too (#1039)', () => {
+    const view = projectShowTimelineV2(detached())
+    const edge = (structuralTimesMs?: number[]) => resolveShowTimelineEdgeDropV2(view, {
+      itemId: 'in', edge: 'leading', candidateTimeMs: 404, altKey: false, shiftKey: false,
+      visibleDurationMs: view.showEndMs, visibleWidthPx: 1_000,
+      ...(structuralTimesMs ? { structuralTimesMs } : {}),
+    })
+
+    expect(edge()).toEqual({ timeMs: 400, magnetized: true })
+    expect(edge([])).toEqual({ timeMs: 400, magnetized: false })
+    expect(edge([410])).toEqual({ timeMs: 410, magnetized: true })
+  })
+
   it('keeps an edge drag inside the Clip and inside Show End', () => {
     const view = projectShowTimelineV2(detached())
     const edge = (edgeKind: 'leading' | 'trailing', candidateTimeMs: number) => resolveShowTimelineEdgeDropV2(view, {

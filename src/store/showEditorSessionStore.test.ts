@@ -18,6 +18,7 @@ describe('showEditorSessionStore (#470)', () => {
       setFocusedZone: () => {},
       setReferencePattern: () => {},
       clearReferencePatterns: () => {},
+      setTimelineLane: () => {},
       setDiagnostic: () => {},
       setDiagnosticFocus: () => {},
     }
@@ -100,6 +101,23 @@ describe('showEditorSessionStore (#470)', () => {
       },
       diagnostics: { zoneOutlines: false, clipOutlines: false, otherZoneGuides: false },
     })
+  })
+
+  it('keeps the v2 timeline lane toggles independent and session-only (#1039)', () => {
+    useShowEditorSessionStore.setState(showEditorSessionInitialState)
+    expect(useShowEditorSessionStore.getState().timelineLanes)
+      .toEqual({ zoneLayouts: true, junctions: true })
+
+    useShowEditorSessionStore.getState().setTimelineLane('junctions', false)
+    expect(useShowEditorSessionStore.getState().timelineLanes)
+      .toEqual({ zoneLayouts: true, junctions: false })
+
+    // A hidden lane is a way of looking at a Show, not a stored preference.
+    const merged = mergePersistedShowEditorSession(
+      { timelineLanes: { zoneLayouts: false, junctions: false } },
+      useShowEditorSessionStore.getState(),
+    )
+    expect(merged.timelineLanes).toEqual({ zoneLayouts: true, junctions: true })
   })
 
   it('keeps independent Stage diagnostics and editor focus session-only (#491)', () => {
