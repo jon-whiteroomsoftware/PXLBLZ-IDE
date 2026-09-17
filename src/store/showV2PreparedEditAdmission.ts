@@ -23,6 +23,9 @@ import { writeShowInstancePropertiesV2, type ShowInstancePropertiesResultV2, typ
 import type { ShowClipEvaluationPolicy } from '@/engine/personalContentRecords'
 import { replaceShowGroupDefinitionClipPatternV2, type ReplaceShowGroupDefinitionClipPatternIntentV2, type ShowGroupReplacementResultV2 } from '@/engine/showGroupReplacementV2'
 import type { ShowV2GroupReplacementIntent } from '@/engine/showV2GroupReplacementEditorModel'
+import { applyShowCommandV2, type ShowCommandV2Outcome } from '@/engine/showCommandsV2/registry'
+import type { ShowV2ShowMetadataCommand } from '@/engine/showV2ShowPropertiesEditorModel'
+import { resolveShowV2StageMap, showV2StageMapAvailable } from './showV2StageMap'
 export interface ShowV2PilotPreparedCapture {
   readonly record: ShowRecordV2
   readonly dependencies: ShowPreparedStageDependenciesV2
@@ -81,6 +84,7 @@ type Command =
   | { owner: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
   | { owner: 'property'; propertyOwner: ShowPropertyTrackOwnerV2; intent: ShowPropertyEditIntentV2 }
   | { owner: 'set-show-end'; intent: Extract<ShowLayoutEditIntentV2, { kind: 'set-show-end' }> }
+  | { owner: 'show-metadata'; intent: ShowV2ShowMetadataCommand }
 export type ShowV2PilotClipDeleteIntent = Extract<ShowTransitionEditIntentV2, { kind: 'delete-clip' }>
 export type ShowV2PilotClipDeleteRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotClipDeleteIntent }
 export type ShowV2PilotClipDeleteOutcome = PilotOwnerOutcome<ShowTransitionEditResultV2, ShowTimelineEditAffectedV2>
@@ -98,6 +102,7 @@ type OwnerResult<C extends Command> = C extends { owner: 'layout-occurrence' } ?
   : C extends { owner: 'appearance' } ? ShowClipAppearanceEditResultV2
   : C extends { owner: 'property' } ? ShowPropertyEditResultV2
   : C extends { owner: 'set-show-end' } ? ShowLayoutEditResultV2
+  : C extends { owner: 'show-metadata' } ? ShowCommandV2Outcome
   : ShowTransitionEditResultV2
 type CheckedOutcome<R> =
   | { status: 'applied'; settlement: 'saved' | 'superseded'; result: R }
@@ -151,7 +156,9 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
                       ? editShowPropertyV2(current, command.propertyOwner, command.intent)
                       : command.owner === 'set-show-end'
                         ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
-                        : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
+                        : command.owner === 'show-metadata'
+                          ? applyShowCommandV2(current, command.intent.command, structuredClone(command.intent.input))
+                          : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
   if (result.status === 'refused') return { status: 'refused', source: 'owner', result }
   if (result.status === 'unchanged') return { status: 'unchanged', result }
   const { capture } = request
@@ -166,9 +173,20 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   if (prepared.status === 'empty' && (!isValidatedEmptyShowV2(current) || !isValidatedEmptyShowV2(prepared.record))) {
     return refuse('unsupported-pilot-record', 'The prepared empty Show does not match this edit.')
   }
-  const candidate = capturedInputs?.status === 'qualified'
-    ? prepareShowStageFromCapturedInputsV2(result.record, capturedInputs.inputs)
-    : prepareShowStageV2(result.record, prepared.status === 'ready' ? { ...prepared.bundle.assets, stageMap: capture.dependencies.stageMap } : capture.dependencies)
+  // An accepted edit may select another Stage map, which the capture's pinned
+  // map cannot prepare. Resolve the named one exactly as the route resolves its
+  // own, and refuse a map that is gone or at an unsupported dimension rather
+  // than preparing the Show against geometry it does not name. This is the same
+  // rule `showV2CandidateAdmission` applies to an agent's candidate.
+  const movedStage = (result.record.stageMapId ?? null) !== (current.stageMapId ?? null)
+  if (movedStage && !showV2StageMapAvailable(result.record.stageMapId, capture.dependencies.maps)) {
+    return refuse('unsupported-pilot-record', `The Stage map "${result.record.stageMapId}" is unavailable at a dimension the Stage supports.`)
+  }
+  const candidate = movedStage
+    ? prepareShowStageV2(result.record, { ...capture.dependencies, stageMap: resolveShowV2StageMap(result.record.stageMapId, capture.dependencies.maps) })
+    : capturedInputs?.status === 'qualified'
+      ? prepareShowStageFromCapturedInputsV2(result.record, capturedInputs.inputs)
+      : prepareShowStageV2(result.record, prepared.status === 'ready' ? { ...prepared.bundle.assets, stageMap: capture.dependencies.stageMap } : capture.dependencies)
   const deletingToEmpty = ((command.owner === 'group-occurrence' && command.intent.kind === 'delete-occurrence') || command.owner === 'delete-clip') && isValidatedEmptyShowV2(result.record)
   const expectedCapability = deletingToEmpty ? 'empty' : command.owner === 'create-clip' || prepared.status === 'refused' ? 'ready' : prepared.status
   if (candidate.status !== expectedCapability) return refuse('unsupported-pilot-record', candidate.status === 'refused' ? candidate.message : 'The edit changed the prepared Show capability.')
@@ -324,6 +342,49 @@ export async function admitShowV2PilotSetShowEnd(request: ShowV2PilotSetShowEndR
   if (!exactIntentFields(request.intent, ['kind', 'showEndMs']) || request.intent.kind !== 'set-show-end') return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one explicit Show End operation.', ...endEffects() }
   const outcome = await admitPreparedEdit({ ...request, owner: 'set-show-end' as const })
   return presentOwnerOutcome(outcome, endEffects('result' in outcome ? outcome.result : undefined))
+}
+
+/**
+ * The Show-level metadata the editor writes through the registry owner: the
+ * output contract, the Stage map, one Zone's metadata and the Trails output
+ * Effect. The allowlist is the surface's own scope, not a new rule: every
+ * command outside it has its own admission wrapper, and a caller may not reach
+ * one through this door.
+ */
+const SHOW_METADATA_COMMANDS = ['set_output_contract', 'set_stage_map', 'update_zone', 'set_output_trails'] as const
+export type ShowV2PilotShowMetadataRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2ShowMetadataCommand }
+export type ShowV2PilotShowMetadataOutcome =
+  | { status: 'applied'; settlement: 'saved' | 'superseded'; description: string; affected: string[] }
+  | { status: 'unchanged'; affected: [] }
+  | { status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string; affected: [] }
+  | { status: 'refused'; source: 'owner'; code: string; message: string; affected: [] }
+function validShowMetadataIntent(intent: unknown): intent is ShowV2ShowMetadataCommand {
+  return exactIntentFields(intent, ['command', 'input'])
+    && (SHOW_METADATA_COMMANDS as readonly string[]).includes((intent as ShowV2ShowMetadataCommand).command)
+    && !!(intent as ShowV2ShowMetadataCommand).input
+    && typeof (intent as ShowV2ShowMetadataCommand).input === 'object'
+    && !Array.isArray((intent as ShowV2ShowMetadataCommand).input)
+}
+export async function admitShowV2PilotShowMetadata(request: ShowV2PilotShowMetadataRequest): Promise<ShowV2PilotShowMetadataOutcome> {
+  if (!validShowMetadataIntent(request.intent)) {
+    return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one Show output contract, Stage map, Zone or Trails command with its complete input.', affected: [] }
+  }
+  const outcome = await admitPreparedEdit({ ...request, owner: 'show-metadata' as const })
+  if (outcome.status === 'refused') {
+    if (outcome.source === 'admission') return { ...outcome, affected: [] }
+    if (outcome.result.status !== 'refused') throw new Error('Invalid Show metadata owner result.')
+    const issue = outcome.result.issues[0]
+    return { status: 'refused', source: 'owner', code: issue?.code ?? 'invalid-argument', message: issue?.message ?? 'The owner declined this edit.', affected: [] }
+  }
+  if (outcome.status === 'unchanged') return { status: 'unchanged', affected: [] }
+  if (outcome.result.status !== 'changed') throw new Error('Invalid Show metadata owner result.')
+  const change = outcome.result.changes[0]
+  return {
+    status: 'applied',
+    settlement: outcome.settlement,
+    description: change?.description ?? '',
+    affected: change?.targetId ? [change.targetId] : [],
+  }
 }
 
 function validLayerIntent(intent: unknown): intent is ShowLayerEditIntentV2 {
