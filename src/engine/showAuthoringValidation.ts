@@ -47,8 +47,10 @@ export interface ShowAuthoringContext {
 }
 
 /** Direct compiler-supported calls; conservatively inspect all functions in each
- * referenced Library, including transitive namespaces. Cycles are visited once. */
-function libraryDependencies(source: string, libraries: Record<string, string>): { missing: string[]; invalid: boolean; sourceIdentity: string } {
+ * referenced Library, including transitive namespaces. Cycles are visited once.
+ * Shared with the v2 authoring validator so both record versions inspect
+ * dependencies through one implementation. */
+export function libraryDependencies(source: string, libraries: Record<string, string>): { missing: string[]; invalid: boolean; sourceIdentity: string } {
   const missing = new Set<string>()
   const visited = new Set<string>()
   let invalid = false
@@ -76,7 +78,8 @@ function libraryDependencies(source: string, libraries: Record<string, string>):
   return { missing: [...missing], invalid, sourceIdentity: JSON.stringify([source, [...visited].sort().map(namespace => [namespace, libraries[namespace]])]) }
 }
 
-function referenceIdentity(site: ShowPatternSite, dependency?: string, sourceIdentity?: string): string {
+/** The exact identity a baseline exception is keyed by; shared with the v2 validator. */
+export function referenceIdentity(site: ShowPatternSite, dependency?: string, sourceIdentity?: string): string {
   return JSON.stringify([site.owner, site.ref.kind, site.ref.id, dependency ?? null, sourceIdentity ?? null])
 }
 

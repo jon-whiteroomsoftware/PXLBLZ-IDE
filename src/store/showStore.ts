@@ -65,6 +65,7 @@ import {
   type ShowEditSettlement,
 } from '@/engine/showEditAdmission'
 import { createShowResizeAdmission, type ResolvedShowResizeIntent } from './showResizeAdmission'
+import { createShowV2CandidateAdmission, type ShowV2CandidateDelivery } from './showV2CandidateAdmission'
 import { createShowInputWait, type ShowEditActivity, type ShowInputWaitReceipt } from '@/engine/showInputWait'
 import { isShowEditDiagnosticInput, retainShowEditDiagnostic, type ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
@@ -299,6 +300,13 @@ interface ShowState {
   acquireShowEditActivity: (sessionId: string, showId: string, kind: ShowEditActivity['kind']) => ShowEditActivity | undefined
   releaseShowEditActivity: (token: ShowEditActivity) => void
   deliverShowEditCandidate: (request: ShowEditRequest, candidate: unknown, validate: (candidate: ShowRecord, current: ShowRecord) => ShowEditValidationResult, validateRaw?: (candidate: unknown) => ShowEditValidationResult) => ShowInputWaitReceipt
+  /**
+   * Deliver one complete caller-supplied `ShowRecordV2` candidate (#1039). The
+   * v2 route's own edits adopt through `showV2PreparedEditAdmission`, which
+   * admits typed intents; this is the same store writer for a candidate an
+   * agent command sequence produced outside it.
+   */
+  deliverShowV2EditCandidate: (delivery: ShowV2CandidateDelivery) => ShowInputWaitReceipt
   invalidateShowEditCandidate: (request: ShowEditRequest, diagnostic?: ShowEditDiagnosticInput) => ShowEditReceipt | undefined
   readShowEditCandidate: (sessionId: string, operationId: string) => ShowInputWaitReceipt | undefined
 }
@@ -371,6 +379,17 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     adopt: (id, next, settle) => updateShowRecord(id, next, settle),
     isStock: id => !!stockShowById(id),
   })
+  // The caller-supplied v2 candidate path (#1039). It shares this store's
+  // session, input wait, revisions and adoption, so an agent command sequence
+  // and the route's own typed intents are one writer.
+  const v2CandidateAdmission = createShowV2CandidateAdmission({
+    inputWait,
+    session: () => editSession,
+    current: id => get().showV2Pilots[id],
+    revision: id => get().showRevisions[id] ?? 0,
+    missing: id => showsPendingDeletion.has(id),
+    adopt: (id, next, settle) => updateShowV2Record(id, next, settle),
+  })
   const revisionPatch = (state: ShowState, id: string) => ({
     showRevisions: { ...state.showRevisions, [id]: (state.showRevisions[id] ?? 0) + 1 },
   })
@@ -428,6 +447,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     replacement: ShowRecordV2,
     history: ShowV2History,
     fallback: { record: ShowRecordV2; history: ShowV2History },
+    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving' | 'draft'>) => void,
   ): Promise<void> => {
     const provider = getPersonalContentProvider()
     const workspaceGeneration = showV2WorkspaceGeneration
@@ -443,10 +463,20 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     }))
     try {
       await queueShowPersistence(id, () => provider.replaceShowV2!(id, adopted))
-      if (showV2WorkspaceGeneration !== workspaceGeneration || getPersonalContentProvider() !== provider) return
+      if (showV2WorkspaceGeneration !== workspaceGeneration || getPersonalContentProvider() !== provider) {
+        onSettlement?.('superseded')
+        return
+      }
       advanceDurableShowV2Baseline(id, adopted, history)
+      onSettlement?.(get().showV2Pilots[id] === adopted ? 'saved' : 'superseded')
     } catch (cause) {
-      if (showV2WorkspaceGeneration !== workspaceGeneration || getPersonalContentProvider() !== provider) return
+      if (showV2WorkspaceGeneration !== workspaceGeneration || getPersonalContentProvider() !== provider) {
+        onSettlement?.('superseded')
+        return
+      }
+      // A failed v2 save invalidates any candidate still waiting on active
+      // input, exactly as the v1 adoption path does.
+      inputWait.invalidate(id)
       let rolledBack = false
       set(state => {
         if (state.showV2Pilots[id]?.updatedAt !== adopted.updatedAt) return state
@@ -460,8 +490,21 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
           showV2SaveFailure: { showId: id, record: adopted },
         }
       })
+      onSettlement?.(rolledBack ? 'rolled-back' : 'superseded')
       if (rolledBack) throw cause
     }
+  }
+  /** One v2 replacement: the validated previous record becomes the Undo base. */
+  const updateShowV2Record = async (
+    showId: string,
+    next: ShowRecordV2,
+    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving' | 'draft'>) => void,
+  ): Promise<void> => {
+    const current = get().showV2Pilots[showId]
+    if (!current || next === current || next.id !== showId) return
+    const previous = cloneValidShowRecordV2(current)
+    const previousHistory = get().showV2Histories[showId] ?? { past: [], future: [] }
+    await adoptShowV2PilotReplacement(showId, next, editedHistory(previousHistory, previous), { record: previous, history: previousHistory }, onSettlement)
   }
   // All personal replacement paths use this one adoption and recovery policy.
   // The ordering stamp is assigned here, where V2 accepts the replacement;
@@ -592,6 +635,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
         return checked
       })
   },
+  deliverShowV2EditCandidate: delivery => v2CandidateAdmission.deliver(delivery),
   invalidateShowEditCandidate: (request, diagnostic) => {
     const session = editSession
     if (!session || session.sessionId !== request.sessionId) return undefined
@@ -624,7 +668,10 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       return { status: 'retired', request: { ...intent, targets: [...intent.targets], sessionId, showId: '', baseRevision: -1 } }
     }
     const result = editSession.begin(intent, get().showRevisions[editSession.showId] ?? 0)
-    if (result.status === 'pending' && (!get().resolveEditableShow(editSession.showId) || showsPendingDeletion.has(editSession.showId))) {
+    // A session belongs to whichever record version the editor holds for this
+    // Show: the v1 collection, or the open v2 working copy (#1039).
+    const present = get().resolveEditableShow(editSession.showId) ?? get().showV2Pilots[editSession.showId]
+    if (result.status === 'pending' && (!present || showsPendingDeletion.has(editSession.showId))) {
       return editSession.refuse(intent.operationId, 'missing-show') ?? result
     }
     return result
@@ -1016,13 +1063,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       }
     },
 
-    updateShowV2Pilot: async (showId, next) => {
-      const current = get().showV2Pilots[showId]
-      if (!current || next === current || next.id !== showId) return
-      const previous = cloneValidShowRecordV2(current)
-      const previousHistory = get().showV2Histories[showId] ?? { past: [], future: [] }
-      await adoptShowV2PilotReplacement(showId, next, editedHistory(previousHistory, previous), { record: previous, history: previousHistory })
-    },
+    updateShowV2Pilot: (showId, next) => updateShowV2Record(showId, next),
 
     renameShowV2Pilot: async (showId, name) => {
       const current = get().showV2Pilots[showId]

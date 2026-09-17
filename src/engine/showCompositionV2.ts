@@ -503,6 +503,19 @@ function v2StructuralValidator(): ValidateFunction {
   return cachedV2StructuralValidator
 }
 
+/**
+ * The provisional v2 record schema alone, with its raw keyword errors (#1039).
+ *
+ * Admission reports schema, domain, dependency and compiler eligibility as
+ * distinct checks, and the schema half needs the failing keyword to name a
+ * bounded diagnostic. Callers share this one compiled validator rather than
+ * compiling a second copy of the same schema.
+ */
+export function validateShowRecordV2Structure(value: unknown): { valid: true } | { valid: false; errors: ErrorObject[] } {
+  const validator = v2StructuralValidator()
+  return validator(value) ? { valid: true } : { valid: false, errors: validator.errors ?? [] }
+}
+
 function structuralIssues(
   validator: ValidateFunction,
   record: unknown,
