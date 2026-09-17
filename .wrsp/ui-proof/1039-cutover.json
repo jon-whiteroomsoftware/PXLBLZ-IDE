@@ -2,12 +2,12 @@
   "version": 1,
   "issue": "1039",
   "route": "/PXLBLZ-IDE/studio/shows/<id>",
-  "operation": "Drove the ordinary Show route on the production URL with no query flag, through repository Playwright (Chromium) against an isolated runtime as the suite's synthetic user; the Codex in-app browser is not available to this worker. Created a Show through the production creation flow and confirmed it opens on the v2 editor as a version-2 record with its two Clips and Crossfade; opened a row storage still holds as version 1 from the same Shows list and confirmed it opens on the previous editor and is marked v1 in the list; opened the converted row and confirmed the v2 editor; then repeated the v2 route at 390 px. Refreshed by the coordinator at 1e3d2587 after the P2 corrective that clears the v1 selection when a stored v2 row is routed, through the committed capture:cutover script (repository Playwright, Chromium, isolated runtime, synthetic authenticated user); the converted capture now shows the rail selecting the open v2 row.",
+  "operation": "Drove the ordinary Show route on the production URL with no query flag, through repository Playwright (Chromium) against an isolated runtime as the suite's synthetic user; the Codex in-app browser is not available to this worker. Created a Show through the production creation flow and confirmed it opens on the v2 editor as a version-2 record with its two Clips and Crossfade; opened a row storage still holds as version 1 from the same Shows list and confirmed it opens on the previous editor and is marked v1 in the list; opened the converted row and confirmed the v2 editor; then repeated the v2 route at 390 px. Refreshed by the coordinator at 5a7d7bfa after the selection correctives (a routed v2 row clears a stale v1 selection without retiring the v2 route's edit session), through the committed capture:cutover script (repository Playwright, Chromium, isolated runtime, synthetic authenticated user). In the converted capture the v1 row is no longer highlighted; the grey row is the hover style on the row the script clicked, and no personal row carries the selected style while a v2 Show is open (#1062).",
   "captures": [
     ".wrsp/ui-proof/1039-cutover-fresh.png",
     ".wrsp/ui-proof/1039-cutover-unconverted.png",
     ".wrsp/ui-proof/1039-cutover-converted.png",
     ".wrsp/ui-proof/1039-cutover-narrow.png"
   ],
-  "capturedAtCommit": "1e3d2587a70a29ab5c90d64de1e19779a07db4ed"
+  "capturedAtCommit": "5a7d7bfa9a2ced916fc7242a69782443459ebaa4"
 }
