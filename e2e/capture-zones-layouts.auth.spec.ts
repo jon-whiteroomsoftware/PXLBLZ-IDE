@@ -87,7 +87,7 @@ test('captures the v2 Zone Map and Zone Layouts surface', async ({ page }) => {
   await layouts.getByRole('button', { name: 'Remove Zone Layout' }).click()
   await layouts.getByRole('button', { name: 'Remove Default?' }).click()
   const status = page.getByTestId('show-inspector-v2-status')
-  await expect(status).toContainText('still use Zone Layout')
+  await expect(status).toContainText('still uses Zone Layout')
   await layouts.scrollIntoViewIfNeeded()
   await page.screenshot({ path: '.wrsp/ui-proof/1039-zones-layouts-refusal.png' })
   // The refused message itself lives at the foot of the inspector column.
