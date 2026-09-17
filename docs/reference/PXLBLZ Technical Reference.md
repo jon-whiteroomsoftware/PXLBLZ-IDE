@@ -895,7 +895,7 @@ Layout's output is never hidden by an initial mask. See
 [Prepared v2 Stage preview](contracts/show-v2-prepared-stage.md) for the
 presentation windows, transfer blending and the presentation-only boundary.
 
-The complete opt-in surface, reached only through `?show-v2-pilot=1`, also covers
+The complete gated surface, reached only through `?show-v2-editor=1`, also covers
 ordinary Clip creation, timing, deletion, sharing and Pattern replacement,
 Transition Insert/settings/Reset to Cut, Group creation and occurrence
 operations, Group definition-local Pattern replacement, Layout occurrence edits,

@@ -3,7 +3,7 @@
 `editShowClipV2(record, intent)` supplies immutable held-appearance, Property
 animation and ordinary runtime-identity edits for the provisional v2 engine.
 Production v1 commands, the production editor and production persistence still do
-not call it. Its landed consumers are the opt-in `?show-v2-pilot=1` route
+not call it. Its landed consumers are the gated `?show-v2-editor=1` route
 adapters described below, which reach it only through the closed prepared-edit
 admission path; that pilot is not a v2 rollout, which remains #1039's work.
 Accepted product behavior is recorded in the

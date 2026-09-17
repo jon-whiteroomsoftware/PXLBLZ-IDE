@@ -1,6 +1,6 @@
 # Prepared v2 Stage preview
 
-The opt-in `ShowV2RoutePilot` captures one native v2 preparation bundle through
+The gated v2 editor route captures one native v2 preparation bundle through
 `captureShowStageEditV2`; the compatible `prepareShowStageV2` wrapper returns
 the existing preparation result. Qualified immutable editing inputs remain
 available independently of source readiness, as described in

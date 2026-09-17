@@ -7,6 +7,7 @@ import {
   describeShowArtifactPatternsV2,
 } from './showV2RouteDelivery'
 import { showV2GroupEditorFixture } from '@/test/showV2GroupEditorFixture'
+import { propertyEditGroupRecord } from '@/test/showV2PropertyEditsFixture'
 
 function prepared() {
   const { record, dependencies } = showV2GroupEditorFixture()
@@ -52,6 +53,28 @@ describe('the v2 route delivery model', () => {
     // The fixture places three Clips over one shared runtime.
     expect(voice!.logicalInstanceCount).toBe(1)
     expect(voice!.authoredReferenceCount).toBe(3)
+
+    // A record whose Group occurrences materialize two more uses of that same
+    // runtime counts five, not the three ordinary Clips (section 4).
+    const withGroups = propertyEditGroupRecord()
+    for (const instance of withGroups.composition.patternInstances) {
+      instance.pattern = { kind: 'user', id: 'group-voice' }
+    }
+    const groupCapture = captureShowStageEditV2(withGroups, {
+      patterns: [{
+        id: 'group-voice', name: 'Voice', updatedAt: 1, controls: {},
+        src: 'export var gain=.4;export function sliderGain(v){gain=v}export function render2D(i,x,y){rgb(gain,x,y)}',
+      }],
+      maps: [], libraries: [], profiles: [], stageMap: null,
+    })
+    if (groupCapture.prepared.status !== 'ready') throw new Error(JSON.stringify(groupCapture.prepared))
+    const groupArtifacts = buildShowV2RouteArtifacts(groupCapture.prepared.bundle)
+    if (groupArtifacts.status !== 'ready') throw new Error(groupArtifacts.message)
+    const materialized = describeShowArtifactPatternsV2(withGroups, groupArtifacts.artifacts.inventory)
+      .find((pattern) => pattern.ownerIds.includes('instance'))
+    expect(materialized).toBeDefined()
+    expect(withGroups.composition.clips).toHaveLength(1)
+    expect(materialized!.authoredReferenceCount).toBe(3)
   })
 
   it('summarizes the record without reading a Scene', () => {

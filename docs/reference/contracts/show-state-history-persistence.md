@@ -222,13 +222,37 @@ store revisions; existing manual replacement callers retain their original API.
 - Notice reset: `dismissShowSaveFailure` removes only the recovery notice. It
   changes no record, history, queued operation, or durable baseline.
 
-## Opt-in version-2 route pilot
+## Gated version-2 route
 
-Development builds admit a version-2 Show only when the route includes
-`show-v2-pilot=1`. The ordinary Show route, provider list, creation, sparse
-patch, import, and production build remain version 1. The pilot first looks for
-a stored version-2 record; when none exists, it converts the selected version-1
-record explicitly and refuses unsupported input without mutating either form.
+Development builds admit a version-2 Show only when
+[`showV2RouteGate.ts`](../../../src/engine/showV2RouteGate.ts) answers yes:
+`SHOW_V2_ROUTE_DEFAULT` is `false`, so today that is the `show-v2-editor=1`
+opt-in, and #1039's activation is that one constant. Every consumer that must
+move together asks the same predicate - the editor route, the Show list, the
+store's version-2 listing, fresh-Show creation and `.pxlshow` import - so no
+window exists where one of them holds a version-2 record while another assumes
+version 1 (specification section 10). A production build answers `false`
+however the URL is written. The route first looks for a stored version-2
+record; when none exists, it converts the selected version-1 record explicitly
+and refuses unsupported input without mutating either form.
+
+Sparse patch and the production build remain version 1. So does `shows`: a
+version-2 row never enters that collection. The store lists those rows
+separately as `showV2Rows` - identity, name and stamp only - which
+`loadShows` fills from `listShowDocumentsV2` while the gate is on, discarding a
+listing whose workspace or provider changed while it was read, and answering a
+failed listing with no rows rather than a failed workspace load. The Show list
+offers them beside the version-1 rows; renaming and duplicating one there
+belong to #1039, so it offers neither.
+
+`createNewShowV2(input)` authors a fresh Show natively as version 2 through
+[`createShowV2WithOutputContract`](../../../src/engine/showCreationV2.ts) -
+the same two 30-second Clips over one two-sided Crossfade the version-1 builder
+places, compiling to the same artifact - and `addImportedShowV2(record)`
+persists an imported one. Both validate the complete record before the provider
+sees it, write through the provider's explicit `createShowV2` boundary, refuse
+when the workspace has none, and add the row to `showV2Rows` with its own
+in-memory record and empty history, so the route can edit it at once.
 
 `updateShowV2Pilot(id, next)` adopts one complete changed candidate. It reuses
 the same per-Show persistence queue and generic history transitions as ordinary
@@ -245,32 +269,37 @@ current. Workspace reload retires outstanding pilot reads and write settlements;
 an authorized old-provider write may finish, but cannot republish its record,
 history, durable baseline or failure into the new workspace.
 
-Pilot open adopts the record and history without selecting a route. While the
-flagged URL names a Show, that explicit route is authoritative over an ordinary
+Open adopts the record and history without selecting a route. While the gated
+URL names a Show, that explicit route is authoritative over an ordinary
 active-Show selection, including a late open for a route the user has left.
 Ordinary Show-list selection remains one explicit open plus route navigation.
-The pilot header reads and renames the version-2 record through
+The header reads and renames the version-2 record through
 the store-owned `renameShowV2Pilot(id, name)` action. That action resolves the
 current version-2 record at submission, creates a name-only replacement from
 that record, and delegates once to `updateShowV2Pilot`. A title field may retain
 its submit callback while another edit, Undo, or failed-save rollback replaces
 the visible record; submitting the name therefore cannot restore the record
 snapshot from edit start. Missing and same-name requests remain no-ops, and the
-pilot never sends a rename through the version-1 sparse patch path.
+route never sends a rename through the version-1 sparse patch path.
 
-The pilot general Marker controls call `admitShowV2PilotMarkerEdit` with the
+The general Marker controls call `admitShowV2PilotMarkerEdit` with the
 captured document revision, route lifetime and the parent’s exact prepared
 ready/empty context, including Pattern/Map/Library/profile and resolved-map
 identity. The seam validates the pure Marker candidate and prepares that candidate
 once with the captured trusted context, then rechecks eligibility before invoking
 the ordinary v2 update once. Current preview is reused without direct lowering
 or another current compile. A local adoption receipt permits normal saved status
-on the own stamped record; external replacements retire obsolete feedback. No-op/refusal creates no history or save. Superseded
+on the own stamped record; external replacements retire obsolete feedback. The
+route's own commands follow the same rule: `Reopen artifacts` and both exports
+publish their outcome only while the capture they read is still the route's,
+and `Reload saved v2`, which replaces the record itself, only while it is still
+the newest such command. No-op/refusal creates no history or save. Superseded
 settlement never reports a current durable save.
 
 A structurally validated Show with zero effective Clips remains editable/saveable.
 Marker admission explicitly recognizes that empty-content partition; preview and
-export are unavailable until content is added. Other nonempty compiler or pilot
+export are unavailable until content is added, and the route says so where the
+Stage and the artifacts would be. Other nonempty compiler or pilot
 preview refusals remain refusals, and no placeholder runtime is created.
 
 The remote provider addresses the explicit v2 collection with

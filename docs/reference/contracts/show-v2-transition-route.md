@@ -1,7 +1,8 @@
 # Show v2 checked Transition admission
 
-The opt-in `ShowV2RoutePilot` keeps its existing Transition duration control and
-minimum1ms. It calls `admitShowV2PilotTransitionResize`, using the same parent
+The gated v2 editor route keeps a Transition duration control and minimum 1 ms,
+now in `ShowEditorV2TransitionLayoutPanel` (the pilot route that first hosted it
+retired with #1056 slice 6). It calls `admitShowV2PilotTransitionResize`, using the same parent
 prepared capture, trusted profile/map/assets and current/completion callbacks as
 [Marker admission](show-v2-marker-route.md). Production v1 routing is unchanged.
 

@@ -141,8 +141,15 @@ now that a v2 owner writes the instance clock.
 
 ## The version gate
 
-The ordinary route renders a `ShowRecordV2` behind a dev-only
-`?show-v2-editor=1` opt-in. `ShowEditorV2ReadOnly` resolves the record through
+[`showV2RouteGate.ts`](../../../src/engine/showV2RouteGate.ts) answers one
+question - is a `ShowRecordV2` the ordinary Show route? - and every consumer
+that must move together asks it: the route, the Show list, the store's v2
+listing, fresh-Show creation and `.pxlshow` import. `SHOW_V2_ROUTE_DEFAULT` is
+`false`, so today the answer is the dev-only `?show-v2-editor=1` opt-in and a
+production build answers `false` however the URL is written. **#1039's
+activation is that one constant.**
+
+`ShowEditorV2Route` resolves the record through
 the existing `openShowV2Pilot` store path, captures it with
 `captureShowStageEditV2`, projects it with `projectShowTimelineV2`, and renders
 `ShowStagePreview kind="prepared-v2"` beside one of two timeline surfaces:
@@ -151,6 +158,11 @@ the existing `openShowV2Pilot` store path, captures it with
 | --- | --- | --- |
 | `ShowTimelineGestureSurface` | the capture prepares (`ready` or `empty`) | the lanes below plus direct manipulation of ordinary Clips |
 | `ShowTimelineReadOnlySurface` | the capture is `refused` | the lanes below, every item a focusable `aria-disabled` element |
+
+Both surfaces draw the route's Undo and Redo, because history belongs to the
+record rather than to the gestures: a refused capture offers no Clip gesture,
+but the inspectors that do not read the prepared Stage still edit it, and those
+edits stay undoable.
 
 `ShowV2AnimationLanes` draws directly under whichever surface renders, and
 `ShowEditorV2TransitionLayoutPanel` mounts beneath those, on the same capture, so
@@ -166,15 +178,15 @@ the Show inspector - and both state their condition in one status line. Neither
 surface registers an agent binding, so no command can reach a v2 record and §10's
 forbidden mixed window stays closed.
 
-`?show-v2-pilot=1` still renders `ShowV2RoutePilot` and takes precedence. Without
-either flag the ordinary editor renders a v1 record exactly as before. The route's
-missing-Show guard stands aside for both opt-ins, because a converted row leaves
-the v1 list until #1039 couples them.
+Without the gate the ordinary editor renders a v1 record exactly as before. The
+route's missing-Show guard stands aside for the gated route, because a converted
+row is absent from the v1 list until #1039 couples them.
 
-The route lays the timeline column - the surface, the animation lanes and the
-authoring panel - and the Stage preview in the workspace, with the Clip inspector
-and the Show inspector in the side panel beside them above 1024 px, stacked below
-it. Each of the three keeps the height it draws and the column scrolls when they
+The route lays a header - the Show name, its `v2` badge and the transport -
+above the timeline column - the surface, the animation lanes and the authoring
+panel - and the Stage preview in the workspace, with the Clip inspector, the
+Show inspector and the Show summary and delivery panel in the side panel beside
+them above 1024 px, stacked below it. Each of the three keeps the height it draws and the column scrolls when they
 exceed it: the workspace caps the column at half the editor however much the
 route asks for, and a surface squeezed by the lanes below it scrolls its Zone
 rows out of sight, where a Clip is neither visible nor droppable. Every editable
@@ -184,9 +196,8 @@ the timeline gestures, the Transition and Layout panel and both inspectors plan
 against the same captured record, dependencies and provider, so one stale-edit
 predicate governs all of them.
 
-The component and its file keep slice 1's `ShowEditorV2ReadOnly` name until
-slice 6 retires the opt-in and renames the route surface; renaming it earlier
-would collide with every concurrent slice mounting into it.
+Slice 6 renamed the component and its file from slice 1's
+`ShowEditorV2ReadOnly`, once no concurrent slice was still mounting into it.
 
 ## Gesture adapters
 
@@ -458,13 +469,97 @@ one prepared-edit capture the route submits and answers the two staleness
 questions every adapter must ask before it reports an outcome, so a refusal, a
 superseded save and a save failure each reach the right surface or none.
 
+## The transport
+
+[`ShowEditorV2Transport`](../../../src/components/ShowEditorV2Transport.tsx) is
+the route's play, pause, return-to-start and playhead readout. The Stage preview
+owns playback itself; this asks the transport store for a position exactly as
+the v1 controls do, and the ruler draws the playhead from the same store,
+subscribing to the position in its own leaf so playback repaints a hairline
+rather than the whole timeline.
+
+It carries the v1 route's keyboard seek: `Space` toggles playback through the
+shared studio claim, `A` returns to the Show start, and `←`/`→` seek five
+seconds. The arrows belong to a focused Clip first - the timeline surface
+cancels the event it handles, and a cancelled event never also seeks.
+
+## The Show summary, artifacts and delivery
+
+[`ShowEditorV2DeliveryPanel`](../../../src/components/ShowEditorV2DeliveryPanel.tsx)
+closes the route with what a Show is and what it delivers. It reads the same
+prepared capture everything else does, so the summary, the gauge, the `.epe` a
+Controller receives and the `.epe` a download writes all describe one compiled
+Show.
+
+| Section | What it reads | Owner |
+| --- | --- | --- |
+| Show summary | `buildShowV2RouteSummary` | derived, never stored |
+| Artifact gauge and inventory | `buildShowV2RouteArtifacts` | `buildShowEpeExportV2` plus `buildDeliveredShowSourceInventory`, drawn by the v1 `ShowArtifactInventoryBody` |
+| Export `.pxlshow` | `buildShowFileBundle` (v2 overload) then `serializeShowFileBundle` | the landed file bundle |
+| Export `.epe` | the same artifacts with a fresh program id and preview image | `buildShowEpeExportV2` |
+| Reopen artifacts | `qualifyShowV2PilotArtifacts` | reopens both through their own importers |
+| Reload saved v2 | `reloadShowV2Pilot` | the store's provider read |
+| Send to Controller | `useShowV2ControllerDelivery` | `prepareShowControllerArtifact`, published to the Controller panel's own action row |
+
+[`showV2RouteDelivery.ts`](../../../src/engine/showV2RouteDelivery.ts) is the
+pure part. It refuses rather than describing bytes nothing can deliver: an empty
+Show, an invalid record, or an export the `.epe` importer does not reopen with
+the compiled Show in it. `describeShowArtifactPatternsV2` is the v2 counterpart
+of the v1 describer - it counts Pattern instances and their effective Clip uses,
+ordinary Clips and materialized Group Clip uses alike (section 4), rather than
+Scene cells.
+
+Send to Controller prepares against the connected Controller's observed map and
+firmware through `buildShowControllerCompatibilityContext`, which came out of the
+v1 editor unchanged so both routes compare the same way, and re-measures the
+prepared source because preparation can append a renderer adapter. A delivery
+whose Controller session changed between preparation and confirmation is refused
+rather than sent, and a save carries the preview image the firmware shows.
+
+Each command publishes its outcome only while the capture it read is still the
+route's own and it is still the newest such command; `Reload saved v2`, which
+replaces the record itself, asks only the second question.
+
+## Adding a Clip
+
+The gesture seam moves, resizes, splits, duplicates and deletes Clips;
+[`ShowV2AddClipEditor`](../../../src/components/ShowV2AddClipEditor.tsx) in the
+Clip inspector is where a Clip that did not exist comes from, and it is the
+surface section 4 requires for the explicit runtime choice: adding a Pattern
+reuses its sole existing instance, several independent instances require an
+explicit selection, and a Pattern with none makes its first instance as explicit
+placement setup. Identity is allocated once, at submission, by
+`allocateShowClipTimingIdsV2`.
+
+## The Show list, fresh Shows and import
+
+Behind the same gate the Shows rail lists the stored v2 rows beside the v1 ones
+(`showV2Rows`, filled from `listShowDocumentsV2`), a new Show is authored
+natively as v2 by
+[`createShowV2WithOutputContract`](../../../src/engine/showCreationV2.ts), and a
+version-2 `.pxlshow` imports through `parseShowFileBundle({ acceptV2: true })`
+and `planShowImportV2` / `applyShowImportPlanV2` with its Libraries. A version-1
+file keeps its own planner, here and after activation. The fresh v2 Show is the
+current two-Clip two-sided Crossfade shape: its Stage comes from the v1 builder
+and it compiles to exactly what a fresh v1 Show compiles to, differing only in
+its own identities and in carrying no chapter Markers, because a native Show has
+no Scene labels to project (section 8).
+[`show-state-history-persistence.md`](show-state-history-persistence.md) owns
+the store rules for all three.
+
 ## What remains
 
-Slice 6 of #1056 owns the remaining route content, after which
-`?show-v2-pilot=1` and `?show-v2-editor=1` both retire. Until then a v2 record on
-the ordinary route can be read, previewed, traversed, dragged in its Clip timing,
-sharing and deletion, edited through the Clip inspector, edited through its
-Transitions and Zone Layout lane, and edited through the Show inspector's
-Property tracks, Markers, Show End and Insert Time; the animation lanes report a
-selection and draw but accept no drag, and the store mutators, executor, command
-admission and MCP surfaces remain v1-typed.
+The route is complete for a v2 record behind the gate, and `ShowV2RoutePilot`
+with `?show-v2-pilot=1` is retired. What #1039 owns is listed in
+[the activation handoff](../evidence/issue-1056-editor-v2-s6/activation-handoff.md):
+flipping `SHOW_V2_ROUTE_DEFAULT`, retyping the store mutators, the executor and
+command admission, switching MCP, and the rehearsed row conversion. Until then
+the store mutators, executor, command admission and MCP surfaces remain
+v1-typed, no surface on this route registers an agent binding, and the animation
+lanes report a selection and draw but accept no drag.
+
+Two capabilities the v1 route offers are deliberately absent for a v2 record and
+are #1039's or a later slice's: renaming or duplicating a v2 row from the Shows
+rail (the list offers neither rather than sending a rename through the v1 sparse
+patch), and the v1 timeline's zoom, snap and diagnostic toggles, which belong to
+`ShowTimelineWorkspace` and have no v2 surface yet.

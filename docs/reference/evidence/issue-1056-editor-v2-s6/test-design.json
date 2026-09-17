@@ -1,0 +1,86 @@
+{
+  "issue": 1056,
+  "scope": "slice 6: the remaining ordinary-route surfaces on v2 - Show summary, artifact inventory, .pxlshow and .epe exports, Send to Controller, v2 import, the Show list, the native fresh v2 Show builder, the transport and its keyboard seek, Add Clip - and the retirement of the ?show-v2-pilot=1 route behind one version gate",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "ROUTE",
+      "FAILURE",
+      "DELETE-READD",
+      "REPLACE",
+      "LAYOUT-END"
+    ]
+  },
+  "base": "307d9e8c506a5faca375da145fea7a041d86a614",
+  "invariants": [
+    "One gate answers for every consumer that must move together - route, Show list, store listing, fresh-Show creation, import - so no window exists where the editor holds v2 while another surface assumes v1 (section 10). SHOW_V2_ROUTE_DEFAULT stays false and a production build answers false however the URL is written.",
+    "A v2 record never enters the v1 `shows` collection, and no store mutator, executor, command admission or MCP surface is retyped; the route registers no agent binding.",
+    "A fresh v2 Show is the current two-Clip two-sided Crossfade shape: same Stage as the v1 builder, compiling to exactly the same artifact, with its own identities and no synthetic Scene labels.",
+    "Delivery reads the one prepared capture: the summary, the gauge, the inventory, the exported .epe and the bytes a Controller receives all describe the same compiled Show, and an empty or unreopenable export refuses rather than describing bytes nothing can deliver.",
+    "Every route command publishes its outcome only while the capture it read is still the route's own and it is the newest such command; Reload saved v2, which replaces the record, asks only the second question.",
+    "History belongs to the record, not to the gestures: a refused capture still offers Undo and Redo because the inspectors still edit it.",
+    "Identity is allocated at submission: Add Clip mints through allocateShowClipTimingIdsV2, and an imported or created record is validated whole before the provider sees it.",
+    "Pointer press moves keyboard focus to the pressed Clip, so a focus-targeted shortcut acts on what was pressed (slice-2 carried finding).",
+    "A drawn boundary is identified by (Zone, Layer, selection), so a whole-output Transition on several Layers lists one addressable chip each with no duplicate React key (slice-4 carried finding).",
+    "No control is offered for a write its owner refuses: a Group-child selection reports the shared runtime and offers no instance value, stutter or sharing edit (slice-5 carried finding)."
+  ],
+  "partitions": [
+    "gate on / gate off / production build / malformed flag value",
+    "fresh native v2 Show / converted v1 record / stored v2 record / imported v2 record",
+    "prepared ready / prepared empty / prepared refused, for the timeline, the inspectors and the delivery panel",
+    "export .pxlshow / export .epe with program id and preview / reopen both artifacts / reload saved bytes",
+    "version-1 .pxlshow import (own planner) versus version-2 .pxlshow import (isolated v2 adapters with Libraries)",
+    "obsolete completion after record, revision, Pattern, Map, Library, profile, provider, route or unmount replacement",
+    "ordinary Clip selection versus Group-occurrence child selection in the Clip inspector",
+    "sole runtime / one existing runtime / several runtimes / no runtime, for Add Clip's explicit choice",
+    "desktop 1440 and narrow 390, keyboard reachability and zero horizontal overflow"
+  ],
+  "sequences": [
+    "create fresh v2 Show -> assert two Clips over one Crossfade -> pause, rewind, seek by arrow, return with A -> delete second Clip -> add replacement at the freed boundary -> Undo -> Redo -> Reload saved v2 -> Reopen artifacts",
+    "export .pxlshow -> import the same bytes through the Show list -> both rows are v2, the v1 list stays empty, the imported row opens on the same route",
+    "seed a converted v1 record as v2 -> the Show list offers it -> select it -> it opens on the editor route",
+    "split through the timeline -> pending save -> obsolete context replacement -> released completion publishes nothing",
+    "Layer edit on a record whose prepared Stage refuses -> saved -> Undo restores the refused record -> Redo -> reload -> reopen artifacts",
+    "keyboard focus Clip A -> pointer press Clip B -> Delete targets B"
+  ],
+  "oracles": [
+    "The fresh v2 record compiled through prepareShowV2ForCompile and compileShow equals, byte for byte, the fresh v1 Show's compiled code in both output contracts; its composition equals the converted fresh v1 record's under identity anonymisation, differing only in the chapter Markers conversion projects.",
+    "The route's own delivered artifacts: the .epe reopened through parseEpe contains the compiled code, the .pxlshow reopened through parseShowFileBundle({ acceptV2: true }) and replanned through planShowImportV2 yields the same composition, and the delivered byte count is the exported source's own length against the artifact's measured device budget.",
+    "The provider's stored v2 bytes read back over /api/shows?show-version=2 after every route edit, and the v1 /api/shows list staying empty.",
+    "The drawn timeline: Clip aria-labels carry authored intervals, the boundary chip reads Cut or the Transition kind, and the playhead carries the transport position in milliseconds.",
+    "Console errors and page errors collected for the whole e2e run, so a React key collision or a setState-in-render is a failure rather than a note.",
+    "The pure owner applied to the same preimage with the same minted identities, for the inspector's Make Pattern Independent."
+  ],
+  "redEvidence": [
+    "Pointer press on Clip B leaving focus on Clip A: 2 failed of 15 in ShowTimelineGestureSurface.test.ts before the explicit focus.",
+    "Duplicate React key for a whole-output Transition on two Layers: 1 failed of 9 in ShowEditorV2TransitionLayoutPanel.test.tsx, the console.error assertion, before the (Zone, Layer, selection) key.",
+    "Group-child instance controls offered as editable: 1 failed of 11 in ShowClipInspectorV2.test.tsx before the controls were reported rather than offered.",
+    "createShowV2WithOutputContract, buildShowV2RouteArtifacts, buildShowV2RouteSummary and showV2RouteGate absent: all of showCreationV2.test.ts, showV2RouteDelivery.test.ts and showV2RouteGate.test.ts failed to import before the modules existed.",
+    "The v2 Property editor updating the route while rendering: e2e/show-v2-properties.auth.spec.ts failed on the collected console error after its host moved from the pilot to the editor route.",
+    "No Undo or Redo on a refused capture: e2e/show-v2-layers.auth.spec.ts recovery case failed after its host moved, because the read-only surface had no history controls."
+  ],
+  "faults": [
+    "Remove the pointer-press focus from ShowTimelineGestureSurface: killed, 2 failed of 15 - 'moves focus to the Clip a pointer pressed' and 'moves focus to a pressed edge handle'.",
+    "Key the boundary chips by selection key again (key={boundary.key}): killed, 1 failed of 9 - the whole-output case's console.error assertion caught React's duplicate-key error.",
+    "Drop the gate from loadShows (list v2 rows unconditionally): killed, 1 failed of 7 in showStoreV2Route.test.ts - 'lists stored v2 rows beside the v1 list only when the route gate is on'.",
+    "Count ordinary Clips instead of materialized uses in describeShowArtifactPatternsV2: killed, 1 failed of 4 in showV2RouteDelivery.test.ts - the Group-occurrence count fell from 3 to 1.",
+    "Change the fresh Show's Crossfade to 1500 ms: killed, 3 failed of 4 in showCreationV2.test.ts, including the compiled-code equality with the fresh v1 Show."
+  ],
+  "results": {
+    "focused": "npx vitest run src/engine/showCreationV2.test.ts src/engine/showV2RouteDelivery.test.ts src/engine/showV2RouteGate.test.ts src/store/showStoreV2Route.test.ts src/components/ShowEditorV2Route.test.tsx src/components/ShowTimelineGestureSurface.test.tsx src/components/ShowEditorV2TransitionLayoutPanel.test.tsx src/components/ShowClipInspectorV2.test.tsx src/components/ShowV2AddClipEditor.test.tsx src/components/rail/ShowsRailSection.test.tsx: all passed.",
+    "static": "npm run lint clean; npx tsc -b --pretty false clean.",
+    "suite": "npm run test:staged passed at every commit; npm test full suite passed on the tip.",
+    "parity": "npm run show:v2-parity exact - 47 inventoried records; npm run show:v2-native-parity exact - 40 compared Shows; neither report file changed.",
+    "artifacts": "npm run check:artifact-oracle passed (show-pxlshow 782 bytes, show-epe 7007 bytes); npm run agent:smoke PASS; npm run agent:corpus -- --fake no failures and no generic-operation use.",
+    "browser": "npm run capture:editor-v2-route drove the gated route with repository Playwright and wrote six captures, all inspected; npm run check:ui-proof -- 8666d889 HEAD accepted .wrsp/ui-proof/1056-s6.json at 3b9f0ed3c328 and exited 0.",
+    "e2e": "Every registered Shows spec run individually through scripts/run-authenticated-playwright.ts: show-editor-v2-route (new, 2 tests), show-editor-v2-readonly, -inspector, -gestures, -transitions-layout, -animation, show-v2-markers, -properties, -layers, -appearance, -appearance-surface, -group-create, -group-occurrences, -group-replace, -prepared-stage, -chapters, and capture-chapters: all passed."
+  },
+  "residualGaps": [
+    "Renaming or duplicating a v2 row from the Shows rail is not offered; the list marks those rows unrenameable rather than sending a rename through the v1 sparse patch. #1039 owns it with the store retyping.",
+    "The v1 timeline's zoom, snap and diagnostic toggles belong to ShowTimelineWorkspace and have no v2 surface; the v2 timeline fits the Show to its width.",
+    "Send to Controller is proved by its unit-level composition and by the published capability, not by a hardware push; no Controller is connected in the authenticated e2e runtime.",
+    "The store mutators, executor, command admission and MCP remain v1-typed by design (#1039), so a v2 record is still unreachable by any command.",
+    "Final authoritative committed-tip suites and the cross-family review are the coordinator's."
+  ]
+}
