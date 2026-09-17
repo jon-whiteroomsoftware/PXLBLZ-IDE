@@ -167,7 +167,19 @@ it('rejects a Zone Layout that does not provide a Clip\'s Zone', () => {
   show.zoneLayouts = [{ id: 'l1', name: 'Physical', zones: [{ zoneId: 'gone', ranges: [{ start: 0, end: 7 }] }] }] as never
   const refused = createSessionStore({ authoringValidation: true }).open(show)
   expect(refused.ok).toBe(false)
-  if (!refused.ok) expect(refused.issues[0].message).toContain('does not provide it')
+  // The structural Zone Layout check v1 ran first is restored on the v2 path
+  // (#1039 validation parity), so the unknown Zone is named before availability.
+  if (!refused.ok) expect(refused.issues[0].message).toContain('has an unknown Zone "gone"')
+})
+
+it('refuses an Installation range with a fractional endpoint, as v1 did (#1039)', () => {
+  // v1's `invalid-physical-range` structural error returns before coverage is
+  // computed; the validation parity ports restored it on the v2 path.
+  const show = openGrammarFixture().document.show
+  show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 8, resolution: 'fixed' } as never
+  show.zoneLayouts = [{ id: 'l1', name: 'Physical', zones: [{ zoneId: 'z1', ranges: [{ start: 0.5, end: 7 }] }] }] as never
+  expect(validateShowDocument(show).valid).toBe(false)
+  expect(createSessionStore({ authoringValidation: true }).open(show).ok).toBe(false)
 })
 
 it('preserves one missing Pattern but refuses replacement and transplantation, then repairs it', () => {
@@ -299,19 +311,13 @@ it.each([
   ['incomplete coverage', [{ start: 0, end: 3 }], 8],
   ['overlapping ranges', [{ start: 0, end: 5 }, { start: 4, end: 7 }], 8],
   ['out-of-range endpoints', [{ start: -3, end: 11 }], 8],
-  ['a fractional endpoint', [{ start: 0.5, end: 7 }], 8],
   ['an over-capacity pixel count', [{ start: 0, end: 2000 }], 2001],
-] as const)('RESIDUAL (#1039): leaves Installation %s authorable and undiagnosed on the version-2 path', (_name, ranges, pixelCount) => {
-  // Under v1 every one of these was diagnosed: `validateShowDocument` ran
-  // `validateInstallationCoverage` through `showAuthoringValidation.ts`, and
-  // `compileShowForArtifact` carried the capacity blocker. On v2 the coverage
-  // fact is still computed — `showPreparedStageV2.ts` puts it on the prepared
-  // capture's `presentation` — but nothing turns it into a refusal, and the
-  // v1 validators are reachable only from v1-only modules. This is the same
-  // gap as the absent Portable capability check, one size larger.
-  //
-  // The harness pins what actually holds rather than keeping a second opinion
-  // about validity; the gap is reported to the epic, not repaired here.
+] as const)('keeps Installation %s authorable on the version-2 path, as v1 did (#1039)', (_name, ranges, pixelCount) => {
+  // v1 classified each of these as a delivery matter, not an authoring error:
+  // the Show stays valid and authorable, and the artifact boundary refuses.
+  // The v2 path now does the same (the Installation coverage check and the
+  // validation parity ports restored it), so the harness pins the record
+  // staying authorable with its ranges carried through untouched.
   const show = openGrammarFixture().document.show
   show.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount, resolution: 'fixed' } as never
   show.zoneLayouts = [{ id: 'l1', name: 'Physical', zones: [{ zoneId: 'z1', ranges: ranges.map((range) => ({ ...range })) }] }] as never
