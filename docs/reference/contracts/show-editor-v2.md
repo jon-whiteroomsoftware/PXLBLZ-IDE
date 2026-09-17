@@ -705,8 +705,18 @@ entry and one save; a refusal writes nothing and keeps the record identity.
 | Show output summary | derived | one line titled exactly as the v1 header's badge is: contract kind, pixel count, and the map named or `Missing map` |
 | Output contract | `set_output_contract` | kind, map and pixel count are drafted together and applied as one command; the map list narrows to 2D for Portable before anything is written, and the Stage map follows the contract map as the command documents |
 | Stage map | `set_stage_map` | the Stage map alone, leaving the contract untouched; the list is what `showV2StageMap.ts` can resolve |
-| Zone Map | `update_zone` | one Zone's name and nominal pixel count; a duplicate or blank name is the command's own refusal |
+| Zone Map | `update_zone`, `editShowZoneV2` | one Zone's name and nominal pixel count through the command; Add Zone and Remove Zone through the Zone owner |
 | Trails | `set_output_trails` | the output Effect and its retention, with v1's own labels |
+
+The section has one adoption runner behind both of its writers, because the
+Zone Map needs two: Zone metadata is a registry command, and adding or removing
+a Zone is structural and belongs to `editShowZoneV2` through
+`admitShowV2PilotZoneEdit`. Add Zone seeds v1's own defaults - `zone-<n>`, 60
+nominal pixels, the next palette color - and a fresh workspace id, then routes
+the Zone in every Layout definition. Remove Zone asks once, with v1's
+`Delete <name> and its Clips?` wording, and takes the Zone's Layers, Clips,
+Transitions, Group occurrences and Clip-owned Property tracks with it; the
+control is absent rather than refusing when one Zone is left.
 
 An accepted edit may name another Stage map, which the capture's pinned map
 cannot prepare. The prepared-edit dispatch therefore re-resolves a moved
@@ -724,6 +734,30 @@ one implementation behind the header's Download .epe and the panel's Export
 View code opens the generated pattern in place, under v1's own
 `Generated pattern - <name>` heading, and Back to show returns.
 
+## Zone Layouts
+
+The Transitions and Zone Layouts panel beside the timeline edits Layout
+*occurrences* - which definition plays when. The definitions themselves live in
+the Show inspector's Zone Layouts section, in `ShowV2ZoneLayoutEditor`, which is
+the v2 counterpart of the v1 editor's Zone Layout inspector panel.
+
+| Control | Behavior |
+| --- | --- |
+| Zone Layout | selects a definition; each option names it, its routing mode and how many Layout occurrences use it |
+| Add, Duplicate | append a definition under a fresh identity and a name already free, then select it; Add seeds v1's default body, Duplicate clones the selected one exactly |
+| Zone Layout name | rename; a name another definition holds is the owner's refusal |
+| Routing mode | v1's own mode list, labelled by the engine's `showRoutingLayoutKindLabel`; a mode needing more Zones than the Show has is disabled, and physical ranges are offered only when the contract is not Portable |
+| Zone 1…n | the operator's member Zones, one control per slot; a variable-arity operator can add and remove a member, a fixed-arity one cannot |
+| Operator parameters | Checker and Grid columns and rows, Ring count, Pinwheel arms, twist turns and rotation degrees, Wave axis, bands, amplitude, frequency and phase, Soft split axis and feather - v1's labels and v1's conversions |
+| `<Zone>` ranges | an Installation definition's physical LED ranges as v1's `0-63, 128-191` text, parsed by `parseShowRoutingRanges`, with v1's coverage arithmetic beneath them |
+| Remove Zone Layout | asks once; refused while a Layout occurrence still names the definition, and absent when one definition is left |
+
+`showV2ZoneLayoutEditorModel` is the projection both sections read: it holds the
+mode list, the arity rules, the parameter descriptors and the Add Zone seed, so
+the components stay thin and the routing vocabulary has one source. Every rule
+belongs to [the two owners](show-v2-zone-layout-owners.md), including the three
+deliberate differences from v1 recorded there.
+
 ## Surfaces the v1 editor has and this route does not
 
 Named here because #1039 made this route the production editor for every
@@ -731,31 +765,35 @@ converted Show, and specification section 1 forbids narrowing accepted
 behavior silently. Each of these is reachable on the v1 `ShowEditor` for a row
 still stored as v1, and has no counterpart here:
 
-| Surface | What the v1 editor offers | v2 domain owner that exists |
+| Surface | What the v1 editor offers | Why it is still absent |
 | --- | --- | --- |
-| Zone Map | adding and removing a Zone | - |
-| Zone Layout definition | routing mode and operator for a Layout definition (the panel here edits occurrences, not definitions) | - |
-| Zone LED ranges | selecting an Installation Zone's physical ranges on the Stage (`ShowZoneSpatialSelector`) | - |
+| Zone LED ranges on the Stage | dragging across the Stage map to select an Installation Zone's LEDs (`ShowZoneSpatialSelector`) | the component takes a v1 `ShowRecord`, and its draft coverage runs through `updateShowPhysicalZoneSelection`, which returns one; the ranges themselves are authorable in Zone Layouts |
+| Clip Zone sampling | choosing a Clip's `independent`, `span` or `repeat` Zone sampling | no editor route offers it; only the `update_clips` command writes `zone_sample_mode` |
 
-These three are missing *owners*, not missing editor surfaces: no v2 command
-writes them either, so an agent cannot author them and a projection adapter has
-nothing to project onto. Inventing one here would be a second writer for rules
-the catalogue does not yet state.
+Adding or removing a Zone and writing a Layout definition's routing were the
+other two rows here until #1039's Zone slice landed their owners. What remains
+of that finding is one consequence, recorded in the
+[owner contract's residuals](show-v2-zone-layout-owners.md#residuals): a fresh
+Show's two Clips sample their Zone `independent`ly, which the lowerer admits
+only at one Zone, so adding a second Zone to a *fresh* Show is refused with
+`composition.clips: lowering requires repeat-mode Clip sampling evidence before
+compilation.` until its Clips sample `span`. Nothing is written when that
+happens, and the message is shown.
 
-Adding a Zone is not a one-field write. Every Layout definition must route the
-new Zone, or preparation refuses the whole Show -
-`compileShow routed scene sequence references missing zone "Spare"` - which is
-the same missing definition-routing owner again; removing one must also carry
-its Layers, Clips, Transitions, Group occurrences and Property tracks.
-`src/engine/showV2ShowSurfaceResiduals.test.ts` holds those facts as checked
-assertions, so landing either owner fails a test and prompts this table's
-update.
+`src/engine/showV2ShowSurfaceResiduals.test.ts` holds the remaining facts as
+checked assertions: the MCP catalogue writes no Show structure, by Jon's #943
+scope principle; the two owners route a new Zone and write a definition's mode;
+and the exact ranges `compactSpatialIndexes` produces are what the
+physical-ranges intent accepts, so the Stage selector's later port stays a
+projection rather than becoming a second writer.
 
-Because these rows remain, `e2e/shows.auth.spec.ts` keeps seeding version-1 rows
-explicitly for the tests that cover them: those tests describe live behavior for
-unconverted rows, not a creation flow that still produces one. Its Portable
-contract, Show properties and Trails counterparts on this route are
-`e2e/show-editor-v2-show-properties.auth.spec.ts`.
+`e2e/shows.auth.spec.ts` keeps seeding version-1 rows explicitly for the tests
+that cover the v1 surfaces: those tests describe live behavior for unconverted
+rows, not a creation flow that still produces one. The counterparts on this
+route are `e2e/show-editor-v2-show-properties.auth.spec.ts` for the Portable
+contract, Show properties and Trails, and
+`e2e/show-editor-v2-zones-layouts.auth.spec.ts` for Zones and Zone Layout
+definitions.
 
 ## What remains
 
@@ -778,7 +816,8 @@ active input the way a v1 candidate does while the author is typing.
 The v1 timeline's zoom, snap and diagnostic toggles landed with #1039 and are
 described under [The visible window](#the-visible-window). Renaming and
 duplicating a v2 row from the Shows rail landed with #1039 too, as did the
-[Show properties](#show-properties) section and the header's Show actions.
+[Show properties](#show-properties) section, the header's Show actions and the
+[Zone Layouts](#zone-layouts) section with the Zone Map's Add and Remove.
 
 One gap remains in that window: `ShowV2AnimationLanes` - the Property lanes, the
 held-appearance keys and the Group occurrence bands drawn beneath the timeline -

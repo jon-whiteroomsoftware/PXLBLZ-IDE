@@ -921,10 +921,15 @@ development-only preview of an unconverted row, which converts in memory and
 writes nothing; a production build ignores it. The v2 editor's Show inspector
 now carries the output-contract summary and Show properties, Stage map
 selection, Zone renaming and Show Trails, and its header carries View code and
-Download .epe; adding or removing a Zone, a Zone Layout definition's routing
-mode and an Installation Zone's LED ranges have no v2 owner yet and so no
-surface on either the editor or the command path. See
-[the editor contract](contracts/show-editor-v2.md#show-properties).
+Download .epe; its Zone Map adds and removes Zones, and its Zone Layouts
+section adds, duplicates, renames and removes Zone Layout definitions and
+writes a definition's routing mode, operator parameters, member Zones and, for
+an Installation Show, its physical LED ranges. Those two owners are the
+editor's alone: the MCP command set edits content in Shows, not Show structure,
+so an agent still cannot create a Zone or re-route a definition. Dragging
+across the Stage to select an Installation Zone's LEDs remains a v1-only
+surface. See [the editor contract](contracts/show-editor-v2.md#show-properties)
+and [the Zone owner contract](contracts/show-v2-zone-layout-owners.md).
 
 **Row conversion.** Personal rows move to v2 through an explicit operator pass,
 never through a read. `scripts/show-v2-migrate.ts` drives the landed owner over

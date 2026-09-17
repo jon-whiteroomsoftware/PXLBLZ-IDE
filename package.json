@@ -146,7 +146,8 @@
     "capture:chapters": "npm run check:node && tsx scripts/with-suite-lock.ts capture:chapters -- tsx scripts/run-authenticated-playwright.ts e2e/capture-chapters.auth.spec.ts --workers=1",
     "capture:shows": "npm run check:node && tsx scripts/with-suite-lock.ts capture:shows -- tsx scripts/run-authenticated-playwright.ts e2e/capture-shows.auth.spec.ts --workers=1",
     "capture:cutover": "npm run check:node && tsx scripts/with-suite-lock.ts capture:cutover -- tsx scripts/run-authenticated-playwright.ts e2e/capture-cutover.auth.spec.ts --workers=1",
-    "capture:show-properties": "npm run check:node && tsx scripts/with-suite-lock.ts capture:show-properties -- tsx scripts/run-authenticated-playwright.ts e2e/capture-show-properties.auth.spec.ts --workers=1"
+    "capture:show-properties": "npm run check:node && tsx scripts/with-suite-lock.ts capture:show-properties -- tsx scripts/run-authenticated-playwright.ts e2e/capture-show-properties.auth.spec.ts --workers=1",
+    "capture:zones-layouts": "npm run check:node && tsx scripts/with-suite-lock.ts capture:zones-layouts -- tsx scripts/run-authenticated-playwright.ts e2e/capture-zones-layouts.auth.spec.ts --workers=1"
   },
   "engines": {
     "node": "^22.13.0 || >=24"

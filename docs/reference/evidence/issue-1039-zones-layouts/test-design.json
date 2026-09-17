@@ -1,0 +1,75 @@
+{
+  "issue": 1039,
+  "scope": "v2 owners and editor surface for Zones and Zone Layout definitions: add/remove a Zone, add/duplicate/rename/remove a Layout definition, its routing mode, operator parameters and member Zones, and an Installation Zone's physical LED ranges. Representation port of v1's showModel rules; no compiler, schema or runtime-domain widening and no new MCP command.",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": ["ROUTE", "LAYOUT-END"],
+    "sections": ["1", "3", "6", "7", "9", "12"]
+  },
+  "base": "0ceb93b5e15c817702fcbe582f6b82cfba532655",
+  "invariants": [
+    "Every Layout definition routes every Zone the Show has, or preparation refuses the whole Show with `references missing zone`; adding a Zone therefore cascades into every definition exactly as v1's appendZoneToLayout does.",
+    "A Show keeps at least one Zone and at least one Zone Layout definition; a definition a Layout occurrence still names cannot be removed.",
+    "Identity is supplied by the caller: neither owner allocates a Zone or definition id, and the editor mints one fresh workspace id per accepted add or duplicate.",
+    "One accepted edit is one prepared candidate, one history entry and one save; a refusal or true no-op returns the original record identity with every affected collection empty and writes no history, save or timestamp.",
+    "Every candidate is validated complete before adoption: validateShowRecordV2, validateShowLogicalRouting for every definition, and validateShowLayoutAvailabilityV2, so no accepted edit leaves a Clip or Group occurrence on an unrouted Zone.",
+    "Zone names and definition names are unique case-insensitively, refused rather than silently uniquified, because both reach the compiler as recipe keys.",
+    "Ranges that miss, overlap or exceed the output contract's pixel count are accepted and reported as Installation coverage, as v1 accepts them; refusing would narrow shipped behavior."
+  ],
+  "partitions": [
+    "Contract: Portable (operator required, physical routing refused) versus Installation (operator or physical ranges).",
+    "Operator arity: fixed (Full surface 1, Checker/Moving split/Soft split 2, Grid columns*rows) versus variable (stripes, rings, pinwheel, wave, 1 and upward).",
+    "Definition use: unused (removable) versus named by one or more Layout occurrences (refused, with the occurrence identities in the message).",
+    "Zone content: empty Zone, Zone with Layers and Clips, Clip whose removed Transition carries a Property ramp (plan required), Group occurrence bound to the Zone.",
+    "Removal end state: content remains versus the record becomes a validated empty Show.",
+    "Ranges: ordered, reversed endpoints, several ranges, empty selection, a Zone the definition does not list yet, incomplete coverage, malformed (negative, fractional, unknown field).",
+    "Result class: changed, true no-op, owner refusal, malformed ingress refusal, stale-revision admission refusal.",
+    "Viewport: 1440 px desktop and 390 px narrow with the Shows drawer dismissed."
+  ],
+  "sequences": [
+    "Portable route: create -> Add Zone -> add a Layer on the new Zone -> add a Clip on it -> Add Zone Layout -> rename -> change routing mode -> select the definition on a second Layout occurrence -> Fast and Precise Stage frames before and after the switch -> export .pxlshow and reopen -> download .epe and reopen.",
+    "Installation route: apply a 240 px Installation contract -> Add Zone -> set both Zones' physical LED ranges to complete coverage -> Remove Zone with its content -> Undo -> reload -> 390 px keyboard and bounds pass.",
+    "Owner sequence: add Zone -> remove that Zone -> refuse the last Zone; add definition -> duplicate -> rename -> refuse a duplicate name -> refuse removal while used -> select another definition on both occurrences through the occurrence owner -> remove.",
+    "Admission sequence: accepted add (one preparation, one history entry, one save) -> Undo -> Redo -> malformed intents before preparation -> owner refusal -> true no-op -> stale revision."
+  ],
+  "oracles": [
+    "Reopened record through parseProvisionalShowRecordV2 after serializeProvisionalShowRecordV2, never the owner's internal candidate.",
+    "prepareShowStageV2 status for the `references missing zone` counterexample: refused when a Zone is appended by hand, ready through the owner.",
+    "Provider readback over /api/shows?show-version=2 in the authenticated route spec, and the adopted record in the store for component tests.",
+    "Exported .pxlshow reopened through parseShowFileBundle and the header's .epe reopened through parseEpe.",
+    "Fast and Precise Stage captureSequence frames at named times either side of the Layout switch, with zero capture failures.",
+    "The Installation coverage line the surface renders, which is v1's own validateInstallationCoverage arithmetic.",
+    "Exact typed refusal codes and messages, plus empty affected collections and preserved record identity on refusal."
+  ],
+  "redEvidence": [
+    "Honest note: the two owner test files and the admission test file were authored before their modules but first executed against the complete pair, so their evidence of fault sensitivity is the mutation record below rather than a pre-implementation red run.",
+    "Genuine red runs observed and repaired: ShowV2ZoneLayoutEditor.test.tsx 'writes the routing mode, its parameters and its member Zones' and 'refuses an operator that would leave a Clip unrouted' both failed first, because every fixture Clip lives on Left and both occurrences use that definition, so any operator dropping Left is refused - the test asserted the wrong side of a real rule.",
+    "e2e/show-editor-v2-zones-layouts.auth.spec.ts failed first with `composition.clips: lowering requires repeat-mode Clip sampling evidence before compilation.`, which is how the fresh-Show sampling residual below was found rather than assumed.",
+    "The same spec then failed on 'zone-2' identity assumptions, which is how the caller-supplied-identity invariant became an assertion on the allocated id."
+  ],
+  "faults": [
+    "M1 add-zone skips appendZoneToLogicalRouting -> showZonesV2.test.ts 'routes the new Zone in every Layout definition so the Show still prepares' fails (1 failed | 8 passed).",
+    "M2 remove-zone keeps a stale operator member -> 'carries the Zone Layers, Clips, Transitions and Clip-owned tracks' fails (1 failed | 8 passed).",
+    "M3 remove-zone allows the last Zone -> 'refuses the last Zone, an unknown Zone and a foreign Clip plan' fails (1 failed | 8 passed).",
+    "M4 definition removal ignores occurrences that name it -> 'refuses a definition an occurrence still names, and accepts it once the occurrence moves' fails (1 failed | 16 passed).",
+    "M5 definition commit skips the Layout availability check -> 'refuses an operator that would leave a Clip on an unrouted Zone' fails (1 failed | 16 passed).",
+    "M6 physical LED ranges are not ordered -> 'writes one Zone ranges, ordered, and leaves the other Zones alone' fails (1 failed | 16 passed).",
+    "All six mutations were applied one at a time and reverted; both files return to 9 passed and 17 passed."
+  ],
+  "results": {
+    "focused": "showZonesV2 9 passed, showZoneLayoutDefinitionsV2 17 passed, showV2ZoneLayoutEditorModel 9 passed, showV2ShowSurfaceResiduals 5 passed, showV2ZoneLayoutAdmission 38 passed, ShowV2ZoneLayoutEditor 9 passed, ShowV2ShowPropertiesEditor 11 passed.",
+    "parity": "show:v2-parity 47 inventoried records matched; show:v2-native-parity 40 compared Shows matched.",
+    "route": "e2e/show-editor-v2-zones-layouts.auth.spec.ts 2 passed through scripts/run-authenticated-playwright.ts on its own isolated runtime.",
+    "static": "npm run lint clean; npx tsc -b --pretty false clean.",
+    "browser": "See .wrsp/ui-proof/1039-zones-layouts.json; captured through the committed npm run capture:zones-layouts script and inspected."
+  },
+  "residualGaps": [
+    "A fresh v2 Show cannot gain a second Zone yet: its two Clips carry zoneSampleMode 'independent', which the lowerer admits only while the Show has one Zone, so the prepared-edit dispatch refuses with `composition.clips: lowering requires repeat-mode Clip sampling evidence before compilation.` and writes nothing. No editor route offers a Clip-sampling control; only update_clips writes zone_sample_mode. Closing it needs a Clip-sampling control or a fresh-Show sampling decision - changing showCreationV2 to 'span' would move a fresh Show off the continuous-flat lowering route and change its generated bytes - both outside this slice.",
+    "The Stage's spatial LED selector (ShowZoneSpatialSelector) is still v1-only: it takes a v1 ShowRecord and its draft coverage runs through updateShowPhysicalZoneSelection, which returns one. Porting it narrows a shared component's props, a v1-editor change this slice was not scoped to make. The ranges it writes are authorable in Zone Layouts, and showV2ShowSurfaceResiduals.test.ts pins the seam so the port stays a projection.",
+    "No MCP command writes Show structure, by Jon's #943 scope principle, so an agent still cannot create a Zone or re-route a definition. Deliberate, not missing.",
+    "Removing a definition a Layout occurrence names is refused rather than cascading into occurrence removal: v1's hidden re-point of the interval at time zero has no exact v2 form. The author resolves it through the existing occurrence owner; both sides are tested.",
+    "wrsp-check-e2e-locators reports one pre-existing stale locator, \"Inspector Other\" in e2e/show-editor-v2-inspector.auth.spec.ts, present on the base commit and untouched by this slice.",
+    "Authoritative committed-tip suites and cross-family review are the coordinator's."
+  ]
+}
