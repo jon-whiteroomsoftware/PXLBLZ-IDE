@@ -52,13 +52,18 @@ test('the ordinary Show route renders a stored v2 record through the version gat
   await expect(page.getByTestId('show-timeline-read-only-end')).toHaveText('End 1.00s')
 
   // The Layout lane and the Marker lane stay inert until slices 4-5: focusable
-  // for traversal, never actionable. The timeline offers no field of its own.
+  // for traversal, never actionable. The timeline offers no field of its own;
+  // the only slider is the view controls' pan thumb (#1039), which changes how
+  // the Show is looked at, never the record.
   for (const laneName of ['Zone Layouts lane', 'Show Markers']) {
     const controls = await surface.getByRole('group', { name: laneName }).getByRole('button').all()
     expect(controls.length).toBeGreaterThan(0)
     for (const control of controls) await expect(control).toHaveAttribute('aria-disabled', 'true')
   }
-  await expect(surface.locator('input, select, textarea, [role="slider"]')).toHaveCount(0)
+  await expect(surface.locator('input, select, textarea')).toHaveCount(0)
+  const viewControls = surface.getByRole('group', { name: 'Timeline view controls' })
+  await expect(viewControls.getByRole('slider', { name: 'Pan visible timeline range' })).toHaveCount(1)
+  await expect(surface.locator('[role="slider"]')).toHaveCount(1)
 
   // Stage preview in both fidelities.
   const stage = page.getByTestId('show-stage-preview')
