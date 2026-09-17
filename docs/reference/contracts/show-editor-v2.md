@@ -248,6 +248,72 @@ Rules the adapter holds to:
   re-placement carry the dragged Clip alone (`carry: 'clip'`), matching the
   owners: `replace-placement` refuses to detach a Transition endpoint.
 
+## The visible window
+
+Both surfaces and the shared lanes draw a visible window rather than the whole
+Show (#1039). The window is a `ShowTimelineViewport` -
+[the same engine model the v1 workspace uses](../../../src/engine/showTimelineViewport.ts):
+total, start, duration and a minimum duration that caps zoom at 16x.
+[`useShowTimelineViewport`](../../../src/components/useShowTimelineViewport.ts)
+holds it beside the surface, and
+[`showTimelineGeometry`](../../../src/components/ShowTimelineLanes.tsx) turns it
+into the CSS percentages every lane positions with.
+
+It is presentation state, and nothing about it reaches a record: zoom, pan and
+the toggles below submit no gesture, create no history entry, write no
+timestamp and save nothing. Nothing about it is persisted either; the window
+opens fitted to the Show.
+
+| Property | Behavior |
+| --- | --- |
+| Mapping | `timeToViewportPercent` and `durationToViewportPercent`, unclamped. Content that starts before the window or ends after it draws past the lane edge, where the lane clips it, so the visible part keeps its true position and width. |
+| Pointer | One pixel is one window millisecond per pixel. A drag, an edge drag and a double-click split all name a time in the window. |
+| Drop resolvers | Both receive the window's real `visibleDurationMs` and the measured lane `visibleWidthPx`, so magnetism and the drop grid follow the ruler ticks the author can see. |
+| Zoom independence | The intent a gesture submits is the authored time, so the same target time produces the same owner intent at any zoom. Zoom changes only how finely a pointer can name a time. |
+| Keyboard nudges | Deliberately zoom independent: `←`/`→` on a Clip or an edge move one drop-grid step at any zoom, resolved in a fixed frame. |
+| Ruler | Tick steps come from the window, and only the window's ticks are mounted. The lane publishes the window as `data-show-visible-start-ms` and `data-show-visible-duration-ms`. |
+| Playhead | Drawn at its time in the window; a position outside it is clipped rather than resting on the edge and claiming a time it is not at. |
+| Show End | Drawn at its own time rather than pinned to the lane's right edge. |
+| A changed Show End | `reconcileShowTimelineViewport` rescales the window around the playhead and keeps the author's magnification, as the v1 workspace does. |
+
+[`ShowTimelineViewControls`](../../../src/components/ShowTimelineViewControls.tsx)
+is the control cluster, in both surfaces' header row and reachable by keyboard
+at 390 px. It mounts the v1 workspace's own
+[`ShowTimelineNavigator`](../../../src/components/ShowTimelineNavigator.tsx) -
+extracted from `ShowEditor` unchanged, and still the v1 toolbar's zoom control -
+so the whole-Show strip, the draggable window thumb, its edge handles, the
+keyboard pan and zoom (`←`/`→` on the thumb pans 5%, on an edge handle resizes
+it) and the zoom percentage are one implementation on both routes. Beside it are
+Fit to Show and the toggles below. The controls stay live on the read-only
+surface: a Show that cannot be edited can still be read closely.
+
+### Toggles
+
+| Toggle | v2 meaning | State |
+| --- | --- | --- |
+| Snap to boundaries | The v1 Magnet. On, a drag magnetizes to the drawn structural times; off, nothing attracts. The drop grid is separate and always applies, and `Alt` remains the per-gesture escape to raw milliseconds. | `showEditorSessionStore.snapEnabled`, shared with the v1 route and persisted |
+| Markers | The v1 Marker control, with its meaning intact: hidden Markers also stop being snap targets. | `markersVisible` / `markerSnapEnabled`, shared and persisted |
+| Zone Layouts lane | Draws or hides the Layout occurrence lane. The v1 workspace derives that lane's visibility from the record instead; v2 always has the lane, so the author owns it. | `timelineLanes.zoneLayouts`, session only |
+| Transition junctions | Draws or hides each Transition window and derived Cut on its Layer. | `timelineLanes.junctions`, session only |
+
+The surface composes the snap candidates the way the v1 toolbar does: the
+transport playhead always, the view's `structuralTimesMs` while the Magnet is
+on, and Marker times while Markers are shown. They reach the resolvers as
+`structuralTimesMs` on the drop inputs; omitting that field keeps every boundary
+the view draws.
+
+These v1 controls have no v2 meaning and are intentionally absent:
+
+| v1 control | Why it is absent |
+| --- | --- |
+| Zones rail (`PanelLeft`) | The v1 workspace hides its Zone rail behind a toggle because the rail is a fixed column of the timeline grid. This surface names each Zone in its own row header, so there is no rail to open or close. |
+| Stage diagnostics: Zone outlines, Selected Clip outline, other-Zone guides | Not timeline controls. They belong to `ShowStagePreview`, which this route already mounts, so they are reached there rather than duplicated here. |
+| Property and held-appearance lanes | Drawn by `ShowV2AnimationLanes` beneath the timeline, from the authored tracks; the v1 workspace derives them the same way and offers no toggle either. Those lanes do not yet follow the window - see [What remains](#what-remains). |
+
+A dormant Marker lies beyond Show End, so no window can contain it. It draws at
+the Show End mark, where the v1 timeline draws it, and its label states the time
+it is really at.
+
 ## The gesture surface
 
 `ShowTimelineGestureSurface` draws the view model and emits gestures. Ordinary
@@ -581,7 +647,13 @@ the store mutators, executor, command admission and MCP surfaces remain
 v1-typed, no surface on this route registers an agent binding, and the animation
 lanes report a selection and draw but accept no drag.
 
-One capability the v1 route offers is still absent for a v2 record: the v1
-timeline's zoom, snap and diagnostic toggles, which belong to
-`ShowTimelineWorkspace` and have no v2 surface yet. Renaming and duplicating a
-v2 row from the Shows rail landed with #1039 and are described above.
+The v1 timeline's zoom, snap and diagnostic toggles landed with #1039 and are
+described under [The visible window](#the-visible-window). Renaming and
+duplicating a v2 row from the Shows rail landed with #1039 too.
+
+One gap remains in that window: `ShowV2AnimationLanes` - the Property lanes, the
+held-appearance keys and the Group occurrence bands drawn beneath the timeline -
+still maps every time across the whole Show, so a zoomed timeline no longer
+lines up with the lanes under it. The lanes read their own geometry from the
+view model's precomputed fractions and are mounted by `ShowEditorV2Route`, so
+carrying the window into them is its own slice.

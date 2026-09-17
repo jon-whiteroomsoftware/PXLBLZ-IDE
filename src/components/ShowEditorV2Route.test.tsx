@@ -99,7 +99,11 @@ describe('ShowEditorV2Route (#1056 slices 1-5)', () => {
     expect(within(surface).getByRole('button', { name: /^Start edge of Clip Outgoing/ })).toBeInTheDocument()
     expect(within(surface).getByRole('button', { name: /^End edge of Clip Outgoing/ })).toBeInTheDocument()
     expect(within(surface).queryAllByRole('textbox')).toHaveLength(0)
-    expect(within(surface).queryAllByRole('slider')).toHaveLength(0)
+    // The only slider is the view controls' own pan thumb (#1039): the visible
+    // window is a way of looking at a Show, never a way of editing one.
+    const viewControls = within(surface).getByRole('group', { name: 'Timeline view controls' })
+    expect(within(surface).queryAllByRole('slider').filter((slider) => !viewControls.contains(slider)))
+      .toHaveLength(0)
 
     // The route's own transport leads the tab order (slice 6), and the
     // timeline's controls follow it without a keyboard trap in between.
@@ -136,9 +140,16 @@ describe('ShowEditorV2Route (#1056 slices 1-5)', () => {
     const surface = screen.getByTestId('show-timeline-read-only')
     expect(surface).not.toHaveAttribute('data-show-timeline-editable')
     expect(screen.getByTestId('show-timeline-read-only-status')).toHaveTextContent('Read only')
+    // Every control that would change the record is inert. The view controls
+    // are not record controls (#1039): a Show that cannot be edited can still
+    // be zoomed, panned and read closely, so they stay live here.
+    const viewControls = within(surface).getByRole('group', { name: 'Timeline view controls' })
     for (const control of within(surface).getAllByRole('button')) {
+      if (viewControls.contains(control)) continue
       expect(control).toHaveAttribute('aria-disabled', 'true')
     }
+    expect(within(viewControls).getByRole('button', { name: 'Snap to boundaries' }))
+      .not.toHaveAttribute('aria-disabled')
   })
 
   it('leaves the seeded v2 record untouched while rendering', () => {

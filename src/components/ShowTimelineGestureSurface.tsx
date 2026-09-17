@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   resolveShowTimelineClipDropV2,
   resolveShowTimelineEdgeDropV2,
@@ -11,6 +11,8 @@ import {
   type ShowTimelineItemView,
   type ShowTimelineViewModel,
 } from '@/engine/showTimelineViewModel'
+import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { useShowTransportStore } from '@/store/showTransportStore'
 import {
   formatShowTimelineRange,
   ShowTimelineHistoryControls,
@@ -18,8 +20,11 @@ import {
   ShowTimelineLayoutLane,
   ShowTimelineMarkerLane,
   ShowTimelineRulerLane,
-  showTimelinePercentOf,
+  showTimelineGeometry,
+  type ShowTimelineGeometry,
 } from './ShowTimelineLanes'
+import { ShowTimelineViewControls } from './ShowTimelineViewControls'
+import { useShowTimelineViewport } from './useShowTimelineViewport'
 
 export interface ShowTimelineGestureHandlers {
   /** One adopted gesture becomes one candidate and one history entry. */
@@ -65,6 +70,13 @@ type Drag =
  * double-click to split, Delete to remove. Every gesture leaves through
  * `ShowTimelineGestureV2`; this surface decides no edit semantics and holds no
  * record. Group Clip uses stay inert here - their occurrence owns them.
+ *
+ * Every gesture is resolved in the visible window (#1039): the pointer maps
+ * through the drawn window, and the drop resolvers are given that window's real
+ * duration and measured pixel width, so magnetism and the drop grid follow the
+ * ticks the author can see. The intent a gesture produces stays zoom
+ * independent - the same target time yields the same owner intent at any zoom,
+ * because zoom changes only how finely a pointer can name a time.
  */
 export function ShowTimelineGestureSurface({
   view,
@@ -79,23 +91,47 @@ export function ShowTimelineGestureSurface({
   transportShowId?: string
 }) {
   const totalMs = Math.max(1, view.showEndMs)
-  const percent = showTimelinePercentOf(totalMs)
+  const { viewport, setViewport, visibleWidthPx, measureRef } = useShowTimelineViewport(totalMs, transportShowId)
+  const geometry = showTimelineGeometry(viewport)
+  const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
+  const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)
+  const lanes = useShowEditorSessionStore((state) => state.timelineLanes)
   const [drag, setDrag] = useState<Drag | null>(null)
   const dragRef = useRef<Drag | null>(null)
-  // A live drag reads the newest view and handlers without restarting itself.
-  const live = useRef({ view, gestures })
-  useLayoutEffect(() => { live.current = { view, gestures } }, [view, gestures])
+
+  /**
+   * What a pointer gesture may magnetize to, as the v1 toolbar composes it: the
+   * playhead always, the drawn structural boundaries while the Magnet toggle is
+   * on, and Marker times while Markers are shown. The drop grid is separate and
+   * always applies; Alt is still the per-gesture escape to raw milliseconds.
+   */
+  const snapTimesMs = useMemo(() => {
+    const transport = useShowTransportStore.getState()
+    return [
+      ...(transportShowId !== undefined && transport.showId === transportShowId ? [transport.positionMs] : []),
+      ...(snapEnabled ? view.structuralTimesMs : []),
+      ...(markersVisible ? view.markers.map((marker) => marker.timeMs) : []),
+    ]
+  }, [markersVisible, snapEnabled, transportShowId, view])
+
+  // A live drag reads the newest view, window and handlers without restarting.
+  const live = useRef({ view, gestures, viewport, snapTimesMs })
+  useLayoutEffect(() => {
+    live.current = { view, gestures, viewport, snapTimesMs }
+  }, [gestures, snapTimesMs, view, viewport])
   const update = (next: Drag | null) => { dragRef.current = next; setDrag(next) }
 
   useEffect(() => {
     if (!drag) return
+    // The pointer moves through the drawn window, so one pixel is one window
+    // millisecond per pixel - not one Show millisecond per pixel.
     const timeAt = (clientX: number, current: Drag) => (
-      (clientX - current.originX) / Math.max(1, current.laneWidthPx) * live.current.view.showEndMs
+      (clientX - current.originX) / Math.max(1, current.laneWidthPx) * live.current.viewport.durationMs
     )
     const onMove = (event: PointerEvent) => {
       const current = dragRef.current
       if (!current || event.pointerId !== current.pointerId) return
-      const { view: model } = live.current
+      const { view: model, viewport: visible, snapTimesMs: snapTimes } = live.current
       if (current.mode === 'edge') {
         const resolved = resolveShowTimelineEdgeDropV2(model, {
           itemId: current.itemId,
@@ -103,8 +139,9 @@ export function ShowTimelineGestureSurface({
           candidateTimeMs: Math.round(current.originTimeMs + timeAt(event.clientX, current)),
           altKey: event.altKey,
           shiftKey: event.shiftKey,
-          visibleDurationMs: model.showEndMs,
+          visibleDurationMs: visible.durationMs,
           visibleWidthPx: current.laneWidthPx,
+          structuralTimesMs: snapTimes,
         })
         update({ ...current, timeMs: resolved.timeMs, magnetized: resolved.magnetized })
         return
@@ -119,8 +156,9 @@ export function ShowTimelineGestureSurface({
         carry: current.duplicate ? 'clip' : 'component',
         altKey: event.altKey && !current.duplicate,
         shiftKey: event.shiftKey,
-        visibleDurationMs: model.showEndMs,
+        visibleDurationMs: visible.durationMs,
         visibleWidthPx: current.laneWidthPx,
+        structuralTimesMs: snapTimes,
         previousPlacement: { startMs: current.drop.componentStartMs, magnetized: current.drop.magnetized },
       })
       update({ ...current, destination, drop })
@@ -204,7 +242,7 @@ export function ShowTimelineGestureSurface({
       destination: { zoneId: item.zoneId, layerId: item.layerId },
       drop: resolveShowTimelineClipDropV2(view, {
         itemId: item.id, candidateStartMs: item.startMs, altKey: true, shiftKey: false,
-        visibleDurationMs: view.showEndMs, visibleWidthPx: laneWidthPx,
+        visibleDurationMs: viewport.durationMs, visibleWidthPx: laneWidthPx,
       }),
     })
   }
@@ -259,7 +297,7 @@ export function ShowTimelineGestureSurface({
     const lane = event.currentTarget.closest<HTMLElement>('[data-show-layer-id]')
     const rect = lane?.getBoundingClientRect()
     if (!rect || rect.width <= 0) return
-    const atMs = Math.round((event.clientX - rect.left) / rect.width * view.showEndMs)
+    const atMs = Math.round(viewport.startMs + (event.clientX - rect.left) / rect.width * viewport.durationMs)
     gestures.submit({
       kind: 'split',
       clipId: item.id,
@@ -269,6 +307,7 @@ export function ShowTimelineGestureSurface({
 
   return (
     <section
+      ref={measureRef}
       aria-label="Show timeline"
       data-testid="show-timeline-read-only"
       data-show-record-version={view.recordVersion}
@@ -281,8 +320,13 @@ export function ShowTimelineGestureSurface({
         else gestures.undo()
       }}
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-live/15 bg-live/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
-        <span role="note" data-testid="show-timeline-read-only-status" className="min-w-0 truncate">{statusLine}</span>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-live/15 bg-live/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
+        <span role="note" data-testid="show-timeline-read-only-status" className="min-w-0 flex-1 truncate">{statusLine}</span>
+        <ShowTimelineViewControls
+          {...(transportShowId === undefined ? {} : { showId: transportShowId })}
+          viewport={viewport}
+          onViewportChange={setViewport}
+        />
         <ShowTimelineHistoryControls
           undo={gestures.undo}
           redo={gestures.redo}
@@ -292,9 +336,13 @@ export function ShowTimelineGestureSurface({
         />
       </div>
 
-      <ShowTimelineRulerLane totalMs={totalMs} percent={percent} {...(transportShowId === undefined ? {} : { transportShowId })} />
-      <ShowTimelineLayoutLane view={view} percent={percent} />
-      <ShowTimelineMarkerLane view={view} percent={percent} />
+      <ShowTimelineRulerLane
+        geometry={geometry}
+        visibleWidthPx={visibleWidthPx}
+        {...(transportShowId === undefined ? {} : { transportShowId })}
+      />
+      {lanes.zoneLayouts && <ShowTimelineLayoutLane view={view} geometry={geometry} />}
+      <ShowTimelineMarkerLane view={view} geometry={geometry} markersVisible={markersVisible} />
 
       {view.rows.map((row) => (
         <div
@@ -316,13 +364,13 @@ export function ShowTimelineGestureSurface({
               data-show-layer-id={layer.id}
               data-show-lane-zone-id={row.zoneId}
               data-show-layer-rank={layer.rank}
-              className="relative mx-2 mb-1 h-8 min-w-0 touch-none rounded-sm bg-white/[0.025]"
+              className="relative mx-2 mb-1 h-8 min-w-0 touch-none overflow-hidden rounded-sm bg-white/[0.025]"
             >
               {layer.items.map((item) => (
                 <GestureItem
                   key={item.id}
                   item={item}
-                  percent={percent}
+                  geometry={geometry}
                   busy={gestures.busy}
                   dragging={drag?.itemId === item.id ? drag : null}
                   onPointerDown={beginDrag}
@@ -331,11 +379,11 @@ export function ShowTimelineGestureSurface({
                   onSplitPointer={onSplitPointer}
                 />
               ))}
-              {layer.junctions.map((junction) => (
-                <ShowTimelineJunctionMark key={junction.id} junction={junction} percent={percent} />
+              {lanes.junctions && layer.junctions.map((junction) => (
+                <ShowTimelineJunctionMark key={junction.id} junction={junction} geometry={geometry} />
               ))}
               {drag?.mode === 'move' && drag.destination.layerId === layer.id && (
-                <DropPreview view={view} drag={drag} percent={percent} />
+                <DropPreview view={view} drag={drag} geometry={geometry} />
               )}
             </div>
           ))}
@@ -349,10 +397,10 @@ export function ShowTimelineGestureSurface({
 }
 
 function GestureItem({
-  item, percent, busy, dragging, onPointerDown, onKeyDown, onEdgeKeyDown, onSplitPointer,
+  item, geometry, busy, dragging, onPointerDown, onKeyDown, onEdgeKeyDown, onSplitPointer,
 }: {
   item: ShowTimelineItemView
-  percent: (timeMs: number) => string
+  geometry: ShowTimelineGeometry
   busy: boolean
   dragging: Drag | null
   onPointerDown: (event: React.PointerEvent<HTMLElement>, item: ShowTimelineItemView, edge?: 'leading' | 'trailing') => void
@@ -363,7 +411,7 @@ function GestureItem({
   const label = `${item.groupOccurrenceId ? 'Group Clip' : 'Clip'} ${item.patternName}, ${
     formatShowTimelineRange(item.startMs, item.endMs)
   }${item.entryPolicy === 'restart' ? ', restarts on entry' : ''}`
-  const geometry = { left: percent(item.startMs), width: percent(item.durationMs) }
+  const box = { left: geometry.at(item.startMs), width: geometry.span(item.durationMs) }
 
   // A Group Clip use belongs to its occurrence, not to this Clip gesture seam.
   if (item.groupOccurrenceId) {
@@ -377,7 +425,7 @@ function GestureItem({
         data-show-group-occurrence={item.groupOccurrenceId}
         aria-label={label}
         className="absolute inset-y-0 flex min-w-px items-center overflow-hidden rounded-[3px] border-l-2 border-zinc-500/60 bg-white/[0.04] px-1 text-[9px] leading-none text-zinc-400 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
-        style={geometry}
+        style={box}
       >
         <span className="truncate">{item.patternName}</span>
       </span>
@@ -385,7 +433,7 @@ function GestureItem({
   }
 
   return (
-    <span className="absolute inset-y-0 min-w-px" style={geometry} data-show-clip-id={item.id}>
+    <span className="absolute inset-y-0 min-w-px" style={box} data-show-clip-id={item.id}>
       <button
         type="button"
         data-show-composition-clip="true"
@@ -421,10 +469,10 @@ function GestureItem({
   )
 }
 
-function DropPreview({ view, drag, percent }: {
+function DropPreview({ view, drag, geometry }: {
   view: ShowTimelineViewModel
   drag: Extract<Drag, { mode: 'move' }>
-  percent: (timeMs: number) => string
+  geometry: ShowTimelineGeometry
 }) {
   const item = findItem(view, drag.itemId)
   if (!item) return null
@@ -436,7 +484,7 @@ function DropPreview({ view, drag, percent }: {
       className={`absolute inset-y-0 z-[4] rounded-[3px] border ${
         drag.drop.collidingItemIds.length > 0 ? 'border-rose-400/80 bg-rose-400/15' : 'border-live/80 bg-live/20'
       }`}
-      style={{ left: percent(drag.drop.startMs), width: percent(item.durationMs) }}
+      style={{ left: geometry.at(drag.drop.startMs), width: geometry.span(item.durationMs) }}
     />
   )
 }

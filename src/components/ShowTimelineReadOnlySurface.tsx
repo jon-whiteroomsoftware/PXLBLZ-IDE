@@ -4,6 +4,7 @@ import {
   type ShowTimelineItemView,
   type ShowTimelineViewModel,
 } from '@/engine/showTimelineViewModel'
+import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import {
   formatShowTimelineRange,
   ShowTimelineHistoryControls,
@@ -11,8 +12,11 @@ import {
   ShowTimelineLayoutLane,
   ShowTimelineMarkerLane,
   ShowTimelineRulerLane,
-  showTimelinePercentOf,
+  showTimelineGeometry,
+  type ShowTimelineGeometry,
 } from './ShowTimelineLanes'
+import { ShowTimelineViewControls } from './ShowTimelineViewControls'
+import { useShowTimelineViewport } from './useShowTimelineViewport'
 
 /**
  * The read-only timeline surface for a record the editor renders but cannot
@@ -21,6 +25,10 @@ import {
  * model, so it holds no v1 or v2 record and offers no mutating control. Items
  * stay focusable so keyboard traversal still reaches every Clip, Layout
  * occurrence and Marker.
+ *
+ * It follows the same visible window the gesture surface does (#1039): zoom,
+ * pan and the lane toggles are ways of looking at a Show, and a Show that
+ * cannot be edited can still be read closely.
  *
  * An editable v2 record renders through `ShowTimelineGestureSurface` instead.
  */
@@ -41,28 +49,37 @@ export function ShowTimelineReadOnlySurface({
   history?: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean; busy: boolean }
 }) {
   const totalMs = Math.max(1, view.showEndMs)
-  const percent = showTimelinePercentOf(totalMs)
+  const { viewport, setViewport, visibleWidthPx, measureRef } = useShowTimelineViewport(totalMs, transportShowId)
+  const geometry = showTimelineGeometry(viewport)
+  const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)
+  const lanes = useShowEditorSessionStore((state) => state.timelineLanes)
 
   return (
     <section
+      ref={measureRef}
       aria-label="Show timeline"
       data-testid="show-timeline-read-only"
       data-show-record-version={view.recordVersion}
       className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#060608] text-zinc-300"
     >
-      <div className="flex shrink-0 items-center gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
         <Lock size={12} aria-hidden className="shrink-0 text-amber-300/70" />
-        <span role="note" data-testid="show-timeline-read-only-status" className="min-w-0 truncate">{statusLine}</span>
-        {history && (
-          <span className="ml-auto">
-            <ShowTimelineHistoryControls {...history} />
-          </span>
-        )}
+        <span role="note" data-testid="show-timeline-read-only-status" className="min-w-0 flex-1 truncate">{statusLine}</span>
+        <ShowTimelineViewControls
+          {...(transportShowId === undefined ? {} : { showId: transportShowId })}
+          viewport={viewport}
+          onViewportChange={setViewport}
+        />
+        {history && <ShowTimelineHistoryControls {...history} />}
       </div>
 
-      <ShowTimelineRulerLane totalMs={totalMs} percent={percent} {...(transportShowId === undefined ? {} : { transportShowId })} />
-      <ShowTimelineLayoutLane view={view} percent={percent} />
-      <ShowTimelineMarkerLane view={view} percent={percent} />
+      <ShowTimelineRulerLane
+        geometry={geometry}
+        visibleWidthPx={visibleWidthPx}
+        {...(transportShowId === undefined ? {} : { transportShowId })}
+      />
+      {lanes.zoneLayouts && <ShowTimelineLayoutLane view={view} geometry={geometry} />}
+      <ShowTimelineMarkerLane view={view} geometry={geometry} markersVisible={markersVisible} />
 
       {view.rows.map((row) => (
         <div
@@ -83,13 +100,13 @@ export function ShowTimelineReadOnlySurface({
               aria-label={`Layer ${layer.name} in Zone ${row.zoneName}`}
               data-show-layer-id={layer.id}
               data-show-layer-rank={layer.rank}
-              className="relative mx-2 mb-1 h-8 min-w-0 rounded-sm bg-white/[0.025]"
+              className="relative mx-2 mb-1 h-8 min-w-0 overflow-hidden rounded-sm bg-white/[0.025]"
             >
               {layer.items.map((item) => (
-                <ReadOnlyItem key={item.id} item={item} percent={percent} />
+                <ReadOnlyItem key={item.id} item={item} geometry={geometry} />
               ))}
-              {layer.junctions.map((junction) => (
-                <ShowTimelineJunctionMark key={junction.id} junction={junction} percent={percent} />
+              {lanes.junctions && layer.junctions.map((junction) => (
+                <ShowTimelineJunctionMark key={junction.id} junction={junction} geometry={geometry} />
               ))}
             </div>
           ))}
@@ -104,10 +121,10 @@ export function ShowTimelineReadOnlySurface({
 
 function ReadOnlyItem({
   item,
-  percent,
+  geometry,
 }: {
   item: ShowTimelineItemView
-  percent: (timeMs: number) => string
+  geometry: ShowTimelineGeometry
 }) {
   return (
     <span
@@ -121,7 +138,7 @@ function ReadOnlyItem({
         formatShowTimelineRange(item.startMs, item.endMs)
       }${item.entryPolicy === 'restart' ? ', restarts on entry' : ''}`}
       className="absolute inset-y-0 flex min-w-px items-center overflow-hidden rounded-[3px] border-l-2 border-live/60 bg-live/10 px-1 text-[9px] leading-none text-zinc-200 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
-      style={{ left: percent(item.startMs), width: percent(item.durationMs) }}
+      style={{ left: geometry.at(item.startMs), width: geometry.span(item.durationMs) }}
     >
       <span className="truncate">{item.patternName}</span>
     </span>

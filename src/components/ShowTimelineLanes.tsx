@@ -1,7 +1,9 @@
 import { Redo2, Undo2 } from 'lucide-react'
 import {
-  fitShowTimelineViewport,
+  durationToViewportPercent,
   showTimelineRulerTicks,
+  timeToViewportPercent,
+  type ShowTimelineViewport,
 } from '@/engine/showTimelineViewport'
 import {
   showTimelineSelectionKey,
@@ -16,10 +18,31 @@ import { useShowTransportStore } from '@/store/showTransportStore'
  * version-agnostic view model, hold no record and offer no edit, so the
  * read-only surface and the gesture surface share one rendering.
  *
- * Authoring the Layout lane and Transition junctions is #1056 slice 4.
+ * Every lane draws the visible window a `ShowTimelineViewport` describes rather
+ * than the whole Show (#1039). The viewport is presentation state: it never
+ * reaches the view model, an owner or a record.
  */
-export function showTimelinePercentOf(totalMs: number): (timeMs: number) => string {
-  return (timeMs: number) => `${Math.min(100, Math.max(0, timeMs / totalMs * 100))}%`
+
+/**
+ * Where content sits in the visible window, as CSS percentages.
+ *
+ * `at` is deliberately unclamped, so a Clip that begins before the window draws
+ * off the left edge and its visible part keeps its true position and width; the
+ * lanes clip it. Clamping would squash such a Clip against the edge and lie
+ * about where it begins.
+ */
+export interface ShowTimelineGeometry {
+  viewport: ShowTimelineViewport
+  at: (timeMs: number) => string
+  span: (durationMs: number) => string
+}
+
+export function showTimelineGeometry(viewport: ShowTimelineViewport): ShowTimelineGeometry {
+  return {
+    viewport,
+    at: (timeMs: number) => `${timeToViewportPercent(viewport, timeMs)}%`,
+    span: (durationMs: number) => `${durationToViewportPercent(viewport, durationMs)}%`,
+  }
 }
 
 /**
@@ -57,40 +80,51 @@ export function ShowTimelineHistoryControls({ undo, redo, canUndo, canRedo, busy
   )
 }
 
-export function ShowTimelineRulerLane({ totalMs, percent, transportShowId }: {
-  totalMs: number
-  percent: (timeMs: number) => string
+export function ShowTimelineRulerLane({ geometry, visibleWidthPx, transportShowId }: {
+  geometry: ShowTimelineGeometry
+  /** The measured width the tick step is chosen for. */
+  visibleWidthPx: number
   /** The Show whose transport draws a playhead here (#1056 slice 6). */
   transportShowId?: string
 }) {
-  const { ticks } = showTimelineRulerTicks({
-    viewport: fitShowTimelineViewport(totalMs),
-    rulerDurationMs: totalMs,
-    visibleWidthPx: 812,
+  const { viewport } = geometry
+  const { minorStepMs, ticks } = showTimelineRulerTicks({
+    viewport,
+    rulerDurationMs: viewport.totalMs,
+    visibleWidthPx,
   })
+  // The ticks span the whole ruler at the window's own step. Only the window
+  // is drawn: a zoomed ruler otherwise mounts every tick of the Show, almost
+  // all of them clipped.
+  const visibleEndMs = viewport.startMs + viewport.durationMs
+  const visible = ticks.filter((tick) => (
+    tick.timeMs >= viewport.startMs - minorStepMs && tick.timeMs <= visibleEndMs + minorStepMs
+  ))
   return (
     <div
       data-testid="show-timeline-read-only-ruler"
-      className="relative h-7 shrink-0 border-b border-zinc-800 bg-zinc-950/70"
+      data-show-visible-start-ms={Math.round(viewport.startMs)}
+      data-show-visible-duration-ms={Math.round(viewport.durationMs)}
+      className="relative h-7 shrink-0 overflow-hidden border-b border-zinc-800 bg-zinc-950/70"
       role="presentation"
     >
-      {ticks.map((tick) => (
+      {visible.map((tick) => (
         <span
           key={tick.timeMs}
           aria-hidden
           className={tick.kind === 'major'
             ? 'absolute inset-y-0 w-px bg-zinc-700'
             : 'absolute bottom-0 h-1.5 w-px bg-zinc-800'}
-          style={{ left: percent(tick.timeMs) }}
+          style={{ left: geometry.at(tick.timeMs) }}
         />
       ))}
-      {transportShowId !== undefined && <ShowTimelinePlayhead showId={transportShowId} percent={percent} />}
-      {ticks.filter((tick) => tick.label).map((tick) => (
+      {transportShowId !== undefined && <ShowTimelinePlayhead showId={transportShowId} geometry={geometry} />}
+      {visible.filter((tick) => tick.label).map((tick) => (
         <span
           key={`label-${tick.timeMs}`}
           aria-hidden
           className="pointer-events-none absolute top-1 pl-1 text-[8.5px] tabular-nums text-zinc-600"
-          style={{ left: percent(tick.timeMs) }}
+          style={{ left: geometry.at(tick.timeMs) }}
         >
           {tick.label}
         </span>
@@ -101,11 +135,13 @@ export function ShowTimelineRulerLane({ totalMs, percent, transportShowId }: {
 
 /**
  * The transport's playhead. It subscribes to the position itself so playback
- * repaints this hairline rather than the whole timeline every frame.
+ * repaints this hairline rather than the whole timeline every frame. A
+ * position outside the visible window draws past the ruler's edge and is
+ * clipped there, rather than resting on it and claiming a time it is not at.
  */
-function ShowTimelinePlayhead({ showId, percent }: {
+function ShowTimelinePlayhead({ showId, geometry }: {
   showId: string
-  percent: (timeMs: number) => string
+  geometry: ShowTimelineGeometry
 }) {
   const positionMs = useShowTransportStore((state) => state.showId === showId ? state.positionMs : null)
   if (positionMs === null) return null
@@ -115,17 +151,17 @@ function ShowTimelinePlayhead({ showId, percent }: {
       data-testid="show-timeline-playhead"
       data-show-playhead-ms={Math.round(positionMs)}
       className="absolute inset-y-0 z-[3] w-px bg-live"
-      style={{ left: percent(positionMs) }}
+      style={{ left: geometry.at(positionMs) }}
     />
   )
 }
 
-export function ShowTimelineLayoutLane({ view, percent }: {
+export function ShowTimelineLayoutLane({ view, geometry }: {
   view: ShowTimelineViewModel
-  percent: (timeMs: number) => string
+  geometry: ShowTimelineGeometry
 }) {
   return (
-    <div role="group" aria-label="Zone Layouts lane" className="relative h-5 shrink-0 border-b border-zinc-900/80">
+    <div role="group" aria-label="Zone Layouts lane" className="relative h-5 shrink-0 overflow-hidden border-b border-zinc-900/80">
       {view.layoutIntervals.map((interval) => (
         <span
           key={interval.id}
@@ -139,7 +175,7 @@ export function ShowTimelineLayoutLane({ view, percent }: {
               : `, split ${Math.round(interval.parameters.splitPosition * 100)}%`
           }`}
           className="absolute inset-y-0 flex items-center overflow-hidden border-l border-zinc-800 px-1 font-mono text-[9px] text-zinc-400 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
-          style={{ left: percent(interval.startMs), width: percent(interval.durationMs) }}
+          style={{ left: geometry.at(interval.startMs), width: geometry.span(interval.durationMs) }}
         >
           <span className="truncate">{interval.definitionName}</span>
         </span>
@@ -148,13 +184,15 @@ export function ShowTimelineLayoutLane({ view, percent }: {
   )
 }
 
-export function ShowTimelineMarkerLane({ view, percent }: {
+export function ShowTimelineMarkerLane({ view, geometry, markersVisible = true }: {
   view: ShowTimelineViewModel
-  percent: (timeMs: number) => string
+  geometry: ShowTimelineGeometry
+  /** The v1 Marker control: hidden Markers also stop being snap targets. */
+  markersVisible?: boolean
 }) {
   return (
-    <div role="group" aria-label="Show Markers" className="relative h-5 shrink-0 border-b border-zinc-900/80">
-      {view.markers.map((marker) => (
+    <div role="group" aria-label="Show Markers" className="relative h-5 shrink-0 overflow-hidden border-b border-zinc-900/80">
+      {(markersVisible ? view.markers : []).map((marker) => (
         <span
           key={marker.id}
           tabIndex={0}
@@ -164,15 +202,27 @@ export function ShowTimelineMarkerLane({ view, percent }: {
           data-show-marker-role={marker.role}
           aria-label={`${marker.role === 'chapter' ? 'Chapter Marker' : 'Marker'} ${marker.name ?? marker.id} at ${formatShowTimelineTime(marker.timeMs)}`}
           className="absolute inset-y-0 flex max-w-[45%] items-center gap-1 whitespace-nowrap pl-1 font-mono text-[9px] text-zinc-400 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
-          style={{ left: percent(marker.timeMs), borderLeft: `2px solid ${marker.color ?? '#a1a1aa'}` }}
+          style={{
+            // A dormant Marker lies beyond Show End, so no window can ever
+            // contain it. It draws at the Show End mark, as the v1 timeline
+            // draws it, and its label states the time it is really at.
+            left: geometry.at(Math.min(marker.timeMs, view.showEndMs)),
+            borderLeft: `2px solid ${marker.color ?? '#a1a1aa'}`,
+          }}
         >
           <span className="truncate">{marker.name ?? marker.id}</span>
         </span>
       ))}
+      {/*
+        Show End is drawn at its own time, not pinned to the lane. Fitted they
+        are the same place; zoomed into the middle of a Show, a right-pinned
+        end legend would name a time nothing on screen is at.
+      */}
       <span
         data-testid="show-timeline-read-only-end"
         aria-label={`Show End at ${formatShowTimelineTime(view.showEndMs)}`}
-        className="absolute inset-y-0 right-0 flex items-center pr-1 font-mono text-[9px] text-zinc-500"
+        className="absolute inset-y-0 flex items-center whitespace-nowrap pr-1 font-mono text-[9px] text-zinc-500"
+        style={{ left: geometry.at(view.showEndMs), transform: 'translateX(-100%)' }}
       >
         End {formatShowTimelineTime(view.showEndMs)}
       </span>
@@ -181,9 +231,9 @@ export function ShowTimelineMarkerLane({ view, percent }: {
 }
 
 /** A drawn boundary: a hairline for a derived Cut, a window for a Transition. */
-export function ShowTimelineJunctionMark({ junction, percent }: {
+export function ShowTimelineJunctionMark({ junction, geometry }: {
   junction: ShowTimelineJunctionView
-  percent: (timeMs: number) => string
+  geometry: ShowTimelineGeometry
 }) {
   if (junction.scope === 'derived-cut') {
     return (
@@ -191,7 +241,7 @@ export function ShowTimelineJunctionMark({ junction, percent }: {
         aria-hidden
         data-show-layer-junction={junction.scope}
         className="absolute inset-y-0 z-[2] w-px -translate-x-1/2 bg-zinc-500"
-        style={{ left: percent(junction.startMs) }}
+        style={{ left: geometry.at(junction.startMs) }}
       />
     )
   }
@@ -201,7 +251,7 @@ export function ShowTimelineJunctionMark({ junction, percent }: {
       data-show-layer-junction={junction.scope}
       data-show-transition-kind={junction.kind}
       className="absolute inset-y-1 z-[2] bg-amber-300/25"
-      style={{ left: percent(junction.startMs), width: percent(junction.durationMs) }}
+      style={{ left: geometry.at(junction.startMs), width: geometry.span(junction.durationMs) }}
     />
   )
 }

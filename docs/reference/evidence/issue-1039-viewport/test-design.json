@@ -1,0 +1,75 @@
+{
+  "issue": 1039,
+  "scope": "pre-activation parity: a real viewport for the v2 timeline (zoom, pan, snap toggle and diagnostic lane toggles)",
+  "specification": {
+    "path": "docs/plans/scene-retirement-specification.md",
+    "commit": "51a5c2acf2e1732610e1ee4c2e3d4e29f934511e",
+    "proofRows": [
+      "ROUTE",
+      "PARITY"
+    ]
+  },
+  "base": "2a4180e49a47c7e897a8a413fa32fb43f522cab8",
+  "invariants": [
+    "The viewport is presentation state: zoom, pan and every toggle submit no gesture, create no history entry, write no timestamp and save nothing; the view model is unchanged by reference and by value.",
+    "The adopted record is zoom independent: one target time produces the same owner intent at fit-to-width and at any zoom, because zoom changes only how finely a pointer can name a time.",
+    "Both drop resolvers receive the window's real visibleDurationMs and the measured lane visibleWidthPx, so magnetism thresholds and the drop grid follow the ruler ticks that are drawn.",
+    "Window mapping is unclamped: content outside the window draws past the lane edge and is clipped there, so the visible part keeps its true position and width.",
+    "Snap candidates are chosen by the surface and consumed by the resolvers; an omitted list keeps every boundary the view draws, and an empty list removes magnetism while the always-on drop grid still applies.",
+    "A changed Show End rescales the window around the playhead and preserves the author's magnification instead of dropping back to fit.",
+    "Shipped v1 behaviour is not narrowed: the v1 workspace renders byte identically across the pinned 47-record corpus, the Magnet and Marker toggles are the same session-store preference on both routes, and a dormant Marker stays drawn at the Show End mark."
+  ],
+  "partitions": [
+    "window: fitted / zoomed with start fixed at zero / zoomed and panned into the interior / panned to the clamp / max-zoom clamp",
+    "geometry: time before the window (negative percent), inside it, after it (>100), exactly at either edge, duration at any zoom",
+    "gesture: pointer move, edge drag, double-click split, keyboard nudge (deliberately zoom independent)",
+    "snap: Magnet on/off, Markers shown/hidden, near an off-grid boundary versus far from any, Alt escape to raw milliseconds",
+    "toggles: Markers, Zone Layouts lane, Transition junctions, each on and off and back",
+    "surface: editable gesture surface and read-only surface; widths 1440 px and 390 px",
+    "record: Clip drawn inside the window, Clip crossing the left edge, derived-Cut junction on an off-grid boundary, dormant Marker beyond Show End"
+  ],
+  "sequences": [
+    "open fitted -> drag a Clip to a target time -> zoom in -> drag to the same target time -> compare the two submitted intents",
+    "zoom -> drag a Clip -> provider readback -> pan -> fit -> magnetized drop onto an off-grid Clip boundary -> Magnet off -> drop lands on the grid instead",
+    "toggle Markers, the Zone Layouts lane and the junctions off and on again, counting provider writes across the whole sequence",
+    "zoom -> Show End doubles under the window -> the magnification is carried, not reset",
+    "1440 px route session -> 390 px: view controls reachable, keyboard zoom, Fit, no horizontal page scroll"
+  ],
+  "oracles": [
+    "The owner intent a gesture submits (ShowTimelineGestureV2), not the pixels that produced it.",
+    "The record the provider hands back over the real route: the saved Clip startMs after a drag while zoomed, and after a magnetized and an unmagnetized drop.",
+    "The drawn geometry a reader sees: CSS left and width percentages of a Clip, the ruler playhead and the Show End mark, plus the window the ruler publishes as data-show-visible-start-ms / data-show-visible-duration-ms.",
+    "Presence or absence of a lane, a Marker and a junction mark in the accessibility tree.",
+    "Counted completed provider writes across view-only interaction (zero).",
+    "The pinned 47-record v1 fingerprint corpus: view-model and rendered-DOM hashes.",
+    "npm run show:v2-parity: 47 inventoried records."
+  ],
+  "redEvidence": [
+    "durationToViewportPercent and reconcileShowTimelineViewport absent from the engine (4 cases red before implementation).",
+    "Drop resolvers ignored an offered snap-candidate list (2 cases red before the seam existed).",
+    "The route test asserted no slider and every button inert on the read-only surface; both were re-scoped to record-editing controls once the view controls existed, and the new positive assertions were red against the old surface."
+  ],
+  "faults": [
+    "Pointer mapping reverted to the whole Show (live.current.view.showEndMs): killed by 'submits the same owner intent for one target time at any zoom' and by the edge/split case.",
+    "Window mapping clamped to 0-100 percent: killed by 'draws the window ... past the edge' and by the playhead case.",
+    "structuralTimesMs dropped from the Clip drop input: killed by the Magnet toggle case and the Marker toggle case.",
+    "Reconciliation removed so a changed Show End refits: killed by 'carries a zoomed window onto a changed Show End'.",
+    "Dormant Marker positioned at its raw time: killed by 'keeps a dormant Marker at the Show End mark'."
+  ],
+  "results": {
+    "focused": "7 files / 142 tests passed: showTimelineViewport, showTimelineGesturesV2, ShowTimelineViewport, ShowTimelineGestureSurface, ShowEditorV2Route, ShowTimelineV1Fingerprint, showEditorSessionStore.",
+    "full": "npx vitest run: 819 files / 11854 tests passed, 59 files / 61 tests skipped.",
+    "parity": "npm run show:v2-parity: 47 inventoried records matched, report unchanged.",
+    "v1": "ShowTimelineV1Fingerprint: 48 tests passed across the pinned corpus; the navigator extraction moved no byte of v1 markup.",
+    "browser": "e2e/show-editor-v2-viewport.auth.spec.ts passed on the real route: fitted window, keyboard zoom past 4x, a Clip dragged while zoomed saved at 2000 ms, pan past zero with the earlier Clip drawn off the left edge, Fit, a magnetized drop onto the off-grid 12350 ms boundary, an unmagnetized drop landing on the grid instead, three lane toggles with zero writes, 390 px keyboard zoom and Fit, no horizontal page scroll, zero console errors.",
+    "static": "npx tsc -b clean; npm run lint clean; npm run test:staged passed."
+  },
+  "residualGaps": [
+    "ShowV2AnimationLanes (Property lanes, held-appearance keys, Group occurrence bands) still maps across the whole Show, so a zoomed timeline no longer lines up with the lanes beneath it. Those lanes are mounted by ShowEditorV2Route, which a concurrent worker owns this batch, and they read precomputed whole-Show fractions from the view model; carrying the window into them is its own slice.",
+    "The window is held beside each surface rather than in a store, so switching between the editable and the read-only surface for one Show reopens it fitted.",
+    "Keyboard nudges stay deliberately zoom independent: one press moves one drop-grid step at any zoom, resolved in a fixed frame rather than the window.",
+    "A dormant Marker draws at the Show End mark rather than at its own time; no window can contain it, and this preserves what the v1 timeline shows.",
+    "The v2 surface has no automatic scroll-while-dragging at the window edge; a drag past the edge clamps, and the author pans with the navigator.",
+    "Required committed-tip suites and cross-family review are the coordinator's."
+  ]
+}
