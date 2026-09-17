@@ -1,0 +1,190 @@
+{
+  "stock-show-100-getting-around": {
+    "viewModel": "cb9cb5aa4fe90f4bafa32500bc9189da8bd8423e4f42b4518a428bf807692f8c",
+    "dom": "74e855276fc5aed6a7d721d53c725507ccc6f03d1197c5c5ecf163e5c55d8dbb"
+  },
+  "stock-show-101-clips-cuts-blank-time": {
+    "viewModel": "d86d10a48476d02c9fb2567a642a633ee990b565366f6a27eff348a45a5250d4",
+    "dom": "fbe5031af01fc9b48342c1f5f1a5878aed3af71c0126c4efdc8807bc7ce5fda4"
+  },
+  "stock-show-102-transitions-values": {
+    "viewModel": "7f59147433a7d5c8ffefba4c238b045955410dcb2e259a8aeb069df8efd7406d",
+    "dom": "7603693b8f4135382dac25ca681797558aed5f488a6d5aacb306a9593be12604"
+  },
+  "stock-show-103-clip-transform": {
+    "viewModel": "056d699e213263a96e878f119d916525921cce983d1eedbed2c84f175b1bdbbe",
+    "dom": "82127d7ba4ddb2c56f1d38506cfee0c8f883765672219b0442440a860be15866"
+  },
+  "stock-show-104-effects-and-ordering": {
+    "viewModel": "b41c45efe947fc636bb750766c871d99579a95a3cdd901029667906d8aee85ec",
+    "dom": "42f89afa7948f1ba58903b0277443ad4a2d394ef9a191c4b0c8aa258eba53df4"
+  },
+  "stock-show-105-portable-zones": {
+    "viewModel": "834562c0efbe688ddb39b9407e131d3ec7e43e8f1e64e3e0592b8e36a5dc93df",
+    "dom": "c3c32ed55c8ae398dc824c90760acfa5812c97227b8d972d9dd07ec67d11be74"
+  },
+  "stock-show-106-built-from-basics": {
+    "viewModel": "c47278f0c5cf09e0e4f4f4c17df2b97ec0c853f787d0599f2782dac4d7ed6ef4",
+    "dom": "e4621cfa9286e4423a00c7519b8152f1da045f35ee5af15787d3349175b5762f"
+  },
+  "stock-show-201-layers-property-animation": {
+    "viewModel": "66b9fe0cde6c23e1e24d4faef70982d22a08f09ee4a8365839d70b411d719ca7",
+    "dom": "73ec7bff2e2f95cacd2eaec9c31c5a774b7dfe35ec9ca1dd7fbb2cdf0b6516fa"
+  },
+  "stock-show-202-content-clip-viewport": {
+    "viewModel": "bdacf47e5a9ec3aef814f6caf242000d27306183a1a383fa60c24e767f21caac",
+    "dom": "e11ce6fe4490b46679ed932b223fd1559ddaf42a3234ebcb0287b84e9111041d"
+  },
+  "stock-show-203-pattern-instance-lifecycle": {
+    "viewModel": "dd96c6a50c3c71954fa7d7ceb1e1132a92ffca3f0b671659c5cfd2ca593b961e",
+    "dom": "0cbbd30c06593e8db4c91de228ebb32a073cb818b0fcbc2398e71c6bae72eb23"
+  },
+  "stock-show-204-presentation-modes": {
+    "viewModel": "f2a3d16e3834bc8216fead99f011563afd004769d7c8921c1677ad7935dd54bd",
+    "dom": "4499d043b8c89822e77be5e2ff19f9414525ca75bde278a37fc72c8988b165be"
+  },
+  "stock-show-205-groups-linked-reuse": {
+    "viewModel": "b31589c4e36715ee2ccb1ce7f2bcce8c1be05b4443181ba660bf53cb02ecf2e6",
+    "dom": "8946d52cf0c35ed61a7171416aa6c1114533c115e0daa20f43be11541c8fc611"
+  },
+  "stock-show-206-changing-zone-layouts": {
+    "viewModel": "e7e3ca95867e6e75d669943bf0d9527b986f231aa5a5e474286736e4e5c17d3a",
+    "dom": "90b9bd34056ec802b989d1d377a6db34bafeeb295ae751c3f17714abb17e2aa2"
+  },
+  "stock-show-207-aperture-shapes-edges": {
+    "viewModel": "5afe3a2170ac9ffda1cced41e3390d4c4a7772fdc62b740fc740f6ae2627a613",
+    "dom": "45b617a0d7efb1f840f2c21e1e9b5bc203053baefd07116168c40e1a6a9ace20"
+  },
+  "stock-show-301-installation-mapping": {
+    "viewModel": "be0821962b73d833320a21762f5d6827652f2f69aa34412443a442c3b791a0dc",
+    "dom": "c8230e67669c831da219b778f193dec38e9d601db5cd612e02aaaec07f43d239"
+  },
+  "stock-show-302-installation-composition": {
+    "viewModel": "716c0ca69afaf93f410050666c43b1f75c6f5015210607f67b5d916e292bab63",
+    "dom": "20d925776cfe80782d7692f8d6804099182d87f030a2f36ff27bec78ce3b2368"
+  },
+  "stock-show-303-compile-simplify-deliver": {
+    "viewModel": "904f8eb5f8d98f6a71f5b22c19a5ae1c07888cba7382e9f044baa05bd0dff556",
+    "dom": "1cd24794b78498dc02c598974a5015a78e1004c6e9c529719ffe2e0b8f9712ad"
+  },
+  "stock-show-showcase-transform-effects": {
+    "viewModel": "28cd61a2d160419d66d10f867dfc1e6752518e8c3b5a938852b54745f19f6e1e",
+    "dom": "8ffae724accdf0eb8620c4493074034e1f112ca52e5c1a48a07bbf4c55e1a001"
+  },
+  "stock-show-showcase-distortion-effects": {
+    "viewModel": "ae42f29f761cfde92a089b97b52cf0637e9915f9e9fb3ad968ac858237a2c6a9",
+    "dom": "8e7afbc2abc8a43d120255fa0da0be97c63121f9ba5ab59932c5917e8c842b66"
+  },
+  "stock-show-showcase-color-adjustment-effects": {
+    "viewModel": "e553ca918d5ba54602c10855d37b6beb3584f8d59fd2b4d5028c07c48ab527e1",
+    "dom": "95c66263c6d4dfdc543e2f78332e20f8f383f0112173455915c3c4b86318cb8c"
+  },
+  "stock-show-showcase-compositing-key-effects": {
+    "viewModel": "55e5b5ed42ae08e263612de2528370cea3e48b8f2b100a1bc5b8ff2d053b88ed",
+    "dom": "c4f0d2ec03b7e8ff5a7f3144c529e96d35fc1d77e3b9be740fce60ada4fc410d"
+  },
+  "stock-show-showcase-luma-sources": {
+    "viewModel": "30c832ad38d35c4c272af2aaffd3409458db952119bf41b3020fb03a56068599",
+    "dom": "c8c0be9ed4dbcc3f3b368ea196e206b25498765f7743083a3f4652b21639b1ca"
+  },
+  "stock-show-reference-blend-fade-transitions": {
+    "viewModel": "a2aa1d35745f053c14d024c5edc2634556bbc0142e41c3f12d72cbed839185a2",
+    "dom": "dc60d9320d274ddf08747c467db1222e5d4c1f9adb3204ed14e89ef7ab7e3bc4"
+  },
+  "stock-show-reference-wipe-transitions": {
+    "viewModel": "3477882d15a51ae6cff2cf128723a5406758bf926bb07dd08378778cf0f25111",
+    "dom": "c2a974b4b15eb02f4520069e3db9f272b36bc3dad0ce2af5d15166ad40cc9918"
+  },
+  "stock-show-reference-dissolve-transitions": {
+    "viewModel": "f380426ee8af3840f1e98494c9de2167913f459069f3fad680a34e8d2cfe9fa2",
+    "dom": "ac3fcb9e212a075a89a40519ae14d5d8040f4c2b3568a8605ff94c413b80dad4"
+  },
+  "stock-show-reference-shape-reveal-transitions": {
+    "viewModel": "91e3411f483b98eaa3b2bd96eadd5f65eef560fc43621b78efe24d04dc5ba34b",
+    "dom": "d57b57a1f881aca9097b6a3edf55a796b9f711bc7270dec12f2fc778c6932d72"
+  },
+  "stock-show-reference-shape-reveal-figures": {
+    "viewModel": "7f64cf96802ffd5acd2413c0d13d9cb315591a0876070e56083a6c125be65767",
+    "dom": "30fa1a82a18dcba023b6d727cd938b98814322e2c1307156d8bb74cd0a8d3af1"
+  },
+  "stock-show-reference-slide-transitions": {
+    "viewModel": "a46dc104b762259e5603b10abe2b9662b321831001f925aeaac93ee01b41d332",
+    "dom": "e969bc342bae8766c9424bfc5b86bc0ba757c7ef44a6704e9d215ac8feffe10f"
+  },
+  "stock-show-reference-zoom-spin-transitions": {
+    "viewModel": "7e8879790e5f48f04c5c8955d3f442ee7008f85f6c0d7c86ef5bda42db59142d",
+    "dom": "9044d98076c50a23ba809fe119abfe490945168d6f98315540e70fd07f0ece81"
+  },
+  "stock-show-reference-property-animation": {
+    "viewModel": "8ca741b48b7eaa6d55e6475d64013553e194e4ac5161b76ce7a2b0d0ecb26056",
+    "dom": "101fbe41f73033fa248dcce7fafbe5e3df06b087f6a5f07166b2584e2b7f66f8"
+  },
+  "stock-show-reference-easing": {
+    "viewModel": "b6a50a66f302f28f0542621468b54b8228c622acf3e241374c24b47a3dd3e507",
+    "dom": "420c44839fb10b2f7d91636835942520415746a8ccc5f2c081aa37fd882d52c3"
+  },
+  "stock-show-reference-aperture-shapes": {
+    "viewModel": "486155519e236d6bc4efe48b806b61e53738f5707450e4f10094312f93ad0d76",
+    "dom": "c087106caafb03d4a5e3e98fdceb7ad41135d461421fcf8d9465d77b5013e69e"
+  },
+  "stock-show-reference-aperture-icons": {
+    "viewModel": "a54a130702a33ab977bc9757400eb8e414f891a3c596759d0f78caf3f7514f52",
+    "dom": "d6094be8e55f0dbb23878fc45ec260b3c3744a836102926361d2228d5a7272bf"
+  },
+  "stock-show-showcase-zone-layouts-splits": {
+    "viewModel": "379cdcf81056942fbf0cc7832e6d0c07fb831ee4a274596411cd26bfe300a60a",
+    "dom": "cff5d4b659b768d74810976eab3189fd9717f4d0c835da20f8e3adba89010b1c"
+  },
+  "stock-show-showcase-zone-layouts-stripes-grid": {
+    "viewModel": "04ca73054c2bc469a571c70d6c568f2770638c529d1fe6680c7b2d4ccb30ffcd",
+    "dom": "1eabe5dd09d3ccee75af2b50035c38d35c5b50254305263c1cb6683d01f8cd9d"
+  },
+  "stock-show-showcase-zone-layouts-radial": {
+    "viewModel": "be045907e28734a4d9142418a4bdcdde1e46ef0000c439ebbfd295b2d54bfab3",
+    "dom": "1af97e464ffa24b96f4721a21c9b0e06e22003ab9c6fa30ada8e751a24c0df8e"
+  },
+  "stock-show-showcase-redline-installation": {
+    "viewModel": "16884e027f01ff638a84d9016b0b7d60da5c7432ee309443bb99f793a26da363",
+    "dom": "c5158096c5bb2685964af04fdf88c3c588f3efe4d7bd12869ca8ab6107b6967c"
+  },
+  "stock-show-remix-coronal-mass-ejection": {
+    "viewModel": "0447cc65fd261c42695681aac341e4d2a90038330559281d05922a3172cf64c2",
+    "dom": "3c5fa0e01832ebc0936f5c6be80b310d3cb1dc788b2c0b05e7de112decdbdc5d"
+  },
+  "stock-show-remix-quadrille": {
+    "viewModel": "9b5d68f8ae66e67f5e0de4b79f9caba33e0867584a220c5164fdf2a15b2abe29",
+    "dom": "5b74014be472e3bd55a86a1903092fd793567c37547b8d50b088ec70609d0490"
+  },
+  "stock-show-remix-overture": {
+    "viewModel": "6b39a248b87296f2dbde18a32d6d7223c8e1d1d9f89b6b1910d8d344f2860220",
+    "dom": "4d12a7f23004520aa856dfe61739fe8c5ec3e896c44b6f6a7533bba1963d0b79"
+  },
+  "personal-base": {
+    "viewModel": "bf699750adc6ee35991640a3472f2c5f2d31d10123c480d2b7f0c8898f2d85bf",
+    "dom": "858f9febee704c7e7862523d7af0517b82d8b87e37e8df830767d6052ba5a9de"
+  },
+  "personal-library-pattern": {
+    "viewModel": "5a3b7c463ff3845dd808558168616aac6d23c990fbe78b4c168b445028bef0ee",
+    "dom": "366cf8892c2f9c26475f7d98c2a5889478cc8021723e128609be6bf679fda645"
+  },
+  "stock-draft": {
+    "viewModel": "d86d10a48476d02c9fb2567a642a633ee990b565366f6a27eff348a45a5250d4",
+    "dom": "fbe5031af01fc9b48342c1f5f1a5878aed3af71c0126c4efdc8807bc7ce5fda4"
+  },
+  "groups": {
+    "viewModel": "b31589c4e36715ee2ccb1ce7f2bcce8c1be05b4443181ba660bf53cb02ecf2e6",
+    "dom": "8946d52cf0c35ed61a7171416aa6c1114533c115e0daa20f43be11541c8fc611"
+  },
+  "animation": {
+    "viewModel": "8ca741b48b7eaa6d55e6475d64013553e194e4ac5161b76ce7a2b0d0ecb26056",
+    "dom": "101fbe41f73033fa248dcce7fafbe5e3df06b087f6a5f07166b2584e2b7f66f8"
+  },
+  "routing": {
+    "viewModel": "e7e3ca95867e6e75d669943bf0d9527b986f231aa5a5e474286736e4e5c17d3a",
+    "dom": "90b9bd34056ec802b989d1d377a6db34bafeeb295ae751c3f17714abb17e2aa2"
+  },
+  "long-timeline": {
+    "viewModel": "9c756d8c814d1dd75a971151a120046815223dcb899aef809229de5444f4f6d4",
+    "dom": "c6e0159f8889afbca3664f08c4b32b374403ced74f804c012a87b5b2f6552ab8"
+  }
+}

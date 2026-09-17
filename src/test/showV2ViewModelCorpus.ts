@@ -12,6 +12,8 @@ export interface ShowV2CorpusEntry {
   corpusId: string
   show: ShowRecord
   lookup: ShowCompileRecipeSourceLookup
+  /** Personal Pattern records a baseline fixture depends on; stock Shows need none. */
+  patterns: PatternRecord[]
   /**
    * The composition the Show editor resolves for the timeline: the persisted
    * sidecar, or the flat projection the route builds when none exists.
@@ -51,6 +53,7 @@ function buildEntry(
     corpusId,
     show,
     lookup,
+    patterns: fixture?.patterns ?? [],
     editorComposition: show.composition ?? projectFlatShowToCompositionV1WithCellOrigins(show, {
       byCellId: lookup.byCellId,
       stageDimension: lookup.stageDimension,
