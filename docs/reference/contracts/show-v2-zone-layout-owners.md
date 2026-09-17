@@ -137,27 +137,35 @@ owner, so a malformed runtime object never reaches preparation or adoption.
   `showV2ShowSurfaceResiduals.test.ts` pins the seam: the exact ranges
   `compactSpatialIndexes` produces are what `set-physical-ranges` accepts, so
   the port stays a projection instead of becoming a second writer.
-- **A fresh Show cannot gain a second Zone yet.** A fresh v2 Show's two Clips
-  carry `zoneSampleMode: 'independent'`, which the lowerer admits only while the
-  Show has exactly one Zone; with two it refuses with
-  `composition.clips: lowering requires repeat-mode Clip sampling evidence
-  before compilation.` The Zone owner accepts the edit and the prepared-edit
-  dispatch then refuses it, so nothing is written and the message is shown. No
-  editor route offers a Clip-sampling control - only `update_clips` writes
-  `zone_sample_mode` - so the authenticated spec writes `span` through the
-  provider before adding a Zone. Closing this needs either a Clip-sampling
-  control or a fresh-Show sampling decision, both outside this slice.
+- **No editor route offers a Clip-sampling control.** Only `update_clips`
+  writes `zone_sample_mode`, so a Show that needs `span` can only reach it
+  through an agent command or the provider. A fresh Show no longer needs it to
+  gain a Zone (#1063); two steps past that still do, and both are this control's
+  gap rather than the lowerer's:
 
-  `src/engine/showCreationV2ZoneSampling.test.ts` now measures what creating a
-  fresh Show with `span` would cost, at a reopened `.epe` replayed in Fast and
-  Precise over the Show's own declared Stage. It is more than the generated
-  bytes, so the decision is a product one:
+  - `ShowV2AddClipEditor` writes `zoneSampleMode: 'span'` for every new Clip. A
+    fresh Show's own Clips sample `independent`, and mixed sampling is not
+    flat-eligible, so the first Clip added to a second Zone refuses with
+    `composition.clips: lowering requires repeat-mode Clip sampling evidence
+    before compilation.` Nothing is written and the message is shown.
+  - A second Layout occurrence over a participant Transition refuses on the
+    continuous-flat route with `unsupported-layout-occurrences`.
 
-  - A fresh **Portable** Show changes artifact dimension. `independent` keeps
-    the 1D `render(index)` artifact both stock Patterns are written for, byte
-    for byte the fresh v1 Show's; `span` emits `render2D(index, x, y)` against
-    the Portable 2D reference. The two disagree on the **first frame**, before
-    any Transition.
+  `e2e/show-editor-v2-zones-layouts.auth.spec.ts` therefore adds its Zone and
+  its Layer with no setup at all, and writes `span` through the provider only
+  before adding a Clip.
+
+  A fresh Show keeps `zoneSampleMode: 'independent'`, which is what keeps its
+  artifact byte for byte the fresh v1 Show's.
+  `src/engine/showCreationV2ZoneSampling.test.ts` measures what creating it with
+  `span` would have cost instead, at a reopened `.epe` replayed in Fast and
+  Precise over the Show's own declared Stage. Jon chose the lowering change over
+  that flip on 2026-09-17, on this measurement:
+
+  - A fresh **Portable** Show would change artifact dimension. `independent`
+    keeps the 1D `render(index)` artifact both stock Patterns are written for;
+    `span` emits `render2D(index, x, y)` against the Portable 2D reference. The
+    two disagree on the **first frame**, before any Transition.
   - A fresh **Installation** Show is identical at every sampled time through its
     own timeline - 0, 16000, 29984, 30000, 31008, 32000, 45008, 58000 and
     61968 ms, in both modes, frames and member state alike - and then differs at
@@ -165,11 +173,13 @@ owner, so a malformed runtime object never reaches preparation or adoption.
     emitter, and so every fresh v1 Show, holds its last Clip forever. In Fast
     the first differing sample is 62016 ms; in Precise it is 61984 ms, because
     the emulated 16.16 Show clock accumulates about +25 ms over the Show's
-    frames and wraps before nominal Show End. v1 makes the same switch the
-    moment a second Zone is added, so this is the routed emitter's established
-    behavior arriving one edit earlier.
+    frames and wraps before nominal Show End.
   - On a Controller whose pixel count does not match the declared Stage, `span`
     addresses the Zone's declared range and reports its nominal count to the
     Pattern, where the flat artifact adapts to the pixels actually present. A
     30-LED Controller running this 60-pixel Show sees different output from the
     first Clip.
+
+  Adding a Zone reaches the wrap anyway, and from v1: a two-Zone Show compiles
+  through the routed emitter in both models, so the fresh Show stops holding its
+  last Clip the moment it gains a second Zone - in v2 exactly where v1 does.

@@ -774,14 +774,13 @@ still stored as v1, and has no counterpart here:
 | Clip Zone sampling | choosing a Clip's `independent`, `span` or `repeat` Zone sampling | no editor route offers it; only the `update_clips` command writes `zone_sample_mode` |
 
 Adding or removing a Zone and writing a Layout definition's routing were the
-other two rows here until #1039's Zone slice landed their owners. What remains
-of that finding is one consequence, recorded in the
-[owner contract's residuals](show-v2-zone-layout-owners.md#residuals): a fresh
-Show's two Clips sample their Zone `independent`ly, which the lowerer admits
-only at one Zone, so adding a second Zone to a *fresh* Show is refused with
-`composition.clips: lowering requires repeat-mode Clip sampling evidence before
-compilation.` until its Clips sample `span`. Nothing is written when that
-happens, and the message is shown.
+other two rows here until #1039's Zone slice landed their owners. A fresh Show
+could not use them at first - its two Clips sample their Zone `independent`ly,
+which the lowerer admitted only at one Zone - and #1063 closed that by carrying
+a participant Transition on the continuous-flat route in a multi-Zone Show. Add
+Zone now works on a fresh Show with no sampling change, and the Clip-sampling
+row above is what is left: a Show still needs `span` to place a second Layout
+occurrence over a participant Transition, and only `update_clips` writes it.
 
 `src/engine/showV2ShowSurfaceResiduals.test.ts` holds the remaining facts as
 checked assertions: the MCP catalogue writes no Show structure, by Jon's #943

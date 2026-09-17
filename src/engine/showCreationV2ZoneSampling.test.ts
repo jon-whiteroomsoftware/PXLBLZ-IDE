@@ -15,21 +15,24 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 
 /**
- * What `zoneSampleMode` costs a fresh Show (#1039).
+ * Why a fresh Show keeps `zoneSampleMode: 'independent'` (#1039, decided
+ * 2026-09-17).
  *
- * Creating new v2 Shows with `span` rests on the premise that with one Zone
- * `span` and `independent` address the same complete domain - the same premise
- * `showCompositionLoweringV2` states in its own comment before admitting an
- * `independent` participant Transition on the flat route. The premise decides
- * a route, and the route decides the emitter: `independent` keeps the flat
- * emitter, whose bytes are the fresh v1 Show's, while `span` takes the routed
- * one.
+ * Creating new v2 Shows with `span` instead would have unblocked Add Zone by
+ * moving every fresh Show onto the routed emitter, on the premise that with one
+ * Zone `span` and `independent` address the same complete domain. The premise
+ * decides a route, and the route decides the emitter: `independent` keeps the
+ * flat emitter, whose bytes are the fresh v1 Show's, while `span` takes the
+ * routed one.
  *
- * These cases measure that difference where the consumer sees it - a reopened
- * `.epe` replayed in Fast and Precise over the Show's own declared Stage - so
- * the sampling decision rests on measurement rather than on the comment. The
+ * These cases measured that difference where the consumer sees it - a reopened
+ * `.epe` replayed in Fast and Precise over the Show's own declared Stage. The
  * premise holds for the Installation Show's own timeline and fails twice:
- * beyond Show End in both contracts, and from the first frame in Portable.
+ * beyond Show End in both contracts, and from the first frame in Portable. On
+ * that measurement Jon kept `independent` and took the bounded lowering change
+ * in #1063 instead, so a fresh Show stays byte-identical to the fresh v1 Show
+ * and gains its Zone on the continuous-flat route. These cases stay as the
+ * record of what the alternative cost.
  */
 
 const INSTALLATION_PIXELS = 60
@@ -141,10 +144,10 @@ describe('a fresh Show under each Zone sampling mode', () => {
 
   /**
    * First counterexample. The routed emitter wraps the Show clock at Show End;
-   * the flat emitter, and therefore today's fresh Show and every fresh v1 Show,
-   * holds its last Clip forever. v1 makes the same switch the moment a second
-   * Zone is added, so this is the routed emitter's established behavior arriving
-   * one edit earlier - but for a fresh Show it is a change at the Controller.
+   * the flat emitter, and therefore the fresh Show and every fresh v1 Show,
+   * holds its last Clip forever. Both models make the same switch the moment a
+   * second Zone is added, so keeping `independent` did not avoid the wrap - it
+   * kept it at the edit where v1 has always put it, instead of at creation.
    */
   it('wraps the Show clock under `span` and never wraps under `independent`', () => {
     const span = built(INSTALLATION, 'span')
