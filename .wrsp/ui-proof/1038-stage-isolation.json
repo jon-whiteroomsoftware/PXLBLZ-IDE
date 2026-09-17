@@ -2,7 +2,7 @@
   "version": 1,
   "issue": "1038",
   "route": "/PXLBLZ-IDE/studio/shows/prepared-stage-isolation?show-v2-pilot=1&capture",
-  "operation": "Hydrated native v2 bytes whose two Layout occurrences swap both Zones between the Stage halves at three seconds, then drove the prepared Stage preview: reset the transport to zero, turned Zone outlines on, soloed Main (top half lit amber, bottom black, guides bounding each half), played across the Layout switch and paused (same soloed Main now lights the bottom half and its guide moved with it), showed all Zones (Accent blue on top, Main amber below, unmasked), and at 390px focused and keyboard-activated the Accent solo row with the drawer tucked. The in-app browser was unavailable to this agent, so the route was driven by repository Playwright in an isolated authenticated context; the reset and pause used the existing dev ?capture transport surface.",
+  "operation": "Hydrated native v2 bytes whose two Layout occurrences swap both Zones between the Stage halves at three seconds, then drove the prepared Stage preview: reset the transport to zero, turned Zone outlines on, soloed Main (top half lit amber, bottom black, guides bounding each half), played across the Layout switch and paused (same soloed Main now lights the bottom half and its guide moved with it), showed all Zones (Accent blue on top, Main amber below, unmasked), and at 390px focused and keyboard-activated the Accent solo row with the drawer tucked. The in-app browser was unavailable to this agent, so the route was driven by repository Playwright in an isolated authenticated context; the reset and pause used the existing dev ?capture transport surface. This record is a refresh of that proof at the rebased base, recaptured through repository Playwright (Chromium) as the synthetic authenticated user on the rebased code commit, with no code change between the two captures.",
   "captures": [
     ".wrsp/ui-proof/1038-stage-isolation-desktop-opening.png",
     ".wrsp/ui-proof/1038-stage-isolation-stage-opening.png",
@@ -12,5 +12,5 @@
     ".wrsp/ui-proof/1038-stage-isolation-stage-all-zones.png",
     ".wrsp/ui-proof/1038-stage-isolation-narrow.png"
   ],
-  "capturedAtCommit": "42725bf76a5f80a2d11cfd113f9929359e5c1c2d"
+  "capturedAtCommit": "0a0857019b5bd762d8ace86beba365b0f376570b"
 }
