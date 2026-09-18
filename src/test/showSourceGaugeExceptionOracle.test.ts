@@ -21,6 +21,12 @@ import {
  * displays as "66.8 KB". Every case asks whether one specific wrong thing still passes.
  */
 
+/** A measured pair with no differing pixel, and one with a real difference. */
+const exact = { comparable: true as const, changedPixels: 0, maximumChannelDelta: 0 }
+const measured = (changedPixels: number, maximumChannelDelta: number) => (
+  { comparable: true as const, changedPixels, maximumChannelDelta }
+)
+
 const V1_BYTES = 7_200
 const V2_BYTES = 7_408
 const BUDGET_BYTES = 68_384
@@ -407,11 +413,11 @@ describe('the approved source-size exception', () => {
     const input = approvedInput()
     expect(qualifySourceSizeException({
       ...input,
-      counterfactual: { ...input.counterfactual, changedPixels: 12, maximumChannelDelta: 40 },
+      counterfactual: { ...input.counterfactual, counterfactual: measured(12, 40) },
     }).reason).toBe('counterfactual-not-exact')
     expect(qualifySourceSizeException({
       ...input,
-      counterfactual: { ...input.counterfactual, maximumChannelDelta: 3 },
+      counterfactual: { ...input.counterfactual, counterfactual: measured(0, 3) },
     }).reason).toBe('counterfactual-not-exact')
   })
 
@@ -419,11 +425,11 @@ describe('the approved source-size exception', () => {
     const input = approvedInput()
     expect(qualifySourceSizeException({
       ...input,
-      counterfactual: { ...input.counterfactual, repeatChangedPixels: { v1: 0, v2: 5 } },
+      counterfactual: { ...input.counterfactual, repeat: { v1: exact, v2: measured(5, 1) } },
     }).reason).toBe('counterfactual-not-exact')
     expect(qualifySourceSizeException({
       ...input,
-      counterfactual: { ...input.counterfactual, restoredChangedPixels: { v1: 0, v2: 7 } },
+      counterfactual: { ...input.counterfactual, restored: { v1: exact, v2: measured(7, 1) } },
     }).reason).toBe('counterfactual-not-exact')
   })
 
@@ -538,7 +544,7 @@ describe('qualifying a residual through demonstrated capture noise', () => {
    */
   const withResidual = (): SourceGaugeExceptionInput => ({
     ...approvedInput(),
-    counterfactual: { ...approvedInput().counterfactual, restoredChangedPixels: { v1: 0, v2: 6 } },
+    counterfactual: { ...approvedInput().counterfactual, restored: { v1: exact, v2: measured(6, 1) } },
   })
 
   function classification(
@@ -620,7 +626,7 @@ describe('qualifying a residual through demonstrated capture noise', () => {
       ...approvedInput(),
       counterfactual: {
         ...approvedInput().counterfactual,
-        changedPixels: 2, maximumChannelDelta: 1, restoredChangedPixels: { v1: 0, v2: 6 },
+        counterfactual: measured(2, 1), restored: { v1: exact, v2: measured(6, 1) },
       },
     }
     expect(qualifySourceSizeExceptionWithQualifiedCaptureNoise(both, [classification('restored-v2', 6)]).qualified)
@@ -696,8 +702,8 @@ describe('gauge placement (#1065, Jon 2026-09-18)', () => {
   it('refuses a gauge behind the surface whose counterfactual is not exactly zero', () => {
     const input = { ...approvedInput(), placement: behind() }
     for (const counterfactual of [
-      { changedPixels: 1, maximumChannelDelta: 1 },
-      { changedPixels: 0, maximumChannelDelta: 1 },
+      { counterfactual: measured(1, 1) },
+      { counterfactual: measured(0, 1) },
     ]) {
       expect(qualifySourceSizeException({
         ...input,
@@ -706,11 +712,11 @@ describe('gauge placement (#1065, Jon 2026-09-18)', () => {
     }
     expect(qualifySourceSizeException({
       ...input,
-      counterfactual: { ...input.counterfactual, restoredChangedPixels: { v1: 0, v2: 6 } },
+      counterfactual: { ...input.counterfactual, restored: { v1: exact, v2: measured(6, 1) } },
     }).reason).toBe('counterfactual-not-exact')
     expect(qualifySourceSizeException({
       ...input,
-      counterfactual: { ...input.counterfactual, repeatChangedPixels: { v1: 0, v2: 2 } },
+      counterfactual: { ...input.counterfactual, repeat: { v1: exact, v2: measured(2, 1) } },
     }).reason).toBe('counterfactual-not-exact')
   })
 
@@ -735,7 +741,7 @@ describe('gauge placement (#1065, Jon 2026-09-18)', () => {
       placement: behind(),
       counterfactual: {
         ...approvedInput().counterfactual,
-        restoredChangedPixels: { v1: 0, v2: 6 },
+        restored: { v1: exact, v2: measured(6, 1) },
       },
     }
     const refused = qualifySourceSizeExceptionWithQualifiedCaptureNoise(input, [])
@@ -743,6 +749,75 @@ describe('gauge placement (#1065, Jon 2026-09-18)', () => {
     expect(refused.qualified).toBe(false)
     expect(refused.placement).toEqual(behind())
     expect(refused.strict.placement).toEqual(behind())
+  })
+})
+
+describe('non-comparable capture measurements (#1065)', () => {
+  /**
+   * A pair of captures that could not be compared at all - different pixel dimensions, so there is
+   * no per-position difference to speak of - carries no changed-pixel count. Reading that absence as
+   * zero would let the "counterfactual must be exactly zero" gate pass on a counterfactual that was
+   * never measured, which is the one thing it exists to prevent.
+   */
+  const notMeasured = { comparable: false as const, detail: 'Captures are 374x488 and 374x489.' }
+
+  it('refuses a counterfactual that could not be measured, rather than reading it as zero', () => {
+    const input = approvedInput()
+    expect(qualifySourceSizeException(input).qualified).toBe(true)
+
+    const assessment = qualifySourceSizeException({
+      ...input,
+      counterfactual: { ...input.counterfactual, counterfactual: notMeasured },
+    })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('counterfactual-not-measured')
+    expect(assessment.detail).toContain('374x489')
+  })
+
+  it('refuses every repeat and restoration pair that could not be measured', () => {
+    const input = approvedInput()
+    for (const counterfactual of [
+      { repeat: { v1: notMeasured, v2: input.counterfactual.repeat.v2 } },
+      { repeat: { v1: input.counterfactual.repeat.v1, v2: notMeasured } },
+      { restored: { v1: notMeasured, v2: input.counterfactual.restored.v2 } },
+      { restored: { v1: input.counterfactual.restored.v1, v2: notMeasured } },
+    ]) {
+      const assessment = qualifySourceSizeException({
+        ...input,
+        counterfactual: { ...input.counterfactual, ...counterfactual },
+      })
+      expect(assessment.qualified).toBe(false)
+      expect(assessment.reason).toBe('counterfactual-not-measured')
+    }
+  })
+
+  it('cannot be rescued by a capture-noise classification', () => {
+    // A classification speaks for the pixels a measurement reported. An unmeasured pair reported
+    // none, so there is nothing for a classification to cover and nothing it can excuse.
+    const input = {
+      ...approvedInput(),
+      counterfactual: { ...approvedInput().counterfactual, restored: { v1: approvedInput().counterfactual.restored.v1, v2: notMeasured } },
+    }
+    const assessment = qualifySourceSizeExceptionWithQualifiedCaptureNoise(input, [{
+      measurement: 'restored-v2',
+      classification: {
+        comparison: 'v2 delivered vs restored',
+        classified: true,
+        reason: 'classified',
+        detail: 'every changed pixel was observed in one unchanged control group',
+        changedPixels: 6,
+        reportedChangedPixels: 6,
+        classifiedPixels: [],
+        residualPixels: [],
+        controlGroups: [],
+        evidence: [],
+      } as unknown as RasterNoiseClassification,
+    }])
+
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('counterfactual-not-measured')
+    expect(assessment.captureNoise.required.map(entry => entry.measurement)).not.toContain('restored-v2')
+    expect(assessment.captureNoise.applied).toEqual([])
   })
 })
 
@@ -761,14 +836,13 @@ function approvedInput(variant: GaugeVariant = 'portal'): SourceGaugeExceptionIn
       '/tmp/pxlblz-show-editor-equivalence/run/whole-editor-v2.png',
       '/tmp/pxlblz-show-editor-equivalence/run/whole-editor-raw-diff.json',
     ],
-    rawChangedPixels: 94,
+    rawDifference: measured(94, 204),
     counterfactual: {
       commonToken,
       commonInlineWidth,
-      changedPixels: 0,
-      maximumChannelDelta: 0,
-      repeatChangedPixels: { v1: 0, v2: 0 },
-      restoredChangedPixels: { v1: 0, v2: 0 },
+      counterfactual: exact,
+      repeat: { v1: exact, v2: exact },
+      restored: { v1: exact, v2: exact },
       capturePaths: [
         '/tmp/pxlblz-show-editor-equivalence/run/whole-editor-v1-normalized.png',
         '/tmp/pxlblz-show-editor-equivalence/run/whole-editor-v2-normalized.png',

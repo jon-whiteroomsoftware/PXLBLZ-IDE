@@ -257,12 +257,19 @@ export async function presentFrame(page: Page): Promise<void> {
   }))
 }
 
-export interface CapturedPixelDifference {
-  comparable: boolean
-  changedPixels: number
-  maximumChannelDelta: number
-  pixels: { x: number; y: number; left: [number, number, number, number]; right: [number, number, number, number] }[]
-}
+/**
+ * The exact difference between two retained captures, or the recorded fact that they could not be
+ * compared. The non-comparable case carries no counts at all, so no consumer can read an unmeasured
+ * pair as zero changed pixels (#1065).
+ */
+export type CapturedPixelDifference =
+  | {
+    comparable: true
+    changedPixels: number
+    maximumChannelDelta: number
+    pixels: { x: number; y: number; left: [number, number, number, number]; right: [number, number, number, number] }[]
+  }
+  | { comparable: false; detail: string }
 
 /** Decodes the two retained images in the page and reads their exact difference out of the pixels. */
 export async function differenceBetweenCaptures(
@@ -286,7 +293,11 @@ export async function differenceBetweenCaptures(
     }
     const [a, b] = await Promise.all([decode(leftBase64), decode(rightBase64)])
     if (a.width !== b.width || a.height !== b.height) {
-      return { comparable: false, changedPixels: 0, maximumChannelDelta: 0, pixels: [] }
+      return {
+        comparable: false,
+        detail: `Captures are ${a.width}x${a.height} and ${b.width}x${b.height}; a changed size is`
+          + ' never a pixel difference and was not measured.',
+      }
     }
     const load = (path: string) => import(path)
     const { changedPixelsBetween } = await load('/PXLBLZ-IDE/src/test/showCapturePixelEvidence.ts')

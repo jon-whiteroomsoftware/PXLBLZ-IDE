@@ -14,10 +14,12 @@ import {
 } from '../src/test/showEditorEquivalenceOracle'
 import { SHOW_ARTIFACT_BUDGET_BYTES } from '../src/engine/showVmResourceLedger'
 import type { DomStateEvidence } from '../src/test/showCaptureRasterNoiseClassifier'
-import type { PixelSample } from '../src/test/showCapturePixelEvidence'
+import type { PixelMeasurement, PixelSample } from '../src/test/showCapturePixelEvidence'
 import {
   classifySurfaceNoisePlan,
+  controlGroupLabel,
   reclassifyVisualPairWithCaptureNoise,
+  type PhaseAcquisition,
   type PhaseCapture,
   type PlannedClassification,
   type PlannedComparison,
@@ -252,11 +254,13 @@ test('the capture arrangement holds Show identity fixed, and a distinct identity
 })
 
 test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({ page }) => {
-  // A surface whose strict comparison differs now also runs the bounded control plan, which reopens
-  // the row and walks the surface's computed styles once per capture. That is a large addition to
-  // the run, and this budget is an estimate rather than a measurement: the first real run should
-  // check it against the observed duration.
-  test.setTimeout(30 * 60_000)
+  // A surface whose strict comparison differs also runs the bounded control plan, which reopens the
+  // row and walks the surface's computed styles once per capture. Measured, not estimated: the full
+  // four-fixture matrix takes 8.6 minutes for this test (9.3 minutes for the whole spec) on the
+  // development machine, so 20 minutes is a 2.3x margin. The retained evidence under
+  // docs/reference/evidence/issue-1065-equivalence-oracle/ records the duration of the run it came
+  // from, so this figure can be re-checked rather than trusted.
+  test.setTimeout(20 * 60_000)
   page.setDefaultTimeout(10_000)
   page.setDefaultNavigationTimeout(15_000)
   await mkdir(outputRoot, { recursive: true })
@@ -511,7 +515,7 @@ type SurfaceNoiseReport = {
   detail: string
   gauge: { usable: boolean; detail: string; variant?: GaugeVariant; placement?: 'inside' | 'behind' }
   captures: readonly PhaseCapture[]
-  measurements: readonly { key: string; changedPixels: number; maximumChannelDelta: number; comparable: boolean }[]
+  measurements: readonly ({ key: string } & PixelMeasurement)[]
   classifications: readonly PlannedClassification[]
   delivered: Record<'v1' | 'v2', { path: string; route: string; sourceBytes: number }> | null
   exception: SourceGaugeExceptionWithNoiseAssessment | null
@@ -585,6 +589,7 @@ async function collectSurfaceNoise(
     role: 'control' | 'candidate',
     group: string | undefined,
     mutationHistory: string,
+    acquisition: PhaseAcquisition = 'direct',
   ) => {
     const reading = await readSurfaceState(page, surface.selector, deliveredToken[version])
     const captured = await captureSurface(page, pair.key, viewport.key, surface, label)
@@ -593,7 +598,7 @@ async function collectSurfaceNoise(
     }
     sequence += 1
     phases.push({
-      label, role, group, version, state, sequence,
+      label, role, group, version, state, acquisition, sequence,
       path: captured.path, sha256: captured.sha256, fingerprint: reading.fingerprint, mutationHistory,
     })
     retained.set(label, captured.bytes)
@@ -637,11 +642,29 @@ async function collectSurfaceNoise(
     await applyCommonGaugeValues(page, common.token, common.inlineWidth)
   }
 
+  /**
+   * One normalization cycle on the page as it stands: normalize through the sentinel, capture the
+   * normalized control, restore, capture the restored control. The restored capture joins the
+   * `restored` control group, never the pristine one: it is the same numeric phase reached a
+   * different way, and pooling the two would put both values in one group by construction and
+   * forgive exactly the systematic post-restoration re-raster the restoration comparison exists to
+   * catch (#1065).
+   */
+  const runNormalizationCycle = async (version: 'v1' | 'v2', cycle: 1 | 2) => {
+    await normalizeThroughSentinel(version)
+    const normalized = await take(version, 'normalized', `${version}-normalized-control-${cycle}`, 'control',
+      controlGroupLabel(version, 'normalized'), `normalized to the common value through the sentinel, cycle ${cycle}`)
+    if (!await restoreGaugeValues(page)) throw new Error(`The ${version} gauge slots did not restore.`)
+    await take(version, 'delivered', `${version}-restored-control-${cycle}`, 'control',
+      controlGroupLabel(version, 'delivered', 'restored'), `restored after normalization cycle ${cycle}`, 'restored')
+    return normalized
+  }
+
   // Controls, both versions, before any candidate.
   for (const version of ['v1', 'v2'] as const) {
     const id = await open(version)
     const first = await take(version, 'delivered', `${version}-delivered-control-a`, 'control',
-      `${version}-delivered`, 'unmutated; first independent open')
+      controlGroupLabel(version, 'delivered'), 'unmutated; first independent open')
     deliveredReading[version] = first
     const gauge = gaugeOf(first)
     if (gauge) {
@@ -666,21 +689,17 @@ async function collectSurfaceNoise(
           : 'gauge-not-fully-within-surface'
         : (first.gauge as Extract<GaugeReading, { present: false }>).reason
     }
+    // One normalization cycle per open, so the two members of every control group - pristine,
+    // normalized and restored alike - come from independent opens rather than from one page walked
+    // twice. Two restorations that disagree then disagree across opens, which is the only evidence
+    // that could show a restoration residual is nondeterministic rather than systematic (#1065).
+    if (gauge && common) {
+      normalizedReading[version] = await runNormalizationCycle(version, 1)
+    }
     await open(version)
     await take(version, 'delivered', `${version}-delivered-control-b`, 'control',
-      `${version}-delivered`, 'unmutated; second independent open')
-
-    if (gauge && common) {
-      for (const cycle of [1, 2] as const) {
-        await normalizeThroughSentinel(version)
-        const normalized = await take(version, 'normalized', `${version}-normalized-control-${cycle}`, 'control',
-          `${version}-normalized`, `normalized to the common value through the sentinel, cycle ${cycle}`)
-        if (cycle === 1) normalizedReading[version] = normalized
-        if (!await restoreGaugeValues(page)) throw new Error(`The ${version} gauge slots did not restore.`)
-        await take(version, 'delivered', `${version}-delivered-control-restored-${cycle}`, 'control',
-          `${version}-delivered`, `restored after normalization cycle ${cycle}`)
-      }
-    }
+      controlGroupLabel(version, 'delivered'), 'unmutated; second independent open')
+    if (gauge && common) await runNormalizationCycle(version, 2)
   }
   const gaugeUsable = Boolean(gaugeOf(deliveredReading.v1) && gaugeOf(deliveredReading.v2)
     && common && sentinel && delivered.v1 && delivered.v2 && normalizedReading.v1 && normalizedReading.v2)
@@ -692,7 +711,7 @@ async function collectSurfaceNoise(
   }
 
   const comparisons: PlannedComparison[] = []
-  const measurements: SurfaceNoiseReport['measurements'][number][] = []
+  const measurements: ({ key: string } & PixelMeasurement)[] = []
   const chains = new Map<string, Map<string, DomStateEvidence['points'][number]>>()
 
   /**
@@ -708,12 +727,9 @@ async function collectSurfaceNoise(
     const positions = new Map<string, { x: number; y: number }>()
     for (const { key, left, right } of pairs) {
       const difference = await differenceBetweenCaptures(page, retained.get(left)!, retained.get(right)!)
-      measurements.push({
-        key,
-        changedPixels: difference.changedPixels,
-        maximumChannelDelta: difference.maximumChannelDelta,
-        comparable: difference.comparable,
-      })
+      measurements.push({ key, ...difference })
+      // A pair that could not be compared contributes no comparison and no count. It is recorded as
+      // not measured, and every consumer below refuses on that rather than reading a zero.
       if (!difference.comparable) continue
       comparisons.push({
         key, left, right, changedPixels: difference.pixels, reportedChangedPixels: difference.changedPixels,
@@ -759,7 +775,7 @@ async function collectSurfaceNoise(
     ])
     if (!await restoreGaugeValues(page)) throw new Error(`The ${version} gauge slots did not restore.`)
     await take(version, 'delivered', `${version}-restored-candidate`, 'candidate', undefined,
-      'restored after normalization cycle 3')
+      'restored after normalization cycle 3', 'restored')
     await compareAndChain(version, [{
       key: `${version} delivered vs restored`, left: `${version}-delivered-candidate`, right: `${version}-restored-candidate`,
     }])
@@ -769,12 +785,7 @@ async function collectSurfaceNoise(
   if (gaugeUsable) {
     const rawDifference = await differenceBetweenCaptures(
       page, retained.get('v1-delivered-candidate')!, retained.get('v2-delivered-candidate')!)
-    measurements.push({
-      key: 'delivered v1 vs v2',
-      changedPixels: rawDifference.changedPixels,
-      maximumChannelDelta: rawDifference.maximumChannelDelta,
-      comparable: rawDifference.comparable,
-    })
+    measurements.push({ key: 'delivered v1 vs v2', ...rawDifference })
   }
 
   const implicated = new Set(comparisons.flatMap(comparison =>
@@ -802,7 +813,14 @@ async function collectSurfaceNoise(
 
   let exception: SourceGaugeExceptionWithNoiseAssessment | null = null
   if (gaugeUsable && common) {
-    const measurementOf = (key: string) => measurements.find(entry => entry.key === key)?.changedPixels ?? 0
+    // A key the run never measured is reported as not measured, never as zero: the gauge exception
+    // refuses on it rather than reading an absent comparison as proof of equality (#1065).
+    const measurementFor = (key: string): PixelMeasurement => {
+      const found = measurements.find(entry => entry.key === key)
+      if (!found) return { comparable: false, detail: `The run recorded no "${key}" measurement.` }
+      const { key: _key, ...measurement } = found
+      return measurement
+    }
     const evidenceFor = (version: 'v1' | 'v2'): GaugeVersionEvidence => ({
       deliveredEpeText: delivered[version]!.epeText,
       deliveredArtifact: { path: delivered[version]!.path, route: delivered[version]!.route },
@@ -834,16 +852,15 @@ async function collectSurfaceNoise(
       rawCapturePaths: phases
         .filter(phase => phase.label.endsWith('delivered-candidate'))
         .map(phase => phase.path),
-      rawChangedPixels: measurementOf('delivered v1 vs v2'),
+      rawDifference: measurementFor('delivered v1 vs v2'),
       counterfactual: {
         commonToken: common.token,
         commonInlineWidth: common.inlineWidth,
-        changedPixels: measurementOf('normalized v1 vs v2'),
-        maximumChannelDelta: measurements.find(entry => entry.key === 'normalized v1 vs v2')?.maximumChannelDelta ?? 0,
-        repeatChangedPixels: { v1: measurementOf('v1 normalized repeat'), v2: measurementOf('v2 normalized repeat') },
-        restoredChangedPixels: {
-          v1: measurementOf('v1 delivered vs restored'),
-          v2: measurementOf('v2 delivered vs restored'),
+        counterfactual: measurementFor('normalized v1 vs v2'),
+        repeat: { v1: measurementFor('v1 normalized repeat'), v2: measurementFor('v2 normalized repeat') },
+        restored: {
+          v1: measurementFor('v1 delivered vs restored'),
+          v2: measurementFor('v2 delivered vs restored'),
         },
         capturePaths: phases.filter(phase => phase.role === 'candidate').map(phase => phase.path),
       },

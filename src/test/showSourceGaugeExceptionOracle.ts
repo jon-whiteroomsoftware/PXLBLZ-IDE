@@ -29,6 +29,7 @@ import type { VisualPairAssessment } from './showEditorEquivalenceOracle'
  */
 
 import type { RasterNoiseClassification } from './showCaptureRasterNoiseClassifier'
+import { measuredExact, type PixelMeasurement } from './showCapturePixelEvidence'
 
 export interface PixelBox { x: number; y: number; width: number; height: number }
 
@@ -76,12 +77,12 @@ export interface GaugeVersionEvidence {
 export interface CounterfactualEvidence {
   commonToken: string
   commonInlineWidth: string
-  changedPixels: number
-  maximumChannelDelta: number
+  /** v1's normalized capture against v2's, which is the counterfactual itself. */
+  counterfactual: PixelMeasurement
   /** A repeated counterfactual capture per version, to show each normalized surface is stable. */
-  repeatChangedPixels: { v1: number; v2: number }
+  repeat: { v1: PixelMeasurement; v2: PixelMeasurement }
   /** Each version re-captured after every mutation was restored, against its raw capture. */
-  restoredChangedPixels: { v1: number; v2: number }
+  restored: { v1: PixelMeasurement; v2: PixelMeasurement }
   capturePaths: readonly string[]
 }
 
@@ -96,8 +97,11 @@ export interface SourceGaugeExceptionInput {
   v1: GaugeVersionEvidence
   v2: GaugeVersionEvidence
   rawCapturePaths: readonly string[]
-  /** The retained raw difference. Reported, never deleted. */
-  rawChangedPixels: number
+  /**
+   * The retained raw difference between the two delivered captures. Reported, never deleted, and
+   * never read as zero when the pair could not be compared at all.
+   */
+  rawDifference: PixelMeasurement
   counterfactual: CounterfactualEvidence
 }
 
@@ -127,6 +131,7 @@ export type SourceGaugeExceptionReason =
   | 'presentation-differs'
   | 'normalization-changed-more-than-values'
   | 'counterfactual-not-exact'
+  | 'counterfactual-not-measured'
   | 'qualified-with-classified-capture-noise'
 
 export interface SourceGaugeExceptionAssessment {
@@ -139,7 +144,8 @@ export interface SourceGaugeExceptionAssessment {
   delivered: { v1: DeliveredArtifactFacts; v2: DeliveredArtifactFacts } | null
   budget: { bytes: number; provenance: string }
   slotKeys: readonly string[]
-  rawChangedPixels: number
+  /** The measured raw difference, or `null` when the raw pair could not be compared. */
+  rawChangedPixels: number | null
   evidencePaths: readonly string[]
 }
 
@@ -314,7 +320,7 @@ export function qualifySourceSizeException(input: SourceGaugeExceptionInput): So
     delivered: null,
     budget: input.budget,
     slotKeys: slots.map(slot => slot.key),
-    rawChangedPixels: input.rawChangedPixels,
+    rawChangedPixels: input.rawDifference.comparable ? input.rawDifference.changedPixels : null,
     evidencePaths: [...input.rawCapturePaths, ...input.counterfactual.capturePaths],
   }
   const refuse = (
@@ -390,6 +396,8 @@ export function qualifySourceSizeException(input: SourceGaugeExceptionInput): So
     if (drift) return refuse('normalization-changed-more-than-values', drift, delivered)
   }
 
+  const unmeasured = checkCounterfactualMeasured(input.counterfactual)
+  if (unmeasured) return refuse('counterfactual-not-measured', unmeasured, delivered)
   const counterfactual = checkCounterfactualPixels(input.counterfactual)
   if (counterfactual) return refuse('counterfactual-not-exact', counterfactual, delivered)
 
@@ -452,15 +460,13 @@ export function qualifySourceSizeExceptionWithQualifiedCaptureNoise(
 ): SourceGaugeExceptionWithNoiseAssessment {
   const strict = qualifySourceSizeException(input)
   const counterfactual = input.counterfactual
-  const required = ([
-    ['counterfactual', counterfactual.changedPixels],
-    ['repeat-v1', counterfactual.repeatChangedPixels.v1],
-    ['repeat-v2', counterfactual.repeatChangedPixels.v2],
-    ['restored-v1', counterfactual.restoredChangedPixels.v1],
-    ['restored-v2', counterfactual.restoredChangedPixels.v2],
-  ] as const)
-    .filter(([, changed]) => changed > 0)
-    .map(([measurement, changedPixels]) => ({ measurement, changedPixels }))
+  // Only a measured pair can require - or receive - a classification. An unmeasured pair reported no
+  // pixels, so there is nothing for a classification to cover and nothing it could excuse; the
+  // strict refusal below stands.
+  const required = counterfactualMeasurements(counterfactual)
+    .flatMap(({ measurement, value }) => (
+      value.comparable && value.changedPixels > 0 ? [{ measurement, changedPixels: value.changedPixels }] : []
+    ))
 
   const carry = (
     assessment: SourceGaugeExceptionAssessment,
@@ -474,14 +480,18 @@ export function qualifySourceSizeExceptionWithQualifiedCaptureNoise(
 
   // Only the residual pixel gate is eligible. Re-running with the counts zeroed isolates it exactly:
   // a refusal that survives is a value, artifact or presentation failure the classifier cannot speak to.
+  // Only a measured count is zeroed. An unmeasured pair keeps its own shape, so the isolation cannot
+  // invent a measurement that was never taken and the refusal survives as it must.
+  const zeroed = (value: PixelMeasurement): PixelMeasurement => (
+    value.comparable ? { comparable: true, changedPixels: 0, maximumChannelDelta: 0 } : value
+  )
   const withoutResiduals = qualifySourceSizeException({
     ...input,
     counterfactual: {
       ...counterfactual,
-      changedPixels: 0,
-      maximumChannelDelta: 0,
-      repeatChangedPixels: { v1: 0, v2: 0 },
-      restoredChangedPixels: { v1: 0, v2: 0 },
+      counterfactual: zeroed(counterfactual.counterfactual),
+      repeat: { v1: zeroed(counterfactual.repeat.v1), v2: zeroed(counterfactual.repeat.v2) },
+      restored: { v1: zeroed(counterfactual.restored.v1), v2: zeroed(counterfactual.restored.v2) },
     },
   })
   if (!withoutResiduals.qualified) {
@@ -577,6 +587,9 @@ function checkEvidenceShape(
   const incomplete = (detail: string) => ({ reason: 'incomplete-evidence' as const, detail })
   const structure = (detail: string) => ({ reason: 'unexpected-structure' as const, detail })
   if (input.rawCapturePaths.length === 0) return incomplete('No retained raw captures or difference were named.')
+  if (!input.rawDifference.comparable) {
+    return incomplete(`The raw delivered pair could not be compared: ${input.rawDifference.detail}`)
+  }
   if (input.counterfactual.capturePaths.length === 0) return incomplete('No retained counterfactual captures were named.')
   if (!Number.isInteger(input.budget.bytes) || input.budget.bytes <= 0 || !input.budget.provenance) {
     return { reason: 'budget-not-pinned', detail: 'The budget must be a pinned positive integer with named provenance.' }
@@ -973,20 +986,53 @@ function checkCounterfactualValues(
   return null
 }
 
-function checkCounterfactualPixels(counterfactual: CounterfactualEvidence): string | null {
-  if (counterfactual.changedPixels !== 0 || counterfactual.maximumChannelDelta !== 0) {
-    return `${counterfactual.changedPixels} pixels still differ once the byte values agree`
-      + ` (maximum channel delta ${counterfactual.maximumChannelDelta}).`
-  }
-  if (counterfactual.repeatChangedPixels.v1 !== 0 || counterfactual.repeatChangedPixels.v2 !== 0) {
-    return 'A normalized surface is not stable across repeated captures'
-      + ` (v1 ${counterfactual.repeatChangedPixels.v1}, v2 ${counterfactual.repeatChangedPixels.v2} pixels).`
-  }
-  if (counterfactual.restoredChangedPixels.v1 !== 0 || counterfactual.restoredChangedPixels.v2 !== 0) {
-    return 'Restoring the normalized slots did not return the pages to their captured state'
-      + ` (v1 ${counterfactual.restoredChangedPixels.v1}, v2 ${counterfactual.restoredChangedPixels.v2} pixels).`
+/** Every measurement the counterfactual rests on, named for the refusal that reports it. */
+export function counterfactualMeasurements(
+  counterfactual: CounterfactualEvidence,
+): readonly { measurement: SourceGaugeNoiseMeasurement; value: PixelMeasurement }[] {
+  return [
+    { measurement: 'counterfactual', value: counterfactual.counterfactual },
+    { measurement: 'repeat-v1', value: counterfactual.repeat.v1 },
+    { measurement: 'repeat-v2', value: counterfactual.repeat.v2 },
+    { measurement: 'restored-v1', value: counterfactual.restored.v1 },
+    { measurement: 'restored-v2', value: counterfactual.restored.v2 },
+  ]
+}
+
+/**
+ * A pair that could not be compared refuses before any count is read. This runs ahead of the
+ * exactly-zero check on purpose: an unmeasured pair has no count, and treating its absence as zero
+ * would clear the surface on a counterfactual that never happened.
+ */
+function checkCounterfactualMeasured(counterfactual: CounterfactualEvidence): string | null {
+  for (const { measurement, value } of counterfactualMeasurements(counterfactual)) {
+    if (!value.comparable) {
+      return `The ${measurement} captures could not be compared, so the counterfactual was never`
+        + ` measured: ${value.detail}`
+    }
   }
   return null
+}
+
+function checkCounterfactualPixels(counterfactual: CounterfactualEvidence): string | null {
+  const { counterfactual: pair, repeat, restored } = counterfactual
+  if (pair.comparable && !measuredExact(pair)) {
+    return `${pair.changedPixels} pixels still differ once the byte values agree`
+      + ` (maximum channel delta ${pair.maximumChannelDelta}).`
+  }
+  if ((repeat.v1.comparable && !measuredExact(repeat.v1)) || (repeat.v2.comparable && !measuredExact(repeat.v2))) {
+    return 'A normalized surface is not stable across repeated captures'
+      + ` (v1 ${changedOf(repeat.v1)}, v2 ${changedOf(repeat.v2)} pixels).`
+  }
+  if ((restored.v1.comparable && !measuredExact(restored.v1)) || (restored.v2.comparable && !measuredExact(restored.v2))) {
+    return 'Restoring the normalized slots did not return the pages to their captured state'
+      + ` (v1 ${changedOf(restored.v1)}, v2 ${changedOf(restored.v2)} pixels).`
+  }
+  return null
+}
+
+function changedOf(measurement: PixelMeasurement): number {
+  return measurement.comparable ? measurement.changedPixels : 0
 }
 
 function redact(text: string, token: string): { text: string; indices: number[] } {

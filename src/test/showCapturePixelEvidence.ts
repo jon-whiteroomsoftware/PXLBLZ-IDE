@@ -19,6 +19,24 @@ export interface RgbaImage {
 export interface ChangedPixel { x: number; y: number; left: Rgba; right: Rgba }
 export interface PixelSample { x: number; y: number; rgba: Rgba }
 
+/**
+ * One comparison of two retained captures: either a measured difference, or the recorded fact that
+ * the pair could not be compared at all (#1065).
+ *
+ * A pair whose captures have different pixel dimensions has no per-position difference to report, so
+ * it carries no changed-pixel count. The absence is modelled rather than filled in with zero,
+ * because a consumer that reads an unmeasured pair as zero reads "never compared" as "compared and
+ * identical" - which is exactly what an exactly-zero gate exists to prevent.
+ */
+export type PixelMeasurement =
+  | { comparable: true; changedPixels: number; maximumChannelDelta: number }
+  | { comparable: false; detail: string }
+
+/** True only for a pair that was measured and had no differing pixel. */
+export function measuredExact(measurement: PixelMeasurement): boolean {
+  return measurement.comparable && measurement.changedPixels === 0 && measurement.maximumChannelDelta === 0
+}
+
 /** Every position where the two captures differ, in row order. Mismatched sizes are not comparable. */
 export function changedPixelsBetween(left: RgbaImage, right: RgbaImage): ChangedPixel[] {
   if (left.width !== right.width || left.height !== right.height) {
