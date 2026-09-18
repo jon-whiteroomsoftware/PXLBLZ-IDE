@@ -144,8 +144,9 @@ then split on capture order rather than on surface state, and the classifier
 refused to compare them. One discarded screenshot per open removes that. Neither
 change relaxes anything: the counterfactual must still be exactly zero, the raw
 captures and their strict verdict are retained unchanged, and a restoration
-residual still qualifies only as demonstrated raster noise, through controls that
-carry both values at the same positions.
+residual still qualifies only through controls: as demonstrated raster noise, or,
+under the 2026-09-18 decision below, as a demonstrated side effect of the proof's
+own mutation.
 
 Jon extended the gauge exception on 2026-09-18 to a gauge that lies behind the
 captured surface rather than inside it. The entity detail panels and the Zone
@@ -153,13 +154,33 @@ Map draw over the editor at 1.5% transparency with a backdrop blur, so at 390
 the gauge under them reaches their captures attenuated to a channel delta of one
 and spread by the blur, without appearing in their DOM at all. The proof
 standard is unchanged and the placement is recorded in the verdict: the
-counterfactual must still be exactly zero, restoration must still be byte-exact,
-the raw captures and their strict verdict are retained, and the same delivered
-`.epe` evidence is required. A behind-surface gauge additionally has to lie over
+counterfactual must still be exactly zero, restoration must still meet the
+standard below, the raw captures and their strict verdict are retained, and the
+same delivered `.epe` evidence is required. A behind-surface gauge additionally has to lie over
 the captured surface, because a gauge that cannot paint into a capture cannot
 explain a pixel in it. This is not a region or a tolerance, and it qualifies
 nothing on its own: the narrow Transition palette is behind the same gauge and
 stays red, because normalizing the gauge leaves its difference untouched.
+
+Jon decided on 2026-09-18 that restoration qualifies when it is byte-exact, or
+when its residual is independently demonstrated to be a systematic side effect
+of the proof's own mutation. The demonstration is fixed and narrow: the restored
+controls for that version, taken from independent opens, must be byte-identical
+to each other, and the candidate's raw-versus-restored changed pixels must equal
+the pristine-control-versus-restored-control difference position for position and
+value for value. One residual pixel the controls did not reproduce identically
+refuses, and restored controls that disagree with each other refuse this path
+entirely - that case remains the raster-noise classifier's. The path is open only
+while the counterfactual and both repeat captures are exactly zero, and it
+forgives nothing else: every artifact, byte-truth, fill, raw DOM, style,
+non-comparable-capture and gauge-placement refusal is untouched. It is not a
+tolerance, mask, threshold or pixel-count cap. The verdict reports it distinctly
+as `qualified-with-demonstrated-restoration-side-effect`, carrying the residual
+count, maximum channel delta and positions, and the raw strict refusal is
+retained beside it. At 390 this is what the narrow `whole-editor` and
+`preview-strip` rows rest on: restoring the v2 gauge slots deterministically
+re-rasters six preview help-icon pixels by one channel level, and the controls
+reproduce exactly those six pixels with exactly those two values.
 
 Behavior proof covers real pointer movement, persisted converter equality, exact
 history shape, measured save count, fresh hydration and exact Undo restoration.

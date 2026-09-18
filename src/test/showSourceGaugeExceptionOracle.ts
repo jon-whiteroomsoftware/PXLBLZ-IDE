@@ -30,6 +30,7 @@ import type { VisualPairAssessment } from './showEditorEquivalenceOracle'
 
 import type { RasterNoiseClassification } from './showCaptureRasterNoiseClassifier'
 import { measuredExact, type PixelMeasurement } from './showCapturePixelEvidence'
+import { describePositions, type RestorationSideEffectDemonstration } from './showRestorationSideEffect'
 
 export interface PixelBox { x: number; y: number; width: number; height: number }
 
@@ -133,6 +134,7 @@ export type SourceGaugeExceptionReason =
   | 'counterfactual-not-exact'
   | 'counterfactual-not-measured'
   | 'qualified-with-classified-capture-noise'
+  | 'qualified-with-demonstrated-restoration-side-effect'
 
 export interface SourceGaugeExceptionAssessment {
   surface: string
@@ -160,7 +162,8 @@ export type GaugeVariant = 'portal' | 'compile-bar'
  * `behind` is the extension Jon approved on 2026-09-18. The gauge is not in the surface at all - it
  * lies under a translucent, backdrop-filtered panel - so its value still reaches the capture,
  * attenuated and spread by the panel, without being part of it. The proof standard is unchanged:
- * the counterfactual must still be exactly zero and restoration byte-exact. The one thing this case
+ * the counterfactual must still be exactly zero, and restoration must be byte-exact or its residual
+ * independently demonstrated to be a side effect of the proof's own mutation. The one thing this case
  * has to establish on its own is that the gauge actually lies over the captured surface; a gauge
  * that cannot paint into the capture cannot explain a pixel in it, whatever its counterfactual says.
  */
@@ -422,9 +425,37 @@ export interface QualifiedCaptureNoise {
   classification: RasterNoiseClassification
 }
 
+/**
+ * One restoration residual offered as a demonstrated side effect of the proof's own mutation, rather
+ * than as classified raster noise (#1065, Jon 2026-09-18).
+ */
+export interface DemonstratedRestorationSideEffect {
+  measurement: string
+  demonstration: RestorationSideEffectDemonstration
+}
+
 export interface SourceGaugeExceptionWithNoiseAssessment extends SourceGaugeExceptionAssessment {
   /** The unchanged strict assessment, reported verbatim whatever the qualified verdict says. */
   strict: SourceGaugeExceptionAssessment
+  /** The second restoration path, reported distinctly from any capture-noise classification. */
+  restorationSideEffect: {
+    /**
+     * Whether this path was open at all: it requires the counterfactual and both repeat comparisons
+     * to be measured and exactly zero, whatever any demonstration says.
+     */
+    eligible: boolean
+    detail: string
+    applied: readonly {
+      measurement: string
+      comparison: string
+      version: string
+      demonstrated: boolean
+      reason: string
+      residualPixels: number
+      maximumChannelDelta: number
+      positions: readonly { x: number; y: number }[]
+    }[]
+  }
   captureNoise: {
     required: readonly { measurement: SourceGaugeNoiseMeasurement; changedPixels: number }[]
     applied: readonly {
@@ -440,8 +471,18 @@ export interface SourceGaugeExceptionWithNoiseAssessment extends SourceGaugeExce
 }
 
 /**
- * The strict exception, plus the one thing demonstrated capture noise may forgive: a residual pixel
- * count in the counterfactual, repeat or restoration comparisons.
+ * The strict exception, plus the two things a residual pixel count may be forgiven by: demonstrated
+ * capture noise in the counterfactual, repeat or restoration comparisons, and - since Jon's decision
+ * of 2026-09-18 - a restoration residual independently demonstrated to be a systematic side effect of
+ * this proof's own mutation.
+ *
+ * The second path is narrower than the first and is reported distinctly, as
+ * `qualified-with-demonstrated-restoration-side-effect` carrying the residual count, maximum channel
+ * delta and positions. It applies only to `restored-v1` and `restored-v2`, only while the
+ * counterfactual and both repeat captures are measured and exactly zero, and only on a demonstration
+ * that speaks for exactly the residual this run measured. It is not a tolerance, a mask, a threshold
+ * or a pixel-count cap, and it forgives nothing else: every artifact, byte-truth, fill, raw DOM,
+ * style, non-comparable-capture and gauge-placement refusal is untouched.
  *
  * Everything the gauge exception actually proves - the delivered artifacts, their identical program
  * and metadata-only delta, the truth of every displayed value, the fill resolved against the pinned
@@ -457,6 +498,7 @@ export interface SourceGaugeExceptionWithNoiseAssessment extends SourceGaugeExce
 export function qualifySourceSizeExceptionWithQualifiedCaptureNoise(
   input: SourceGaugeExceptionInput,
   classifications: readonly QualifiedCaptureNoise[],
+  restorationDemonstrations: readonly DemonstratedRestorationSideEffect[] = [],
 ): SourceGaugeExceptionWithNoiseAssessment {
   const strict = qualifySourceSizeException(input)
   const counterfactual = input.counterfactual
@@ -468,11 +510,31 @@ export function qualifySourceSizeExceptionWithQualifiedCaptureNoise(
       value.comparable && value.changedPixels > 0 ? [{ measurement, changedPixels: value.changedPixels }] : []
     ))
 
+  /**
+   * The demonstrated-restoration path Jon approved on 2026-09-18 is open only while the counterfactual
+   * and both repeat captures are measured and exactly zero. A demonstration says the restoration
+   * residual is a side effect of this proof's own mutation; it says nothing about a surface whose
+   * normalized captures still differ or whose normalized state is not even stable, so those refusals
+   * stand whatever it shows.
+   */
+  const restorationEligible = measuredExact(counterfactual.counterfactual)
+    && measuredExact(counterfactual.repeat.v1) && measuredExact(counterfactual.repeat.v2)
+  const restorationApplied: SourceGaugeExceptionWithNoiseAssessment['restorationSideEffect']['applied'][number][] = []
+
   const carry = (
     assessment: SourceGaugeExceptionAssessment,
     detail: string,
     applied: SourceGaugeExceptionWithNoiseAssessment['captureNoise']['applied'] = [],
-  ): SourceGaugeExceptionWithNoiseAssessment => ({ ...assessment, strict, captureNoise: { required, applied, detail } })
+    restorationDetail = restorationEligible
+      ? 'No restoration residual was demonstrated as a side effect of the proof\'s own mutation.'
+      : 'The demonstrated-restoration path was closed: the counterfactual and both repeat captures'
+        + ' must be measured and exactly zero.',
+  ): SourceGaugeExceptionWithNoiseAssessment => ({
+    ...assessment,
+    strict,
+    restorationSideEffect: { eligible: restorationEligible, detail: restorationDetail, applied: restorationApplied },
+    captureNoise: { required, applied, detail },
+  })
 
   if (strict.qualified) {
     return carry(strict, 'The strict assessment qualified on its own; no capture-noise classification was required.')
@@ -502,10 +564,21 @@ export function qualifySourceSizeExceptionWithQualifiedCaptureNoise(
 
   const applied: SourceGaugeExceptionWithNoiseAssessment['captureNoise']['applied'][number][] = []
   const unmet: string[] = []
+  const demonstrated: RestorationSideEffectDemonstration[] = []
   for (const { measurement, changedPixels } of required) {
+    const sideEffect = considerRestorationSideEffect(
+      measurement, counterfactual, restorationEligible, restorationDemonstrations)
+    if (sideEffect) {
+      restorationApplied.push(sideEffect.record)
+      if (sideEffect.accepted) {
+        demonstrated.push(sideEffect.demonstration)
+        continue
+      }
+    }
     const supplied = classifications.find(entry => entry.measurement === measurement)
     if (!supplied) {
-      unmet.push(`${measurement} (${changedPixels} pixels) has no classification`)
+      unmet.push(`${measurement} (${changedPixels} pixels) has no classification`
+        + (sideEffect ? ` and ${sideEffect.refusal}` : ''))
       continue
     }
     const { classification } = supplied
@@ -532,13 +605,84 @@ export function qualifySourceSizeExceptionWithQualifiedCaptureNoise(
   if (unmet.length > 0) {
     return carry(strict, `The strict refusal stands: ${unmet.join('; ')}.`, applied)
   }
+  if (demonstrated.length === 0) {
+    return carry({
+      ...strict,
+      qualified: true,
+      reason: 'qualified-with-classified-capture-noise',
+      detail: `${strict.detail} Every residual pixel in ${required.map(entry => entry.measurement).join(', ')}`
+        + ' was independently demonstrated raster noise; the strict refusal is retained above.',
+    }, 'Each non-zero counterfactual measurement was fully classified against its own control group.', applied)
+  }
+  const sideEffects = demonstrated.map(entry =>
+    `${entry.comparison}: ${entry.residualPixels} pixels at maximum channel delta`
+    + ` ${entry.maximumChannelDelta}, at ${describePositions(entry.positions)}`)
   return carry({
     ...strict,
     qualified: true,
-    reason: 'qualified-with-classified-capture-noise',
-    detail: `${strict.detail} Every residual pixel in ${required.map(entry => entry.measurement).join(', ')}`
-      + ' was independently demonstrated raster noise; the strict refusal is retained above.',
-  }, 'Each non-zero counterfactual measurement was fully classified against its own control group.', applied)
+    reason: 'qualified-with-demonstrated-restoration-side-effect',
+    detail: `${strict.detail} Restoration is not byte-exact, and its residual is independently`
+      + ` demonstrated to be a systematic side effect of this proof's own mutation (${sideEffects.join('; ')});`
+      + ' the counterfactual and both repeat captures are exactly zero and the strict refusal is'
+      + ' retained above.',
+  },
+  applied.length > 0
+    ? 'Each remaining non-zero counterfactual measurement was fully classified against its own control group.'
+    : 'No capture-noise classification was required.',
+  applied,
+  `Demonstrated as a side effect of the proof's own mutation: ${sideEffects.join('; ')}.`)
+}
+
+/** The restoration measurements this path may ever speak for. */
+const RESTORATION_MEASUREMENTS: ReadonlySet<string> = new Set(['restored-v1', 'restored-v2'])
+
+/**
+ * Weighs one offered demonstration against the measurement it claims to explain. The demonstration
+ * has to be for a restoration comparison, the path has to be open, the demonstration itself has to
+ * have succeeded, and it has to speak for exactly the residual this run measured - same pixel count
+ * and same maximum channel delta - so a demonstration of some other comparison cannot be carried
+ * across.
+ */
+function considerRestorationSideEffect(
+  measurement: string,
+  counterfactual: CounterfactualEvidence,
+  eligible: boolean,
+  offered: readonly DemonstratedRestorationSideEffect[],
+): {
+  record: SourceGaugeExceptionWithNoiseAssessment['restorationSideEffect']['applied'][number]
+  demonstration: RestorationSideEffectDemonstration
+  accepted: boolean
+  refusal: string
+} | null {
+  if (!RESTORATION_MEASUREMENTS.has(measurement)) return null
+  const supplied = offered.find(entry => entry.measurement === measurement)
+  if (!supplied) return null
+  const { demonstration } = supplied
+  const record = {
+    measurement,
+    comparison: demonstration.comparison,
+    version: demonstration.version,
+    demonstrated: demonstration.demonstrated,
+    reason: demonstration.reason,
+    residualPixels: demonstration.residualPixels,
+    maximumChannelDelta: demonstration.maximumChannelDelta,
+    positions: demonstration.positions,
+  }
+  const measured = counterfactualMeasurements(counterfactual)
+    .find(entry => entry.measurement === measurement)?.value
+  const refusal = !eligible
+    ? 'its restoration demonstration cannot be used while the counterfactual and repeat captures are'
+      + ' not exactly zero'
+    : !demonstration.demonstrated
+      ? `its restoration side effect was not demonstrated (${demonstration.reason})`
+      : !measured || !measured.comparable
+        || demonstration.residualPixels !== measured.changedPixels
+        || demonstration.maximumChannelDelta !== measured.maximumChannelDelta
+        ? `its restoration demonstration speaks for ${demonstration.residualPixels} pixels at maximum`
+          + ` channel delta ${demonstration.maximumChannelDelta}, which is not the residual this run`
+          + ' measured'
+        : ''
+  return { record, demonstration, accepted: refusal === '', refusal }
 }
 
 /**

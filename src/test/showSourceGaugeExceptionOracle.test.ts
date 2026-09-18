@@ -3,6 +3,11 @@ import { stampArtifact } from '../engine/artifactStamp'
 import { assessVisualPair } from './showEditorEquivalenceOracle'
 import type { RasterNoiseClassification } from './showCaptureRasterNoiseClassifier'
 import {
+  demonstrateRestorationSideEffect,
+  type RestorationCapture,
+  type RestorationSideEffectInput,
+} from './showRestorationSideEffect'
+import {
   formatDeliveredBytes,
   qualifySourceSizeException,
   qualifySourceSizeExceptionWithQualifiedCaptureNoise,
@@ -668,6 +673,218 @@ describe('qualifying a residual through demonstrated capture noise', () => {
     })
     const qualified = qualifySourceSizeExceptionWithQualifiedCaptureNoise(withResidual(), [classification('restored-v2', 6)])
     expect(reclassifyVisualPairWithSourceGaugeException(assessment, qualified).equivalent).toBe(true)
+  })
+})
+
+describe('qualifying a restoration residual as a demonstrated side effect (#1065, Jon 2026-09-18)', () => {
+  /**
+   * Jon decided on 2026-09-18 that restoration qualifies when it is byte-exact, or when its residual
+   * is independently demonstrated to be a systematic side effect of the proof's own mutation. Nothing
+   * else moves: the counterfactual and both repeats must still be exactly zero, and every value,
+   * artifact and presentation refusal is untouched by this path.
+   */
+
+  const RESIDUAL = [
+    { x: 181, y: 8 }, { x: 182, y: 8 }, { x: 183, y: 8 },
+    { x: 184, y: 9 }, { x: 185, y: 9 }, { x: 186, y: 9 },
+  ]
+  const PRISTINE = [223, 223, 226, 255] as const
+  const RESTORED = [222, 222, 225, 255] as const
+
+  const digest = (seed: string) => seed.replace(/[^0-9a-f]/g, 'a').padEnd(64, '0').slice(0, 64)
+  const capture = (label: string, sequence: number): RestorationCapture => ({
+    label, path: `/tmp/pxlblz-show-editor-equivalence/run/${label}.png`, sha256: digest(label), sequence,
+  })
+  const changed = (
+    positions: readonly { x: number; y: number }[] = RESIDUAL,
+    left: readonly number[] = PRISTINE,
+    right: readonly number[] = RESTORED,
+  ) => positions.map(position => ({
+    x: position.x,
+    y: position.y,
+    left: [...left] as unknown as [number, number, number, number],
+    right: [...right] as unknown as [number, number, number, number],
+  }))
+
+  /** The v2 restoration residual the retained `tip-6ee11aa7` run measured on the narrow surfaces. */
+  const withRestorationResidual = (): SourceGaugeExceptionInput => {
+    const input = approvedInput()
+    return {
+      ...input,
+      counterfactual: { ...input.counterfactual, restored: { v1: exact, v2: measured(6, 1) } },
+    }
+  }
+
+  const evidenceInput = (): RestorationSideEffectInput => ({
+    comparison: 'v2 delivered vs restored',
+    version: 'v2',
+    candidate: {
+      left: capture('v2-delivered-candidate', 15),
+      right: capture('v2-restored-candidate', 18),
+      changedPixels: changed(),
+      reportedChangedPixels: 6,
+    },
+    control: {
+      left: capture('v2-delivered-control-a', 7),
+      right: capture('v2-restored-control-1', 9),
+      changedPixels: changed(),
+      reportedChangedPixels: 6,
+    },
+    restoredControls: [capture('v2-restored-control-1', 9), capture('v2-restored-control-2', 12)],
+    restoredControlAgreement: [{
+      left: 'v2-restored-control-1', right: 'v2-restored-control-2', measurement: exact,
+    }],
+  })
+
+  const demonstration = (evidence: RestorationSideEffectInput = evidenceInput()) => [{
+    measurement: 'restored-v2',
+    demonstration: demonstrateRestorationSideEffect(evidence),
+  }]
+
+  it('qualifies the retained scenario and reports the residual it forgave', () => {
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise(
+      withRestorationResidual(), [], demonstration())
+    expect(result.qualified).toBe(true)
+    expect(result.reason).toBe('qualified-with-demonstrated-restoration-side-effect')
+    expect(result.detail).toContain('6 pixels')
+    expect(result.detail).toContain('maximum channel delta 1')
+    expect(result.detail).toContain('(181, 8)')
+    expect(result.strict.qualified).toBe(false)
+    expect(result.strict.reason).toBe('counterfactual-not-exact')
+    expect(result.strict.detail).toContain('v2 6 pixels')
+    expect(result.restorationSideEffect.applied).toEqual([expect.objectContaining({
+      measurement: 'restored-v2',
+      comparison: 'v2 delivered vs restored',
+      demonstrated: true,
+      residualPixels: 6,
+      maximumChannelDelta: 1,
+    })])
+    expect(reclassifyVisualPairWithSourceGaugeException(assessVisualPair({
+      surface: 'whole-editor',
+      v1: { present: true, x: 0, y: 0, width: 390, height: 844 },
+      v2: { present: true, x: 0, y: 0, width: 390, height: 844 },
+      changedPixels: 8,
+      maximumChannelDelta: 212,
+    }), result).equivalent).toBe(true)
+  })
+
+  it('refuses when one residual pixel is not in the controls', () => {
+    const evidence = evidenceInput()
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise(
+      { ...withRestorationResidual(), counterfactual: {
+        ...withRestorationResidual().counterfactual, restored: { v1: exact, v2: measured(7, 1) },
+      } },
+      [],
+      demonstration({
+        ...evidence,
+        candidate: {
+          ...evidence.candidate,
+          changedPixels: [...changed(), ...changed([{ x: 400, y: 40 }])],
+          reportedChangedPixels: 7,
+        },
+      }))
+    expect(result.qualified).toBe(false)
+    expect(result.reason).toBe('counterfactual-not-exact')
+    expect(result.restorationSideEffect.applied[0].reason).toBe('residual-not-reproduced')
+    expect(result.captureNoise.detail).toContain('restored-v2')
+  })
+
+  it('refuses when the residual values differ from the ones the controls showed', () => {
+    const evidence = evidenceInput()
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise(withRestorationResidual(), [],
+      demonstration({
+        ...evidence,
+        candidate: { ...evidence.candidate, changedPixels: changed(RESIDUAL, PRISTINE, [220, 222, 225, 255]) },
+      }))
+    expect(result.qualified).toBe(false)
+    expect(result.restorationSideEffect.applied[0].reason).toBe('residual-not-reproduced')
+  })
+
+  it('refuses when the restored controls disagree with each other', () => {
+    const evidence = evidenceInput()
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise(withRestorationResidual(), [],
+      demonstration({
+        ...evidence,
+        restoredControlAgreement: [{
+          left: 'v2-restored-control-1', right: 'v2-restored-control-2', measurement: measured(2, 1),
+        }],
+      }))
+    expect(result.qualified).toBe(false)
+    expect(result.restorationSideEffect.applied[0].reason).toBe('restored-controls-disagree')
+  })
+
+  it('refuses when the counterfactual is non-zero even though restoration is demonstrated', () => {
+    const input = withRestorationResidual()
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise({
+      ...input,
+      counterfactual: { ...input.counterfactual, counterfactual: measured(3, 4) },
+    }, [], demonstration())
+    expect(result.qualified).toBe(false)
+    expect(result.reason).toBe('counterfactual-not-exact')
+    expect(result.restorationSideEffect.eligible).toBe(false)
+    expect(result.captureNoise.detail).toContain('exactly zero')
+  })
+
+  it('refuses a repeat capture that is not exactly zero even though restoration is demonstrated', () => {
+    const input = withRestorationResidual()
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise({
+      ...input,
+      counterfactual: { ...input.counterfactual, repeat: { v1: exact, v2: measured(2, 1) } },
+    }, [], demonstration())
+    expect(result.qualified).toBe(false)
+    expect(result.restorationSideEffect.eligible).toBe(false)
+  })
+
+  it('refuses a demonstration bound to a different residual than the one measured', () => {
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise({
+      ...withRestorationResidual(),
+      counterfactual: { ...withRestorationResidual().counterfactual, restored: { v1: exact, v2: measured(6, 4) } },
+    }, [], demonstration())
+    expect(result.qualified).toBe(false)
+    expect(result.captureNoise.detail).toContain('restored-v2')
+  })
+
+  it('leaves a v1-style byte-exact restoration exactly as it was', () => {
+    const untouched = qualifySourceSizeExceptionWithQualifiedCaptureNoise(approvedInput(), [], demonstration())
+    expect(untouched.qualified).toBe(true)
+    expect(untouched.reason).toBe('qualified')
+    expect(untouched.restorationSideEffect.applied).toEqual([])
+    expect(qualifySourceSizeExceptionWithQualifiedCaptureNoise(approvedInput(), []).reason).toBe('qualified')
+  })
+
+  it('never reaches the demonstration when the gauge value proof itself failed', () => {
+    const wrongFill = {
+      ...withRestorationResidual(),
+      v1: withAuthoredFill(withRestorationResidual().v1, V1_BYTES + 1),
+    }
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise(wrongFill, [], demonstration())
+    expect(result.qualified).toBe(false)
+    expect(result.restorationSideEffect.applied).toEqual([])
+    expect(result.captureNoise.applied).toEqual([])
+  })
+
+  it('still accepts a fully classified restoration residual when no demonstration is offered', () => {
+    const classified = qualifySourceSizeExceptionWithQualifiedCaptureNoise(withRestorationResidual(), [{
+      measurement: 'restored-v2',
+      classification: {
+        comparison: 'v2 delivered vs restored',
+        classified: true,
+        reason: 'classified',
+        detail: 'every changed pixel was observed in one unchanged control group',
+        changedPixels: 6,
+        reportedChangedPixels: 6,
+        classifiedPixels: RESIDUAL.map(position => ({
+          ...position, left: PRISTINE, right: RESTORED, canvasBacked: false,
+          reason: 'observed-in-one-control-group' as const,
+          qualifyingGroup: 'v2-delivered', qualifiedBy: ['a', 'b'],
+        })),
+        residualPixels: [],
+        controlGroups: [],
+        evidence: [],
+      },
+    }], [])
+    expect(classified.qualified).toBe(true)
+    expect(classified.reason).toBe('qualified-with-classified-capture-noise')
   })
 })
 

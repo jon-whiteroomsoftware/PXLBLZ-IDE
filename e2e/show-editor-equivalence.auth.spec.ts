@@ -28,10 +28,15 @@ import {
   formatDeliveredBytes,
   qualifySourceSizeExceptionWithQualifiedCaptureNoise,
   reclassifyVisualPairWithSourceGaugeException,
+  type DemonstratedRestorationSideEffect,
   type GaugeVariant,
   type GaugeVersionEvidence,
   type SourceGaugeExceptionWithNoiseAssessment,
 } from '../src/test/showSourceGaugeExceptionOracle'
+import {
+  demonstrateRestorationSideEffect,
+  type RestorationCapture,
+} from '../src/test/showRestorationSideEffect'
 import {
   applyCommonGaugeValues,
   canonicalizePercent,
@@ -329,6 +334,7 @@ test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({
               captures: [],
               measurements: [],
               classifications: [],
+              restorationDemonstrations: [],
               delivered: null,
               exception: null,
             }
@@ -517,6 +523,7 @@ type SurfaceNoiseReport = {
   captures: readonly PhaseCapture[]
   measurements: readonly ({ key: string } & PixelMeasurement)[]
   classifications: readonly PlannedClassification[]
+  restorationDemonstrations: readonly DemonstratedRestorationSideEffect[]
   delivered: Record<'v1' | 'v2', { path: string; route: string; sourceBytes: number }> | null
   exception: SourceGaugeExceptionWithNoiseAssessment | null
 }
@@ -788,6 +795,67 @@ async function collectSurfaceNoise(
     measurements.push({ key: 'delivered v1 vs v2', ...rawDifference })
   }
 
+  /**
+   * The second restoration path Jon approved on 2026-09-18: a restoration residual qualifies when it
+   * is byte-exact, or when the controls independently reproduce it exactly (#1065).
+   *
+   * Both comparisons this needs are between control captures the plan already collected, so nothing
+   * new is opened, captured or retried: the pristine control of the first open against that open's
+   * restored control, and the two restored controls from independent opens against each other. Both
+   * are recorded as measurements whatever they show, and the pure oracle decides.
+   */
+  const captureRef = (label: string): RestorationCapture => {
+    const phase = phases.find(entry => entry.label === label)!
+    return { label: phase.label, path: phase.path, sha256: phase.sha256, sequence: phase.sequence }
+  }
+  const restorationDemonstrations: DemonstratedRestorationSideEffect[] = []
+  if (gaugeUsable) {
+    for (const version of ['v1', 'v2'] as const) {
+      const candidate = comparisons.find(entry => entry.key === `${version} delivered vs restored`)
+      if (!candidate || candidate.changedPixels.length === 0) continue
+      const control = await differenceBetweenCaptures(
+        page, retained.get(`${version}-delivered-control-a`)!, retained.get(`${version}-restored-control-1`)!)
+      measurements.push({ key: `${version} control delivered vs restored`, ...control })
+      const agreement = await differenceBetweenCaptures(
+        page, retained.get(`${version}-restored-control-1`)!, retained.get(`${version}-restored-control-2`)!)
+      measurements.push({ key: `${version} restored controls agree`, ...agreement })
+      if (!control.comparable) continue
+      restorationDemonstrations.push({
+        measurement: `restored-${version}`,
+        demonstration: demonstrateRestorationSideEffect({
+          comparison: `${version} delivered vs restored`,
+          version,
+          candidate: {
+            left: captureRef(`${version}-delivered-candidate`),
+            right: captureRef(`${version}-restored-candidate`),
+            changedPixels: candidate.changedPixels,
+            reportedChangedPixels: candidate.reportedChangedPixels,
+          },
+          control: {
+            left: captureRef(`${version}-delivered-control-a`),
+            right: captureRef(`${version}-restored-control-1`),
+            changedPixels: control.pixels,
+            reportedChangedPixels: control.changedPixels,
+          },
+          restoredControls: [
+            captureRef(`${version}-restored-control-1`), captureRef(`${version}-restored-control-2`),
+          ],
+          restoredControlAgreement: [{
+            left: `${version}-restored-control-1`,
+            right: `${version}-restored-control-2`,
+            measurement: agreement.comparable
+              ? {
+                comparable: true,
+                changedPixels: agreement.changedPixels,
+                maximumChannelDelta: agreement.maximumChannelDelta,
+              }
+              : { comparable: false, detail: agreement.detail },
+          }],
+        }),
+      })
+    }
+  }
+
   const implicated = new Set(comparisons.flatMap(comparison =>
     comparison.changedPixels.map(pixel => `${pixel.x},${pixel.y}`)))
   const wantedPositions = [...implicated].map(key => {
@@ -870,7 +938,7 @@ async function collectSurfaceNoise(
       ...named('v2 normalized repeat', 'repeat-v2'),
       ...named('v1 delivered vs restored', 'restored-v1'),
       ...named('v2 delivered vs restored', 'restored-v2'),
-    ])
+    ], restorationDemonstrations)
   }
 
   return {
@@ -878,12 +946,14 @@ async function collectSurfaceNoise(
     detail: gaugeUsable
       ? `The gauge is ${gaugePlacement === 'behind' ? 'behind' : 'in'} this surface, so its exported values`
         + ' are proved by the gauge exception and only the counterfactual, repeat and restoration'
-        + ' residuals were offered to the classifier.'
+        + ' residuals were offered to the classifier, with each restoration residual additionally'
+        + ' offered to the demonstrated-side-effect path against its own controls.'
       : 'No usable gauge in this surface, so the fresh delivered pair itself must be exact or fully classified.',
     gauge: { usable: gaugeUsable, detail: gaugeDetail, variant, ...(gaugeUsable ? { placement: gaugePlacement } : {}) },
     captures: phases,
     measurements,
     classifications,
+    restorationDemonstrations,
     delivered: delivered.v1 && delivered.v2
       ? {
         v1: { path: delivered.v1.path, route: delivered.v1.route, sourceBytes: delivered.v1.sourceBytes },
