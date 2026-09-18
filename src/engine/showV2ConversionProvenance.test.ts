@@ -11,6 +11,8 @@ import { compileShowForArtifact } from './showPreviewArtifact'
 import { cloneValidShowRecordV2 } from './showDocument'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { editShowLayoutIntervalsV2, type ShowLayoutEditIntentV2 } from './showLayoutIntervalsV2'
+import { projectShowEditorTimelineV2 } from './showEditorTimelinePresentation'
+import { projectShowEditorRoutingTransfersV2 } from './showEditorInspectorPresentation'
 
 /**
  * Conversion provenance for the #1065 tracer.
@@ -141,6 +143,26 @@ describe('v1 zero-duration routing switch identity', () => {
       durationMs: 1_500,
       direction: 'forward',
       easing: { curve: 'sine', direction: 'in-out' },
+    })
+  })
+
+  it('gives the existing timeline lane and routing panel the second switch back', () => {
+    const view = projectShowEditorTimelineV2(converted)
+    expect(view.layoutIntervals.map(interval => interval.incomingTransfer?.id ?? null))
+      .toEqual([null, 'routing-full-split', 'routing-split-rings'])
+
+    const transfers = projectShowEditorRoutingTransfersV2(converted)
+    expect(transfers['routing-split-rings']).toMatchObject({
+      id: 'routing-split-rings',
+      layoutId: 'layout-rings',
+      durationMs: 0,
+      easing: { curve: 'linear' },
+      direction: 'forward',
+      directionAuthored: false,
+    })
+    expect(transfers['routing-full-split']).toMatchObject({
+      durationMs: 1_500,
+      directionAuthored: true,
     })
   })
 })
@@ -334,5 +356,9 @@ describe('a native v2 record without conversion metadata keeps its normal behavi
   it('leaves Transitions and Layout occurrences exactly as authored', () => {
     const native = withoutConversionMetadata(convert(corpusCase('installation-layouts')))
     expect(validateShowRecordV2(native)).toEqual([])
+    const view = projectShowEditorTimelineV2(native)
+    expect(view.layoutIntervals.map(interval => interval.incomingTransfer?.id ?? null))
+      .toEqual([null, 'routing-full-split', null])
+    expect(Object.keys(projectShowEditorRoutingTransfersV2(native))).toEqual(['routing-full-split'])
   })
 })

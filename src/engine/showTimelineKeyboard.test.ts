@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { ShowUnifiedTimelineProjection } from './showUnifiedTimelineProjection'
+import type { ShowTimelineItemView, ShowTimelineViewModel } from './showTimelineViewModel'
 import {
   nextShowTimelineTraversalTarget,
   projectShowTimelineTraversalTargets,
+  projectShowTimelineViewTraversalTargets,
 } from './showTimelineKeyboard'
 
 const timeline: ShowUnifiedTimelineProjection = {
@@ -115,3 +117,82 @@ function clip(
     diagnostics: [],
   }
 }
+
+describe('projectShowTimelineViewTraversalTargets', () => {
+  function view(): ShowTimelineViewModel {
+    const item = (
+      id: string,
+      startMs: number,
+      groupOccurrenceId?: string,
+    ): ShowTimelineItemView => ({
+      id,
+      selection: groupOccurrenceId
+        ? { kind: 'group', occurrenceId: groupOccurrenceId }
+        : { kind: 'clip', clipId: id },
+      instanceId: `${id}-instance`,
+      patternName: id,
+      compiled: true,
+      zoneId: 'zone',
+      layerId: 'layer',
+      startMs,
+      durationMs: 1_000,
+      endMs: startMs + 1_000,
+      entryPolicy: 'continue',
+      heldAppearance: { opacity: 1, effectKinds: [] },
+      diagnostics: [],
+      ...(groupOccurrenceId ? { groupOccurrenceId } : {}),
+    })
+    return {
+      recordVersion: 2,
+      showId: 'show',
+      showEndMs: 10_000,
+      rows: [{
+        zoneId: 'zone',
+        zoneName: 'Main',
+        nominalPixelCount: 60,
+        pixelCount: 60,
+        composed: true,
+        layers: [{
+          id: 'layer',
+          zoneId: 'zone',
+          name: 'Main',
+          rank: 0,
+          layerIndex: 0,
+          items: [item('clip-a', 0), item('occurrence:child', 2_000, 'occurrence'), item('clip-b', 5_000)],
+          junctions: [],
+        }],
+        groups: [{
+          id: 'occurrence',
+          definitionId: 'definition',
+          name: 'Pulse',
+          zoneId: 'zone',
+          startMs: 2_000,
+          endMs: 3_000,
+          durationMs: 1_000,
+          topLayerIndex: 0,
+          bottomLayerIndex: 0,
+          linkedOccurrenceCount: 1,
+          selection: { kind: 'group', occurrenceId: 'occurrence' },
+        }],
+      }],
+      transitions: [],
+      layoutIntervals: [],
+      markers: [],
+      structuralTimesMs: [0, 10_000],
+    }
+  }
+
+  it('orders ordinary Clips and whole Groups by start time, hiding Group children', () => {
+    expect(projectShowTimelineViewTraversalTargets(view())).toEqual([
+      { kind: 'clip', clipId: 'clip-a' },
+      { kind: 'group', occurrenceId: 'occurrence' },
+      { kind: 'clip', clipId: 'clip-b' },
+    ])
+  })
+
+  it('discloses only the isolated Group\'s children', () => {
+    expect(projectShowTimelineViewTraversalTargets(view(), 'occurrence')).toEqual([
+      { kind: 'group-clip', occurrenceId: 'occurrence', placementId: 'child' },
+    ])
+  })
+})

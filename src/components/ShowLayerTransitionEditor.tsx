@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { RotateCcw, X, Zap } from 'lucide-react'
-import type { ShowLayerTransition } from '@/engine/personalContentRecords'
+import type { ShowTransitionKind } from '@/engine/personalContentRecords'
 import { TimeField } from '@/components/ui/time-field'
 
 export function ShowLayerTransitionEditor({
@@ -13,7 +13,12 @@ export function ShowLayerTransitionEditor({
   onResetToCut,
   onClose,
 }: {
-  transition: ShowLayerTransition
+  /**
+   * The two settings this popover draws. Narrowed from the whole Layer
+   * Transition record so both backings can supply it (#1065); v1's own
+   * `ShowLayerTransition` still satisfies it unchanged.
+   */
+  transition: { kind: ShowTransitionKind; durationMs: number }
   fromName: string
   toName: string
   anchor: HTMLElement

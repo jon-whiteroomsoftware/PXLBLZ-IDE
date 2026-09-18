@@ -237,6 +237,13 @@ budget before retaining each new request. Browser requests retain their35-second
 transport bound and independent15-second liveness heartbeats.
 
 Disconnect/close retire local private work synchronously before network cleanup.
+A pending browser registration keeps its own 35-second request deadline when
+the editor closes. If its acknowledgement arrives after close, the client sends
+Leave for that exact registration without installing a window, receive loop or
+heartbeat. Other session requests still abort on close. A lost acknowledgement
+or destroyed document cannot perform this cleanup; server expiry remains the
+bounded fallback. A late acknowledgement from an old editor cannot retire a
+new editor registration.
 A failed transport preserves the logical binding and known browser receipt;
 receive resumes without re-registering or replaying delivered work. A query uses
 the surviving receipt or returns unknown. A terminal browser receipt releases

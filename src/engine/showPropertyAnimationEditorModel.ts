@@ -105,7 +105,7 @@ const ORPHAN_CODES = new Set<ShowPropertyAnimationValidationCode>([
 ])
 
 export function buildShowPropertyAnimationOptions(
-  value: ShowClipInspectorValue,
+  value: Omit<ShowClipInspectorValue, 'owner'>,
   patternControls: readonly AutomatablePatternControl[] = [],
 ): ShowPropertyAnimationOption[] {
   if (!value.placementId || !value.instanceId) return []

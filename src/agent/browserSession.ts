@@ -156,7 +156,11 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
   const ready = (async () => {
     if (!admission.available()) return undefined
     try {
-      const result = await post({ type: 'register', sessionId: admission.sessionId, showId, showVersion: admission.recordVersion }, abort.signal)
+      // The one request close() must not cancel: the server commits the
+      // registration on accept, so discarding its reply orphans a slot no client
+      // can name. post()'s own 35s timeout still bounds it, and the closed
+      // branch below retires the late acknowledgement without reviving anything.
+      const result = await post({ type: 'register', sessionId: admission.sessionId, showId, showVersion: admission.recordVersion })
       if (!result.registrationId) {
         if (!closed) { connection = { kind: 'refused', code: result.code }; emit({ type: 'connection', connection }) }
         return undefined

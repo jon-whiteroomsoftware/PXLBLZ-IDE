@@ -98,6 +98,9 @@ import { applyShowPatternSlotSelections } from '@/engine/showReferenceShow'
 import { sourceForShowPatternRef } from '@/engine/showPreviewArtifact'
 import { bundledPatternSliderNames } from '@/engine/showPatternControls'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
+import { projectShowEditorStagePresentationV2 } from '@/engine/showEditorStagePresentation'
+import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
 import { claimStudioPreviewSpace, studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
@@ -126,7 +129,6 @@ import { useStudioPlaceStore } from '@/store/studioPlaceStore'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 import { AgentDrawerWorkspace } from '@/components/agent/AgentDrawer'
-import { ShowEditorV2Route } from '@/components/ShowEditorV2Route'
 import { isShowV2RouteEnabled, opensOnShowV2Route } from '@/engine/showV2RouteGate'
 
 function Splitter({
@@ -404,6 +406,7 @@ function StudioApp() {
   const showV2Pilots = useShowStore((s) => s.showV2Pilots)
   const showV2Rows = useShowStore((s) => s.showV2Rows)
   const openShow = useShowStore((s) => s.openShow)
+  const openShowV2Pilot = useShowStore((s) => s.openShowV2Pilot)
   const clearActiveShowSelection = useShowStore((s) => s.clearActiveShowSelection)
   // Which editor holds one routed Show (#1039). A stored version-2 document
   // opens on the v2 route; a row still stored as v1 - and every built-in Show,
@@ -861,12 +864,32 @@ function StudioApp() {
       ? shows.find((show) => show.id === activeShowId)
       : undefined
   )
+  // A routed v2 row hydrates through the Show store's own open action, which
+  // owns the stored read, conversion fallback, history seed and save queue. The
+  // editor only ever mounts on that adopted pilot record (#1065).
+  useEffect(() => {
+    if (!v2EditorShowId || showV2Pilots[v2EditorShowId]) return
+    void openShowV2Pilot(v2EditorShowId)
+  }, [openShowV2Pilot, showV2Pilots, v2EditorShowId])
   const activeShowV2Pilot = v2EditorShowId ? showV2Pilots[v2EditorShowId] : undefined
   const activeShowV2PilotId = activeShowV2Pilot?.id
-  const activeShowEditor = activeShow ? (
+  const activeShowRecord = activeShowV2Pilot ?? activeShow
+  // The Stage slot stays presentational: the workspace receives one projected
+  // Stage presentation for whichever record backs the open editor (#1065).
+  const activeShowV2Stage = useMemo(() => activeShowV2Pilot
+    ? projectShowEditorStagePresentationV2(captureShowStageEditV2(activeShowV2Pilot, {
+        patterns: userPatterns,
+        libraries: userLibraries,
+        maps: userMaps,
+        profiles: controllerProfiles,
+        stageMap: resolveShowV2StageMap(activeShowV2Pilot.stageMapId, userMaps),
+      }))
+    : null, [activeShowV2Pilot, controllerProfiles, userLibraries, userMaps, userPatterns])
+  const activeShowEditor = activeShowRecord ? (
     <ShowEditor
-      showId={activeShow.id}
-      autoPlay={galleryEntryPlayback && activeShow.id === 'stock-show-remix-quadrille'}
+      showId={activeShowRecord.id}
+      recordVersion={activeShowV2Pilot ? 2 : 1}
+      autoPlay={galleryEntryPlayback && activeShowRecord.id === 'stock-show-remix-quadrille'}
       showOverride={routedStockShowOverride}
       builtInContext={routedStockShow ? {
         track: routedStockShow.track,
@@ -1365,20 +1388,20 @@ function StudioApp() {
                       <span ref={setShowHeaderGuideTarget} className="show-header-guide flex shrink-0 items-center" />
                     )}
                   </span>
-                  {activeShow && (
+                  {activeShowRecord && (
                     <span
                       title="Show output summary"
                       className={`show-output-summary rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 uppercase tracking-wide ${IDE_MICROTYPE.secondary.className}`}
                     >
-                      {activeShow.outputContract?.kind === 'installation'
+                      {activeShowRecord.outputContract?.kind === 'installation'
                         ? 'Installation'
-                        : activeShow.outputContract?.kind === 'portable-2d'
+                        : activeShowRecord.outputContract?.kind === 'portable-2d'
                           ? 'Portable'
                           : 'Legacy output'}
                     </span>
                   )}
                 </span>
-                {activeShow && (
+                {activeShowRecord && (
                   <span
                     ref={setShowHeaderActionsTarget}
                     className="show-header-actions scrollbar-hidden ml-auto flex min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto"
@@ -1509,9 +1532,7 @@ function StudioApp() {
                     }}
                   />
                 </div>
-              ) : v2EditorShowId ? (
-                <ShowEditorV2Route showId={v2EditorShowId} />
-              ) : activeShow ? (
+              ) : activeShowRecord ? (
                 <ShowWorkspace
                   previewAspect={showStagePreviewAspect}
                   timelineMinimumHeight={showTimelineMinimumHeight}
@@ -1519,12 +1540,21 @@ function StudioApp() {
                   timelineRequiredHeight={showTimelineRequiredHeight}
                   timeline={activeShowEditor}
                   stage={(
-                      <ShowStagePreview
-                        showId={activeShow.id}
-                        showOverride={routedStockShowOverride}
-                        presentation="strip"
-                        onPreviewAspectChange={setShowStagePreviewAspect}
-                      />
+                      activeShowV2Stage ? (
+                        <ShowStagePreview
+                          kind="editor-v2"
+                          stage={activeShowV2Stage}
+                          presentation="strip"
+                          onPreviewAspectChange={setShowStagePreviewAspect}
+                        />
+                      ) : activeShow ? (
+                        <ShowStagePreview
+                          showId={activeShow.id}
+                          showOverride={routedStockShowOverride}
+                          presentation="strip"
+                          onPreviewAspectChange={setShowStagePreviewAspect}
+                        />
+                      ) : null
                   )}
                 />
               ) : (

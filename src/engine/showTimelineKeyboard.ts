@@ -1,4 +1,5 @@
 import type { ShowUnifiedTimelineProjection } from './showUnifiedTimelineProjection'
+import type { ShowTimelineViewModel } from './showTimelineViewModel'
 
 export type ShowTimelineTraversalTarget =
   | { kind: 'clip'; clipId: string }
@@ -21,9 +22,44 @@ export function projectShowTimelineTraversalTargets(
   timeline: ShowUnifiedTimelineProjection,
   isolatedGroupOccurrenceId: string | null = null,
 ): ShowTimelineTraversalTarget[] {
+  return orderTraversalTargets(timeline.zones.map((zone) => ({
+    groups: zone.groups,
+    clips: zone.layers.flatMap((layer) => layer.clips),
+  })), isolatedGroupOccurrenceId)
+}
+
+/**
+ * The same order, read from the presented timeline. A record the editor has no
+ * v1 composition for still supplies Zones, Groups, Layers and Clips there, so
+ * one traversal rule serves both backings (#1065).
+ */
+export function projectShowTimelineViewTraversalTargets(
+  view: ShowTimelineViewModel,
+  isolatedGroupOccurrenceId: string | null = null,
+): ShowTimelineTraversalTarget[] {
+  return orderTraversalTargets(view.rows.map((row) => ({
+    groups: row.groups,
+    clips: row.layers.flatMap((layer) => layer.items.map((item) => ({
+      id: item.id,
+      startMs: item.startMs,
+      layerIndex: layer.layerIndex,
+      ...(item.groupOccurrenceId ? { groupOccurrenceId: item.groupOccurrenceId } : {}),
+    }))),
+  })), isolatedGroupOccurrenceId)
+}
+
+interface TraversalZone {
+  groups: readonly { id: string; startMs: number; topLayerIndex: number }[]
+  clips: readonly { id: string; startMs: number; layerIndex: number; groupOccurrenceId?: string }[]
+}
+
+function orderTraversalTargets(
+  zones: readonly TraversalZone[],
+  isolatedGroupOccurrenceId: string | null,
+): ShowTimelineTraversalTarget[] {
   const ordered: OrderedTraversalTarget[] = []
 
-  timeline.zones.forEach((zone, zoneIndex) => {
+  zones.forEach((zone, zoneIndex) => {
     if (!isolatedGroupOccurrenceId) {
       for (const group of zone.groups) {
         ordered.push({
@@ -36,34 +72,32 @@ export function projectShowTimelineTraversalTargets(
       }
     }
 
-    for (const layer of zone.layers) {
-      for (const clip of layer.clips) {
-        if (isolatedGroupOccurrenceId) {
-          if (clip.groupOccurrenceId !== isolatedGroupOccurrenceId) continue
-          const prefix = `${isolatedGroupOccurrenceId}:`
-          if (!clip.id.startsWith(prefix)) continue
-          ordered.push({
-            target: {
-              kind: 'group-clip',
-              occurrenceId: isolatedGroupOccurrenceId,
-              placementId: clip.id.slice(prefix.length),
-            },
-            startMs: clip.startMs,
-            zoneIndex,
-            layerIndex: clip.layerIndex,
-            stableId: clip.id,
-          })
-          continue
-        }
-        if (clip.groupOccurrenceId) continue
+    for (const clip of zone.clips) {
+      if (isolatedGroupOccurrenceId) {
+        if (clip.groupOccurrenceId !== isolatedGroupOccurrenceId) continue
+        const prefix = `${isolatedGroupOccurrenceId}:`
+        if (!clip.id.startsWith(prefix)) continue
         ordered.push({
-          target: { kind: 'clip', clipId: clip.id },
+          target: {
+            kind: 'group-clip',
+            occurrenceId: isolatedGroupOccurrenceId,
+            placementId: clip.id.slice(prefix.length),
+          },
           startMs: clip.startMs,
           zoneIndex,
           layerIndex: clip.layerIndex,
           stableId: clip.id,
         })
+        continue
       }
+      if (clip.groupOccurrenceId) continue
+      ordered.push({
+        target: { kind: 'clip', clipId: clip.id },
+        startMs: clip.startMs,
+        zoneIndex,
+        layerIndex: clip.layerIndex,
+        stableId: clip.id,
+      })
     }
   })
 

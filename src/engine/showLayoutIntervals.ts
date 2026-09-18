@@ -88,10 +88,10 @@ export function projectShowLayoutIntervals(show: ShowRecord): ShowLayoutInterval
 }
 
 /** Resolve the author-facing Layout occurrence that owns a Show instant. */
-export function showLayoutIntervalAtTime(
-  intervals: ShowLayoutInterval[],
+export function showLayoutIntervalAtTime<T extends { startMs: number; endMs: number }>(
+  intervals: readonly T[],
   timeMs: number,
-): ShowLayoutInterval | null {
+): T | null {
   if (intervals.length === 0 || !Number.isFinite(timeMs)) return null
   return intervals.find((interval) => timeMs >= interval.startMs && timeMs < interval.endMs)
     ?? [...intervals].reverse().find((interval) => timeMs >= interval.startMs)

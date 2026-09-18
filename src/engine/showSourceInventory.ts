@@ -187,6 +187,57 @@ export function buildShowArtifactInventoryModel(
   }
 }
 
+/**
+ * One logical Pattern use, in the vocabulary
+ * {@link describeShowArtifactPatterns} already speaks. Each editor backing
+ * names its own runtime instances and authored references; the grouping below
+ * is shared so both report the same inventory rows (#1065).
+ */
+export interface ShowArtifactPatternUse {
+  id: string
+  key: string
+  name: string
+  /** Authored Clip identities that reference this runtime instance. */
+  authoredReferenceIds: readonly string[]
+}
+
+export function describeShowArtifactPatternUses(
+  uses: readonly ShowArtifactPatternUse[],
+  inventory: DeliveredShowSourceInventory,
+): ShowArtifactInventoryPattern[] {
+  const logicalById = new Map(uses.map((entry) => [entry.id, entry]))
+  const physicalOwnerIds = [...new Set(inventory.chunks.flatMap((chunk) => (
+    chunk.category === 'pattern' && chunk.ownerId ? [chunk.ownerId] : []
+  )))]
+  const groups = new Map<string, ShowArtifactInventoryPattern>()
+  for (const entry of uses) {
+    const current = groups.get(entry.key) ?? {
+      key: entry.key,
+      name: entry.name,
+      ownerIds: [],
+      logicalInstanceCount: 0,
+      authoredReferenceCount: 0,
+    }
+    current.logicalInstanceCount += 1
+    current.authoredReferenceCount += new Set(entry.authoredReferenceIds).size
+    groups.set(entry.key, current)
+  }
+  for (const ownerId of physicalOwnerIds) {
+    const entry = logicalById.get(ownerId)
+    const key = entry?.key ?? `member:${ownerId}`
+    const current = groups.get(key) ?? {
+      key,
+      name: entry?.name ?? ownerId,
+      ownerIds: [],
+      logicalInstanceCount: 1,
+      authoredReferenceCount: 1,
+    }
+    current.ownerIds.push(ownerId)
+    groups.set(key, current)
+  }
+  return [...groups.values()].filter((group) => group.ownerIds.length > 0)
+}
+
 export function describeShowArtifactPatterns(
   show: ShowRecord,
   inventory: DeliveredShowSourceInventory,
@@ -203,10 +254,6 @@ export function describeShowArtifactPatterns(
         key: `${cell.pattern.kind}:${cell.pattern.id}`,
         name: cell.patternName,
       }))
-  const logicalById = new Map(logical.map((entry) => [entry.id, entry]))
-  const physicalOwnerIds = [...new Set(inventory.chunks.flatMap((chunk) => (
-    chunk.category === 'pattern' && chunk.ownerId ? [chunk.ownerId] : []
-  )))]
   const authoredReferencesByLogicalId = new Map<string, Set<string>>()
   const addAuthoredReference = (instanceId: string, placementId: string) => {
     const placementIds = authoredReferencesByLogicalId.get(instanceId) ?? new Set<string>()
@@ -230,33 +277,10 @@ export function describeShowArtifactPatterns(
     for (const entry of logical) addAuthoredReference(entry.id, entry.id)
   }
 
-  const groups = new Map<string, ShowArtifactInventoryPattern>()
-  for (const entry of logical) {
-    const current = groups.get(entry.key) ?? {
-      key: entry.key,
-      name: entry.name,
-      ownerIds: [],
-      logicalInstanceCount: 0,
-      authoredReferenceCount: 0,
-    }
-    current.logicalInstanceCount += 1
-    current.authoredReferenceCount += authoredReferencesByLogicalId.get(entry.id)?.size ?? 0
-    groups.set(entry.key, current)
-  }
-  for (const ownerId of physicalOwnerIds) {
-    const entry = logicalById.get(ownerId)
-    const key = entry?.key ?? `member:${ownerId}`
-    const current = groups.get(key) ?? {
-      key,
-      name: entry?.name ?? ownerId,
-      ownerIds: [],
-      logicalInstanceCount: 1,
-      authoredReferenceCount: 1,
-    }
-    current.ownerIds.push(ownerId)
-    groups.set(key, current)
-  }
-  return [...groups.values()].filter((group) => group.ownerIds.length > 0)
+  return describeShowArtifactPatternUses(logical.map((entry) => ({
+    ...entry,
+    authoredReferenceIds: [...authoredReferencesByLogicalId.get(entry.id) ?? []],
+  })), inventory)
 }
 
 /** UTF-8 byte length of a delivered Show source string — the numerator the

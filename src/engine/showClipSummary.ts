@@ -199,6 +199,35 @@ export function projectCompositionShowClipSummary(
   ))
 }
 
+/**
+ * Project the Clip summary from already-resolved facts. Both editor backings
+ * present the same facts through this one formatter; only the record shape they
+ * were read from differs (#1065).
+ */
+export function projectResolvedShowClipSummary(
+  source: ClipSummarySource,
+  controlLabels: Record<string, string> = {},
+  animation?: ResolvedClipAnimationSource,
+): ShowClipSummarySection[] {
+  const overlays = animation
+    ? animationOverlaysFromTracks(animation.tracks, animation.instanceId, source.effects, controlLabels)
+    : EMPTY_OVERLAYS
+  return projectClipSummary(source, controlLabels, [], overlays)
+}
+
+/**
+ * Animated facts for one already-resolved Clip. `tracks` are the Property
+ * tracks that Clip owns, in the same target vocabulary the v1 composition
+ * stores, so both backings produce the same #666 range overlays.
+ */
+export interface ResolvedClipAnimationSource {
+  instanceId: string
+  tracks: readonly {
+    target: ShowPropertyAnimationTarget
+    keyframes: readonly { value: number }[]
+  }[]
+}
+
 type ClipSummarySource = Pick<
   ShowCell,
   'adaptations' | 'controlTargets' | 'effects' | 'restartOnEntry' | 'transform' | 'viewport'
@@ -322,20 +351,44 @@ function compositionAnimationOverlays(
   effects: readonly ShowClipEffect[] | undefined,
   controlLabels: Record<string, string>,
 ): ShowClipAnimationOverlays {
+  return animationOverlaysFromTracks(
+    composition.scenes.flatMap((scene) => (
+      sceneIds.has(scene.sceneId) ? scene.propertyTracks ?? [] : []
+    )),
+    clip.instanceId,
+    effects,
+    controlLabels,
+    (target) => animationTargetBelongsToClip(target, clip.instanceId, segmentIds),
+  )
+}
+
+/**
+ * Collapse a Clip's Property tracks into the #666 range overlays. This is the
+ * one place a track's absolute bounds become a summary fact; both editor
+ * backings reach it with the same target vocabulary (#1065).
+ */
+function animationOverlaysFromTracks(
+  tracks: readonly { target: ShowPropertyAnimationTarget; keyframes: readonly { value: number }[] }[],
+  instanceId: string,
+  effects: readonly ShowClipEffect[] | undefined,
+  controlLabels: Record<string, string>,
+  belongsToClip: (target: ShowPropertyAnimationTarget) => boolean = () => true,
+): ShowClipAnimationOverlays {
   const facts = new Map<string, CompositionAnimationFact & { min: number; max: number }>()
-  for (const scene of composition.scenes) {
-    if (!sceneIds.has(scene.sceneId)) continue
-    for (const track of scene.propertyTracks ?? []) {
-      if (!animationTargetBelongsToClip(track.target, clip.instanceId, segmentIds)) continue
-      const fact = compositionAnimationItem(track.target, effects, controlLabels)
-      if (!fact || track.keyframes.length === 0) continue
-      const entry = facts.get(`${fact.kind}:${fact.itemId}`) ?? { ...fact, min: Infinity, max: -Infinity }
-      for (const keyframe of track.keyframes) {
-        entry.min = Math.min(entry.min, keyframe.value)
-        entry.max = Math.max(entry.max, keyframe.value)
-      }
-      facts.set(`${fact.kind}:${fact.itemId}`, entry)
+  for (const track of tracks) {
+    if (!belongsToClip(track.target)) continue
+    if (
+      (track.target.kind === 'instance-time-scale' || track.target.kind === 'instance-control')
+      && track.target.instanceId !== instanceId
+    ) continue
+    const fact = compositionAnimationItem(track.target, effects, controlLabels)
+    if (!fact || track.keyframes.length === 0) continue
+    const entry = facts.get(`${fact.kind}:${fact.itemId}`) ?? { ...fact, min: Infinity, max: -Infinity }
+    for (const keyframe of track.keyframes) {
+      entry.min = Math.min(entry.min, keyframe.value)
+      entry.max = Math.max(entry.max, keyframe.value)
     }
+    facts.set(`${fact.kind}:${fact.itemId}`, entry)
   }
   const overlays: ShowClipAnimationOverlays = { items: [], effectRanges: new Map() }
   for (const entry of facts.values()) {

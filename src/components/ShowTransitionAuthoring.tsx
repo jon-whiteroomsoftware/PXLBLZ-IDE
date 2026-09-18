@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, X, Zap } from 'lucide-react'
-import type { ShowBoundaryTransition, ShowRecord } from '@/engine/personalContentRecords'
 import type { ShowTransitionSettingsCarrier } from '@/engine/showTransitionAuthoring'
 import { NumberField } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
@@ -10,9 +9,7 @@ import { AngleField } from '@/components/ui/angle-field'
 import { anglePresentationKind } from '@/engine/anglePresentation'
 import { TimeField } from '@/components/ui/time-field'
 import { ColorField } from '@/components/ui/color-field'
-import { projectShowTimeline } from '@/engine/showModel'
 import {
-  replaceShowBoundaryTransition,
   showBoundaryTransitionParameterValue,
   showBoundaryTransitionParameters,
 } from '@/engine/showTransitionAuthoring'
@@ -22,31 +19,39 @@ import {
   filterShowToolkitPresentationCatalogue,
   type ShowToolkitPresentationItem,
 } from '@/engine/showVisualToolkitPresentation'
-import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
-import { useShowTransportStore } from '@/store/showTransportStore'
 
+/**
+ * The Transition catalogue both backings open (#1065).
+ *
+ * The palette owns catalogue filtering, hover/focus preview sequencing and
+ * keyboard dismissal. It owns no record: the caller decides what a previewed or
+ * applied catalogue item does, so the v1 boundary record keeps every legacy
+ * owner while the authored-v2 backing can open the same palette with its
+ * unconnected writes resolving as no-change results.
+ */
 export function ShowTransitionPalette({
-  show,
-  transitionId,
+  paletteKey,
   stageDimensions,
-  onApply,
+  onPreviewItem,
+  onRestorePreview,
+  onApplyItem,
   onClose,
 }: {
-  show: ShowRecord
-  transitionId: string
+  /** One mounted lifecycle per boundary; changing it restarts preview ownership. */
+  paletteKey: string
   stageDimensions: 1 | 2 | 3
-  onApply: (transition: ShowBoundaryTransition) => void
+  onPreviewItem: (item: ShowToolkitPresentationItem, presetId?: string) => void
+  onRestorePreview: () => void
+  /** False when the caller could not apply, which restores the preview as v1 does. */
+  onApplyItem: (item: ShowToolkitPresentationItem, presetId?: string) => boolean
   onClose: () => void
 }) {
   const searchRef = useRef<HTMLInputElement>(null)
-  const originalPositionRef = useRef(useShowTransportStore.getState().positionMs)
-  const activePreviewRef = useRef<{ key: string; show: ShowRecord } | null>(null)
+  const activePreviewRef = useRef<string | null>(null)
   const [query, setQuery] = useState('')
   const [familyId, setFamilyId] = useState<string | null>(null)
   const [compatibleOnly, setCompatibleOnly] = useState(true)
   const [activeItem, setActiveItem] = useState<ShowToolkitPresentationItem | null>(null)
-  const preview = useShowPreviewOverrideStore((state) => state.preview)
-  const clearPreview = useShowPreviewOverrideStore((state) => state.clear)
   const catalogue = useMemo(
     () => buildShowToolkitPresentationCatalogue({ stageDimensions }),
     [stageDimensions],
@@ -56,53 +61,30 @@ export function ShowTransitionPalette({
   }).filter((item) => familyId === null || item.familyId === familyId), [catalogue, compatibleOnly, familyId, query])
   const families = useMemo(() => SHOW_VISUAL_TOOLKIT_REGISTRY.filter((family) => family.kind === 'transition'), [])
 
-  const clearCandidatePreview = () => {
-    if (!activePreviewRef.current) return
-    activePreviewRef.current = null
-    clearPreview(show.id)
-  }
   const restorePreview = () => {
     if (!activePreviewRef.current) return
-    clearCandidatePreview()
-    useShowTransportStore.getState().requestSeek(show.id, originalPositionRef.current)
+    activePreviewRef.current = null
+    onRestorePreview()
   }
   const close = () => {
     restorePreview()
     onClose()
   }
-  const candidate = (item: ShowToolkitPresentationItem, presetId?: string) => (
-    replaceShowBoundaryTransition(show, transitionId, item, presetId)
-  )
   const previewItem = (item: ShowToolkitPresentationItem, presetId?: string) => {
     if (!item.compatible) return
     setActiveItem(item)
     const previewKey = `${item.key}:${presetId ?? ''}`
-    if (activePreviewRef.current?.key === previewKey) return
-    const changed = candidate(item, presetId)
-    activePreviewRef.current = { key: previewKey, show: changed }
-    preview(changed)
-    const boundary = projectShowTimeline(changed).boundaryTransitions
-      .find((entry) => entry.id === transitionId)
-    if (boundary) {
-      useShowTransportStore.getState().requestSeek(
-        show.id,
-        boundary.startMs + (boundary.endMs - boundary.startMs) / 2,
-      )
-    }
+    if (activePreviewRef.current === previewKey) return
+    activePreviewRef.current = previewKey
+    onPreviewItem(item, presetId)
   }
   const applyItem = (item: ShowToolkitPresentationItem, presetId?: string) => {
     if (!item.compatible) return
-    const previewKey = `${item.key}:${presetId ?? ''}`
-    const changed = activePreviewRef.current?.key === previewKey
-      ? activePreviewRef.current.show
-      : candidate(item, presetId)
-    const transition = changed.transitions?.find((entry) => entry.id === transitionId)
-    if (!transition) {
+    if (!onApplyItem(item, presetId)) {
       close()
       return
     }
-    onApply(transition)
-    clearCandidatePreview()
+    activePreviewRef.current = null
     onClose()
   }
 
@@ -121,7 +103,7 @@ export function ShowTransitionPalette({
     }
   // Palette ownership is intentionally one mounted lifecycle.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show.id])
+  }, [paletteKey])
 
   const activeVariant = activeItem
     ? SHOW_VISUAL_TOOLKIT_REGISTRY

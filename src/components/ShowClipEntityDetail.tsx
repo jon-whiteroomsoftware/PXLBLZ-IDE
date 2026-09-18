@@ -39,10 +39,11 @@ import { formatPercentageValue } from '@/engine/percentageValue'
 import type { ShowPropertyAnimationTarget } from '@/engine/personalContentRecords'
 import type { ShowPropertyAnimationFieldLocation } from '@/engine/showPropertyAnimationEditorModel'
 import type { ShowClipSummaryDestination } from '@/engine/showClipSummary'
+import type { ShowEditorClipValueV2 } from '@/engine/showEditorInspectorPresentation'
 import { useShowEntityDetailPanelHeight } from './ShowEntityDetailPanel'
 
 export interface ShowClipEntityDetailProps {
-  value: ShowClipInspectorValue
+  value: ShowClipInspectorValue | ShowEditorClipValueV2
   title: string
   readOnly: boolean
   patternOptions: PatternComboboxOption[]
@@ -995,7 +996,7 @@ function PlacementRectangleSummary({
   onSelect,
 }: {
   focus: PlacementFocus
-  value: ShowClipInspectorValue
+  value: Omit<ShowClipInspectorValue, 'owner'>
   readOnly: boolean
   onSelect: (focus: PlacementFocus) => void
 }) {
@@ -1038,7 +1039,7 @@ function ClipPlacementGeometry({
 }: {
   grid: number
   focus: PlacementFocus
-  value: ShowClipInspectorValue
+  value: Omit<ShowClipInspectorValue, 'owner'>
   readOnly: boolean
   onPreviewPatch?: ShowClipEntityDetailProps['onPreviewPatch']
   onPreviewEnd?: ShowClipEntityDetailProps['onPreviewEnd']

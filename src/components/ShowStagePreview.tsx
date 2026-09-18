@@ -66,6 +66,7 @@ import type { CaptureSequenceOptions, CaptureSequenceResult } from '@/dev/captur
 import { compileLibraries } from '@/engine/libraries'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import type { ShowPreparedStageBundleV2 } from '@/engine/showPreparedStageV2'
+import type { ShowEditorStagePresentationV2 } from '@/engine/showEditorStagePresentation'
 
 /** Dev-only `?capture` automation surface for the Show stage (#879); the
  * Pattern preview's counterpart is `window.__pxlblz` in Preview.tsx. */
@@ -142,7 +143,7 @@ function stableShowSeed(showId: string): number {
   return hash >>> 0
 }
 
-function diagnosticPointList(points: [number, number][]): string {
+function diagnosticPointList(points: readonly (readonly [number, number])[]): string {
   return points.map(([x, y]) => `${x.toFixed(4)},${y.toFixed(4)}`).join(' ')
 }
 
@@ -150,14 +151,19 @@ type ShowStagePreviewProps = {
   presentation?: 'pane' | 'strip'
   onPreviewAspectChange?: (aspect: number) => void
 } & (
-  | { kind?: 'legacy'; showId: string; showOverride?: ShowRecord; bundle?: never }
-  | { kind: 'prepared-v2'; bundle: ShowPreparedStageBundleV2; showId?: never; showOverride?: never }
+  | { kind?: 'legacy'; showId: string; showOverride?: ShowRecord; bundle?: never; stage?: never }
+  | { kind: 'prepared-v2'; bundle: ShowPreparedStageBundleV2; showId?: never; showOverride?: never; stage?: never }
+  | { kind: 'editor-v2'; stage: ShowEditorStagePresentationV2; showId?: never; showOverride?: never; bundle?: never }
 )
 
 export function ShowStagePreview(input: ShowStagePreviewProps) {
+  // `editor-v2` is the existing editor's authored-v2 backing (#1065): it reads
+  // through the same v1 presentation below, including the static Stage mask and
+  // Zone inventory. `prepared-v2` remains the separate rejected-route input.
+  const stage = input.kind === 'editor-v2' ? input.stage : null
   const preparedBundle = input.kind === 'prepared-v2' ? input.bundle : null
-  const showId = preparedBundle ? preparedBundle.record.id : input.showId!
-  const showOverride = input.kind === 'prepared-v2' ? undefined : input.showOverride
+  const showId = stage?.showId ?? preparedBundle?.record.id ?? input.showId!
+  const showOverride = stage || preparedBundle ? undefined : input.showOverride
   const { presentation = 'pane', onPreviewAspectChange } = input
   const { setTarget: setSourceTarget } = useContext(ShowSourceOutletContext)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -188,7 +194,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
   const previewShow = useShowPreviewOverrideStore((state) => state.show?.id === showId ? state.show : null)
   const resolvedShow = previewShow ?? showOverride ?? savedShow
   const deferredShow = useDeferredValue(resolvedShow)
-  const show = preparedBundle ? undefined : resolveShowStagePreviewInput(showId, resolvedShow, deferredShow)
+  const show = stage || preparedBundle ? undefined : resolveShowStagePreviewInput(showId, resolvedShow, deferredShow)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userLibraries = useLibraryStore((state) => state.userLibraries)
   const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
@@ -243,7 +249,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
   const targetProfile = show?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === show.targetControllerProfileId)
     : controllerProfiles[0]
-  const installationCoverage = preparedBundle ? preparedBundle.presentation.installationCoverage : show ? validateInstallationCoverage(show) : null
+  const installationCoverage = stage ? stage.installationCoverage : preparedBundle ? preparedBundle.presentation.installationCoverage : show ? validateInstallationCoverage(show) : null
   const savedPhysicalZones = useMemo(
     () => show ? installationPhysicalZones(show) : undefined,
     [show],
@@ -264,9 +270,11 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       })),
   ], [userMaps])
 
-  const selectedStageMap: Omit<StageMapOption, 'group'> | undefined = preparedBundle ? preparedBundle.presentation.stageMap ?? undefined : stageMaps.find((map) => map.id === show?.stageMapId)
+  const selectedStageMap: Omit<StageMapOption, 'group'> | undefined = stage
+    ? stage.selectedStageMap ?? undefined
+    : preparedBundle ? preparedBundle.presentation.stageMap ?? undefined : stageMaps.find((map) => map.id === show?.stageMapId)
   const danglingStageMap = Boolean(show?.stageMapId && !selectedStageMap)
-  const stageIdentityRole = preparedBundle ? preparedBundle.presentation.stageIdentityRole : show?.outputContract?.kind === 'installation'
+  const stageIdentityRole = stage ? stage.stageIdentityRole : preparedBundle ? preparedBundle.presentation.stageIdentityRole : show?.outputContract?.kind === 'installation'
     ? 'Output map'
     : show?.outputContract?.kind === 'portable-2d'
       ? 'Reference map'
@@ -279,17 +287,20 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
     [show],
   )
   const compiled = useMemo(
-    () => preparedBundle
-      ? { artifact: preparedBundle.artifact, error: null }
-      : show
-        ? compileShowForPreview(show, userPatterns, compilationControllerZones, compileLibrarySet, {
-            stageDimension: selectedStageMap?.dim,
-          })
-        : { artifact: null, error: null },
-    [preparedBundle, compilationControllerZones, compileLibrarySet, selectedStageMap?.dim, show, userPatterns],
+    () => stage
+      ? { artifact: stage.artifact, error: stage.error }
+      : preparedBundle
+        ? { artifact: preparedBundle.artifact, error: null }
+        : show
+          ? compileShowForPreview(show, userPatterns, compilationControllerZones, compileLibrarySet, {
+              stageDimension: selectedStageMap?.dim,
+            })
+          : { artifact: null, error: null },
+    [stage, preparedBundle, compilationControllerZones, compileLibrarySet, selectedStageMap?.dim, show, userPatterns],
   )
 
   const layout = useMemo((): StageLayout | null => {
+    if (stage) return stage.layout
     if (preparedBundle) return preparedBundle.presentation.layout
     if (!show) return null
     if (!selectedStageMap) {
@@ -361,20 +372,41 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       label: map.name,
       note: logical ? showLogicalAspectAdvisory(mapPoints, logical) : null,
     }
-  }, [preparedBundle, danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, userMaps])
+  }, [stage, preparedBundle, danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, userMaps])
   const effectiveSoloZoneId = layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
-  const diagnosticFrameAtTime = useMemo(() => show && layout?.draw.kind === '2d'
-    ? createShowStageDiagnostics(show, layout.draw.positions, layout.mapPoints, layout.projection, layout.kind === 'map', diagnosticFocus)
-    : null, [show, layout, diagnosticFocus])
+  // One focus owner per backing: the v2 Stage reads authored Clip identity, the
+  // v1 Stage keeps its Scene placement. Neither reads the other's shape.
+  const stageDiagnosticFocus = diagnosticFocus?.recordVersion === 2 ? diagnosticFocus : null
+  // Stable across renders: the diagnostics factory below is memoized on it, and
+  // its frames are read through a transport selector that must not see a new
+  // snapshot every render.
+  const legacyDiagnosticFocus = useMemo(() => (
+    diagnosticFocus && diagnosticFocus.recordVersion !== 2
+      ? {
+          sceneId: diagnosticFocus.sceneId,
+          zoneId: diagnosticFocus.zoneId,
+          placementId: diagnosticFocus.placementId,
+        }
+      : null
+  ), [diagnosticFocus])
+  const diagnosticFrameAtTime = useMemo(() => {
+    if (stage) return (positionMs: number) => stage.diagnosticFrameAt(stageDiagnosticFocus, positionMs)
+    return show && layout?.draw.kind === '2d'
+      ? createShowStageDiagnostics(show, layout.draw.positions, layout.mapPoints, layout.projection, layout.kind === 'map', legacyDiagnosticFocus)
+      : null
+  }, [stage, stageDiagnosticFocus, show, layout, legacyDiagnosticFocus])
   const diagnosticFrame = useShowTransportStore(state => diagnosticFrameAtTime?.(state.showId === showId ? state.positionMs : 0) ?? null)
   const diagnosticRects = diagnosticFrame?.rects ?? []
   const focusedDiagnosticPoints = diagnosticFrame?.clipPoints ?? null
+  const selectedDiagnosticClipId = stageDiagnosticFocus
+    ? stageDiagnosticFocus.clipId
+    : legacyDiagnosticFocus?.placementId ?? null
   const previewAspect = showStagePreviewAspect(layout)
 
   useEffect(() => {
     onPreviewAspectChange?.(previewAspect)
   }, [onPreviewAspectChange, previewAspect])
-  const durationMs = preparedBundle ? preparedBundle.presentation.durationMs : show ? showLoopDurationMs(show) : 0
+  const durationMs = stage ? stage.durationMs : preparedBundle ? preparedBundle.presentation.durationMs : show ? showLoopDurationMs(show) : 0
   const stageMaskPlan = useMemo(
     () => layout ? createShowStageMaskPlan(layout.projection, layout.mapPoints.length) : null,
     [layout],
@@ -415,6 +447,8 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
   const activePreparedWindow = useShowTransportStore((state) => (
     preparedStageWindowAt(state.showId === showId ? state.positionMs : 0)
   ))
+  // The editor backing keeps the v1 rule: one static Stage projection owns the
+  // mask and the Zone inventory, and only the diagnostics follow authored time.
   const stageZones: ShowStageZone[] = (preparedBundle
     ? activePreparedWindow?.projection.zones
     : layout?.projection.zones) ?? []
@@ -709,13 +743,13 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       // Baseline instrumentation (#945): the first frame of a rebuilt
       // runtime is the moment a record's compiled artifact becomes visible.
       const source = compiledShowRef.current
-      if (import.meta.env.DEV && (preparedBundle || source)) {
+      if (import.meta.env.DEV && (stage || preparedBundle || source)) {
         recordAgentObservation({
           kind: 'preview-published',
           showId,
           at: Date.now(),
-          digest: preparedBundle ? preparedBundle.digest : showRecordDigest(source!),
-          updatedAt: preparedBundle ? preparedBundle.record.updatedAt : source!.updatedAt,
+          digest: stage ? stage.digest : preparedBundle ? preparedBundle.digest : showRecordDigest(source!),
+          updatedAt: stage ? stage.updatedAt : preparedBundle ? preparedBundle.record.updatedAt : source!.updatedAt,
         })
       }
     }
@@ -766,7 +800,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       replayRef.current = null
       replayKeyRef.current = null
     }
-  }, [preparedBundle, compiled.artifact, durationMs, fidelity, layout, paintFastFrame, presentation, replayCheckpointKey, replayRandomSeed, showId])
+  }, [stage, preparedBundle, compiled.artifact, durationMs, fidelity, layout, paintFastFrame, presentation, replayCheckpointKey, replayRandomSeed, showId])
 
   useEffect(() => {
     const renderer = rendererRef.current
@@ -979,7 +1013,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
     return () => cancelAnimationFrame(raf)
   }, [layout])
 
-  if (!show && !preparedBundle) {
+  if (!show && !preparedBundle && !stage) {
     return (
       <div className="flex h-full items-center justify-center bg-zinc-950/40 font-mono text-xs text-zinc-500">
         Show not found
@@ -1056,7 +1090,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
               ))}
             </svg>
           )}
-          {seekStatus === 'idle' && layout?.draw.kind === '2d' && diagnostics.clipOutlines && diagnosticFocus?.placementId && focusedDiagnosticPoints && (
+          {seekStatus === 'idle' && layout?.draw.kind === '2d' && diagnostics.clipOutlines && selectedDiagnosticClipId && focusedDiagnosticPoints && (
             <svg
               data-testid="show-stage-clip-outline"
               aria-label="Selected Clip outline"

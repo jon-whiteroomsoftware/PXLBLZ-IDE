@@ -3,6 +3,7 @@ import { createAgentBrowserSession } from './browserSession'
 import type { createAgentEditorAdmission } from './editorAdmission'
 import type { AgentWindowConnection } from './channelPort'
 import { showCommandFixture } from '@/test/showCommandFixture'
+import { emptyRendezvous, MAX_REGISTRATIONS, transitionRendezvous } from '@/engine/agentRendezvous'
 
 const windowIdentity = { registrationId: 'registration', sessionId: 'session', showId: 'show' }
 const bound = { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Assistant' } as const
@@ -197,4 +198,164 @@ it('latches moved-from-here across later external owners and clears it on idle',
   receives.shift()!(Response.json({ code: 'status', connection: moved, deliveries: [] }))
   await vi.waitFor(() => expect(session.getConnection()).toEqual({ ...moved, movedFromHere: false }))
   session.close()
+})
+
+/**
+ * Registration lifetime across close.
+ *
+ * Transport model, stated rather than assumed: the account owner commits a
+ * `register` when it accepts the request, independently of whether the client
+ * ever receives the response. Client cancellation rejects only the client's
+ * own promise. This fake therefore commits on accept and *does* reject an
+ * aborted caller — it is not an abort-ignoring fake. Capacity is the real
+ * `MAX_REGISTRATIONS` bound, so an unretired registration is visible as the
+ * `capacity` refusal a later mount would see.
+ */
+function registrationHarness({ holdRegister = true } = {}) {
+  let rendezvous = emptyRendezvous()
+  const answers: Array<() => void> = []
+  const aborted: string[] = []
+  const calls: Record<string, unknown>[] = []
+  const state = { holdRegister }
+  let issued = 0
+  // A fixed clock: these partitions are about close ordering, never about TTL.
+  const apply = (command: Parameters<typeof transitionRendezvous>[1]) => {
+    const outcome = transitionRendezvous(rendezvous, command, 0)
+    rendezvous = outcome.state
+    return outcome.result
+  }
+  const fetcher = ((_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const body = JSON.parse(init?.body as string) as Record<string, string>
+    calls.push(body)
+    const signal = init?.signal ?? undefined
+    const rejectOnAbort = (type: string, reject: (reason: Error) => void) =>
+      signal?.addEventListener('abort', () => { aborted.push(type); reject(new Error('aborted')) }, { once: true })
+    if (body.type === 'register') {
+      const registrationId = `registration-${++issued}`
+      const accepted = apply({ type: 'register', registrationId, sessionId: body.sessionId, showId: body.showId })
+      const reply = Response.json(accepted.code === 'registered' ? { code: accepted.code, registrationId } : { code: accepted.code })
+      if (!state.holdRegister) return Promise.resolve(reply)
+      return new Promise<Response>((resolve, reject) => { answers.push(() => resolve(reply)); rejectOnAbort('register', reject) })
+    }
+    if (body.type === 'receive') return new Promise<Response>((_resolve, reject) => rejectOnAbort('receive', reject))
+    const identity = { registrationId: body.registrationId, sessionId: body.sessionId, showId: body.showId }
+    if (body.type === 'leave' || body.type === 'arm' || body.type === 'heartbeat') return Promise.resolve(Response.json(apply({ type: body.type, ...identity })))
+    return Promise.resolve(Response.json({ code: 'ok' }))
+  }) as unknown as typeof fetch
+  const mount = (sessionId: string) => {
+    const admission = { sessionId, available: () => true, onClose: vi.fn(() => () => {}), recordVersion: 1 }
+    return createAgentBrowserSession({ admission: admission as unknown as ReturnType<typeof createAgentEditorAdmission>, showId: 'show', fetch: fetcher })
+  }
+  return { answers, aborted, calls, mount, state, registrations: () => rendezvous.registrations }
+}
+const bodiesOfType = (calls: Record<string, unknown>[], type: string) => calls.filter(call => call.type === type)
+
+describe('registration lifetime across close', () => {
+  it('retires a registration the server committed before close cancelled the client wait', async () => {
+    const harness = registrationHarness()
+    const session = harness.mount('session-one')
+    await vi.waitFor(() => expect(harness.answers).toHaveLength(1))
+    expect(harness.registrations().length).toBe(1)
+
+    session.close()
+    harness.answers.shift()!()
+
+    await vi.waitFor(() => expect(bodiesOfType(harness.calls, 'leave')).toEqual([{ type: 'leave', registrationId: 'registration-1', sessionId: 'session-one', showId: 'show' }]))
+    expect(harness.registrations().length).toBe(0)
+  })
+
+  it('retires that late acknowledgement without reviving the window, receive loop or heartbeat', async () => {
+    const harness = registrationHarness()
+    const session = harness.mount('session-one')
+    await vi.waitFor(() => expect(harness.answers).toHaveLength(1))
+
+    session.close()
+    harness.answers.shift()!()
+
+    expect(await session.ready).toBeUndefined()
+    expect(session.getWindow()).toBeUndefined()
+    await vi.waitFor(() => expect(harness.registrations().length).toBe(0))
+    expect(bodiesOfType(harness.calls, 'receive')).toHaveLength(0)
+    expect(bodiesOfType(harness.calls, 'heartbeat')).toHaveLength(0)
+  })
+
+  it('still retires exactly once when close follows an acknowledged registration', async () => {
+    const harness = registrationHarness({ holdRegister: false })
+    const session = harness.mount('session-one')
+    expect(await session.ready).toEqual({ registrationId: 'registration-1', sessionId: 'session-one', showId: 'show' })
+
+    session.close()
+    await vi.waitFor(() => expect(harness.registrations().length).toBe(0))
+    expect(bodiesOfType(harness.calls, 'leave')).toHaveLength(1)
+  })
+
+  it('does not accumulate registrations across repeated mounts closed before acknowledgement', async () => {
+    const harness = registrationHarness()
+    for (let mount = 0; mount < MAX_REGISTRATIONS; mount++) {
+      const session = harness.mount(`session-${mount}`)
+      await vi.waitFor(() => expect(harness.answers).toHaveLength(mount + 1))
+      session.close()
+    }
+    expect(harness.registrations()).toHaveLength(MAX_REGISTRATIONS)
+
+    for (const answer of harness.answers.splice(0)) answer()
+    await vi.waitFor(() => expect(harness.registrations().length).toBe(0))
+
+    harness.state.holdRegister = false
+    const survivor = harness.mount('session-late')
+    // The real reducer is the oracle: a ninth mount answers `capacity` rather
+    // than an identity while the eight earlier slots are still held.
+    expect(await survivor.ready).toEqual({ registrationId: `registration-${MAX_REGISTRATIONS + 1}`, sessionId: 'session-late', showId: 'show' })
+    survivor.close()
+  })
+
+  it('retires only the closed registration when a fresh window is already live', async () => {
+    const harness = registrationHarness()
+    const stale = harness.mount('session-stale')
+    await vi.waitFor(() => expect(harness.answers).toHaveLength(1))
+    stale.close()
+
+    harness.state.holdRegister = false
+    const live = harness.mount('session-live')
+    const liveWindow = { registrationId: 'registration-2', sessionId: 'session-live', showId: 'show' }
+    expect(await live.ready).toEqual(liveWindow)
+
+    harness.answers.shift()!()
+
+    await vi.waitFor(() => expect(harness.calls).toContainEqual({ type: 'leave', registrationId: 'registration-1', sessionId: 'session-stale', showId: 'show' }))
+    expect(harness.registrations()).toEqual([expect.objectContaining(liveWindow)])
+    expect(live.getWindow()).toEqual(liveWindow)
+    expect(await live.arm()).toEqual({ code: 'armed' })
+    expect(stale.getWindow()).toBeUndefined()
+    expect(stale.getOutcome('op')).toEqual({ code: 'unknown' })
+    live.close()
+  })
+
+  it('keeps the register request bounded by its own 35s request timeout', async () => {
+    vi.useFakeTimers()
+    const harness = registrationHarness()
+    const session = harness.mount('session-one')
+    await vi.waitFor(() => expect(harness.answers).toHaveLength(1))
+
+    await vi.advanceTimersByTimeAsync(35_000)
+
+    expect(harness.aborted).toContain('register')
+    expect(await session.ready).toBeUndefined()
+    expect(session.getWindow()).toBeUndefined()
+    // Residual, not a repaired case: a registration whose acknowledgement was
+    // lost cannot be named, so only the server's expiry TTL releases it.
+    expect(harness.registrations().length).toBe(1)
+    session.close()
+  })
+
+  it('still cancels an in-flight receive when the session closes', async () => {
+    const harness = registrationHarness({ holdRegister: false })
+    const session = harness.mount('session-one')
+    await session.ready
+    await vi.waitFor(() => expect(bodiesOfType(harness.calls, 'receive')).toHaveLength(1))
+
+    session.close()
+
+    await vi.waitFor(() => expect(harness.aborted).toContain('receive'))
+  })
 })

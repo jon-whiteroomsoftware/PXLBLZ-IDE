@@ -1,5 +1,9 @@
 import type { ShowClipInspectorValue } from './showClipInspectorModel'
 
+/** Tab partition reads only presented Clip values; it never needs the record's
+ * owner identity, so both editor backings share it unchanged (#1065). */
+type ShowClipDetailTabValue = Omit<ShowClipInspectorValue, 'owner'>
+
 /**
  * Tab partition for the Clip Entity Detail Panel (#642).
  *
@@ -32,36 +36,36 @@ const TAB_LABELS: Record<ShowClipDetailTabId, string> = {
 const TAB_ORDER: ShowClipDetailTabId[] = ['pattern', 'place', 'effects', 'playback']
 
 export interface ShowClipDetailTabInput {
-  value: ShowClipInspectorValue
+  value: ShowClipDetailTabValue
   /** The Stage is 2D. Placement is meaningless otherwise, so the tab disappears. */
   transformEnabled: boolean
 }
 
-function patternAuthored(value: ShowClipInspectorValue): boolean {
+function patternAuthored(value: ShowClipDetailTabValue): boolean {
   const targets = value.simulation.controlTargets
   return value.simulation.timeScale !== 1
     || value.simulation.steppedClock !== undefined
     || Object.values(targets ?? {}).some((target) => target !== undefined)
 }
 
-function placeAuthored(value: ShowClipInspectorValue): boolean {
+function placeAuthored(value: ShowClipDetailTabValue): boolean {
   const { positionX, positionY, rotation, scaleX, scaleY } = value.transform
   return positionX !== 0 || positionY !== 0 || rotation !== 0 || scaleX !== 1 || scaleY !== 1
     || value.viewport.enabled
 }
 
-function effectsAuthored(value: ShowClipInspectorValue): boolean {
+function effectsAuthored(value: ShowClipDetailTabValue): boolean {
   return value.effects.length > 0 || value.view.mirror
 }
 
-function playbackAuthored(value: ShowClipInspectorValue): boolean {
+function playbackAuthored(value: ShowClipDetailTabValue): boolean {
   return value.presentation.mode !== 'live'
     || value.blink !== undefined
     || value.view.phase !== 0
     || value.evaluationPolicy !== 'live'
 }
 
-const AUTHORED: Record<ShowClipDetailTabId, (value: ShowClipInspectorValue) => boolean> = {
+const AUTHORED: Record<ShowClipDetailTabId, (value: ShowClipDetailTabValue) => boolean> = {
   pattern: patternAuthored,
   place: placeAuthored,
   effects: effectsAuthored,

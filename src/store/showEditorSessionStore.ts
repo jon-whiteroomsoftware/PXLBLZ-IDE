@@ -1,6 +1,33 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ShowPatternRef } from '../engine/personalContentRecords'
+import type { ShowEditorStageDiagnosticFocusV2 } from '../engine/showEditorStagePresentation'
+
+/** Which Clip the Stage outlines, discriminated by the editor's record backing.
+ * v1 names a Scene placement; v2 names the authored Clip and, inside a Group,
+ * the occurrence that owns it (#1065). */
+export type ShowStageDiagnosticFocusSelection =
+  | {
+      recordVersion?: 1
+      showId: string
+      sceneId: string
+      zoneId: string
+      placementId: string | null
+    }
+  | ShowEditorStageDiagnosticFocusV2
+
+function sameShowStageDiagnosticFocus(
+  left: ShowStageDiagnosticFocusSelection,
+  right: ShowStageDiagnosticFocusSelection,
+): boolean {
+  if (left.showId !== right.showId || left.zoneId !== right.zoneId) return false
+  if (left.recordVersion === 2 || right.recordVersion === 2) {
+    return left.recordVersion === 2 && right.recordVersion === 2
+      && left.clipId === right.clipId
+      && left.occurrenceId === right.occurrenceId
+  }
+  return left.sceneId === right.sceneId && left.placementId === right.placementId
+}
 
 export interface ShowEditorSessionState {
   snapEnabled: boolean
@@ -39,12 +66,7 @@ export interface ShowEditorSessionState {
     clipOutlines: boolean
     otherZoneGuides: boolean
   }
-  diagnosticFocus: {
-    showId: string
-    sceneId: string
-    zoneId: string
-    placementId: string | null
-  } | null
+  diagnosticFocus: ShowStageDiagnosticFocusSelection | null
   setDiagnostic: (kind: keyof ShowEditorSessionState['diagnostics'], enabled: boolean) => void
   setDiagnosticFocus: (focus: ShowEditorSessionState['diagnosticFocus']) => void
 }
@@ -178,11 +200,7 @@ export const useShowEditorSessionStore = create<ShowEditorSessionState>()(
       setDiagnosticFocus: (diagnosticFocus) => set((state) => {
         const current = state.diagnosticFocus
         if (current === diagnosticFocus) return state
-        if (current && diagnosticFocus
-          && current.showId === diagnosticFocus.showId
-          && current.sceneId === diagnosticFocus.sceneId
-          && current.zoneId === diagnosticFocus.zoneId
-          && current.placementId === diagnosticFocus.placementId) return state
+        if (current && diagnosticFocus && sameShowStageDiagnosticFocus(current, diagnosticFocus)) return state
         return { diagnosticFocus }
       }),
     }),

@@ -6,6 +6,9 @@ import { normalizeShowClipTransform } from './showClipTransform'
 import { normalizeShowClipViewport } from './showClipViewport'
 import type {
   ShowCell,
+  ShowClipEffect,
+  ShowClipTransform,
+  ShowClipViewport,
   ShowMainPlacement,
   ShowOverlayPlacement,
   ShowPropertyAnimationTarget,
@@ -396,14 +399,103 @@ export function projectGlobalShowScenePropertyLanes(show: ShowRecord): ShowScene
   })
 }
 
-type SceneTrackDescriptor = {
-  zoneId: string
+type SceneTrackDescriptor = ShowPropertyLaneTargetDescriptor & { zoneId: string }
+
+/**
+ * How one animated property reads as a lane, independent of the record shape
+ * the owning Clip was read from: its label, family, value kind, unanimated
+ * value and domain constraint (#631, #1065).
+ */
+export interface ShowPropertyLaneTargetDescriptor {
   patternName: string
   propertyLabel: string
   family: ShowPropertyLaneFamily
   valueKind: ShowScenePropertyLaneProjection['valueKind']
   defaultValue: number
   constraint: { min: number; max: number }
+}
+
+/** The owning Clip's resolved facts a lane descriptor reads. */
+export interface ShowPropertyLaneOwnerFacts {
+  patternName: string
+  timeScale: number
+  controlTargets?: Record<string, number>
+  opacity: number
+  view: { brightness: number; phase: number; mirror: boolean }
+  transform?: ShowClipTransform
+  viewport?: ShowClipViewport
+  effects?: readonly ShowClipEffect[]
+}
+
+/**
+ * Describe one animated property's lane from its target and the owning Clip's
+ * resolved facts. Both editor backings reach the same labels, families and
+ * domain constraints here; only the record the facts came from differs.
+ */
+export function describeShowPropertyLaneTarget(
+  target: ShowPropertyAnimationTarget,
+  owner: ShowPropertyLaneOwnerFacts,
+): ShowPropertyLaneTargetDescriptor | null {
+  const patternName = owner.patternName
+  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
+    const controlLabel = target.kind === 'instance-control' ? humanizeControlName(target.exportName) : 'speed'
+    return {
+      patternName,
+      propertyLabel: controlLabel,
+      family: target.kind === 'instance-control' ? 'control' : 'time',
+      valueKind: target.kind === 'instance-time-scale' ? 'multiplier' : 'number',
+      defaultValue: target.kind === 'instance-time-scale'
+        ? owner.timeScale
+        : owner.controlTargets?.[target.exportName] ?? 0,
+      constraint: target.kind === 'instance-time-scale' ? { min: 0, max: 4 } : { min: 0, max: 1 },
+    }
+  }
+  if (target.kind === 'placement-opacity') {
+    return { patternName, propertyLabel: 'opacity', family: 'appearance', valueKind: 'percent', defaultValue: owner.opacity, constraint: { min: 0, max: 1 } }
+  }
+  if (target.kind === 'placement-view') {
+    return {
+      patternName,
+      propertyLabel: target.property,
+      family: 'appearance',
+      valueKind: target.property === 'brightness' ? 'percent' : 'number',
+      defaultValue: owner.view[target.property],
+      constraint: { min: 0, max: 1 },
+    }
+  }
+  if (target.kind === 'placement-transform') {
+    const value = normalizeShowClipTransform(owner.transform)[target.property]
+    const constraint = target.property === 'positionX' || target.property === 'positionY'
+      ? { min: -4, max: 4 }
+      : target.property === 'rotation' ? { min: -8, max: 8 } : { min: 0.01, max: 8 }
+    return { patternName, propertyLabel: target.property, family: 'transform', valueKind: 'number', defaultValue: value, constraint }
+  }
+  if (target.kind === 'placement-viewport') {
+    const value = normalizeShowClipViewport(owner.viewport)[target.property]
+    const constraint = target.property === 'width' || target.property === 'height'
+      ? { min: 0.01, max: 8 }
+      : { min: -4, max: 4 }
+    return {
+      patternName,
+      propertyLabel: `viewport ${target.property}`,
+      family: 'transform',
+      valueKind: 'number',
+      defaultValue: value,
+      constraint,
+    }
+  }
+  const effect = owner.effects?.find((candidate) => candidate.id === target.effectId && candidate.kind === target.effectKind)
+  const parameter = effect ? showClipEffectParameters(effect).find((candidate) => candidate.id === target.parameterId) : undefined
+  const value = effect ? showClipEffectParameterValue(effect, target.parameterId) : undefined
+  if (!effect || !parameter || typeof value !== 'number') return null
+  return {
+    patternName,
+    propertyLabel: `${effect.kind} ${effectLanePropertyWords(effect.kind, parameter.label)}`,
+    family: 'effect',
+    valueKind: 'number',
+    defaultValue: value,
+    constraint: { min: parameter.min ?? value - 1, max: parameter.max ?? value + 1 },
+  }
 }
 
 function describeScenePropertyTrack(
@@ -414,84 +506,33 @@ function describeScenePropertyTrack(
   if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
     const instance = instances.get(target.instanceId)
     if (!instance) return []
-    const zoneIds = scene.zones
-      .filter((zone) => placementsInZone(zone).some((placement) => placement.instanceId === instance.id))
-      .map((zone) => zone.zoneId)
-    const controlLabel = target.kind === 'instance-control' ? humanizeControlName(target.exportName) : 'speed'
-    return zoneIds.map((zoneId) => ({
-      zoneId,
+    const descriptor = describeShowPropertyLaneTarget(target, {
       patternName: instance.patternName,
-      propertyLabel: controlLabel,
-      family: target.kind === 'instance-control' ? 'control' : 'time',
-      valueKind: target.kind === 'instance-time-scale' ? 'multiplier' : 'number',
-      defaultValue: target.kind === 'instance-time-scale'
-        ? instance.time.timeScale
-        : instance.controlTargets?.[target.exportName] ?? 0,
-      constraint: target.kind === 'instance-time-scale' ? { min: 0, max: 4 } : { min: 0, max: 1 },
-    }))
+      timeScale: instance.time.timeScale,
+      ...(instance.controlTargets ? { controlTargets: instance.controlTargets } : {}),
+      opacity: 1,
+      view: { brightness: 1, phase: 0, mirror: false },
+    })
+    if (!descriptor) return []
+    return scene.zones
+      .filter((zone) => placementsInZone(zone).some((placement) => placement.instanceId === instance.id))
+      .map((zone) => ({ ...descriptor, zoneId: zone.zoneId }))
   }
 
   const owner = findPlacementOwner(scene, target.placementId)
   if (!owner) return []
   const instance = instances.get(owner.placement.instanceId)
-  const patternName = instance?.patternName ?? 'Clip'
-  if (target.kind === 'placement-opacity') {
-    return [{ zoneId: owner.zoneId, patternName, propertyLabel: 'opacity', family: 'appearance', valueKind: 'percent', defaultValue: owner.placement.opacity ?? 1, constraint: { min: 0, max: 1 } }]
-  }
-  if (target.kind === 'placement-view') {
-    return [{
-      zoneId: owner.zoneId,
-      patternName,
-      propertyLabel: target.property,
-      family: 'appearance',
-      valueKind: target.property === 'brightness' ? 'percent' : 'number',
-      defaultValue: owner.placement.view[target.property],
-      constraint: { min: 0, max: 1 },
-    }]
-  }
-  if (target.kind === 'placement-transform') {
-    const value = normalizeShowClipTransform(owner.placement.transform)[target.property]
-    const constraint = target.property === 'positionX' || target.property === 'positionY'
-      ? { min: -4, max: 4 }
-      : target.property === 'rotation' ? { min: -8, max: 8 } : { min: 0.01, max: 8 }
-    return [{
-      zoneId: owner.zoneId,
-      patternName,
-      propertyLabel: target.property,
-      family: 'transform',
-      valueKind: 'number',
-      defaultValue: value,
-      constraint,
-    }]
-  }
-  if (target.kind === 'placement-viewport') {
-    const value = normalizeShowClipViewport(owner.placement.viewport)[target.property]
-    const constraint = target.property === 'width' || target.property === 'height'
-      ? { min: 0.01, max: 8 }
-      : { min: -4, max: 4 }
-    return [{
-      zoneId: owner.zoneId,
-      patternName,
-      propertyLabel: `viewport ${target.property}`,
-      family: 'transform',
-      valueKind: 'number',
-      defaultValue: value,
-      constraint,
-    }]
-  }
-  const effect = owner.placement.effects?.find((candidate) => candidate.id === target.effectId && candidate.kind === target.effectKind)
-  const parameter = effect ? showClipEffectParameters(effect).find((candidate) => candidate.id === target.parameterId) : undefined
-  const value = effect ? showClipEffectParameterValue(effect, target.parameterId) : undefined
-  if (!effect || !parameter || typeof value !== 'number') return []
-  return [{
-    zoneId: owner.zoneId,
-    patternName,
-    propertyLabel: `${effect.kind} ${effectLanePropertyWords(effect.kind, parameter.label)}`,
-    family: 'effect',
-    valueKind: 'number',
-    defaultValue: value,
-    constraint: { min: parameter.min ?? value - 1, max: parameter.max ?? value + 1 },
-  }]
+  const descriptor = describeShowPropertyLaneTarget(target, {
+    patternName: instance?.patternName ?? 'Clip',
+    timeScale: instance?.time.timeScale ?? 1,
+    ...(instance?.controlTargets ? { controlTargets: instance.controlTargets } : {}),
+    opacity: owner.placement.opacity ?? 1,
+    view: owner.placement.view,
+    ...(owner.placement.transform ? { transform: owner.placement.transform } : {}),
+    ...(owner.placement.viewport ? { viewport: owner.placement.viewport } : {}),
+    ...(owner.placement.effects ? { effects: owner.placement.effects } : {}),
+  })
+  return descriptor ? [{ ...descriptor, zoneId: owner.zoneId }] : []
 }
 
 function placementsInZone(zone: NonNullable<ShowRecord['composition']>['scenes'][number]['zones'][number]): Array<ShowMainPlacement | ShowOverlayPlacement> {

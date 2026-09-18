@@ -2982,6 +2982,51 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       .getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Animation speedanimated')
   })
 
+  it('previews, restores and applies a boundary Transition from the Change palette (#1065)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-boundary-palette', 'Boundary palette', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.getState().openShow(show.id, 62_000)
+    useShowTransportStore.getState().setPosition(show.id, 5_000)
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    // The inspector's own Change button is the palette's entry point, and the
+    // palette is v1's, opened on v1's record.
+    await user.click(within(screen.getByRole('region', { name: 'Transition properties' }))
+      .getByRole('button', { name: /Change$/ }))
+    const palette = screen.getByRole('dialog', { name: 'Choose Transition' })
+    const star = within(palette).getByRole('button', { name: 'Use Star Transition' })
+
+    // Hovering previews the candidate on the Stage and seeks into the boundary.
+    fireEvent.pointerEnter(star)
+    const previewed = useShowPreviewOverrideStore.getState().show
+    expect(previewed?.transitions?.[0]).toMatchObject({ kind: 'portal', shape: 'star' })
+    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
+    // Leaving restores both the Stage and the position the palette opened at.
+    fireEvent.pointerLeave(star)
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(5_000)
+
+    fireEvent.pointerEnter(star)
+    // The applied candidate is the record the Stage previewed, not a second
+    // computation of it: the same snapshot the palette hovered is persisted.
+    const hovered = useShowPreviewOverrideStore.getState().show
+    await user.click(star)
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      expect(saved.transitions?.[0]).toEqual(hovered?.transitions?.[0])
+    })
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    // Applying keeps the boundary position rather than restoring, as v1 does.
+    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
+    expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
+  })
+
   it('authors boundary speed and repeat scales as multipliers while persisting raw values (#610)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-boundary-domain-units', 'Boundary domain units', 1000)

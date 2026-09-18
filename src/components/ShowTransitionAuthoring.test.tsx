@@ -15,23 +15,25 @@ describe('Show Transition authoring UI', () => {
     useShowTransportStore.setState(showTransportInitialState)
   })
 
+  /**
+   * The palette owns no record (#1065): its caller decides what a previewed or
+   * applied catalogue item does. These cases own the palette's half - catalogue,
+   * filtering and the preview/apply sequence - while the v1 owners the editor
+   * supplies are proven end to end in `ShowEditor.test.tsx`.
+   */
+  function paletteOwners(applies = true) {
+    return {
+      onPreviewItem: vi.fn(),
+      onRestorePreview: vi.fn(),
+      onApplyItem: vi.fn(() => applies),
+      onClose: vi.fn(),
+    }
+  }
+
   it('searches the compact registry, previews without writing, and applies once', async () => {
     const user = userEvent.setup()
-    const show = createDefaultShow('show-transitions', 'Transitions', 1)
-    const transition = show.transitions![0]
-    useShowTransportStore.getState().openShow(show.id, 62_000)
-    useShowTransportStore.getState().setPosition(show.id, 5_000)
-    const onApply = vi.fn()
-    const onClose = vi.fn()
-    render(
-      <ShowTransitionPalette
-        show={show}
-        transitionId={transition.id}
-        stageDimensions={2}
-        onApply={onApply}
-        onClose={onClose}
-      />,
-    )
+    const owners = paletteOwners()
+    render(<ShowTransitionPalette paletteKey="transition-1" stageDimensions={2} {...owners} />)
 
     expect(screen.getAllByRole('button', { name: /Use .* Transition/ })).toHaveLength(36)
     await user.type(screen.getByRole('searchbox', { name: 'Search Transitions' }), 'star')
@@ -39,29 +41,27 @@ describe('Show Transition authoring UI', () => {
     expect(screen.getAllByRole('button', { name: /Use .* Transition/ })).toHaveLength(1)
 
     fireEvent.pointerEnter(star)
-    expect(useShowPreviewOverrideStore.getState().show?.transitions?.[0]).toMatchObject({ kind: 'portal', shape: 'star' })
-    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
+    expect(owners.onPreviewItem).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'transition:shape-reveal:star' }),
+      undefined,
+    )
+    // Re-entering the same candidate does not ask for the same preview twice.
+    fireEvent.pointerEnter(star)
+    expect(owners.onPreviewItem).toHaveBeenCalledTimes(1)
     fireEvent.pointerLeave(star)
-    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
-    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(5_000)
+    expect(owners.onRestorePreview).toHaveBeenCalledTimes(1)
 
     await user.click(star)
-    expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ kind: 'portal', shape: 'star' }))
-    expect(onClose).toHaveBeenCalledTimes(1)
-    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(owners.onApplyItem).toHaveBeenCalledTimes(1)
+    expect(owners.onApplyItem).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'transition:shape-reveal:star' }),
+      undefined,
+    )
+    expect(owners.onClose).toHaveBeenCalledTimes(1)
   })
 
   it('sections categorized silhouettes under labeled headers (#690)', () => {
-    const show = createDefaultShow('show-transitions', 'Transitions', 1)
-    render(
-      <ShowTransitionPalette
-        show={show}
-        transitionId={show.transitions![0].id}
-        stageDimensions={2}
-        onApply={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    )
+    render(<ShowTransitionPalette paletteKey="transition-1" stageDimensions={2} {...paletteOwners()} />)
     expect(screen.getByRole('heading', { name: 'Shape reveal · Geometric' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Shape reveal · Icons' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Shape reveal · Signature' })).toBeInTheDocument()
@@ -69,16 +69,7 @@ describe('Show Transition authoring UI', () => {
   })
 
   it('uses rule-under search, six quiet pictograms, and compact lowercase taxonomy (#779)', () => {
-    const show = createDefaultShow('show-transition-language', 'Transition language', 1)
-    render(
-      <ShowTransitionPalette
-        show={show}
-        transitionId={show.transitions![0].id}
-        stageDimensions={2}
-        onApply={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    )
+    render(<ShowTransitionPalette paletteKey="transition-1" stageDimensions={2} {...paletteOwners()} />)
 
     const dialog = screen.getByRole('dialog', { name: 'Choose Transition' })
     expect(within(dialog).getByRole('searchbox', { name: 'Search Transitions' })).toHaveClass(
@@ -131,58 +122,45 @@ describe('Show Transition authoring UI', () => {
   })
 
   it('clears candidate preview and closes on Escape', () => {
-    const show = createDefaultShow('show-transitions', 'Transitions', 1)
-    const onClose = vi.fn()
-    render(
-      <ShowTransitionPalette
-        show={show}
-        transitionId={show.transitions![0].id}
-        stageDimensions={2}
-        onApply={vi.fn()}
-        onClose={onClose}
-      />,
-    )
+    const owners = paletteOwners()
+    render(<ShowTransitionPalette paletteKey="transition-1" stageDimensions={2} {...owners} />)
     fireEvent.focus(screen.getByRole('button', { name: 'Use Crossfade Transition' }))
-    expect(useShowPreviewOverrideStore.getState().show).not.toBeNull()
+    expect(owners.onPreviewItem).toHaveBeenCalledTimes(1)
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(owners.onRestorePreview).toHaveBeenCalledTimes(1)
+    expect(owners.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores the preview when the caller could not apply the candidate', () => {
+    const owners = paletteOwners(false)
+    render(<ShowTransitionPalette paletteKey="transition-1" stageDimensions={2} {...owners} />)
+    const crossfade = screen.getByRole('button', { name: 'Use Crossfade Transition' })
+
+    fireEvent.pointerEnter(crossfade)
+    fireEvent.click(crossfade)
+
+    expect(owners.onApplyItem).toHaveBeenCalledTimes(1)
+    expect(owners.onRestorePreview).toHaveBeenCalledTimes(1)
+    expect(owners.onClose).toHaveBeenCalledTimes(1)
   })
 
   it('applies a previewed candidate without restoring transport or repeating cleanup', () => {
-    const show = createDefaultShow('show-transitions', 'Transitions', 1)
-    useShowTransportStore.getState().openShow(show.id, 62_000)
-    useShowTransportStore.getState().setPosition(show.id, 5_000)
-    const clearPreview = vi.fn(useShowPreviewOverrideStore.getState().clear)
-    useShowPreviewOverrideStore.setState({ clear: clearPreview })
-    const onApply = vi.fn()
-    const onClose = vi.fn()
+    const owners = paletteOwners()
     const { unmount } = render(
-      <ShowTransitionPalette
-        show={show}
-        transitionId={show.transitions![0].id}
-        stageDimensions={2}
-        onApply={onApply}
-        onClose={onClose}
-      />,
+      <ShowTransitionPalette paletteKey="transition-1" stageDimensions={2} {...owners} />,
     )
     const crossfade = screen.getByRole('button', { name: 'Use Crossfade Transition' })
 
     fireEvent.pointerEnter(crossfade)
-    const previewedTransition = useShowPreviewOverrideStore.getState().show?.transitions?.[0]
-    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
-
     fireEvent.click(crossfade)
-    expect(onApply).toHaveBeenCalledWith(previewedTransition)
-    expect(onApply.mock.calls[0]?.[0]).toBe(previewedTransition)
-    expect(onClose).toHaveBeenCalledTimes(1)
-    expect(clearPreview).toHaveBeenCalledTimes(1)
-    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
-    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
+
+    expect(owners.onClose).toHaveBeenCalledTimes(1)
+    // An applied candidate is the new truth, so the palette never asks for the
+    // preview to be rolled back - not on apply, and not on unmount.
+    expect(owners.onRestorePreview).not.toHaveBeenCalled()
 
     unmount()
-    expect(clearPreview).toHaveBeenCalledTimes(1)
-    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
+    expect(owners.onRestorePreview).not.toHaveBeenCalled()
   })
 
   it('renders exact controls from the selected registry variant', () => {

@@ -201,8 +201,13 @@ describe('App smoke test', () => {
 
     render(<App />)
 
-    expect(screen.getByTestId('show-editor-v2-route')).toBeInTheDocument()
+    // Seam B (#1065): a stored v2 row opens the original editor in place, so
+    // the assertion is that surface plus the v2 record's own Clips, not a
+    // separate route element.
+    expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select Outgoing' })).toBeInTheDocument()
     expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
+    expect(screen.queryByText('No show selected')).not.toBeInTheDocument()
   })
 
   it('leaves a row still stored as v1 on the v1 editor after the flip (#1039)', () => {
@@ -223,7 +228,8 @@ describe('App smoke test', () => {
 
     render(<App />)
 
-    expect(screen.queryByTestId('show-editor-v2-route')).not.toBeInTheDocument()
+    expect(useShowStore.getState().showV2Pilots[source.id]).toBeUndefined()
+    expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument()
     expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
   })
 
@@ -248,7 +254,7 @@ describe('App smoke test', () => {
 
     render(<App />)
 
-    expect(screen.getByTestId('show-editor-v2-route')).toBeInTheDocument()
+    expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument()
     await waitFor(() => expect(useShowStore.getState().activeShowId).toBeNull())
     expect(window.location.pathname).toBe(`/studio/shows/${converted.record.id}`)
   })
@@ -267,7 +273,8 @@ describe('App smoke test', () => {
 
     render(<App />)
 
-    expect(screen.getByTestId('show-editor-v2-route')).toBeInTheDocument()
+    expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select Outgoing' })).toBeInTheDocument()
     expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
   })
 
@@ -279,7 +286,7 @@ describe('App smoke test', () => {
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [], showsLoaded: false, activeShowId: null })
     render(<App />)
-    expect(screen.queryByTestId('show-editor-v2-route')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('show-editor-scroll')).not.toBeInTheDocument()
 
     act(() => useShowStore.setState({
       shows: [source],
@@ -287,8 +294,8 @@ describe('App smoke test', () => {
       showV2Pilots: { [source.id]: converted.record },
     }))
 
-    expect(await screen.findByTestId('show-editor-v2-route')).toBeInTheDocument()
-    expect(screen.getByTestId('show-timeline-read-only-status')).toHaveTextContent('Editing this v2 Show.')
+    expect(await screen.findByTestId('show-editor-scroll')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select Outgoing' })).toBeInTheDocument()
   })
 
   it('keeps the current v2 editor route when a retired Show open settles', async () => {
@@ -742,11 +749,9 @@ describe('routing (#308)', () => {
     expect(useShowStore.getState().showV2Pilots[legacy.id].name).toBe('Durable v2 name')
     expect(useShowStore.getState().showV2Histories[legacy.id].past).toHaveLength(1)
 
-    act(() => useShowStore.setState(state => ({
-      showV2Pilots: { ...state.showV2Pilots, [legacy.id]: converted.record },
-    })))
-    await user.click(within(editorPane).getByRole('button', { name: 'Reload saved v2' }))
-    await waitFor(() => expect(useShowStore.getState().showV2Pilots[legacy.id].name).toBe('Durable v2 name'))
+    // The renamed record is what the header reads back. The rejected route's
+    // `Reload saved v2` control has no owner on the in-place editor (#1065), so
+    // its reload path stays covered by that route's own suite.
     expect(within(editorPane).getByRole('button', { name: 'Rename show Durable v2 name' })).toBeInTheDocument()
   })
 

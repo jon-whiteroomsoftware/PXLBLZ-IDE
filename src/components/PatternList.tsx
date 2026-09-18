@@ -161,6 +161,15 @@ export function PatternList({
     && STOCK_SHOWS.some((item) => item.id === route.entity?.id)
     ? route.entity.id
     : null
+  // A stored version-2 row is held outside the v1 Show store, so `activeShowId`
+  // stays null while its editor is open (#1039). The rail marks the open row
+  // from the same explicit versioned route identity the editor mounts on, so a
+  // Show stored either way shows one selected row (#1065).
+  const activeRoutedShowV2Id = route.kind === 'studio' && route.entity?.kind === 'shows'
+    && userShowsV2.some((show) => show.id === route.entity?.id)
+    ? route.entity.id
+    : null
+  const activePersonalShowId = activeRoutedShowV2Id ?? activeShowId
   const createShowFromController = useShowStore((s) => s.createShowFromController)
   // Any profile can seed a new Show: since #775 the action wires target
   // identity, Stage map, and pixel count — zones are carved inside the Show.
@@ -1238,7 +1247,7 @@ export function PatternList({
             userShows={userShows}
             userShowsV2={userShowsV2}
             onOpenShowV2={(id) => { openShowV2Route(id); onEntityChosen?.() }}
-            activeShowId={activeShowId}
+            activeShowId={activePersonalShowId}
             stockShows={STOCK_SHOWS}
             activeStockShowId={activeStockShowId}
             showStockShows={showStockShows}

@@ -40,7 +40,7 @@ function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
   }
 }
 
-const commonProps = (scope: ShowClipInspectorValue['scope'], onPatch = vi.fn()): ShowClipEntityDetailProps => ({
+const commonProps = (scope: ShowClipInspectorValue['scope'], onPatch = vi.fn()): ShowClipEntityDetailProps & { value: ShowClipInspectorValue } => ({
   value: value(scope),
   title: 'TestPattern1D · main · Scene 1',
   readOnly: false,
