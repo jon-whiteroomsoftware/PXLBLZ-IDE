@@ -117,6 +117,39 @@ requires unchanged control captures under matching state and capture settings,
 matching geometry/styles, and evidence for the particular raster differences.
 An arbitrary pixel-count threshold, color tolerance, or glyph-region exclusion
 cannot qualify a difference; unsupported differences remain failures.
+
+The counterfactual is symmetric, and its captures are taken from an already
+warmed page. The equalized value has to be one of the two verified byte values,
+so writing it straight into the row that already displays it changes nothing
+while the other row genuinely re-rasters; at 390 that one-sided re-raster landed
+the preview help icon one level different and the proof was refused for a
+difference neither version owns. Both rows therefore pass through one sentinel
+value neither of them holds, with a presented frame, before the equalized value,
+so each normalized capture is reached by the same two real writes. Separately,
+Playwright's screenshot leaves an empty `style` attribute on the elements it
+freezes, so the first reading of an open described a page that had never been
+screenshotted while every later reading described one that had; the fingerprints
+then split on capture order rather than on surface state, and the classifier
+refused to compare them. One discarded screenshot per open removes that. Neither
+change relaxes anything: the counterfactual must still be exactly zero, the raw
+captures and their strict verdict are retained unchanged, and a restoration
+residual still qualifies only as demonstrated raster noise, through controls that
+carry both values at the same positions.
+
+Jon extended the gauge exception on 2026-09-18 to a gauge that lies behind the
+captured surface rather than inside it. The entity detail panels and the Zone
+Map draw over the editor at 1.5% transparency with a backdrop blur, so at 390
+the gauge under them reaches their captures attenuated to a channel delta of one
+and spread by the blur, without appearing in their DOM at all. The proof
+standard is unchanged and the placement is recorded in the verdict: the
+counterfactual must still be exactly zero, restoration must still be byte-exact,
+the raw captures and their strict verdict are retained, and the same delivered
+`.epe` evidence is required. A behind-surface gauge additionally has to lie over
+the captured surface, because a gauge that cannot paint into a capture cannot
+explain a pixel in it. This is not a region or a tolerance, and it qualifies
+nothing on its own: the narrow Transition palette is behind the same gauge and
+stays red, because normalizing the gauge leaves its difference untouched.
+
 Behavior proof covers real pointer movement, persisted converter equality, exact
 history shape, measured save count, fresh hydration and exact Undo restoration.
 

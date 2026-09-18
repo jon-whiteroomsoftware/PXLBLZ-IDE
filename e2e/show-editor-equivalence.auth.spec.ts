@@ -2,7 +2,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { resolve } from 'node:path'
-import { expect, test, type Locator, type Page } from './fixtures/authenticated'
+import type { Locator, Page } from '@playwright/test'
+import { expect, test } from './fixtures/authenticated'
 import type { ShowRecord } from '../src/engine/personalContentRecords'
 import type { ShowRecordV2 } from '../src/engine/showCompositionV2'
 import {
@@ -11,6 +12,36 @@ import {
   normalizeShowEquivalenceRecord,
   type VisualPairAssessment,
 } from '../src/test/showEditorEquivalenceOracle'
+import { SHOW_ARTIFACT_BUDGET_BYTES } from '../src/engine/showVmResourceLedger'
+import type { DomStateEvidence } from '../src/test/showCaptureRasterNoiseClassifier'
+import type { PixelSample } from '../src/test/showCapturePixelEvidence'
+import {
+  classifySurfaceNoisePlan,
+  reclassifyVisualPairWithCaptureNoise,
+  type PhaseCapture,
+  type PlannedClassification,
+  type PlannedComparison,
+} from '../src/test/showSurfaceNoisePlan'
+import {
+  formatDeliveredBytes,
+  qualifySourceSizeExceptionWithQualifiedCaptureNoise,
+  reclassifyVisualPairWithSourceGaugeException,
+  type GaugeVariant,
+  type GaugeVersionEvidence,
+  type SourceGaugeExceptionWithNoiseAssessment,
+} from '../src/test/showSourceGaugeExceptionOracle'
+import {
+  applyCommonGaugeValues,
+  canonicalizePercent,
+  collectPointChains,
+  differenceBetweenCaptures,
+  rebuildDeliveredArtifact,
+  readSurfaceState,
+  restoreGaugeValues,
+  sampleCapture,
+  type GaugeReading,
+  type SurfaceStateReading,
+} from './support/showSurfaceNoiseEvidence'
 
 type FixturePair = {
   source: ShowRecord
@@ -19,7 +50,18 @@ type FixturePair = {
 }
 type Fixture = { key: string; fixedTimeMs: number } & FixturePair
 type Manifest = { version: number; corpus: Fixture[]; behavior: FixturePair }
-type SeededPair = { key: string; name: string; v1Id: string; v2Id: string; v1: ShowRecord; v2: ShowRecordV2; conversionReport: unknown }
+type SeededPair = {
+  key: string
+  name: string
+  v1Id: string
+  v2Id: string
+  v1: ShowRecord
+  v2: ShowRecordV2
+  conversionReport: unknown
+  captureId: string
+  captureSource: ShowRecord
+  captureConverted: ShowRecordV2
+}
 type CaptureFailure = 'unavailable' | 'capture-error'
 type CapturedSurface = {
   present: boolean
@@ -55,6 +97,21 @@ type SurfaceSpec = {
   selector?: string
   prepare?: PrepareKind
 }
+
+/**
+ * The counterfactual's sentinel value, in delivered bytes (#1065).
+ *
+ * The common value the plan writes is v1's own displayed value, so writing it straight into a v1 row
+ * changes nothing and that row's normalized capture is an un-mutated raster, while v2's is a fresh
+ * one. Chromium re-rasters the mutated layer, and at 390 that re-raster lands the preview help icon
+ * one level different, so the counterfactual was refused for a difference neither version owns. Both
+ * versions therefore pass through this one sentinel first, with a presented frame, so each normalized
+ * capture is reached by the same two real writes. This is symmetry, not tolerance: the counterfactual
+ * still has to be exactly zero, restoration still has to reproduce the raw capture, and the strict
+ * verdict is untouched. The value is checked against each version's own value at run time rather than
+ * assumed distinct, and it is well outside every corpus artifact size and inside the pinned budget.
+ */
+const GAUGE_SENTINEL_BYTES = 52_429
 
 const manifest = JSON.parse(await readFile(new URL('./fixtures/showEditorEquivalence.json', import.meta.url), 'utf8')) as Manifest
 const runId = process.env.PXLBLZ_EQUIVALENCE_RUN_ID
@@ -138,8 +195,68 @@ test('pair seeding converts the persisted v1 representation without erasing stor
   )
 })
 
+test('the capture arrangement holds Show identity fixed, and a distinct identity would corrupt the Stage comparison', async ({ page }) => {
+  test.setTimeout(180_000)
+  page.setDefaultTimeout(10_000)
+  page.setDefaultNavigationTimeout(15_000)
+  await mkdir(outputRoot, { recursive: true })
+  const fixture = manifest.corpus.find(item => item.key === 'installation-layouts')!
+  const surface = surfaces.find(item => item.name === 'stage-canvas')!
+  const viewport = viewportCases[0]
+  const pair = await seedPair(page, fixture.key, fixture)
+
+  // A distinct row carrying the same converted content is the arrangement this
+  // repair replaces. It is converted from its own source so nothing but the
+  // Show identity distinguishes it from the capture row's v2 state.
+  const distinctId = `${pair.captureId}-distinct-identity`
+  const distinctSource = { ...structuredClone(pair.captureSource), id: distinctId }
+  const distinctConversion = await convertInBrowser(page, distinctSource, 'distinct-identity-probe')
+  expect(distinctConversion.status).toBe('converted')
+  if (distinctConversion.status !== 'converted') return
+  expect(normalizeShowEquivalenceRecord(distinctConversion.record))
+    .toEqual(normalizeShowEquivalenceRecord(pair.captureConverted))
+
+  const capturedV1Identity = await stageCaptureRow(page, pair, 'v1')
+  await openAtFixedState(page, pair.captureId, fixture.fixedTimeMs, viewport)
+  const sameIdentityV1 = await captureSurface(page, `${pair.key}-identity`, viewport.key, surface, 'same-identity-v1')
+  const capturedV2Identity = await stageCaptureRow(page, pair, 'v2')
+  await openAtFixedState(page, pair.captureId, fixture.fixedTimeMs, viewport)
+  const sameIdentityV2 = await captureSurface(page, `${pair.key}-identity`, viewport.key, surface, 'same-identity-v2')
+  expect(capturedV1Identity).toBe(capturedV2Identity)
+  expect(sameIdentityV1.present && sameIdentityV2.present).toBe(true)
+  const heldIdentity = await compareCaptured(page, sameIdentityV1, sameIdentityV2)
+  expect(heldIdentity.complete, 'The held-identity Stage captures must be comparable.').toBe(true)
+  expect(heldIdentity.changedPixels, 'One Show identity converted in place must render exactly.').toBe(0)
+  expect(heldIdentity.maximumChannelDelta).toBe(0)
+
+  await leaveEditorBeforeReplacingRow(page)
+  await page.request.delete(`/api/shows/${distinctId}`)
+  const createdDistinct = await page.request.post('/api/shows', { data: distinctSource })
+  expect(createdDistinct.ok(), await createdDistinct.text()).toBe(true)
+  const convertedDistinct = await page.request.put(`/api/shows/${distinctId}?show-version=2`, { data: distinctConversion.record })
+  expect(convertedDistinct.ok(), await convertedDistinct.text()).toBe(true)
+  await openAtFixedState(page, distinctId, fixture.fixedTimeMs, viewport)
+  const distinctIdentity = await captureSurface(page, `${pair.key}-identity`, viewport.key, surface, 'distinct-identity-v2')
+  const drift = await compareCaptured(page, sameIdentityV2, distinctIdentity)
+  // The distinct row is still mounted here, so it is left through the ordinary
+  // lifecycle before it is deleted.
+  await releaseCaptureRow(page, distinctId)
+  await releaseCaptureRow(page, pair.captureId)
+  console.log(`[equivalence] identity sensitivity: held ${JSON.stringify(heldIdentity)}, distinct ${JSON.stringify(drift)}`)
+  expect(distinctIdentity.present).toBe(true)
+  expect(drift.complete, 'The distinct-identity Stage capture must be comparable.').toBe(true)
+  expect(
+    drift.changedPixels,
+    'Equivalent records under distinct Show ids must still render differently; if this holds, the oracle no longer proves that identity must be held fixed.',
+  ).toBeGreaterThan(0)
+})
+
 test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({ page }) => {
-  test.setTimeout(10 * 60_000)
+  // A surface whose strict comparison differs now also runs the bounded control plan, which reopens
+  // the row and walks the surface's computed styles once per capture. That is a large addition to
+  // the run, and this budget is an estimate rather than a measurement: the first real run should
+  // check it against the observed duration.
+  test.setTimeout(30 * 60_000)
   page.setDefaultTimeout(10_000)
   page.setDefaultNavigationTimeout(15_000)
   await mkdir(outputRoot, { recursive: true })
@@ -151,10 +268,12 @@ test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({
     for (const viewport of activeViewports) {
       for (const surface of activeSurfaces.filter(item => item.fixture === '*' || item.fixture === pair.key)) {
         const captures: Record<'v1a' | 'v1b' | 'v2a' | 'v2b', CapturedSurface> = {} as never
+        const identity: Record<'v1' | 'v2', string | undefined> = { v1: undefined, v2: undefined }
         for (const version of ['v1', 'v2'] as const) {
-          const id = version === 'v1' ? pair.v1Id : pair.v2Id
           console.log(`[equivalence] opening ${pair.key}/${viewport.key}/${surface.name}/${version}`)
           try {
+            const id = await stageCaptureRow(page, pair, version)
+            identity[version] = id
             await openAtFixedState(page, id, fixture.fixedTimeMs, viewport)
             const unavailable = await prepareSurface(page, surface.prepare)
             if (unavailable) {
@@ -189,12 +308,53 @@ test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({
           changedPixels: parity.changedPixels,
           maximumChannelDelta: parity.maximumChannelDelta,
         })
+        // The bounded control plan runs once, for any surface whose strict comparison differs, and
+        // only on stable captures: classifying an unstable capture would explain nothing. The
+        // full-window diagnostic is never a verdict, so it is never qualified either.
+        let noise: SurfaceNoiseReport | null = null
+        if (assessment.reason === 'pixels-differ' && v1Stable && v2Stable
+          && surface.name !== 'full-window-diagnostic') {
+          console.log(`[equivalence] collecting noise controls for ${pair.key}/${viewport.key}/${surface.name}`)
+          try {
+            noise = await collectSurfaceNoise(page, pair, fixture, viewport, surface)
+          } catch (error) {
+            noise = {
+              ran: false,
+              detail: `The bounded control plan did not complete: ${error instanceof Error ? error.message : String(error)}`,
+              gauge: { usable: false, detail: 'not reached' },
+              captures: [],
+              measurements: [],
+              classifications: [],
+              delivered: null,
+              exception: null,
+            }
+          }
+        }
+        const qualified = !noise?.ran
+          ? assessment
+          : noise.exception
+            ? reclassifyVisualPairWithSourceGaugeException(assessment, noise.exception)
+            : reclassifyVisualPairWithCaptureNoise(assessment,
+              noise.classifications.find(entry => entry.key === 'delivered v1 vs v2'))
         comparisons.push({
           fixture: pair.key,
           viewport: viewport.key,
-          ...assessment,
+          ...qualified,
+          strict: {
+            equivalent: assessment.equivalent,
+            reason: assessment.reason,
+            changedPixels: parity.changedPixels,
+            maximumChannelDelta: parity.maximumChannelDelta,
+            note: 'The run\'s original captures and their exact difference, retained whatever the'
+              + ' qualified verdict says. Nothing here is relabelled by a later classification.',
+          },
+          noisePlan: noise,
           captures: Object.fromEntries(Object.entries(captures).map(([key, capture]) => [key, reportEndpoint(capture)])),
           stability: { v1: stableV1, v2: stableV2 },
+          identity: {
+            ...identity,
+            same: Boolean(identity.v1) && identity.v1 === identity.v2,
+          },
           classification: captures.v1a.failure === 'unavailable'
             ? 'invalid-v1-baseline'
             : v1Stable && v2Stable
@@ -217,6 +377,12 @@ test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({
     partialCoverage,
     widths: activeViewports.map(viewport => viewport.width),
     routes: pairs.map(pair => ({ key: pair.key, v1: `/PXLBLZ-IDE/studio/shows/${pair.v1Id}`, v2: `/PXLBLZ-IDE/studio/shows/${pair.v2Id}` })),
+    captureIdentity: {
+      policy: 'Each comparison renders one capture row under a single Show id: recreated as the persisted v1 record, captured, recreated, then converted in place through PUT /api/shows/<id>?show-version=2 and captured again. The editor is left through ordinary in-app navigation before the row is replaced.',
+      reason: 'The Show stage preview seeds its random Pattern replay from the Show id, so the seeded oracle-<key>-v1 and oracle-<key>-v2 rows render different output for equivalent records. The renderer and its seed policy are unchanged.',
+      rows: pairs.map(pair => ({ key: pair.key, captureId: pair.captureId, route: `/PXLBLZ-IDE/studio/shows/${pair.captureId}` })),
+      inspectionNote: 'The paired routes above remain seeded for coordinator inspection and are never opened by this run. Their identity-seeded random Pattern output differs by construction; compare structure, layout and authored content there, not random Pattern pixels.',
+    },
     conversionReports: pairs.map(pair => ({
       key: pair.key,
       report: pair.conversionReport,
@@ -227,6 +393,10 @@ test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({
     equivalent: verdictComparisons.length > 0 && verdictComparisons.every(comparison => comparison.equivalent),
   }
   await writeFile(resolve(outputRoot, 'visual-report.json'), `${JSON.stringify(report, null, 2)}\n`)
+  expect(
+    comparisons.filter(comparison => !(comparison.identity as { same: boolean }).same),
+    'Both storage versions of a pair must be rendered under one Show identity; distinct ids are not equivalent rendering inputs.',
+  ).toEqual([])
   expect(comparisons.filter(comparison => comparison.classification === 'invalid-v1-baseline'), 'A missing v1 baseline is invalid evidence, not an expected product mismatch.').toEqual([])
   expect(comparisons.filter(comparison => comparison.classification === 'unstable-capture'), 'Capture instability is infrastructure failure, not UX evidence.').toEqual([])
   expect(report.equivalent, `Show editor equivalence failed; see ${resolve(outputRoot, 'visual-report.json')}`).toBe(true)
@@ -334,6 +504,379 @@ test('the same pointer Clip drag has equal durable result, exact history and one
   expect(assessment?.equivalent, `Behavioral equivalence failed; see ${resolve(outputRoot, 'behavior-report.json')}`).toBe(true)
 })
 
+
+/** Everything the bounded noise plan collected for one surface, recorded whatever it concluded. */
+type SurfaceNoiseReport = {
+  ran: boolean
+  detail: string
+  gauge: { usable: boolean; detail: string; variant?: GaugeVariant; placement?: 'inside' | 'behind' }
+  captures: readonly PhaseCapture[]
+  measurements: readonly { key: string; changedPixels: number; maximumChannelDelta: number; comparable: boolean }[]
+  classifications: readonly PlannedClassification[]
+  delivered: Record<'v1' | 'v2', { path: string; route: string; sourceBytes: number }> | null
+  exception: SourceGaugeExceptionWithNoiseAssessment | null
+}
+
+/**
+ * Runs the one fixed, bounded control plan for a surface whose strict comparison differs (#1065).
+ *
+ * Controls first, candidates afterwards, in the order written here and nowhere else. Every control
+ * is an independently acquired capture of an unchanged state: two independent opens of the same
+ * row, plus, where the gauge is present, the restored state after each normalization cycle. The
+ * candidates are then captured fresh, after every control, so no candidate image can establish its
+ * own allowable variants. The run's original captures are untouched and keep the strict verdict.
+ *
+ * This is executed at most once per surface. The trigger is the strict result, the plan is fixed
+ * here, and there is no second attempt: a residual that is not demonstrated noise stays residual.
+ */
+async function collectSurfaceNoise(
+  page: Page,
+  pair: SeededPair,
+  fixture: Fixture,
+  viewport: typeof viewportCases[number],
+  surface: typeof surfaces[number],
+): Promise<SurfaceNoiseReport> {
+  const phases: PhaseCapture[] = []
+  const retained = new Map<string, Buffer>()
+  const readings = new Map<string, SurfaceStateReading>()
+  const deliveredToken: Partial<Record<'v1' | 'v2', string>> = {}
+  const deliveredReading: Partial<Record<'v1' | 'v2', SurfaceStateReading>> = {}
+  const normalizedReading: Partial<Record<'v1' | 'v2', SurfaceStateReading>> = {}
+  const delivered: Partial<Record<'v1' | 'v2', { path: string; route: string; sourceBytes: number; epeText: string }>> = {}
+  const canonical: Partial<Record<'v1' | 'v2', { percent: number; serialized: string }>> = {}
+  let sequence = 0
+  let common: { token: string; inlineWidth: string } | undefined
+  let sentinel: { token: string; inlineWidth: string } | undefined
+  let gaugeDetail = 'not inspected'
+  let variant: GaugeVariant | undefined
+
+  const open = async (version: 'v1' | 'v2') => {
+    const id = await stageCaptureRow(page, pair, version)
+    await openAtFixedState(page, id, fixture.fixedTimeMs, viewport)
+    const blocked = await prepareSurface(page, surface.prepare)
+    if (blocked) throw new Error(`The ${surface.name} surface could not be prepared for ${version}: ${blocked.detail}`)
+    await warmCaptureApparatus()
+    return id
+  }
+
+  /**
+   * One discarded screenshot per open, before anything is read or retained (#1065).
+   *
+   * Playwright's `animations: 'disabled'` sets and then clears inline styles while it screenshots,
+   * which leaves an empty `style` attribute behind on the elements it froze - here the three range
+   * inputs in the preview strip. It paints nothing, but it is part of the surface DOM, so without
+   * this the first reading of an open describes a page that has never been screenshotted and every
+   * later reading describes one that has. The fingerprints then split on capture order instead of
+   * on surface state, and the classifier refuses any comparison that pairs a first capture with a
+   * later one - which is exactly `delivered vs restored`. Warming the page makes every reading and
+   * every retained capture of that open share one condition. It changes no value and no pixel.
+   */
+  const warmCaptureApparatus = async () => {
+    const locator = surface.selector ? page.locator(surface.selector).first() : undefined
+    if (locator && (await locator.count() === 0 || !await locator.isVisible())) return
+    if (locator) await locator.screenshot({ type: 'png', animations: 'disabled' })
+    else await page.screenshot({ type: 'png', animations: 'disabled' })
+  }
+
+  const take = async (
+    version: 'v1' | 'v2',
+    state: 'delivered' | 'normalized',
+    label: string,
+    role: 'control' | 'candidate',
+    group: string | undefined,
+    mutationHistory: string,
+  ) => {
+    const reading = await readSurfaceState(page, surface.selector, deliveredToken[version])
+    const captured = await captureSurface(page, pair.key, viewport.key, surface, label)
+    if (!captured.present || !captured.bytes || !captured.path || !captured.sha256) {
+      throw new Error(`The ${surface.name} surface was not capturable for ${label}.`)
+    }
+    sequence += 1
+    phases.push({
+      label, role, group, version, state, sequence,
+      path: captured.path, sha256: captured.sha256, fingerprint: reading.fingerprint, mutationHistory,
+    })
+    retained.set(label, captured.bytes)
+    readings.set(label, reading)
+    return reading
+  }
+
+  // A gauge qualifies this surface when it can actually paint into the capture: drawn inside it, or
+  // lying behind a translucent one (#1065, Jon 2026-09-18). The placement travels with the evidence
+  // and the pure oracle re-checks the overlap itself; nothing here decides the exception.
+  const gaugeOf = (reading: SurfaceStateReading | undefined): Extract<GaugeReading, { present: true }> | null =>
+    reading && reading.gauge.present && reading.gauge.reachesSurface ? reading.gauge : null
+
+  /**
+   * Writes the sentinel, then the common value, so this version's normalized capture is a fresh
+   * raster reached by two real writes - the same history the other version's normalized capture has.
+   * Each write is proved to change what this row displays rather than assumed to; a sentinel that
+   * matched a row's own value, or the common value, would silently restore the asymmetry it exists
+   * to remove. `applyCommonGaugeValues` presents a frame after each write.
+   */
+  const normalizeThroughSentinel = async (version: 'v1' | 'v2') => {
+    const gauge = gaugeOf(deliveredReading[version])
+    if (!gauge || !common || !sentinel) {
+      throw new Error(`The ${version} counterfactual cannot run without a usable gauge, common value and sentinel.`)
+    }
+    for (const [what, held, written] of [
+      ['token', gauge.token, sentinel.token],
+      ['fill width', gauge.inlineWidth, sentinel.inlineWidth],
+    ] as const) {
+      if (held === written) {
+        throw new Error(`The counterfactual sentinel ${what} "${written}" is the ${version} row's own value.`)
+      }
+    }
+    for (const [what, next, after] of [
+      ['token', sentinel.token, common.token],
+      ['fill width', sentinel.inlineWidth, common.inlineWidth],
+    ] as const) {
+      if (next === after) throw new Error(`The counterfactual sentinel ${what} "${next}" is the common value.`)
+    }
+    await applyCommonGaugeValues(page, sentinel.token, sentinel.inlineWidth)
+    await applyCommonGaugeValues(page, common.token, common.inlineWidth)
+  }
+
+  // Controls, both versions, before any candidate.
+  for (const version of ['v1', 'v2'] as const) {
+    const id = await open(version)
+    const first = await take(version, 'delivered', `${version}-delivered-control-a`, 'control',
+      `${version}-delivered`, 'unmutated; first independent open')
+    deliveredReading[version] = first
+    const gauge = gaugeOf(first)
+    if (gauge) {
+      deliveredToken[version] = gauge.token
+      const artifact = await rebuildDeliveredArtifact(page, id, version)
+      const path = resolve(outputRoot, `${pair.key}-${viewport.key}-${surface.name}-${version}.epe`)
+      await writeFile(path, artifact.epeText)
+      delivered[version] = { path, route: artifact.route, sourceBytes: artifact.sourceBytes, epeText: artifact.epeText }
+      canonical[version] = await canonicalizePercent(page, artifact.sourceBytes, SHOW_ARTIFACT_BUDGET_BYTES)
+      variant = gauge.elements.some(element => element.attributes.title !== undefined) ? 'compile-bar' : 'portal'
+      if (version === 'v1') {
+        common = { token: gauge.token, inlineWidth: gauge.inlineWidth }
+        sentinel = {
+          token: formatDeliveredBytes(GAUGE_SENTINEL_BYTES),
+          inlineWidth: (await canonicalizePercent(page, GAUGE_SENTINEL_BYTES, SHOW_ARTIFACT_BUDGET_BYTES)).serialized,
+        }
+      }
+    } else {
+      gaugeDetail = first.gauge.present
+        ? first.gauge.placement === 'behind'
+          ? 'gauge-behind-but-not-over-surface'
+          : 'gauge-not-fully-within-surface'
+        : (first.gauge as Extract<GaugeReading, { present: false }>).reason
+    }
+    await open(version)
+    await take(version, 'delivered', `${version}-delivered-control-b`, 'control',
+      `${version}-delivered`, 'unmutated; second independent open')
+
+    if (gauge && common) {
+      for (const cycle of [1, 2] as const) {
+        await normalizeThroughSentinel(version)
+        const normalized = await take(version, 'normalized', `${version}-normalized-control-${cycle}`, 'control',
+          `${version}-normalized`, `normalized to the common value through the sentinel, cycle ${cycle}`)
+        if (cycle === 1) normalizedReading[version] = normalized
+        if (!await restoreGaugeValues(page)) throw new Error(`The ${version} gauge slots did not restore.`)
+        await take(version, 'delivered', `${version}-delivered-control-restored-${cycle}`, 'control',
+          `${version}-delivered`, `restored after normalization cycle ${cycle}`)
+      }
+    }
+  }
+  const gaugeUsable = Boolean(gaugeOf(deliveredReading.v1) && gaugeOf(deliveredReading.v2)
+    && common && sentinel && delivered.v1 && delivered.v2 && normalizedReading.v1 && normalizedReading.v2)
+  const gaugePlacement = gaugeOf(deliveredReading.v1)?.placement ?? 'inside'
+  if (gaugeUsable) {
+    gaugeDetail = gaugePlacement === 'behind'
+      ? 'present behind the captured surface, overlapping it'
+      : 'present and wholly inside the captured surface'
+  }
+
+  const comparisons: PlannedComparison[] = []
+  const measurements: SurfaceNoiseReport['measurements'][number][] = []
+  const chains = new Map<string, Map<string, DomStateEvidence['points'][number]>>()
+
+  /**
+   * Compares the named pairs and collects the chain evidence for their positions immediately, while
+   * the page is still in the state those captures were taken in. The live state is re-read and its
+   * fingerprint must match the captures', so a chain can never be recorded from another state; when
+   * it does not match, no chain is recorded and every pixel of that comparison stays residual.
+   */
+  const compareAndChain = async (
+    version: 'v1' | 'v2',
+    pairs: readonly { key: string; left: string; right: string }[],
+  ) => {
+    const positions = new Map<string, { x: number; y: number }>()
+    for (const { key, left, right } of pairs) {
+      const difference = await differenceBetweenCaptures(page, retained.get(left)!, retained.get(right)!)
+      measurements.push({
+        key,
+        changedPixels: difference.changedPixels,
+        maximumChannelDelta: difference.maximumChannelDelta,
+        comparable: difference.comparable,
+      })
+      if (!difference.comparable) continue
+      comparisons.push({
+        key, left, right, changedPixels: difference.pixels, reportedChangedPixels: difference.changedPixels,
+      })
+      for (const pixel of difference.pixels) positions.set(`${pixel.x},${pixel.y}`, { x: pixel.x, y: pixel.y })
+    }
+    if (positions.size === 0) return
+    const fingerprint = phases.find(phase => phase.label === pairs[0].left)!.fingerprint
+    const live = await readSurfaceState(page, surface.selector, deliveredToken[version])
+    if (live.fingerprint !== fingerprint) return
+    const collected = await collectPointChains(page, surface.selector, fingerprint, [...positions.values()])
+    const merged = chains.get(fingerprint) ?? new Map<string, DomStateEvidence['points'][number]>()
+    for (const point of collected.points) merged.set(`${point.x},${point.y}`, point)
+    chains.set(fingerprint, merged)
+  }
+
+  // Candidates, fresh, after every control. Each comparison is read and its chain evidence collected
+  // in the very state its captures were taken in, before the page moves on.
+  for (const version of ['v1', 'v2'] as const) {
+    await open(version)
+    await take(version, 'delivered', `${version}-delivered-candidate`, 'candidate', undefined,
+      'unmutated; captured after all control collection')
+    if (!gaugeUsable || !common) {
+      // A gauge-bearing surface's delivered pair is the true exported values and belongs to the
+      // gauge exception; only an ordinary surface's delivered pair is offered to the classifier.
+      if (version === 'v2') {
+        await compareAndChain(version, [{
+          key: 'delivered v1 vs v2', left: 'v1-delivered-candidate', right: 'v2-delivered-candidate',
+        }])
+      }
+      continue
+    }
+    await normalizeThroughSentinel(version)
+    await take(version, 'normalized', `${version}-normalized-candidate`, 'candidate', undefined,
+      'normalized to the common value through the sentinel, cycle 3')
+    await take(version, 'normalized', `${version}-normalized-candidate-repeat`, 'candidate', undefined,
+      'normalized to the common value through the sentinel, cycle 3, repeated capture')
+    await compareAndChain(version, [
+      { key: `${version} normalized repeat`, left: `${version}-normalized-candidate`, right: `${version}-normalized-candidate-repeat` },
+      ...(version === 'v2'
+        ? [{ key: 'normalized v1 vs v2', left: 'v1-normalized-candidate', right: 'v2-normalized-candidate' }]
+        : []),
+    ])
+    if (!await restoreGaugeValues(page)) throw new Error(`The ${version} gauge slots did not restore.`)
+    await take(version, 'delivered', `${version}-restored-candidate`, 'candidate', undefined,
+      'restored after normalization cycle 3')
+    await compareAndChain(version, [{
+      key: `${version} delivered vs restored`, left: `${version}-delivered-candidate`, right: `${version}-restored-candidate`,
+    }])
+  }
+
+  // The gauge's own raw difference is recorded for the report and never offered to the classifier.
+  if (gaugeUsable) {
+    const rawDifference = await differenceBetweenCaptures(
+      page, retained.get('v1-delivered-candidate')!, retained.get('v2-delivered-candidate')!)
+    measurements.push({
+      key: 'delivered v1 vs v2',
+      changedPixels: rawDifference.changedPixels,
+      maximumChannelDelta: rawDifference.maximumChannelDelta,
+      comparable: rawDifference.comparable,
+    })
+  }
+
+  const implicated = new Set(comparisons.flatMap(comparison =>
+    comparison.changedPixels.map(pixel => `${pixel.x},${pixel.y}`)))
+  const wantedPositions = [...implicated].map(key => {
+    const [x, y] = key.split(',').map(Number)
+    return { x, y }
+  })
+  const samples: Record<string, readonly PixelSample[]> = {}
+  for (const phase of phases) samples[phase.label] = await sampleCapture(page, retained.get(phase.label)!, wantedPositions)
+
+  const classifications = classifySurfaceNoisePlan({
+    surface: surface.name,
+    viewport: { width: viewport.width, height: viewport.height },
+    showId: pair.captureId,
+    authoredState: `fixedTimeMs=${fixture.fixedTimeMs};prepare=${surface.prepare ?? 'none'}`,
+    captureSettings: `element-clip;animations=disabled;selector=${surface.selector ?? 'viewport'}`,
+    fingerprintPolicy: 'surface DOM, geometry and every collected computed and pseudo style, with the'
+      + ' fixed gauge value fields replaced in place',
+    captures: phases,
+    comparisons,
+    samples,
+    domStates: [...chains].map(([fingerprint, points]) => ({ fingerprint, points: [...points.values()] })),
+  })
+
+  let exception: SourceGaugeExceptionWithNoiseAssessment | null = null
+  if (gaugeUsable && common) {
+    const measurementOf = (key: string) => measurements.find(entry => entry.key === key)?.changedPixels ?? 0
+    const evidenceFor = (version: 'v1' | 'v2'): GaugeVersionEvidence => ({
+      deliveredEpeText: delivered[version]!.epeText,
+      deliveredArtifact: { path: delivered[version]!.path, route: delivered[version]!.route },
+      raw: deliveredReading[version]!.gauge.present ? deliveredReading[version]!.gauge.elements : [],
+      normalized: normalizedReading[version]!.gauge.present ? normalizedReading[version]!.gauge.elements : [],
+      authoredInlineWidth: (deliveredReading[version]!.gauge as Extract<GaugeReading, { present: true }>).inlineWidth,
+      canonicalInlineWidth: canonical[version]!,
+      budgetToken: (deliveredReading[version]!.gauge as Extract<GaugeReading, { present: true }>).budgetToken,
+    })
+    const named = (key: string, measurement: string) => {
+      const planned = classifications.find(entry => entry.key === key)
+      return planned?.classification ? [{ measurement, classification: planned.classification }] : []
+    }
+    const v1Gauge = gaugeOf(deliveredReading.v1)!
+    exception = qualifySourceSizeExceptionWithQualifiedCaptureNoise({
+      surface: surface.name,
+      variant: variant ?? 'portal',
+      // The behind case names both boxes so the oracle can re-check for itself that the gauge lies
+      // over the capture. It is evidence the harness measured, not a claim the harness makes.
+      placement: v1Gauge.placement === 'behind'
+        ? { kind: 'behind', surfaceBox: v1Gauge.surfaceBox, trackBox: v1Gauge.trackBox }
+        : { kind: 'inside' },
+      budget: {
+        bytes: SHOW_ARTIFACT_BUDGET_BYTES,
+        provenance: 'SHOW_ARTIFACT_BUDGET_BYTES measured device budget, asserted in showCompiler.test.ts',
+      },
+      v1: evidenceFor('v1'),
+      v2: evidenceFor('v2'),
+      rawCapturePaths: phases
+        .filter(phase => phase.label.endsWith('delivered-candidate'))
+        .map(phase => phase.path),
+      rawChangedPixels: measurementOf('delivered v1 vs v2'),
+      counterfactual: {
+        commonToken: common.token,
+        commonInlineWidth: common.inlineWidth,
+        changedPixels: measurementOf('normalized v1 vs v2'),
+        maximumChannelDelta: measurements.find(entry => entry.key === 'normalized v1 vs v2')?.maximumChannelDelta ?? 0,
+        repeatChangedPixels: { v1: measurementOf('v1 normalized repeat'), v2: measurementOf('v2 normalized repeat') },
+        restoredChangedPixels: {
+          v1: measurementOf('v1 delivered vs restored'),
+          v2: measurementOf('v2 delivered vs restored'),
+        },
+        capturePaths: phases.filter(phase => phase.role === 'candidate').map(phase => phase.path),
+      },
+    }, [
+      ...named('normalized v1 vs v2', 'counterfactual'),
+      ...named('v1 normalized repeat', 'repeat-v1'),
+      ...named('v2 normalized repeat', 'repeat-v2'),
+      ...named('v1 delivered vs restored', 'restored-v1'),
+      ...named('v2 delivered vs restored', 'restored-v2'),
+    ])
+  }
+
+  return {
+    ran: true,
+    detail: gaugeUsable
+      ? `The gauge is ${gaugePlacement === 'behind' ? 'behind' : 'in'} this surface, so its exported values`
+        + ' are proved by the gauge exception and only the counterfactual, repeat and restoration'
+        + ' residuals were offered to the classifier.'
+      : 'No usable gauge in this surface, so the fresh delivered pair itself must be exact or fully classified.',
+    gauge: { usable: gaugeUsable, detail: gaugeDetail, variant, ...(gaugeUsable ? { placement: gaugePlacement } : {}) },
+    captures: phases,
+    measurements,
+    classifications,
+    delivered: delivered.v1 && delivered.v2
+      ? {
+        v1: { path: delivered.v1.path, route: delivered.v1.route, sourceBytes: delivered.v1.sourceBytes },
+        v2: { path: delivered.v2.path, route: delivered.v2.route, sourceBytes: delivered.v2.sourceBytes },
+      }
+      : null,
+    exception,
+  }
+}
+
 async function seedCorpus(page: Page): Promise<SeededPair[]> {
   const pairs: SeededPair[] = []
   for (const fixture of activeFixtures) {
@@ -365,7 +908,7 @@ async function seedPair(page: Page, key: string, fixture: FixturePair): Promise<
     throw new Error(`${key} committed converted fixture is stale against the runtime converter.`)
   }
 
-  for (const id of [v1Id, v2Id]) await page.request.delete(`/api/shows/${id}`)
+  for (const id of [v1Id, v2Id, `oracle-${key}-capture`]) await page.request.delete(`/api/shows/${id}`)
   const createdV1 = await page.request.post('/api/shows', { data: rawV1 })
   expect(createdV1.ok(), await createdV1.text()).toBe(true)
   const persistedV1 = await readStoredShow(page, v1Id, 'v1') as ShowRecord
@@ -388,6 +931,29 @@ async function seedPair(page: Page, key: string, fixture: FixturePair): Promise<
   const stored = await page.request.put(`/api/shows/${v2Id}?show-version=2`, { data: persistedConversion.record })
   expect(stored.ok(), await stored.text()).toBe(true)
   const persistedV2 = await readStoredShow(page, v2Id, 'v2') as ShowRecordV2
+
+  // The paired v1/v2 rows stay seeded for coordinator inspection, but they are
+  // not the rows the visual oracle renders. The Show stage preview seeds its
+  // random Pattern replay from the Show id, so two rows with distinct ids are
+  // not equivalent rendering inputs even when their records are equivalent.
+  // Every visual comparison therefore renders one dedicated capture row,
+  // recreated as the persisted v1 representation and then converted in place.
+  const captureId = `oracle-${key}-capture`
+  const captureSource = { ...structuredClone(persistedV1), id: captureId, name, updatedAt: 1 }
+  const captureConversion = await convertInBrowser(page, captureSource, `${key}-capture-row`)
+  if (captureConversion.status !== 'converted') {
+    throw new Error(`${key} capture row conversion refused: ${JSON.stringify(captureConversion.issues)}`)
+  }
+  if (captureConversion.record.id !== captureId) {
+    throw new Error(`${key} capture row conversion did not preserve the capture Show identity.`)
+  }
+  if (!isDeepStrictEqual(
+    normalizeShowEquivalenceRecord(captureConversion.record),
+    normalizeShowEquivalenceRecord(persistedConversion.record),
+  )) {
+    throw new Error(`${key} capture row does not carry the same converted content as the seeded v2 row.`)
+  }
+
   return {
     key,
     name,
@@ -396,7 +962,74 @@ async function seedPair(page: Page, key: string, fixture: FixturePair): Promise<
     v1: persistedV1,
     v2: persistedV2,
     conversionReport: persistedConversion.report,
+    captureId,
+    captureSource,
+    captureConverted: captureConversion.record,
   }
+}
+
+/**
+ * Writes the pair's one capture row for one storage version and returns the
+ * rendered Show identity. Both versions use that single id, so the renderer's
+ * identity-seeded replay is constant across the comparison. The row is
+ * recreated from the persisted v1 record every time, so a prepared interaction
+ * that mutated the previous capture cannot leak into the next one, and no
+ * capture can inherit the other version's stored state. Every request is
+ * asserted, and the stored row is read back before the capture: an unreseeded,
+ * unconverted or altered row fails the comparison instead of being captured
+ * silently.
+ */
+async function stageCaptureRow(page: Page, pair: SeededPair, version: 'v1' | 'v2'): Promise<string> {
+  await leaveEditorBeforeReplacingRow(page)
+  const removed = await page.request.delete(`/api/shows/${pair.captureId}`)
+  expect(removed.ok(), await removed.text()).toBe(true)
+  const created = await page.request.post('/api/shows', { data: pair.captureSource })
+  expect(created.ok(), await created.text()).toBe(true)
+  if (version === 'v2') {
+    const migrated = await page.request.put(`/api/shows/${pair.captureId}?show-version=2`, { data: pair.captureConverted })
+    expect(migrated.ok(), await migrated.text()).toBe(true)
+  }
+  const stored = await readStoredShow(page, pair.captureId, version)
+  expect(stored, `The ${version} capture row ${pair.captureId} is absent from the ${version} storage listing.`).toBeDefined()
+  expect(
+    normalizeShowEquivalenceRecord(stored),
+    `The ${version} capture row ${pair.captureId} is not the seeded record; stored content was altered before capture.`,
+  ).toEqual(normalizeShowEquivalenceRecord(version === 'v1' ? pair.captureSource : pair.captureConverted))
+  return pair.captureId
+}
+
+/** Removes a synthetic row through the ordinary editor-leaving lifecycle. */
+async function releaseCaptureRow(page: Page, id: string): Promise<void> {
+  await leaveEditorBeforeReplacingRow(page)
+  const released = await page.request.delete(`/api/shows/${id}`)
+  expect(released.ok(), await released.text()).toBe(true)
+}
+
+/**
+ * Leaves an open editor through ordinary in-app navigation before its row is
+ * replaced, so no mounted editor can save over the reseeded row.
+ *
+ * The agent browser session is closed by a React effect cleanup, which only
+ * runs on a client-side unmount: a hard `page.goto` destroys the document
+ * without it, so the session's `leave` is never posted and the account's
+ * rendezvous registrations accumulate. This awaits the ordinary `leave`
+ * response, which is also the evidence that the editor really unmounted.
+ */
+async function leaveEditorBeforeReplacingRow(page: Page): Promise<void> {
+  if (!/\/studio\/shows\/[^/?#]+/.test(page.url())) return
+  const left = page.waitForResponse(response => {
+    const request = response.request()
+    if (request.method() !== 'POST' || !new URL(response.url()).pathname.endsWith('/api/agent/channel')) return false
+    try {
+      return (JSON.parse(request.postData() ?? '{}') as { type?: string }).type === 'leave'
+    } catch {
+      return false
+    }
+  }, { timeout: 15_000 })
+  await page.getByRole('button', { name: 'Open Gallery', exact: true }).click()
+  await page.waitForURL(url => !/\/studio\/shows\/[^/?#]+/.test(url.pathname), { timeout: 15_000 })
+  const response = await left
+  expect(response.ok(), `The editor session did not leave cleanly: ${response.status()} ${await response.text()}`).toBe(true)
 }
 
 async function convertInBrowser(page: Page, source: ShowRecord, key: string) {
@@ -570,7 +1203,7 @@ async function captureSurface(
   }
   const path = resolve(outputRoot, `${fixture}-${viewport}-${surface.name}-${version}.png`)
   let bytes: Buffer
-  let size: { width: number; height: number } | null
+  let size: { x: number; y: number; width: number; height: number } | null
   if (surface.name === 'zones-rail' && locator) {
     const box = await locator.boundingBox()
     const firstTrackWidth = await locator.evaluate(element => {
