@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1065",
+  "route": "/PXLBLZ-IDE/studio/shows/oracle-installation-layouts-v2",
+  "operation": "Playwright (repo oracle, npm run show:editor-equivalence, run fable-full-matrix-0918b-f79eb575) seeded the same Show as a stored v1 row and as its converted v2 row, opened each on the ordinary Show route at 1440x960, paused at the fixture's fixed time, and captured the editor pane. First capture is the v2-stored row in the existing editor; second is the v1 row for comparison. The only differing pixels are the approved true-export-size gauge value.",
+  "captures": [
+    ".wrsp/ui-proof/1065-existing-editor-installation-layouts-desktop-v2.png",
+    ".wrsp/ui-proof/1065-existing-editor-installation-layouts-desktop-v1.png"
+  ],
+  "capturedAtCommit": "f79eb57554c2b823a1686174646002e04fcbab51"
+}
