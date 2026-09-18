@@ -11,7 +11,10 @@ import { measuredExact, type ChangedPixel, type PixelMeasurement, type Rgba } fr
  *
  * - The restored-control group for the version, whose members come from independent opens, must be
  *   byte-identical to each other. Restored controls that disagree are refused here; a nondeterministic
- *   residual remains the raster-noise classifier's case, not this one.
+ *   residual remains the raster-noise classifier's case, not this one. Independence is distinct
+ *   capture events, exactly as the raster-noise classifier defines it: label, path and sequence all
+ *   differ, so one event named under two labels proves nothing. Byte-identical images from separate
+ *   events are fine and expected; the digests are never compared against each other.
  * - The candidate's own raw-versus-restored changed pixels must equal the pristine-control-versus-
  *   restored-control difference, position for position and value for value. One pixel in the
  *   candidate's residual that the controls did not reproduce identically refuses the whole
@@ -197,6 +200,21 @@ function checkEvidenceShape(
   const groupLabels = input.restoredControls.map(capture => capture.label)
   if (new Set(groupLabels).size !== groupLabels.length) {
     return 'The restored-control group names one capture twice, so its members are not independent opens.'
+  }
+  for (let left = 0; left < input.restoredControls.length; left += 1) {
+    for (let right = left + 1; right < input.restoredControls.length; right += 1) {
+      const a = input.restoredControls[left]
+      const b = input.restoredControls[right]
+      // Labels are already known distinct above, so what remains of the classifier's triple is the
+      // retained image and the capture order: one event under two labels, or two entries sharing one
+      // sequence number, are not two opens. Digests are deliberately not compared: two independent
+      // opens of an unchanged surface are expected to be byte-identical.
+      if (a.path === b.path || a.sequence === b.sequence) {
+        const shared = a.path === b.path ? 'the same retained image path' : 'the same capture sequence'
+        return `The restored-control group names "${a.label}" and "${b.label}" from one capture event`
+          + ` (${shared}), so its members are not independent opens.`
+      }
+    }
   }
   if (!groupLabels.includes(input.control.right.label)) {
     return `The control difference ends at "${input.control.right.label}", which is not a member of the`

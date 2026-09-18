@@ -164,6 +164,42 @@ describe('demonstrating a restoration side effect (#1065, Jon 2026-09-18)', () =
     expect(uncompared.detail).toContain('never compared')
   })
 
+  it('refuses a restored-control group whose members are one capture event under two labels', () => {
+    const scenario = retainedScenario()
+    const event = capture('v2-restored-control-1', 9)
+    const vacuous = demonstrateRestorationSideEffect({
+      ...scenario,
+      restoredControls: [event, { ...event, label: 'v2-restored-control-2' }],
+      restoredControlAgreement: [{
+        left: 'v2-restored-control-1', right: 'v2-restored-control-2', measurement: exact,
+      }],
+    })
+    expect(vacuous.demonstrated).toBe(false)
+    expect(vacuous.reason).toBe('incomplete-evidence')
+    expect(vacuous.detail).toContain('independent opens')
+    const resequence = demonstrateRestorationSideEffect({
+      ...scenario,
+      restoredControls: [event, { ...capture('v2-restored-control-2', 12), sequence: 9 }],
+      restoredControlAgreement: [{
+        left: 'v2-restored-control-1', right: 'v2-restored-control-2', measurement: exact,
+      }],
+    })
+    expect(resequence.demonstrated).toBe(false)
+    expect(resequence.reason).toBe('incomplete-evidence')
+  })
+
+  it('accepts byte-identical images from separate capture events', () => {
+    const scenario = retainedScenario()
+    const first = capture('v2-restored-control-1', 9)
+    const second = { ...capture('v2-restored-control-2', 12), sha256: first.sha256 }
+    const result = demonstrateRestorationSideEffect({
+      ...scenario,
+      restoredControls: [first, second],
+    })
+    expect(result.demonstrated).toBe(true)
+    expect(result.reason).toBe('demonstrated')
+  })
+
   it('refuses a control difference that does not run from a pristine control to a restored one', () => {
     const scenario = retainedScenario()
     const backwards = demonstrateRestorationSideEffect({

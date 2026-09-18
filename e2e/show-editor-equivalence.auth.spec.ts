@@ -44,8 +44,10 @@ import {
   differenceBetweenCaptures,
   rebuildDeliveredArtifact,
   readSurfaceState,
+  reproductionPair,
   restoreGaugeValues,
   sampleCapture,
+  type CapturedPixelDifference,
   type GaugeReading,
   type SurfaceStateReading,
 } from './support/showSurfaceNoiseEvidence'
@@ -789,10 +791,18 @@ async function collectSurfaceNoise(
   }
 
   // The gauge's own raw difference is recorded for the report and never offered to the classifier.
+  // The independent delivered control pair is captured alongside it: the pure oracle reproduces the
+  // candidate's raw difference against exactly these controls from separate opens, so a transient
+  // capture pixel cannot be charged to the gauge (#1065).
+  let rawCandidateDifference: CapturedPixelDifference | null = null
+  let rawControlDifference: CapturedPixelDifference | null = null
   if (gaugeUsable) {
-    const rawDifference = await differenceBetweenCaptures(
+    rawCandidateDifference = await differenceBetweenCaptures(
       page, retained.get('v1-delivered-candidate')!, retained.get('v2-delivered-candidate')!)
-    measurements.push({ key: 'delivered v1 vs v2', ...rawDifference })
+    measurements.push({ key: 'delivered v1 vs v2', ...rawCandidateDifference })
+    rawControlDifference = await differenceBetweenCaptures(
+      page, retained.get('v1-delivered-control-a')!, retained.get('v2-delivered-control-a')!)
+    measurements.push({ key: 'delivered control v1 vs v2', ...rawControlDifference })
   }
 
   /**
@@ -921,6 +931,14 @@ async function collectSurfaceNoise(
         .filter(phase => phase.label.endsWith('delivered-candidate'))
         .map(phase => phase.path),
       rawDifference: measurementFor('delivered v1 vs v2'),
+      rawReproduction: {
+        candidate: reproductionPair(
+          rawCandidateDifference!,
+          captureRef('v1-delivered-candidate'), captureRef('v2-delivered-candidate')),
+        control: reproductionPair(
+          rawControlDifference!,
+          captureRef('v1-delivered-control-a'), captureRef('v2-delivered-control-a')),
+      },
       counterfactual: {
         commonToken: common.token,
         commonInlineWidth: common.inlineWidth,

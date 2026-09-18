@@ -30,7 +30,11 @@ import type { VisualPairAssessment } from './showEditorEquivalenceOracle'
 
 import type { RasterNoiseClassification } from './showCaptureRasterNoiseClassifier'
 import { measuredExact, type PixelMeasurement } from './showCapturePixelEvidence'
-import { describePositions, type RestorationSideEffectDemonstration } from './showRestorationSideEffect'
+import {
+  describePositions,
+  type RestorationDifference,
+  type RestorationSideEffectDemonstration,
+} from './showRestorationSideEffect'
 
 export interface PixelBox { x: number; y: number; width: number; height: number }
 
@@ -87,6 +91,35 @@ export interface CounterfactualEvidence {
   capturePaths: readonly string[]
 }
 
+/**
+ * One side of the raw delivered v1-vs-v2 reproduction check (#1065).
+ *
+ * A pair that could not be compared at all carries no pixel list, exactly like a `PixelMeasurement`:
+ * the check refuses on it rather than reading an absent comparison as an exactly-zero difference.
+ */
+export type ComparableRestorationDifference =
+  | { comparable: true; difference: RestorationDifference }
+  | { comparable: false; detail: string }
+
+/**
+ * The raw delivered v1-vs-v2 difference twice: the candidate pair the verdict speaks for, and an
+ * independent control pair from separate opens that must reproduce it exactly (#1065).
+ *
+ * A transient single-pixel difference in the candidate pair would otherwise be charged to the
+ * source-size gauge whenever the freshly captured counterfactual is exactly zero. So the
+ * candidate's raw difference must be reproduced exactly - same positions, same values on both
+ * sides - by delivered controls of v1 and v2 captured before any candidate. Anything the controls
+ * did not reproduce identically refuses with `raw-difference-not-reproduced`, and that refusal is
+ * part of the strict assessment, so neither the noise classifier nor the restoration side-effect
+ * path can forgive it. There is no tolerance, mask, region, channel threshold or pixel-count cap.
+ */
+export interface RawDeliveredReproduction {
+  /** The delivered v1-vs-v2 candidate pair, with its full changed-pixel list. */
+  candidate: ComparableRestorationDifference
+  /** The independent delivered control pair, with its full changed-pixel list. */
+  control: ComparableRestorationDifference
+}
+
 export interface SourceGaugeExceptionInput {
   surface: string
   /** Which of the two known gauge shapes was captured. */
@@ -103,6 +136,11 @@ export interface SourceGaugeExceptionInput {
    * never read as zero when the pair could not be compared at all.
    */
   rawDifference: PixelMeasurement
+  /**
+   * The same raw difference with its pixels, plus the independent control pair that must reproduce
+   * it exactly. Counts alone cannot tell a transient capture difference from the gauge value.
+   */
+  rawReproduction: RawDeliveredReproduction
   counterfactual: CounterfactualEvidence
 }
 
@@ -133,6 +171,7 @@ export type SourceGaugeExceptionReason =
   | 'normalization-changed-more-than-values'
   | 'counterfactual-not-exact'
   | 'counterfactual-not-measured'
+  | 'raw-difference-not-reproduced'
   | 'qualified-with-classified-capture-noise'
   | 'qualified-with-demonstrated-restoration-side-effect'
 
@@ -341,6 +380,9 @@ export function qualifySourceSizeException(input: SourceGaugeExceptionInput): So
       + ` ${describeBox(input.placement.surfaceBox)}, so it cannot reach the capture at all.`)
   }
 
+  const reproduction = checkRawDifferenceReproduced(input.rawReproduction)
+  if (reproduction) return refuse(reproduction.reason, reproduction.detail)
+
   let delivered: { v1: DeliveredArtifactFacts; v2: DeliveredArtifactFacts }
   let programs: { v1: string; v2: string }
   try {
@@ -479,8 +521,9 @@ export interface SourceGaugeExceptionWithNoiseAssessment extends SourceGaugeExce
  * The second path is narrower than the first and is reported distinctly, as
  * `qualified-with-demonstrated-restoration-side-effect` carrying the residual count, maximum channel
  * delta and positions. It applies only to `restored-v1` and `restored-v2`, only while the
- * counterfactual and both repeat captures are measured and exactly zero, and only on a demonstration
- * that speaks for exactly the residual this run measured. It is not a tolerance, a mask, a threshold
+ * counterfactual and both repeat captures are measured and exactly zero, only on a demonstration
+ * that names this measurement's own version and comparison, and only when that demonstration speaks
+ * for exactly the residual this run measured. It is not a tolerance, a mask, a threshold
  * or a pixel-count cap, and it forgives nothing else: every artifact, byte-truth, fill, raw DOM,
  * style, non-comparable-capture and gauge-placement refusal is untouched.
  *
@@ -633,15 +676,23 @@ export function qualifySourceSizeExceptionWithQualifiedCaptureNoise(
   `Demonstrated as a side effect of the proof's own mutation: ${sideEffects.join('; ')}.`)
 }
 
-/** The restoration measurements this path may ever speak for. */
-const RESTORATION_MEASUREMENTS: ReadonlySet<string> = new Set(['restored-v1', 'restored-v2'])
+/**
+ * The restoration measurements this path may ever speak for, each bound to the version and the
+ * comparison a demonstration for it must name. The collector derives both from one version
+ * variable, but the pure oracle re-checks the binding itself, so a demonstration of some other
+ * comparison cannot be carried across even when its pixel count and channel delta happen to match.
+ */
+const RESTORATION_MEASUREMENT_IDENTITY: ReadonlyMap<string, { version: string; comparison: string }> = new Map([
+  ['restored-v1', { version: 'v1', comparison: 'v1 delivered vs restored' }],
+  ['restored-v2', { version: 'v2', comparison: 'v2 delivered vs restored' }],
+])
 
 /**
  * Weighs one offered demonstration against the measurement it claims to explain. The demonstration
  * has to be for a restoration comparison, the path has to be open, the demonstration itself has to
- * have succeeded, and it has to speak for exactly the residual this run measured - same pixel count
- * and same maximum channel delta - so a demonstration of some other comparison cannot be carried
- * across.
+ * have succeeded, it has to name this measurement's own version and comparison, and it has to speak
+ * for exactly the residual this run measured - same pixel count and same maximum channel delta - so
+ * a demonstration of some other comparison cannot be carried across.
  */
 function considerRestorationSideEffect(
   measurement: string,
@@ -654,7 +705,8 @@ function considerRestorationSideEffect(
   accepted: boolean
   refusal: string
 } | null {
-  if (!RESTORATION_MEASUREMENTS.has(measurement)) return null
+  const identity = RESTORATION_MEASUREMENT_IDENTITY.get(measurement)
+  if (!identity) return null
   const supplied = offered.find(entry => entry.measurement === measurement)
   if (!supplied) return null
   const { demonstration } = supplied
@@ -675,13 +727,17 @@ function considerRestorationSideEffect(
       + ' not exactly zero'
     : !demonstration.demonstrated
       ? `its restoration side effect was not demonstrated (${demonstration.reason})`
-      : !measured || !measured.comparable
-        || demonstration.residualPixels !== measured.changedPixels
-        || demonstration.maximumChannelDelta !== measured.maximumChannelDelta
-        ? `its restoration demonstration speaks for ${demonstration.residualPixels} pixels at maximum`
-          + ` channel delta ${demonstration.maximumChannelDelta}, which is not the residual this run`
-          + ' measured'
-        : ''
+      : demonstration.version !== identity.version || demonstration.comparison !== identity.comparison
+        ? `its restoration demonstration is for ${demonstration.version} ("${demonstration.comparison}"),`
+          + ` not for this measurement's ${identity.version} ("${identity.comparison}"), so a demonstration`
+          + ' of some other comparison cannot be carried across'
+        : !measured || !measured.comparable
+          || demonstration.residualPixels !== measured.changedPixels
+          || demonstration.maximumChannelDelta !== measured.maximumChannelDelta
+          ? `its restoration demonstration speaks for ${demonstration.residualPixels} pixels at maximum`
+            + ` channel delta ${demonstration.maximumChannelDelta}, which is not the residual this run`
+            + ' measured'
+          : ''
   return { record, demonstration, accepted: refusal === '', refusal }
 }
 
@@ -1177,6 +1233,164 @@ function checkCounterfactualPixels(counterfactual: CounterfactualEvidence): stri
 
 function changedOf(measurement: PixelMeasurement): number {
   return measurement.comparable ? measurement.changedPixels : 0
+}
+
+/**
+ * The candidate's raw delivered difference must be reproduced exactly by the independent control
+ * pair (#1065). This runs inside the strict assessment, ahead of every value, artifact and
+ * presentation check it could otherwise hide behind, so the refusal survives the residual-zeroing
+ * isolation below and neither forgiveness path can touch it.
+ */
+function checkRawDifferenceReproduced(
+  reproduction: RawDeliveredReproduction | undefined,
+): { reason: SourceGaugeExceptionReason; detail: string } | null {
+  if (!reproduction) {
+    return {
+      reason: 'incomplete-evidence',
+      detail: 'No independent control pair was supplied for the raw delivered difference, so a transient'
+        + ' capture difference in the candidate pair cannot be told apart from the gauge value.',
+    }
+  }
+  if (!reproduction.candidate.comparable) {
+    return {
+      reason: 'incomplete-evidence',
+      detail: `The raw delivered candidate pair could not be compared: ${reproduction.candidate.detail}`,
+    }
+  }
+  if (!reproduction.control.comparable) {
+    return {
+      reason: 'incomplete-evidence',
+      detail: `The raw delivered control pair could not be compared: ${reproduction.control.detail}`,
+    }
+  }
+  const { difference: candidate } = reproduction.candidate
+  const { difference: control } = reproduction.control
+  for (const [label, pair] of [['candidate', candidate], ['control', control]] as const) {
+    const malformed = checkReproductionPairShape(label, pair)
+    if (malformed) return { reason: 'incomplete-evidence', detail: malformed }
+  }
+  const reused = findReusedRawCapture(candidate, control)
+  if (reused) {
+    return {
+      reason: 'raw-difference-not-reproduced',
+      detail: `The raw control capture "${reused.control}" is the same capture event as the candidate`
+        + ` "${reused.candidate}" (${reused.field}), so the control pair cannot independently reproduce`
+        + ' the candidate difference.',
+    }
+  }
+  const mismatch = findUnreproducedRawPixel(candidate, control)
+  if (mismatch) return { reason: 'raw-difference-not-reproduced', detail: mismatch }
+  return null
+}
+
+/**
+ * Both raw pairs must be well-formed evidence before any reproduction is read off them: named
+ * captures with a capture order, and a pixel list that agrees with its own reported count, with one
+ * value per listed position. Anything else is malformed evidence, not a reproduced difference.
+ */
+function checkReproductionPairShape(label: 'candidate' | 'control', pair: RestorationDifference): string | null {
+  for (const capture of [pair.left, pair.right]) {
+    if (!capture.label) return `The raw ${label} pair names a capture without a label.`
+    if (!capture.path) return `The raw ${label} capture "${capture.label}" names no retained image.`
+    if (!Number.isInteger(capture.sequence)) {
+      return `The raw ${label} capture "${capture.label}" has no integer capture sequence.`
+    }
+  }
+  if (!Number.isInteger(pair.reportedChangedPixels) || pair.reportedChangedPixels < 0) {
+    return `The raw ${label} pair reported no usable changed-pixel count.`
+  }
+  if (pair.reportedChangedPixels !== pair.changedPixels.length) {
+    return `The raw ${label} pair reported ${pair.reportedChangedPixels} changed pixels but`
+      + ` ${pair.changedPixels.length} were supplied; the remainder would have been charged to the`
+      + ' gauge without evidence.'
+  }
+  const seen = new Set<string>()
+  for (const pixel of pair.changedPixels) {
+    if (!Number.isInteger(pixel.x) || !Number.isInteger(pixel.y)) {
+      return `A raw ${label} changed pixel has no integer position.`
+    }
+    const key = `${pixel.x},${pixel.y}`
+    if (seen.has(key)) return `The raw ${label} pair lists (${pixel.x}, ${pixel.y}) twice.`
+    seen.add(key)
+    if (sameRgba(pixel.left, pixel.right)) {
+      return `The raw ${label} pixel at (${pixel.x}, ${pixel.y}) was listed as changed but holds one value.`
+    }
+  }
+  return null
+}
+
+/**
+ * The control pair must be two capture events the candidate pair never used. Reusing a candidate
+ * capture as its own control would make the reproduction vacuous: the pair would reproduce itself.
+ */
+function findReusedRawCapture(
+  candidate: RestorationDifference,
+  control: RestorationDifference,
+): { control: string; candidate: string; field: string } | null {
+  for (const controlCapture of [control.left, control.right]) {
+    for (const candidateCapture of [candidate.left, candidate.right]) {
+      if (controlCapture.label === candidateCapture.label) {
+        return { control: controlCapture.label, candidate: candidateCapture.label, field: 'same label' }
+      }
+      if (controlCapture.path === candidateCapture.path) {
+        return {
+          control: controlCapture.label,
+          candidate: candidateCapture.label,
+          field: 'same retained image path',
+        }
+      }
+      if (controlCapture.sequence === candidateCapture.sequence) {
+        return {
+          control: controlCapture.label,
+          candidate: candidateCapture.label,
+          field: 'same capture sequence',
+        }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * The candidate's raw difference and the control difference must be the same set of positions
+ * carrying the same pair of values. A transient pixel the controls never showed, a value the
+ * controls showed differently, or a control difference with pixels of its own all refuse the whole
+ * attribution; there is no partial credit.
+ */
+function findUnreproducedRawPixel(
+  candidate: RestorationDifference,
+  control: RestorationDifference,
+): string | null {
+  const controlPixels = new Map(control.changedPixels.map(pixel => [`${pixel.x},${pixel.y}`, pixel]))
+  for (const pixel of candidate.changedPixels) {
+    const match = controlPixels.get(`${pixel.x},${pixel.y}`)
+    if (!match) {
+      return `The raw candidate difference at (${pixel.x}, ${pixel.y}) is not in the independent control`
+        + ' difference, so the controls did not reproduce it; a transient capture difference is never'
+        + ' charged to the gauge.'
+    }
+    if (!sameRgba(match.left, pixel.left) || !sameRgba(match.right, pixel.right)) {
+      return `The raw candidate difference at (${pixel.x}, ${pixel.y}) goes ${describeRgba(pixel.left)} to`
+        + ` ${describeRgba(pixel.right)} while the controls go ${describeRgba(match.left)} to`
+        + ` ${describeRgba(match.right)}, so it is not the same difference.`
+    }
+  }
+  if (control.changedPixels.length !== candidate.changedPixels.length) {
+    const extra = control.changedPixels.find(pixel =>
+      !candidate.changedPixels.some(other => other.x === pixel.x && other.y === pixel.y))!
+    return `The controls changed ${control.changedPixels.length} pixels against the candidate's`
+      + ` ${candidate.changedPixels.length}, starting at (${extra.x}, ${extra.y}); the two differences`
+      + ' are not the same.'
+  }
+  return null
+}
+
+function describeRgba(rgba: readonly number[]): string {
+  return `rgba(${rgba.join(', ')})`
+}
+
+function sameRgba(left: readonly number[], right: readonly number[]): boolean {
+  return left.length === right.length && left.every((channel, index) => channel === right[index])
 }
 
 function redact(text: string, token: string): { text: string; indices: number[] } {

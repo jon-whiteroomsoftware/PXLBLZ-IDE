@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { stampArtifact } from '../engine/artifactStamp'
 import { assessVisualPair } from './showEditorEquivalenceOracle'
 import type { RasterNoiseClassification } from './showCaptureRasterNoiseClassifier'
+import type { ChangedPixel } from './showCapturePixelEvidence'
 import {
   demonstrateRestorationSideEffect,
   type RestorationCapture,
@@ -17,6 +18,7 @@ import {
   type GaugePlacement,
   type GaugeVariant,
   type GaugeVersionEvidence,
+  type RawDeliveredReproduction,
   type SourceGaugeExceptionInput,
 } from './showSourceGaugeExceptionOracle'
 
@@ -47,6 +49,49 @@ const TRACK_WIDTH_PX = 112
  */
 function serializePercent(percent: number): string {
   return `${Number(percent.toFixed(6))}%`
+}
+
+/** A retained capture identity for the raw-pair reproduction evidence, keyed like the collector's. */
+function rawDigest(seed: string): string {
+  return seed.replace(/[^0-9a-f]/g, 'a').padEnd(64, '0').slice(0, 64)
+}
+
+function rawCapture(label: string, sequence: number): RestorationCapture {
+  return { label, path: `/tmp/pxlblz-show-editor-equivalence/run/${label}.png`, sha256: rawDigest(label), sequence }
+}
+
+/** A deterministic raw delivered difference both pairs share when the controls reproduce it exactly. */
+function rawChangedPixels(count: number): ChangedPixel[] {
+  return Array.from({ length: count }, (_, index) => ({
+    x: 100 + (index % 40),
+    y: 200 + Math.floor(index / 40),
+    left: [10 + (index % 200), 20, 30, 255] as unknown as ChangedPixel['left'],
+    right: [11 + (index % 200), 21, 31, 255] as unknown as ChangedPixel['right'],
+  }))
+}
+
+/** The approved input's raw difference, reproduced exactly by the independent control pair. */
+function approvedRawReproduction(): RawDeliveredReproduction {
+  return {
+    candidate: {
+      comparable: true,
+      difference: {
+        left: rawCapture('v1-delivered-candidate', 30),
+        right: rawCapture('v2-delivered-candidate', 33),
+        changedPixels: rawChangedPixels(94),
+        reportedChangedPixels: 94,
+      },
+    },
+    control: {
+      comparable: true,
+      difference: {
+        left: rawCapture('v1-delivered-control-a', 7),
+        right: rawCapture('v2-delivered-control-a', 8),
+        changedPixels: rawChangedPixels(94),
+        reportedChangedPixels: 94,
+      },
+    },
+  }
 }
 
 describe('delivered artifact grammar', () => {
@@ -676,6 +721,195 @@ describe('qualifying a residual through demonstrated capture noise', () => {
   })
 })
 
+describe('the raw delivered pair reproduced by independent controls (#1065)', () => {
+  /**
+   * A transient single-pixel difference in the delivered v1/v2 pair is charged to the source-size
+   * gauge whenever the freshly captured counterfactual is exactly zero. The candidate's raw
+   * difference must therefore be reproduced exactly - same positions, same values on both sides -
+   * by the delivered controls of v1 and v2 from separate opens. Every case asks whether one
+   * specific wrong thing still qualifies.
+   */
+
+  const reproduction = (
+    candidatePixels: ChangedPixel[] = rawChangedPixels(94),
+    controlPixels: ChangedPixel[] = rawChangedPixels(94),
+  ): RawDeliveredReproduction => ({
+    candidate: {
+      comparable: true,
+      difference: {
+        left: rawCapture('v1-delivered-candidate', 30),
+        right: rawCapture('v2-delivered-candidate', 33),
+        changedPixels: candidatePixels,
+        reportedChangedPixels: candidatePixels.length,
+      },
+    },
+    control: {
+      comparable: true,
+      difference: {
+        left: rawCapture('v1-delivered-control-a', 7),
+        right: rawCapture('v2-delivered-control-a', 8),
+        changedPixels: controlPixels,
+        reportedChangedPixels: controlPixels.length,
+      },
+    },
+  })
+
+  const extra: ChangedPixel = {
+    x: 400, y: 40,
+    left: [1, 2, 3, 255] as unknown as ChangedPixel['left'],
+    right: [4, 5, 6, 255] as unknown as ChangedPixel['right'],
+  }
+
+  it('qualifies when the control pair reproduces the raw difference exactly', () => {
+    const assessment = qualifySourceSizeException(approvedInput())
+    expect(assessment.qualified).toBe(true)
+    expect(assessment.reason).toBe('qualified')
+  })
+
+  it('refuses one candidate raw pixel the controls never showed', () => {
+    const assessment = qualifySourceSizeException({
+      ...approvedInput(),
+      rawDifference: measured(95, 3),
+      rawReproduction: reproduction([...rawChangedPixels(94), extra]),
+    })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('raw-difference-not-reproduced')
+    expect(assessment.detail).toContain('(400, 40)')
+  })
+
+  it('refuses a raw pixel whose values differ from the ones the controls showed', () => {
+    const drifted = rawChangedPixels(94).map((pixel, index) => (index === 0
+      ? { ...pixel, right: [9, 9, 9, 255] as unknown as ChangedPixel['right'] }
+      : pixel))
+    const assessment = qualifySourceSizeException({ ...approvedInput(), rawReproduction: reproduction(drifted) })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('raw-difference-not-reproduced')
+  })
+
+  it('refuses a control difference that changed pixels the candidate never did', () => {
+    const assessment = qualifySourceSizeException({
+      ...approvedInput(), rawReproduction: reproduction(rawChangedPixels(94), [...rawChangedPixels(94), extra]),
+    })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('raw-difference-not-reproduced')
+    expect(assessment.detail).toContain('(400, 40)')
+  })
+
+  it('refuses when the control pair evidence is missing or non-comparable', () => {
+    const { rawReproduction: _dropped, ...without } = approvedInput()
+    expect(qualifySourceSizeException(without as SourceGaugeExceptionInput).qualified).toBe(false)
+    expect(qualifySourceSizeException(without as SourceGaugeExceptionInput).reason).toBe('incomplete-evidence')
+    const unmeasuredControl = qualifySourceSizeException({
+      ...approvedInput(),
+      rawReproduction: {
+        ...reproduction(),
+        control: { comparable: false as const, detail: 'Captures are 390x844 and 390x843.' },
+      },
+    })
+    expect(unmeasuredControl.qualified).toBe(false)
+    expect(unmeasuredControl.reason).toBe('incomplete-evidence')
+    const unmeasuredCandidate = qualifySourceSizeException({
+      ...approvedInput(),
+      rawReproduction: {
+        ...reproduction(),
+        candidate: { comparable: false as const, detail: 'Captures are 390x844 and 390x843.' },
+      },
+    })
+    expect(unmeasuredCandidate.qualified).toBe(false)
+    expect(unmeasuredCandidate.reason).toBe('incomplete-evidence')
+  })
+
+  it('refuses a control pair that reuses a candidate capture event', () => {
+    const reused = reproduction()
+    if (!reused.candidate.comparable || !reused.control.comparable) throw new Error('test setup')
+    reused.control.difference.left = { ...reused.control.difference.left, ...rawCapture('v1-delivered-candidate', 30) }
+    const assessment = qualifySourceSizeException({ ...approvedInput(), rawReproduction: reused })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('raw-difference-not-reproduced')
+  })
+
+  it('refuses the stock-lesson shape: gauge surface, zero counterfactual, one transient raw pixel', () => {
+    const transient: ChangedPixel = {
+      x: 13, y: 154,
+      left: [44, 44, 46, 255] as unknown as ChangedPixel['left'],
+      right: [45, 44, 46, 255] as unknown as ChangedPixel['right'],
+    }
+    const assessment = qualifySourceSizeException({
+      ...approvedInput(),
+      rawDifference: measured(1, 1),
+      rawReproduction: reproduction([transient], []),
+    })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('raw-difference-not-reproduced')
+  })
+
+  it('lets neither the noise classifier nor the restoration path forgive an unreproduced raw pixel', () => {
+    const transient: ChangedPixel = {
+      x: 13, y: 154,
+      left: [44, 44, 46, 255] as unknown as ChangedPixel['left'],
+      right: [45, 44, 46, 255] as unknown as ChangedPixel['right'],
+    }
+    const residual = [
+      { x: 12, y: 476 }, { x: 15, y: 479 }, { x: 14, y: 480 },
+    ].map(position => ({
+      ...position,
+      left: [223, 223, 226, 255] as unknown as ChangedPixel['left'],
+      right: [222, 222, 225, 255] as unknown as ChangedPixel['right'],
+    }))
+    const residualEvidence: RestorationSideEffectInput = {
+      comparison: 'v2 delivered vs restored',
+      version: 'v2',
+      candidate: {
+        left: rawCapture('v2-delivered-candidate', 15),
+        right: rawCapture('v2-restored-candidate', 18),
+        changedPixels: residual,
+        reportedChangedPixels: 3,
+      },
+      control: {
+        left: rawCapture('v2-delivered-control-a', 7),
+        right: rawCapture('v2-restored-control-1', 9),
+        changedPixels: residual,
+        reportedChangedPixels: 3,
+      },
+      restoredControls: [rawCapture('v2-restored-control-1', 9), rawCapture('v2-restored-control-2', 12)],
+      restoredControlAgreement: [{
+        left: 'v2-restored-control-1', right: 'v2-restored-control-2', measurement: exact,
+      }],
+    }
+    const input = {
+      ...approvedInput(),
+      rawDifference: measured(1, 1),
+      rawReproduction: reproduction([transient], []),
+      counterfactual: { ...approvedInput().counterfactual, restored: { v1: exact, v2: measured(3, 1) } },
+    }
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise(input, [{
+      measurement: 'restored-v2',
+      classification: {
+        comparison: 'v2 delivered vs restored',
+        classified: true,
+        reason: 'classified',
+        detail: 'every changed pixel was observed in one unchanged control group',
+        changedPixels: 3,
+        reportedChangedPixels: 3,
+        classifiedPixels: residual.map(pixel => ({
+          ...pixel,
+          canvasBacked: false,
+          reason: 'observed-in-one-control-group' as const,
+          qualifyingGroup: 'v2-delivered',
+          qualifiedBy: ['v2-delivered-control-a', 'v2-delivered-control-b'],
+        })),
+        residualPixels: [],
+        controlGroups: [],
+        evidence: [],
+      },
+    }], [{ measurement: 'restored-v2', demonstration: demonstrateRestorationSideEffect(residualEvidence) }])
+    expect(result.qualified).toBe(false)
+    expect(result.captureNoise.applied).toEqual([])
+    expect(result.restorationSideEffect.applied).toEqual([])
+    expect(result.captureNoise.detail).toContain('raw-difference-not-reproduced')
+  })
+})
+
 describe('qualifying a restoration residual as a demonstrated side effect (#1065, Jon 2026-09-18)', () => {
   /**
    * Jon decided on 2026-09-18 that restoration qualifies when it is byte-exact, or when its residual
@@ -840,6 +1074,46 @@ describe('qualifying a restoration residual as a demonstrated side effect (#1065
       ...withRestorationResidual(),
       counterfactual: { ...withRestorationResidual().counterfactual, restored: { v1: exact, v2: measured(6, 4) } },
     }, [], demonstration())
+    expect(result.qualified).toBe(false)
+    expect(result.captureNoise.detail).toContain('restored-v2')
+  })
+
+  it('refuses a demonstration for v1 offered against v2 measurement', () => {
+    const v1Evidence: RestorationSideEffectInput = {
+      comparison: 'v1 delivered vs restored',
+      version: 'v1',
+      candidate: {
+        left: capture('v1-delivered-candidate', 14),
+        right: capture('v1-restored-candidate', 17),
+        changedPixels: changed(),
+        reportedChangedPixels: 6,
+      },
+      control: {
+        left: capture('v1-delivered-control-a', 5),
+        right: capture('v1-restored-control-1', 6),
+        changedPixels: changed(),
+        reportedChangedPixels: 6,
+      },
+      restoredControls: [capture('v1-restored-control-1', 6), capture('v1-restored-control-2', 10)],
+      restoredControlAgreement: [{
+        left: 'v1-restored-control-1', right: 'v1-restored-control-2', measurement: exact,
+      }],
+    }
+    const v1Demonstration = demonstrateRestorationSideEffect(v1Evidence)
+    expect(v1Demonstration.demonstrated).toBe(true)
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise(
+      withRestorationResidual(), [], [{ measurement: 'restored-v2', demonstration: v1Demonstration }])
+    expect(result.qualified).toBe(false)
+    expect(result.captureNoise.detail).toContain('restored-v2')
+    expect(result.restorationSideEffect.applied[0].reason).toBe('demonstrated')
+  })
+
+  it('refuses a demonstration naming some other comparison even for the right version', () => {
+    const evidence = evidenceInput()
+    const renamed = demonstrateRestorationSideEffect({ ...evidence, comparison: 'v2 normalized repeat' })
+    expect(renamed.demonstrated).toBe(true)
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise(
+      withRestorationResidual(), [], [{ measurement: 'restored-v2', demonstration: renamed }])
     expect(result.qualified).toBe(false)
     expect(result.captureNoise.detail).toContain('restored-v2')
   })
@@ -1054,6 +1328,7 @@ function approvedInput(variant: GaugeVariant = 'portal'): SourceGaugeExceptionIn
       '/tmp/pxlblz-show-editor-equivalence/run/whole-editor-raw-diff.json',
     ],
     rawDifference: measured(94, 204),
+    rawReproduction: approvedRawReproduction(),
     counterfactual: {
       commonToken,
       commonInlineWidth,

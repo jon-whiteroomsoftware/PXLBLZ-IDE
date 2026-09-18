@@ -1,7 +1,12 @@
 import type { Page } from '@playwright/test'
 import type { PixelSample } from '../../src/test/showCapturePixelEvidence'
 import type { DomStateEvidence } from '../../src/test/showCaptureRasterNoiseClassifier'
-import type { GaugeElementEvidence, PixelBox } from '../../src/test/showSourceGaugeExceptionOracle'
+import type {
+  GaugeElementEvidence,
+  PixelBox,
+  RawDeliveredReproduction,
+} from '../../src/test/showSourceGaugeExceptionOracle'
+import type { RestorationCapture } from '../../src/test/showRestorationSideEffect'
 import type { FixedValueField } from '../../src/test/showSurfaceStateSerialization'
 
 /**
@@ -270,6 +275,28 @@ export type CapturedPixelDifference =
     pixels: { x: number; y: number; left: [number, number, number, number]; right: [number, number, number, number] }[]
   }
   | { comparable: false; detail: string }
+
+/**
+ * Packages a retained pair difference with its capture-event identity for the pure oracle's raw
+ * reproduction gate (#1065). A pair that could not be compared stays non-comparable; it is never
+ * rendered as zero, and the oracle refuses on it rather than reading an absent comparison as proof.
+ */
+export function reproductionPair(
+  difference: CapturedPixelDifference,
+  left: RestorationCapture,
+  right: RestorationCapture,
+): RawDeliveredReproduction['candidate'] {
+  if (!difference.comparable) return { comparable: false, detail: difference.detail }
+  return {
+    comparable: true,
+    difference: {
+      left,
+      right,
+      changedPixels: difference.pixels,
+      reportedChangedPixels: difference.changedPixels,
+    },
+  }
+}
 
 /** Decodes the two retained images in the page and reads their exact difference out of the pixels. */
 export async function differenceBetweenCaptures(
