@@ -592,9 +592,11 @@ Former Scene labels become chapter Markers at original global starts; identical
 name/time pairs deduplicate without losing a pre-existing Marker ID. Conversion
 records `origin: 'converted-scene-label'` only on newly created Scene-label
 Markers; an absorbed existing authored Marker does not acquire that origin.
-The existing editor timeline omits those conversion-origin Markers, preserving
-its v1 visible guides; chapter consumers still include them by role. Missing
-origin remains visible and is never guessed from names or IDs. This explicit
+The field exists so the existing editor can omit those conversion-origin
+Markers and preserve its v1 visible guides; that omission and its proof land
+with the existing-editor connection candidate of #1065, not with the record
+change that adds the field. Chapter consumers still include them by role.
+Missing origin remains visible and is never guessed from names or IDs. This explicit
 provenance extension was approved for #1065 to preserve exact editor UX. General
 Markers do not accidentally become Gallery/Live chapters. Chapter projection uses
 `role: chapter`, then deterministic `(timeMs, id)` ordering; equal-time chapters

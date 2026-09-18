@@ -29,14 +29,18 @@ repair the preimage.
 
 ## Conversion provenance and editor visibility
 
-The existing editor preserves the visible Marker set when a Show converts from
-v1. A chapter Marker newly created from a former Scene label carries
+The existing editor is to preserve the visible Marker set when a Show converts
+from v1. A chapter Marker newly created from a former Scene label carries
 `origin: 'converted-scene-label'`. An existing authored Marker that absorbs the
 same name/time chapter keeps its identity, color and editor visibility and does
 not acquire that origin. The origin is explicit conversion provenance, never
 inferred from a Marker ID, name, time or chapter role.
 
-The editor timeline excludes only Markers with this origin. Chapter consumers
+The field exists so the existing editor can omit exactly these Markers from its
+timeline. The filter itself lives in the existing-editor connection
+(`src/engine/showEditorTimelinePresentation.ts`) and lands with that candidate of
+#1065, together with its proof: as of the record change that adds the field,
+nothing filters on it and every Marker is still projected. Chapter consumers
 continue to select by `role: 'chapter'`, including converted Scene labels.
 Provenance has no timing, ownership, compilation or playback meaning. Native
 Markers and records without origin remain visible by default; an older v2 record
@@ -53,7 +57,9 @@ This narrow contract extension was approved by Jon for #1065 after paired browse
 inspection showed converted Scene labels that the original editor did not draw.
 Required proof distinguishes newly created chapter Markers, absorbed authored
 Markers, authored IDs resembling conversion IDs, missing provenance, and unknown
-origin values, as well as unchanged chapter output and compiled playback.
+origin values, as well as unchanged chapter output and compiled playback. The
+timeline omission is proved by the existing-editor connection candidate that
+implements it.
 
 ## Chapter role and projection
 

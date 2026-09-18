@@ -30,14 +30,93 @@ import { refuse, replacedShow } from '../support.js'
 export const GENERIC_OPERATION_NAMES = ['set_field', 'apply_patch']
 
 /**
- * Root pointers the generic operations refuse to touch: the record's own
- * identity and engine bookkeeping. Element identity inside the declared Show
+ * Pointers the generic operations refuse to touch, with reasons: the record's
+ * own identity, engine bookkeeping, and the three converter-only conversion
+ * provenance fields (#1065). Element identity inside the declared Show
  * structure is the tracker's concern.
+ *
+ * A pattern matches a pointer that names it or descends into it, with '*' for
+ * an array index. The root pointers keep their exact-match behavior, because a
+ * pattern segment must line up with the pointer segment at the same depth:
+ * '/id' bars the record identity and not a Clip's own '/composition/clips/0/id'.
  */
-export const PROTECTED_POINTER_PATTERNS: string[] = ['/id', '/updatedAt']
+export const PROTECTED_POINTERS: Array<{ pattern: string; reason: string }> = [
+  { pattern: '/id', reason: 'the record identity' },
+  { pattern: '/updatedAt', reason: 'an engine bookkeeping stamp' },
+  {
+    pattern: '/composition/markers/*/origin',
+    reason: 'v1 conversion provenance, written by the converter alone (#1065)',
+  },
+  {
+    pattern: '/composition/transitions/*/origin',
+    reason: 'v1 conversion provenance, written by the converter alone (#1065)',
+  },
+  {
+    pattern: '/composition/layoutOccurrences/*/incomingSwitch',
+    reason: 'v1 conversion provenance, written by the converter alone (#1065)',
+  },
+]
+
+export const PROTECTED_POINTER_PATTERNS: string[] = PROTECTED_POINTERS.map(({ pattern }) => pattern)
+
+function protectionOf(pointer: string): { pattern: string; reason: string } | undefined {
+  const segments = pointer.split('/').slice(1)
+  return PROTECTED_POINTERS.find(({ pattern }) => {
+    const patternSegments = pattern.split('/').slice(1)
+    if (segments.length < patternSegments.length) return false
+    return patternSegments.every((segment, index) => segment === '*' || segment === segments[index])
+  })
+}
 
 function isProtected(pointer: string): boolean {
-  return PROTECTED_POINTER_PATTERNS.includes(pointer)
+  return protectionOf(pointer) !== undefined
+}
+
+function protectionRefusal(pointer: string): GrammarIssue {
+  const protection = protectionOf(pointer)!
+  return {
+    code: 'invalid-argument',
+    message: `${pointer} is protected: ${protection.pattern} is ${protection.reason}.`,
+  }
+}
+
+/**
+ * Every element that can carry conversion provenance, by collection and
+ * identity, with the provenance it carries.
+ *
+ * The pointer guard above bars the direct write. This projection additionally
+ * closes the ancestor write - replacing a whole Marker, Transition or Layout
+ * occurrence, or appending one - because provenance is written by
+ * `convertShowRecordV1ToV2` and nothing else. An element that leaves the record
+ * takes its own provenance with it, so removal is not compared.
+ */
+function conversionProvenanceByElement(record: ShowRecordV2): Map<string, string> {
+  const entries = new Map<string, string>()
+  const note = (collection: string, id: string, value: unknown) => {
+    entries.set(`${collection}/${id}`, value === undefined ? 'absent' : JSON.stringify(value))
+  }
+  for (const marker of record.composition.markers ?? []) note('markers', marker.id, marker.origin)
+  for (const transition of record.composition.transitions ?? []) note('transitions', transition.id, transition.origin)
+  for (const occurrence of record.composition.layoutOccurrences ?? []) {
+    note('layoutOccurrences', occurrence.id, occurrence.incomingSwitch)
+  }
+  return entries
+}
+
+function forgedProvenance(before: ShowRecordV2, next: ShowRecordV2): GrammarIssue | undefined {
+  const source = conversionProvenanceByElement(before)
+  for (const [key, value] of conversionProvenanceByElement(next)) {
+    const previous = source.get(key)
+    if (previous === value || (previous === undefined && value === 'absent')) continue
+    return {
+      code: 'invalid-argument',
+      message:
+        `${key} would ${previous === undefined || previous === 'absent' ? 'gain' : 'change or clear'} v1 conversion ` +
+        'provenance. Conversion provenance is written by convertShowRecordV1ToV2 alone (#1065); the generic ' +
+        'operations preserve it and cannot author it.',
+    }
+  }
+  return undefined
 }
 
 function parsePointer(pointer: string): { ok: true; segments: string[] } | { ok: false; issue: GrammarIssue } {
@@ -214,15 +293,7 @@ function applyOne(
   operation: PatchOperation,
   tracker: IdentityTracker,
 ): { ok: true } | { ok: false; issue: GrammarIssue } {
-  if (isProtected(operation.path)) {
-    return {
-      ok: false,
-      issue: {
-        code: 'invalid-argument',
-        message: `${operation.path} is protected (${PROTECTED_POINTER_PATTERNS.join(', ')} are identity/bookkeeping).`,
-      },
-    }
-  }
+  if (isProtected(operation.path)) return { ok: false, issue: protectionRefusal(operation.path) }
   const parsed = parsePointer(operation.path)
   if (!parsed.ok) return parsed
   // A move destination is checked by place() after source detachment, against
@@ -338,6 +409,8 @@ function concludeGeneric(
   pointers: string[],
   description: string,
 ): GrammarOperationResult {
+  const forged = forgedProvenance(document.show, next)
+  if (forged) return refuse(forged)
   const validate = document.authoringValidation ? validateAuthoringShowDocument : validateShowDocument
   const validation = validate(next, document.inlinePatterns, document.options, document)
   if (!validation.valid) {
@@ -382,12 +455,7 @@ const setField: ShowGrammarOperation = {
   },
   apply(document, args) {
     const pointer = args.pointer as string
-    if (isProtected(pointer)) {
-      return refuse({
-        code: 'invalid-argument',
-        message: `${pointer} is protected (${PROTECTED_POINTER_PATTERNS.join(', ')} are identity/bookkeeping).`,
-      })
-    }
+    if (isProtected(pointer)) return refuse(protectionRefusal(pointer))
     const { next, tracker } = workingCopy(document)
     const outcome = args.delete
       ? applyOne(next, { op: 'remove', path: pointer }, tracker)

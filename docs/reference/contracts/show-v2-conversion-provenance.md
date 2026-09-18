@@ -84,6 +84,16 @@ compares `origin` as ownership, so a plan that rebuilt the Transition without it
 would refuse rather than edit. A kind-changed converted Transition keeps exactly
 the origin it had.
 
+The agent harness's bounded generic backstop is barred as well. All three paths
+are in `COVERAGE_ALLOWLIST`, so the grammar coverage report counts them as
+converter-only rather than editable grammar, and in `PROTECTED_POINTERS`, so
+`set_field` and `apply_patch` refuse a pointer that names or descends into one.
+Because a pointer guard cannot see an ancestor write, the generics additionally
+compare provenance by element identity before and after the patch: an element
+that gains, changes or clears provenance refuses. An element removed by a
+generic edit takes its own provenance with it, and an ordinary generic edit on a
+record that already carries provenance preserves it.
+
 `createShowGroupFromSelectionV2` drops it. Localization mints a fresh
 definition-local Transition under `ShowGroupDefinitionV2.transitions`, which is
 the v1-shaped `ShowLayerTransition` the schema closes and is not one of the

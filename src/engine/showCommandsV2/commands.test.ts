@@ -330,6 +330,28 @@ describe('v2 Clip commands', () => {
 })
 
 describe('v2 Transition commands', () => {
+  it('cannot forge conversion provenance through update_transition parameters', () => {
+    // `parameters` is a free-form record, so it reaches the Transition before
+    // the owner sees it. `origin` is written by the v1 converter alone (#1065),
+    // and the owner compares it as ownership, so the forged settings edit is
+    // refused whole and the record is untouched.
+    const record = commandFixtureV2()
+    const inserted = changed(applyShowCommandV2(record, 'insert_transition', {
+      from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 500, kind: 'crossfade', easing: 'ease-in-out',
+    }))
+    const transitionId = inserted.changes[0].targetId!
+    expect(inserted.record.composition.transitions[0].origin).toBeUndefined()
+    const forged = applyShowCommandV2(inserted.record, 'update_transition', {
+      transition_id: transitionId, kind: 'dither', parameters: { origin: 'converted-boundary-transition' },
+    })
+    expect(forged.status).toBe('refused')
+    expect(inserted.record.composition.transitions[0].origin).toBeUndefined()
+    if (forged.status !== 'refused') return
+    expect(forged.record).toBe(inserted.record)
+    expect(forged.issues[0].code).toBe('invalid-intent')
+    expect(forged.issues[0].message).toContain('conversion provenance')
+  })
+
   it('inserts at a junction, updates, resizes and removes back to a Cut', () => {
     const record = commandFixtureV2()
     const inserted = changed(applyShowCommandV2(record, 'insert_transition', {
