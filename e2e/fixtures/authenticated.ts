@@ -2,7 +2,7 @@ import { test as base, expect, type APIRequestContext, type Page } from '@playwr
 import { createSessionToken, sessionCookieName } from '../../src/cloudflare/auth'
 import { readDevVarsFile } from '../../scripts/dev-runtime-auth'
 import { authenticatedPlaywrightAccountIndex, authenticatedPlaywrightUser } from '../../scripts/authenticated-playwright-user'
-import { installShowBacking } from '../support/showBacking'
+import { installShowBacking, removeStoredShowsV2 } from '../support/showBacking'
 
 type AuthenticatedFixtures = {
   authenticatedBoundary: void
@@ -89,4 +89,7 @@ export async function removeSyntheticContent(request: APIRequestContext): Promis
       if (!removed.ok()) throw new Error(`DELETE /api/${resource}/${record.id} -> ${removed.status()}`)
     }
   }
+  // A Show the v2 run stored as a version-2 document is absent from the
+  // version-1 listing above, so it needs its own sweep (#1066).
+  await removeStoredShowsV2(request)
 }
