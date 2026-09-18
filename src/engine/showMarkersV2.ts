@@ -1,10 +1,15 @@
 import { validateShowRecordV2, type ShowMarkerV2, type ShowRecordV2 } from './showCompositionV2'
 import type { ShowTimelineEditAffectedV2 } from './showTimelineV2'
 
+/**
+ * The authorable Marker: conversion provenance is written by the v1 converter
+ * alone (#1065), so no general command, intent or patch can author or clear it.
+ */
+export type ShowAuthoredMarkerV2 = Omit<ShowMarkerV2, 'origin'>
 export type ShowMarkerEditIntentV2 =
-  | { kind: 'add'; marker: ShowMarkerV2 }
+  | { kind: 'add'; marker: ShowAuthoredMarkerV2 }
   | { kind: 'move'; markerId: string; timeMs: number }
-  | { kind: 'update'; markerId: string; patch: Partial<Omit<ShowMarkerV2, 'id'>> }
+  | { kind: 'update'; markerId: string; patch: Partial<Omit<ShowAuthoredMarkerV2, 'id'>> }
   | { kind: 'remove'; markerId: string }
 export type ShowMarkerEditResultV2 =
   | ({ status: 'changed' | 'unchanged'; record: ShowRecordV2 } & ShowTimelineEditAffectedV2)
@@ -57,6 +62,8 @@ export function editShowMarkerV2(record: ShowRecordV2, intent: ShowMarkerEditInt
   const source = record.composition.markers.find(marker => marker.id === id)
   if (intent.kind === 'add' && source) return refuse('duplicate-marker', `Marker "${id}" already exists.`)
   if (intent.kind !== 'add' && !source) return refuse('missing-marker', `Marker "${id}" does not exist.`)
+  // Spreading the stored Marker first preserves its conversion provenance: an
+  // intent supplies time, name, color and role only.
   const updated = { ...source, ...patch } as ShowMarkerV2
   if (updated.name === undefined) delete updated.name
   if (updated.color === undefined) delete updated.color

@@ -332,6 +332,10 @@ export function editShowLayoutIntervalsV2(
           ...structuredClone(intent.transfer),
           fromOccurrenceId: ordered[index - 1].id,
         }
+        // An authored timed transfer supersedes a converted zero-duration
+        // switch at the same boundary. Dropping stale provenance is safe; no
+        // command may mint it (#1065).
+        delete occurrence.incomingSwitch
       }
     } else if (intent.kind === 'make-unique') {
       const source = next.zoneLayouts.find(layout => layout.id === occurrence.layoutId)!
@@ -350,6 +354,10 @@ export function editShowLayoutIntervalsV2(
         track.target.kind === 'layout-occurrence-split-position'
         && track.target.layoutOccurrenceId === occurrence.id
       ))
+      // Inert conversion provenance never makes a removal refuse: only real
+      // timed transfers and owned tracks do (#1065). A discarded occurrence
+      // takes its own switch provenance with it, and a successor's provenance
+      // is dropped below once the boundary it described is gone.
       const ownsTransfer = Boolean(occurrence.incomingTransfer)
         || Boolean(ordered[index + 1]?.incomingTransfer?.fromOccurrenceId === occurrence.id)
       if (ownsTrack || ownsTransfer) {
@@ -374,6 +382,7 @@ export function editShowLayoutIntervalsV2(
     ...affectedLayoutOccurrenceIds,
     ...rebindIncomingTransfers(next),
   ])]
+  dropStaleSwitchProvenance(next)
   const invalidTransfer = invalidTransferWindow(next)
   if (invalidTransfer) return refuse('invalid-transfer', invalidTransfer)
   const ownedTrack = layoutTrackOutsideOwner(next)
@@ -672,6 +681,34 @@ function rebindIncomingTransfers(record: ShowRecordV2): string[] {
     }
   }
   return affected
+}
+
+/**
+ * Discard converted zero-duration switch provenance once the boundary it
+ * described is gone (#1065).
+ *
+ * A timed transfer is authored content and is rebound to its new predecessor.
+ * A switch record is inert conversion provenance describing one exact v1
+ * boundary, so rebinding it would invent a relationship the author never made.
+ * Dropping it instead keeps every existing command outcome unchanged: no edit
+ * refuses, and no dangling reference survives. It reports no affected entity,
+ * because provenance owns no content: the same edit on the same record without
+ * the metadata must produce the same status, the same affected sets and the
+ * same record once the metadata is stripped.
+ */
+function dropStaleSwitchProvenance(record: ShowRecordV2): void {
+  const ordered = orderedOccurrences(record)
+  const transferIds = new Set(ordered.flatMap(occurrence => (
+    occurrence.incomingTransfer ? [occurrence.incomingTransfer.id] : []
+  )))
+  ordered.forEach((occurrence, index) => {
+    const provenance = occurrence.incomingSwitch
+    if (!provenance) return
+    const describesThisBoundary = index > 0 && provenance.fromOccurrenceId === ordered[index - 1].id
+    // Authored content always wins the shared routing identity space.
+    if (describesThisBoundary && !transferIds.has(provenance.id)) return
+    delete occurrence.incomingSwitch
+  })
 }
 
 function rebindGroupLayoutAssociations(record: ShowRecordV2): string[] {

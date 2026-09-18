@@ -139,6 +139,83 @@ it('leaves a same-time differently-named Marker general and adds the chapter bes
   expect(showChaptersV2(record).map(chapter => chapter.id)).toEqual(['scene-marker:scene-a'])
 })
 
+it('records conversion provenance only on the Scene-label Markers it newly creates', () => {
+  const show = convertibleV1Show()
+  show.composition!.markers = [{ id: 'authored-cue', timeMs: 0, name: 'Camera cue', color: '#22c55e' }]
+  const record = convert(show)
+  expect(reopen(record).composition.markers).toEqual([
+    { id: 'authored-cue', timeMs: 0, name: 'Camera cue', color: '#22c55e' },
+    { id: 'scene-marker:scene-a', timeMs: 0, name: 'Opening', role: 'chapter', origin: 'converted-scene-label' },
+  ])
+})
+
+it('leaves an absorbed authored Marker without conversion provenance', () => {
+  const show = convertibleV1Show()
+  show.composition!.markers = [{ id: 'authored-opening', timeMs: 0, name: 'Opening', color: '#f97316' }]
+  const record = convert(show)
+  const absorbed = record.composition.markers.find(marker => marker.id === 'authored-opening')
+  expect(absorbed).toEqual({ id: 'authored-opening', timeMs: 0, name: 'Opening', color: '#f97316', role: 'chapter' })
+  expect(absorbed).not.toHaveProperty('origin')
+  // The conversion minted no second guide, so nothing in the record carries provenance.
+  expect(record.composition.markers.filter(marker => marker.origin !== undefined)).toEqual([])
+})
+
+it('never infers provenance from a Marker identity that resembles a conversion identity', () => {
+  const show = convertibleV1Show()
+  show.composition!.markers = [{ id: 'scene-marker:scene-a', timeMs: 250, name: 'Hand-made guide' }]
+  const record = convert(show)
+  expect(reopen(record).composition.markers).toEqual([
+    { id: 'scene-marker:scene-a:2', timeMs: 0, name: 'Opening', role: 'chapter', origin: 'converted-scene-label' },
+    { id: 'scene-marker:scene-a', timeMs: 250, name: 'Hand-made guide' },
+  ])
+})
+
+it('keeps a chapter without provenance unclassified through save and reopen', () => {
+  // An older v2 record cannot be classified retroactively: a converted-looking
+  // identity and a Scene-like name still leave the Marker plainly authored.
+  const record = withMarkers([
+    { id: 'scene-marker:scene-a', timeMs: 0, name: 'Opening', role: 'chapter' },
+    { id: 'note', timeMs: 400, name: 'Alignment' },
+  ], 1_000)
+  const reopened = reopen(record)
+  expect(reopened.composition.markers.map(marker => marker.origin)).toEqual([undefined, undefined])
+  expect(reopened.composition.markers[0]).not.toHaveProperty('origin')
+})
+
+it('carries conversion provenance through save, reopen and a .pxlshow round trip', async () => {
+  const record = withMarkers([
+    { id: 'scene-marker:scene-a', timeMs: 0, name: 'Opening', role: 'chapter', origin: 'converted-scene-label' },
+    { id: 'cue', timeMs: 200, name: 'Camera cue' },
+  ], 1_000)
+  expect(reopen(record).composition.markers[0].origin).toBe('converted-scene-label')
+  const built = buildShowFileBundle(record, { patterns: [], maps: [], libraries: [] }, {
+    appVersion: '1065-test',
+    exportedAt: '2026-09-17T00:00:00.000Z',
+  })
+  const reopened = await parseShowFileBundle(await serializeShowFileBundle(built.bundle), { acceptV2: true })
+  expect(reopened.show).toEqual(record)
+  expect((reopened.show as ShowRecordV2).composition.markers[1]).not.toHaveProperty('origin')
+})
+
+it('rejects an unknown Marker origin at the codec boundary', () => {
+  const record = withMarkers([{ id: 'converted', timeMs: 0, name: 'Opening', role: 'chapter', origin: 'converted-scene-label' }], 1_000)
+  const text = serializeProvisionalShowRecordV2(record)
+  expect(parseProvisionalShowRecordV2(text).status).toBe('opened')
+  expect(parseProvisionalShowRecordV2(text.replace('"origin": "converted-scene-label"', '"origin": "converted-clip"')).status).toBe('refused')
+  expect(parseProvisionalShowRecordV2(text.replace('"origin": "converted-scene-label"', '"origin": true')).status).toBe('refused')
+  expect(parseProvisionalShowRecordV2(text.replace('"origin": "converted-scene-label"', '"provenance": "converted-scene-label"')).status).toBe('refused')
+})
+
+it('leaves chapter projection and compiled output identical when a chapter carries provenance', () => {
+  const plain = withMarkers([{ id: 'opening', timeMs: 0, name: 'Opening', role: 'chapter' }], 1_000)
+  const converted = withMarkers([{ id: 'opening', timeMs: 0, name: 'Opening', role: 'chapter', origin: 'converted-scene-label' }], 1_000)
+  // Chapter consumers select by role alone, so a converted label still projects.
+  expect(showChaptersV2(converted)).toEqual(showChaptersV2(plain))
+  expect(showChaptersV2(converted).map(chapter => chapter.id)).toEqual(['opening'])
+  expect(showChaptersV2(converted)[0]).not.toHaveProperty('origin')
+  expect(compiledCode(converted)).toBe(compiledCode(plain))
+})
+
 it('preserves an existing chapter role through Marker moves and updates without minting one', () => {
   const record = withMarkers([
     { id: 'chapter', timeMs: 0, name: 'Opening', role: 'chapter' },

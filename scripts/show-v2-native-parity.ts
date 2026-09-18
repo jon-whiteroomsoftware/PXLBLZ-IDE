@@ -36,9 +36,9 @@ const REPORT_PATH = resolve('docs/plans/show-v2-native-parity-report.json')
  */
 const VOLATILE_FIELDS = ['updatedAt'] as const
 
-type RepresentationDifference = {
+export type RepresentationDifference = {
   path: string
-  classification: 'volatile-record-stamp' | 'unclassified'
+  classification: 'volatile-record-stamp' | 'conversion-provenance' | 'unclassified'
   rationale: string
   native: unknown
   converted: unknown
@@ -46,6 +46,98 @@ type RepresentationDifference = {
 
 const VOLATILE_RATIONALE = 'The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.'
 const UNCLASSIFIED_RATIONALE = 'No accepted classification covers this difference; the native builder and the converted pinned legacy record disagree on authored content.'
+
+/**
+ * The three #1065 conversion-metadata kinds, each with its own rationale. They
+ * are separate concerns and the report says so: a Marker records a retired
+ * Scene label, a Transition records which v1 collection it came from, and a
+ * Layout occurrence records a v1 zero-duration routing switch.
+ */
+type ConversionProvenanceKind = 'marker-origin' | 'transition-origin' | 'layout-switch'
+
+const CONVERSION_PROVENANCE_RATIONALE: Record<ConversionProvenanceKind, string> = {
+  'marker-origin': 'The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly "converted-scene-label" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.',
+  'transition-origin': 'The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly "converted-boundary-transition" or "converted-layer-transition" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.',
+  'layout-switch': 'The v1 converter records the identity and the authored settings of a v1 zero-duration routing switch here, because the native v2 Layout contract keeps zero duration as a switch with no timed transfer object (#1065). The native builder authors no such record, and lowering derives the switch from the Layout change itself and never reads this field, so compiled playback is unchanged. Only a native absence against a complete, closed "converted-routing-cut" record is admitted; a missing or extra property, a non-string identity, an unrecognized direction or easing, a timed incomingTransfer, a difference inside a switch the native builder authored, and every other field difference stay unclassified. The recorded id, direction and easing are reported verbatim rather than redacted.',
+}
+
+/** Exactly the #1065 provenance shapes: nothing wider is admitted. */
+const MARKER_ORIGIN_PATH = /^\/composition\/markers\/\d+\/origin$/
+const TRANSITION_ORIGIN_PATH = /^\/composition\/transitions\/\d+\/origin$/
+const LAYOUT_SWITCH_PATH = /^\/composition\/layoutOccurrences\/\d+\/incomingSwitch$/
+const TRANSITION_ORIGINS = new Set(['converted-boundary-transition', 'converted-layer-transition'])
+const ROUTING_DIRECTIONS = new Set(['forward', 'reverse'])
+const EASING_DIRECTIONS = new Set(['in', 'out', 'in-out'])
+
+/**
+ * The one admitted asymmetry is a native *absence* against a recognized
+ * converted value at one of the three exact paths. A field the native builder
+ * actually authors, the reverse asymmetry, an unknown value, and every
+ * difference inside an authored object all fall through to `unclassified` and
+ * still fail the report.
+ */
+function conversionProvenanceKind(difference: { path: string; native: unknown; converted: unknown }): ConversionProvenanceKind | undefined {
+  if (difference.native !== undefined) return undefined
+  if (MARKER_ORIGIN_PATH.test(difference.path) && difference.converted === 'converted-scene-label') return 'marker-origin'
+  if (TRANSITION_ORIGIN_PATH.test(difference.path) && typeof difference.converted === 'string' && TRANSITION_ORIGINS.has(difference.converted)) return 'transition-origin'
+  if (LAYOUT_SWITCH_PATH.test(difference.path) && isRecognizedRoutingCut(difference.converted)) return 'layout-switch'
+  return undefined
+}
+
+/**
+ * The switch record is admitted only as a complete closed shape: every required
+ * property present and well formed, every optional property well formed when
+ * present, and no property outside the recognized set. An absent `direction` is
+ * the authored v1 absence, not a defaulted 'forward'.
+ */
+function isRecognizedRoutingCut(value: unknown): boolean {
+  if (!isPlainObject(value)) return false
+  if (!hasExactly(value, ['origin', 'id', 'fromOccurrenceId'], ['direction', 'easing'])) return false
+  if (value.origin !== 'converted-routing-cut') return false
+  if (!isIdentity(value.id) || !isIdentity(value.fromOccurrenceId)) return false
+  if ('direction' in value && !(typeof value.direction === 'string' && ROUTING_DIRECTIONS.has(value.direction))) return false
+  if ('easing' in value && !isStructuredEasing(value.easing)) return false
+  return true
+}
+
+/** Each `ShowStructuredEasing` variant, closed on its own property set. */
+function isStructuredEasing(value: unknown): boolean {
+  if (!isPlainObject(value)) return false
+  switch (value.curve) {
+    case 'linear':
+      return hasExactly(value, ['curve'], [])
+    case 'quadratic': case 'cubic': case 'sine':
+      return hasExactly(value, ['curve', 'direction'], []) && typeof value.direction === 'string' && EASING_DIRECTIONS.has(value.direction)
+    case 'cubic-bezier':
+      return hasExactly(value, ['curve', 'x1', 'y1', 'x2', 'y2'], []) && ['x1', 'y1', 'x2', 'y2'].every(key => isFiniteNumber(value[key]))
+    case 'steps':
+      return hasExactly(value, ['curve', 'steps', 'position'], []) && isFiniteNumber(value.steps) && (value.position === 'start' || value.position === 'end')
+    case 'hold':
+      return hasExactly(value, ['curve', 'at'], []) && isFiniteNumber(value.at)
+    case 'back':
+      return hasExactly(value, ['curve', 'direction', 'overshoot'], [])
+        && typeof value.direction === 'string' && EASING_DIRECTIONS.has(value.direction) && isFiniteNumber(value.overshoot)
+    default:
+      return false
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function hasExactly(value: Record<string, unknown>, required: string[], optional: string[]): boolean {
+  const keys = Object.keys(value)
+  return required.every(key => keys.includes(key)) && keys.every(key => required.includes(key) || optional.includes(key))
+}
+
+function isIdentity(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function isFiniteNumber(value: unknown): boolean {
+  return typeof value === 'number' && Number.isFinite(value)
+}
 
 type NativeComparison = {
   showId: string
@@ -176,7 +268,7 @@ function compareEntry(entry: (typeof STOCK_SHOWS)[number]): NativeComparison {
 }
 
 /** Every leaf path where the two records disagree, in deterministic order. */
-function compareValues(native: unknown, converted: unknown, path = ''): Array<{ path: string; native: unknown; converted: unknown }> {
+export function compareValues(native: unknown, converted: unknown, path = ''): Array<{ path: string; native: unknown; converted: unknown }> {
   if (stableJson(native) === stableJson(converted)) return []
   const bothObjects = native !== null && converted !== null && typeof native === 'object' && typeof converted === 'object'
     && Array.isArray(native) === Array.isArray(converted)
@@ -189,28 +281,39 @@ function compareValues(native: unknown, converted: unknown, path = ''): Array<{ 
   ))
 }
 
-function classify(differences: Array<{ path: string; native: unknown; converted: unknown }>): RepresentationDifference[] {
-  return differences.map(difference => (
-    (VOLATILE_FIELDS as readonly string[]).includes(difference.path.slice(1))
-      ? {
-          path: difference.path,
-          classification: 'volatile-record-stamp' as const,
-          rationale: VOLATILE_RATIONALE,
-          native: difference.native,
-          converted: '<volatile wall-clock stamp>',
-        }
-      : {
-          path: difference.path,
-          classification: 'unclassified' as const,
-          rationale: UNCLASSIFIED_RATIONALE,
-          native: difference.native,
-          converted: difference.converted,
-        }
-  ))
+export function classify(differences: Array<{ path: string; native: unknown; converted: unknown }>): RepresentationDifference[] {
+  return differences.map(difference => {
+    if ((VOLATILE_FIELDS as readonly string[]).includes(difference.path.slice(1))) {
+      return {
+        path: difference.path,
+        classification: 'volatile-record-stamp' as const,
+        rationale: VOLATILE_RATIONALE,
+        native: difference.native,
+        converted: '<volatile wall-clock stamp>',
+      }
+    }
+    const provenance = conversionProvenanceKind(difference)
+    if (provenance) {
+      return {
+        path: difference.path,
+        classification: 'conversion-provenance' as const,
+        rationale: CONVERSION_PROVENANCE_RATIONALE[provenance],
+        native: difference.native,
+        converted: difference.converted,
+      }
+    }
+    return {
+      path: difference.path,
+      classification: 'unclassified' as const,
+      rationale: UNCLASSIFIED_RATIONALE,
+      native: difference.native,
+      converted: difference.converted,
+    }
+  })
 }
 
 function semanticSha(record: ShowRecordV2): string {
-  const semantic = structuredClone(record) as Record<string, unknown>
+  const semantic: Record<string, unknown> = { ...structuredClone(record) }
   for (const field of VOLATILE_FIELDS) delete semantic[field]
   return sha256(stableJson(semantic))
 }

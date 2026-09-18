@@ -2,7 +2,7 @@
 
 Canonical authority is [the Scene-retirement specification](../../plans/scene-retirement-specification.md)
 §§8–9. `editShowMarkerV2(record, intent)` owns exact general Marker add, move,
-update and remove. The v2 Marker is `{ id, timeMs, name?, color?, role? }`, where
+update and remove. The v2 Marker is `{ id, timeMs, name?, color?, role?, origin? }`, where
 `role` is the single enumerated narrative value `chapter` (§3 delta 7). The v1
 Marker is unchanged and carries no role.
 
@@ -26,6 +26,34 @@ result returns `unchanged` with the original record identity, including optional
 clearing of an already absent field. Empty patches are invalid intent. Refusals
 return the original record identity and no affected entities; validators never
 repair the preimage.
+
+## Conversion provenance and editor visibility
+
+The existing editor preserves the visible Marker set when a Show converts from
+v1. A chapter Marker newly created from a former Scene label carries
+`origin: 'converted-scene-label'`. An existing authored Marker that absorbs the
+same name/time chapter keeps its identity, color and editor visibility and does
+not acquire that origin. The origin is explicit conversion provenance, never
+inferred from a Marker ID, name, time or chapter role.
+
+The editor timeline excludes only Markers with this origin. Chapter consumers
+continue to select by `role: 'chapter'`, including converted Scene labels.
+Provenance has no timing, ownership, compilation or playback meaning. Native
+Markers and records without origin remain visible by default; an older v2 record
+without provenance cannot be classified retroactively from a naming heuristic.
+Reconversion from an available v1 source supplies the distinction reliably.
+
+`converted-scene-label` is the sole admitted origin value. The record schema,
+codec and `.pxlshow` round trip preserve it and refuse unknown origin values.
+General Marker commands do not author conversion provenance: their accepted
+intent fields remain unchanged, while edits, history and persistence preserve
+origin on an existing Marker. No editor control or text is added for provenance.
+
+This narrow contract extension was approved by Jon for #1065 after paired browser
+inspection showed converted Scene labels that the original editor did not draw.
+Required proof distinguishes newly created chapter Markers, absorbed authored
+Markers, authored IDs resembling conversion IDs, missing provenance, and unknown
+origin values, as well as unchanged chapter output and compiled playback.
 
 ## Chapter role and projection
 

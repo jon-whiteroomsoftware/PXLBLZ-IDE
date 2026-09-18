@@ -1263,7 +1263,9 @@ function stripV2PropertyTrackActivation(
 function stripV2TransitionFields(
   transition: ShowRecordV2['composition']['transitions'][number],
 ): Omit<ShowLayerTransition, 'id' | 'fromPlacementId' | 'toPlacementId' | 'kind'> {
-  const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _propertyRamps, ...settings } = structuredClone(transition)
+  // `origin` is conversion provenance with no execution meaning, so it never
+  // reaches the compiler or a lowered v1 Transition (#1065).
+  const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _propertyRamps, origin: _origin, ...settings } = structuredClone(transition)
   return settings
 }
 

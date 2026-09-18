@@ -39,9 +39,16 @@ export interface ShowLayerV2 {
  * A timeline Marker with the optional narrative role. `chapter` is the only
  * enumerated role: it selects a Marker for the Gallery, reading-card and Live
  * chapter projections and owns no time partition or execution trigger.
+ *
+ * `origin` is explicit conversion provenance, written only by the v1 converter
+ * on a chapter Marker it newly created from a former Scene label (#1065). It is
+ * never inferred from an ID, name, time or role, so a Marker without it stays
+ * plainly authored and visible; it carries no timing, ownership, compilation or
+ * playback meaning.
  */
 export interface ShowMarkerV2 extends ShowTimelineMarker {
   role?: 'chapter'
+  origin?: 'converted-scene-label'
 }
 
 export interface ShowClipV2 {
@@ -112,6 +119,18 @@ export interface ShowTransitionV2 extends Omit<
   wholeOutput?: { startMs: number; fromClipIds: string[]; toClipIds: string[] }
   participants: ShowTransitionParticipantV2[]
   propertyRamps: ShowTransitionPropertyRampV2[]
+  /**
+   * Explicit conversion provenance, written only by the v1 converter (#1065).
+   * v1 keeps Scene-boundary Transitions and Layer Transitions in two different
+   * collections and edits them through two different editor surfaces, while a
+   * converted boundary Transition reaches Layer participant scope whenever it
+   * does not need whole-output ownership. Structure therefore cannot recover
+   * the distinction, and it is never inferred from an id, kind or scope.
+   *
+   * It carries no timing, ownership, compilation or playback meaning: lowering
+   * strips it before the compiler sees a Transition.
+   */
+  origin?: 'converted-boundary-transition' | 'converted-layer-transition'
 }
 
 export interface ShowLayoutTransferV2 {
@@ -122,6 +141,28 @@ export interface ShowLayoutTransferV2 {
   direction: ShowRoutingDirection
 }
 
+/**
+ * Conversion provenance for a v1 zero-duration routing switch (#1065).
+ *
+ * Section 8 keeps the execution invariant that zero duration is a switch
+ * *without* a timed transfer object, so this is a separate inert record rather
+ * than a `durationMs: 0` transfer. It preserves the authored v1 routing
+ * Transition identity and only the settings v1 actually authored, so the
+ * existing editor can select and describe that switch exactly as it did on v1.
+ * Lowering derives the switch from the Layout change itself and never reads
+ * this field, so compiled playback is unchanged.
+ */
+export interface ShowLayoutSwitchProvenanceV2 {
+  /** The one admitted origin. */
+  origin: 'converted-routing-cut'
+  /** The authored v1 routing Transition identity. */
+  id: string
+  fromOccurrenceId: string
+  /** Present only when v1 authored `routingDirection`; absent is not 'forward'. */
+  direction?: ShowRoutingDirection
+  easing?: ShowStructuredEasing
+}
+
 export interface ShowLayoutOccurrenceV2 {
   id: string
   layoutId: string
@@ -129,6 +170,8 @@ export interface ShowLayoutOccurrenceV2 {
   durationMs: number
   parameters: { splitPosition?: number }
   incomingTransfer?: ShowLayoutTransferV2
+  /** Mutually exclusive with `incomingTransfer`: a switch has no timed transfer. */
+  incomingSwitch?: ShowLayoutSwitchProvenanceV2
 }
 
 export interface ShowPropertyKeyframeV2 {
@@ -646,6 +689,9 @@ function validateLayoutCoverage(
   const ordered = [...record.composition.layoutOccurrences]
     .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
   let cursorMs = 0
+  // A transfer and a converted switch are both selectable routing identities on
+  // one timeline, so they share one identity space.
+  const routingIds = new Set<string>()
   ordered.forEach((occurrence, index) => {
     const path = `composition.layoutOccurrences[${record.composition.layoutOccurrences.indexOf(occurrence)}]`
     validateNonnegativeTime(issues, `${path}.startMs`, occurrence.startMs)
@@ -667,6 +713,26 @@ function validateLayoutCoverage(
         || safeAdd(occurrence.startMs, occurrence.incomingTransfer.durationMs) > record.composition.showEndMs)) {
         addIssue(issues, `${path}.incomingTransfer.durationMs`, 'out-of-bounds', 'Incoming transfer must fit both adjacent Layout occurrences and Show End.')
       }
+    }
+    if (occurrence.incomingSwitch) {
+      const owner = occurrence.incomingSwitch
+      if (occurrence.incomingTransfer) {
+        addIssue(issues, `${path}.incomingSwitch`, 'invalid-layout-coverage', 'A zero-duration switch cannot also own a timed transfer.')
+      }
+      if (index === 0 || !occurrences.has(owner.fromOccurrenceId) || ordered[index - 1].id !== owner.fromOccurrenceId) {
+        addIssue(issues, `${path}.incomingSwitch.fromOccurrenceId`, 'missing-reference', 'Incoming switch must reference a preceding occurrence.')
+      }
+      if (owner.id.trim().length === 0) {
+        addIssue(issues, `${path}.incomingSwitch.id`, 'missing-reference', 'Identity must contain a non-whitespace character.')
+      }
+    }
+    for (const [field, id] of [
+      ['incomingTransfer', occurrence.incomingTransfer?.id],
+      ['incomingSwitch', occurrence.incomingSwitch?.id],
+    ] as const) {
+      if (id === undefined) continue
+      if (routingIds.has(id)) addIssue(issues, `${path}.${field}.id`, 'duplicate-id', `Routing identity "${id}" is used more than once.`)
+      routingIds.add(id)
     }
   })
   if (cursorMs !== record.composition.showEndMs) {

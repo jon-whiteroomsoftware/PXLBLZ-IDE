@@ -45,6 +45,25 @@ A stored incoming transfer is positive, starts at its destination occurrence,
 references the immediately preceding occurrence and fits both adjacent occurrence
 durations and Show End. A zero-duration switch has no transfer object.
 
+### Converted zero-duration switch provenance
+
+That execution invariant is unchanged, so an occurrence may instead carry the
+inert sibling `incomingSwitch` described in
+[conversion provenance](show-v2-conversion-provenance.md). It owns no content,
+so this owner's outcomes are unchanged by its presence:
+
+- No intent authors, edits or clears it.
+- Setting a timed transfer on its occurrence discards it; authored content
+  supersedes a description of a boundary that no longer exists.
+- Occurrence removal still refuses only for real timed transfers and owned
+  tracks. A removed occurrence takes its own provenance with it, and a switch
+  whose described boundary is gone - source occurrence removed, an occurrence
+  inserted between, or its identity taken by an authored transfer - is
+  discarded rather than rebound to a relationship the author never made.
+- Discarding provenance reports no affected entity. The same edit on the same
+  record without the metadata returns the same status, the same affected sets,
+  and the same record once the metadata is stripped.
+
 `validateClipLayoutAvailabilityV2(record, clipIds?)` is the shared read-only
 oracle for Clip edits. It checks the complete contribution interval, including
 incoming and outgoing Layer or whole-output Transition windows, against every

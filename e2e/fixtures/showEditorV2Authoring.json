@@ -239,7 +239,8 @@
      "id": "scene-marker:scene-a",
      "timeMs": 0,
      "name": "Opening",
-     "role": "chapter"
+     "role": "chapter",
+     "origin": "converted-scene-label"
     }
    ],
    "groupDefinitions": [],

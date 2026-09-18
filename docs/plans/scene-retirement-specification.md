@@ -589,11 +589,37 @@ Show End. Extending stretches final Layout coverage and leaves authored content
 unchanged. Undo restores the complete prior record.
 
 Former Scene labels become chapter Markers at original global starts; identical
-name/time pairs deduplicate without losing a pre-existing Marker ID. General
+name/time pairs deduplicate without losing a pre-existing Marker ID. Conversion
+records `origin: 'converted-scene-label'` only on newly created Scene-label
+Markers; an absorbed existing authored Marker does not acquire that origin.
+The existing editor timeline omits those conversion-origin Markers, preserving
+its v1 visible guides; chapter consumers still include them by role. Missing
+origin remains visible and is never guessed from names or IDs. This explicit
+provenance extension was approved for #1065 to preserve exact editor UX. General
 Markers do not accidentally become Gallery/Live chapters. Chapter projection uses
 `role: chapter`, then deterministic `(timeMs, id)` ordering; equal-time chapters
 remain individually selectable. No chapter at a time means no synthetic Scene
 label. Authors can hide Markers together; playback remains unchanged.
+
+Jon also approved two conversion-provenance additions for #1065 on 2026-09-17:
+Transition family (`converted-boundary-transition` or
+`converted-layer-transition`) and `incomingSwitch` identity/settings for a
+converted zero-duration routing cut. They let the existing editor retain its
+original inspectors without restoring Scenes. A cut still has no timed transfer;
+compilation and playback ignore the metadata. Existing Layout edit outcomes must
+remain unchanged: discard provenance when its boundary disappears rather than
+refusing an otherwise valid edit or inventing a new source relationship. The
+[conversion-provenance contract](../reference/contracts/show-v2-conversion-provenance.md)
+owns the exact shapes, persistence rules and command restrictions.
+
+For #1065 editor equivalence, Jon approved separately proving truthful exported
+source-size values and independently demonstrated browser raster noise on
+2026-09-17. These are proof-method exceptions, not permission to change UX.
+Retain raw captures and differences, require matching geometry/styles, and
+require unchanged control evidence for any raster classification. Arbitrary
+small-pixel tolerances and masks are not allowed. The
+[tracer plan](show-editor-v2-tracer-plan.md#proof-and-delivery) owns the proof
+procedure; unsupported differences remain failures.
 
 ## 9. Pure edit and adoption boundary
 

@@ -14,6 +14,13 @@ the separately reviewed oracle corrections before final proof and review.
 
 The same Show stored as v1 or v2 must render through the existing component tree,
 with the same markup, styling, labels, controls, focus behavior and layout.
+The source-size gauge has one approved data-value exception: it reports the true
+delivered source bytes for each record version, including that exporter's header.
+The gauge's layout, styling, units and behavior stay unchanged; no other value or
+surface is exempted. Jon approved this after fixed-option exports measured the
+fresh pair at 7,200 bytes (v1) and 7,408 bytes (v2), while the generated program
+itself was 5,834 bytes in both. The accepted native v2 export metadata remains.
+
 The entire oracle read matrix must pass, not only the fresh Show. Only an ordinary
 same-lane Clip drag, its history, save, reload and Undo are behaviorally qualified
 by this tracer. #1066 and #1067 remain out of scope. Do not push.
@@ -25,6 +32,13 @@ excluded even though they live under `src/engine/`. Existing v2-only branches
 inside shared UI files do not become reusable merely because the file also
 contains the v1 presentation. Engine domain, preparation, admission, store and
 agent record-binding contracts are the backend being connected.
+
+Jon approved the three explicit metadata forms in the
+[conversion-provenance contract](../reference/contracts/show-v2-conversion-provenance.md):
+converted Scene-label Markers, boundary-versus-Layer Transition origin, and
+zero-duration routing-cut identity/settings. These preserve the original read
+surfaces; they add no Scene entity or playback behavior. The approval covers
+these forms only, not arbitrary legacy-record retention.
 
 ## Data and command boundaries
 
@@ -79,7 +93,30 @@ Focused tests cover authored identity/time mapping, ordinary move/no-op/refusal,
 stale gesture rejection, duplicate settlement, v1 behavior preservation and
 representative unconnected v2 writes producing zero mutation/history/save.
 Browser proof covers every named oracle surface across all four cases at 1440
-and 390 pixels, with stable repeated captures, exact geometry and exact pixels.
+and 390 pixels, with stable repeated captures and exact geometry. The visual
+comparison must hold Show identity constant: the original renderer seeds randomness
+from the Show ID, so distinct paired row IDs are not equivalent rendering inputs.
+A same-ID persisted v1-to-v2 migration produced exact Installation Stage pixels
+where different IDs did not; the renderer and its seed policy stay unchanged.
+
+Pixel comparisons retain their exact raw verdict. Jon approved two separately
+qualified exceptions on 2026-09-17: the truthful source-size value and independently
+demonstrated browser raster noise. Keep the raw captures and differences, prove each
+gauge value against its delivered artifact, and verify the unchanged gauge
+presentation. Do not omit the gauge from proof or turn the exception into a
+general mask, tolerance, or exemption for other differences.
+The artifact check reopens a real `.epe` produced by the native export owner and
+measures its full source; connecting the header's Download command remains
+#1066 work. Do not claim this artifact check proves that UI command is connected.
+For the numeric exception, retain raw captures and compare an additional
+counterfactual with only independently verified byte-value text and fill-width
+slots equalized. Raw presentation must match, and restoring those slots must
+reproduce the raw capture, subject only to independently demonstrated raster
+noise. The report retains every raw image and difference. A noise classification
+requires unchanged control captures under matching state and capture settings,
+matching geometry/styles, and evidence for the particular raster differences.
+An arbitrary pixel-count threshold, color tolerance, or glyph-region exclusion
+cannot qualify a difference; unsupported differences remain failures.
 Behavior proof covers real pointer movement, persisted converter equality, exact
 history shape, measured save count, fresh hydration and exact Undo restoration.
 

@@ -18,6 +18,9 @@ import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { STOCK_SHOWS, stockShowById } from './shows'
 import { STOCK_SHOWS_V2, stockShowV2ById } from './showsV2'
 import { nativeStockSourceLookupV2 } from './showsV2Compile'
+// The native parity report's classifier is the single definition of an admitted
+// native-versus-converted difference (#1065); this proof consumes it directly.
+import { classify, compareValues } from '../../../scripts/show-v2-native-parity'
 
 const NATIVE_CASES = STOCK_SHOWS_V2.map(record => [record.id, record] as const)
 
@@ -74,13 +77,38 @@ describe.each(NATIVE_CASES)('native v2 stock Show %s', (id, record) => {
     }
   })
 
-  it('matches the converted pinned legacy record apart from the volatile stamp', () => {
+  it('matches the converted pinned legacy record apart from the volatile stamp and conversion provenance', () => {
     const legacy = stockShowById(id)!
     const converted = convertShowRecordV1ToV2(legacy.show)
     expect(converted.status).toBe('converted')
     if (converted.status !== 'converted') return
     const semantic = (candidate: ShowRecordV2) => ({ ...structuredClone(candidate), updatedAt: 0 })
-    expect(semantic(record)).toEqual(semantic(converted.record))
+    // This catalogue authors its chapter Markers, its Transitions and its Layout
+    // occurrences natively, so only the converted record carries the three #1065
+    // conversion-metadata kinds the editor reads. Those differences are
+    // classified, not dropped, and by the report's own classifier rather than a
+    // restatement of it, so the catalogue proof and the native parity report
+    // cannot drift apart. Each kind is admitted only as a native absence against
+    // its exact recognized shape at its exact path; any other value, any
+    // metadata the native builder authored, and every other field difference all
+    // remain failures. The stamp is normalized on both sides, so nothing here
+    // may be classified as volatile either.
+    const differences = classify(compareValues(semantic(record), semantic(converted.record)))
+    expect(differences.filter(difference => difference.classification !== 'conversion-provenance')
+      .map(difference => `${difference.path}: ${JSON.stringify(difference.native)} vs ${JSON.stringify(difference.converted)}`), id)
+      .toEqual([])
+    // The native side authors none of the three, so every classified difference
+    // above is genuinely the converter's and never a native record's.
+    expect(record.composition.markers.filter(marker => marker.origin !== undefined)).toEqual([])
+    expect(record.composition.transitions.filter(transition => transition.origin !== undefined)).toEqual([])
+    expect(record.composition.layoutOccurrences.filter(occurrence => occurrence.incomingSwitch !== undefined)).toEqual([])
+    // Provenance follows creation, not naming. A Marker the legacy catalogue authored
+    // keeps its identity and carries no provenance, whether it stays a general guide
+    // or absorbs a same-name/time chapter; the CME remix ships eight such guides.
+    // Every other Marker in the converted record is one the conversion created.
+    const authoredIds = new Set((legacy.show.composition?.markers ?? []).map(marker => marker.id))
+    expect(converted.record.composition.markers.map(marker => marker.origin))
+      .toEqual(converted.record.composition.markers.map(marker => authoredIds.has(marker.id) ? undefined : 'converted-scene-label'))
   })
 })
 

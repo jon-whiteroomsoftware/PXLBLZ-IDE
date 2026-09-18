@@ -11,14 +11,14 @@
       "features": [
         "personal-show"
       ],
-      "recordSha256": "7fdf75ce5fda3aafea8cd7586ebe707beccc99777e87fbd2b8f52091b080dc9f",
+      "recordSha256": "19d7201f4e84983d0b297a25a987f84a998bf44094e6c86d44527d0d3d9a2d83",
       "loopDurationMs": 60000,
       "clipCount": 2,
       "before": {
         "pxlshow": {
           "filename": "baseline-personal-show.pxlshow",
-          "bytes": 822,
-          "contentSha256": "a47ed1e321dbb32c45769353f9b1d9562fba9c8089aef2349f46b9f34d489c0b"
+          "bytes": 836,
+          "contentSha256": "e00684786dc726f5baafffc3cb958465b2495bb428b83aff99049c294b10aaf9"
         },
         "epe": {
           "filename": "baseline-personal-show.epe",
@@ -43,8 +43,8 @@
       "after": {
         "pxlshow": {
           "filename": "baseline-personal-show.pxlshow",
-          "bytes": 826,
-          "contentSha256": "177ca6fdda4059ee895259da9960233325a0de98e63b90629713efa54b4aab31"
+          "bytes": 841,
+          "contentSha256": "23f797196dac10277a43a03fbb76620cc6f51a2d26d194d5fc9dc4566cc2a10b"
         },
         "epe": {
           "filename": "baseline-personal-show.epe",
@@ -52,7 +52,7 @@
           "sourceSha256": "20c334ba2e85d1c6ccd079c279b77009044954982ac0ae71a5812ac83b86adf5",
           "stampKind": "show"
         },
-        "recordSha256": "e5fbee6196677efd05dfcc5b602fa3bad5103d30a526b7bb9e6f6fabf3994954",
+        "recordSha256": "5b89be8782239d1b9397cc1b1bd9dae0ba8877e8fcbfd6cc1502764f4176c2fb",
         "clipCount": 2,
         "firstClipDurationMs": 12000
       }
@@ -67,7 +67,7 @@
         "personal-pattern",
         "personal-library"
       ],
-      "recordSha256": "e39f604a1b61c16d8bf30fd28ebc4b84579ccc9a7006ee89bbf4a42287e5f63a",
+      "recordSha256": "239c7921c1b589cab3d53f5b909d084a521418338cc74b53cd05a1f063a66c2c",
       "loopDurationMs": 60000,
       "clipCount": 2,
       "before": {
@@ -98,7 +98,7 @@
         "epe": {
           "error": "Unknown library namespace \"Blz\""
         },
-        "recordSha256": "2011e6dcb6e6671014e89dae589bb54b58f36714055e636ace3f48e2a79bf70d",
+        "recordSha256": "c48dda2e575c15d1c3d2a7e9607143369aa4af042eac82f2f0c5516d5de4d6fc",
         "clipCount": 2,
         "firstClipDurationMs": 12000
       }
@@ -112,14 +112,14 @@
       "features": [
         "stock-draft"
       ],
-      "recordSha256": "c9bcd29531000453503e1fe68aad6e8c9268143aa4e852e460ff3247e8b83213",
+      "recordSha256": "581987c6f29acc870f557fbfcf988e06c774ff5549d01b420c731aae042bd2a8",
       "loopDurationMs": 16000,
       "clipCount": 3,
       "before": {
         "pxlshow": {
           "filename": "101-clips-cuts-and-blank-time.pxlshow",
-          "bytes": 862,
-          "contentSha256": "832e1f61d1785984cb9e24cc4c8d040f974154cb3723790a26422d4edbd93498"
+          "bytes": 876,
+          "contentSha256": "77c33ee0f2548ac5b2da51e2ea02a909f076eedc13d9b71d9d44e706d6865ebe"
         },
         "epe": {
           "filename": "101-clips-cuts-and-blank-time.epe",
@@ -152,14 +152,14 @@
       "features": [
         "groups"
       ],
-      "recordSha256": "d33b570138331ed680cd610275e58400ddb898ae1bf52208da607c8c67d750ae",
+      "recordSha256": "59d5cc41fab51705494f5468fdc30cb6fc3df3f77b3cbc8a44bd457fe69c5730",
       "loopDurationMs": 16000,
       "clipCount": 5,
       "before": {
         "pxlshow": {
           "filename": "205-groups-and-linked-reuse.pxlshow",
-          "bytes": 1253,
-          "contentSha256": "43be4b8ece72b16c4c8a3726f3426f4376024fd2aba12451f0a38a27b5d48e36"
+          "bytes": 1267,
+          "contentSha256": "5746cb739c7b516fa68a49bbb19c5f19ce4b63fa9cad4381a87501b467a17f44"
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
@@ -184,8 +184,8 @@
       "after": {
         "pxlshow": {
           "filename": "205-groups-and-linked-reuse.pxlshow",
-          "bytes": 1257,
-          "contentSha256": "4a5e57003f6b07335a3b404c6471a92238e8f13add4152731926e4e01ef15e3d"
+          "bytes": 1271,
+          "contentSha256": "2fd8612c8b6db6511ff9d4040cd67d07ad590a21c6e43af4d731c39030b109c2"
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
@@ -193,7 +193,7 @@
           "sourceSha256": "b9b0303a56c044bcdb80144bd9defef1e8202750db62397b06114c6b5d89a841",
           "stampKind": "show"
         },
-        "recordSha256": "b5195dd5aeedc35b301a8d23421d31fe8b5de76114501cf22a3a2365934e7739",
+        "recordSha256": "8012ca5d09200e4daf52975e7e19def474f8f01bd6d377e5fa908640b2f472ae",
         "clipCount": 5,
         "firstClipDurationMs": 12000
       }
@@ -207,14 +207,14 @@
       "features": [
         "animation"
       ],
-      "recordSha256": "1b8be00f2ddbaf253ec49ce3bb1b5a23df2abd00c3e1c79ad0053f11916b54ab",
+      "recordSha256": "17eb36b869743864e6ffd689ac32639d96e77a0d74bf871c12af0a1903b6beea",
       "loopDurationMs": 48600,
       "clipCount": 19,
       "before": {
         "pxlshow": {
           "filename": "property-animation.pxlshow",
-          "bytes": 2176,
-          "contentSha256": "8abee04281c3d308dd951a513eb828153c5707a96cfd0958bdff5d25136e2f51"
+          "bytes": 2209,
+          "contentSha256": "1cf2dbb1372108b145d7bf3a5fba5aaa51200c88134031ce2a8bb372d8b19bcb"
         },
         "epe": {
           "filename": "property-animation.epe",
@@ -247,14 +247,14 @@
       "features": [
         "routing"
       ],
-      "recordSha256": "8c28209a3639a64b26e345e725985fe06259e2cddf336ef70d475f865c26d6fc",
+      "recordSha256": "bd7f81ff202bcecbe528eca76f410c416e7c4a42485fe2df00be1515920c2bbd",
       "loopDurationMs": 17000,
       "clipCount": 5,
       "before": {
         "pxlshow": {
           "filename": "206-changing-zone-layouts.pxlshow",
-          "bytes": 1110,
-          "contentSha256": "00aac2d74528dc74c01ecbd3d9794bbf1f695212e2080b9db96d572b150ded7c"
+          "bytes": 1161,
+          "contentSha256": "511898f1387245880a47128a3813fa0912331edebfe0a5d83b3de59ee4b78fc5"
         },
         "epe": {
           "filename": "206-changing-zone-layouts.epe",
@@ -288,14 +288,14 @@
         "long-timeline",
         "boundary-transition"
       ],
-      "recordSha256": "946be6f13e8e29d07eca9b741abad75f160941c1ae549da0dc3e1882fb5626a8",
+      "recordSha256": "ea6b06e253819b841924a4d17b9612f962a79dbe34d63c6127820f870554dc34",
       "loopDurationMs": 371000,
       "clipCount": 12,
       "before": {
         "pxlshow": {
           "filename": "baseline-long-timeline.pxlshow",
-          "bytes": 1411,
-          "contentSha256": "fdbe140862153446900dd7414eef1a4d1d43221664b048862a085c66339d723c"
+          "bytes": 1441,
+          "contentSha256": "c932a892c2c85ba8e659c704bbf8790d32aa7611cab9363cbe3e777f89cc5208"
         },
         "epe": {
           "filename": "baseline-long-timeline.epe",
@@ -320,8 +320,8 @@
       "after": {
         "pxlshow": {
           "filename": "baseline-long-timeline.pxlshow",
-          "bytes": 1429,
-          "contentSha256": "f0deae3da89ccb9109c248b2324739e5910048b97df9a31b3cc27cfc1c6e2ff1"
+          "bytes": 1459,
+          "contentSha256": "73318fe7e2d9d52154fbf81ad35f1b1a81b5e77f4ff4d11872892dd561c23643"
         },
         "epe": {
           "filename": "baseline-long-timeline.epe",
@@ -329,7 +329,7 @@
           "sourceSha256": "357b47b6e407b26b8ccfabd5a9ae608d51c28e2a73449e8e4304242e04689955",
           "stampKind": "show"
         },
-        "recordSha256": "6de4830552ee3c8e20caceae7d294bad9d2ffdcb2edf41a144e0b47228d7da8d",
+        "recordSha256": "8c907d12dddd0b34868086ed7fcddf9a1abdd1e9260d5a86d3931aee3b85e36d",
         "clipCount": 12,
         "firstClipDurationMs": 12000
       }

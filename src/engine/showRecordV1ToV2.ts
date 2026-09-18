@@ -225,6 +225,17 @@ export function convertShowRecordV1ToV2(
       if (previous) previous.durationMs = startMs - previous.startMs
       layoutOccurrences.push({ id: `layout-occurrence:${layoutOccurrences.length + 1}`, layoutId: activeLayoutId, startMs, durationMs: (timeline.scenes[index + 1]?.startMs ?? showEndMs) - startMs, parameters,
         ...(routing && previous && routing.durationMs > 0 ? { incomingTransfer: { id: routing.id, fromOccurrenceId: previous.id, durationMs: routing.durationMs, direction: routing.routingDirection ?? 'forward', easing: structuredClone(routing.easing) } } : {}),
+        // A zero-duration routing switch has no timed transfer object, so its
+        // authored identity and settings survive as inert provenance instead
+        // (#1065). Only what v1 authored is written: an absent
+        // `routingDirection` stays absent rather than defaulting to 'forward'.
+        ...(routing && previous && routing.durationMs === 0 ? { incomingSwitch: {
+          origin: 'converted-routing-cut' as const,
+          id: routing.id,
+          fromOccurrenceId: previous.id,
+          ...(routing.routingDirection !== undefined ? { direction: routing.routingDirection } : {}),
+          ...(routing.easing !== undefined ? { easing: structuredClone(routing.easing) } : {}),
+        } } : {}),
       })
     }
   }
@@ -257,6 +268,10 @@ export function convertShowRecordV1ToV2(
     boundaryTransitions.push({
       ...settings,
       kind: settings.kind as ShowTransitionV2['kind'],
+      // v1 draws a Scene-boundary Transition in its own inspector, so the
+      // family survives conversion even when the Transition lands at Layer
+      // participant scope (#1065).
+      origin: 'converted-boundary-transition',
       ...(needsWholeOutput ? { wholeOutput: { startMs: atMs!, fromClipIds: from.map(clip => clip.id), toClipIds: to.map(clip => clip.id) } } : {}),
       participants: needsWholeOutput ? [] : [{ id: `${boundary.id}:participant:1`, zoneId: from[0].zoneId, layerId: from[0].layerId, fromClipId: from[0].id, toClipId: to[0].id }],
       propertyRamps: [
@@ -276,8 +291,10 @@ export function convertShowRecordV1ToV2(
       report.markerMappings.push({ sourceSceneId: scene.sceneId, markerId: existing.id, timeMs: scene.startMs })
       continue
     }
+    // Only a guide this conversion invented carries provenance, so the editor can
+    // keep showing exactly the Markers the v1 editor drew (#1065).
     const markerId = uniqueId(`scene-marker:${scene.sceneId}`, new Set(markers.map(marker => marker.id)))
-    markers.push({ id: markerId, timeMs: scene.startMs, name: scene.scene.name, role: 'chapter' })
+    markers.push({ id: markerId, timeMs: scene.startMs, name: scene.scene.name, role: 'chapter', origin: 'converted-scene-label' })
     report.markerMappings.push({ sourceSceneId: scene.sceneId, markerId, timeMs: scene.startMs })
   }
   markers.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
@@ -362,6 +379,9 @@ export function convertShowRecordV1ToV2(
       clips,
       transitions: [...boundaryTransitions, ...(composition.transitions ?? []).map((transition) => ({
         ...transitionSettings(transition),
+        // v1 edits a Layer Transition through its junction popover, never the
+        // boundary inspector; the distinction is provenance, not structure.
+        origin: 'converted-layer-transition' as const,
         participants: [{
           id: `${transition.id}:participant:1`,
           zoneId: placementSources.find(source => source.placement.id === transition.fromPlacementId)?.zoneId ?? '',
@@ -784,15 +804,19 @@ export function auditShowV1ToV2Accounting(
         const offset = report.sceneOffsets.find(scene => scene.sceneId === transition.afterSceneId)
         const occurrence = transition.durationMs > 0
           ? record.composition.layoutOccurrences.find(candidate => candidate.incomingTransfer?.id === transition.id)
-          : record.composition.layoutOccurrences.find(candidate => (
-            candidate.startMs === offset?.endMs && candidate.layoutId === transition.layoutId
-          ))
+          : record.composition.layoutOccurrences.find(candidate => candidate.incomingSwitch?.id === transition.id)
         const transfer = occurrence?.incomingTransfer
+        const cut = occurrence?.incomingSwitch
         const valid = !!(occurrence
           && occurrence.layoutId === transition.layoutId
           && occurrence.startMs === offset?.endMs
           && (transition.durationMs === 0
+            // A zero-duration switch keeps identity and authored settings as
+            // inert provenance, and owns no timed transfer object (#1065).
             ? transfer === undefined
+              && cut?.origin === 'converted-routing-cut'
+              && cut.direction === transition.routingDirection
+              && JSON.stringify(cut.easing) === JSON.stringify(transition.easing)
             : transfer?.durationMs === transition.durationMs
               && transfer.direction === (transition.routingDirection ?? 'forward')
               && JSON.stringify(transfer.easing) === JSON.stringify(transition.easing)))
@@ -802,7 +826,7 @@ export function auditShowV1ToV2Accounting(
       const targetIndex = record.composition.transitions.findIndex(candidate => candidate.id === transition.id)
       if (transition.kind !== 'cut' && targetIndex >= 0) {
         const { afterSceneId, propertyTransitions, ...settings } = transition
-        const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, ...targetSettings } = record.composition.transitions[targetIndex]
+        const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, origin: _origin, ...targetSettings } = record.composition.transitions[targetIndex]
         mapped(`transitions.${transitionIndex}`, `composition.transitions.${targetIndex}`, settings, JSON.stringify(settings) === JSON.stringify(targetSettings))
         if (propertyTransitions !== undefined) mapped(`transitions.${transitionIndex}.propertyTransitions`, `composition.transitions.${targetIndex}.propertyRamps`, propertyTransitions, JSON.stringify([propertyTransitions.sample, propertyTransitions.routing]) === JSON.stringify([scalarBoundaryRamps(record.composition.transitions[targetIndex])?.sample, scalarBoundaryRamps(record.composition.transitions[targetIndex])?.routing]))
         retired(`transitions.${transitionIndex}.afterSceneId`, `composition.transitions.${targetIndex}.participants`, afterSceneId, report.sceneOffsets.some(scene => scene.sceneId === afterSceneId))
@@ -998,7 +1022,7 @@ function auditComposition(
     const target = record.composition.transitions[targetIndex]
     if (!target) continue
     const { fromPlacementId, toPlacementId, ...settings } = transition
-    const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, ...targetSettings } = target
+    const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, origin: _origin, ...targetSettings } = target
     if (JSON.stringify(settings) === JSON.stringify(targetSettings)) {
       addAccountingLeaves(accounting, `composition.transitions.${transitionIndex}`, settings, 'mapped', `composition.transitions.${targetIndex}`)
     }

@@ -271,6 +271,7 @@
                 "curve": "linear"
               },
               "crossfadePolicy": "snapshot-live",
+              "origin": "converted-boundary-transition",
               "participants": [
                 {
                   "id": "transition-scene-1:participant:1",
@@ -298,13 +299,15 @@
               "id": "scene-marker:scene-1",
               "timeMs": 0,
               "name": "Scene 1",
-              "role": "chapter"
+              "role": "chapter",
+              "origin": "converted-scene-label"
             },
             {
               "id": "scene-marker:scene-2",
               "timeMs": 32000,
               "name": "Scene 2",
-              "role": "chapter"
+              "role": "chapter",
+              "origin": "converted-scene-label"
             }
           ],
           "groupDefinitions": [],
@@ -1403,7 +1406,15 @@
               "layoutId": "layout-rings",
               "startMs": 11000,
               "durationMs": 6000,
-              "parameters": {}
+              "parameters": {},
+              "incomingSwitch": {
+                "origin": "converted-routing-cut",
+                "id": "routing-split-rings",
+                "fromOccurrenceId": "layout-occurrence:2",
+                "easing": {
+                  "curve": "linear"
+                }
+              }
             }
           ],
           "propertyTracks": [],
@@ -1412,19 +1423,22 @@
               "id": "scene-marker:full",
               "timeMs": 0,
               "name": "Full surface",
-              "role": "chapter"
+              "role": "chapter",
+              "origin": "converted-scene-label"
             },
             {
               "id": "scene-marker:split",
               "timeMs": 5000,
               "name": "Split",
-              "role": "chapter"
+              "role": "chapter",
+              "origin": "converted-scene-label"
             },
             {
               "id": "scene-marker:rings",
               "timeMs": 11000,
               "name": "Rings",
-              "role": "chapter"
+              "role": "chapter",
+              "origin": "converted-scene-label"
             }
           ],
           "groupDefinitions": [],
@@ -2992,7 +3006,8 @@
               "id": "scene-marker:reuse",
               "timeMs": 0,
               "name": "Reuse",
-              "role": "chapter"
+              "role": "chapter",
+              "origin": "converted-scene-label"
             }
           ],
           "groupDefinitions": [
@@ -4391,6 +4406,7 @@
               "direction": 0,
               "feather": 0.08,
               "edgePolicy": "dither",
+              "origin": "converted-layer-transition",
               "participants": [
                 {
                   "id": "transition-horizon-mandala:participant:1",
@@ -4411,6 +4427,7 @@
                 "direction": "in-out"
               },
               "crossfadePolicy": "live-live",
+              "origin": "converted-layer-transition",
               "participants": [
                 {
                   "id": "transition-iris-horizon:participant:1",
@@ -4478,7 +4495,8 @@
               "id": "scene-marker:passages",
               "timeMs": 0,
               "name": "Passages",
-              "role": "chapter"
+              "role": "chapter",
+              "origin": "converted-scene-label"
             }
           ],
           "groupDefinitions": [],
@@ -5351,7 +5369,8 @@
             "id": "scene-marker:scene-a",
             "timeMs": 0,
             "name": "Opening",
-            "role": "chapter"
+            "role": "chapter",
+            "origin": "converted-scene-label"
           }
         ],
         "groupDefinitions": [],

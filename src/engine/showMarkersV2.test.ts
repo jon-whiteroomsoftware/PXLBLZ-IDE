@@ -234,3 +234,64 @@ it('refuses unsafe existing dormant Marker time without normalizing or removing 
   expect(result.record).toBe(source)
   expect(source).toEqual(before)
 })
+
+it('preserves conversion provenance through Marker edits and refuses to author it', () => {
+  const source = record()
+  source.composition.markers = [
+    { id: 'scene-marker:scene-a', timeMs: 0, name: 'Opening', role: 'chapter', origin: 'converted-scene-label' },
+    { id: 'authored', timeMs: 500, name: 'Camera cue' },
+  ]
+  const before = structuredClone(source)
+
+  const moved = editShowMarkerV2(source, { kind: 'move', markerId: 'scene-marker:scene-a', timeMs: 250 })
+  expect(moved.status).toBe('changed')
+  if (moved.status !== 'changed') return
+  expect(reopen(moved.record).composition.markers[0])
+    .toEqual({ id: 'scene-marker:scene-a', timeMs: 250, name: 'Opening', role: 'chapter', origin: 'converted-scene-label' })
+
+  const renamed = editShowMarkerV2(moved.record, { kind: 'update', markerId: 'scene-marker:scene-a', patch: { name: 'Overture', color: '#38bdf8' } })
+  expect(renamed.status).toBe('changed')
+  if (renamed.status !== 'changed') return
+  expect(renamed.record.composition.markers.find(marker => marker.id === 'scene-marker:scene-a')?.origin).toBe('converted-scene-label')
+
+  // Clearing the narrative role changes the role alone; provenance is a record
+  // of where the Marker came from and no edit rewrites it.
+  const demoted = editShowMarkerV2(renamed.record, { kind: 'update', markerId: 'scene-marker:scene-a', patch: { role: undefined } })
+  expect(demoted.status).toBe('changed')
+  if (demoted.status !== 'changed') return
+  const demotedMarker = demoted.record.composition.markers.find(marker => marker.id === 'scene-marker:scene-a')
+  expect(demotedMarker).not.toHaveProperty('role')
+  expect(demotedMarker?.origin).toBe('converted-scene-label')
+
+  // No general Marker operation authors provenance: it is not an accepted field.
+  const authored = editShowMarkerV2(source, { kind: 'add', marker: { id: 'invented', timeMs: 10, origin: 'converted-scene-label' } } as unknown as ShowMarkerEditIntentV2)
+  expect(authored.status).toBe('refused')
+  if (authored.status !== 'refused') return
+  expect(authored.code).toBe('invalid-intent')
+  expect(authored.record).toBe(source)
+  emptyOtherAffected(authored)
+  expect(authored.affectedMarkerIds).toEqual([])
+
+  const patched = editShowMarkerV2(source, { kind: 'update', markerId: 'authored', patch: { origin: 'converted-scene-label' } } as unknown as ShowMarkerEditIntentV2)
+  expect(patched.status).toBe('refused')
+  if (patched.status !== 'refused') return
+  expect(patched.code).toBe('invalid-intent')
+  expect(patched.record).toBe(source)
+
+  // A Marker the author adds never acquires provenance of its own.
+  const added = editShowMarkerV2(source, { kind: 'add', marker: { id: 'fresh', timeMs: 750, name: 'New guide' } })
+  expect(added.status).toBe('changed')
+  if (added.status !== 'changed') return
+  expect(added.record.composition.markers.find(marker => marker.id === 'fresh')).not.toHaveProperty('origin')
+  expect(added.record.composition.markers.find(marker => marker.id === 'scene-marker:scene-a')?.origin).toBe('converted-scene-label')
+  expect(source).toEqual(before)
+})
+
+it('keeps conversion provenance off the authorable Marker intent surface', () => {
+  // @ts-expect-error conversion provenance is written by the v1 converter alone.
+  const added: ShowMarkerEditIntentV2 = { kind: 'add', marker: { id: 'invented', timeMs: 10, origin: 'converted-scene-label' } }
+  // @ts-expect-error the update patch carries time, name, color and role only.
+  const updated: ShowMarkerEditIntentV2 = { kind: 'update', markerId: 'early', patch: { origin: 'converted-scene-label' } }
+  const source = record()
+  expect([editShowMarkerV2(source, added), editShowMarkerV2(source, updated)].map(result => result.status)).toEqual(['refused', 'refused'])
+})

@@ -159,9 +159,12 @@ export function editShowTransitionV2(
       participants: transition.participants,
       wholeOutput: transition.wholeOutput,
       propertyRamps: transition.propertyRamps,
+      // Conversion provenance is written by the v1 converter alone (#1065), so
+      // a settings edit can neither change nor clear it.
+      origin: transition.origin,
     })
     if (JSON.stringify(ownership(current)) !== JSON.stringify(ownership(intent.transition))) {
-      return refuse('invalid-intent', 'A settings edit cannot change Transition identity, timing, participants or property ramps.')
+      return refuse('invalid-intent', 'A settings edit cannot change Transition identity, timing, participants, property ramps or conversion provenance.')
     }
     if (JSON.stringify(current) === JSON.stringify(intent.transition)) return { status: 'unchanged', record, ...empty() }
     const next = structuredClone(record)
@@ -209,6 +212,11 @@ export function editShowTransitionV2(
     }
     if (record.composition.transitions.some(candidate => candidate.id === transition.id)) {
       return refuse('invalid-intent', `Transition "${transition.id}" already exists.`)
+    }
+    // Only the v1 converter writes conversion provenance; an authored insertion
+    // cannot mint it (#1065).
+    if (transition.origin !== undefined) {
+      return refuse('invalid-intent', 'An inserted Transition cannot author conversion provenance.')
     }
     const endpoints = transitionEndpoints(transition)
     if (!insertEndpointsAreExact(record, transition, endpoints)) {

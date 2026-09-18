@@ -262,6 +262,10 @@
           "required": ["startMs", "fromClipIds", "toClipIds"],
           "additionalProperties": false
         },
+        "origin": {
+          "enum": ["converted-boundary-transition", "converted-layer-transition"],
+          "description": "Explicit v1 conversion provenance (#1065): which of v1's two Transition families this Transition came from. Written by the v1 converter alone and never inferred from structure."
+        },
         "participants": {
           "type": "array",
           "items": { "$ref": "#/$defs/ShowTransitionParticipantV2" }
@@ -332,9 +336,11 @@
         "startMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
         "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
         "parameters": { "$ref": "#/$defs/ShowLayoutOccurrenceParametersV2" },
-        "incomingTransfer": { "$ref": "#/$defs/ShowLayoutTransferV2" }
+        "incomingTransfer": { "$ref": "#/$defs/ShowLayoutTransferV2" },
+        "incomingSwitch": { "$ref": "#/$defs/ShowLayoutSwitchProvenanceV2" }
       },
       "required": ["id", "layoutId", "startMs", "durationMs", "parameters"],
+      "not": { "required": ["incomingTransfer", "incomingSwitch"] },
       "additionalProperties": false
     },
     "ShowLayoutOccurrenceParametersV2": {
@@ -354,6 +360,19 @@
         "direction": { "$ref": "show-record.schema.json#/definitions/ShowRoutingDirection" }
       },
       "required": ["id", "fromOccurrenceId", "durationMs", "direction"],
+      "additionalProperties": false
+    },
+    "ShowLayoutSwitchProvenanceV2": {
+      "type": "object",
+      "description": "Conversion provenance for a v1 zero-duration routing switch (#1065). A switch owns no timed transfer, so this record carries its authored identity and settings only. Written by the v1 converter alone.",
+      "properties": {
+        "origin": { "const": "converted-routing-cut" },
+        "id": { "$ref": "#/$defs/Id" },
+        "fromOccurrenceId": { "$ref": "#/$defs/Id" },
+        "direction": { "$ref": "show-record.schema.json#/definitions/ShowRoutingDirection" },
+        "easing": { "$ref": "show-record.schema.json#/definitions/ShowStructuredEasing" }
+      },
+      "required": ["origin", "id", "fromOccurrenceId"],
       "additionalProperties": false
     },
     "ShowPropertyTargetV2": {
@@ -495,7 +514,8 @@
         "timeMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
         "name": { "type": "string" },
         "color": { "type": "string" },
-        "role": { "const": "chapter" }
+        "role": { "const": "chapter" },
+        "origin": { "const": "converted-scene-label" }
       },
       "required": ["id", "timeMs"],
       "additionalProperties": false

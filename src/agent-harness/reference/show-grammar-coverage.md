@@ -14,11 +14,11 @@ when this file drifts from the generator.
 | effects | 1 | 1 | 100% |
 | groups | 50 | 12 | 24% |
 | layers | 3 | 3 | 100% |
-| layouts | 9 | 9 | 100% |
-| markers | 4 | 4 | 100% |
+| layouts | 13 | 13 | 100% |
+| markers | 5 | 5 | 100% |
 | record | 1 | 1 | 100% |
 | show | 8 | 6 | 75% |
-| transitions | 60 | 60 | 100% |
+| transitions | 61 | 61 | 100% |
 
 Unreachable paths: none.
 
