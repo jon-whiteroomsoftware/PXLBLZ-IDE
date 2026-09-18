@@ -80,6 +80,10 @@ function protectionRefusal(pointer: string): GrammarIssue {
   }
 }
 
+function elementsOf<T>(collection: T[] | undefined): T[] {
+  return Array.isArray(collection) ? collection : []
+}
+
 /**
  * Every element that can carry conversion provenance, by collection and
  * identity, with the provenance it carries.
@@ -95,9 +99,13 @@ function conversionProvenanceByElement(record: ShowRecordV2): Map<string, string
   const note = (collection: string, id: string, value: unknown) => {
     entries.set(`${collection}/${id}`, value === undefined ? 'absent' : JSON.stringify(value))
   }
-  for (const marker of record.composition.markers ?? []) note('markers', marker.id, marker.origin)
-  for (const transition of record.composition.transitions ?? []) note('transitions', transition.id, transition.origin)
-  for (const occurrence of record.composition.layoutOccurrences ?? []) {
+  // The edited record reaches this walker only after structural validation, but
+  // the record it is compared against is the caller's own, so every collection
+  // is read defensively rather than trusted to be an array (#1064).
+  const composition = record.composition as Partial<ShowRecordV2['composition']> | undefined
+  for (const marker of elementsOf(composition?.markers)) note('markers', marker.id, marker.origin)
+  for (const transition of elementsOf(composition?.transitions)) note('transitions', transition.id, transition.origin)
+  for (const occurrence of elementsOf(composition?.layoutOccurrences)) {
     note('layoutOccurrences', occurrence.id, occurrence.incomingSwitch)
   }
   return entries
@@ -409,8 +417,10 @@ function concludeGeneric(
   pointers: string[],
   description: string,
 ): GrammarOperationResult {
-  const forged = forgedProvenance(document.show, next)
-  if (forged) return refuse(forged)
+  // Structure first (#1064). The provenance comparison walks the edited
+  // record's declared collections, so a malformed result - a deleted
+  // `/composition`, a Marker list replaced by an object - has to reach its own
+  // typed `result-invalid` refusal rather than throw inside the walker.
   const validate = document.authoringValidation ? validateAuthoringShowDocument : validateShowDocument
   const validation = validate(next, document.inlinePatterns, document.options, document)
   if (!validation.valid) {
@@ -420,6 +430,8 @@ function concludeGeneric(
       ...(issue.path ? { path: issue.path } : {}),
     })))
   }
+  const forged = forgedProvenance(document.show, next)
+  if (forged) return refuse(forged)
   return {
     ok: true,
     document: replacedShow(document, next),

@@ -13,9 +13,15 @@
 // Partitions: the direct pointer (named field), the ancestor write (whole
 // element replaced or appended), the otherwise-valid switch, and the ordinary
 // edit. The fault-sensitive oracle is the record itself, not the refusal text.
+//
+// #1064 adds the ordering partition: the provenance comparison walks the edited
+// record's declared collections, so it must run behind structural validation.
+// A `set_field` that deletes `/composition` or replaces a provenance-carrying
+// collection with a non-array has to reach its typed refusal, never throw.
 import { describe, expect, it } from 'vitest'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { validateShowRecordV2 } from '@/engine/showCompositionV2'
+import { applyShowGrammarOperation } from '../grammar/registry.js'
 import type { ShowGrammarDocument } from '../grammar/types.js'
 import { applyOk, applyRefused, fixture } from './support/grammarHarness.js'
 
@@ -162,5 +168,45 @@ describe('generic operations and v1 conversion provenance (#1065)', () => {
     const document = convertedDocument()
     const removed = applyOk(document, 'set_field', { pointer: '/composition/markers/0', delete: true })
     expect(removed.document.show.composition.markers).toEqual([])
+  })
+
+  describe('a malformed generic edit refuses before the provenance comparison (#1064)', () => {
+    it('refuses a set_field that deletes the whole composition', () => {
+      const document = convertedDocument()
+      applyRefused(document, 'set_field', { pointer: '/composition', delete: true }, 'result-invalid')
+    })
+
+    it('refuses a set_field that replaces the Marker collection with an object', () => {
+      const document = convertedDocument()
+      applyRefused(document, 'set_field', { pointer: '/composition/markers', value: {} }, 'result-invalid')
+    })
+
+    // The sweep: each provenance-bearing collection, and the composition that
+    // holds them, replaced by each shape the walker would dereference. The
+    // oracle is a typed refusal with the record unchanged - not an exception,
+    // and not one particular refusal code, because the identity tracker and
+    // the validator each refuse some of these first.
+    const targets = ['/composition', '/composition/markers', '/composition/transitions', '/composition/layoutOccurrences']
+    const values: Array<[string, unknown]> = [
+      ['undefined', undefined],
+      ['null', null],
+      ['{}', {}],
+      ['"x"', 'x'],
+      ['0', 0],
+    ]
+    for (const pointer of targets) {
+      for (const [label, value] of values) {
+        it(`refuses set_field ${pointer} = ${label}`, () => {
+          const document = convertedDocument()
+          const before = structuredClone(document.show)
+          const outcome = applyShowGrammarOperation(document, 'set_field', { pointer, value })
+          expect(outcome.ok).toBe(false)
+          if (outcome.ok) return
+          expect(outcome.issues[0].code).toMatch(/^(invalid-argument|result-invalid)$/)
+          expect(outcome.issues[0].message.length).toBeGreaterThan(0)
+          expect(document.show).toEqual(before)
+        })
+      }
+    }
   })
 })
