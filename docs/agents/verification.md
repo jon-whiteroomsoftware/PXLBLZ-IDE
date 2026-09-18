@@ -510,7 +510,19 @@ it.
 | `npm run test:e2e` (unauthenticated) | required runner evidence at pre-push |
 | `npm run test:e2e:auth-smoke` | required runner evidence at pre-push |
 | `npm run test:e2e:shows` | required runner evidence at pre-push |
+| `npm run test:e2e:shows:v2` | diagnostic, expected red, gates nothing |
 | `npm run test:e2e:auth-full` (every auth spec) | manual |
+
+`npm run test:e2e:shows:v2` runs the unmodified `e2e/shows.auth.spec.ts`
+against v2-stored Shows (#1066). `PXLBLZ_SHOW_BACKING=v2` is read only by
+`e2e/support/showBacking.ts`, the authenticated fixture and that spec's own
+seeding and readback helpers, so no test body knows which backing it is on and
+the v1 run is unchanged; the project reports as `chromium-shows-v2`. It is a
+diagnostic and is expected to fail until #1066 connects the remaining editor
+commands, so it is deliberately absent from `runner.suites` in
+`wrsp.config.mjs` and gates nothing. Its recorded verdicts and their causes are
+`docs/plans/show-editor-v2-both-backings-inventory.md`; read that before
+treating any failure there as new.
 
 Treating "manual" as covered is how #638 happened: three feature-retirement
 commits removed UI and fixtures without touching `e2e/`, and `shows.auth`

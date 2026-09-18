@@ -2,6 +2,7 @@ import { test as base, expect, type APIRequestContext, type Page } from '@playwr
 import { createSessionToken, sessionCookieName } from '../../src/cloudflare/auth'
 import { readDevVarsFile } from '../../scripts/dev-runtime-auth'
 import { authenticatedPlaywrightAccountIndex, authenticatedPlaywrightUser } from '../../scripts/authenticated-playwright-user'
+import { installShowBacking } from '../support/showBacking'
 
 type AuthenticatedFixtures = {
   authenticatedBoundary: void
@@ -37,6 +38,14 @@ export const test = base.extend<AuthenticatedFixtures>({
       }],
       origins: [],
     })
+  },
+
+  // The Show suite runs against both stored record versions (#1066). Which
+  // one a run uses is decided here and in that spec's seeding and readback
+  // helpers; no test body knows. On the v1 run this is a no-op.
+  page: async ({ page }, use) => {
+    installShowBacking(page)
+    await use(page)
   },
 
   authenticatedBoundary: [async ({ page, request, allowedBrowserErrors }, use) => {

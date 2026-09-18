@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 import { authenticatedPlaywrightWorkerCount } from './scripts/authenticated-playwright-user'
+import { showBacking } from './e2e/support/showBacking'
 
 // Authenticated smoke owns its port. One worker-dev Vite process (#901)
 // serves UI, /api, and the suite's isolated D1 store; reusing another
@@ -26,8 +27,16 @@ export default defineConfig({
     baseURL: studioBaseUrl,
     trace: 'on-first-retry',
   },
+  // One project per run. `PXLBLZ_SHOW_BACKING=v2` runs the unmodified Show
+  // spec against v2-stored Shows (#1066, `npm run test:e2e:shows:v2`); the
+  // name separates that diagnostic's results from the ordinary v1 run. That
+  // run is expected red until #1066 connects the remaining editor commands and
+  // is deliberately absent from the required suites in `wrsp.config.mjs`.
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: showBacking() === 'v2' ? 'chromium-shows-v2' : 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
   webServer: {
     // VITE_API_PROXY_TARGET is cleared explicitly: an inherited value would

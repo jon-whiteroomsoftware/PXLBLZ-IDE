@@ -8,6 +8,8 @@ import { squareWorkspaceShow } from './fixtures/showWorkspace'
 import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { createShowWithOutputContract } from '../src/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
+import { showBackingIsV2 } from './support/showBacking'
+import { listStoredShowsV2, storeSeededShowAsV2, v2SaveReachedStorage } from './support/showBackingRecords'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -3078,6 +3080,9 @@ async function createInstallationShow(page: Page): Promise<void> {
   )
   const created = await page.context().request.post('/api/shows', { data: show })
   expect(created.ok(), await created.text()).toBe(true)
+  // The v2 run (#1066) stores the converted document under the same identity,
+  // so this row opens the existing editor on its v2 backing. No-op on v1.
+  await storeSeededShowAsV2(page, show.id)
   await page.goto(`studio/shows/${show.id}`)
   await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}$`))
   // The row is loaded, not merely routed: the Zone rail toggle is keyed by the
@@ -3119,10 +3124,18 @@ async function openZoneRail(page: Page): Promise<void> {
  */
 const INSTALLATION_DEFAULTS = { outputMapId: 'plane', pixelCount: 256 } as const
 
+/**
+ * Every Show this account stores, whichever version backs the run (#1066).
+ *
+ * A row the v2 run converts, and any edit the editor saves through the
+ * version-2 route, leaves the version-1 listing; reading only `/api/shows`
+ * would report such a Show as deleted.
+ */
 async function listShows(page: Page): Promise<PersistedShow[]> {
   const response = await page.context().request.get('/api/shows')
   expect(response.ok()).toBe(true)
-  return ((await response.json()) as { shows: PersistedShow[] }).shows
+  const shows = ((await response.json()) as { shows: PersistedShow[] }).shows
+  return [...shows, ...((await listStoredShowsV2(page)) as unknown as PersistedShow[])]
 }
 
 async function personalContentCounts(page: Page): Promise<{ shows: number; patterns: number; maps: number }> {
@@ -3160,8 +3173,29 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
   await page.keyboard.up('Control')
 }
 
+/**
+ * Poll the stored record the open Show route addresses until a test's
+ * predicate holds.
+ *
+ * These predicates are save barriers written against the version-1 record
+ * shape. On the v2 run (#1066) the stored document is a version-2 record and
+ * nothing projects it back, so the predicate cannot be evaluated there; the
+ * barrier waits for the version-2 save to reach storage instead and annotates
+ * the test, so the inventory never reads such a run as an unqualified pass.
+ * What the save contains is left to the assertions that follow.
+ */
 async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) => boolean): Promise<void> {
   const id = new URL(page.url()).pathname.split('/').at(-1)
+  if (showBackingIsV2()) {
+    test.info().annotations.push({
+      type: 'show-backing-v2',
+      description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document',
+    })
+    await expect
+      .poll(() => v2SaveReachedStorage(page, id!), { timeout: 15_000 })
+      .toBe(true)
+    return
+  }
   await expect.poll(async () => {
     try {
       const response = await page.context().request.get('/api/shows')
