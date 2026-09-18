@@ -1248,6 +1248,66 @@ describe('PatternList', () => {
       return user
     }
 
+    /**
+     * A routed v2 row is held outside the v1 Show store, so `activeShowId`
+     * is null or stale for it; the rail still marks the routed row selected
+     * (#1064).
+     */
+    describe('routed v2 row selection (#1064)', () => {
+      async function renderRailWithRows() {
+        mockShows = [createDefaultShow('v1-stale', 'Stale v1', 1)]
+        mockShowsV2 = [createShowV2WithOutputContract('v2-open', 'Open v2', V2_CONTRACT, 1)]
+        await renderShowsRail()
+        await screen.findByText('Open v2')
+        await screen.findByText('Stale v1')
+      }
+
+      function personalShowsTree() {
+        return screen.getByRole('tree', { name: 'Shows' })
+      }
+
+      it('marks the routed v2 row selected while a different v1 Show stays active', async () => {
+        await renderRailWithRows()
+        act(() => {
+          useShowStore.setState({ activeShowId: 'v1-stale' })
+          useRouterStore.getState().navigate({ kind: 'studio', entity: { kind: 'shows', id: 'v2-open' } })
+        })
+
+        expect(within(personalShowsTree()).getByRole('treeitem', { name: /Open v2/ }))
+          .toHaveAttribute('aria-selected', 'true')
+        expect(within(personalShowsTree()).getByRole('treeitem', { name: /Stale v1/ }))
+          .toHaveAttribute('aria-selected', 'false')
+      })
+
+      it('falls through to activeShowId on a stock Show route', async () => {
+        await renderRailWithRows()
+        act(() => {
+          useShowStore.setState({ activeShowId: 'v1-stale' })
+          useRouterStore.getState().navigate({
+            kind: 'studio',
+            entity: { kind: 'shows', id: 'stock-show-101-clips-cuts-blank-time' },
+          })
+        })
+
+        expect(within(personalShowsTree()).getByRole('treeitem', { name: /Stale v1/ }))
+          .toHaveAttribute('aria-selected', 'true')
+        expect(within(personalShowsTree()).getByRole('treeitem', { name: /Open v2/ }))
+          .toHaveAttribute('aria-selected', 'false')
+      })
+
+      it('selects no v2 row on a route with a null entity id', async () => {
+        await renderRailWithRows()
+        act(() => {
+          useShowStore.setState({ activeShowId: null })
+        })
+
+        const selected = within(personalShowsTree())
+          .getAllByRole('treeitem')
+          .filter((item) => item.getAttribute('aria-selected') === 'true')
+        expect(selected).toEqual([])
+      })
+    })
+
     it('empties the Shows Trash without pruning the surviving v2 row', async () => {
       mockShowsV2 = [
         createShowV2WithOutputContract('v2-keep', 'Kept v2', V2_CONTRACT, 2),
