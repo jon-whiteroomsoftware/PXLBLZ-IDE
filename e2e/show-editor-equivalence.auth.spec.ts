@@ -255,11 +255,11 @@ test('the capture arrangement holds Show identity fixed, and a distinct identity
 
 test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({ page }) => {
   // A surface whose strict comparison differs also runs the bounded control plan, which reopens the
-  // row and walks the surface's computed styles once per capture. Measured, not estimated: the full
-  // four-fixture matrix takes 8.6 minutes for this test (9.3 minutes for the whole spec) on the
-  // development machine, so 20 minutes is a 2.3x margin. The retained evidence under
-  // docs/reference/evidence/issue-1065-equivalence-oracle/ records the duration of the run it came
-  // from, so this figure can be re-checked rather than trusted.
+  // row and walks the surface's computed styles once per capture. Measured, not estimated: the
+  // retained `tip-6ee11aa7` run in docs/reference/evidence/issue-1065-equivalence-oracle/ took 9.0
+  // minutes for this test and 9.7 minutes for the whole spec on the development machine, so 20
+  // minutes is a 2.2x margin. That summary records its own duration, so this figure can be
+  // re-checked against it rather than trusted.
   test.setTimeout(20 * 60_000)
   page.setDefaultTimeout(10_000)
   page.setDefaultNavigationTimeout(15_000)
