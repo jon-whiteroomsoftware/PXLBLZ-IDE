@@ -907,24 +907,32 @@ refusal or no-op. The
 [audit scope map](evidence/issue-1038-audit/scope-map.md) records which
 behaviors are proved and which residuals are still carried.
 
-**Which editor holds a Show.** `SHOW_V2_ROUTE_DEFAULT` is `true`, so version 2
-is the ordinary Show path: a fresh Show is authored as a `ShowRecordV2`, the
-Show list reads stored version-2 documents beside whatever is still version 1,
-`.pxlshow` import accepts either version, and an unbound MCP connection is
-described the v2 catalogue. Which editor a routed Show opens on follows that
-Show's stored version, because nothing in the application converts a stored row:
-a version-2 document opens on the v2 editor, and a row still stored as version
-1 - like every built-in Show, which has no stored document at all - keeps the
-previous editor, its previous command vocabulary and its previous behavior
-until the operator conversion below rewrites it. `?show-v2-editor=1` remains a
-development-only preview of an unconverted row, which converts in memory and
-writes nothing; a production build ignores it. The v2 editor's Show inspector
-now carries the output-contract summary and Show properties, Stage map
+**Which record backs the open editor.** `SHOW_V2_ROUTE_DEFAULT` is `true`, so
+version 2 is the ordinary Show path: a fresh Show is authored as a
+`ShowRecordV2`, the Show list reads stored version-2 documents beside whatever
+is still version 1, `.pxlshow` import accepts either version, and an unbound MCP
+connection is described the v2 catalogue. There is one editor and no route gate:
+since #1065 a stored version-2 document opens in the same `ShowEditor` every
+other Show opens in, ungated. What follows the Show's stored version is the
+*record* that editor reads, because nothing in the application converts a stored
+row: a version-2 document backs the editor with its converted pilot record, and
+a row still stored as version 1 - like every built-in Show, which has no stored
+document at all - keeps its version-1 record, its command vocabulary and its
+behavior until the operator conversion below rewrites it. Until #1066 connects
+the remaining edits, a version-2 record in that editor has only the ordinary
+Clip move connected; every other command is fenced to an internal no-change
+result. `?show-v2-editor=1` remains a development-only preview of an
+unconverted row on the version-2 backing, which converts in memory and writes
+nothing; a production build ignores it.
+
+The rest of this section records what the rejected v2 editor route offered
+before #1065 unmounted it; #1067 removes those components. Its Show inspector
+carried the output-contract summary and Show properties, Stage map
 selection, Zone renaming and Show Trails, and its header carries View code and
 Download .epe; its Zone Map adds and removes Zones, and its Zone Layouts
 section adds, duplicates, renames and removes Zone Layout definitions and
 writes a definition's routing mode, operator parameters, member Zones and, for
-an Installation Show, its physical LED ranges. Those two owners are the
+an Installation Show, its physical LED ranges. Those two owners were the
 editor's alone: the MCP command set edits content in Shows, not Show structure,
 so an agent still cannot create a Zone or re-route a definition. Dragging
 across the Stage to select an Installation Zone's LEDs remains a v1-only
@@ -1357,8 +1365,8 @@ Pattern preview, reports measured FPS, and omits Pattern-level speed,
 controls, and watch variables — Show transport is the canonical clock. Stage
 preview does not apply artifact gates; `compileShowForArtifact` enforces
 coverage, Portable 2D capability, the 2,000-pixel ceiling, and resource limits
-for inspection, export, Run, Save, and reconciliation. On the v2 route the same
-Installation coverage and Portable gates live in `buildShowV2RouteArtifacts`,
+for inspection, export, Run, Save, and reconciliation. In the rejected v2 route
+the same Installation coverage and Portable gates live in `buildShowV2RouteArtifacts`,
 which the delivery panel and Send to Controller both read (#1039), together
 with the compiled artifact's own resource ledger, whose first blocker that
 route now returns verbatim the way `compileShowForArtifact` reports it as
