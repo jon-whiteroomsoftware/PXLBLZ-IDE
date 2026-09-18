@@ -111,16 +111,24 @@ describe('the native fresh v2 Show', () => {
         ...rest,
         appearance: { keys: appearance.keys.map(({ id: _key, ...key }) => key) },
       })),
-      transitions: record.composition.transitions.map(({ id: _id, participants, ...rest }) => ({
+      // Conversion provenance exists only on the converted side by definition,
+      // so it is stripped here and asserted explicitly below (#1065).
+      transitions: record.composition.transitions.map(({ id: _id, origin: _origin, participants, ...rest }) => ({
         ...rest,
         participants: participants.map(({ id: _participant, fromClipId: _from, toClipId: _to, ...participant }) => participant),
       })),
-      layoutOccurrences: record.composition.layoutOccurrences.map(({ id: _id, ...rest }) => rest),
+      layoutOccurrences: record.composition.layoutOccurrences.map(({ id: _id, incomingSwitch: _switch, ...rest }) => rest),
       markers: [],
     })
     expect(anonymous(native)).toEqual(anonymous(converted.record))
-    // The one intended content difference: no synthetic Scene labels.
+    // The intended content differences: no synthetic Scene labels, and none of
+    // the conversion provenance a natively created Show has no source for.
     expect(converted.record.composition.markers.map((marker) => marker.role)).toEqual(['chapter', 'chapter'])
+    expect(converted.record.composition.transitions.map((transition) => transition.origin))
+      .toEqual(['converted-boundary-transition'])
+    expect(native.composition.transitions.every((transition) => transition.origin === undefined)).toBe(true)
+    expect(native.composition.markers.every((marker) => marker.origin === undefined)).toBe(true)
+    expect(native.composition.layoutOccurrences.every((occurrence) => occurrence.incomingSwitch === undefined)).toBe(true)
   })
 
   it('round trips through the provisional codec unchanged', () => {

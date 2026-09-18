@@ -77,6 +77,23 @@ while an ordinary edit preserves it. `editShowLayoutIntervalsV2` accepts no
 switch intent and discards stale switch provenance rather than refusing or
 rebinding; [Layout edits](show-v2-layout-edits.md) records the exact rules.
 
+`planShowV2TransitionEdit` carries `origin` through a settings plan unchanged. A
+kind, policy, easing or parameter change alters none of identity, timing,
+endpoints or the v1 collection the Transition converted from, and the owner
+compares `origin` as ownership, so a plan that rebuilt the Transition without it
+would refuse rather than edit. A kind-changed converted Transition keeps exactly
+the origin it had.
+
+`createShowGroupFromSelectionV2` drops it. Localization mints a fresh
+definition-local Transition under `ShowGroupDefinitionV2.transitions`, which is
+the v1-shaped `ShowLayerTransition` the schema closes and is not one of the
+three provenance owners above. Copying the value would describe a v1 leaf that
+this new object is not, and the materialized projection would then carry
+conversion provenance on a synthesized identity. The localized Transition and
+its projection therefore carry none, and behave structurally like any Transition
+without provenance. The selected top-level Transition leaves the record with its
+own provenance in the same edit.
+
 ## Records without provenance
 
 A v2 record that carries no provenance is never classified retroactively. Its

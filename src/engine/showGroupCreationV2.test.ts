@@ -90,9 +90,15 @@ it.each(['crossfade', 'wipe', 'portal'] as const)('localizes lossless%s pair set
   const result = createShowGroupFromSelectionV2(record, intent)
   expect(result.status).toBe('changed'); expect(validateShowRecordV2(result.record)).toEqual([])
   const source = record.composition.transitions[0]
-  const { participants: _participants, propertyRamps: _ramps, ...settings } = source
+  // Conversion provenance describes one leaf of the v1 record's own Transition
+  // collections. Localization mints a fresh definition-local Transition, so the
+  // copy carries none and the projection cannot reintroduce one (#1065).
+  expect(source.origin).toBe('converted-layer-transition')
+  const { participants: _participants, propertyRamps: _ramps, origin: _origin, ...settings } = source
   expect(result.record.composition.groupDefinitions[0].transitions).toEqual([{ ...settings, id: `local-${source.id}`, fromPlacementId: 'local-out', toPlacementId: 'local-in' }])
+  expect('origin' in result.record.composition.groupDefinitions[0].transitions[0]).toBe(false)
   const projected = materializeShowGroupsV2(result.record).composition.transitions[0]
+  expect('origin' in projected).toBe(false)
   expect(projected).toMatchObject({ kind, durationMs: 200, easing: { curve: 'sine', direction: 'in-out' }, participants: [{ fromClipId: 'first-use:local-out', toClipId: 'first-use:local-in', layerId: record.composition.clips[0].layerId }] })
   expect(result).toMatchObject({ affectedTransitionIds: [source.id, `local-${source.id}`], removedIds: ['out', 'in', source.id] })
   expect(record).toEqual(before)

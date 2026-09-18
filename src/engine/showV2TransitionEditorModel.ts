@@ -179,6 +179,11 @@ export function planShowV2TransitionEdit(
           ...(settings.value.kind === 'crossfade' ? { crossfadePolicy: request.crossfadePolicy } : {}),
           id: current.id,
           durationMs: current.durationMs,
+          // A kind change leaves identity, timing, endpoints and the v1 family
+          // this Transition converted from untouched. Only the converter writes
+          // that provenance, and the owner refuses a settings edit that changes
+          // or clears it, so the plan carries it through (#1065).
+          ...(current.origin === undefined ? {} : { origin: current.origin }),
           easing: settings.value.easing ?? structuredClone(current.easing),
           participants: structuredClone(current.participants),
           ...(current.wholeOutput ? { wholeOutput: structuredClone(current.wholeOutput) } : {}),

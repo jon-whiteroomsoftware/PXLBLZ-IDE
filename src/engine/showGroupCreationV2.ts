@@ -106,7 +106,12 @@ export function createShowGroupFromSelectionV2(record: ShowRecordV2, intent: Cre
       return { ...child, id: plan.clipIds[clip.id], instanceId: plan.patternInstanceIds[clip.instanceId], layerId: plan.layerIds[clip.layerId], startMs: clip.startMs - intent.originMs,
         appearance: { keys: clip.appearance.keys.map(key => ({ ...structuredClone(key), id: plan.appearanceKeyIdsByClipId[clip.id][key.id], timeMs: key.timeMs - intent.originMs })) } }
     }), transitions: transitions.map(transition => {
-      const { participants, propertyRamps: _propertyRamps, wholeOutput: _wholeOutput, ...settings } = structuredClone(transition)
+      // A Group definition Transition is a fresh definition-local object with
+      // its own identity, and conversion provenance describes one leaf of the
+      // v1 record's own Transition collections. Localization therefore drops it
+      // rather than copying a description of a boundary this Transition is not;
+      // no command may author or forge provenance (#1065).
+      const { participants, propertyRamps: _propertyRamps, wholeOutput: _wholeOutput, origin: _origin, ...settings } = structuredClone(transition)
       return { ...settings, id: plan.transitionIds[transition.id], fromPlacementId: plan.clipIds[participants[0].fromClipId], toPlacementId: plan.clipIds[participants[0].toClipId] }
     }), propertyTracks: selectedTracks.map(track => ({
       ...structuredClone(track), id: plan.propertyTrackIds[track.id], target: { ...structuredClone(track.target), clipId: plan.clipIds[(track.target as Extract<ShowPropertyTrackV2['target'], { clipId: string }>).clipId] },

@@ -117,9 +117,15 @@ describe('v2 Transition editor model', () => {
     // Stale kind parameters leave with their kind rather than persisting as dead fields.
     expect('wipeVariant' in plan.intent.transition).toBe(false)
     expect(plan.intent.transition.participants).toEqual(current.participants)
+    // A kind change does not change which v1 collection this Transition came
+    // from, and only the converter may write or clear that provenance, so the
+    // plan carries it through an ordinary settings edit unchanged (#1065).
+    expect(current.origin).toBe('converted-layer-transition')
+    expect(plan.intent.transition.origin).toBe(current.origin)
     const applied = editShowTransitionV2(source, plan.intent)
     expect(applied).toMatchObject({ status: 'changed', affectedClipIds: [], affectedTransitionIds: [current.id] })
     if (applied.status !== 'changed') return
+    expect(applied.record.composition.transitions[0].origin).toBe(current.origin)
     expect(applied.record.composition.clips).toEqual(source.composition.clips)
     expect(validateShowRecordV2(applied.record)).toEqual([])
   })
