@@ -12,8 +12,8 @@
 // The one thing this does not run is a browser engine: esbuild cannot bundle
 // the Worker inside jsdom, so the test supplies the minimal window surface the
 // admission observes - the route path and the history/navigation events it
-// closes on. The Chromium proof of the same route and binding is
-// `e2e/show-editor-v2-agent.auth.spec.ts`.
+// closes on. Its Chromium proof drove the rejected v2 route and was retired
+// with that route (#1065); the existing editor's own agent proof is #1066.
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'

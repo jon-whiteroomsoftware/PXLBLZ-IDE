@@ -879,10 +879,10 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
     () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
     'Show authoring should not create document-level horizontal overflow at 390px',
   ).toBeLessThanOrEqual(1)
-  // A fresh Show opens on the v2 editor since #1039; its transport is the
-  // route's leading control and must stay reachable at 390px.
-  await expect(page.getByTestId('show-editor-v2-route')).toBeVisible()
-  await expect(page.getByTestId('show-editor-v2-transport')).toBeInViewport()
+  // A fresh Show is stored as version 2 since #1039 and opens in the existing
+  // editor since #1065; the timeline toolbar is that editor's leading control
+  // and must stay reachable at 390px.
+  await expect(page.getByTestId('show-timeline-toolbar')).toBeInViewport()
 
   // The Learn number is composed from catalogue level and order at runtime.
   await page.getByRole('button', { name: 'Open the Shows list' }).click()

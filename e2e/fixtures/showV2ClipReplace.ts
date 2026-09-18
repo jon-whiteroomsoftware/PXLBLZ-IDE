@@ -2,11 +2,10 @@ import { readFileSync } from 'node:fs'
 import type { ShowRecordV2 } from '../../src/engine/showCompositionV2'
 
 /**
- * The Clip-replacement record and its Patterns. The route spec that drove the
- * retired pilot is gone - `show-editor-v2-inspector.auth.spec.ts` covers
- * Replace Pattern on the editor route (#1056 slice 6) - and these stay as the
- * pinned inputs `showV2ClipReplacementModel.test.ts` qualifies every
- * replacement state against.
+ * The Clip-replacement record and its Patterns. Every browser spec that drove
+ * them belonged to the rejected v2 route and was retired with it (#1065);
+ * these stay as the pinned inputs `showV2ClipReplacementModel.test.ts`
+ * qualifies every replacement state against.
  */
 export const clipReplaceRecord: ShowRecordV2 = JSON.parse(
   readFileSync(new URL('./showV2ClipReplace.json', import.meta.url), 'utf8'),

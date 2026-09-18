@@ -1471,13 +1471,11 @@ test.describe('authenticated Show authoring', () => {
       if (message.type() === 'error') seriousConsoleErrors.push(message.text())
     })
     // The creation flow itself is version-agnostic and now produces a v2
-    // record; `show-editor-v2-route.auth.spec.ts` covers it choosing this same
-    // contract. What follows is the v1 editor's own shape of these surfaces:
-    // its output summary, Show properties panel, Zone Map and Zone Layout
-    // routing mode, so this seeds the v1 row they belong to. The v2 route has
-    // its own counterparts for the contract, the Stage map, Zone renaming and
-    // Trails in `show-editor-v2-show-properties.auth.spec.ts`; adding a Zone
-    // and a Layout definition's routing mode remain v1-only, because no v2
+    // record, which since #1065 opens in this same editor. What follows is the
+    // v1 backing's own shape of these surfaces: its output summary, Show
+    // properties panel, Zone Map and Zone Layout routing mode, so this seeds
+    // the v1 row they belong to. Adding a Zone and a Layout definition's
+    // routing mode remain v1-only here, because no v2
     // owner writes them.
     const portable = createShowWithOutputContract(
       `v1-portable-${randomUUID()}`,
@@ -2175,9 +2173,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Pixels')).toBeDisabled()
     await page.getByRole('button', { name: 'Create Show' }).click()
 
-    // The flow is version-agnostic; since #1039 it creates a version-2 record,
-    // so the locked count is read back from the v2 document it wrote.
-    await expect(page.getByTestId('show-editor-v2-route')).toBeVisible()
+    // The flow is version-agnostic; since #1039 it creates a version-2 record
+    // and since #1065 that record opens in the existing editor, so the locked
+    // count is read back from the v2 document it wrote.
+    await expect(page.getByTestId('show-timeline-toolbar')).toBeVisible()
     await expect.poll(async () => {
       const response = await page.context().request.get('/api/shows?show-version=2')
       const { shows } = await response.json() as { shows: Array<{ outputContract?: Record<string, unknown> }> }
@@ -3068,8 +3067,8 @@ async function getShowAction(
  * v1 until the operator conversion reaches it, so they now address such a row
  * explicitly instead of relying on "fresh means v1". The record is exactly what
  * the flow's Installation defaults built: no output map, 256 pixels, the
- * default name. The v2 acceptance of the same creation flow is
- * `show-editor-v2-route.auth.spec.ts`; #1042 retires the v1 editor these cover.
+ * default name. The same creation flow's v2 record opens in this editor since
+ * #1065; #1042 retires the v1 backing these cover.
  */
 async function createInstallationShow(page: Page): Promise<void> {
   const show = createShowWithOutputContract(

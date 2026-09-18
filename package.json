@@ -41,7 +41,7 @@
     "test:watch": "npm run check:node && vitest",
     "test:e2e": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e -- tsx scripts/run-public-playwright.ts",
     "test:e2e:auth-smoke": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e:auth-smoke -- tsx scripts/run-authenticated-playwright.ts e2e/authenticated-smoke.auth.spec.ts e2e/artifact-import.auth.spec.ts e2e/pattern-panel.auth.spec.ts e2e/controller-map.auth.spec.ts e2e/controller-permission.auth.spec.ts",
-    "test:e2e:shows": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e:shows -- tsx scripts/run-authenticated-playwright.ts e2e/shows.auth.spec.ts e2e/show-workspace-divider.auth.spec.ts e2e/show-boundary-deletion.auth.spec.ts e2e/agent-onboarding.auth.spec.ts e2e/show-v2-markers.auth.spec.ts e2e/show-v2-prepared-stage.auth.spec.ts e2e/show-v2-layers.auth.spec.ts e2e/show-v2-appearance.auth.spec.ts e2e/show-v2-properties.auth.spec.ts e2e/show-v2-group-replace.auth.spec.ts e2e/show-v2-appearance-surface.auth.spec.ts e2e/show-v2-chapters.auth.spec.ts e2e/show-v2-group-create.auth.spec.ts e2e/show-v2-group-occurrences.auth.spec.ts e2e/show-editor-v2-readonly.auth.spec.ts e2e/show-editor-v2-inspector.auth.spec.ts e2e/show-editor-v2-gestures.auth.spec.ts e2e/show-editor-v2-transitions-layout.auth.spec.ts e2e/show-editor-v2-animation.auth.spec.ts e2e/show-editor-v2-route.auth.spec.ts e2e/show-v2-rail-parity.auth.spec.ts e2e/show-editor-v2-viewport.auth.spec.ts e2e/show-editor-v2-agent.auth.spec.ts e2e/show-editor-v2-show-properties.auth.spec.ts e2e/show-editor-v2-zones-layouts.auth.spec.ts",
+    "test:e2e:shows": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e:shows -- tsx scripts/run-authenticated-playwright.ts e2e/shows.auth.spec.ts e2e/show-workspace-divider.auth.spec.ts e2e/show-boundary-deletion.auth.spec.ts e2e/agent-onboarding.auth.spec.ts e2e/show-v2-rail-parity.auth.spec.ts",
     "test:e2e:agent-baseline": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e:agent-baseline -- tsx scripts/run-authenticated-playwright.ts e2e/agent-baseline.auth.spec.ts",
     "show:editor-equivalence:fixtures": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-editor-equivalence-fixtures.ts",
     "show:editor-equivalence:seed": "npm run check:node && tsx src/agent-harness/run.ts scripts/seed-show-editor-equivalence.ts",
@@ -145,12 +145,8 @@
     "show:v2-parity": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-parity.ts",
     "show:v2-native-parity": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-native-parity.ts",
     "show:v2-migrate": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-migrate.ts",
-    "capture:editor-v2-route": "npm run check:node && tsx scripts/with-suite-lock.ts capture:editor-v2-route -- tsx scripts/run-authenticated-playwright.ts e2e/capture-editor-v2-route.auth.spec.ts --workers=1",
     "capture:chapters": "npm run check:node && tsx scripts/with-suite-lock.ts capture:chapters -- tsx scripts/run-authenticated-playwright.ts e2e/capture-chapters.auth.spec.ts --workers=1",
-    "capture:shows": "npm run check:node && tsx scripts/with-suite-lock.ts capture:shows -- tsx scripts/run-authenticated-playwright.ts e2e/capture-shows.auth.spec.ts --workers=1",
-    "capture:cutover": "npm run check:node && tsx scripts/with-suite-lock.ts capture:cutover -- tsx scripts/run-authenticated-playwright.ts e2e/capture-cutover.auth.spec.ts --workers=1",
-    "capture:show-properties": "npm run check:node && tsx scripts/with-suite-lock.ts capture:show-properties -- tsx scripts/run-authenticated-playwright.ts e2e/capture-show-properties.auth.spec.ts --workers=1",
-    "capture:zones-layouts": "npm run check:node && tsx scripts/with-suite-lock.ts capture:zones-layouts -- tsx scripts/run-authenticated-playwright.ts e2e/capture-zones-layouts.auth.spec.ts --workers=1"
+    "capture:shows": "npm run check:node && tsx scripts/with-suite-lock.ts capture:shows -- tsx scripts/run-authenticated-playwright.ts e2e/capture-shows.auth.spec.ts --workers=1"
   },
   "engines": {
     "node": "^22.13.0 || >=24"
