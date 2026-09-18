@@ -5,6 +5,16 @@ Jon accepted seam B on 2026-09-17: migrate the existing v1 editor in place.
 The [seam recommendation](show-editor-v2-seam-recommendation.md) owns the tradeoffs.
 This plan records execution boundaries, not another decision gate.
 
+**No route gate (Jon, 2026-09-18).** There is no gate and no opt-in. A Show
+stored as version 2 opens in the existing editor on main, ungated, as each slice
+lands; the rejected `ShowEditorV2Route` is no longer mounted, and the browser
+specs that drove it are retired. Until #1066 connects the remaining edits, a v2
+Show in the existing editor has only the ordinary Clip move connected and every
+other command is fenced to an internal no-change result. Pushing needs Jon's
+explicit word for that push. Any instruction below or elsewhere that reads "the
+gate remains on", "the gate remains unchanged", "opt-in", or "new Shows open in
+the rejected v2 route until #1067" is obsolete.
+
 The governing [Scene retirement specification](scene-retirement-specification.md)
 last changed at `51a5c2acf2e1732610e1ee4c2e3d4e29f934511e`. The tracer starts
 from local main `e6abc082878f9711af6d4149067a5e2742976bbc` and must incorporate
@@ -23,7 +33,8 @@ itself was 5,834 bytes in both. The accepted native v2 export metadata remains.
 
 The entire oracle read matrix must pass, not only the fresh Show. Only an ordinary
 same-lane Clip drag, its history, save, reload and Undo are behaviorally qualified
-by this tracer. #1066 and #1067 remain out of scope. Do not push.
+by this tracer; every other v2 command stays fenced until #1066. #1066 and #1067
+remain out of scope. Do not push without Jon's explicit word for that push.
 
 The v1 editor is the sole UX reference. The rejected v2 route, forms, UI hooks,
 adapters and projections are not implementation sources or guidance. In

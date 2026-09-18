@@ -698,6 +698,19 @@ editor/providers, then performs the rehearsed row conversion and readback.
 No production window may accept v2 in the editor while commands assume v1.
 Default fresh Shows retain current two-Clip/two-sided Crossfade behavior.
 
+**Which editor holds a routed Show (Jon, 2026-09-18).** There is no route gate
+and no opt-in. Both stored versions open in the one existing editor on main,
+ungated, as each #1065-#1067 slice lands; the rejected `ShowEditorV2Route` from
+#1056 is no longer mounted. The plan is to land everything on main with v2 Shows
+running in the existing editor, then remove the v1 code. `showV2RouteGate.ts`
+still answers which record version backs the open editor - it selects a backing,
+not an editor - and the mixed-window rule above is unchanged: the agent binding
+the open editor registers declares that same version, so the editor and its
+commands are never different versions. Until #1066 connects the remaining edits,
+a v2 Show in the existing editor has only the ordinary Clip move connected and
+every other command is fenced to an internal no-change result. Pushing needs
+Jon's explicit word for that push.
+
 #1042 first removes normal-authoring legacy owners, keeping compiler sections and
 v1 import adapters. Separately verify every migrated row and restore rehearsal,
 then retire legacy columns with a numbered migration chosen against current main.

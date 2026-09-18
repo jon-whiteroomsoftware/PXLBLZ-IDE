@@ -2,8 +2,11 @@
 
 Jon accepted recommendation B on 2026-09-17 for the bounded #1065 tracer.
 This document does not authorize #1066, #1067, publication or deployment.
-The current base is `4cbfb23f5bed833bb5d826147999504f452ea257`. The gate remains on
-by Jon's direction; nothing may be pushed. The governing specification is
+The current base is `4cbfb23f5bed833bb5d826147999504f452ea257`. There is no route
+gate and none is wanted: Jon decided on 2026-09-18 that a v2-stored Show opens in
+the existing editor on main, ungated, as each slice lands, and the rejected
+`ShowEditorV2Route` is no longer mounted. Nothing may be pushed without Jon's
+explicit word for that push. The governing specification is
 [Scene retirement](scene-retirement-specification.md), last changed at
 `51a5c2acf2e1732610e1ee4c2e3d4e29f934511e`. Jon selected Opus 5 Extra High
 (`claude-opus-5` / `xhigh`) for code reviews throughout this migration.
@@ -22,7 +25,9 @@ route orchestration, hooks, forms or adapters into the existing editor. The v1
 editor alone defines the UX. Design its backend connections from the new engine's
 documented command and state contracts. Existing engine owners are the backend
 being connected; the rejected UI implementation is not a shortcut to that work.
-The current v2 route appears in the oracle only as the failing comparison target.
+The rejected v2 route appeared in the oracle only as the failing comparison
+target. It is unmounted since #1065, so both stored versions now reach the same
+editor and the oracle compares that editor against itself.
 
 The strongest argument for A is compelling: less code changed inside the large
 editor should mean less opportunity for visible regressions. But A's apparent
@@ -134,12 +139,19 @@ before committing to the rest of the migration.
 The [coordinator's four-corpus paired inspection](../reference/evidence/issue-1065-coordinator-comparison/README.md)
 records the rejected route at desktop and narrow widths, solely as failure evidence.
 The [automated oracle and run evidence](../reference/evidence/issue-1065-equivalence-oracle/README.md)
-provide the repeatable acceptance command. Its current product verdict is red:
-the stored v2 record opens in a visibly different editor and lacks the ordinary
-v1 Clip gesture. The v1 behavioral reference qualified one drag, one save, one
+provide the repeatable acceptance command. Its verdict at the time of that inspection was red:
+the stored v2 record then opened in a visibly different editor and lacked the
+ordinary v1 Clip gesture. Since #1065 connected the existing editor, the stored
+v2 record opens there instead; only the ordinary Clip move is connected, and
+every other command is fenced until #1066. The v1 behavioral reference qualified one drag, one save, one
 history entry, exact moved-state hydration and exact Undo restoration. No product
 UI or engine behavior changed in this slice. The oracle must become green through
 the connection work; the rejected screen cannot become its accepted baseline.
 
 **Decision accepted 2026-09-17: proceed with the bounded #1065 tracer after the
 oracle corrections. #1066 and #1067 remain out of scope, and nothing may be pushed.**
+
+**Decision by Jon, 2026-09-18: no route gate and no opt-in.** A v2-stored Show
+opens in the existing editor on main as each slice lands. Everything earlier in
+this document that reads "the gate remains on" or "the rejected route holds a v2
+row" is obsolete. Pushing still needs Jon's explicit word for that push.

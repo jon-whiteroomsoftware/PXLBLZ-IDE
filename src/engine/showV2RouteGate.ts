@@ -1,8 +1,14 @@
 /**
- * The one gate the whole v2 Show route follows (#1056 slice 6, flipped by
+ * Which record version backs the open Show editor (#1056 slice 6, flipped by
  * #1039).
  *
- * Every consumer that must move together - the editor route, the Show list,
+ * There is no route gate. Jon decided on 2026-09-18 that a v2-stored Show opens
+ * in the existing editor, ungated, and the rejected `ShowEditorV2Route` is no
+ * longer mounted: `ShowEditor` renders every routed Show. This module chooses
+ * the *record* that editor reads, not the editor. Its name still says "route";
+ * #1067 owns renaming it along with the rejected components.
+ *
+ * Every consumer that must move together - the editor, the Show list,
  * fresh-Show creation, `.pxlshow` import and the store's v2 listing - asks
  * this module, so the activation is the single constant below rather than a
  * flag each surface reads for itself.
@@ -15,15 +21,18 @@
  *   all. Since #1039 it is, unconditionally: fresh Shows are authored as v2,
  *   the Show list reads stored v2 documents beside v1 rows, and `.pxlshow`
  *   import accepts a version-2 bundle.
- * - `opensOnShowV2Route` answers, per routed Show, which editor holds it. A
- *   stored v2 document opens on the v2 editor; a row still stored as v1 keeps
- *   the v1 editor until the operator conversion (`npm run show:v2-migrate`)
- *   rewrites it, because section 10 also forbids migrating a row on read.
+ * - `opensOnShowV2Route` answers, per routed Show, which record backs it. A
+ *   stored v2 document backs the editor with the v2 pilot record; a row still
+ *   stored as v1 keeps its v1 record until the operator conversion
+ *   (`npm run show:v2-migrate`) rewrites it, because section 10 also forbids
+ *   migrating a row on read.
  *
  * The command side follows the same per-record answer: the agent binding the
  * open editor registers declares its record version, and the executor,
  * admission and MCP catalogue dispatch on that. So for one Show the editor and
- * its commands are always the same version, in either state.
+ * its commands are always the same version, in either state. Until #1066
+ * connects the remaining edits, a v2 backing has only the ordinary Clip move
+ * connected and every other command is fenced.
  */
 
 /**
@@ -34,13 +43,12 @@
 export const SHOW_V2_ROUTE_DEFAULT = true
 
 /**
- * The development-only preview of an unconverted row on the v2 editor.
+ * The development-only preview of an unconverted row on the v2 backing.
  *
  * It converts in memory for the open session and writes nothing, which is what
- * lets a development build and the repository's v2 route specs exercise the v2
- * editor against a v1 fixture. A production build ignores it however the URL is
- * written, so no user reaches a converted view of a row storage still holds
- * as v1.
+ * lets a development build exercise the existing editor's v2 backing against a
+ * v1 fixture. A production build ignores it however the URL is written, so no
+ * user reaches a converted view of a row storage still holds as v1.
  */
 export const SHOW_V2_ROUTE_PREVIEW_PARAM = 'show-v2-editor'
 
