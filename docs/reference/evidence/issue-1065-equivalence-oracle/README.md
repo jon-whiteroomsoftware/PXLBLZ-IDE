@@ -1,6 +1,8 @@
 # Show editor equivalence oracle (#1065)
 
-This diagnostic proves whether the existing Show editor presents the same UX and durable authoring behavior for independently stored v1 and converted v2 Show rows. It is intentionally red on the current rejected v2 route. Converter accounting is diagnostic context only: no converter difference permits a visual or behavioral mismatch.
+This diagnostic proves whether the existing Show editor presents the same UX and durable authoring behavior for independently stored v1 and converted v2 Show rows. Converter accounting is diagnostic context only: no converter difference permits a visual or behavioral mismatch.
+
+It was intentionally red while a v2 row opened the rejected v2 route. Jon decided on 2026-09-18 that there is no route gate and a v2 Show opens in the existing editor, so the oracle now compares two rows of the same editor and its red rows are named product or method results rather than an expected mismatch.
 
 ## Run it
 
@@ -11,7 +13,9 @@ npm run show:editor-equivalence:fixtures
 npm run show:editor-equivalence
 ```
 
-The second command provisions an isolated authenticated runtime, stores each v1 source, reads its persisted representation back, and converts that persisted representation into the independently stored v2 row. It also checks the raw committed v1/v2 fixture pair against the current converter so fixture drift still fails closed. It then runs both visual and pointer-gesture tests. A complete run is expected to exit nonzero until the v2 record opens in the existing editor. This diagnostic is deliberately excluded from the ordinary `test:e2e:shows` and final-suite commands while it records that known mismatch.
+The second command provisions an isolated authenticated runtime, stores each v1 source, reads its persisted representation back, and converts that persisted representation into the independently stored v2 row. It also checks the raw committed v1/v2 fixture pair against the current converter so fixture drift still fails closed. It then runs both visual and pointer-gesture tests. A complete run exits nonzero while any verdict row is not equivalent; the rows that remain red are named below.
+
+This spec is in no `runner.suites` entry and its only script is the non-required `show:editor-equivalence`, so no runner produces exact-tip evidence for it. That is why a full-matrix run at an exact code commit is retained here rather than cited from a runner receipt.
 
 For manual inspection on the managed #1065 runtime:
 
@@ -59,9 +63,32 @@ The behavioral row has one safe movable ordinary Clip. The oracle pauses and rew
 
 A missing ordinary v1 gesture or control on the v2 route is a product-unavailable result. Each operation is time-bounded, partial measurements remain in the report, and a global timeout is never relabeled as a UX mismatch.
 
+## Exact-tip run `tip-6ee11aa7` (2026-09-18)
+
+`exact-tip-summary.json` is the full matrix run at code commit `6ee11aa7`, on a clean tree, by
+
+```bash
+PXLBLZ_EQUIVALENCE_RUN_ID=tip-6ee11aa7 npm run -s show:editor-equivalence
+```
+
+It took 579 seconds: 9.0 minutes for the matrix test and 9.7 minutes for the whole spec. 80 comparisons, 72 strict verdict rows, **69 equivalent**. The behavioral verdict is equivalent on both stored versions: one settled save, history `{past: 1, future: 0}`, exact hydration on a fresh page, then Undo with a second save, `{past: 0, future: 1}` and the exact stored preimage after reload.
+
+The summary records every verdict row with its raw strict `changedPixels` and `maximumChannelDelta`, the qualification that produced its verdict, and the retained captures. Fourteen rows are not pixel-exact; the `-v1-a.png` and `-v2-a.png` captures for each of those are in this directory (28 files, 5.1 MiB). Every other verdict row is exactly zero and has nothing to show.
+
+Eleven of those fourteen are the approved source-size gauge value, qualified with its exact-zero symmetric counterfactual and byte-exact restoration: the `whole-editor` and `preview-strip` pair for each of the four fixtures at 1440, and the three 390 detail panels the gauge lies behind.
+
+### The three red rows
+
+- `fresh/390 whole-editor` and `fresh/390 preview-strip`, 8 pixels at channel delta 212, refused with `counterfactual-not-exact`. The counterfactual itself is exactly zero. What fails is restoration: on the v2 row, putting the gauge slots back leaves the preview help icon one level different at six pixels (x181-186, y8-9). The two restoration controls are acquired in independent page opens and are byte-identical to each other, while both differ from the two pristine controls at exactly those positions, so the residual is a systematic effect of the mutate-and-restore cycle rather than raster noise. It is therefore not classifiable, and it is not excused. Before `6ee11aa7` these rows read as qualified only because the pristine and post-restoration controls shared one group, which held both values by construction.
+- `fresh/390 transition-palette`, 17 pixels at channel delta 1, refused with `counterfactual-not-exact`. The gauge lies behind this panel but does not explain it: normalizing the gauge leaves the difference untouched. Its cause is that opening the Transition palette on a v1 row previews the current item - a preview override plus a seek to the boundary midpoint - while the same handler is an unconnected no-op on a v2 row, so the timeline playhead paints `bg-amber-300` on one side and `bg-live` on the other and bleeds through the panel's backdrop blur. Jon decided on 2026-09-18 to leave this row red, tracked on #1066. No seek was settled, no preview was connected and the row is not special-cased.
+
+### Correction to `e92ac9d7`
+
+That commit's message cites "Full matrix at f79eb575: 71 of 72 verdict rows equivalent". That run predates the capture-identity rework, the control plan and the gauge exception it introduced, and this oracle's own identity test declares its two-row arrangement invalid, so it is not evidence for that code and must not be cited as such. The `tip-6ee11aa7` run above supersedes it.
+
 ## Recorded run
 
-The compact JSON summaries and representative v1/v2 editor captures in this directory come from the 2026-09-17 oracle work. Raw run directories remain external because the full matrix produces many PNGs and verbose converter accounting.
+The compact JSON summaries and representative v1/v2 editor captures in this directory come from the 2026-09-17 oracle work and from the 2026-09-18 exact-tip run recorded below. Raw run directories remain external because the full matrix produces many PNGs and verbose converter accounting; only the captures for rows that are not pixel-exact are retained here.
 
 The historical full run `full-final-20260917c` produced 80 comparisons and 72 strict verdict rows, but it is superseded as acceptance evidence. Its capture preparation persisted an opened Zones rail, so later surfaces and viewports were not guaranteed to begin from the same UI state. Its reported counts remain in `visual-summary.json` only as diagnostic provenance; they must not be cited as a qualified complete matrix. The representative whole-editor image preceded the Zones surface and remains illustrative, not acceptance proof.
 

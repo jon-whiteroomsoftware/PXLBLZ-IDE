@@ -1,0 +1,1222 @@
+{
+ "schemaVersion": 1,
+ "issue": 1065,
+ "sourceRunId": "tip-6ee11aa7",
+ "codeCommit": "6ee11aa7",
+ "generatedAt": "2026-09-18T19:18:37.310Z",
+ "durationSeconds": 579,
+ "command": "PXLBLZ_EQUIVALENCE_RUN_ID=tip-6ee11aa7 npm run -s show:editor-equivalence",
+ "filters": {
+  "fixture": null,
+  "viewport": null,
+  "surface": null
+ },
+ "partialCoverage": false,
+ "widths": [
+  1440,
+  390
+ ],
+ "comparisonCount": 80,
+ "verdictCount": 72,
+ "equivalentRows": 69,
+ "equivalent": false,
+ "rows": [
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "whole-editor",
+   "changedPixels": 45,
+   "maximumChannelDelta": 204,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "timeline",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "toolbar",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "stage-canvas",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "preview-strip",
+   "changedPixels": 45,
+   "maximumChannelDelta": 204,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "header",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "show-actions",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "clip-detail-panel",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "transition-authoring",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "transition-palette",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "desktop",
+   "surface": "show-properties",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "whole-editor",
+   "changedPixels": 8,
+   "maximumChannelDelta": 212,
+   "equivalent": false,
+   "reason": "pixels-differ",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": false,
+    "reason": "counterfactual-not-exact"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "timeline",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "toolbar",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "stage-canvas",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "preview-strip",
+   "changedPixels": 8,
+   "maximumChannelDelta": 212,
+   "equivalent": false,
+   "reason": "pixels-differ",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": false,
+    "reason": "counterfactual-not-exact"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "header",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "show-actions",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "clip-detail-panel",
+   "changedPixels": 57,
+   "maximumChannelDelta": 1,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "behind",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "transition-authoring",
+   "changedPixels": 56,
+   "maximumChannelDelta": 1,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "behind",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "transition-palette",
+   "changedPixels": 17,
+   "maximumChannelDelta": 1,
+   "equivalent": false,
+   "reason": "pixels-differ",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "behind",
+    "qualified": false,
+    "reason": "counterfactual-not-exact"
+   }
+  },
+  {
+   "fixture": "fresh",
+   "viewport": "narrow",
+   "surface": "show-properties",
+   "changedPixels": 30,
+   "maximumChannelDelta": 1,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "behind",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "whole-editor",
+   "changedPixels": 94,
+   "maximumChannelDelta": 212,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "timeline",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "toolbar",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "stage-canvas",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "preview-strip",
+   "changedPixels": 94,
+   "maximumChannelDelta": 212,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "header",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "show-actions",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "zones-rail",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "zone-map",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "desktop",
+   "surface": "zone-layout-panel",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "whole-editor",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "timeline",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "toolbar",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "stage-canvas",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "preview-strip",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "header",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "show-actions",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "zones-rail",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "zone-map",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "installation-layouts",
+   "viewport": "narrow",
+   "surface": "zone-layout-panel",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "desktop",
+   "surface": "whole-editor",
+   "changedPixels": 93,
+   "maximumChannelDelta": 212,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "desktop",
+   "surface": "timeline",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "desktop",
+   "surface": "toolbar",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "desktop",
+   "surface": "stage-canvas",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "desktop",
+   "surface": "preview-strip",
+   "changedPixels": 93,
+   "maximumChannelDelta": 212,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "desktop",
+   "surface": "header",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "desktop",
+   "surface": "show-actions",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "desktop",
+   "surface": "property-animation-editor",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "narrow",
+   "surface": "whole-editor",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "narrow",
+   "surface": "timeline",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "narrow",
+   "surface": "toolbar",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "narrow",
+   "surface": "stage-canvas",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "narrow",
+   "surface": "preview-strip",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "narrow",
+   "surface": "header",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "narrow",
+   "surface": "show-actions",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "groups-animation",
+   "viewport": "narrow",
+   "surface": "property-animation-editor",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "desktop",
+   "surface": "whole-editor",
+   "changedPixels": 90,
+   "maximumChannelDelta": 212,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "desktop",
+   "surface": "timeline",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "desktop",
+   "surface": "toolbar",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "desktop",
+   "surface": "stage-canvas",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "desktop",
+   "surface": "preview-strip",
+   "changedPixels": 90,
+   "maximumChannelDelta": 212,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "pixels-differ",
+   "qualification": {
+    "kind": "source-size-gauge-exception",
+    "placement": "inside",
+    "qualified": true,
+    "reason": "qualified"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "desktop",
+   "surface": "header",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "desktop",
+   "surface": "show-actions",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "narrow",
+   "surface": "whole-editor",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "narrow",
+   "surface": "timeline",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "narrow",
+   "surface": "toolbar",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "narrow",
+   "surface": "stage-canvas",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "narrow",
+   "surface": "preview-strip",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "narrow",
+   "surface": "header",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  },
+  {
+   "fixture": "stock-lesson",
+   "viewport": "narrow",
+   "surface": "show-actions",
+   "changedPixels": 0,
+   "maximumChannelDelta": 0,
+   "equivalent": true,
+   "reason": "equivalent",
+   "strictReason": "equivalent",
+   "qualification": {
+    "kind": "none"
+   }
+  }
+ ],
+ "nonExactRows": [
+  "fresh/desktop/whole-editor",
+  "fresh/desktop/preview-strip",
+  "fresh/narrow/whole-editor",
+  "fresh/narrow/preview-strip",
+  "fresh/narrow/clip-detail-panel",
+  "fresh/narrow/transition-authoring",
+  "fresh/narrow/transition-palette",
+  "fresh/narrow/show-properties",
+  "installation-layouts/desktop/whole-editor",
+  "installation-layouts/desktop/preview-strip",
+  "groups-animation/desktop/whole-editor",
+  "groups-animation/desktop/preview-strip",
+  "stock-lesson/desktop/whole-editor",
+  "stock-lesson/desktop/preview-strip"
+ ],
+ "retainedCaptures": [
+  {
+   "file": "fresh-desktop-whole-editor-v1-a.png",
+   "sha256": "149312d1b846137c54f48793481c7f290293f57948f77f512aad40dcb4331808",
+   "bytes": 326839
+  },
+  {
+   "file": "fresh-desktop-whole-editor-v2-a.png",
+   "sha256": "4940ba1f3948b27b256d6be9821bd1a73205884ef26e142e8481cbe002be0130",
+   "bytes": 326819
+  },
+  {
+   "file": "fresh-desktop-preview-strip-v1-a.png",
+   "sha256": "67a0bd3a41057ac0031e91ed3f1e6f53a1b8f40c5f90e48d09482219be8e35aa",
+   "bytes": 299862
+  },
+  {
+   "file": "fresh-desktop-preview-strip-v2-a.png",
+   "sha256": "78c107ade7458ea81066d2009a7059fb1853e90bb488969894d4907450c14f0e",
+   "bytes": 299843
+  },
+  {
+   "file": "fresh-narrow-whole-editor-v1-a.png",
+   "sha256": "e604fb1acd4a23ff1f5b781bb4c9a0a809889eb470de91a759ecd94160bfbe1d",
+   "bytes": 45265
+  },
+  {
+   "file": "fresh-narrow-whole-editor-v2-a.png",
+   "sha256": "69bb3abea98bd5c33cf1b2263ab5a1b59e1ca4dd1d49f8c3b4fe3e4fe5235445",
+   "bytes": 45265
+  },
+  {
+   "file": "fresh-narrow-preview-strip-v1-a.png",
+   "sha256": "287b50dcce43a818ee51d45de05431b7731007a6bd3b91c65e265462ef002f4e",
+   "bytes": 30485
+  },
+  {
+   "file": "fresh-narrow-preview-strip-v2-a.png",
+   "sha256": "9f3ba6625de8c04fbc3ef0873c6df3dc7a55f739b046f3a52a3db885be650703",
+   "bytes": 30485
+  },
+  {
+   "file": "fresh-narrow-clip-detail-panel-v1-a.png",
+   "sha256": "247e0c603c7c0a039a655c64105139c9d0dae3a5a87c65d27d8ec0bbf182f0c6",
+   "bytes": 23520
+  },
+  {
+   "file": "fresh-narrow-clip-detail-panel-v2-a.png",
+   "sha256": "f78f8740d8ca95958e7489172e5fd089dc254c70d8e7bd58bb68168cb02f5487",
+   "bytes": 23518
+  },
+  {
+   "file": "fresh-narrow-transition-authoring-v1-a.png",
+   "sha256": "2c4859b841df738bc662320b3e2ee865635c35c92f123810de7682b69942c75c",
+   "bytes": 29808
+  },
+  {
+   "file": "fresh-narrow-transition-authoring-v2-a.png",
+   "sha256": "33f265bbbb6971b4138ad4e3e9eeb4bf65905fa1cf7a72c13cb5d2bbf2fd3604",
+   "bytes": 29816
+  },
+  {
+   "file": "fresh-narrow-transition-palette-v1-a.png",
+   "sha256": "7343b78d9ec436d32d8808e23423b502076f46d249e268cb384d0b1ab986dd3c",
+   "bytes": 31206
+  },
+  {
+   "file": "fresh-narrow-transition-palette-v2-a.png",
+   "sha256": "70a7e077592fe1bd537a0108eb0c7860a47e5b6f2b85785176c13836a5e26a82",
+   "bytes": 31203
+  },
+  {
+   "file": "fresh-narrow-show-properties-v1-a.png",
+   "sha256": "03f5b7bee34a499185be5b67faa3853584c5d0b5b3144a68baacc1030ce4f4eb",
+   "bytes": 41004
+  },
+  {
+   "file": "fresh-narrow-show-properties-v2-a.png",
+   "sha256": "8d1eb584e9fd9aaeb42382de2dd54d7773a5c9805f48a662292f2023174f904c",
+   "bytes": 41022
+  },
+  {
+   "file": "installation-layouts-desktop-whole-editor-v1-a.png",
+   "sha256": "1f7fc7daa5e3c9cd8bb691133399ddd11a8c8d173bd5ea2feffead465b3eece0",
+   "bytes": 339454
+  },
+  {
+   "file": "installation-layouts-desktop-whole-editor-v2-a.png",
+   "sha256": "04c56f88eafd5297e43bdbadcc62e3fc65c2cb07e6b74ba73adffaf620b705e1",
+   "bytes": 339246
+  },
+  {
+   "file": "installation-layouts-desktop-preview-strip-v1-a.png",
+   "sha256": "f9d4fe29c2f86a7c89a65959f3105ce18bdac8e2afeac4d67f746d2db9248819",
+   "bytes": 304112
+  },
+  {
+   "file": "installation-layouts-desktop-preview-strip-v2-a.png",
+   "sha256": "938d8104959bf0a7348b79e8b6ff3796f1799da7e81a7ee50a4d7b63beeda58f",
+   "bytes": 303864
+  },
+  {
+   "file": "groups-animation-desktop-whole-editor-v1-a.png",
+   "sha256": "7d991848b490ead88a7d56ddf69180b8569dbdcfdf9705a0778eae7125646fdb",
+   "bytes": 421502
+  },
+  {
+   "file": "groups-animation-desktop-whole-editor-v2-a.png",
+   "sha256": "244d3609eeaa46d32cba1f3856e1aa4455d4026f6dc308baa45d193bbf213fd0",
+   "bytes": 421621
+  },
+  {
+   "file": "groups-animation-desktop-preview-strip-v1-a.png",
+   "sha256": "f05a61dfb3978d4c1db732cc21f999ce00dbd3b723fc2b3f6d88ae0338b89330",
+   "bytes": 378964
+  },
+  {
+   "file": "groups-animation-desktop-preview-strip-v2-a.png",
+   "sha256": "bde203e2c9a820141126afa3b3fef22165bf5edf84d7b489ee6658245f8cccac",
+   "bytes": 379077
+  },
+  {
+   "file": "stock-lesson-desktop-whole-editor-v1-a.png",
+   "sha256": "c6efae2ab27571a81314a289813bf1c6d37279be26247ede982e2cc93ef1b0ff",
+   "bytes": 223473
+  },
+  {
+   "file": "stock-lesson-desktop-whole-editor-v2-a.png",
+   "sha256": "f3a239a6a9081b6057415338bda43e05d219abd6892caa3f4f5b4dfde296d1cb",
+   "bytes": 223369
+  },
+  {
+   "file": "stock-lesson-desktop-preview-strip-v1-a.png",
+   "sha256": "96c1822ab4cd634842af0315a6a944b444dd500f6cbe30c4d510fe4814cc0d79",
+   "bytes": 190648
+  },
+  {
+   "file": "stock-lesson-desktop-preview-strip-v2-a.png",
+   "sha256": "ef39b903adf18697e8d6a8259bbc6939e5c0d70252ba0918df6dfaf257d41145",
+   "bytes": 190532
+  }
+ ],
+ "behavior": {
+  "gesture": "pointer Clip drag by +2000ms",
+  "equivalent": true,
+  "checks": {
+   "records": true,
+   "history": true,
+   "saves": true,
+   "reload": true,
+   "undo": true
+  },
+  "history": {
+   "v1": 1,
+   "v2": 1
+  },
+  "saves": {
+   "v1": 1,
+   "v2": 1
+  },
+  "reloadPreserved": {
+   "v1": true,
+   "v2": true
+  },
+  "undoRestored": {
+   "v1": true,
+   "v2": true
+  },
+  "outcomes": [
+   {
+    "version": "v1",
+    "available": true,
+    "savesAfterDrag": 1,
+    "historyAfterDrag": {
+     "past": 1,
+     "future": 0
+    },
+    "movedPreservedOnFreshPage": true,
+    "savesAfterUndo": 2,
+    "historyAfterUndo": {
+     "past": 0,
+     "future": 1
+    },
+    "undoRestoredAfterReload": true
+   },
+   {
+    "version": "v2",
+    "available": true,
+    "savesAfterDrag": 1,
+    "historyAfterDrag": {
+     "past": 1,
+     "future": 0
+    },
+    "movedPreservedOnFreshPage": true,
+    "savesAfterUndo": 2,
+    "historyAfterUndo": {
+     "past": 0,
+     "future": 1
+    },
+    "undoRestoredAfterReload": true
+   }
+  ]
+ }
+}
