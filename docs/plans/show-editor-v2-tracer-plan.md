@@ -177,10 +177,17 @@ non-comparable-capture and gauge-placement refusal is untouched. It is not a
 tolerance, mask, threshold or pixel-count cap. The verdict reports it distinctly
 as `qualified-with-demonstrated-restoration-side-effect`, carrying the residual
 count, maximum channel delta and positions, and the raw strict refusal is
-retained beside it. At 390 this is what the narrow `whole-editor` and
-`preview-strip` rows rest on: restoring the v2 gauge slots deterministically
-re-rasters six preview help-icon pixels by one channel level, and the controls
-reproduce exactly those six pixels with exactly those two values.
+retained beside it. At 390 the demonstrated path covers only the `fresh` narrow
+`whole-editor` and `preview-strip` rows: each reports 8 raw pixels at channel
+delta 212, and restoring the v2 gauge slots deterministically re-rasters six
+preview help-icon pixels by one channel level at (181, 256), (183, 256),
+(185, 256), (181, 257), (182, 257), (186, 257) on `whole-editor` and (181, 8),
+(183, 8), (185, 8), (181, 9), (182, 9), (186, 9) on `preview-strip`, reproduced
+position for position and value for value by the independent control pair;
+`stock-lesson` narrow `whole-editor` is exactly zero in the `tip-b8da932e` run
+and carries no gauge qualification. Since `b8da932e` the oracle refuses a raw
+difference its independent control pair does not reproduce, reason
+`raw-difference-not-reproduced`.
 
 Behavior proof covers real pointer movement, persisted converter equality, exact
 history shape, measured save count, fresh hydration and exact Undo restoration.
