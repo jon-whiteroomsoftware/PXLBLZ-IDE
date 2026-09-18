@@ -60,6 +60,11 @@ function rawCapture(label: string, sequence: number): RestorationCapture {
   return { label, path: `/tmp/pxlblz-show-editor-equivalence/run/${label}.png`, sha256: rawDigest(label), sequence }
 }
 
+/** The raw delivered captures the verdict's counts were measured from, keyed like the collector's. */
+function rawCaptureRef(label: string, sequence: number) {
+  return { label, path: `/tmp/pxlblz-show-editor-equivalence/run/${label}.png`, sequence }
+}
+
 /** A deterministic raw delivered difference both pairs share when the controls reproduce it exactly. */
 function rawChangedPixels(count: number): ChangedPixel[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -781,7 +786,9 @@ describe('the raw delivered pair reproduced by independent controls (#1065)', ()
     const drifted = rawChangedPixels(94).map((pixel, index) => (index === 0
       ? { ...pixel, right: [9, 9, 9, 255] as unknown as ChangedPixel['right'] }
       : pixel))
-    const assessment = qualifySourceSizeException({ ...approvedInput(), rawReproduction: reproduction(drifted) })
+    const assessment = qualifySourceSizeException({
+      ...approvedInput(), rawDifference: measured(94, 21), rawReproduction: reproduction(drifted),
+    })
     expect(assessment.qualified).toBe(false)
     expect(assessment.reason).toBe('raw-difference-not-reproduced')
   })
@@ -824,6 +831,72 @@ describe('the raw delivered pair reproduced by independent controls (#1065)', ()
     if (!reused.candidate.comparable || !reused.control.comparable) throw new Error('test setup')
     reused.control.difference.left = { ...reused.control.difference.left, ...rawCapture('v1-delivered-candidate', 30) }
     const assessment = qualifySourceSizeException({ ...approvedInput(), rawReproduction: reused })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('raw-difference-not-reproduced')
+  })
+
+  it('binds the reproduction to the raw difference: a candidate of different captures refuses', () => {
+    const other = reproduction()
+    if (!other.candidate.comparable) throw new Error('test setup')
+    other.candidate.difference.left = rawCapture('v1-delivered-recapture', 50)
+    other.candidate.difference.right = rawCapture('v2-delivered-recapture', 51)
+    const assessment = qualifySourceSizeException({ ...approvedInput(), rawReproduction: other })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('incomplete-evidence')
+    expect(assessment.detail).toContain('v1-delivered-candidate')
+  })
+
+  it('refuses a candidate whose capture sequence does not match the raw delivered captures', () => {
+    const moved = reproduction()
+    if (!moved.candidate.comparable) throw new Error('test setup')
+    moved.candidate.difference.left = { ...moved.candidate.difference.left, sequence: 99 }
+    const assessment = qualifySourceSizeException({ ...approvedInput(), rawReproduction: moved })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('incomplete-evidence')
+  })
+
+  it('refuses a candidate with fewer pixels than the raw difference reported', () => {
+    const assessment = qualifySourceSizeException({
+      ...approvedInput(), rawReproduction: reproduction(rawChangedPixels(93)),
+    })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('incomplete-evidence')
+    expect(assessment.detail).toContain('93')
+  })
+
+  it('refuses a candidate at a different maximum delta than the raw difference', () => {
+    const assessment = qualifySourceSizeException({
+      ...approvedInput(), rawDifference: measured(94, 2),
+    })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('incomplete-evidence')
+  })
+
+  it('refuses a candidate pair that compares a capture with itself', () => {
+    const self = reproduction()
+    if (!self.candidate.comparable) throw new Error('test setup')
+    self.candidate.difference.right = { ...self.candidate.difference.left }
+    const assessment = qualifySourceSizeException({ ...approvedInput(), rawReproduction: self })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('incomplete-evidence')
+  })
+
+  it('refuses a control pair captured after the candidate pair', () => {
+    const late = reproduction()
+    if (!late.control.comparable) throw new Error('test setup')
+    late.control.difference.left = rawCapture('v1-delivered-control-c', 40)
+    late.control.difference.right = rawCapture('v2-delivered-control-c', 41)
+    const assessment = qualifySourceSizeException({ ...approvedInput(), rawReproduction: late })
+    expect(assessment.qualified).toBe(false)
+    expect(assessment.reason).toBe('raw-difference-not-reproduced')
+    expect(assessment.detail).toContain('sequence')
+  })
+
+  it('refuses an interleaved control pair even when every capture is distinct', () => {
+    const interleaved = reproduction()
+    if (!interleaved.control.comparable) throw new Error('test setup')
+    interleaved.control.difference.right = rawCapture('v2-delivered-control-c', 40)
+    const assessment = qualifySourceSizeException({ ...approvedInput(), rawReproduction: interleaved })
     expect(assessment.qualified).toBe(false)
     expect(assessment.reason).toBe('raw-difference-not-reproduced')
   })
@@ -1108,6 +1181,34 @@ describe('qualifying a restoration residual as a demonstrated side effect (#1065
     expect(result.restorationSideEffect.applied[0].reason).toBe('demonstrated')
   })
 
+  it('names the demonstrated residual when another measurement still refuses the surface', () => {
+    const input = withRestorationResidual()
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise({
+      ...input,
+      counterfactual: { ...input.counterfactual, restored: { v1: measured(2, 1), v2: measured(6, 1) } },
+    }, [], demonstration())
+    expect(result.qualified).toBe(false)
+    expect(result.restorationSideEffect.applied).toEqual([expect.objectContaining({
+      measurement: 'restored-v2',
+      demonstrated: true,
+    })])
+    expect(result.restorationSideEffect.detail).toContain('v2 delivered vs restored')
+    expect(result.restorationSideEffect.detail).toContain('(181, 8)')
+    expect(result.restorationSideEffect.detail).not.toContain('No restoration residual was demonstrated')
+    expect(result.captureNoise.detail).toContain('restored-v1')
+  })
+
+  it('keeps the no-demonstration message when nothing was demonstrated', () => {
+    const input = withRestorationResidual()
+    const result = qualifySourceSizeExceptionWithQualifiedCaptureNoise({
+      ...input,
+      counterfactual: { ...input.counterfactual, restored: { v1: measured(2, 1), v2: exact } },
+    }, [], [])
+    expect(result.qualified).toBe(false)
+    expect(result.restorationSideEffect.applied).toEqual([])
+    expect(result.restorationSideEffect.detail).toContain('No restoration residual was demonstrated')
+  })
+
   it('refuses a demonstration naming some other comparison even for the right version', () => {
     const evidence = evidenceInput()
     const renamed = demonstrateRestorationSideEffect({ ...evidence, comparison: 'v2 normalized repeat' })
@@ -1327,7 +1428,11 @@ function approvedInput(variant: GaugeVariant = 'portal'): SourceGaugeExceptionIn
       '/tmp/pxlblz-show-editor-equivalence/run/whole-editor-v2.png',
       '/tmp/pxlblz-show-editor-equivalence/run/whole-editor-raw-diff.json',
     ],
-    rawDifference: measured(94, 204),
+    rawDifference: measured(94, 1),
+    rawCaptures: {
+      left: rawCaptureRef('v1-delivered-candidate', 30),
+      right: rawCaptureRef('v2-delivered-candidate', 33),
+    },
     rawReproduction: approvedRawReproduction(),
     counterfactual: {
       commonToken,

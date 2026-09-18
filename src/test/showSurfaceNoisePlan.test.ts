@@ -298,7 +298,7 @@ describe('clearing an ordinary surface on demonstrated noise', () => {
 
   it('clears a pixels-differ surface whose fresh comparison left no residual', () => {
     expect(planned().classification?.classified).toBe(true)
-    expect(reclassifyVisualPairWithCaptureNoise(differing, planned()).equivalent).toBe(true)
+    expect(reclassifyVisualPairWithCaptureNoise(differing, planned(), [{ ...POSITION }]).equivalent).toBe(true)
   })
 
   it('never clears on a residual, an unclassified comparison, or a missing one', () => {
@@ -309,9 +309,9 @@ describe('clearing an ordinary surface on demonstrated noise', () => {
         reason: 'variant-not-observed', qualifyingGroup: null, qualifiedBy: [],
       }],
     })
-    expect(reclassifyVisualPairWithCaptureNoise(differing, residual).equivalent).toBe(false)
-    expect(reclassifyVisualPairWithCaptureNoise(differing, undefined).equivalent).toBe(false)
-    expect(reclassifyVisualPairWithCaptureNoise(differing, { ...planned(), classification: null }).equivalent).toBe(false)
+    expect(reclassifyVisualPairWithCaptureNoise(differing, residual, [{ ...POSITION }]).equivalent).toBe(false)
+    expect(reclassifyVisualPairWithCaptureNoise(differing, undefined, [{ ...POSITION }]).equivalent).toBe(false)
+    expect(reclassifyVisualPairWithCaptureNoise(differing, { ...planned(), classification: null }, [{ ...POSITION }]).equivalent).toBe(false)
   })
 
   it('never clears a missing surface, changed dimensions or changed position', () => {
@@ -320,11 +320,24 @@ describe('clearing an ordinary surface on demonstrated noise', () => {
       assessVisualPair({ surface: 'timeline', v1: box, v2: { ...box, height: 999 }, changedPixels: 0, maximumChannelDelta: 0 }),
       assessVisualPair({ surface: 'timeline', v1: box, v2: { ...box, x: 3 }, changedPixels: 0, maximumChannelDelta: 0 }),
     ]) {
-      expect(reclassifyVisualPairWithCaptureNoise(failing, planned()).equivalent).toBe(false)
+      expect(reclassifyVisualPairWithCaptureNoise(failing, planned(), [{ ...POSITION }]).equivalent).toBe(false)
     }
   })
 
+  it('refuses when the fresh pair does not cover a strict difference position', () => {
+    expect(reclassifyVisualPairWithCaptureNoise(differing, planned(), [{ x: 1, y: 1 }]).equivalent).toBe(false)
+  })
+
+  it('refuses when the strict difference positions are missing', () => {
+    expect(reclassifyVisualPairWithCaptureNoise(differing, planned(), undefined).equivalent).toBe(false)
+  })
+
+  it('refuses when the strict positions do not account for every strict pixel', () => {
+    const two = assessVisualPair({ surface: 'timeline', v1: box, v2: box, changedPixels: 2, maximumChannelDelta: 1 })
+    expect(reclassifyVisualPairWithCaptureNoise(two, planned(), [{ ...POSITION }]).equivalent).toBe(false)
+  })
+
   it('carries the classification into the report either way', () => {
-    expect(reclassifyVisualPairWithCaptureNoise(differing, planned()).captureNoise?.key).toBe('delivered v1 vs v2')
+    expect(reclassifyVisualPairWithCaptureNoise(differing, planned(), [{ ...POSITION }]).captureNoise?.key).toBe('delivered v1 vs v2')
   })
 })

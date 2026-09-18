@@ -180,17 +180,39 @@ function renderState(input: SurfaceNoisePlanInput, capture: PhaseCapture): Rende
  * noise. Only a `pixels-differ` verdict is eligible - a missing surface, changed dimensions or
  * changed position is never capture noise - and only a classification with no residual at all.
  *
+ * The fresh pair must also cover the strict difference it clears: every position of the strict
+ * pair's difference must be a changed position of the qualifying pair. A fresh pair that differs
+ * somewhere else classifies its own pixels, not the strict verdict's, and clears nothing.
+ *
  * The run's original strict captures are never relabelled by this: they stay in the report beside
  * the fresh evidence, and this verdict rests on the post-control candidate captures alone.
  */
 export function reclassifyVisualPairWithCaptureNoise(
   assessment: VisualPairAssessment,
   planned: PlannedClassification | undefined,
+  strictDifference: readonly { x: number; y: number }[] | undefined,
 ): VisualPairAssessment & { captureNoise: PlannedClassification | null } {
   const carried = { ...assessment, captureNoise: planned ?? null }
   if (assessment.equivalent || assessment.reason !== 'pixels-differ') return carried
   const classification = planned?.classification
   if (!classification || !classification.classified || classification.residualPixels.length > 0) return carried
   if (classification.changedPixels === 0) return carried
+  if (!coversStrictDifference(assessment, classification, strictDifference)) return carried
   return { ...carried, equivalent: true, reason: 'equivalent' }
+}
+
+/**
+ * Every strict difference position must be a changed position of the qualifying pair, and the two
+ * counts must agree, so the positions offered cannot silently narrow the strict difference.
+ */
+function coversStrictDifference(
+  assessment: VisualPairAssessment,
+  classification: RasterNoiseClassification,
+  strictDifference: readonly { x: number; y: number }[] | undefined,
+): boolean {
+  if (!strictDifference) return false
+  if (typeof assessment.changedPixels === 'number'
+    && strictDifference.length !== assessment.changedPixels) return false
+  const fresh = new Set(classification.classifiedPixels.map(pixel => `${pixel.x},${pixel.y}`))
+  return strictDifference.every(position => fresh.has(`${position.x},${position.y}`))
 }

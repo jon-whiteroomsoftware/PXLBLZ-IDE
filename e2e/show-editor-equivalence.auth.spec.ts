@@ -347,7 +347,8 @@ test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({
           : noise.exception
             ? reclassifyVisualPairWithSourceGaugeException(assessment, noise.exception)
             : reclassifyVisualPairWithCaptureNoise(assessment,
-              noise.classifications.find(entry => entry.key === 'delivered v1 vs v2'))
+              noise.classifications.find(entry => entry.key === 'delivered v1 vs v2'),
+              await strictDifferencePositions(page, captures.v1a, captures.v2a))
         comparisons.push({
           fixture: pair.key,
           viewport: viewport.key,
@@ -931,6 +932,10 @@ async function collectSurfaceNoise(
         .filter(phase => phase.label.endsWith('delivered-candidate'))
         .map(phase => phase.path),
       rawDifference: measurementFor('delivered v1 vs v2'),
+      rawCaptures: {
+        left: captureRef('v1-delivered-candidate'),
+        right: captureRef('v2-delivered-candidate'),
+      },
       rawReproduction: {
         candidate: reproductionPair(
           rawCandidateDifference!,
@@ -1363,6 +1368,23 @@ async function compareCaptured(page: Page, left: CapturedSurface, right: Capture
     const { compareRgbaPixels } = await load('/PXLBLZ-IDE/src/test/showEditorEquivalenceOracle.ts')
     return { complete: true, ...compareRgbaPixels(a.pixels, b.pixels) }
   }, { leftBase64: left.bytes.toString('base64'), rightBase64: right.bytes.toString('base64') })
+}
+
+/**
+ * The strict pair's difference positions for the capture-noise coverage gate (#1064): the fresh
+ * pair only clears a strict verdict whose every differing position it re-captured. A pair that
+ * could not be compared yields no positions, and the pure oracle refuses to clear on that rather
+ * than reading an absent comparison as coverage.
+ */
+async function strictDifferencePositions(
+  page: Page,
+  left: CapturedSurface,
+  right: CapturedSurface,
+): Promise<readonly { x: number; y: number }[] | undefined> {
+  if (!left.bytes || !right.bytes) return undefined
+  const difference = await differenceBetweenCaptures(page, left.bytes, right.bytes)
+  if (!difference.comparable) return undefined
+  return difference.pixels.map(pixel => ({ x: pixel.x, y: pixel.y }))
 }
 
 function reportEndpoint(capture: CapturedSurface): Omit<CapturedSurface, 'bytes'> {
