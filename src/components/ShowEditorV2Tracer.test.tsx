@@ -2540,6 +2540,23 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect(after.history.past).toHaveLength(4)
     expect(after.v2Writes).toBe(4)
     expect(legacy.calls).toEqual([])
+
+    // The moved distort Effect no longer lands last in the array once a
+    // color-output Effect trails it; the same menu gesture still names the
+    // distort sibling, not the raw-array neighbour.
+    await addEffectThroughPalette('Brightness')
+    openEffectMenu('Swirl')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move Swirl Effect later' }))
+    await act(async () => {})
+
+    const extended = appearanceSubmissions()
+    expect(extended).toHaveLength(6)
+    const swirlReorder = extended[5]
+    expect(swirlReorder.baseRevision).toBe(5)
+    if (swirlReorder.intent.kind !== 'reorder-effect') throw new Error('Expected a reorder-effect intent.')
+    expect(swirlReorder.intent.effectId).toBe('swirl')
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).effects.map((effect) => effect.id))
+      .toEqual(['ripple', 'ripple-2', 'swirl', 'brightness'])
   })
 
   it('adds and removes Mirror through its fixed Transform row', async () => {

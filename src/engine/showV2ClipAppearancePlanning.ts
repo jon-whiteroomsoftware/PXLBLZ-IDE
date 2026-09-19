@@ -9,6 +9,7 @@ import type {
   ShowClipEvaluationPolicy,
 } from './personalContentRecords'
 import {
+  moveShowClipEffectToStagePosition,
   showClipEffectStage,
   updateShowClipEffectParameter,
 } from './showEffectAuthoring'
@@ -28,9 +29,10 @@ import { normalizeShowClipViewport } from './showClipViewport'
  * refuses before any owner runs: no record, no history entry, no save.
  *
  * One patch plans at most one intent, so one accepted edit stays exactly one
- * history entry and one save. A patch mixing appearance and instance facets
- * refuses rather than splitting into two entries; no shipped control emits
- * such a patch.
+ * history entry and one save. A patch mixing facets — appearance with
+ * instance, or an Effect operation with any other appearance facet — refuses
+ * rather than splitting or silently dropping half the patch; no shipped
+ * control emits such a patch.
  */
 
 export type ShowV2ClipInspectorRefusal =
@@ -83,7 +85,7 @@ const sameJson = (left: unknown, right: unknown): boolean =>
 type EffectsOp =
   | { kind: 'add'; effect: ShowClipEffect }
   | { kind: 'remove'; effectId: string; effectKind: ShowClipEffect['kind'] }
-  | { kind: 'update'; effectId: string; effectKind: ShowClipEffect['kind']; parameter: string; value: number }
+  | { kind: 'update'; effectId: string; effectKind: ShowClipEffect['kind']; parameter: string; value: number | string }
   | { kind: 'duplicate'; effectId: string; effectKind: ShowClipEffect['kind']; newEffectId: string }
   | { kind: 'reorder'; effectId: string; effectKind: ShowClipEffect['kind']; targetEffectId: string; targetEffectKind: ShowClipEffect['kind']; edge: 'before' | 'after' }
   | { kind: 'none' }
@@ -150,46 +152,54 @@ function diffEffects(before: ShowClipEffect[], after: ShowClipEffect[]): Effects
     const fields = Object.keys(next).filter(
       (key) => !sameJson((effect as Record<string, unknown>)[key], (next as Record<string, unknown>)[key]),
     )
-    // One persisted field names one update intent. A multi-field change is a
+    // One persisted field names one update intent: a number, or a single
+    // colour string such as a chroma-key target. A multi-field change is a
     // packed color edit (shadow/highlight triples), which has no single
     // parameter spelling and stays unconnected.
-    if (fields.length !== 1 || typeof (next as Record<string, unknown>)[fields[0]] !== 'number') {
+    const raw = (next as Record<string, unknown>)[fields[0]]
+    if (fields.length !== 1 || (typeof raw !== 'number' && typeof raw !== 'string')) {
       return { kind: 'ambiguous' }
     }
-    const value = (next as Record<string, unknown>)[fields[0]] as number
+    const value = raw as number | string
     if (!sameJson(updateShowClipEffectParameter(effect, fields[0], value), next)) return { kind: 'ambiguous' }
     return { kind: 'update', effectId: effect.id, effectKind: effect.kind, parameter: fields[0], value }
   }
+  // The owner and the control both move within one stage's sibling list, so
+  // the diff reads the move there too: group both stacks by the stored stage
+  // of each id, require exactly one stage whose sibling order changed, and
+  // name the single-element move inside that sibling list. A write no
+  // same-stage move reproduces refuses here instead of landing elsewhere.
+  const stageOf = new Map<string, string>(before.map((effect) => [effect.id, showClipEffectStage(effect)]))
+  const siblingsIn = (ids: string[], stage: string): string[] => ids.filter((id) => stageOf.get(id) === stage)
+  const stages = [...new Set(beforeIds.map((id) => stageOf.get(id)!))]
+  const moved = stages.filter((stage) => !sameJson(siblingsIn(beforeIds, stage), siblingsIn(afterIds, stage)))
+  if (moved.length !== 1) return { kind: 'ambiguous' }
+  const siblings = siblingsIn(beforeIds, moved[0])
+  const siblingsNext = siblingsIn(afterIds, moved[0])
   const without = (ids: string[], id: string): string[] => ids.filter((candidate) => candidate !== id)
-  const candidates = beforeIds.filter(
-    (id) => afterIds.includes(id) && sameJson(without(beforeIds, id), without(afterIds, id)),
+  const candidates = siblings.filter(
+    (id) => sameJson(without(siblings, id), without(siblingsNext, id)),
   )
   if (candidates.length === 0) return { kind: 'ambiguous' }
   // An adjacent swap moves two ids symmetrically while every longer move has
   // exactly one; both swap readings permute to the same stack, so the later-
   // travelled id names the move deterministically.
-  const byOldIndex = (left: string, right: string): number => beforeIds.indexOf(left) - beforeIds.indexOf(right)
-  const later = candidates.filter((id) => afterIds.indexOf(id) > beforeIds.indexOf(id)).sort(byOldIndex)
-  const earlier = candidates.filter((id) => afterIds.indexOf(id) <= beforeIds.indexOf(id)).sort(byOldIndex)
+  const byOldIndex = (left: string, right: string): number => siblings.indexOf(left) - siblings.indexOf(right)
+  const later = candidates.filter((id) => siblingsNext.indexOf(id) > siblings.indexOf(id)).sort(byOldIndex)
+  const earlier = candidates.filter((id) => siblingsNext.indexOf(id) <= siblings.indexOf(id)).sort(byOldIndex)
   const sourceId = [...later, ...earlier][0]
-  const at = afterIds.indexOf(sourceId)
-  if (at < 0 || afterIds.length < 2) return { kind: 'ambiguous' }
-  const targetId = at < afterIds.length - 1 ? afterIds[at + 1] : afterIds[at - 1]
-  const edge = at < afterIds.length - 1 ? 'before' : 'after'
+  const at = siblingsNext.indexOf(sourceId)
+  if (at < 0 || siblingsNext.length < 2) return { kind: 'ambiguous' }
+  const targetId = at < siblingsNext.length - 1 ? siblingsNext[at + 1] : siblingsNext[at - 1]
+  const edge = at < siblingsNext.length - 1 ? 'before' : 'after'
   const source = before.find((effect) => effect.id === sourceId)!
   const target = before.find((effect) => effect.id === targetId)!
-  if (showClipEffectStage(source) !== showClipEffectStage(target)) return { kind: 'ambiguous' }
-  // Simulate the owner's same-stage sibling reorder on the id list; a move
-  // the owner cannot reproduce refuses here instead of landing elsewhere.
-  const stage = showClipEffectStage(source)
-  const positions = before.flatMap((effect, index) => (showClipEffectStage(effect) === stage ? [index] : []))
-  const siblings = positions.map((index) => beforeIds[index])
-  const reordered = [...siblings]
-  reordered.splice(reordered.indexOf(sourceId), 1)
-  reordered.splice(reordered.indexOf(targetId) + (edge === 'after' ? 1 : 0), 0, sourceId)
-  const simulated = [...beforeIds]
-  positions.forEach((position, index) => { simulated[position] = reordered[index] })
-  if (!sameJson(simulated, afterIds)) return { kind: 'ambiguous' }
+  // Source and target are same-stage siblings by construction. Prove the
+  // owner's own move reproduces the whole edited stack exactly; anything
+  // else — a cross-stage interleave, a smuggled parameter edit — refuses.
+  if (!sameJson(moveShowClipEffectToStagePosition(before, sourceId, targetId, edge), after)) {
+    return { kind: 'ambiguous' }
+  }
   return { kind: 'reorder', effectId: sourceId, effectKind: source.kind, targetEffectId: target.id, targetEffectKind: target.kind, edge }
 }
 
@@ -487,6 +497,12 @@ export function planShowV2ClipInspectorPatch(
     appearanceFacets -= 1
   }
   if (effectsOp && effectsOp.kind !== 'none') {
+    // The Effect operation already counted one appearance facet; any other
+    // surviving appearance facet makes this a mixed write, which refuses
+    // rather than storing half the patch while the caller reads success.
+    if (appearanceFacets > 1) {
+      return refuse('mixed-facets', 'One inspector write carries one owner edit; mixed appearance and instance writes stay unconnected.')
+    }
     const outcome = effectsIntent(clipId, effectsOp, clip.appearance.keys)
     if (!outcome) {
       return refuse('ambiguous-effects', 'One stack write carries one Effect change; combined stack rewrites stay unconnected.')

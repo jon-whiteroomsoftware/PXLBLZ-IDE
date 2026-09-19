@@ -3,6 +3,7 @@ import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { normalizeShowClipEffects } from './showEffects'
+import { editShowClipAppearanceV2 } from './showClipAppearanceEditsV2'
 import {
   planShowV2ClipInspectorPatch,
   type ShowV2ClipInspectorPlan,
@@ -235,6 +236,105 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     })
   })
 
+  it('reads a same-stage move past a trailing other-stage Effect as a sibling reorder', () => {
+    const record = fixture()
+    const ripple = normalizeShowClipEffects([{ id: 'ripple', kind: 'ripple' } as ShowClipEffect])[0] as ShowClipEffect
+    const swirl = normalizeShowClipEffects([{ id: 'swirl', kind: 'swirl' } as ShowClipEffect])[0] as ShowClipEffect
+    const brightness = normalizeShowClipEffects([{ id: 'brightness', kind: 'brightness' } as ShowClipEffect])[0] as ShowClipEffect
+    record.composition.clips[0].appearance.keys[0].value.effects = [ripple, swirl, brightness]
+    // The shipped control moves within the distort siblings; the planner must
+    // name the sibling target (swirl), not the raw-array neighbour (brightness).
+    const outcome = plan(record, { effects: [swirl, ripple, brightness] })
+    expect(outcome).toEqual({
+      kind: 'appearance',
+      intent: {
+        kind: 'reorder-effect', clipId: 'clip', scope: 'whole-clip',
+        effectId: 'ripple', effectKind: 'ripple',
+        targetEffectId: 'swirl', targetEffectKind: 'swirl', edge: 'after',
+      },
+    })
+    // The named intent reproduces the exact stack through the owner.
+    if (outcome.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    const applied = editShowClipAppearanceV2(record, outcome.intent)
+    expect(applied.status).toBe('changed')
+    if (applied.status !== 'changed') throw new Error('Expected the owner to accept the intent.')
+    expect(applied.record.composition.clips[0].appearance.keys[0].value.effects)
+      .toEqual([swirl, ripple, brightness])
+  })
+
+  it('reads an interleaved same-stage swap as a sibling reorder', () => {
+    const record = fixture()
+    const ripple = normalizeShowClipEffects([{ id: 'ripple', kind: 'ripple' } as ShowClipEffect])[0] as ShowClipEffect
+    const brightness = normalizeShowClipEffects([{ id: 'brightness', kind: 'brightness' } as ShowClipEffect])[0] as ShowClipEffect
+    const swirl = normalizeShowClipEffects([{ id: 'swirl', kind: 'swirl' } as ShowClipEffect])[0] as ShowClipEffect
+    record.composition.clips[0].appearance.keys[0].value.effects = [ripple, brightness, swirl]
+    // The within-stage swap exchanges raw-array indices 0 and 2, which no
+    // single-element removal over the full array can explain.
+    const outcome = plan(record, { effects: [swirl, brightness, ripple] })
+    expect(outcome).toEqual({
+      kind: 'appearance',
+      intent: {
+        kind: 'reorder-effect', clipId: 'clip', scope: 'whole-clip',
+        effectId: 'ripple', effectKind: 'ripple',
+        targetEffectId: 'swirl', targetEffectKind: 'swirl', edge: 'after',
+      },
+    })
+    if (outcome.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    const applied = editShowClipAppearanceV2(record, outcome.intent)
+    expect(applied.status).toBe('changed')
+    if (applied.status !== 'changed') throw new Error('Expected the owner to accept the intent.')
+    expect(applied.record.composition.clips[0].appearance.keys[0].value.effects)
+      .toEqual([swirl, brightness, ripple])
+  })
+
+  it('refuses a reorder smuggling a parameter change rather than dropping it', () => {
+    const record = fixture()
+    const ripple = normalizeShowClipEffects([{ id: 'ripple', kind: 'ripple' } as ShowClipEffect])[0] as ShowClipEffect
+    const swirl = normalizeShowClipEffects([{ id: 'swirl', kind: 'swirl' } as ShowClipEffect])[0] as ShowClipEffect
+    record.composition.clips[0].appearance.keys[0].value.effects = [ripple, swirl]
+    // The ids reorder cleanly, but the moved Effect also retunes amount; an
+    // id-only check would name a reorder and silently drop the retune.
+    expect(plan(record, { effects: [swirl, { ...ripple, amount: 0.2 } as ShowClipEffect] })).toEqual({
+      kind: 'refuse',
+      reason: 'ambiguous-effects',
+      message: 'One stack write carries one Effect change; combined stack rewrites stay unconnected.',
+    })
+  })
+
+  it('reads a single colour string change as one update-effect intent', () => {
+    const record = fixture()
+    const effect = normalizeShowClipEffects([{ id: 'chroma', kind: 'chroma-key' } as ShowClipEffect])[0] as ShowClipEffect
+    record.composition.clips[0].appearance.keys[0].value.effects = [effect]
+    const outcome = plan(record, { effects: [{ ...effect, color: '#ff0000' } as ShowClipEffect] })
+    expect(outcome).toEqual({
+      kind: 'appearance',
+      intent: {
+        kind: 'update-effect', clipId: 'clip', scope: 'whole-clip',
+        effectId: 'chroma', effectKind: 'chroma-key', parameter: 'color', value: '#ff0000',
+      },
+    })
+    if (outcome.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    const applied = editShowClipAppearanceV2(record, outcome.intent)
+    expect(applied.status).toBe('changed')
+    if (applied.status !== 'changed') throw new Error('Expected the owner to accept the intent.')
+    expect(applied.record.composition.clips[0].appearance.keys[0].value.effects)
+      .toEqual([{ ...effect, color: '#ff0000' }])
+  })
+
+  it('refuses a mixed Effect and appearance write rather than dropping a facet', () => {
+    const record = fixture()
+    const effect = normalizeShowClipEffects([{ id: 'ripple', kind: 'ripple' } as ShowClipEffect])[0] as ShowClipEffect
+    record.composition.clips[0].appearance.keys[0].value.effects = [effect]
+    expect(plan(record, {
+      view: { brightness: 0.5 },
+      effects: [{ ...effect, amount: 0.2 } as ShowClipEffect],
+    })).toEqual({
+      kind: 'refuse',
+      reason: 'mixed-facets',
+      message: 'One inspector write carries one owner edit; mixed appearance and instance writes stay unconnected.',
+    })
+  })
+
   it('reports an unchanged patch as a no-op without naming an intent', () => {
     const record = fixture()
     expect(plan(record, {})).toEqual({ kind: 'no-op' })
@@ -344,6 +444,22 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
       effects: [{ ...effect, shadowR: 0.5, shadowG: 0.25, shadowB: 0.125 } as ShowClipEffect],
     })
     expect(outcome).toEqual({
+      kind: 'refuse',
+      reason: 'ambiguous-effects',
+      message: 'One stack write carries one Effect change; combined stack rewrites stay unconnected.',
+    })
+  })
+
+  it('refuses a packed highlight triple with no single parameter spelling', () => {
+    const record = fixture()
+    const effect = normalizeShowClipEffects([{
+      id: 'grade', kind: 'color-map', amount: 1,
+      shadowR: 0, shadowG: 0, shadowB: 0, highlightR: 1, highlightG: 1, highlightB: 1,
+    } as unknown as ShowClipEffect])[0] as ShowClipEffect
+    record.composition.clips[0].appearance.keys[0].value.effects = [effect]
+    expect(plan(record, {
+      effects: [{ ...effect, highlightR: 0.5, highlightG: 0.75, highlightB: 0.25 } as ShowClipEffect],
+    })).toEqual({
       kind: 'refuse',
       reason: 'ambiguous-effects',
       message: 'One stack write carries one Effect change; combined stack rewrites stay unconnected.',
