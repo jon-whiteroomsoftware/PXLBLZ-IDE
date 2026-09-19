@@ -3,7 +3,11 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { validateShowRecordV2 } from './showCompositionV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
+import { convertibleV1Show } from '@/test/showV2TracerFixture'
 import { propertyEditRecord } from '@/test/showV2PropertyEditsFixture'
+import { deleteShowClipInShow } from './showClipDeletion'
+import { showRecordClipCount } from './showClipInvariant'
+import { validateShowComposition } from './showCompositionModel'
 import type { ShowRecord } from './personalContentRecords'
 import {
   planShowV2ClipDelete,
@@ -107,5 +111,191 @@ describe('planShowV2ClipDelete', () => {
     if (plan.kind !== 'ready') return
     expect(plan.intent.propertyRampProjections).toHaveLength(1)
     expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
+  })
+})
+ 
+describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
+  const probeView = { mirror: false, phase: 0, brightness: 1 }
+
+  function layoutSegmentedSingleLogicalClipShow(): ShowRecord {
+    const show = convertibleV1Show()
+    show.id = 'layout-segmented-single-clip'
+    show.name = 'Layout segmented single Clip'
+    show.scenes = [
+      { id: 'a', name: 'A', durationMs: 400 },
+      { id: 'b', name: 'B', durationMs: 400 },
+      { id: 'c', name: 'C', durationMs: 400 },
+    ]
+    show.zones = [
+      { id: 'zone', name: 'Main', nominalPixelCount: 16 },
+      { id: 'other', name: 'Other', nominalPixelCount: 16 },
+    ]
+    show.routingLayouts = [
+      { id: 'full', name: 'Full', zones: [], logical: { kind: 'single', zoneIds: ['zone'] } },
+      { id: 'other-only', name: 'Other only', zones: [], logical: { kind: 'single', zoneIds: ['other'] } },
+    ]
+    show.transitions = [
+      { id: 'to-other', afterSceneId: 'a', kind: 'routing', layoutId: 'other-only', durationMs: 0, easing: { curve: 'linear' } },
+      { id: 'to-full', afterSceneId: 'b', kind: 'routing', layoutId: 'full', durationMs: 0, easing: { curve: 'linear' } },
+    ]
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      durationMs: 1_200,
+      patternInstances: [{
+        id: 'instance', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: (['a', 'b', 'c'] as const).map((sceneId, index) => ({
+        sceneId,
+        zones: [
+          {
+            zoneId: 'zone',
+            main: [{
+              id: index === 0 ? 'solo' : `solo--span-${sceneId}`,
+              ...(index === 0 ? {} : { logicalClipId: 'solo' }),
+              instanceId: 'instance', startMs: 0, durationMs: 400, view: probeView,
+            }],
+            overlays: [],
+          },
+          { zoneId: 'other', main: [], overlays: [] },
+        ],
+      })),
+    }
+    return show
+  }
+
+  function boundaryDeleteFixture(): ShowRecord {
+    const show = convertibleV1Show()
+    show.id = 'boundary-delete'
+    show.name = 'Boundary delete'
+    show.scenes = [
+      { id: 's1', name: 'Outgoing', durationMs: 400 },
+      { id: 's2', name: 'Incoming', durationMs: 400 },
+    ]
+    show.transitions = [{
+      id: 'x', afterSceneId: 's1', kind: 'crossfade', durationMs: 200,
+      easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
+    }]
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      durationMs: 1_000,
+      patternInstances: [
+        {
+          id: 'i1', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'Outgoing',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        },
+        {
+          id: 'i2', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Incoming',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        },
+      ],
+      scenes: [
+        {
+          sceneId: 's1',
+          zones: [{
+            zoneId: 'zone',
+            main: [{ id: 'outgoing', instanceId: 'i1', startMs: 0, durationMs: 400, view: probeView }],
+            overlays: [],
+          }],
+        },
+        {
+          sceneId: 's2',
+          zones: [{
+            zoneId: 'zone',
+            main: [{ id: 'incoming', instanceId: 'i2', startMs: 0, durationMs: 400, view: probeView }],
+            overlays: [],
+          }],
+        },
+      ],
+    }
+    return show
+  }
+
+  // The converter splits one v1 logical Clip into `solo--layout-1` and
+  // `solo--layout-2` wherever its Zone is unavailable for part of its span.
+  // ShowClipV2 carries no logical-clip provenance (the #1065 contract names
+  // exactly three provenance owners and clips are not one, and the schema
+  // closes clips with additionalProperties: false), so the record cannot
+  // recover the segments of one former logical Clip without an id-shape
+  // heuristic the contract bars. Pinned as a #1068 gap: v1 counts and deletes
+  // the logical Clip (deduped count 1, so the editor refuses with Keep one
+  // Clip), while v2 counts two runs, admits the delete, and removes only one
+  // segment. When the gap closes this test fails and forces an update.
+  it('counts and deletes a layout-segmented logical Clip per run, unlike v1 (#1068)', () => {
+    const show = layoutSegmentedSingleLogicalClipShow()
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+    expect(showRecordClipCount(show)).toBe(1)
+    expect(deleteShowClipInShow(show, show.composition!, {
+      kind: 'main', sceneId: 'a', zoneId: 'zone', placementId: 'solo',
+    })).toMatchObject({ status: 'refused' })
+    const converted = convertShowRecordV1ToV2(show)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const record = converted.record
+    expect(validateShowRecordV2(record)).toEqual([])
+    expect(record.composition.clips.map((clip) => clip.id).sort()).toEqual(['solo--layout-1', 'solo--layout-2'])
+    expect(showV2ClipCount(record)).toBe(2)
+    const plan = planShowV2ClipDelete(record, 'solo--layout-1', { confirmed: true, allocate: () => 'unused' })
+    expect(plan.kind).toBe('ready')
+    if (plan.kind !== 'ready') return
+    const applied = editShowTransitionV2(record, plan.intent)
+    expect(applied.status).toBe('changed')
+    expect(applied.record.composition.clips.map((clip) => clip.id)).toEqual(['solo--layout-2'])
+    expect(validateShowRecordV2(applied.record)).toEqual([])
+  })
+
+  // v1 refuses a delete whose boundary repair meets armed Trails output
+  // effects; the v2 owner has no such guard. Pinned as #1068 gap 6: the
+  // converted record keeps the armed Trails effect, yet the confirmed plan is
+  // ready and the owner applies it. When the gap closes this test fails and
+  // forces an update.
+  it('admits a Trails-armed delete v1 refuses (#1068 gap 6)', () => {
+    const show = boundaryDeleteFixture()
+    show.outputEffects = [{ id: 'trails', kind: 'trails', retention: 0.8 }]
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+    expect(deleteShowClipInShow(show, show.composition!, {
+      kind: 'main', sceneId: 's2', zoneId: 'zone', placementId: 'incoming',
+    })).toMatchObject({ status: 'refused', reason: 'output-feedback-state' })
+    const converted = convertShowRecordV1ToV2(show)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    expect(validateShowRecordV2(converted.record)).toEqual([])
+    expect(converted.record.outputEffects?.some((effect) => effect.kind === 'trails')).toBe(true)
+    const plan = planShowV2ClipDelete(converted.record, 'incoming', { confirmed: true, allocate: () => 'unused' })
+    expect(plan).toMatchObject({ kind: 'ready' })
+    if (plan.kind !== 'ready') return
+    const applied = editShowTransitionV2(converted.record, plan.intent)
+    expect(applied.status).toBe('changed')
+    expect(applied.record.composition.clips.some((clip) => clip.id === 'incoming')).toBe(false)
+    expect(validateShowRecordV2(applied.record)).toEqual([])
+  })
+
+  // v1 refuses a delete whose boundary repair meets a Pattern instance shared
+  // across the removed boundary; the v2 owner has no such guard. Pinned as
+  // #1068 gap 6: the confirmed plan is ready and the owner applies it. When
+  // the gap closes this test fails and forces an update.
+  it('admits a shared-instance delete v1 refuses (#1068 gap 6)', () => {
+    const show = boundaryDeleteFixture()
+    show.composition!.scenes[1].zones[0].overlays = [{
+      id: 'keep-layer', name: 'Keep',
+      placements: [{ id: 'overlay-keep', instanceId: 'i1', startMs: 100, durationMs: 300, view: probeView, opacity: 1 }],
+    }]
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+    expect(deleteShowClipInShow(show, show.composition!, {
+      kind: 'main', sceneId: 's2', zoneId: 'zone', placementId: 'incoming',
+    })).toMatchObject({ status: 'refused', reason: 'cross-boundary-shared-instance' })
+    const converted = convertShowRecordV1ToV2(show)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    expect(validateShowRecordV2(converted.record)).toEqual([])
+    const plan = planShowV2ClipDelete(converted.record, 'incoming', { confirmed: true, allocate: () => 'unused' })
+    expect(plan).toMatchObject({ kind: 'ready' })
+    if (plan.kind !== 'ready') return
+    const applied = editShowTransitionV2(converted.record, plan.intent)
+    expect(applied.status).toBe('changed')
+    expect(applied.record.composition.clips.some((clip) => clip.id === 'incoming')).toBe(false)
+    expect(validateShowRecordV2(applied.record)).toEqual([])
   })
 })
