@@ -6,6 +6,7 @@ import {
   keepV2StoredRecords,
   mergeShowListingsById,
   routedShowIdFromUrl,
+  selectV2BarrierAnchor,
   v2RevisionAdvanced,
 } from './showV2HarnessDecisions'
 
@@ -100,5 +101,17 @@ describe('isInAppProofFresh', () => {
     expect(isInAppProofFresh({ version: 2, sequence: 5 }, 5)).toBe(false)
     expect(isInAppProofFresh({ version: 2, sequence: 4 }, 5)).toBe(false)
     expect(isInAppProofFresh({ version: 2, sequence: 6 }, 5)).toBe(true)
+  })
+})
+
+describe('selectV2BarrierAnchor', () => {
+  it('prefers the previous barrier\'s consumed revision over the seeded one', () => {
+    expect(selectV2BarrierAnchor({ observed: 12, seeded: 10 })).toBe(12)
+  })
+  it('falls back to the seeded revision before any barrier consumed one', () => {
+    expect(selectV2BarrierAnchor({ observed: undefined, seeded: 10 })).toBe(10)
+  })
+  it('has no anchor when nothing was observed or seeded', () => {
+    expect(selectV2BarrierAnchor({ observed: undefined, seeded: undefined })).toBeUndefined()
   })
 })

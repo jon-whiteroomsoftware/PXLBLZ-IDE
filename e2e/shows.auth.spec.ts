@@ -3195,7 +3195,11 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
  * because v2 carries no top-level `transitions`). The predicate alone cannot
  * tell "this barrier waits for a save" from "this barrier asserts nothing was
  * saved", so the run treats each barrier as a save barrier and waits for the
- * stored revision to advance past the barrier-start snapshot. The call sites
+ * stored revision to advance past its pre-gesture anchor: the previous
+ * barrier's consumed revision, else the revision this run wrote when it
+ * seeded the version-2 document. The anchor never comes from a barrier-start
+ * read, because a v2 edit's adoption and persistence are one awaited flow and
+ * the awaited save routinely reaches storage before the barrier runs. The call sites
  * that assert absence of a save (spec:2469, the popover-dismiss barrier) and
  * the pre-edit readback (spec:1494, the seeded Portable contract) stay unverifiable on v2 until
  * an explicit absence helper is adopted by a test-body edit, which is outside
@@ -3207,7 +3211,7 @@ async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) =
   if (showBackingIsV2()) {
     test.info().annotations.push({
       type: 'show-backing-v2',
-      description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits for the stored revision to advance past the barrier-start snapshot',
+      description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits for the stored revision to advance past its pre-gesture anchor',
     })
     await waitForV2BarrierSave(page, id!)
     return

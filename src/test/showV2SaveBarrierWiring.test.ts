@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Page } from '@playwright/test'
+import { storeShowAsV2 } from '../../e2e/support/showBacking'
 import {
   v2SaveReachedStorage,
   waitForV2BarrierSave,
@@ -90,5 +91,100 @@ describe('waitForV2BarrierSave', () => {
   it('keeps waiting while the document stays absent', async () => {
     const { page } = fakeBarrierPage([[]])
     await expect(waitForV2BarrierSave(page, 'wiring-still-absent', 250)).rejects.toThrow(/never observed/)
+  })
+})
+
+interface FakeStoredRow {
+  id: string
+  version: number
+  updatedAt: number
+}
+
+/**
+ * A barrier page whose Show was seeded through the real `storeShowAsV2` path,
+ * so the barrier's anchor is the seeded revision, exactly as in the suite.
+ * The first GET serves the version-1 row the seeder converts; every later
+ * GET serves whatever `v2Script` returns, so a save can already have landed
+ * before the barrier runs.
+ */
+function fakeSeededBarrierPage(
+  id: string,
+  seededRevision: number,
+  v2Script: (call: number) => FakeStoredRow[],
+): { page: Page; getCalls: () => number } {
+  let calls = 0
+  const get = async (): Promise<{ ok: () => boolean; json: () => Promise<{ shows: FakeStoredRow[] }> }> => {
+    const shows = calls === 0
+      ? [{ id, version: 1, updatedAt: seededRevision - 5 }]
+      : v2Script(calls)
+    calls += 1
+    return { ok: () => true, json: async () => ({ shows }) }
+  }
+  const put = async (): Promise<{ ok: () => boolean }> => ({ ok: () => true })
+  const fake = {
+    url: () => `studio/shows/${id}`,
+    isClosed: () => false,
+    waitForTimeout: async () => {},
+    goto: async () => undefined,
+    evaluate: async () => ({
+      status: 'converted',
+      record: { id, version: 2, updatedAt: seededRevision },
+    }),
+    context: () => ({ request: { get, put } }),
+  }
+  return { page: fake as unknown as Page, getCalls: () => calls }
+}
+
+describe('waitForV2BarrierSave against its pre-gesture anchor', () => {
+  it('succeeds when the save landed before the barrier was reached', async () => {
+    const id = 'wiring-save-before-barrier'
+    const v2 = (revision: number): FakeStoredRow[] => [{ id, version: 2, updatedAt: revision }]
+    const { page, getCalls } = fakeSeededBarrierPage(id, 10, () => v2(12))
+    await storeShowAsV2(page, id)
+    // The stored revision already advanced past the seeded anchor before the
+    // barrier's first read. Against barrier-start snapshotting this rejects:
+    // the snapshot would be 12 and no later read advances past it.
+    await waitForV2BarrierSave(page, id, 300)
+    expect(getCalls()).toBe(2)
+  })
+
+  it('succeeds when the save lands after the barrier starts', async () => {
+    const id = 'wiring-save-after-barrier'
+    const v2 = (revision: number): FakeStoredRow[] => [{ id, version: 2, updatedAt: revision }]
+    const { page } = fakeSeededBarrierPage(id, 10, (call) => v2(call < 3 ? 10 : 12))
+    await storeShowAsV2(page, id)
+    await waitForV2BarrierSave(page, id, 5_000)
+  })
+
+  it('still fails when the stored revision never advances past the anchor', async () => {
+    const id = 'wiring-no-save-after-anchor'
+    const v2 = (revision: number): FakeStoredRow[] => [{ id, version: 2, updatedAt: revision }]
+    const { page } = fakeSeededBarrierPage(id, 10, () => v2(10))
+    await storeShowAsV2(page, id)
+    await expect(waitForV2BarrierSave(page, id, 250)).rejects.toThrow(/never observed/)
+  })
+
+  it('a second barrier sees a save that landed before it was reached', async () => {
+    const id = 'wiring-second-barrier-pre-landed'
+    const v2 = (revision: number): FakeShowRow[] => [{ id, version: 2, updatedAt: revision }]
+    // No seeding: the first barrier anchors at barrier start (the fallback)
+    // and consumes revision 12; the second barrier must anchor at that
+    // consumed revision, so the pre-landed 14 satisfies it at once. Against
+    // barrier-start snapshotting the second barrier snapshots 14 and times
+    // out waiting for a revision that never comes.
+    const { page } = fakeBarrierPage((call) => v2(call < 2 ? 10 : call === 2 ? 12 : 14))
+    await waitForV2BarrierSave(page, id, 5_000)
+    await waitForV2BarrierSave(page, id, 300)
+  })
+
+  it('without any anchor falls back to requiring an advance past barrier start', async () => {
+    const id = 'wiring-anchorless-prefetch-miss'
+    const v2 = (revision: number): FakeShowRow[] => [{ id, version: 2, updatedAt: revision }]
+    // No seeding and no earlier barrier: there is no sound pre-gesture
+    // reading, so even a pre-landed save cannot satisfy the wait. This pins
+    // the fallback's contract — loud timeout, never a silent pass — not the
+    // fix; every current barrier site is seeded, so the fallback is idle.
+    const { page } = fakeBarrierPage([v2(12)])
+    await expect(waitForV2BarrierSave(page, id, 250)).rejects.toThrow(/no pre-gesture anchor/)
   })
 })

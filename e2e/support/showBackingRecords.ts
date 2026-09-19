@@ -8,7 +8,7 @@
 import type { Page } from '@playwright/test'
 import type { ShowRecordV2 } from '../../src/engine/showCompositionV2'
 import { SHOW_V2_ROUTE_PREVIEW_PARAM } from '../../src/engine/showV2RouteGate'
-import { keepV2StoredRecords, v2RevisionAdvanced } from '../../src/test/showV2HarnessDecisions'
+import { keepV2StoredRecords, selectV2BarrierAnchor, v2RevisionAdvanced } from '../../src/test/showV2HarnessDecisions'
 import { ensureCurrentShowV2Binding, SHOW_V2_EDITOR_PREVIEW_PARAM, seededShowV2Stamp, showBackingIsV2, storeShowAsV2 } from './showBacking'
 
 // The one place the repeated parameter name is checked against the product's
@@ -53,31 +53,28 @@ export async function findStoredShowV2(page: Page, id: string): Promise<ShowReco
 
 /**
  * Whether a version-2 save has reached storage for one Show since the
- * barrier-start snapshot (#1066).
+ * barrier's anchor revision (#1066).
  *
  * The suite's save barriers read the version-1 record shape, and nothing
  * projects a version-2 document back into it, so the v2 run cannot evaluate
  * them. It waits for the save itself instead: the document's `updatedAt`
- * advancing past the revision captured when the barrier started. The snapshot
- * is the whole point: comparing against a module-level stamp, or against mere
- * existence, lets a pre-existing document satisfy a barrier no save followed.
- * An appearing document still counts as a save. What the save contains is left
+ * advancing past the anchor, which must predate the gesture the barrier
+ * guards. Comparing against a module-level stamp, or against mere existence,
+ * lets a pre-existing document satisfy a barrier no save followed. An
+ * appearing document still counts as a save. What the save contains is left
  * to the assertions that follow the barrier, and every test that takes this
  * path is annotated so the inventory never reports it as an unqualified pass.
- *
- * Residual: a save that lands between the user action and the barrier-start
- * read is already in the snapshot, so the barrier waits for a second save
- * that never comes and times out. Saves are debounced well past that window,
- * so the residual is a loud timeout, never a silent pass.
  */
 const observedSaveStamp = new Map<string, number>()
 
+/** The pre-gesture anchor for one Show: the previous barrier's consumed revision, else the seeded one. */
+function barrierAnchor(id: string): number | undefined {
+  return selectV2BarrierAnchor({ observed: observedSaveStamp.get(id), seeded: seededShowV2Stamp(id) })
+}
+
 export async function v2SaveReachedStorage(page: Page, id: string, snapshot?: number): Promise<boolean> {
   const stored = await findStoredShowV2(page, id)
-  const advanced = v2RevisionAdvanced(
-    stored?.updatedAt,
-    snapshot ?? observedSaveStamp.get(id) ?? seededShowV2Stamp(id),
-  )
+  const advanced = v2RevisionAdvanced(stored?.updatedAt, snapshot ?? barrierAnchor(id))
   if (advanced && stored !== undefined) observedSaveStamp.set(id, stored.updatedAt)
   return advanced
 }
@@ -85,22 +82,35 @@ export async function v2SaveReachedStorage(page: Page, id: string, snapshot?: nu
 /**
  * Wait for the version-2 save one barrier guards.
  *
- * The snapshot is taken here, at barrier start, from the same readback the
- * polls compare against, so absence and presence of a save are both real:
- * an unchanged revision never satisfies the wait, however long the document
- * has existed. Integer-timed like the rest of the harness.
+ * The anchor is the revision the harness knew before any gesture on this Show
+ * could run — the previous barrier's consumed revision, else the revision
+ * this run wrote when it seeded the version-2 document — never a read taken
+ * at barrier start. A v2 edit's adoption and persistence are one awaited flow
+ * in the store, so the awaited save routinely reaches storage before the
+ * barrier runs: a barrier-start snapshot already contains it and waits out
+ * its timeout for a second save that never comes (case 888). An unchanged
+ * revision still never satisfies the wait, however long the document has
+ * existed. Integer-timed like the rest of the harness.
+ *
+ * A Show with no anchor (never seeded and no barrier yet — no current barrier
+ * site, but a refused conversion could produce one) has no sound pre-gesture
+ * reading, so the wait falls back to a barrier-start snapshot for it. That
+ * fallback keeps the old blindness: a save that landed before the barrier
+ * started is already in the snapshot and the wait times out loudly rather
+ * than passing silently.
  */
 export async function waitForV2BarrierSave(page: Page, id: string, timeoutMs = 15_000): Promise<void> {
-  const snapshot = (await findStoredShowV2(page, id))?.updatedAt
-    ?? observedSaveStamp.get(id)
-    ?? seededShowV2Stamp(id)
+  const anchored = barrierAnchor(id)
+  const snapshot = anchored ?? (await findStoredShowV2(page, id))?.updatedAt
   const deadline = Date.now() + timeoutMs
   for (;;) {
     if (await v2SaveReachedStorage(page, id, snapshot)) return
     if (Date.now() >= deadline) {
       throw new Error(
         `The v2 run never observed a version-2 save for Show ${id} within ${timeoutMs}ms`
-        + ` (barrier-start revision ${String(snapshot)}).`,
+        + (anchored === undefined
+          ? ` (no pre-gesture anchor; barrier-start revision ${String(snapshot)})`
+          : ` (anchor revision ${String(snapshot)})`),
       )
     }
     await page.waitForTimeout(100)

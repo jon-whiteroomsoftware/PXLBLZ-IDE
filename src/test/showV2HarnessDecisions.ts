@@ -48,6 +48,32 @@ export function v2RevisionAdvanced(
   return current > snapshot
 }
 
+export interface V2BarrierAnchorReadings {
+  observed?: number
+  seeded?: number
+}
+
+/**
+ * Which stored revision one v2 save barrier must see advance (#1066).
+ *
+ * The anchor must predate the gesture the barrier is waiting on. A v2 edit's
+ * adoption and persistence are one awaited flow in the store
+ * (`adoptShowV2PilotReplacement` awaits `queueShowPersistence` before it
+ * settles), so the awaited save routinely reaches storage before the test's
+ * UI assertions even run, let alone the barrier's first read: snapshotting at
+ * barrier start captures the awaited save and waits out its timeout for a
+ * second save that never comes (case 888). The sound readings are the ones
+ * the harness took before any gesture on this Show could run: the revision a
+ * previous barrier consumed (`observed`), else the revision this run wrote
+ * when it seeded the version-2 document (`seeded`). Nothing persists on
+ * editor mount — every `replaceShowV2` write flows through a gesture/edit
+ * admission path — so the seeded revision predates every gesture save, and an
+ * unchanged record still equals its anchor and times out loudly.
+ */
+export function selectV2BarrierAnchor(readings: V2BarrierAnchorReadings): number | undefined {
+  return readings.observed ?? readings.seeded
+}
+
 export interface V2BindingProof {
   version: number
   sequence: number
