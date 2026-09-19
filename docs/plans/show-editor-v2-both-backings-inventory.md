@@ -22,16 +22,28 @@ run is unchanged at 87/87.
   so every one of them does reach the v2 record.
 - Every navigation waits for the editor's own agent registration to carry
   record version 2 before the test body proceeds, so no verdict below is v1
-  behavior misreported as v2. Adding that wait changed no verdict.
+  behavior misreported as v2. Adding that wait changed no verdict. The
+  harness corrective (#1066, `src/test/showV2HarnessDecisions.ts`) keeps that
+  promise for repeat visits and reloads: registrations are keyed by navigation
+  generation, `page.reload` is wrapped alongside `page.goto`, and an in-app
+  navigation (rail rows, links, duplicate/clone opens) retires the previous
+  Show's proof so the next readback helper re-proves the new document.
 
 Two limits apply to the failures and are marked in the table:
 
 - **Save barrier substituted.** The suite's 31 `waitForCurrentShow` barriers read the
   version-1 record shape and nothing projects a version-2 document back into
-  it. On the v2 run the barrier waits for the version-2 save to reach storage
-  instead, and annotates the test. A case marked *(barrier)* failed because no
-  version-2 save arrived at all, which is a stronger statement than the
-  original predicate, not a weaker one.
+  it. On the v2 run a barrier whose predicate already holds against the stored
+  version-2 document is an absence barrier or a pre-edit readback: the v1 path
+  returns immediately for it, so the run settles and proves no version-2 save
+  was written instead of waiting for one. Every other barrier waits for the
+  version-2 save to reach storage instead, and each path annotates the test. A
+  case marked *(barrier)* failed because no version-2 save arrived at all,
+  which is a stronger statement than the original predicate, not a weaker one.
+  Two rows first recorded under this mark (2452, 1469) failed at the harness
+  substitution rather than at their contract edits; after the corrective their
+  absence and pre-edit barriers pass and any remaining failure is genuine
+  evidence for slices 10 and 6 respectively.
 - **Secondary `409 (Conflict)`.** Four cases failed only on the boundary's
   console-error check, from stale `/api/agent/channel` rendezvous on a reused
   account after a worker restart. Each was re-run alone; three pass and one

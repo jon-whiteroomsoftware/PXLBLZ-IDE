@@ -8,7 +8,8 @@
 import type { Page } from '@playwright/test'
 import type { ShowRecordV2 } from '../../src/engine/showCompositionV2'
 import { SHOW_V2_ROUTE_PREVIEW_PARAM } from '../../src/engine/showV2RouteGate'
-import { SHOW_V2_EDITOR_PREVIEW_PARAM, seededShowV2Stamp, showBackingIsV2, storeShowAsV2 } from './showBacking'
+import { keepV2StoredRecords } from '../../src/test/showV2HarnessDecisions'
+import { ensureCurrentShowV2Binding, SHOW_V2_EDITOR_PREVIEW_PARAM, seededShowV2Stamp, showBackingIsV2, storeShowAsV2 } from './showBacking'
 
 // The one place the repeated parameter name is checked against the product's
 // own constant. A rename would otherwise leave the v2 run silently opening
@@ -30,9 +31,24 @@ export { storeShowAsV2 as storeSeededShowAsV2 }
  */
 export async function listStoredShowsV2(page: Page): Promise<ShowRecordV2[]> {
   if (!showBackingIsV2()) return []
+  // Prove the currently routed Show is on the v2 backing before reading
+  // storage for it: an in-app navigation reaches a new Show without the goto
+  // or reload wrappers, and the previous Show's proof must not satisfy it.
+  await ensureCurrentShowV2Binding(page)
   const response = await page.context().request.get('/api/shows?show-version=2')
   if (!response.ok()) return []
-  return ((await response.json()) as { shows: ShowRecordV2[] }).shows
+  // `show-version=2` sets includeV2, which returns the union of both versions'
+  // rows: the product's own client filters that union with isShowRecordV2
+  // (`src/engine/remotePersonalContentProvider.ts`), and so must this helper.
+  // Returning it unfiltered double-counts v1 rows in listShows and lets
+  // v2SaveReachedStorage mistake a v1 row for a version-2 save. Decide from
+  // each record's own version field, never by subtraction.
+  return keepV2StoredRecords(((await response.json()) as { shows: ShowRecordV2[] }).shows)
+}
+
+/** The stored version-2 document for one Show, if this account holds one. */
+export async function findStoredShowV2(page: Page, id: string): Promise<ShowRecordV2 | undefined> {
+  return (await listStoredShowsV2(page)).find((record) => record.id === id)
 }
 
 /**
@@ -50,7 +66,7 @@ export async function listStoredShowsV2(page: Page): Promise<ShowRecordV2[]> {
 const observedSaveStamp = new Map<string, number>()
 
 export async function v2SaveReachedStorage(page: Page, id: string): Promise<boolean> {
-  const stored = (await listStoredShowsV2(page)).find(record => record.id === id)
+  const stored = await findStoredShowV2(page, id)
   if (!stored) return false
   const seeded = observedSaveStamp.get(id) ?? seededShowV2Stamp(id)
   if (seeded === undefined) return true

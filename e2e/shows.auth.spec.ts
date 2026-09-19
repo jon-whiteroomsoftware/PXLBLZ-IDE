@@ -9,7 +9,8 @@ import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { createShowWithOutputContract } from '../src/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
 import { showBackingIsV2 } from './support/showBacking'
-import { listStoredShowsV2, storeSeededShowAsV2, v2SaveReachedStorage } from './support/showBackingRecords'
+import { isBarrierAlreadySatisfied, mergeShowListingsById } from '../src/test/showV2HarnessDecisions'
+import { findStoredShowV2, listStoredShowsV2, storeSeededShowAsV2, v2SaveReachedStorage } from './support/showBackingRecords'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -3135,7 +3136,10 @@ async function listShows(page: Page): Promise<PersistedShow[]> {
   const response = await page.context().request.get('/api/shows')
   expect(response.ok()).toBe(true)
   const shows = ((await response.json()) as { shows: PersistedShow[] }).shows
-  return [...shows, ...((await listStoredShowsV2(page)) as unknown as PersistedShow[])]
+  // listStoredShowsV2 carries only genuinely v2-stored documents; the merge
+  // stays free of duplicates by id either way, so a row counted in one
+  // listing is never counted twice.
+  return mergeShowListingsById(shows, (await listStoredShowsV2(page)) as unknown as PersistedShow[])
 }
 
 async function personalContentCounts(page: Page): Promise<{ shows: number; patterns: number; maps: number }> {
@@ -3187,6 +3191,24 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
 async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) => boolean): Promise<void> {
   const id = new URL(page.url()).pathname.split('/').at(-1)
   if (showBackingIsV2()) {
+    // Snapshot the stored version-2 document before deciding what this barrier
+    // means. A predicate that already holds against the current document is an
+    // absence barrier or a pre-edit readback: the v1 path returns immediately
+    // for it, so waiting for a version-2 save would invert the verdict (that
+    // save can never arrive for these call sites, and must never arrive).
+    // Settle instead and prove no save was written. Anything else is a save
+    // barrier and keeps waiting for the stored revision to advance. Test
+    // bodies are unchanged: the branch is chosen per call from the predicate
+    // and the stored document.
+    const stored = await findStoredShowV2(page, id!)
+    if (isBarrierAlreadySatisfied(predicate, stored)) {
+      test.info().annotations.push({
+        type: 'show-backing-v2',
+        description: 'absence barrier: the asserted state already holds, so the run settles and proves no version-2 save was written instead of waiting for one',
+      })
+      await assertNoV2Save(page, id!, stored?.updatedAt)
+      return
+    }
     test.info().annotations.push({
       type: 'show-backing-v2',
       description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document',
@@ -3210,6 +3232,27 @@ async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) =
       return false
     }
   }).toBe(true)
+}
+
+/**
+ * Prove an absence barrier on the v2 run: the asserted state already holds, so
+ * dwell past any debounced stray save and fail loudly if the stored revision
+ * moved. The dwell is bounded and integer-timed; the 15_000 barrier timeout
+ * stays with the save path above.
+ */
+async function assertNoV2Save(page: Page, id: string, snapshot: number | undefined): Promise<void> {
+  const deadline = Date.now() + 2_000
+  for (;;) {
+    await page.waitForTimeout(100)
+    const revision = (await findStoredShowV2(page, id))?.updatedAt
+    if (revision !== snapshot) {
+      throw new Error(
+        `The v2 run wrote version-2 Show ${id} where the test asserts nothing was saved`
+        + ` (updatedAt ${String(snapshot)} -> ${String(revision)}).`,
+      )
+    }
+    if (Date.now() >= deadline) return
+  }
 }
 
 async function showStageCanvasStats(page: Page): Promise<{ checksum: number; maxChannel: number }> {

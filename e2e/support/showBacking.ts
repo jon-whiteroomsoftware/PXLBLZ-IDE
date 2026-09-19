@@ -22,6 +22,7 @@
  * (#1065). The parts that need product types live in `showBackingRecords.ts`.
  */
 import type { APIRequestContext, Page } from '@playwright/test'
+import { isBindingProofFresh, routedShowIdFromUrl, type V2BindingProof } from '../../src/test/showV2HarnessDecisions'
 
 export type ShowBacking = 'v1' | 'v2'
 
@@ -82,12 +83,20 @@ export function showBackingUrl(url: string): string {
   const [beforeHash, hash] = splitOnce(url, '#')
   const [path, search] = splitOnce(beforeHash, '?')
   if (!/(^|\/)studio(\/|$)/.test(path)) return url
-  if (storedAsV2.has(routedShowId(path) ?? '')) return url
+  if (storedAsV2.has(routedShowIdFromUrl(path) ?? '')) return url
   const parameters = new URLSearchParams(search)
   if (parameters.get(SHOW_V2_EDITOR_PREVIEW_PARAM) === '1') return url
   parameters.set(SHOW_V2_EDITOR_PREVIEW_PARAM, '1')
   return `${path}?${parameters.toString()}${hash ? `#${hash}` : ''}`
 }
+
+interface V2BackingPageState {
+  proofs: Map<string, V2BindingProof>
+  navigationSequence: number
+  lastGuardedShowId: string | null
+}
+
+const backingPageStates = new WeakMap<Page, V2BackingPageState>()
 
 /**
  * Route every navigation this page makes through the v2 backing.
@@ -100,29 +109,94 @@ export function showBackingUrl(url: string): string {
  *
  * `routerStore` carries `window.location.search` through in-app navigation, so
  * one loaded document keeps the preview parameter across rail clicks and
- * reloads; only `page.goto` needs this.
+ * reloads. Every navigation still needs its own proof: registrations are keyed
+ * by navigation generation, so a repeat visit re-waits for the new document
+ * instead of trusting the previous visit's entry, and `page.reload` is wrapped
+ * alongside `page.goto`. In-app navigations (rail rows, links, duplicate and
+ * clone opens) never pass through either wrapper; the `framenavigated`
+ * listener retires the previous Show's proof at the route change, and the next
+ * readback helper re-proves the new document before evaluating storage for it.
  */
 export function installShowBacking(page: Page): void {
   if (!showBackingIsV2()) return
-  const backedVersion = new Map<string, number>()
+  const state: V2BackingPageState = { proofs: new Map(), navigationSequence: 0, lastGuardedShowId: null }
+  backingPageStates.set(page, state)
   page.on('request', (request) => {
     if (request.method() !== 'POST' || !request.url().includes('/api/agent/channel')) return
     try {
       const body = JSON.parse(request.postData() ?? '{}') as { type?: string; showId?: string; showVersion?: number }
-      if (body.type === 'register' && body.showId && body.showVersion) backedVersion.set(body.showId, body.showVersion)
+      if (body.type === 'register' && body.showId && body.showVersion) {
+        state.proofs.set(body.showId, { version: body.showVersion, sequence: state.navigationSequence })
+      }
     } catch { /* a malformed body is not a registration */ }
+  })
+  page.on('framenavigated', () => {
+    // Retire the previous Show's proof at the route change without marking the
+    // new route proven: the next readback helper re-proves the new document.
+    // Full navigations also pass through here, but the goto and reload
+    // wrappers below own their own generations, so only an id the wrappers
+    // never guarded can retire a proof here.
+    if (routedShowIdFromUrl(page.url()) !== state.lastGuardedShowId) {
+      state.navigationSequence += 1
+    }
   })
   const goto = page.goto.bind(page)
   page.goto = (async (url: string, options?: Parameters<Page['goto']>[1]) => {
-    const id = routedShowId(url)
+    const id = routedShowIdFromUrl(url)
+    state.navigationSequence += 1
+    const requiredSequence = state.navigationSequence
     if (id !== null && !storedAsV2.has(id)) {
       if (!page.url().startsWith('http')) await goto(showBackingUrl('studio/shows'))
       await storeShowAsV2(page, id)
     }
     const response = await goto(showBackingUrl(url), options)
-    if (id !== null) await waitForV2Backing(page, id, backedVersion)
+    if (id !== null) await waitForV2Backing(page, id, state.proofs, requiredSequence)
+    state.lastGuardedShowId = id
     return response
   }) as Page['goto']
+  const reload = page.reload.bind(page)
+  page.reload = (async (options?: Parameters<Page['reload']>[0]) => {
+    state.navigationSequence += 1
+    const requiredSequence = state.navigationSequence
+    const response = await reload(options)
+    const id = routedShowIdFromUrl(page.url())
+    if (id !== null) await waitForV2Backing(page, id, state.proofs, requiredSequence)
+    state.lastGuardedShowId = id
+    return response
+  }) as Page['reload']
+}
+
+/**
+ * Prove the currently routed Show is on the v2 backing before a readback
+ * helper evaluates storage for it.
+ *
+ * The goto and reload wrappers prove the document they navigate to, but an
+ * in-app navigation reaches a new Show without either wrapper. When the route
+ * changed underneath the last guarded navigation, the previous Show's proof
+ * must not satisfy this one: wait for this document's own registration. Any
+ * version-2 registration for this id is the freshest evidence available,
+ * because without a navigation boundary the document's single registration
+ * may already have arrived. A Show that never binds v2 still fails loudly.
+ */
+export async function ensureCurrentShowV2Binding(page: Page): Promise<void> {
+  if (!showBackingIsV2()) return
+  const state = backingPageStates.get(page)
+  if (!state) return
+  const id = routedShowIdFromUrl(page.url())
+  if (id === null || id === state.lastGuardedShowId) return
+  const deadline = Date.now() + 20_000
+  while (Date.now() < deadline) {
+    if (state.proofs.get(id)?.version === 2) {
+      state.lastGuardedShowId = id
+      return
+    }
+    if (page.isClosed()) return
+    await page.waitForTimeout(100)
+  }
+  throw new Error(
+    `The v2 run navigated to ${id} in-app but the editor never bound a version-2 record`
+    + ` (last bound version: ${state.proofs.get(id)?.version ?? 'none'}).`,
+  )
 }
 
 /**
@@ -135,16 +209,21 @@ export function installShowBacking(page: Page): void {
  * version it bound (`src/agent/browserSession.ts`), so this waits for that
  * evidence rather than for a delay, and fails loudly when it never arrives.
  */
-async function waitForV2Backing(page: Page, id: string, backedVersion: Map<string, number>): Promise<void> {
+async function waitForV2Backing(
+  page: Page,
+  id: string,
+  proofs: Map<string, V2BindingProof>,
+  requiredSequence: number,
+): Promise<void> {
   const deadline = Date.now() + 20_000
   while (Date.now() < deadline) {
-    if (backedVersion.get(id) === 2) return
+    if (isBindingProofFresh(proofs.get(id), requiredSequence)) return
     if (page.isClosed()) return
     await page.waitForTimeout(100)
   }
   throw new Error(
     `The v2 run opened ${id} but the editor never bound a version-2 record`
-    + ` (last bound version: ${backedVersion.get(id) ?? 'none'}).`,
+    + ` (last bound version: ${proofs.get(id)?.version ?? 'none'}).`,
   )
 }
 
@@ -195,13 +274,6 @@ async function convertInPage(page: Page, record: Record<string, unknown>): Promi
     }
     return convertShowRecordV1ToV2(source, { byCellId })
   }, record) as Promise<ConversionOutcome>
-}
-
-/** The Show id a Studio route addresses, or null for the list route. */
-function routedShowId(url: string): string | null {
-  const path = splitOnce(splitOnce(url, '#')[0], '?')[0]
-  const match = /(?:^|\/)studio\/shows\/([^/]+)$/.exec(path)
-  return match ? match[1] : null
 }
 
 function splitOnce(value: string, separator: string): [string, string] {
