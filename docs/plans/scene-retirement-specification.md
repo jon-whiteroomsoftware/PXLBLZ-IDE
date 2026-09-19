@@ -89,7 +89,7 @@ differ; the parity report must measure them rather than treating them as exact.
 | --- | --- |
 | G0 / P1, P10–P13 | Measured v2 envelope, global milliseconds, sample-remap ownership, lifecycle and sampling accepted. Extensions in §3 are explicit engineering deltas; each lands with schema and owner proof. |
 | G1 / P4–P5 | Current supported Transition scope and incoming contribution accepted; Cut is absence; Reset cascade is §5. RL08–RL10 widening is deferred. |
-| G2 / P2 | Stable Zone-owned Layers accepted. Reconcile legacy identity/order deterministically; ambiguous conversion refuses without loss. |
+| G2 / P2 | Stable Zone-owned Layers accepted. Reconcile legacy identity/order deterministically; ambiguous conversion refuses without loss. #1068 refines ambiguous: divergent ordinal names resolve only to the unique name carried by retained content (placements that become v2 Clips, or Group-occurrence children bound to the Scene-local layer). |
 | G3 / P3 | One Clip with held appearance keys accepted, including trim/split/extend policies in §6. |
 | G4 / P6, P10, P14 | Global storage, ownership-based moves, exact curve restriction and Insert Time accepted; source activation stays explicit. §6–§7 specify the mechanisms. |
 | G5 / P7, P11 | Sharing and Restart are separate. New Restart resets the existing shared Pattern instance's clock and Pattern-owned variable/private state at first contribution without creating another runtime; legacy lifecycle conversion stays preserved. |
@@ -276,6 +276,14 @@ positive duration fills the interval from outgoing end to incoming nominal start
 Whole-output scope retains explicit unequal contributor sets and a global window;
 never invent pairwise equivalence for a converted whole-output boundary.
 Contribution bounds come from preparation semantics, not Clip rectangles alone.
+Either contributor side may be empty when the neighbouring Scene contributes no
+Clip in that Zone (#1068): the authored boundary still owns its global window
+and blends its named contributors to or from the compiler-owned Empty. An empty
+side is explicit, never a default: validation requires each side to name every
+Clip abutting its window edge, so emptiness proves nothing abuts. This is the
+preserved authored Transition, not a one-sided stub: the §1 stub ban still
+forbids inventing Transitions, Clips or contributors the v1 source never
+authored.
 
 A Cut is the absence of a Transition at **exact** adjacency of two Clips on one
 Zone/Layer: `outgoing.endMs === incoming.startMs`. A 1 ms gap is blank time.
@@ -659,6 +667,21 @@ appearance, private legacy instances, property activation, Layout scalar carrier
 Groups and execution lifecycle follow the measured converter. Preserve identity
 mappings for source/render comparison. Unknown fields, dependencies or unsupported
 valid forms remain recoverable; no silent best-effort flattening.
+
+#1068 admits two previously refused converter shapes without new provenance.
+A whole-boundary Transition whose neighbouring Scene contributes no Clip in a
+Zone converts to whole-output scope with that side as an explicitly empty
+contributor set (fade to or from Black); spanning contributors and boundary
+carriers still refuse. An overlay ordinal with divergent Scene-local names
+converts when exactly one name is carried by retained content — placements that
+become v2 Clips, or Group-occurrence children bound to the Scene-local layer:
+that survivor is forced, never chosen, and superseded names of content-free
+layers retire with the per-scene structure. Zero or several surviving names, or
+a survivor that collides with another Layer's displayed name, stays refused. A
+name mismatch the rule does not supersede stays unaccounted and refuses.
+Conversion may therefore admit a record preparation still refuses,
+notably a one-sided boundary beside a Layer Transition under the pre-existing
+mixed-scope gate; that gate keeps its own separate preservation proof.
 
 The explicit exception is a v1 placement fully unrouted because its Zone is absent
 for the entire placement interval. Account every such source leaf as

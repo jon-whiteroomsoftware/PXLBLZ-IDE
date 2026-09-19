@@ -207,7 +207,7 @@ export function convertShowRecordV1ToV2(
       outcome: 'retired-structural-cut',
     })
   }
-  const { layers, layerIdByOwner } = convertLayers(sourceShow, issues, report)
+  const { layers, layerIdByOwner, pendingLayerNames } = convertLayers(sourceShow, report)
   const placementSources = collectPlacements(sourceShow, sceneStartById, layerIdByOwner, flatSampleModeByPlacementId)
   const showEndMs = showLoopDurationMs(show)
   const layoutOccurrences: ShowLayoutOccurrenceV2[] = []
@@ -246,6 +246,25 @@ export function convertShowRecordV1ToV2(
     show.zones.map(zone => zone.id),
     issues,
     report,
+  )
+  resolvePendingLayerNames(
+    layers,
+    pendingLayerNames,
+    sourceShow.composition!,
+    layerIdByOwner,
+    report,
+    issues,
+    placementSources.map(source => ({
+      id: source.placement.id,
+      instanceId: source.placement.instanceId,
+      startMs: source.globalStartMs,
+      durationMs: source.placement.durationMs,
+      zoneId: source.zoneId,
+    })),
+    layoutOccurrences,
+    show.routingLayouts,
+    show.zones.map(zone => zone.id),
+    new Set(composition.patternInstances.map(instance => instance.id)),
   )
 
   if (issues.length > 0) return refused(show, report, issues)
@@ -441,13 +460,54 @@ function cutCarrierField(transition: ShowRecord['transitions'][number]): string 
   return Object.keys(transition).find(field => !structuralFields.has(field))
 }
 
+interface PendingLayerName {
+  layerId: string
+  zoneId: string
+  ordinal: number
+  candidates: Array<{ sceneId: string; name: string; placementIds: string[] }>
+}
+
+/**
+ * Divergent overlay ordinals collected from a shelled composition: one entry
+ * per Zone ordinal whose Scene-local layers disagree on the name. The global
+ * layer id is deterministic from Zone and rank, so conversion and the
+ * accounting audit derive identical entries from the identical shelled
+ * composition.
+ */
+function collectPendingLayerNames(
+  zones: ShowRecord['zones'],
+  composition: NonNullable<ShowRecord['composition']>,
+): PendingLayerName[] {
+  const pending: PendingLayerName[] = []
+  for (const zone of zones) {
+    const zoneRows = composition.scenes.flatMap(scene => {
+      const zoneComposition = scene.zones.find(candidate => candidate.zoneId === zone.id)
+      return zoneComposition ? [{ sceneId: scene.sceneId, overlays: zoneComposition.overlays }] : []
+    })
+    const maxOverlays = Math.max(0, ...zoneRows.map(row => row.overlays.length))
+    for (let ordinal = 0; ordinal < maxOverlays; ordinal += 1) {
+      const present = zoneRows.flatMap(row => row.overlays[ordinal] ? [{ sceneId: row.sceneId, layer: row.overlays[ordinal] }] : [])
+      if (new Set(present.map(entry => entry.layer.name)).size > 1) {
+        const rank = maxOverlays - ordinal
+        pending.push({
+          layerId: `layer:${zone.id}:overlay:${rank}`,
+          zoneId: zone.id,
+          ordinal,
+          candidates: present.map(entry => ({ sceneId: entry.sceneId, name: entry.layer.name, placementIds: entry.layer.placements.map(placement => placement.id) })),
+        })
+      }
+    }
+  }
+  return pending
+}
+
 function convertLayers(
   show: ShowRecord,
-  issues: ShowV1ToV2Issue[],
   report: ShowV1ToV2Report,
-): { layers: ShowLayerV2[]; layerIdByOwner: Map<string, string> } {
+): { layers: ShowLayerV2[]; layerIdByOwner: Map<string, string>; pendingLayerNames: PendingLayerName[] } {
   const layers: ShowLayerV2[] = []
   const layerIdByOwner = new Map<string, string>()
+  const pendingLayerNames = collectPendingLayerNames(show.zones, show.composition!)
   for (const zone of show.zones) {
     const mainId = `layer:${zone.id}:main`
     layers.push({ id: mainId, zoneId: zone.id, name: 'Main', rank: 0 })
@@ -464,14 +524,6 @@ function convertLayers(
     const maxOverlays = Math.max(0, ...zoneRows.map(row => row.overlays.length))
     for (let ordinal = 0; ordinal < maxOverlays; ordinal += 1) {
       const present = zoneRows.flatMap(row => row.overlays[ordinal] ? [{ sceneId: row.sceneId, layer: row.overlays[ordinal] }] : [])
-      const names = new Set(present.map(entry => entry.layer.name))
-      if (names.size > 1) {
-        issues.push({
-          path: `composition.scenes.*.zones[${zone.id}].overlays[${ordinal}].name`,
-          code: 'ambiguous-layer',
-          message: `Overlay ordinal ${ordinal} in Zone "${zone.id}" has divergent names.`,
-        })
-      }
       const rank = maxOverlays - ordinal
       const layerId = `layer:${zone.id}:overlay:${rank}`
       layers.push({ id: layerId, zoneId: zone.id, name: present[0]?.layer.name ?? `Layer ${rank}`, rank })
@@ -486,7 +538,161 @@ function convertLayers(
       }
     }
   }
-  return { layers: layers.sort((left, right) => left.zoneId.localeCompare(right.zoneId) || left.rank - right.rank), layerIdByOwner }
+  return { layers: layers.sort((left, right) => left.zoneId.localeCompare(right.zoneId) || left.rank - right.rank), layerIdByOwner, pendingLayerNames }
+}
+
+/**
+ * Scene ids whose Group-occurrence children land on each global Layer.
+ * Mirrors convertGroupOccurrence's owner resolution (showGroupsV2.ts): rank =
+ * baseLayer + layerOffset, rank 0 binds Main, otherwise the owner is
+ * zone.overlays[overlays.length - rank], resolved through layerIdByOwner.
+ * Every definition placement becomes a definition Clip (convertGroupDefinition
+ * maps all placements), and each materializes as a real v2 Clip on the bound
+ * layer (materializeShowGroupsV2), so a binding carries retained content
+ * exactly when the definition holds a placement at that offset. The v2 editor
+ * draws those children under the bound Scene-local lane header, which is why
+ * they count toward the displayed name. Dangling references contribute
+ * nothing here; structural validation refuses them on their own path.
+ */
+function groupBoundSceneIdsByLayerId(
+  composition: NonNullable<ShowRecord['composition']>,
+  layerIdByOwner: Map<string, string>,
+): Map<string, Set<string>> {
+  const bound = new Map<string, Set<string>>()
+  const definitions = new Map((composition.groupDefinitions ?? []).map(definition => [definition.id, definition]))
+  for (const occurrence of composition.groupOccurrences ?? []) {
+    const definition = definitions.get(occurrence.definitionId)
+    const zone = composition.scenes.find(scene => scene.sceneId === occurrence.sceneId)?.zones.find(zone => zone.zoneId === occurrence.zoneId)
+    if (!definition || !zone) continue
+    for (const layerOffset of new Set(definition.placements.map(placement => placement.layerOffset))) {
+      const rank = occurrence.baseLayer + layerOffset
+      if (rank === 0) continue
+      const owner = zone.overlays[zone.overlays.length - rank]
+      if (!owner) continue
+      const layerId = layerIdByOwner.get(`${occurrence.sceneId}:${occurrence.zoneId}:${owner.id}`)
+      if (!layerId || !definition.placements.some(placement => placement.layerOffset === layerOffset)) continue
+      const scenes = bound.get(layerId) ?? new Set<string>()
+      scenes.add(occurrence.sceneId)
+      bound.set(layerId, scenes)
+    }
+  }
+  return bound
+}
+
+interface PlacementRouteSpan {
+  id: string
+  instanceId: string
+  startMs: number
+  durationMs: number
+  zoneId: string
+}
+
+/**
+ * Clip-mapping IDs minus the placements `auditPlacement` retires as silent
+ * runtime use. A wholly unrouted placement never becomes visible content, but
+ * `convertClips` carries its ID forward through `pendingLayoutGapPlacements`
+ * into a later visible Clip mapping, so raw mapping membership over-counts it
+ * as surviving content. The routed predicate mirrors `auditPlacement`
+ * exactly: an interval overlapping no providing Layout occurrence while the
+ * instance exists.
+ */
+function retainedVisiblePlacementIds(
+  report: ShowV1ToV2Report,
+  spans: PlacementRouteSpan[],
+  occurrences: ShowLayoutOccurrenceV2[],
+  layouts: ShowRoutingLayout[],
+  allZoneIds: string[],
+  instanceIds: Set<string>,
+): Set<string> {
+  const layoutById = new Map(layouts.map(layout => [layout.id, layout]))
+  const retired = new Set<string>()
+  for (const span of spans) {
+    if (!instanceIds.has(span.instanceId)) continue
+    const endMs = span.startMs + span.durationMs
+    const routed = occurrences.some(occurrence => {
+      if (occurrence.startMs >= endMs || occurrence.startMs + occurrence.durationMs <= span.startMs) return false
+      return layoutProvidesZone(layoutById.get(occurrence.layoutId), span.zoneId, allZoneIds)
+    })
+    if (!routed) retired.add(span.id)
+  }
+  return new Set(report.clipMappings.flatMap(mapping => mapping.sourcePlacementIds).filter(id => !retired.has(id)))
+}
+
+/**
+ * Resolve divergent overlay names against the content the conversion retains.
+ * A name survives when its Scene-local layer carries a placement that becomes
+ * a v2 Clip, or a Group-occurrence child bound to that layer. The survivor is
+ * forced, never chosen: it is the only name any retained Clip will display in
+ * the v2 inspector, lane headers and Layer pickers. A resolved name must still
+ * be displayable: two global Layers in one Zone sharing a name cannot be told
+ * apart in lane headers or Layer pickers, so a resolution that collides with
+ * another Layer's final name stays refused. Names with no surviving content
+ * retire with the per-scene structure and take no provenance. Zero or several
+ * surviving names is a guess either way and stays refused.
+ */
+function resolveDivergentLayerNames(
+  layers: ShowLayerV2[],
+  pending: PendingLayerName[],
+  retainedPlacementIds: Set<string>,
+  groupBound: Map<string, Set<string>>,
+): { resolutions: Map<string, string>; refusedLayerIds: Map<string, string> } {
+  const resolutions = new Map<string, string>()
+  const refusedLayerIds = new Map<string, string>()
+  for (const entry of pending) {
+    const survivors = new Set(entry.candidates
+      .filter(candidate => candidate.placementIds.some(placementId => retainedPlacementIds.has(placementId))
+        || groupBound.get(entry.layerId)?.has(candidate.sceneId))
+      .map(candidate => candidate.name))
+    if (survivors.size === 1) resolutions.set(entry.layerId, [...survivors][0])
+    else refusedLayerIds.set(entry.layerId, survivors.size === 0 ? 'none' : 'several')
+  }
+  const finalName = (layerId: string): string | undefined => (
+    resolutions.get(layerId) ?? layers.find(layer => layer.id === layerId)?.name
+  )
+  for (const entry of pending) {
+    const survivor = resolutions.get(entry.layerId)
+    if (survivor === undefined) continue
+    const layer = layers.find(candidate => candidate.id === entry.layerId)
+    if (!layer) continue
+    const collision = layers.some(candidate => candidate.zoneId === layer.zoneId && candidate.id !== layer.id && finalName(candidate.id) === survivor)
+    if (collision) {
+      resolutions.delete(entry.layerId)
+      refusedLayerIds.set(entry.layerId, 'collision')
+    }
+  }
+  return { resolutions, refusedLayerIds }
+}
+
+function resolvePendingLayerNames(
+  layers: ShowLayerV2[],
+  pending: PendingLayerName[],
+  composition: NonNullable<ShowRecord['composition']>,
+  layerIdByOwner: Map<string, string>,
+  report: ShowV1ToV2Report,
+  issues: ShowV1ToV2Issue[],
+  spans: PlacementRouteSpan[],
+  occurrences: ShowLayoutOccurrenceV2[],
+  layouts: ShowRoutingLayout[],
+  allZoneIds: string[],
+  instanceIds: Set<string>,
+): void {
+  const retainedPlacementIds = retainedVisiblePlacementIds(report, spans, occurrences, layouts, allZoneIds, instanceIds)
+  const groupBound = groupBoundSceneIdsByLayerId(composition, layerIdByOwner)
+  const { resolutions, refusedLayerIds } = resolveDivergentLayerNames(layers, pending, retainedPlacementIds, groupBound)
+  for (const [layerId, name] of resolutions) layers.find(layer => layer.id === layerId)!.name = name
+  for (const entry of pending) {
+    const reason = refusedLayerIds.get(entry.layerId)
+    if (reason === undefined) continue
+    issues.push({
+      path: `composition.scenes.*.zones[${entry.zoneId}].overlays[${entry.ordinal}].name`,
+      code: 'ambiguous-layer',
+      message: reason === 'several'
+        ? `Overlay ordinal ${entry.ordinal} in Zone "${entry.zoneId}" has divergent surviving names.`
+        : reason === 'collision'
+          ? `Overlay ordinal ${entry.ordinal} in Zone "${entry.zoneId}" resolves to a name another Layer in the Zone already displays.`
+          : `Overlay ordinal ${entry.ordinal} in Zone "${entry.zoneId}" has divergent names with no surviving Clip to name the Layer.`,
+    })
+  }
 }
 
 function collectPlacements(
@@ -931,6 +1137,9 @@ function auditComposition(
   const mapped = (sourcePath: string, targetPath: string, source: unknown, condition: boolean) => {
     if (condition) addAccountingLeaves(accounting, sourcePath, source, 'mapped', targetPath)
   }
+  const retired = (sourcePath: string, targetPath: string, source: unknown, condition: boolean) => {
+    if (condition) addAccountingLeaves(accounting, sourcePath, source, 'retired-source-structure', targetPath, false)
+  }
   mapped('composition.version', 'composition.version', composition.version, record.composition.version === 2)
   if (composition.executionModel !== undefined) mapped('composition.executionModel', 'composition.executionModel', composition.executionModel, record.composition.executionModel === composition.executionModel)
   if (composition.durationMs !== undefined) mapped('composition.durationMs', 'composition.showEndMs', composition.durationMs, record.composition.showEndMs === composition.durationMs)
@@ -958,6 +1167,34 @@ function auditComposition(
   let withLayers = composition
   for (const zone of show.zones) withLayers = materializeShowGroupLayerShells(withLayers, zone.id)
   const layerIds = new Map(report.layerMappings.map(mapping => [`${mapping.sceneId}:${mapping.zoneId}:${mapping.sourceLayerId}`, mapping.layerId]))
+  // Re-derive exactly what the survivor rule supersedes, from the same inputs
+  // conversion used, so the audit retires only those name leaves. Any other
+  // mismatch stays unaccounted and refuses below (#1068).
+  const pendingAudit = collectPendingLayerNames(show.zones, withLayers)
+  const pendingAuditByLayer = new Map(pendingAudit.map(entry => [entry.layerId, entry]))
+  const auditRouteSpans = composition.scenes.flatMap(scene => {
+    const offset = report.sceneOffsets.find(candidate => candidate.sceneId === scene.sceneId)
+    return scene.zones.flatMap(zone => [...zone.main, ...zone.overlays.flatMap(layer => layer.placements)].map(placement => ({
+      id: placement.id,
+      instanceId: placement.instanceId,
+      startMs: (offset?.startMs ?? 0) + placement.startMs,
+      durationMs: placement.durationMs,
+      zoneId: zone.zoneId,
+    })))
+  })
+  const { resolutions: resolvedAuditNames } = resolveDivergentLayerNames(
+    record.composition.layers,
+    pendingAudit,
+    retainedVisiblePlacementIds(
+      report,
+      auditRouteSpans,
+      record.composition.layoutOccurrences,
+      record.zoneLayouts,
+      record.zones.map(zone => zone.id),
+      new Set(record.composition.patternInstances.map(instance => instance.id)),
+    ),
+    groupBoundSceneIdsByLayerId(withLayers, layerIds),
+  )
   for (const [index, occurrence] of (composition.groupOccurrences ?? []).entries()) {
     const targetIndex = record.composition.groupOccurrences.findIndex(candidate => candidate.id === occurrence.id)
     const expected = convertGroupOccurrence({ ...show, composition: withLayers }, occurrence, record, report.sceneOffsets.find(scene => scene.sceneId === occurrence.sceneId)!.startMs, layerIds)
@@ -1007,7 +1244,22 @@ function auditComposition(
         const targetIndex = record.composition.layers.findIndex(candidate => candidate.id === layerMapping?.layerId)
         const target = record.composition.layers[targetIndex]
         mapped(`${layerPath}.id`, targetIndex >= 0 ? `composition.layers.${targetIndex}.id` : 'composition.layers', layer.id, Boolean(target && layerMapping))
-        mapped(`${layerPath}.name`, targetIndex >= 0 ? `composition.layers.${targetIndex}.name` : 'composition.layers', layer.name, target?.name === layer.name)
+        // A superseded name belongs to a Scene-local Layer with no surviving
+        // content — neither a placement that became a v2 Clip nor a
+        // Group-occurrence child bound to the layer — while v2's global Layer
+        // keeps the surviving name, so this leaf retires with the per-scene
+        // structure (#1068). Any other mismatch is not what the rule
+        // supersedes: it stays unaccounted and refuses below.
+        if (target?.name === layer.name) {
+          mapped(`${layerPath}.name`, `composition.layers.${targetIndex}.name`, layer.name, true)
+        } else if (target && layerMapping) {
+          const entry = pendingAuditByLayer.get(layerMapping.layerId)
+          const survivor = resolvedAuditNames.get(layerMapping.layerId)
+          if (entry && survivor !== undefined && target.name === survivor
+            && entry.candidates.some(candidate => candidate.sceneId === scene.sceneId && candidate.name === layer.name && candidate.name !== survivor)) {
+            retired(`${layerPath}.name`, `composition.layers.${targetIndex}.name`, layer.name, true)
+          }
+        }
         if (layer.placements.length === 0) mapped(`${layerPath}.placements`, 'composition.clips', layer.placements, true)
         for (const [placementIndex, placement] of layer.placements.entries()) {
           auditPlacement(accounting, record, report, placement, `${layerPath}.placements.${placementIndex}`, offset?.startMs ?? 0, zone.zoneId)

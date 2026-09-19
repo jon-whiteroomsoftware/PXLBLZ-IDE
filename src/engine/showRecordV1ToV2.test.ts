@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { convertibleV1Show, flatV1Show } from '../test/showV2TracerFixture'
+import { showRemoveClipFixture } from '../test/showRemoveClipFixture'
+import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2 } from './showCompositionV2'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import { showRecordToCompileRecipe } from './showModel'
+import { compileShow } from './showCompiler'
+import { createFastReplayRuntime } from './fastReplay'
+import { nativeDimension } from './loadPattern'
+import { LIBRARIES } from '../pixelblaze/libs'
 import { stockShowById } from '../pixelblaze/stock/shows'
 import { auditShowV1ToV2Accounting, convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 
@@ -340,3 +348,308 @@ function continuingCutShow() {
   ]
   return source
 }
+
+function bothPopulatedDivergentLayers() {
+  const source = convertibleV1Show()
+  source.scenes = [
+    { id: 'scene-a', name: 'Opening', durationMs: 500 },
+    { id: 'scene-b', name: 'Closing', durationMs: 500 },
+  ]
+  source.composition!.scenes = [
+    {
+      sceneId: 'scene-a',
+      zones: [{ zoneId: 'zone', main: [], overlays: [{
+        id: 'overlay-a', name: 'Atmosphere', placements: [{
+          id: 'clip-a', instanceId: 'instance', startMs: 0, durationMs: 500, opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }] }],
+    },
+    {
+      sceneId: 'scene-b',
+      zones: [{ zoneId: 'zone', main: [], overlays: [{
+        id: 'overlay-b', name: 'Different', placements: [{
+          id: 'clip-b', instanceId: 'instance', startMs: 0, durationMs: 500, opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }] }],
+    },
+  ]
+  return source
+}
+
+it('still refuses divergent overlay names when the second survivor arrives through a Group occurrence', () => {
+  const source = showRemoveClipFixture()
+  const before = JSON.stringify(source)
+  const result = convertShowRecordV1ToV2(source)
+  expect(result).toMatchObject({
+    status: 'refused',
+    issues: expect.arrayContaining([expect.objectContaining({
+      code: 'ambiguous-layer',
+      path: expect.stringContaining('overlays[0].name'),
+    })]),
+  })
+  expect(JSON.stringify(source)).toBe(before)
+})
+
+function groupOnlyDivergentLayers() {
+  const source = convertibleV1Show()
+  source.scenes = [
+    { id: 'scene-a', name: 'Opening', durationMs: 500 },
+    { id: 'scene-b', name: 'Closing', durationMs: 500 },
+  ]
+  source.composition!.scenes = [
+    {
+      sceneId: 'scene-a',
+      zones: [{ zoneId: 'zone', main: [{
+        id: 'clip-a', instanceId: 'instance', startMs: 0, durationMs: 500,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }], overlays: [{ id: 'overlay-a', name: 'Atmosphere', placements: [] }] }],
+    },
+    {
+      sceneId: 'scene-b',
+      zones: [{ zoneId: 'zone', main: [], overlays: [{ id: 'overlay-b', name: 'Different', placements: [] }] }],
+    },
+  ]
+  source.composition!.groupDefinitions = [{
+    id: 'group-definition',
+    name: 'Overlay Group',
+    patternInstances: [{
+      id: 'group-pattern', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }],
+    placements: [{
+      id: 'group-overlay', instanceId: 'group-pattern', startMs: 0, durationMs: 500, layerOffset: 1, opacity: 1,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }],
+  }]
+  source.composition!.groupOccurrences = [{
+    id: 'group-use', definitionId: 'group-definition', sceneId: 'scene-b', zoneId: 'zone',
+    startMs: 0, baseLayer: 0, translationX: 0, translationY: 0,
+  }]
+  return source
+}
+
+function collidingGroupResolvedLayers() {
+  const source = convertibleV1Show()
+  source.scenes = [
+    { id: 'scene-a', name: 'Opening', durationMs: 500 },
+    { id: 'scene-b', name: 'Closing', durationMs: 500 },
+  ]
+  source.composition!.scenes = [
+    {
+      sceneId: 'scene-a',
+      zones: [{ zoneId: 'zone', main: [], overlays: [
+        { id: 'overlay-a-0', name: 'Alpha', placements: [] },
+        { id: 'overlay-a-1', name: 'Gamma', placements: [] },
+      ] }],
+    },
+    {
+      sceneId: 'scene-b',
+      zones: [{ zoneId: 'zone', main: [], overlays: [
+        { id: 'overlay-b-0', name: 'Beta', placements: [] },
+        { id: 'overlay-b-1', name: 'Beta', placements: [] },
+      ] }],
+    },
+  ]
+  source.composition!.groupDefinitions = [{
+    id: 'group-definition',
+    name: 'Overlay Group',
+    patternInstances: [{
+      id: 'group-pattern', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }],
+    placements: [
+      {
+        id: 'group-lower', instanceId: 'group-pattern', startMs: 0, durationMs: 500, layerOffset: 1, opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      },
+      {
+        id: 'group-upper', instanceId: 'group-pattern', startMs: 0, durationMs: 500, layerOffset: 2, opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      },
+    ],
+  }]
+  source.composition!.groupOccurrences = [{
+    id: 'group-use', definitionId: 'group-definition', sceneId: 'scene-b', zoneId: 'zone',
+    startMs: 0, baseLayer: 0, translationX: 0, translationY: 0,
+  }]
+  return source
+}
+
+it('converts a divergent overlay name whose only surviving content arrives through a Group occurrence', () => {
+  const source = groupOnlyDivergentLayers()
+  const before = JSON.stringify(source)
+  const result = convertShowRecordV1ToV2(source)
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
+  expect(JSON.stringify(source)).toBe(before)
+  expect(result.report.unaccountedSourcePaths).toEqual([])
+  expect(result.record.composition.layers).toContainEqual(
+    expect.objectContaining({ id: 'layer:zone:overlay:1', zoneId: 'zone', name: 'Different', rank: 1 }),
+  )
+  expect(result.record.composition.groupOccurrences).toEqual([
+    expect.objectContaining({
+      id: 'group-use',
+      layerBindings: [expect.objectContaining({ layerId: 'layer:zone:overlay:1' })],
+    }),
+  ])
+  expect(validateShowRecordV2(result.record)).toEqual([])
+  expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
+  const again = convertShowRecordV1ToV2(JSON.parse(before))
+  expect(again.status).toBe('converted')
+  if (again.status !== 'converted') return
+  expect(again.record).toEqual(result.record)
+})
+
+it('still refuses divergent ordinals that resolve to a name another Layer already displays', () => {
+  const source = collidingGroupResolvedLayers()
+  const before = JSON.stringify(source)
+  const result = convertShowRecordV1ToV2(source)
+  expect(result).toMatchObject({
+    status: 'refused',
+    issues: expect.arrayContaining([expect.objectContaining({
+      code: 'ambiguous-layer',
+      message: expect.stringContaining('already displays'),
+    })]),
+  })
+  expect(JSON.stringify(source)).toBe(before)
+})
+
+it('leaves a renamed overlay name unaccounted instead of retiring it', () => {
+  const source = convertibleV1Show()
+  const conversion = convertShowRecordV1ToV2(source)
+  expect(conversion.status).toBe('converted')
+  if (conversion.status !== 'converted') return
+  const tampered = structuredClone(conversion.record)
+  tampered.composition.layers.find(layer => layer.rank === 1)!.name = 'Renamed'
+  const audit = auditShowV1ToV2Accounting(source, tampered, conversion.report)
+  expect(audit.unaccountedSourcePaths).toContain('composition.scenes.0.zones.0.overlays.0.name')
+})
+
+it('compiles the admitted divergent-layer shape to the same program v1 compiles', () => {
+  const source = convertibleV1Show()
+  source.scenes = [
+    { id: 'scene-a', name: 'Opening', durationMs: 500 },
+    { id: 'scene-b', name: 'Closing', durationMs: 500 },
+  ]
+  source.composition!.durationMs = 1000
+  source.composition!.scenes = [
+    {
+      sceneId: 'scene-a',
+      zones: [{ zoneId: 'zone', main: [], overlays: [{
+        id: 'overlay-a', name: 'Atmosphere', placements: [{
+          id: 'clip-a', instanceId: 'instance', startMs: 0, durationMs: 500, opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }] }],
+    },
+    {
+      sceneId: 'scene-b',
+      zones: [{ zoneId: 'zone', main: [], overlays: [{ id: 'overlay-b', name: 'Different', placements: [] }] }],
+    },
+  ]
+  const before = JSON.stringify(source)
+  const result = convertShowRecordV1ToV2(source)
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
+  expect(JSON.stringify(source)).toBe(before)
+  expect(result.report.unaccountedSourcePaths).toEqual([])
+  expect(result.record.composition.layers).toContainEqual(expect.objectContaining({ name: 'Atmosphere' }))
+  expect(validateShowRecordV2(result.record)).toEqual([])
+  expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
+  const tinySource = 'export var calls=0; export var elapsed=0; export function beforeRender(delta) { calls++; elapsed+=delta/1000 } export function render2D(index,x,y) { rgb(1,x,y) }'
+  const lookup = { byCellId: {}, byPatternInstanceId: { instance: tinySource }, stageDimension: 2 as const }
+  const prepared = prepareShowV2ForCompile(result.record, lookup)
+  expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+  if (prepared.status !== 'ready') return
+  const oldArtifact = compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES)
+  const newArtifact = compileShow(prepared.recipe, LIBRARIES)
+  expect(newArtifact.code).toBe(oldArtifact.code)
+  for (const fidelity of ['fast', 'fidelity'] as const) {
+    const runtime = (artifact: typeof newArtifact) => createFastReplayRuntime({ code: artifact.code, fxCode: artifact.fxCode, metadata: artifact.metadata, dimension: nativeDimension(artifact.metadata.renderFns) }, { fidelity, randomSeed: 1034, mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }] })
+    const left = runtime(oldArtifact)
+    const right = runtime(newArtifact)
+    for (const atMs of [0, 1, 249, 250, 499, 500, 501, 750, 999, 1000, 1001]) {
+      const a = atMs ? left.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true }) : left.renderCurrentFrame()
+      const expected = { frame: Array.from(a.frame), exports: { ...a.exports } }
+      const b = atMs ? right.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true }) : right.renderCurrentFrame()
+      expect({ frame: Array.from(b.frame), exports: { ...b.exports } }).toEqual(expected)
+    }
+  }
+})
+
+
+it('still refuses divergent overlay names when both names carry Clips', () => {
+  const source = bothPopulatedDivergentLayers()
+  const before = JSON.stringify(source)
+  const result = convertShowRecordV1ToV2(source)
+  expect(result).toMatchObject({
+    status: 'refused',
+    issues: expect.arrayContaining([expect.objectContaining({ code: 'ambiguous-layer' })]),
+  })
+  expect(JSON.stringify(source)).toBe(before)
+})
+
+function unroutedDivergentLayerShow() {
+  const source = convertibleV1Show()
+  source.scenes = [
+    { id: 'scene-a', name: 'Opening', durationMs: 500 },
+    { id: 'scene-b', name: 'Closing', durationMs: 500 },
+  ]
+  source.zones = [
+    { id: 'zone', name: 'Main', nominalPixelCount: 16 },
+    { id: 'other', name: 'Other', nominalPixelCount: 16 },
+  ]
+  source.routingLayouts = [
+    { id: 'dark', name: 'Dark', zones: [], logical: { kind: 'single', zoneIds: ['other'] } },
+    { id: 'full', name: 'Full', zones: [], logical: { kind: 'single', zoneIds: ['zone'] } },
+  ]
+  source.transitions = [
+    { id: 'to-full', afterSceneId: 'scene-a', kind: 'routing', layoutId: 'full', durationMs: 0, easing: { curve: 'linear' } },
+  ]
+  source.composition!.durationMs = 1000
+  source.composition!.scenes = [
+    {
+      sceneId: 'scene-a',
+      zones: [
+        { zoneId: 'zone', main: [], overlays: [{
+          id: 'overlay-a', name: 'Alpha', placements: [{
+            id: 'clip-a', instanceId: 'instance', startMs: 0, durationMs: 500, opacity: 1,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+        }] },
+        { zoneId: 'other', main: [], overlays: [] },
+      ],
+    },
+    {
+      sceneId: 'scene-b',
+      zones: [
+        { zoneId: 'zone', main: [], overlays: [{
+          id: 'overlay-b', name: 'Beta', placements: [{
+            id: 'clip-b', instanceId: 'instance', startMs: 0, durationMs: 500, opacity: 1,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+        }] },
+        { zoneId: 'other', main: [], overlays: [] },
+      ],
+    },
+  ]
+  return source
+}
+
+it('converts a divergent overlay name when the earlier placement never routes', () => {
+  const source = unroutedDivergentLayerShow()
+  const before = JSON.stringify(source)
+  const result = convertShowRecordV1ToV2(source)
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
+  expect(JSON.stringify(source)).toBe(before)
+  expect(result.report.unaccountedSourcePaths).toEqual([])
+  expect(result.report.retiredSilentRuntimeUses.map(entry => entry.sourcePlacementId)).toContain('clip-a')
+  expect(result.record.composition.layers).toContainEqual(
+    expect.objectContaining({ id: 'layer:zone:overlay:1', zoneId: 'zone', name: 'Beta', rank: 1 }),
+  )
+  expect(validateShowRecordV2(result.record)).toEqual([])
+  expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
+})

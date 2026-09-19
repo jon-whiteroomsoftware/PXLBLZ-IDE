@@ -112,6 +112,28 @@ claim about how the record was produced:
 
 - A Transition with no `origin` follows its own scope: whole-output scope is a
   boundary, participant scope is a Layer junction.
+
+## No new provenance for #1068
+
+#1068 admits two previously refused shapes without adding a provenance field,
+and that omission is deliberate under this contract: each field above exists so
+the existing editor can reproduce a surface it already draws.
+
+- An empty whole-output contributor side is structure, not provenance.
+  Validation exact-matches each side against the Clips abutting its window
+  edge, so the empty array proves nothing abuts rather than asserting an
+  uncheckable origin. The Transition keeps its `converted-boundary-transition`
+  family origin; no second origin value is minted.
+- A superseded Scene-local overlay name retires with the per-scene structure.
+  Only the unique name carried by retained content survives: a placement that
+  becomes a v2 Clip, or a Group-occurrence child bound to the Scene-local
+  layer (which materializes as a v2 Clip drawn under that lane header). So no
+  surviving Clip, lane header or Layer picker can display a guessed name, and
+  no editor surface needs the dropped names reproduced. A fourth form with no
+  consumer would be dead schema carried through the codec, Worker admission
+  and import for nothing to read. A resolution that collides with another
+  Layer's displayed name stays refused, and any other name mismatch stays
+  unaccounted and refuses rather than retiring.
 - An occurrence with no `incomingSwitch` behaves exactly as before: a Layout
   change with no selectable switch identity.
 - A Marker with no `origin` stays plainly authored and visible.
