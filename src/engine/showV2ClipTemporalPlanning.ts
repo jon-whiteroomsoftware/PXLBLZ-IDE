@@ -19,7 +19,8 @@ export type ShowV2ClipTemporalRefusal =
   | 'no-change'
   | 'outside-clip'
   | 'connected-reroute'
-  | 'boundary-detach-unsupported'
+  | 'boundary-extend-unsupported'
+  | 'boundary-repair-blocked'
   | 'invalid-request'
 
 /**
@@ -155,22 +156,113 @@ export function planShowV2ClipMove(
  * caller already applied, exactly as v1's `beginCompositionResize` does.
  *
  * A resize that pulls a joined edge AWAY from a Transition v1 authored on a
- * Scene boundary (leading startMs increases, trailing endMs decreases) would
- * detach it the way v1 detaches a broken Scene-boundary junction
+ * Scene boundary (leading startMs increases, trailing endMs decreases) detaches
+ * it the way v1 detaches a broken Scene-boundary junction
  * (`scene-boundary-cut` in `resizeShowClipExactly`: the junction needs exact
- * millisecond adjacency, so ANY positive move away breaks it), and no single
- * landed v2 owner expresses that trim plus Transition reset and Show-End
- * reclaim in one edit. It refuses as `boundary-detach-unsupported` before any
- * submission: no preview, no write, record identity kept. The missing
- * single-owner detach operation is engine issue #1068.
- * A Layer-Transition join (`origin: 'converted-layer-transition'`) or a
- * natively authored join (no origin) keeps the connected form exactly as now,
- * as does every resize toward the Transition and every resize that leaves the
- * junction intact. Provenance comes from the presented Transition record, never
- * a name or id heuristic.
+ * millisecond adjacency, so ANY positive move away breaks it). It plans the
+ * connected resize form, whose owner commits the #1068 repair in the same edit:
+ * the requested retime, the orphaned boundary replaced by the cut adjacency,
+ * and Show End reclaimed by the boundary duration. Growing a joined edge INTO
+ * that boundary refuses as `boundary-extend-unsupported` before any submission:
+ * both owners refuse the extension as invalid-topology, so the gesture paints
+ * no preview it cannot keep. A detach-away resize the repair cannot absorb -
+ * content spanning the reclaimed window end, or an owning Layout occurrence
+ * that cannot cover the reclaim - refuses as `boundary-repair-blocked` for the
+ * same reason: the owner would refuse the same gesture at commit.
+ * A Layer-Transition join (`origin: 'converted-layer-transition'`), a natively
+ * authored join (no origin), a whole-output boundary, or an inexact junction
+ * keeps the connected form exactly as now, as does every resize that leaves the
+ * junction intact. Provenance plus the exact junction on both sides selects the
+ * repair path, never a name or id heuristic; the owner stays the authority at
+ * commit for ramp carriers, Layout availability and compiler placement, which
+ * the presented timeline cannot decide.
  * A straddle that is neither inside nor containing refuses: both temporal
  * owners refuse it as an invalid intent.
  */
+interface ConvertedBoundaryEdgeV2 {
+  windowStartMs: number
+  windowEndMs: number
+  durationMs: number
+}
+
+/**
+ * The converted Scene-boundary repair shape (#1068) behind one joined edge: a
+ * single-participant converted-boundary Transition whose window meets the Clip
+ * edge exactly, with the far side of the window meeting its own Clip exactly.
+ * This mirrors `convertedBoundaryRepairSpecV2`'s structural key - provenance
+ * plus exact structure - minus the ramp-carrier classification, which the
+ * presented timeline does not carry and the owner keeps.
+ */
+function convertedBoundaryRepairShape(
+  view: ShowTimelineViewModel,
+  item: ShowTimelineItemView,
+  edge: 'leading' | 'trailing',
+): ConvertedBoundaryEdgeV2 | null {
+  // One joined edge only: a second Transition on the same edge keeps the
+  // owner's multi-join refusal, exactly as for every other connected gesture.
+  const onEdge = edgeTransitions(view, item.id, edge)
+  if (onEdge.length !== 1) return null
+  const joined = onEdge.filter(
+    (transition) => transition.origin === 'converted-boundary-transition'
+      && transition.scope.kind === 'participants'
+      && transition.scope.participants.length === 1,
+  )
+  if (joined.length !== 1) return null
+  const transition = joined[0]
+  if (transition.scope.kind !== 'participants') return null
+  const participant = transition.scope.participants[0]
+  if (transition.startMs + transition.durationMs !== transition.endMs) return null
+  const endMs = item.startMs + item.durationMs
+  if (edge === 'leading') {
+    if (participant.toItemId !== item.id || transition.endMs !== item.startMs) return null
+    const from = findItem(view, participant.fromItemId)
+    if (!from || from.item.groupOccurrenceId
+      || from.item.startMs + from.item.durationMs !== transition.startMs) return null
+  } else {
+    if (participant.fromItemId !== item.id || transition.startMs !== endMs) return null
+    const to = findItem(view, participant.toItemId)
+    if (!to || to.item.groupOccurrenceId || to.item.startMs !== transition.endMs) return null
+  }
+  return {
+    windowStartMs: transition.startMs,
+    windowEndMs: transition.endMs,
+    durationMs: transition.durationMs,
+  }
+}
+
+/**
+ * Data the #1068 repair cannot absorb, read from the presented timeline: a
+ * Clip spanning the reclaimed window end, a reclaimed window that is not inside
+ * one Layout occurrence, or an owning occurrence that cannot cover the reclaim.
+ * Mirrors the commit's fail-closed guards so a gesture the owner would refuse
+ * never paints a preview; ramp carriers, Layout availability and compiler
+ * placement stay owner-side, exactly as for every other connected gesture.
+ */
+function blockedBoundaryRepair(
+  view: ShowTimelineViewModel,
+  item: ShowTimelineItemView,
+  shape: ConvertedBoundaryEdgeV2,
+): ShowV2ClipTemporalRefusal | null {
+  for (const row of view.rows) {
+    for (const layer of row.layers) {
+      for (const candidate of layer.items) {
+        if (candidate.id === item.id || candidate.groupOccurrenceId) continue
+        if (candidate.startMs < shape.windowEndMs
+          && candidate.startMs + candidate.durationMs > shape.windowEndMs) {
+          return 'boundary-repair-blocked'
+        }
+      }
+    }
+  }
+  const owner = view.layoutIntervals.find((interval) => (
+    interval.startMs <= shape.windowStartMs && shape.windowStartMs < interval.endMs
+  ))
+  if (!owner || owner.endMs < shape.windowEndMs || owner.durationMs <= shape.durationMs) {
+    return 'boundary-repair-blocked'
+  }
+  return null
+}
+
 export function planShowV2ClipResize(
   view: ShowTimelineViewModel,
   input: { clipId: string; edge: 'leading' | 'trailing'; startMs: number; endMs: number },
@@ -187,9 +279,11 @@ export function planShowV2ClipResize(
   const leading = edgeTransitions(view, input.clipId, 'leading')
   const trailing = edgeTransitions(view, input.clipId, 'trailing')
   if (leadingChanged && !trailingChanged && leading.length > 0) {
-    if (input.startMs > item.startMs
-      && leading.some((transition) => transition.origin === 'converted-boundary-transition')) {
-      return refuse('boundary-detach-unsupported')
+    const shape = convertedBoundaryRepairShape(view, item, 'leading')
+    if (shape) {
+      if (input.startMs < item.startMs) return refuse('boundary-extend-unsupported')
+      const blocked = blockedBoundaryRepair(view, item, shape)
+      if (blocked) return refuse(blocked)
     }
     return {
       kind: 'transition-resize',
@@ -197,13 +291,44 @@ export function planShowV2ClipResize(
     }
   }
   if (trailingChanged && !leadingChanged && trailing.length > 0) {
-    if (input.endMs < endMs
-      && trailing.some((transition) => transition.origin === 'converted-boundary-transition')) {
-      return refuse('boundary-detach-unsupported')
+    const shape = convertedBoundaryRepairShape(view, item, 'trailing')
+    if (shape) {
+      if (input.endMs > endMs) return refuse('boundary-extend-unsupported')
+      const blocked = blockedBoundaryRepair(view, item, shape)
+      if (blocked) return refuse(blocked)
     }
     return {
       kind: 'transition-resize',
       intent: { kind: 'resize-trailing', clipId: input.clipId, endMs: input.endMs },
+    }
+  }
+  // A two-edge change the connected forms cannot carry plans its temporal form,
+  // but a meeting edge keeps the boundary rule: growing into a converted
+  // boundary refuses before any submission, and a detach-away the repair cannot
+  // absorb refuses with it, because both owners decide the same way at commit.
+  if ((input.startMs >= item.startMs && input.endMs <= endMs)
+    || (input.startMs <= item.startMs && input.endMs >= endMs)) {
+    if (leadingChanged && input.startMs < item.startMs
+      && convertedBoundaryRepairShape(view, item, 'leading')) {
+      return refuse('boundary-extend-unsupported')
+    }
+    if (trailingChanged && input.endMs > endMs
+      && convertedBoundaryRepairShape(view, item, 'trailing')) {
+      return refuse('boundary-extend-unsupported')
+    }
+    if (leadingChanged && input.startMs > item.startMs) {
+      const shape = convertedBoundaryRepairShape(view, item, 'leading')
+      if (shape) {
+        const blocked = blockedBoundaryRepair(view, item, shape)
+        if (blocked) return refuse(blocked)
+      }
+    }
+    if (trailingChanged && input.endMs < endMs) {
+      const shape = convertedBoundaryRepairShape(view, item, 'trailing')
+      if (shape) {
+        const blocked = blockedBoundaryRepair(view, item, shape)
+        if (blocked) return refuse(blocked)
+      }
     }
   }
   if (input.startMs >= item.startMs && input.endMs <= endMs) {

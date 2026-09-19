@@ -138,7 +138,10 @@ retimed in preimage coordinates first, then `commitConvertedBoundaryRepairsV2`
 drops the boundary record, moves the boundary's downstream side (the
 transition-connected closure of the destination plus every Clip at or after the
 window end) earlier by the boundary duration, lowers Show End by the same
-duration, and shortens the tail Layout occurrence to keep coverage exact.
+duration, shortens the Layout occurrence that owns the reclaimed window, and
+moves every later occurrence earlier by the same duration to keep coverage
+exact. A window that is not inside one occurrence, or an owning occurrence that
+cannot cover the reclaim, refuses the whole edit atomically.
 Extending into the boundary refuses `invalid-topology` on all four entry points
 (temporal Trim/Extend, `resize-leading`, `resize-trailing`); reset the Transition
 explicitly first. An edge with no meeting boundary never consults the repair, so
@@ -152,8 +155,11 @@ first and then commits the same reclaim. Clip deletion commits no repair:
 survivors keep exact times and Show End keeps its value; only the orphan boundary
 record leaves, with deleted-anchored projections dropped per the transition-route
 contract. One accepted edit is one history entry and one save with exact Undo and
-Redo. Direct duration edits (`resize-transition`) on a ready boundary keep the
-generic shift semantics; they are outside the #1068 gaps and do not reclaim.
+Redo. Direct duration edits (`resize-transition`) with a nonzero duration on a
+ready boundary keep the generic shift semantics; they are outside the #1068 gaps
+and do not reclaim. Setting the duration to 0 routes through `reset-to-cut` and
+commits the same cut-and-reclaim as a detach-away resize (a carrier that still
+holds Property ramps refuses without an explicit projection plan first).
 
 ## Consumer evidence
 

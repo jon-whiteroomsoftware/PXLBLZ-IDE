@@ -14,6 +14,7 @@ import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { editShowClipTemporalV2 } from './showClipTemporalV2'
+import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import {
   parseProvisionalShowRecordV2,
@@ -446,6 +447,61 @@ describe('converted Scene-boundary repair on Clip delete (gap 7)', () => {
     if (result.status !== 'refused') return
     expect(result.code).toBe('unsupported-property-carrier')
     expect(result.record).toBe(source)
+  })
+})
+
+describe('converted-boundary reclaim across Layout occurrences (#1068)', () => {
+  function splitLayout(record: ShowRecordV2, atMs: number, occurrenceId: string): ShowRecordV2 {
+    const owner = record.composition.layoutOccurrences.find(occurrence => (
+      occurrence.startMs <= atMs && atMs < occurrence.startMs + occurrence.durationMs
+    ))
+    if (!owner) throw new Error('No owning Layout occurrence.')
+    const split = editShowLayoutIntervalsV2(record, {
+      kind: 'insert', occurrenceId, atMs, layoutId: owner.layoutId,
+    })
+    expect(split.status).toBe('changed')
+    if (split.status !== 'changed') throw new Error(JSON.stringify(split))
+    return reopen(split.record)
+  }
+
+  it('shortens the occurrence that owns the reclaimed window and shifts later ones earlier', () => {
+    const source = convertedDefaultShow()
+    const ownerId = source.composition.layoutOccurrences[0].id
+    const record = splitLayout(source, 40000, 'occ-second')
+    expect(record.composition.layoutOccurrences.map(occurrence => [occurrence.id, occurrence.startMs, occurrence.durationMs])).toEqual([
+      [ownerId, 0, 40000],
+      ['occ-second', 40000, 22000],
+    ])
+    const result = editShowTransitionV2(record, { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    const next = reopen(result.record)
+    expect(next.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+      [LEFT, 0, 30000],
+      [RIGHT, 34000, 26000],
+    ])
+    expect(next.composition.showEndMs).toBe(60000)
+    expect(next.composition.layoutOccurrences.map(occurrence => [occurrence.id, occurrence.startMs, occurrence.durationMs])).toEqual([
+      [ownerId, 0, 38000],
+      ['occ-second', 38000, 22000],
+    ])
+    expect(validateShowRecordV2(next)).toEqual([])
+  })
+
+  it('refuses when the owning occurrence cannot absorb the reclaim', () => {
+    const source = convertedDefaultShow()
+    const ownerId = source.composition.layoutOccurrences[0].id
+    const once = splitLayout(source, 30000, 'occ-window')
+    const record = splitLayout(once, 32000, 'occ-tail')
+    expect(record.composition.layoutOccurrences.map(occurrence => [occurrence.id, occurrence.startMs, occurrence.durationMs])).toEqual([
+      [ownerId, 0, 30000],
+      ['occ-window', 30000, 2000],
+      ['occ-tail', 32000, 30000],
+    ])
+    const result = editShowTransitionV2(record, { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 })
+    expect(result.status).toBe('refused')
+    if (result.status !== 'refused') return
+    expect(result.record).toBe(record)
   })
 })
 

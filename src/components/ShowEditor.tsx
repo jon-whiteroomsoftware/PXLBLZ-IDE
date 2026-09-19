@@ -5526,8 +5526,10 @@ function ShowTimelineWorkspace({
       const next = resolve(pointer)
       // Alt already shaped the snapped interval above and reaches the planner
       // only through it, exactly as v1: a resize that pulls a joined edge away
-      // from a converted Scene-boundary Transition refuses on provenance
-      // (#1068), every other edge plans its connected or temporal form.
+      // from a converted Scene-boundary Transition plans the connected form
+      // that commits the #1068 repair, while a resize into the boundary and an
+      // unabsorbable reclaim refuse before any preview. Every other edge plans
+      // its connected or temporal form.
       const startMs = edge === 'start' ? next.startMs : clip.startMs
       const endMs = edge === 'start' ? clip.endMs : next.startMs + next.durationMs
       const gesturePlan = planShowV2ClipResize(timelineView, {

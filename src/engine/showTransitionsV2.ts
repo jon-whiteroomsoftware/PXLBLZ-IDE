@@ -281,7 +281,8 @@ export function editShowTransitionV2(
  * the boundary record, move the boundary's downstream side (every Clip at or
  * after the destination entry plus the transition-connected closure) earlier
  * by the boundary duration, and lower Show End by the same duration, keeping
- * the single Layout coverage exact by shortening its tail occurrence.
+ * the single Layout coverage exact by shortening the occurrence that owns
+ * the reclaimed window and moving later occurrences earlier by the same duration.
  *
  * The repair fires only for Transitions carrying
  * `origin: 'converted-boundary-transition'` at single-participant scope.
@@ -376,6 +377,7 @@ export function commitConvertedBoundaryRepairsV2(
   const removedTransitionIds: string[] = []
   const shiftedClipIds = new Set<string>()
   const shiftedTrackIds = new Set<string>()
+  const shortenedLayoutOccurrenceIds = new Set<string>()
   let reclaimedMs = 0
   for (const repair of ordered) {
     if (!next.composition.transitions.some(candidate => candidate.id === repair.transitionId)) {
@@ -396,21 +398,40 @@ export function commitConvertedBoundaryRepairsV2(
     next.composition.showEndMs -= durationMs
     reclaimedMs += durationMs
     removedTransitionIds.push(repair.transitionId)
+    // The reclaimed window leaves Layout coverage from inside one occurrence:
+    // that occurrence absorbs the reclaim and every later occurrence moves
+    // earlier by the same duration, so shifted content keeps its Layout. A
+    // window that is not inside one occurrence, or an owning occurrence that
+    // cannot cover the reclaim, refuses the whole edit atomically. Repairs
+    // apply latest-window-first, so an earlier window always reads occurrence
+    // positions no earlier repair has moved.
+    const orderedOccurrences = [...next.composition.layoutOccurrences]
+      .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+    const ownerIndex = orderedOccurrences.findIndex((occurrence) => (
+      occurrence.startMs <= repair.windowStartMs
+      && repair.windowStartMs < occurrence.startMs + occurrence.durationMs
+    ))
+    const owner = ownerIndex < 0 ? undefined : orderedOccurrences[ownerIndex]
+    if (!owner || repair.windowEndMs > owner.startMs + owner.durationMs) {
+      return { status: 'refused', message: `The reclaimed boundary window ending at ${repair.windowEndMs} ms is not inside one Layout occurrence; consolidate Layouts first.` }
+    }
+    const live = next.composition.layoutOccurrences.find(candidate => candidate.id === owner.id)!
+    if (live.durationMs <= durationMs) {
+      return { status: 'refused', message: `Layout occurrence "${owner.id}" cannot absorb the reclaimed ${durationMs} ms boundary window; consolidate Layouts first.` }
+    }
+    live.durationMs -= durationMs
+    for (const later of orderedOccurrences.slice(ownerIndex + 1)) {
+      next.composition.layoutOccurrences.find(candidate => candidate.id === later.id)!.startMs -= durationMs
+    }
+    shortenedLayoutOccurrenceIds.add(owner.id)
   }
-  const orderedOccurrences = [...next.composition.layoutOccurrences]
-    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
-  const tail = orderedOccurrences[orderedOccurrences.length - 1]
-  if (!tail || tail.durationMs <= reclaimedMs) {
-    return { status: 'refused', message: 'The reclaimed boundary window does not fit behind the final Layout occurrence; consolidate Layouts first.' }
-  }
-  next.composition.layoutOccurrences.find(candidate => candidate.id === tail.id)!.durationMs -= reclaimedMs
   return {
     status: 'applied',
     applied: {
       removedTransitionIds: removedTransitionIds.sort(),
       shiftedClipIds: [...shiftedClipIds].sort(),
       shiftedTrackIds: [...shiftedTrackIds].sort(),
-      shortenedLayoutOccurrenceIds: [tail.id],
+      shortenedLayoutOccurrenceIds: [...shortenedLayoutOccurrenceIds].sort(),
       reclaimedMs,
     },
   }

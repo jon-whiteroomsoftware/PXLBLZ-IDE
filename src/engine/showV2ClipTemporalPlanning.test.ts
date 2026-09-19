@@ -98,7 +98,17 @@ function fixture(): ShowTimelineViewModel {
       startMs: 6000, durationMs: 3000, endMs: 9000,
       scope: { kind: 'whole-output', fromItemIds: ['j'], toItemIds: ['k'] },
     }],
-    layoutIntervals: [],
+    layoutIntervals: [{
+      id: 'occ-all',
+      definitionId: 'layout-1',
+      definitionName: 'Zone Layout',
+      zoneIds: ['z1', 'z2'],
+      startMs: 0,
+      endMs: 20000,
+      durationMs: 20000,
+      parameters: {},
+      selection: { kind: 'layout-occurrence', occurrenceId: 'occ-all' },
+    }],
     markers: [],
     structuralTimesMs: [0, 4000, 5000, 7000, 12000, 13000, 14000, 20000],
   }
@@ -282,31 +292,68 @@ describe('resolveShowV2SplitTarget', () => {
 })
 
 describe('planShowV2ClipResize across conversion provenance (#1068)', () => {
-  it('refuses a resize that pulls a converted-boundary leading edge away', () => {
+  it('routes a resize that pulls a converted-boundary leading edge away through the connected repair door', () => {
     expect(planShowV2ClipResize(fixture(), { clipId: 'f', edge: 'leading', startMs: 18500, endMs: 20000 }))
-      .toEqual({ kind: 'refuse', reason: 'boundary-detach-unsupported' })
+      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-leading', clipId: 'f', startMs: 18500 } })
   })
 
-  it('refuses a resize that pulls a converted-boundary trailing edge away', () => {
+  it('routes a resize that pulls a converted-boundary trailing edge away through the connected repair door', () => {
     expect(planShowV2ClipResize(fixture(), { clipId: 'e', edge: 'trailing', startMs: 14000, endMs: 15500 }))
-      .toEqual({ kind: 'refuse', reason: 'boundary-detach-unsupported' })
+      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-trailing', clipId: 'e', endMs: 15500 } })
   })
 
-  it('refuses a resize that pulls a whole-output boundary edge away', () => {
+  it('keeps the connected grow form on a whole-output boundary edge in both directions', () => {
     expect(planShowV2ClipResize(fixture(), { clipId: 'j', edge: 'trailing', startMs: 4000, endMs: 5500 }))
-      .toEqual({ kind: 'refuse', reason: 'boundary-detach-unsupported' })
+      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-trailing', clipId: 'j', endMs: 5500 } })
     expect(planShowV2ClipResize(fixture(), { clipId: 'k', edge: 'leading', startMs: 9500, endMs: 11000 }))
-      .toEqual({ kind: 'refuse', reason: 'boundary-detach-unsupported' })
+      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-leading', clipId: 'k', startMs: 9500 } })
   })
 
-  it('keeps the connected leading form toward a converted-boundary join', () => {
+  it('refuses a resize that grows a converted-boundary Clip into the boundary', () => {
     expect(planShowV2ClipResize(fixture(), { clipId: 'f', edge: 'leading', startMs: 17500, endMs: 20000 }))
-      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-leading', clipId: 'f', startMs: 17500 } })
+      .toEqual({ kind: 'refuse', reason: 'boundary-extend-unsupported' })
+    expect(planShowV2ClipResize(fixture(), { clipId: 'e', edge: 'trailing', startMs: 14000, endMs: 16500 }))
+      .toEqual({ kind: 'refuse', reason: 'boundary-extend-unsupported' })
   })
 
-  it('keeps the connected trailing form toward a converted-boundary join', () => {
-    expect(planShowV2ClipResize(fixture(), { clipId: 'e', edge: 'trailing', startMs: 14000, endMs: 16500 }))
-      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-trailing', clipId: 'e', endMs: 16500 } })
+  it('refuses a two-edge extend that grows into a converted boundary instead of planning a temporal extend', () => {
+    expect(planShowV2ClipResize(fixture(), { clipId: 'f', edge: 'leading', startMs: 17500, endMs: 20500 }))
+      .toEqual({ kind: 'refuse', reason: 'boundary-extend-unsupported' })
+  })
+
+  it('refuses a detach-away resize whose reclaim window a spanning Clip blocks', () => {
+    const view = fixture()
+    view.rows[0].layers[1].items.push(item('s', 'z1', 'l2', 17000, 2000))
+    expect(planShowV2ClipResize(view, { clipId: 'f', edge: 'leading', startMs: 18500, endMs: 20000 }))
+      .toEqual({ kind: 'refuse', reason: 'boundary-repair-blocked' })
+  })
+
+  it('refuses a detach-away resize whose owning Layout occurrence cannot absorb the reclaim', () => {
+    const view = fixture()
+    const interval = (id: string, startMs: number, durationMs: number) => ({
+      id,
+      definitionId: 'layout-1',
+      definitionName: 'Zone Layout',
+      zoneIds: ['z1', 'z2'],
+      startMs,
+      endMs: startMs + durationMs,
+      durationMs,
+      parameters: {},
+      selection: { kind: 'layout-occurrence' as const, occurrenceId: id },
+    })
+    view.layoutIntervals = [interval('occ-a', 0, 15000), interval('occ-b', 15000, 2000), interval('occ-c', 17000, 3000)]
+    expect(planShowV2ClipResize(view, { clipId: 'f', edge: 'leading', startMs: 18500, endMs: 20000 }))
+      .toEqual({ kind: 'refuse', reason: 'boundary-repair-blocked' })
+  })
+
+  it('routes an inexact converted-boundary junction through the connected grow form', () => {
+    const view = fixture()
+    const drifting = view.rows[0].layers[0].items.find(candidate => candidate.id === 'f')!
+    drifting.startMs = 18100
+    drifting.durationMs = 1900
+    drifting.endMs = 20000
+    expect(planShowV2ClipResize(view, { clipId: 'f', edge: 'leading', startMs: 18600, endMs: 20000 }))
+      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-leading', clipId: 'f', startMs: 18600 } })
   })
 
   it('keeps the connected form away from a converted-layer join', () => {

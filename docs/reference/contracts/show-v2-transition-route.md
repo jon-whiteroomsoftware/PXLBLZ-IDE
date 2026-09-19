@@ -122,8 +122,11 @@ the packet is [issue-1038-transition-route](../evidence/issue-1038-transition-ro
 `resize-leading`, `resize-trailing` and plan-less `reset-to-cut` consult
 `convertedBoundaryRepairSpecV2` and route a ready converted boundary through the
 same cut-and-reclaim commit the temporal owner uses: the record leaves, the
-downstream side moves earlier by the boundary duration, and Show End and the tail
-Layout occurrence shrink by the same duration. Extension into the boundary
+downstream side moves earlier by the boundary duration, Show End shrinks by the
+same duration, the Layout occurrence that owns the reclaimed window shortens,
+and every later occurrence moves earlier. A window that is not inside one
+occurrence, or an owning occurrence that cannot cover the reclaim, refuses the
+whole edit atomically. Extension into the boundary
 refuses `invalid-topology`; `reset-to-cut` with projections projects first and
 refuses a stranded activation exactly like the temporal side. `delete-clip`
 performs no shift and no Show End move on any boundary: survivor times are

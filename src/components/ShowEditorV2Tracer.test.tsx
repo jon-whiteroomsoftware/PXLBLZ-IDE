@@ -1359,86 +1359,101 @@ function convertedClipIdByPattern(record: ShowRecordV2, patternName: string): st
   return clip.id
 }
 
-describe('v2 converted-boundary resize refusals (#1068)', () => {
-  it('refuses an Alt resize that pulls a converted-boundary leading edge away', async () => {
+describe('v2 converted-boundary resize repair (#1068)', () => {
+  it('repairs an Alt resize that pulls a converted-boundary leading edge away (#1068)', async () => {
     const { record } = convertedFreshBoundary('slice1-boundary-alt-away')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
     const clipId = convertedClipIdByPattern(record, 'CometLoom')
     // CometLoom starts at 32000 on a 200 px / 62000 ms lane, so +10 px asks
-    // for 35100: away from the incoming converted-boundary window. v1 detaches
-    // that edge into a trim plus a Transition reset and Show-End reclaim,
-    // which no single landed v2 owner expresses in one edit (#1068) - the
-    // gesture submits nothing and the Transition stays intact.
+    // for 35100: away from the incoming converted-boundary window. The
+    // connected leading form now carries the #1068 repair in the same edit:
+    // the requested trim, the boundary record replaced by the cut adjacency,
+    // and Show End reclaimed by the 2000 ms window.
     await resizeDrag('CometLoom', 'start', 0, 70, 80)
 
     const after = editor.state()
-    expect(admission.calls).toEqual([])
-    expectNoWrite(before, after)
-    expect(authoredClip(after.record, clipId).startMs).toBe(32_000)
-    expect(after.record.composition.transitions).toHaveLength(1)
-    expect(after.record.composition.transitions[0]).toMatchObject({
-      id: 'transition-scene-1', kind: 'crossfade', durationMs: 2_000,
-      origin: 'converted-boundary-transition',
-    })
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-leading', clipId, startMs: 35_100 },
+    ])
+    expect(authoredClip(after.record, clipId).startMs).toBe(33_100)
+    expect(authoredClip(after.record, clipId).durationMs).toBe(26_900)
+    expect(after.record.composition.transitions).toEqual([])
+    expect(after.record.composition.showEndMs).toBe(60_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
   })
 
-  it('refuses the same boundary-away resize without Alt', async () => {
+  it('repairs the same boundary-away resize without Alt (#1068)', async () => {
     const { record } = convertedFreshBoundary('slice1-boundary-plain-away')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
     const clipId = convertedClipIdByPattern(record, 'CometLoom')
-    // 62 ms per px on the wide lane: +50 px asks for 35100, clear of the
-    // structural-time magnets, so the plain pointer refuses exactly as Alt.
+    // 62 ms per px on the wide lane: +50 px asks for 35100, which the plain
+    // pointer quantizes to the grid step at 35000 - still away from the
+    // incoming converted-boundary window, so it repairs exactly as Alt.
     await resizeDrag('CometLoom', 'start', 0, 350, 400, false, 1000)
 
     const after = editor.state()
-    expect(admission.calls).toEqual([])
-    expectNoWrite(before, after)
-    expect(authoredClip(after.record, clipId).startMs).toBe(32_000)
-    expect(after.record.composition.transitions).toHaveLength(1)
-    expect(after.record.composition.transitions[0].durationMs).toBe(2_000)
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-leading', clipId, startMs: 35_000 },
+    ])
+    expect(authoredClip(after.record, clipId).startMs).toBe(33_000)
+    expect(authoredClip(after.record, clipId).durationMs).toBe(27_000)
+    expect(after.record.composition.transitions).toEqual([])
+    expect(after.record.composition.showEndMs).toBe(60_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
   })
 
-  it('refuses an Alt resize that pulls a converted-boundary trailing edge away', async () => {
+  it('repairs an Alt resize that pulls a converted-boundary trailing edge away (#1068)', async () => {
     const { record } = convertedFreshBoundary('slice1-boundary-trailing-away')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
     const clipId = convertedClipIdByPattern(record, 'TestPattern1D')
     // -10 px asks for end 26900: away from the outgoing converted-boundary
-    // window, refused for the same missing detach owner.
+    // window, repaired in the same connected trailing form: the requested
+    // trim, the boundary record dropped, and Show End reclaimed.
     await resizeDrag('TestPattern1D', 'end', 0, 70, 60)
 
     const after = editor.state()
-    expect(admission.calls).toEqual([])
-    expectNoWrite(before, after)
-    expect(authoredClip(after.record, clipId).durationMs).toBe(30_000)
-    expect(after.record.composition.transitions).toHaveLength(1)
-    expect(after.record.composition.transitions[0].durationMs).toBe(2_000)
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-trailing', clipId, endMs: 26_900 },
+    ])
+    expect(authoredClip(after.record, clipId).startMs).toBe(0)
+    expect(authoredClip(after.record, clipId).durationMs).toBe(26_900)
+    const rightId = convertedClipIdByPattern(record, 'CometLoom')
+    expect(authoredClip(after.record, rightId).startMs).toBe(30_000)
+    expect(after.record.composition.transitions).toEqual([])
+    expect(after.record.composition.showEndMs).toBe(60_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
   })
 
-  it('keeps the connected leading form toward a converted-boundary join', async () => {
+  it('refuses a resize that grows a converted-boundary Clip into the boundary (#1068)', async () => {
     const { record } = convertedFreshBoundary('slice1-boundary-toward')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
     const clipId = convertedClipIdByPattern(record, 'CometLoom')
-    // -1 px asks for 31690: toward the incoming window, which the connected
-    // leading form retunes (2000 ms -> 1690 ms) exactly as for a Layer join.
+    // -1 px asks for 31690: toward the incoming window, which would grow the
+    // Clip into the converted boundary. Both owners refuse that extension as
+    // invalid-topology, so the planner refuses before any submission: no
+    // preview, no write, record identity kept.
     await resizeDrag('CometLoom', 'start', 0, 70, 69)
 
     const after = editor.state()
-    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
-    expect(admission.calls.map((call) => call.request.intent)).toEqual([
-      { kind: 'resize-leading', clipId, startMs: 31_690 },
-    ])
-    expect(authoredClip(after.record, clipId).startMs).toBe(31_690)
-    expect(after.record.composition.transitions[0].durationMs).toBe(1_690)
-    expectOneEdit(before, after)
-    await expectUndoRedoExact(editor, before)
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, after)
+    expect(authoredClip(after.record, clipId).startMs).toBe(32_000)
+    expect(after.record.composition.transitions).toHaveLength(1)
+    expect(after.record.composition.transitions[0].durationMs).toBe(2_000)
   })
 
   it('keeps the connected form away from a natively authored join', async () => {
