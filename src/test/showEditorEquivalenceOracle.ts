@@ -79,6 +79,39 @@ function isMetric(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && Number.isFinite(value) && value >= 0
 }
 
+export function collectDifferingJsonPaths(left: unknown, right: unknown): string[] {
+  const paths: string[] = []
+  const visit = (leftValue: unknown, rightValue: unknown, path: string): void => {
+    if (Array.isArray(leftValue) || Array.isArray(rightValue)) {
+      if (!Array.isArray(leftValue) || !Array.isArray(rightValue) || leftValue.length !== rightValue.length) {
+        paths.push(path)
+        return
+      }
+      leftValue.forEach((entry, index) => visit(entry, rightValue[index], `${path}[${index}]`))
+      return
+    }
+    if (isRecord(leftValue) || isRecord(rightValue)) {
+      if (!isRecord(leftValue) || !isRecord(rightValue)) {
+        paths.push(path)
+        return
+      }
+      const keys = [...new Set([...Object.keys(leftValue), ...Object.keys(rightValue)])].sort()
+      for (const key of keys) {
+        if (!(key in leftValue) || !(key in rightValue)) paths.push(`${path}.${key}`)
+        else visit(leftValue[key], rightValue[key], `${path}.${key}`)
+      }
+      return
+    }
+    if (stableJson(leftValue) !== stableJson(rightValue)) paths.push(path)
+  }
+  visit(left, right, '$')
+  return paths.sort()
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 export function normalizeShowEquivalenceRecord<T>(record: T): T {
   const copy = structuredClone(record) as T & { id?: unknown; updatedAt?: unknown }
   delete copy.id

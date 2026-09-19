@@ -1324,6 +1324,28 @@ describe('v2 clip temporal commands (#1066)', () => {
     await expectUndoRedoExact(editor, before)
   })
 
+  it('keeps the untouched edge exact when a leading boundary lands on a half-millisecond (#1066)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-half-ms-leading'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const beforeEndMs = authoredClip(before.record, 'overlay-a').startMs + authoredClip(before.record, 'overlay-a').durationMs
+    // 100 ms per px on the 200 px lane: +5.005 px asks for a 12500.5 ms
+    // leading boundary, so independently rounded start and duration would sum
+    // one past the untouched trailing edge.
+    await resizeDrag('TestPattern1D', 'start', 0, 40, 45.005)
+
+    const after = editor.state()
+    expect(temporalSubmissions()).toEqual([{
+      intent: { kind: 'trim', clipId: 'overlay-a', startMs: 12_501, endMs: 14_000 },
+      baseRevision: 0,
+    }])
+    const resized = authoredClip(after.record, 'overlay-a')
+    expect(resized.startMs).toBe(12_501)
+    expect(resized.startMs + resized.durationMs).toBe(beforeEndMs)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
 /**
  * The converted Clip id behind one stock Pattern: conversion mints Clip
  * identity per run, so boundary assertions resolve it through the instance.

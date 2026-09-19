@@ -9,6 +9,7 @@ import type { ShowRecordV2 } from '../src/engine/showCompositionV2'
 import {
   assessBehaviorPair,
   assessVisualPair,
+  collectDifferingJsonPaths,
   normalizeShowEquivalenceRecord,
   type VisualPairAssessment,
 } from '../src/test/showEditorEquivalenceOracle'
@@ -445,10 +446,11 @@ test('the same leading Clip resize has equal durable result, exact history and o
   })
 })
 
-// Red by design on `records` until #1068 (gap 5): the v2 split owner keeps the
-// left Clip's appearance-key id on both halves, while v1 then conversion derives
-// the right half's key id from its new Clip id. History, the single save, reload
-// and Undo match on both backings; that one leaf is the whole difference.
+// Split characterizes its one known `records` divergence exactly (#1068): the v2
+// split owner keeps the left Clip's appearance-key id on both halves, while v1
+// then conversion derives the right half's key id from its new Clip id.
+// History, the single save, reload and Undo match on both backings; that one
+// leaf is the whole difference.
 test('the same toolbar Clip Split has equal durable result, exact history and one save', async ({ page }) => {
   await runBehaviorGestureEquivalence(page, {
     seedKey: 'clip-split',
@@ -456,7 +458,8 @@ test('the same toolbar Clip Split has equal durable result, exact history and on
     reportFile: 'behavior-split-report.json',
     unavailableDetail: 'The toolbar Split gesture was unavailable on at least one stored row.',
     perform: ({ id, version }) => splitBehaviorClipAtPlayhead(page, id, version),
-    compareRecords: (args) => compareSplitRecordsModuloMintedId(args),
+    compareRecords: (args) => compareSplitRecordsWithKnownKeyDivergence(args),
+    expectKnownRecordsDifference: true,
   })
 })
 
@@ -475,6 +478,7 @@ async function runBehaviorGestureEquivalence(page: Page, input: {
     v1: BehaviorGestureRun
     v2: BehaviorGestureRun
   }) => { convertedV1: unknown; savedV2: unknown }
+  expectKnownRecordsDifference?: true
 }): Promise<void> {
   test.setTimeout(120_000)
   page.setDefaultTimeout(5_000)
@@ -522,7 +526,18 @@ async function runBehaviorGestureEquivalence(page: Page, input: {
   expect([v1, v2].map(outcome => outcome.historyAfterDrag)).toEqual([{ past: 1, future: 0 }, { past: 1, future: 0 }])
   expect([v1, v2].map(outcome => outcome.savesAfterUndo)).toEqual([2, 2])
   expect([v1, v2].map(outcome => outcome.historyAfterUndo)).toEqual([{ past: 0, future: 1 }, { past: 0, future: 1 }])
-  expect(assessment?.equivalent, `Behavioral equivalence failed; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
+  if (input.expectKnownRecordsDifference) {
+    expect(assessment?.checks.history, `Behavioral history diverged; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
+    expect(assessment?.checks.saves, `Behavioral save count diverged; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
+    expect(assessment?.checks.reload, `Behavioral reload diverged; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
+    expect(assessment?.checks.undo, `Behavioral Undo diverged; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
+    expect(
+      assessment?.checks.records,
+      'Split records unexpectedly match: #1068 has landed, so tighten this test back to full record equality.',
+    ).toBe(false)
+  } else {
+    expect(assessment?.equivalent, `Behavioral equivalence failed; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
+  }
 }
 
 async function runBehaviorGestureVersion(
@@ -1604,12 +1619,7 @@ function remapRecordString(value: unknown, from: string, to: string): unknown {
   return value
 }
 
-function compareSplitRecordsModuloMintedId(args: {
-  convertedV1: unknown
-  savedV2: unknown
-  v1: BehaviorGestureRun
-  v2: BehaviorGestureRun
-}): { convertedV1: unknown; savedV2: unknown } {
+function mintedSplitClipIds(args: { v1: BehaviorGestureRun; v2: BehaviorGestureRun }): { v1: string; v2: string } {
   const freshStrings = (preimage: unknown, saved: unknown): string[] => {
     const before = new Set<string>()
     collectRecordStrings(preimage, before)
@@ -1624,10 +1634,43 @@ function compareSplitRecordsModuloMintedId(args: {
       `Split must mint exactly one fresh Clip id per backing; got v1=${JSON.stringify(mintedV1)} v2=${JSON.stringify(mintedV2)}.`,
     )
   }
-  return {
-    convertedV1: remapRecordString(args.convertedV1, mintedV1[0], SPLIT_MINTED_CLIP_PLACEHOLDER),
-    savedV2: remapRecordString(args.savedV2, mintedV2[0], SPLIT_MINTED_CLIP_PLACEHOLDER),
+  return { v1: mintedV1[0], v2: mintedV2[0] }
+}
+
+const SPLIT_KNOWN_KEY_DIVERGENCE_PATH = '$.composition.clips[1].appearance.keys[0].id'
+
+function compareSplitRecordsWithKnownKeyDivergence(args: {
+  convertedV1: unknown
+  savedV2: unknown
+  v1: BehaviorGestureRun
+  v2: BehaviorGestureRun
+}): { convertedV1: unknown; savedV2: unknown } {
+  const minted = mintedSplitClipIds(args)
+  const records = {
+    convertedV1: remapRecordString(args.convertedV1, minted.v1, SPLIT_MINTED_CLIP_PLACEHOLDER),
+    savedV2: remapRecordString(args.savedV2, minted.v2, SPLIT_MINTED_CLIP_PLACEHOLDER),
   }
+  const differing = collectDifferingJsonPaths(
+    normalizeShowEquivalenceRecord(records.convertedV1),
+    normalizeShowEquivalenceRecord(records.savedV2),
+  )
+  expect(
+    differing,
+    'Split records must differ in exactly the documented appearance-key allocation (#1068): '
+      + 'when #1068 lands, tighten this test back to full record equality.',
+  ).toEqual([SPLIT_KNOWN_KEY_DIVERGENCE_PATH])
+  const convertedKey = (records.convertedV1 as ShowRecordV2).composition.clips[1]?.appearance.keys[0]?.id
+  const retainedKey = (records.savedV2 as ShowRecordV2).composition.clips[0]?.appearance.keys[0]?.id
+  const splitKey = (records.savedV2 as ShowRecordV2).composition.clips[1]?.appearance.keys[0]?.id
+  expect(
+    convertedKey,
+    'The converted right half must derive its appearance-key id from its minted Clip id (#1068).',
+  ).toBe(`${minted.v1}:appearance:1`)
+  expect(
+    splitKey,
+    'The v2 right half must retain the left Clip appearance-key id (#1068).',
+  ).toBe(retainedKey)
+  return records
 }
 
 async function readStoredShow(page: Page, id: string, version: 'v1' | 'v2'): Promise<unknown> {

@@ -5441,15 +5441,17 @@ function ShowTimelineWorkspace({
       // only through it, exactly as v1: a resize that pulls a joined edge away
       // from a converted Scene-boundary Transition refuses on provenance
       // (#1068), every other edge plans its connected or temporal form.
+      const startMs = edge === 'start' ? next.startMs : clip.startMs
+      const endMs = edge === 'start' ? clip.endMs : next.startMs + next.durationMs
       const gesturePlan = planShowV2ClipResize(timelineView, {
         clipId: clip.id,
         edge: edge === 'start' ? 'leading' : 'trailing',
-        startMs: next.startMs,
-        endMs: next.startMs + next.durationMs,
+        startMs,
+        endMs,
       })
       if (gesturePlan.kind === 'refuse') return null
       return {
-        preview: { clipId: clip.id, startMs: next.startMs, durationMs: next.durationMs },
+        preview: { clipId: clip.id, startMs, durationMs: Math.max(1, endMs - startMs) },
         plan: gesturePlan,
       }
     }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   assessBehaviorPair,
   assessVisualPair,
+  collectDifferingJsonPaths,
   compareRgbaPixels,
   normalizeShowEquivalenceRecord,
 } from './showEditorEquivalenceOracle'
@@ -97,5 +98,34 @@ describe('Show editor equivalence oracle fault sensitivity', () => {
     expect(assessBehaviorPair({ ...valid, saves: { v1: 1, v2: 0 } })).toMatchObject({ equivalent: false })
     expect(assessBehaviorPair({ ...valid, reloadPreserved: { v1: false, v2: true } })).toMatchObject({ equivalent: false })
     expect(assessBehaviorPair({ ...valid, undoRestored: { v1: true, v2: false } })).toMatchObject({ equivalent: false })
+  })
+
+  it('reports the exact set of differing JSON paths in ascending order', () => {
+    expect(collectDifferingJsonPaths({ a: 1 }, { a: 1 })).toEqual([])
+    expect(collectDifferingJsonPaths(
+      { composition: { clips: [{ id: 'clip', startMs: 1_000 }] } },
+      { composition: { clips: [{ startMs: 1_000, id: 'clip' }] } },
+    )).toEqual([])
+    expect(collectDifferingJsonPaths(
+      { composition: { clips: [{ id: 'left', startMs: 0 }, { id: 'right', startMs: 500 }] } },
+      { composition: { clips: [{ id: 'left', startMs: 0 }, { id: 'right', startMs: 501 }] } },
+    )).toEqual(['$.composition.clips[1].startMs'])
+    expect(collectDifferingJsonPaths(
+      { b: 2, a: { keys: [{ id: 'x' }, { id: 'y' }] } },
+      { b: 3, a: { keys: [{ id: 'x' }, { id: 'z' }] } },
+    )).toEqual(['$.a.keys[1].id', '$.b'])
+    expect(collectDifferingJsonPaths({ a: [1, 2] }, { a: [1] })).toEqual(['$.a'])
+    expect(collectDifferingJsonPaths({ a: 1 }, { a: '1' })).toEqual(['$.a'])
+    expect(collectDifferingJsonPaths({ a: 1 }, {})).toEqual(['$.a'])
+  })
+
+  it('isolates a single split appearance-key divergence to its exact path', () => {
+    const left = { id: 'clip', appearance: { keys: [{ id: 'clip:appearance:1' }] } }
+    const convertedRight = { id: '__split-right-clip__', appearance: { keys: [{ id: 'fresh:appearance:1' }] } }
+    const retainedRight = { id: '__split-right-clip__', appearance: { keys: [{ id: 'clip:appearance:1' }] } }
+    expect(collectDifferingJsonPaths(
+      { composition: { clips: [left, convertedRight] } },
+      { composition: { clips: [left, retainedRight] } },
+    )).toEqual(['$.composition.clips[1].appearance.keys[0].id'])
   })
 })
