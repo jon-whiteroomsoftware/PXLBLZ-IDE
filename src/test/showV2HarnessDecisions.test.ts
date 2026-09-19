@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  isBarrierAlreadySatisfied,
   isBindingProofFresh,
+  isInAppProofFresh,
   isV2StoredRecord,
   keepV2StoredRecords,
   mergeShowListingsById,
@@ -65,21 +65,6 @@ describe('routedShowIdFromUrl', () => {
   })
 })
 
-describe('isBarrierAlreadySatisfied', () => {
-  it('returns the predicate value against the current document', () => {
-    expect(isBarrierAlreadySatisfied((show: { flag?: boolean }) => show.flag === true, { flag: true })).toBe(true)
-    expect(isBarrierAlreadySatisfied((show: { flag?: boolean }) => show.flag === true, { flag: false })).toBe(false)
-  })
-  it('treats a throwing predicate as not satisfied, keeping save semantics', () => {
-    expect(
-      isBarrierAlreadySatisfied((show: { nested: { flag: boolean } }) => show.nested.flag, {}),
-    ).toBe(false)
-  })
-  it('treats a missing document as not satisfied, since there is no baseline revision', () => {
-    expect(isBarrierAlreadySatisfied(() => true, undefined)).toBe(false)
-  })
-})
-
 describe('v2RevisionAdvanced', () => {
   it('advances only past the barrier-start snapshot', () => {
     expect(v2RevisionAdvanced(5, 3)).toBe(true)
@@ -100,5 +85,20 @@ describe('isBindingProofFresh', () => {
     expect(isBindingProofFresh({ version: 2, sequence: 6 }, 7)).toBe(false)
     expect(isBindingProofFresh({ version: 2, sequence: 7 }, 7)).toBe(true)
     expect(isBindingProofFresh({ version: 2, sequence: 8 }, 7)).toBe(true)
+  })
+})
+
+describe('isInAppProofFresh', () => {
+  it('rejects a missing proof and a non-v2 registration', () => {
+    expect(isInAppProofFresh(undefined, undefined)).toBe(false)
+    expect(isInAppProofFresh({ version: 1, sequence: 9 }, undefined)).toBe(false)
+  })
+  it('accepts any version-2 proof for a Show with no accepted proof yet', () => {
+    expect(isInAppProofFresh({ version: 2, sequence: 3 }, undefined)).toBe(true)
+  })
+  it('requires a strictly newer registration after a proof was accepted', () => {
+    expect(isInAppProofFresh({ version: 2, sequence: 5 }, 5)).toBe(false)
+    expect(isInAppProofFresh({ version: 2, sequence: 4 }, 5)).toBe(false)
+    expect(isInAppProofFresh({ version: 2, sequence: 6 }, 5)).toBe(true)
   })
 })

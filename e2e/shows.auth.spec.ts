@@ -9,8 +9,8 @@ import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { createShowWithOutputContract } from '../src/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
 import { showBackingIsV2 } from './support/showBacking'
-import { isBarrierAlreadySatisfied, mergeShowListingsById } from '../src/test/showV2HarnessDecisions'
-import { findStoredShowV2, listStoredShowsV2, storeSeededShowAsV2, v2SaveReachedStorage } from './support/showBackingRecords'
+import { mergeShowListingsById } from '../src/test/showV2HarnessDecisions'
+import { listStoredShowsV2, storeSeededShowAsV2, waitForV2BarrierSave } from './support/showBackingRecords'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -3187,35 +3187,29 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
  * barrier waits for the version-2 save to reach storage instead and annotates
  * the test, so the inventory never reads such a run as an unqualified pass.
  * What the save contains is left to the assertions that follow.
+ *
+ * Every barrier takes the save path, deliberately. Classifying by evaluating
+ * the v1 predicate against the v2 document is unsound in both directions: a
+ * predicate can throw on the v2 shape (`composition.scenes`, which v2
+ * replaces) or hold vacuously (`transitions?.[0]?.... === undefined`, true
+ * because v2 carries no top-level `transitions`). The predicate alone cannot
+ * tell "this barrier waits for a save" from "this barrier asserts nothing was
+ * saved", so the run treats each barrier as a save barrier and waits for the
+ * stored revision to advance past the barrier-start snapshot. The call sites
+ * that assert absence of a save (spec:2469, the popover-dismiss barrier) and
+ * the pre-edit readback (spec:1494, the seeded Portable contract) stay unverifiable on v2 until
+ * an explicit absence helper is adopted by a test-body edit, which is outside
+ * this harness-only scope: until then it times out loudly rather than passing
+ * silently.
  */
 async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) => boolean): Promise<void> {
   const id = new URL(page.url()).pathname.split('/').at(-1)
   if (showBackingIsV2()) {
-    // Snapshot the stored version-2 document before deciding what this barrier
-    // means. A predicate that already holds against the current document is an
-    // absence barrier or a pre-edit readback: the v1 path returns immediately
-    // for it, so waiting for a version-2 save would invert the verdict (that
-    // save can never arrive for these call sites, and must never arrive).
-    // Settle instead and prove no save was written. Anything else is a save
-    // barrier and keeps waiting for the stored revision to advance. Test
-    // bodies are unchanged: the branch is chosen per call from the predicate
-    // and the stored document.
-    const stored = await findStoredShowV2(page, id!)
-    if (isBarrierAlreadySatisfied(predicate, stored)) {
-      test.info().annotations.push({
-        type: 'show-backing-v2',
-        description: 'absence barrier: the asserted state already holds, so the run settles and proves no version-2 save was written instead of waiting for one',
-      })
-      await assertNoV2Save(page, id!, stored?.updatedAt)
-      return
-    }
     test.info().annotations.push({
       type: 'show-backing-v2',
-      description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document',
+      description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits for the stored revision to advance past the barrier-start snapshot',
     })
-    await expect
-      .poll(() => v2SaveReachedStorage(page, id!), { timeout: 15_000 })
-      .toBe(true)
+    await waitForV2BarrierSave(page, id!)
     return
   }
   await expect.poll(async () => {
@@ -3232,27 +3226,6 @@ async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) =
       return false
     }
   }).toBe(true)
-}
-
-/**
- * Prove an absence barrier on the v2 run: the asserted state already holds, so
- * dwell past any debounced stray save and fail loudly if the stored revision
- * moved. The dwell is bounded and integer-timed; the 15_000 barrier timeout
- * stays with the save path above.
- */
-async function assertNoV2Save(page: Page, id: string, snapshot: number | undefined): Promise<void> {
-  const deadline = Date.now() + 2_000
-  for (;;) {
-    await page.waitForTimeout(100)
-    const revision = (await findStoredShowV2(page, id))?.updatedAt
-    if (revision !== snapshot) {
-      throw new Error(
-        `The v2 run wrote version-2 Show ${id} where the test asserts nothing was saved`
-        + ` (updatedAt ${String(snapshot)} -> ${String(revision)}).`,
-      )
-    }
-    if (Date.now() >= deadline) return
-  }
 }
 
 async function showStageCanvasStats(page: Page): Promise<{ checksum: number; maxChannel: number }> {

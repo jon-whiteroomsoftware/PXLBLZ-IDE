@@ -21,8 +21,8 @@
  * in the page instead, which is also where the equivalence oracle runs it
  * (#1065). The parts that need product types live in `showBackingRecords.ts`.
  */
-import type { APIRequestContext, Page } from '@playwright/test'
-import { isBindingProofFresh, routedShowIdFromUrl, type V2BindingProof } from '../../src/test/showV2HarnessDecisions'
+import type { APIRequestContext, Frame, Page } from '@playwright/test'
+import { isBindingProofFresh, isInAppProofFresh, routedShowIdFromUrl, type V2BindingProof } from '../../src/test/showV2HarnessDecisions'
 
 export type ShowBacking = 'v1' | 'v2'
 
@@ -94,6 +94,7 @@ interface V2BackingPageState {
   proofs: Map<string, V2BindingProof>
   navigationSequence: number
   lastGuardedShowId: string | null
+  acceptedSequence: Map<string, number>
 }
 
 const backingPageStates = new WeakMap<Page, V2BackingPageState>()
@@ -114,12 +115,13 @@ const backingPageStates = new WeakMap<Page, V2BackingPageState>()
  * instead of trusting the previous visit's entry, and `page.reload` is wrapped
  * alongside `page.goto`. In-app navigations (rail rows, links, duplicate and
  * clone opens) never pass through either wrapper; the `framenavigated`
- * listener retires the previous Show's proof at the route change, and the next
- * readback helper re-proves the new document before evaluating storage for it.
+ * listener clears the guarded Show id at the main-frame route change, and the
+ * next readback helper only accepts a strictly newer registration than the one
+ * it last accepted for that Show before evaluating storage for it.
  */
 export function installShowBacking(page: Page): void {
   if (!showBackingIsV2()) return
-  const state: V2BackingPageState = { proofs: new Map(), navigationSequence: 0, lastGuardedShowId: null }
+  const state: V2BackingPageState = { proofs: new Map(), navigationSequence: 0, lastGuardedShowId: null, acceptedSequence: new Map() }
   backingPageStates.set(page, state)
   page.on('request', (request) => {
     if (request.method() !== 'POST' || !request.url().includes('/api/agent/channel')) return
@@ -130,14 +132,19 @@ export function installShowBacking(page: Page): void {
       }
     } catch { /* a malformed body is not a registration */ }
   })
-  page.on('framenavigated', () => {
-    // Retire the previous Show's proof at the route change without marking the
-    // new route proven: the next readback helper re-proves the new document.
-    // Full navigations also pass through here, but the goto and reload
-    // wrappers below own their own generations, so only an id the wrappers
-    // never guarded can retire a proof here.
+  page.on('framenavigated', (frame: Frame) => {
+    // A subframe committing must not retire anything: only the main frame's
+    // route decides which Show the readback helpers evaluate storage for.
+    if (frame !== page.mainFrame()) return
+    // Retire the previous Show's acceptance at the route change without
+    // marking the new route proven: the next readback helper re-proves the
+    // new document against a strictly newer registration. Full navigations
+    // also pass through here, but the goto and reload wrappers below own
+    // their own generations and re-accept afterwards, so the extra bump here
+    // only moves their requirement forward, never backwards.
     if (routedShowIdFromUrl(page.url()) !== state.lastGuardedShowId) {
       state.navigationSequence += 1
+      state.lastGuardedShowId = null
     }
   })
   const goto = page.goto.bind(page)
@@ -150,7 +157,10 @@ export function installShowBacking(page: Page): void {
       await storeShowAsV2(page, id)
     }
     const response = await goto(showBackingUrl(url), options)
-    if (id !== null) await waitForV2Backing(page, id, state.proofs, requiredSequence)
+    if (id !== null) {
+      await waitForV2Backing(page, id, state.proofs, requiredSequence)
+      acceptBindingProof(state, id)
+    }
     state.lastGuardedShowId = id
     return response
   }) as Page['goto']
@@ -160,10 +170,25 @@ export function installShowBacking(page: Page): void {
     const requiredSequence = state.navigationSequence
     const response = await reload(options)
     const id = routedShowIdFromUrl(page.url())
-    if (id !== null) await waitForV2Backing(page, id, state.proofs, requiredSequence)
+    if (id !== null) {
+      await waitForV2Backing(page, id, state.proofs, requiredSequence)
+      acceptBindingProof(state, id)
+    }
     state.lastGuardedShowId = id
     return response
   }) as Page['reload']
+}
+
+/**
+ * Record the proof the wrappers just waited for as this Show's accepted one.
+ *
+ * A repeat in-app visit must prove the backing again rather than reuse this
+ * entry, so the sequence travels with the acceptance: only a strictly newer
+ * registration satisfies the next in-app arrival.
+ */
+function acceptBindingProof(state: V2BackingPageState, id: string): void {
+  const proof = state.proofs.get(id)
+  if (proof !== undefined) state.acceptedSequence.set(id, proof.sequence)
 }
 
 /**
@@ -173,20 +198,31 @@ export function installShowBacking(page: Page): void {
  * The goto and reload wrappers prove the document they navigate to, but an
  * in-app navigation reaches a new Show without either wrapper. When the route
  * changed underneath the last guarded navigation, the previous Show's proof
- * must not satisfy this one: wait for this document's own registration. Any
- * version-2 registration for this id is the freshest evidence available,
- * because without a navigation boundary the document's single registration
- * may already have arrived. A Show that never binds v2 still fails loudly.
+ * must not satisfy this one: the framenavigated listener clears the guarded
+ * id at the route change, and this helper then requires a strictly newer
+ * registration than the one it last accepted for the id. The first acceptance
+ * for an id still takes any version-2 registration, because without a
+ * navigation boundary the document's single registration may already have
+ * arrived. A Show that never binds v2 still fails loudly.
  */
-export async function ensureCurrentShowV2Binding(page: Page): Promise<void> {
+export async function ensureCurrentShowV2Binding(page: Page, timeoutMs = 20_000): Promise<void> {
   if (!showBackingIsV2()) return
   const state = backingPageStates.get(page)
   if (!state) return
   const id = routedShowIdFromUrl(page.url())
   if (id === null || id === state.lastGuardedShowId) return
-  const deadline = Date.now() + 20_000
+  const accepted = state.acceptedSequence.get(id)
+  const proof = state.proofs.get(id)
+  if (isInAppProofFresh(proof, accepted)) {
+    state.acceptedSequence.set(id, proof!.sequence)
+    state.lastGuardedShowId = id
+    return
+  }
+  const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    if (state.proofs.get(id)?.version === 2) {
+    const next = state.proofs.get(id)
+    if (isInAppProofFresh(next, accepted)) {
+      state.acceptedSequence.set(id, next!.sequence)
       state.lastGuardedShowId = id
       return
     }

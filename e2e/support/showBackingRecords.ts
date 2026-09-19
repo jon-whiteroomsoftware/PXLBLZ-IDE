@@ -8,7 +8,7 @@
 import type { Page } from '@playwright/test'
 import type { ShowRecordV2 } from '../../src/engine/showCompositionV2'
 import { SHOW_V2_ROUTE_PREVIEW_PARAM } from '../../src/engine/showV2RouteGate'
-import { keepV2StoredRecords } from '../../src/test/showV2HarnessDecisions'
+import { keepV2StoredRecords, v2RevisionAdvanced } from '../../src/test/showV2HarnessDecisions'
 import { ensureCurrentShowV2Binding, SHOW_V2_EDITOR_PREVIEW_PARAM, seededShowV2Stamp, showBackingIsV2, storeShowAsV2 } from './showBacking'
 
 // The one place the repeated parameter name is checked against the product's
@@ -52,25 +52,57 @@ export async function findStoredShowV2(page: Page, id: string): Promise<ShowReco
 }
 
 /**
- * Whether a version-2 save has reached storage for one Show since this run
- * stored it (#1066).
+ * Whether a version-2 save has reached storage for one Show since the
+ * barrier-start snapshot (#1066).
  *
  * The suite's save barriers read the version-1 record shape, and nothing
  * projects a version-2 document back into it, so the v2 run cannot evaluate
  * them. It waits for the save itself instead: the document's `updatedAt`
- * advancing past the stamp this run wrote, or a row that was stored as version
- * 1 becoming a version-2 document at all. What the save contains is left to the
- * assertions that follow the barrier, and every test that takes this path is
- * annotated so the inventory never reports it as an unqualified pass.
+ * advancing past the revision captured when the barrier started. The snapshot
+ * is the whole point: comparing against a module-level stamp, or against mere
+ * existence, lets a pre-existing document satisfy a barrier no save followed.
+ * An appearing document still counts as a save. What the save contains is left
+ * to the assertions that follow the barrier, and every test that takes this
+ * path is annotated so the inventory never reports it as an unqualified pass.
+ *
+ * Residual: a save that lands between the user action and the barrier-start
+ * read is already in the snapshot, so the barrier waits for a second save
+ * that never comes and times out. Saves are debounced well past that window,
+ * so the residual is a loud timeout, never a silent pass.
  */
 const observedSaveStamp = new Map<string, number>()
 
-export async function v2SaveReachedStorage(page: Page, id: string): Promise<boolean> {
+export async function v2SaveReachedStorage(page: Page, id: string, snapshot?: number): Promise<boolean> {
   const stored = await findStoredShowV2(page, id)
-  if (!stored) return false
-  const seeded = observedSaveStamp.get(id) ?? seededShowV2Stamp(id)
-  if (seeded === undefined) return true
-  if (stored.updatedAt <= seeded) return false
-  observedSaveStamp.set(id, stored.updatedAt)
-  return true
+  const advanced = v2RevisionAdvanced(
+    stored?.updatedAt,
+    snapshot ?? observedSaveStamp.get(id) ?? seededShowV2Stamp(id),
+  )
+  if (advanced && stored !== undefined) observedSaveStamp.set(id, stored.updatedAt)
+  return advanced
+}
+
+/**
+ * Wait for the version-2 save one barrier guards.
+ *
+ * The snapshot is taken here, at barrier start, from the same readback the
+ * polls compare against, so absence and presence of a save are both real:
+ * an unchanged revision never satisfies the wait, however long the document
+ * has existed. Integer-timed like the rest of the harness.
+ */
+export async function waitForV2BarrierSave(page: Page, id: string, timeoutMs = 15_000): Promise<void> {
+  const snapshot = (await findStoredShowV2(page, id))?.updatedAt
+    ?? observedSaveStamp.get(id)
+    ?? seededShowV2Stamp(id)
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    if (await v2SaveReachedStorage(page, id, snapshot)) return
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `The v2 run never observed a version-2 save for Show ${id} within ${timeoutMs}ms`
+        + ` (barrier-start revision ${String(snapshot)}).`,
+      )
+    }
+    await page.waitForTimeout(100)
+  }
 }

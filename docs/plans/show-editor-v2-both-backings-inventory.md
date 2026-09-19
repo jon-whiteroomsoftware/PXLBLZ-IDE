@@ -25,25 +25,32 @@ run is unchanged at 87/87.
   behavior misreported as v2. Adding that wait changed no verdict. The
   harness corrective (#1066, `src/test/showV2HarnessDecisions.ts`) keeps that
   promise for repeat visits and reloads: registrations are keyed by navigation
-  generation, `page.reload` is wrapped alongside `page.goto`, and an in-app
-  navigation (rail rows, links, duplicate/clone opens) retires the previous
-  Show's proof so the next readback helper re-proves the new document.
+  generation, `page.reload` is wrapped alongside `page.goto`, and a main-frame
+  in-app navigation (rail rows, links, duplicate/clone opens) clears the
+  guarded Show id so the next readback helper only accepts a strictly newer
+  registration than the one it last accepted for that Show.
 
 Two limits apply to the failures and are marked in the table:
 
 - **Save barrier substituted.** The suite's 31 `waitForCurrentShow` barriers read the
   version-1 record shape and nothing projects a version-2 document back into
-  it. On the v2 run a barrier whose predicate already holds against the stored
-  version-2 document is an absence barrier or a pre-edit readback: the v1 path
-  returns immediately for it, so the run settles and proves no version-2 save
-  was written instead of waiting for one. Every other barrier waits for the
-  version-2 save to reach storage instead, and each path annotates the test. A
-  case marked *(barrier)* failed because no version-2 save arrived at all,
-  which is a stronger statement than the original predicate, not a weaker one.
-  Two rows first recorded under this mark (2452, 1469) failed at the harness
-  substitution rather than at their contract edits; after the corrective their
-  absence and pre-edit barriers pass and any remaining failure is genuine
-  evidence for slices 10 and 6 respectively.
+  it. On the v2 run every barrier waits for the version-2 save to reach
+  storage instead, and each wait annotates the test: the stored revision must
+  advance past a snapshot taken at barrier start, so mere existence of a
+  document never satisfies a barrier. Classifying barriers by evaluating the
+  v1 predicate against the v2 document was tried and removed as unsound: a
+  predicate can throw on the v2 shape (every `composition.scenes` barrier) or
+  hold vacuously (`transitions?.[0]?.... === undefined` is true precisely
+  because v2 carries no top-level `transitions`, which inverted the #623
+  removal barrier into a no-save assertion). A case marked *(barrier)* failed
+  because no version-2 save arrived at all, which is a stronger statement than
+  the original predicate, not a weaker one. Two barriers cannot be decided
+  soundly from the predicate alone and stay unverifiable on v2 until an
+  explicit absence helper is adopted by a test-body edit: the popover-dismiss
+  absence barrier (2452, spec:2469) and the seeded-contract pre-edit readback
+  (1469, spec:1494) time out loudly instead of passing silently, so any
+  remaining failure attributed to slices 10 and 6 below rests on v1 evidence
+  and the v1-shaped assertions that follow, not on these barriers.
 - **Secondary `409 (Conflict)`.** Four cases failed only on the boundary's
   console-error check, from stale `/api/agent/channel` rendezvous on a reused
   account after a worker restart. Each was re-run alone; three pass and one

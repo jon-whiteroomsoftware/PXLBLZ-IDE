@@ -39,18 +39,6 @@ export function routedShowIdFromUrl(url: string): string | null {
   return match ? match[1]! : null
 }
 
-export function isBarrierAlreadySatisfied<T>(
-  predicate: (show: T) => boolean,
-  document: unknown,
-): boolean {
-  if (document === null || document === undefined) return false
-  try {
-    return predicate(document as T) === true
-  } catch {
-    return false
-  }
-}
-
 export function v2RevisionAdvanced(
   current: number | undefined,
   snapshot: number | undefined,
@@ -70,4 +58,23 @@ export function isBindingProofFresh(
   requiredSequence: number,
 ): boolean {
   return proof !== undefined && proof.version === 2 && proof.sequence >= requiredSequence
+}
+
+/**
+ * Whether an in-app arrival may accept the stored proof for one Show.
+ *
+ * A Show with no accepted proof yet takes any version-2 registration: without
+ * a navigation boundary the document's single registration may already have
+ * arrived, so there is nothing newer to wait for. Afterwards only a strictly
+ * newer registration counts, so a repeat in-app visit re-proves the backing
+ * instead of reusing the previous visit's proof while the remounting editor
+ * may still hold the other record.
+ */
+export function isInAppProofFresh(
+  proof: V2BindingProof | undefined,
+  acceptedSequence: number | undefined,
+): boolean {
+  if (proof === undefined || proof.version !== 2) return false
+  if (acceptedSequence === undefined) return true
+  return proof.sequence > acceptedSequence
 }
