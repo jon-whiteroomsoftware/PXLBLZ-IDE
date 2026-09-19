@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/oracle-fresh-v2",
+  "operation": "Playwright (repo oracle, npm run show:editor-equivalence, fixture fresh) at this commit opened the same Show as a stored v1 row and as its converted v2 row in the existing editor and captured the editor pane at 1440; first capture is the v2-stored row, second the v1 row; 21 of 22 verdict rows equivalent (only the palette row tracked on #1066). The same spec drove five real gestures on both rows - Clip drag, free trailing resize, free leading resize, toolbar Split and keyboard Delete - each giving one save, exact history, exact Undo and a correct reload, with the durable record equal through the converter.",
+  "captures": [
+    ".wrsp/ui-proof/1066-clip-delete-fresh-desktop-v2.png",
+    ".wrsp/ui-proof/1066-clip-delete-fresh-desktop-v1.png"
+  ],
+  "capturedAtCommit": "a017b495db9ecc7ab69b0af5f84cdea18918120b"
+}
