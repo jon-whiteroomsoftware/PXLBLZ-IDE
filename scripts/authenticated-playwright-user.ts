@@ -5,7 +5,7 @@ export const authenticatedPlaywrightAccountsPerWorker = 64
 
 export function authenticatedPlaywrightAccountIndex(workerIndex: number, sequence: number): number {
   if (!Number.isSafeInteger(workerIndex) || workerIndex < 0 || workerIndex >= authenticatedPlaywrightWorkerCount) throw new Error('Authenticated Playwright worker index is out of range.')
-  if (!Number.isSafeInteger(sequence) || sequence < 0 || sequence >= authenticatedPlaywrightAccountsPerWorker) throw new Error('Authenticated Playwright exhausted its per-worker account pool.')
+  if (!Number.isSafeInteger(sequence) || sequence < 0 || sequence >= authenticatedPlaywrightAccountsPerWorker) throw new Error('Authenticated Playwright exhausted its per-worker account pool (worker restarts consume fresh accounts, so widen the pool rather than reusing).')
   return workerIndex * authenticatedPlaywrightAccountsPerWorker + sequence
 }
 

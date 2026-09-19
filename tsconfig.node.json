@@ -19,6 +19,8 @@
     "e2e/fixtures/authenticated.ts",
     "scripts/dev-runtime.ts",
     "scripts/authenticated-playwright-user.ts",
+    "scripts/authenticated-playwright-harness.test.ts",
+    "scripts/authenticated-playwright-harness.ts",
     "scripts/dev-runtime-auth.ts",
     "scripts/dev-runtime-core.ts",
     "scripts/dev-runtime-store.ts",

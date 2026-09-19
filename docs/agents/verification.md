@@ -427,9 +427,17 @@ server startup, and release their state after the run. See
 [`dev-runtime.md`](dev-runtime.md) for the shared-versus-isolated contract.
 The harness enables the Agent service with no static OAuth clients and seeds
 64 test accounts per parallel worker. Each running worker assigns its tests
-successive accounts; pre-use personal-content cleanup handles account reuse
-after a worker restart, and isolated D1 teardown removes final synthetic data
-after browser pages have closed.
+successive accounts from a cursor persisted in the run's temp dir, so a
+restarted worker continues with fresh accounts instead of reusing the dead
+process's accounts inside the agent-registration TTL; pre-use
+personal-content cleanup and isolated D1 teardown remove synthetic data
+before each test and after browser pages have closed.
+
+Agent-window hygiene is a harness rule, never a product allowance: fixture
+teardown sends the product's own `leave` for every registration the page was
+observed to acquire (bounded wait, never throwing, including after failed
+tests), while a 409 from `/api/agent/channel` still fails the boundary's
+unexpected-browser-errors check. The fixture also appends every account allocation to `agent-account-allocations.jsonl` in the run temp dir, so a probe can audit whether a later test reused a dead worker account. Navigation-based release would not work here: `page.goto` and `about:blank` unload the document, and although the editor attempts `leave` on `pagehide`, that POST is a plain fetch with no keepalive, so the unload cancels it before it lands; only the persisted cursor holds for crashed pages and timed-out gestures.
 
 ### Visual Effects Guide screenshots
 

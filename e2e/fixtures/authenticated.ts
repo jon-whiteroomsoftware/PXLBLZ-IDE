@@ -1,7 +1,15 @@
-import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test'
+import { test as base, expect, type APIRequestContext, type ConsoleMessage, type Page, type Response } from '@playwright/test'
 import { createSessionToken, sessionCookieName } from '../../src/cloudflare/auth'
 import { readDevVarsFile } from '../../scripts/dev-runtime-auth'
 import { authenticatedPlaywrightAccountIndex, authenticatedPlaywrightUser } from '../../scripts/authenticated-playwright-user'
+import {
+  AGENT_OBSERVE_SETTLE_MS,
+  allocatePersistedAccountSequence,
+  logAccountAllocation,
+  observeAgentChannel,
+  releaseAgentRegistrations,
+  type PendingAgentRegistration,
+} from '../../scripts/authenticated-playwright-harness'
 import { installShowBacking, removeStoredShowsV2 } from '../support/showBacking'
 
 type AuthenticatedFixtures = {
@@ -13,16 +21,23 @@ type AuthenticatedFixtures = {
   allowedBrowserErrors: RegExp[]
 }
 
-let accountSequence = 0
-
 export const test = base.extend<AuthenticatedFixtures>({
   allowedBrowserErrors: [[], { option: true }],
   storageState: async ({}, use, workerInfo) => {
     const devVarsFile = requiredEnvironment('PXLBLZ_DEV_VARS_FILE')
     const secret = process.env.SESSION_SECRET ?? readDevVarsFile(devVarsFile).SESSION_SECRET
     if (!secret) throw new Error(`SESSION_SECRET is required in ${devVarsFile} or the shell environment.`)
+    // The cursor is persisted per parallel worker in the run's own temp dir,
+    // so a restarted worker process continues with fresh accounts instead of
+    // reusing the dead process's accounts inside the registration TTL (#1064).
+    // Without the run dir (ad-hoc runs) this falls back to a process-local
+    // sequence, exactly the old behavior.
+    const directory = persistenceDirectory()
+    const sequence = allocatePersistedAccountSequence(directory, workerInfo.parallelIndex)
+    const accountIndex = authenticatedPlaywrightAccountIndex(workerInfo.parallelIndex, sequence)
+    logAccountAllocation(directory, { parallelIndex: workerInfo.parallelIndex, sequence, accountIndex })
     const token = await createSessionToken(
-      authenticatedPlaywrightUser(authenticatedPlaywrightAccountIndex(workerInfo.parallelIndex, accountSequence++)),
+      authenticatedPlaywrightUser(accountIndex),
       secret,
     )
     await use({
@@ -53,9 +68,17 @@ export const test = base.extend<AuthenticatedFixtures>({
     // worker-restart account reuse deterministic without deleting an active
     // page's Show underneath its save and Agent callbacks during teardown.
     await removeSyntheticContent(request)
-    const errors = watchSeriousErrors(page)
+    const errorWatch = watchSeriousErrors(page)
+    const registrationTracker = trackAgentRegistrations(page)
     await use()
-    const unexpected = errors.filter((error) => !allowedBrowserErrors.some((allowed) => allowed.test(error)))
+    // Detach first so teardown's own traffic cannot add failures to a test
+    // whose assertions already passed; the release below still runs before
+    // the boundary assertion so a failing test still releases its slots.
+    registrationTracker.stop()
+    errorWatch.stop()
+    await registrationTracker.settled()
+    await releaseAgentRegistrations(request, registrationTracker.pending())
+    const unexpected = errorWatch.errors.filter((error) => !allowedBrowserErrors.some((allowed) => allowed.test(error)))
     expect(unexpected, `Unexpected browser errors:\n${unexpected.join('\n')}`).toEqual([])
   }, { auto: true }],
 })
@@ -68,13 +91,89 @@ function requiredEnvironment(name: string): string {
   return value
 }
 
-function watchSeriousErrors(page: Page): string[] {
+function persistenceDirectory(): string | undefined {
+  return process.env.PXLBLZ_D1_PERSIST_TO?.trim() || undefined
+}
+
+function watchSeriousErrors(page: Page): { errors: string[]; stop: () => void } {
   const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
-  page.on('console', (message) => {
+  const onPageError = (error: Error): void => {
+    errors.push(`pageerror: ${error.message}`)
+  }
+  const onConsole = (message: ConsoleMessage): void => {
     if (message.type() === 'error') errors.push(`console: ${message.text()}`)
-  })
-  return errors
+  }
+  page.on('pageerror', onPageError)
+  page.on('console', onConsole)
+  return {
+    errors,
+    stop: () => {
+      page.off('pageerror', onPageError)
+      page.off('console', onConsole)
+    },
+  }
+}
+
+function trackAgentRegistrations(page: Page): {
+  pending: () => PendingAgentRegistration[]
+  settled: () => Promise<void>
+  stop: () => void
+} {
+  let pending: PendingAgentRegistration[] = []
+  const inflight = new Set<Promise<void>>()
+  const onResponse = (response: Response): void => {
+    const sent = response.request()
+    if (sent.method() !== 'POST' || !sent.url().includes('/api/agent/channel')) return
+    let body: unknown
+    try {
+      body = JSON.parse(sent.postData() ?? '')
+    } catch {
+      return
+    }
+    if (typeof body !== 'object' || body === null) return
+    const { type, sessionId, showId, registrationId } = body as {
+      type?: unknown
+      sessionId?: unknown
+      showId?: unknown
+      registrationId?: unknown
+    }
+    if (type === 'leave') {
+      pending = observeAgentChannel(pending, { type, registrationId })
+      return
+    }
+    if (type !== 'register') return
+    const task = (async (): Promise<void> => {
+      let reply: unknown
+      try {
+        reply = await response.json()
+      } catch {
+        return
+      }
+      pending = observeAgentChannel(pending, {
+        type,
+        sessionId,
+        showId,
+        registrationId: (reply as { registrationId?: unknown } | null)?.registrationId,
+      })
+    })()
+    inflight.add(task)
+    void task.then(() => {
+      inflight.delete(task)
+    })
+  }
+  page.on('response', onResponse)
+  return {
+    pending: () => pending,
+    settled: async () => {
+      await Promise.race([
+        Promise.allSettled([...inflight]),
+        new Promise((resolve) => setTimeout(resolve, AGENT_OBSERVE_SETTLE_MS)),
+      ])
+    },
+    stop: () => {
+      page.off('response', onResponse)
+    },
+  }
 }
 
 export async function removeSyntheticContent(request: APIRequestContext): Promise<void> {
