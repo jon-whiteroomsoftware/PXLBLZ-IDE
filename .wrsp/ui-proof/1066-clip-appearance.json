@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-clip-appearance-proof",
+  "operation": "Driven with repository Playwright (Chromium headless-shell, single-process launch flags required by the worker sandbox) against the persisted authenticated harness as the synthetic Playwright user; the Codex in-app browser is not available to this worker. Seeded an Installation Show, stored it as a version-2 document through the harness barrier, opened the Show editor on the v2 backing, selected the TestPattern1D Clip, set Brightness to 63 through the Clip detail header field, reloaded, re-selected the Clip and asserted the persisted 63, then captured. The capture shows the Entity Detail Panel with Brightness 63 percent in the header and the BRIGHTNESS exact field after the reload readback.",
+  "captures": [
+    ".wrsp/ui-proof/1066-clip-appearance.png"
+  ],
+  "capturedAtCommit": "dbfb04f69f3e12b7fa5b7ab417d8bffefef57d92"
+}
