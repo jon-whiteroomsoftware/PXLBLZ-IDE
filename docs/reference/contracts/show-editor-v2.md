@@ -295,7 +295,9 @@ Rules the adapter holds to:
   the whole connected component, so a chain stops when its earliest member
   reaches zero or its latest reaches Show End. A duplicate and a cross-Layer
   re-placement carry the dragged Clip alone (`carry: 'clip'`), matching the
-  owners: `replace-placement` refuses to detach a Transition endpoint.
+  owners: a drag-granted `replace-placement` detaches the dragged Clip's
+participant Transitions and moves it alone, while the agent command, which
+withholds that permission, still refuses `invalid-topology`.
 
 ## The visible window
 

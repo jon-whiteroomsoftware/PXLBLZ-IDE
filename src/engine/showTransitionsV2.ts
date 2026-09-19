@@ -380,9 +380,10 @@ export interface ConvertedBoundaryRepairAppliedV2 {
  * at its requested post-repair coordinates (the re-placement owner: an
  * explicit startMs names the final number, the one the preview paints) names
  * it in `alreadyRelocatedClipIds`, and this commit neither shifts it nor its
- * owned tracks/whole-output windows; its post-move interval in `next` is
- * guard-checked for straddling the reclaimed end instead, because its
- * preimage interval no longer describes where it is.
+ * owned tracks/whole-output windows. The straddle rule does not apply to it:
+ * that rule exists to stop a shift cutting a Clip across the window end, and
+ * nothing shifts a relocated Clip; a destination collision is caught by record
+ * validation with an accurate overlap message.
  */
 export interface ConvertedBoundaryRepairCommitOptionsV2 {
   /** Clips already sitting at post-repair coordinates in `next`: excluded from the relative shift. */
@@ -417,13 +418,12 @@ export function commitConvertedBoundaryRepairsV2(
     const shiftIds = new Set(downstreamClosure(record, [repair.toClipId]))
     for (const id of relocated) shiftIds.delete(id)
     for (const clip of record.composition.clips) {
-      if (relocated.has(clip.id)) {
-        const live = next.composition.clips.find(candidate => candidate.id === clip.id)!
-        if (live.startMs < repair.windowEndMs && live.startMs + live.durationMs > repair.windowEndMs) {
-          return { status: 'refused', message: `Clip "${clip.id}" spans the reclaimed boundary window ending at ${repair.windowEndMs} ms; split or trim it away from the boundary first.` }
-        }
-        continue
-      }
+      // A relocated Clip already sits at its requested post-repair coordinates
+      // and nothing here shifts it, so the straddle rule below has nothing to
+      // protect for it: that rule exists because shifting one end of a Clip
+      // across the window end would cut it. A destination collision is caught
+      // by record validation with an accurate overlap message (#1068).
+      if (relocated.has(clip.id)) continue
       if (clip.startMs >= repair.windowEndMs) shiftIds.add(clip.id)
       else if (clip.startMs + clip.durationMs > repair.windowEndMs) {
         return { status: 'refused', message: `Clip "${clip.id}" spans the reclaimed boundary window ending at ${repair.windowEndMs} ms; split or trim it away from the boundary first.` }

@@ -87,9 +87,39 @@ describe('v2 timeline gesture adapters', () => {
         owner: 'clip-temporal',
         intent: {
           kind: 'replace-placement', clipId: 'out', zoneId: destination.zoneId, layerId: destination.id, startMs: 800,
+          detachParticipantTransitions: true,
         },
       },
     })
+  })
+
+  it('grants the detach permission on a joined cross-Layer drag, and the owner honours it', () => {
+    const record = converted()
+    const destination = record.composition.layers.find(layer => layer.rank === 1)!
+    const planned = plan(record, {
+      kind: 'move', clipId: 'out', startMs: 800, zoneId: destination.zoneId, layerId: destination.id,
+    })
+    expect(planned.result).toEqual({
+      status: 'ready',
+      submission: {
+        owner: 'clip-temporal',
+        intent: {
+          kind: 'replace-placement', clipId: 'out', zoneId: destination.zoneId, layerId: destination.id, startMs: 800,
+          detachParticipantTransitions: true,
+        },
+      },
+    })
+    if (planned.result.status !== 'ready' || planned.result.submission.owner !== 'clip-temporal') return
+    // The granted permission is real: the same intent through the owner
+    // detaches the join and moves only the dragged Clip.
+    const applied = editShowClipTemporalV2(record, planned.result.submission.intent)
+    expect(applied.status, JSON.stringify(applied)).toBe('changed')
+    if (applied.status !== 'changed') return
+    expect(applied.record.composition.transitions).toEqual([])
+    expect(applied.record.composition.clips.find(clip => clip.id === 'out'))
+      .toMatchObject({ layerId: destination.id, startMs: 800 })
+    expect(applied.record.composition.clips.find(clip => clip.id === 'in'))
+      .toMatchObject({ startMs: 600 })
   })
 
   it.each([

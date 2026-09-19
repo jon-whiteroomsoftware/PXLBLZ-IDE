@@ -383,7 +383,7 @@ it('detaches the attached participant Transition on a Zone or Layer change (#106
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
   for (const destination of [{ layerId: 'over' }, { zoneId: 'right', layerId: 'right-base' }]) {
-    const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', ...destination })
+    const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', ...destination, detachParticipantTransitions: true })
     expect(result.status, JSON.stringify(result)).toBe('changed')
     if (result.status !== 'changed') continue
     expect(result.record.composition.transitions).toEqual([])
@@ -401,7 +401,7 @@ it('detaches the attached participant Transition on a Zone or Layer change (#106
 it('detaches symmetrically when the first Clip of the join is dragged', () => {
   const source = gappedJoin()
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over' })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over', detachParticipantTransitions: true })
   expect(result.status, JSON.stringify(result)).toBe('changed')
   if (result.status !== 'changed') return
   expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
@@ -439,7 +439,7 @@ it.each([
 ])('detaches a plain participant Transition when a joined Clip moves to $label', ({ destination, zoneId, layerId }) => {
   const source = gappedJoin()
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', ...destination })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', ...destination, detachParticipantTransitions: true })
   expect(result.status, JSON.stringify(result)).toBe('changed')
   if (result.status !== 'changed') return
   expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
@@ -459,7 +459,7 @@ it.each([
 it('repairs a converted boundary on a cross-Layer drop instead of leaving its window unplayed', () => {
   const source = convertedJoin()
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', detachParticipantTransitions: true })
   expect(result.status, JSON.stringify(result)).toBe('changed')
   if (result.status !== 'changed') return
   // The 100 ms boundary window [500, 600) is reclaimed: the dragged downstream
@@ -484,7 +484,7 @@ it('repairs a converted boundary on a cross-Layer drop instead of leaving its wi
 it('repairs the same converted boundary when the upstream Clip of the join is dragged', () => {
   const source = convertedJoin()
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over' })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over', detachParticipantTransitions: true })
   expect(result.status, JSON.stringify(result)).toBe('changed')
   if (result.status !== 'changed') return
   // The dragged upstream Clip is untouched by the reclaim; the downstream side
@@ -509,7 +509,7 @@ it('lands an explicit start exactly on a converted-boundary drop while downstrea
   source.composition.clips.push(clip('tail', 'base', 1_000, 400))
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 1_200 })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 1_200, detachParticipantTransitions: true })
   expect(result.status, JSON.stringify(result)).toBe('changed')
   if (result.status !== 'changed') return
   // The requested start names post-repair coordinates: the Clip lands exactly
@@ -532,7 +532,7 @@ it('lands an explicit start exactly on a converted-boundary drop while downstrea
 it('accepts an explicit start smaller than the boundary duration instead of refusing it', () => {
   const source = convertedJoin()
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 50 })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 50, detachParticipantTransitions: true })
   // A preimage-frame repair would move the Clip to -50 and refuse; the
   // requested start is post-repair, so this drop is legal and lands at 50.
   expect(result.status, JSON.stringify(result)).toBe('changed')
@@ -549,7 +549,7 @@ it('accepts an explicit start smaller than the boundary duration instead of refu
 it('honours an explicit start on the from-side endpoint without moving the dragged Clip', () => {
   const source = convertedJoin()
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over', startMs: 1_200 })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over', startMs: 1_200, detachParticipantTransitions: true })
   expect(result.status, JSON.stringify(result)).toBe('changed')
   if (result.status !== 'changed') return
   expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
@@ -562,21 +562,42 @@ it('honours an explicit start on the from-side endpoint without moving the dragg
   expect(source).toEqual(prior)
 })
 
-it('refuses a drop whose post-move interval straddles the reclaimed window end', () => {
+it('accepts a drop landing across the reclaimed window end, because nothing cuts it', () => {
   const source = convertedJoin()
   const prior = structuredClone(source)
-  // The preimage [0, 500) passes the old guard, but the candidate [520, 1020)
-  // straddles windowEndMs 600 while everything from 600 shifts 100 ms earlier.
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over', startMs: 520 })
-  expect(result.status, JSON.stringify(result)).toBe('refused')
+  // The relocated Clip is excluded from the reclaim shift, so overlapping the
+  // preimage window end cuts nothing and must not refuse. Landing at 520 is
+  // structurally identical to landing at 1200; only the accidental overlap
+  // with the old window end differs. Refusing here dead-banded every drop
+  // position in (windowEndMs - duration, windowEndMs).
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over', startMs: 520, detachParticipantTransitions: true })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 520, durationMs: 500 })
+  // The downstream side still reclaims by the boundary duration.
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 500, durationMs: 400 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.record.composition.showEndMs).toBe(1_900)
+  expect(source).toEqual(prior)
+})
+
+it('refuses to detach a joined Clip without the caller-granted detach permission', () => {
+  // The same Zone/Layer change the detach cases above accept refuses here:
+  // the drag planner grants the permission, the agent command does not, and a
+  // caller that passes nothing gets the refusal with no write.
+  const source = gappedJoin()
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  expect(result.status).toBe('refused')
   if (result.status !== 'refused') return
-  expect(result.code).toBe('invalid-result')
-  expect(result.message).toContain('600')
+  expect(result.code).toBe('invalid-topology')
+  expect(result.message).toContain('incoming')
   expect(result.record).toBe(source)
   expect(result.affectedClipIds).toEqual([])
   expect(result.removedIds).toEqual([])
   expect(result.record.composition.transitions).toHaveLength(1)
-  expect(result.record.composition.showEndMs).toBe(2_000)
   expect(source).toEqual(prior)
 })
 
@@ -586,7 +607,7 @@ it.each([
 ])('leaves $label unrepaired on an explicit-start drop', ({ join }) => {
   const source = join === 'gapped' ? gappedJoin() : convertedLayerJoin()
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 1_000 })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 1_000, detachParticipantTransitions: true })
   expect(result.status, JSON.stringify(result)).toBe('changed')
   if (result.status !== 'changed') return
   expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
@@ -605,7 +626,7 @@ it('refuses the whole drop atomically when the converted-boundary repair is bloc
   source.composition.clips.push(clip('blocker', 'right-base', 550, 250, 'right'))
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', detachParticipantTransitions: true })
   expect(result.status).toBe('refused')
   if (result.status !== 'refused') return
   expect(result.code).toBe('invalid-result')
@@ -628,7 +649,7 @@ it('refuses to detach a converted boundary that carries Property ramps', () => {
   }]
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', detachParticipantTransitions: true })
   expect(result.status).toBe('refused')
   if (result.status !== 'refused') return
   expect(result.code).toBe('unsupported-property-carrier')
@@ -681,7 +702,7 @@ it('refuses to detach a participant Transition that carries Property ramps', () 
   }]
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', detachParticipantTransitions: true })
   expect(result.status).toBe('refused')
   if (result.status !== 'refused') return
   expect(result.code).toBe('unsupported-property-carrier')
@@ -703,7 +724,7 @@ it('succeeds after detach when the destination is unavailable only across the de
   ]
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', zoneId: 'right', layerId: 'right-base' })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', zoneId: 'right', layerId: 'right-base', detachParticipantTransitions: true })
   expect(result.status, JSON.stringify(result)).toBe('changed')
   if (result.status !== 'changed') return
   expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
@@ -722,7 +743,7 @@ it("still refuses when the destination is unavailable across the Clip's own inte
   ]
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', zoneId: 'right', layerId: 'right-base' })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', zoneId: 'right', layerId: 'right-base', detachParticipantTransitions: true })
   expect(result.status).toBe('refused')
   if (result.status !== 'refused') return
   expect(result.code).toBe('zone-unavailable')
@@ -737,7 +758,7 @@ it('still enforces destination occupancy after the detach', () => {
   source.composition.clips.push(clip('blocker', 'over', 600, 400))
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', detachParticipantTransitions: true })
   expect(result.status).toBe('refused')
   if (result.status !== 'refused') return
   expect(result.code).toBe('invalid-result')

@@ -131,7 +131,7 @@ describe('planShowV2ClipMove', () => {
     expect(planShowV2ClipMove(fixture(), { clipId: 'c', zoneId: 'z1', layerId: 'l1', startMs: 13000 }))
       .toEqual({
         kind: 'temporal',
-        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z1', layerId: 'l1', startMs: 13000 },
+        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z1', layerId: 'l1', startMs: 13000, detachParticipantTransitions: true },
       })
   })
 
@@ -139,19 +139,19 @@ describe('planShowV2ClipMove', () => {
     expect(planShowV2ClipMove(fixture(), { clipId: 'c', zoneId: 'z2', layerId: 'l3', startMs: 5000 }))
       .toEqual({
         kind: 'temporal',
-        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z2', layerId: 'l3', startMs: 5000 },
+        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z2', layerId: 'l3', startMs: 5000, detachParticipantTransitions: true },
       })
   })
 
-  it('re-places a cross-layer drop of a joined clip and leaves the detach to the owner', () => {
+  it('re-places a cross-layer drop of a joined clip and grants the detach permission', () => {
     // Gap 2 flips the connected-reroute refusal into a detach-and-move: the
-    // planner cannot see Property ramps, so it plans the re-placement and the
-    // temporal owner detaches plain participant Transitions (refusing ramp
-    // carriers) at commit.
+    // planner grants the detach permission the agent command withholds, and
+    // the temporal owner detaches plain participant Transitions (refusing ramp
+    // carriers) at commit. Without the grant the same intent refuses.
     expect(planShowV2ClipMove(fixture(), { clipId: 'a', zoneId: 'z1', layerId: 'l2', startMs: 1000 }))
       .toEqual({
         kind: 'temporal',
-        intent: { kind: 'replace-placement', clipId: 'a', zoneId: 'z1', layerId: 'l2', startMs: 1000 },
+        intent: { kind: 'replace-placement', clipId: 'a', zoneId: 'z1', layerId: 'l2', startMs: 1000, detachParticipantTransitions: true },
       })
   })
 
@@ -166,7 +166,7 @@ describe('planShowV2ClipMove', () => {
     expect(planShowV2ClipMove(view, { clipId: 'a', zoneId: 'z1', layerId: 'l2', startMs: 1000 }))
       .toEqual({
         kind: 'temporal',
-        intent: { kind: 'replace-placement', clipId: 'a', zoneId: 'z1', layerId: 'l2', startMs: 1000 },
+        intent: { kind: 'replace-placement', clipId: 'a', zoneId: 'z1', layerId: 'l2', startMs: 1000, detachParticipantTransitions: true },
       })
   })
 
@@ -185,12 +185,12 @@ describe('planShowV2ClipMove', () => {
     expect(planShowV2ClipMove(view, { clipId: 'c', zoneId: 'z1', layerId: 'l1', startMs: 11234.57 }))
       .toEqual({
         kind: 'temporal',
-        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z1', layerId: 'l1', startMs: 11235 },
+        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z1', layerId: 'l1', startMs: 11235, detachParticipantTransitions: true },
       })
     expect(planShowV2ClipMove(view, { clipId: 'c', zoneId: 'z2', layerId: 'l3', startMs: 5000.5 }))
       .toEqual({
         kind: 'temporal',
-        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z2', layerId: 'l3', startMs: 5001 },
+        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z2', layerId: 'l3', startMs: 5001, detachParticipantTransitions: true },
       })
     expect(planShowV2ClipMove(view, { clipId: 'a', zoneId: 'z1', layerId: 'l1', startMs: 1000.49 }))
       .toEqual({ kind: 'transition-resize', intent: { kind: 'move-connected', clipId: 'a', startMs: 1000 } })

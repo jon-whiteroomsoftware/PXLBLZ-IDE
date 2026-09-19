@@ -9,7 +9,7 @@ import type { ShowTimelineEditAffectedV2 } from './showTimelineV2'
 export type ShowClipTemporalIntentV2 =
   | { kind: 'move'; clipId: string; startMs: number }
   /** Re-placement: the Clip's own Zone/Layer destination, optionally with a new start. */
-  | { kind: 'replace-placement'; clipId: string; zoneId?: string; layerId?: string; startMs?: number }
+  | { kind: 'replace-placement'; clipId: string; zoneId?: string; layerId?: string; startMs?: number; detachParticipantTransitions?: boolean }
   | { kind: 'trim' | 'extend'; clipId: string; startMs: number; endMs: number; propertyRampProjections?: readonly ShowTransitionRampProjectionV2[] }
   | { kind: 'split'; clipId: string; atMs: number; rightClipId: string }
 export type ShowClipTemporalRefusalV2 = 'invalid-record' | 'missing-clip' | 'missing-target' | 'invalid-intent' | 'invalid-topology' | 'zone-unavailable' | 'unsupported-property-carrier' | 'compiler-ineligible' | 'invalid-result'
@@ -39,9 +39,10 @@ function validIntent(intent: unknown): intent is ShowClipTemporalIntentV2 {
 function validPlacementIntent(raw: Record<string, unknown>): boolean {
   const destinations = ['zoneId', 'layerId', 'startMs']
   const has = (field: string): boolean => Object.prototype.hasOwnProperty.call(raw, field)
-  if (!Object.keys(raw).every(field => field === 'kind' || field === 'clipId' || destinations.includes(field))) return false
+  if (!Object.keys(raw).every(field => field === 'kind' || field === 'clipId' || field === 'detachParticipantTransitions' || destinations.includes(field))) return false
   if (!destinations.some(has)) return false
   if (['zoneId', 'layerId'].some(field => has(field) && (typeof raw[field] !== 'string' || (raw[field] as string).trim().length === 0))) return false
+  if (has('detachParticipantTransitions') && typeof raw.detachParticipantTransitions !== 'boolean') return false
   return !has('startMs') || (Number.isSafeInteger(raw.startMs) && (raw.startMs as number) >= 0)
 }
 function validProjections(value: unknown, rampCount: number): value is readonly ShowTransitionRampProjectionV2[] {
@@ -88,12 +89,15 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   if (intent.kind === 'split' && (endMs >= oldEndMs || typeof intent.rightClipId !== 'string' || !intent.rightClipId.trim() || effective.composition.clips.some(candidate => candidate.id === intent.rightClipId))) return refuse('invalid-intent', 'Split requires an interior time and a fresh effective Clip identity.')
   if (startMs === clip.startMs && endMs === oldEndMs && (intent.kind === 'trim' || intent.kind === 'extend') && Object.prototype.hasOwnProperty.call(intent, 'propertyRampProjections')) return refuse('invalid-intent', 'An unchanged interval cannot consume Property ramp projections.')
   if (startMs === clip.startMs && endMs === oldEndMs && !reroutes) return { status: 'unchanged', record, ...emptyAffected() }
-  // A cross-Zone or cross-Layer re-placement detaches the Clip's participant
-  // Transitions and moves the Clip alone; a Transition carrying Property ramps
-  // is never silently deleted. A converted Scene boundary at participant scope
-  // is timeline structure rather than a gap between placements, so detaching it
-  // reclaims its window through the same cut-and-reclaim commit the resize path
-  // uses, or refuses the whole edit when that reclaim is blocked.
+  // A cross-Zone or cross-Layer re-placement moves the Clip alone. Detaching
+  // the Clip's participant Transitions is a permission the caller grants: the
+  // drag surfaces grant it, the agent command does not, and a caller that
+  // passes nothing gets the refusal. Without it an attached participant
+  // refuses invalid-topology, matching v1's command path; with it a plain
+  // participant Transition detaches, a Transition carrying Property ramps is
+  // never silently deleted, and a converted Scene boundary at participant
+  // scope reclaims its window through the same cut-and-reclaim commit the
+  // resize path uses, or refuses the whole edit when that reclaim is blocked.
   let detachedTransitionIds: string[] = []
   const pendingBoundaryRepairs: ConvertedBoundaryRepairV2[] = []
   if (reroutes) {
@@ -103,6 +107,8 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     const attached = record.composition.transitions.filter(transition => (
       transition.participants.some(participant => participant.fromClipId === clip.id || participant.toClipId === clip.id)
     ))
+    const mayDetach = intent.kind === 'replace-placement' && intent.detachParticipantTransitions === true
+    if (attached.length > 0 && !mayDetach) return refuse('invalid-topology', `Clip "${clip.id}" is a participant endpoint of Transition ${attached.map(transition => `"${transition.id}"`).join(', ')}; re-placement never detaches or retargets a Transition unless the caller grants it. Reset those Transitions explicitly first.`)
     const carrier = attached.find(transition => transition.propertyRamps.length > 0)
     if (carrier) return refuse('unsupported-property-carrier', `Transition "${carrier.id}" carries Property ramps. Reset it with an explicit projection plan before moving its participant to another Zone or Layer.`)
     // The blanket carrier check above subsumes the repair spec's ramp-carrier

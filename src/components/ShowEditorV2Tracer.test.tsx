@@ -465,7 +465,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(temporalSubmissions()).toEqual([{
       intent: {
-        kind: 'replace-placement', clipId: 'resize-a', zoneId: 'z1', layerId: overlayLayerId, startMs: SETTLED_START_MS,
+        kind: 'replace-placement', clipId: 'resize-a', zoneId: 'z1', layerId: overlayLayerId, startMs: SETTLED_START_MS, detachParticipantTransitions: true,
       },
       baseRevision: 0,
     }])
@@ -508,7 +508,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(temporalSubmissions()).toEqual([{
       intent: {
-        kind: 'replace-placement', clipId: 'resize-b', zoneId: 'z1', layerId: overlayLayerId, startMs: 8_000,
+        kind: 'replace-placement', clipId: 'resize-b', zoneId: 'z1', layerId: overlayLayerId, startMs: 8_000, detachParticipantTransitions: true,
       },
       baseRevision: 0,
     }])
@@ -1617,7 +1617,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(temporalSubmissions()).toEqual([{
       intent: {
-        kind: 'replace-placement', clipId: 'resize-a', zoneId, layerId: overlayLayerId, startMs: 3_000,
+        kind: 'replace-placement', clipId: 'resize-a', zoneId, layerId: overlayLayerId, startMs: 3_000, detachParticipantTransitions: true,
       },
       baseRevision: 0,
     }])
@@ -1713,7 +1713,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(temporalSubmissions()).toEqual([{
       intent: {
-        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_000,
+        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_000, detachParticipantTransitions: true,
       },
       baseRevision: 0,
     }])
@@ -1739,7 +1739,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(temporalSubmissions()).toEqual([{
       intent: {
-        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_000,
+        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_000, detachParticipantTransitions: true,
       },
       baseRevision: 0,
     }])
@@ -1769,7 +1769,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(temporalSubmissions()).toEqual([{
       intent: {
-        kind: 'replace-placement', clipId: 'resize-a', zoneId: 'z1', layerId: overlayLayerId, startMs: 4_037,
+        kind: 'replace-placement', clipId: 'resize-a', zoneId: 'z1', layerId: overlayLayerId, startMs: 4_037, detachParticipantTransitions: true,
       },
       baseRevision: 0,
     }])
@@ -1795,7 +1795,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(temporalSubmissions()).toEqual([{
       intent: {
-        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_037,
+        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_037, detachParticipantTransitions: true,
       },
       baseRevision: 0,
     }])
@@ -1827,7 +1827,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(temporalSubmissions()).toEqual([{
       intent: {
-        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_037,
+        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_037, detachParticipantTransitions: true,
       },
       baseRevision: 0,
     }])

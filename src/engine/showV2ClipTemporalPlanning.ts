@@ -98,9 +98,10 @@ function edgeTransitions(
  * Plan a pointer drop of one Clip onto a Zone Layer at a snapped start time.
  * A same-Layer move of a joined Clip shifts its connected component through
  * the connected move form; a cross-Layer or cross-Zone drop re-places the Clip
- * and detaches its participant Transitions in the temporal owner. The planner
- * cannot see Property ramps from the presented timeline, so a ramp carrier is
- * planned optimistically and the owner refuses it at commit.
+ * and grants the temporal owner the detach permission, so plain participant
+ * Transitions detach in the same commit. The planner cannot see Property
+ * ramps from the presented timeline, so a ramp carrier is planned
+ * optimistically and the owner refuses it at commit.
  */
 export function planShowV2ClipMove(
   view: ShowTimelineViewModel,
@@ -114,8 +115,9 @@ export function planShowV2ClipMove(
   if (!reroutes && startMs === found.item.startMs) return refuse('no-change')
   if (reroutes) {
     if (!findLayer(view, input.zoneId, input.layerId)) return refuse('missing-target')
-    // A joined Clip re-places through the same intent: the owner detaches
-    // plain participant Transitions, repairs converted boundaries in the same
+    // A joined Clip re-places through the same intent, granting the detach
+    // permission the agent command withholds: the owner detaches plain
+    // participant Transitions, repairs converted boundaries in the same
     // commit, and refuses ramp carriers or blocked repairs at commit.
     return {
       kind: 'temporal',
@@ -125,6 +127,7 @@ export function planShowV2ClipMove(
         zoneId: input.zoneId,
         layerId: input.layerId,
         startMs,
+        detachParticipantTransitions: true,
       },
     }
   }

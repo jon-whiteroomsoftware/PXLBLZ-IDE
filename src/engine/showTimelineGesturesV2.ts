@@ -70,6 +70,9 @@ export function planShowTimelineGestureV2(
 
   if (gesture.kind === 'move') {
     if (gesture.zoneId !== clip.zoneId || gesture.layerId !== clip.layerId) {
+      // A human drag grants the detach permission the agent command withholds:
+      // joined participant Transitions detach in the same commit, while ramp
+      // carriers and blocked repairs still refuse at the owner.
       return ready({
         owner: 'clip-temporal',
         intent: {
@@ -78,6 +81,7 @@ export function planShowTimelineGestureV2(
           zoneId: gesture.zoneId,
           layerId: gesture.layerId,
           startMs: gesture.startMs,
+          detachParticipantTransitions: true,
         },
       })
     }

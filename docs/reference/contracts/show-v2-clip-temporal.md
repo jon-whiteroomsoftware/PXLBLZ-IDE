@@ -59,9 +59,13 @@ a blank Zone/Layer identity or a non-safe-integer start refuses `invalid-intent`
 The destination Zone must exist and the destination Layer must belong to it, or
 `missing-target` refuses naming both. A Clip that is a participant endpoint of one
 or more Transitions detaches exactly those participant Transitions when its Zone
-or Layer changes, symmetric in `from` and `to`: natively authored and converted
-Layer joins disappear and the Clip lands where it was dropped while the former
-join partners stay, matching the v1 drag. A Transition in that set carrying
+or Layer changes through a drag surface, which grants the detach permission on
+its re-placement intent, symmetric in `from` and `to`: natively authored and
+converted Layer joins disappear and the Clip lands where it was dropped while
+the former join partners stay, matching the v1 drag. The agent command
+withholds that permission, so the same Zone or Layer change through
+`update_clips` refuses `invalid-topology` with no write, matching v1's command
+path: reset those Transitions explicitly first. A Transition in that set carrying
 `origin: 'converted-boundary-transition'` at single-participant scope is timeline
 structure rather than a gap between placements, so the same transaction also
 commits its cut-and-reclaim repair: the boundary record leaves, the downstream
@@ -69,12 +73,14 @@ side moves earlier by the boundary duration, Show End shrinks by the same
 duration, and the owning Layout occurrence absorbs the reclaim exactly as the
 resize path does. An explicit startMs names post-repair coordinates: the
 relocated Clip is excluded from that relative shift and lands exactly at the
-requested start, while its post-move interval is checked for straddling the
-reclaimed window end. Without an explicit start the Clip keeps its preimage
+requested start. The straddle rule does not apply to it, because that rule
+exists to stop a shift cutting a Clip across the window end and nothing shifts
+a relocated Clip; a destination collision is caught by record validation with
+an accurate overlap message. Without an explicit start the Clip keeps its preimage
 position and rides the reclaim with the downstream side. A repair the commit
 cannot absorb — content spanning the reclaimed window end in its preimage
-interval, or in the relocated Clip's post-move interval, a window outside one
-Layout occurrence, or an owning occurrence that cannot cover the reclaim —
+interval, a window outside one Layout occurrence, or an owning occurrence that
+cannot cover the reclaim —
 refuses the whole edit atomically as `invalid-result` with the original record
 identity. A Transition in that set
 that carries `propertyRamps` refuses `unsupported-property-carrier` instead;

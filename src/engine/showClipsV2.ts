@@ -36,7 +36,7 @@ export type ShowClipEditIntentV2 =
   | { kind: 'make-independent'; clipId: string; independence: ShowIndependentInstancePlanV2 }
   | { kind: 'rejoin'; clipId: string; targetInstanceId: string }
   | { kind: 'move'; clipId: string; startMs: number }
-  | { kind: 'replace-placement'; clipId: string; zoneId?: string; layerId?: string; startMs?: number }
+  | { kind: 'replace-placement'; clipId: string; zoneId?: string; layerId?: string; startMs?: number; detachParticipantTransitions?: boolean }
   | { kind: 'trim' | 'extend'; clipId: string; startMs: number; endMs: number; propertyRampProjections?: readonly ShowTransitionRampProjectionV2[] }
   | { kind: 'split'; clipId: string; atMs: number; rightClipId: string }
   | {
