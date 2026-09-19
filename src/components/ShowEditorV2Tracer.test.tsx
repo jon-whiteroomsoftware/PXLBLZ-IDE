@@ -20,6 +20,7 @@ import { controllerInitialState, useControllerStore } from '@/store/controllerSt
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
+import { useShowEditorViewStore } from '@/store/showEditorViewStore'
 import { resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
   resetPersonalContentProvider,
@@ -633,20 +634,20 @@ describe('v2 tracer unconnected commands (#1065)', () => {
     },
   )
 
-  it('resolves Delete on a selected Clip as an internal no-change result', async () => {
-    const editor = openV2Editor('tracer-unconnected-delete')
+  it('leaves Delete on a Group occurrence unclaimed with no write (#1066 slice 2)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-unconnected-delete'
+    const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
-    await selectFirstClip(editor.showId)
+    act(() => { useShowEditorViewStore.getState().setSelection({ kind: 'group', occurrenceId: 'occ-0' }) })
+    await act(async () => {})
     const before = editor.state()
 
-    const handled = fireEvent.keyDown(document, { key: 'Delete' })
+    fireEvent.keyDown(document, { key: 'Delete' })
     await act(async () => {})
 
-    // An unclaimed key is left to the page rather than silently swallowed.
-    expect(handled).toBe(true)
     expectNoWrite(before, editor.state())
-    expect(editor.state().record.composition.clips)
-      .toHaveLength(before.record.composition.clips.length)
   })
 
   it('keeps the Clip edge handles rendered on a v2 backing', async () => {
@@ -1674,3 +1675,178 @@ function zoneDropSurface(clipId: string): DragSurface & {
     },
   }
 }
+
+// ── Slice-2 Clip delete (#1066) ────────────────────────────────────────────
+// Clip delete on a v2-stored Show through the existing handlers: the inspector
+// Delete control, keyboard Delete/Backspace on a selected Clip, and the
+// connected-Transition confirmation. Every accepted delete is one history
+// entry and one save; refusals write nothing and keep record identity; Undo
+// restores the preimage and Redo the postimage; no legacy owner runs.
+
+function deleteSubmissions() {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotClipDelete')
+    .map((call) => ({ intent: call.request.intent, baseRevision: call.request.baseRevision }))
+}
+
+async function selectClipByName(name: string, index: number): Promise<void> {
+  fireEvent.click(screen.getAllByRole('button', { name: `Select ${name}` })[index])
+  await act(async () => {})
+}
+
+describe('v2 clip delete (#1066 slice 2)', () => {
+  it('deletes a free Clip through the inspector Delete control', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice2-inspector-delete'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete clip TestPattern1D' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipDelete'])
+    expect(deleteSubmissions()).toEqual([{ intent: { kind: 'delete-clip', clipId: 'overlay-a' }, baseRevision: 0 }])
+    expect(after.record.composition.clips.some((clip) => clip.id === 'overlay-a')).toBe(false)
+    expect(after.record.composition.clips.map((clip) => clip.id).sort()).toEqual(['resize-a', 'resize-b'])
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('deletes a free Clip through keyboard Delete', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice2-keyboard-delete'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipDelete'])
+    expect(deleteSubmissions()).toEqual([{ intent: { kind: 'delete-clip', clipId: 'overlay-a' }, baseRevision: 0 }])
+    expect(after.record.composition.clips.some((clip) => clip.id === 'overlay-a')).toBe(false)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('deletes a free Clip through keyboard Backspace', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice2-backspace-delete'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+
+    fireEvent.keyDown(document, { key: 'Backspace' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipDelete'])
+    expect(deleteSubmissions()).toEqual([{ intent: { kind: 'delete-clip', clipId: 'overlay-a' }, baseRevision: 0 }])
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('confirms a joined Clip before removing it with its Transition', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice2-connected-delete'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    const before = editor.state()
+    expect(before.record.composition.transitions.map((transition) => transition.id)).toEqual(['join-a-b'])
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await act(async () => {})
+
+    expect(screen.getByRole('alertdialog', { name: 'Remove connected Clip?' })).toBeInTheDocument()
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Clip and Transition' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipDelete'])
+    expect(deleteSubmissions()).toEqual([{ intent: { kind: 'delete-clip', clipId: 'resize-a' }, baseRevision: 0 }])
+    expect(after.record.composition.clips.some((clip) => clip.id === 'resize-a')).toBe(false)
+    expect(after.record.composition.transitions).toEqual([])
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('signals Keep one Clip when Delete targets the final remaining Clip', async () => {
+    const single = connectedV2Record('slice2-final-clip')
+    single.composition.clips = [single.composition.clips[0]]
+    single.composition.transitions = []
+    single.composition.propertyTracks = []
+    const editor = openV2EditorForRecord(single)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const clipId = single.composition.clips[0].id
+    fireEvent.click(document.querySelector<HTMLElement>(`[data-show-selection-key="clip:${clipId}"]`)!)
+    await act(async () => {})
+    const before = editor.state()
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
+    expect(screen.getByTestId('show-clip-delete-blocked')).toHaveTextContent('Keep one Clip')
+    expect(screen.getByRole('status', { name: 'Clip deletion unavailable' })).toHaveTextContent(
+      'A Show must contain at least one Clip.',
+    )
+  })
+
+  it('stops a converted-boundary-joined Clip at the connected dialog v1 never shows (#1068)', async () => {
+    const record = connectedV2Record('slice2-boundary-dialog')
+    const boundary = record.composition.transitions.find((transition) => transition.id === 'join-a-b')
+    if (!boundary) throw new Error('No join-a-b Transition to reinterpret as a converted boundary.')
+    record.composition.transitions = [{
+      ...boundary,
+      id: 'transition-scene-1',
+      origin: 'converted-boundary-transition',
+    }]
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    expect(screen.getAllByRole('button', { name: 'Select CometLoom' })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Select TestPattern1D' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Redo Show edit' })).toBeDisabled()
+    await selectClipByName('CometLoom', 0)
+    expect(screen.getByRole('button', { name: 'Delete clip CometLoom' })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await act(async () => {})
+
+    expect(screen.getByRole('alertdialog', { name: 'Remove connected Clip?' })).toBeInTheDocument()
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.record.composition.clips.map((clip) => clip.id).sort()).toEqual(['overlay-a', 'resize-a', 'resize-b'])
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('refuses a missing Clip with no write and keeps record identity', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice2-missing-clip'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const { useShowEditorViewStore: view } = await import('@/store/showEditorViewStore')
+    act(() => { view.getState().setSelection({ kind: 'clip', clipId: 'missing' }) })
+    await act(async () => {})
+    const before = editor.state()
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(legacy.calls).toEqual([])
+  })
+})

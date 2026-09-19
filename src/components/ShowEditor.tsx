@@ -281,8 +281,10 @@ import { usePatternStore } from '@/store/patternStore'
 import { useLibraryStore } from '@/store/libraryStore'
 import { useShowStore } from '@/store/showStore'
 import {
+  admitShowV2PilotClipDelete,
   admitShowV2PilotClipTemporal,
   admitShowV2PilotTransitionResize,
+  type ShowV2PilotClipDeleteIntent,
   type ShowV2PilotPreparedCapture,
   type ShowV2PilotTransitionResizeIntent,
 } from '@/store/showV2PreparedEditAdmission'
@@ -294,6 +296,10 @@ import {
   resolveShowV2SplitTarget,
   type ShowV2ClipTemporalPlan,
 } from '@/engine/showV2ClipTemporalPlanning'
+import {
+  planShowV2ClipDelete,
+  showV2ConnectedTransitionIds,
+} from '@/engine/showV2ClipDeletePlanning'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
@@ -1199,6 +1205,7 @@ export function ShowEditor({
   const preparedDeliverySnapshotRef = useRef<ShowDeliverySnapshot | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
   const [compositionClipPendingDelete, setCompositionClipPendingDelete] = useState<ShowTimelineClipOwner | null>(null)
+  const [v2ClipPendingDelete, setV2ClipPendingDelete] = useState<string | null>(null)
   const [pendingPatternSlotSelection, setPendingPatternSlotSelection] = useState<PendingPatternSlotSelection | null>(null)
   const [blockedDeleteFeedback, setBlockedDeleteFeedback] = useState<BlockedDeleteFeedback | null>(null)
   const blockedDeleteFeedbackSequenceRef = useRef(0)
@@ -1344,6 +1351,7 @@ export function ShowEditor({
     setTransitionPaletteId(null)
     setLayerTransitionTarget(null)
     setCompositionClipPendingDelete(null)
+    setV2ClipPendingDelete(null)
     setPendingPatternSlotSelection(null)
     setBlockedDeleteFeedback(null)
     setIsolatedGroupOccurrenceId(null)
@@ -1580,6 +1588,57 @@ export function ShowEditor({
     })
     return outcome.status === 'applied'
   }, [showId])
+  const commitV2ClipDelete = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotClipDeleteIntent
+  }) => {
+    const outcome = await admitShowV2PilotClipDelete({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
+  const requestDeleteClipV2 = useCallback((clipId: string, connectedDeletionConfirmed = false): boolean => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') {
+      reportBlockedDelete(`clip:${clipId}`, UNAVAILABLE_CLIP_DELETE_FEEDBACK)
+      return true
+    }
+    const plan = planShowV2ClipDelete(capture.record, clipId, {
+      confirmed: connectedDeletionConfirmed,
+      allocate: newPersonalContentId,
+    })
+    if (plan.kind === 'refuse') {
+      reportBlockedDelete(
+        `clip:${clipId}`,
+        plan.reason === 'final-clip' ? LAST_CLIP_DELETE_FEEDBACK : UNAVAILABLE_CLIP_DELETE_FEEDBACK,
+      )
+      return true
+    }
+    if (plan.kind === 'needs-confirm') {
+      setV2ClipPendingDelete(clipId)
+      return true
+    }
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    const selection = { kind: 'clip', clipId } as const
+    void commitV2ClipDelete({ capture, baseRevision, intent: plan.intent }).then((outcome) => {
+      if (outcome.status === 'applied') {
+        closeDetailPanel()
+        closePinnedDetailForSelection(selection)
+      } else if (outcome.status === 'refused') {
+        reportBlockedDelete(`clip:${clipId}`, UNAVAILABLE_CLIP_DELETE_FEEDBACK)
+      }
+    }).catch(() => {})
+    return true
+  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2ClipDelete, recordVersion, readOnly, reportBlockedDelete, savedShowV2, showId])
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
     : activeShow?.targetControllerProfileId
@@ -1595,6 +1654,7 @@ export function ShowEditor({
     owner: ShowTimelineClipOwner | null,
     connectedDeletionConfirmed = false,
   ): boolean => {
+    if (recordVersion === 2) return requestDeleteClipV2(targetSelection.clipId, connectedDeletionConfirmed)
     if (recordVersion !== 1 || !activeShow || readOnly) return false
     if (showRecordClipCount(activeShow) <= 1) {
       reportBlockedDelete(showSelectionKey(targetSelection), LAST_CLIP_DELETE_FEEDBACK)
@@ -1623,13 +1683,18 @@ export function ShowEditor({
     closePinnedDetailForSelection(targetSelection)
     updateShowInBackground(activeShow.id, { ...deletion.record, updatedAt: Date.now() })
     return true
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, reportBlockedDelete, updateShowInBackground])
+  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, reportBlockedDelete, requestDeleteClipV2, updateShowInBackground])
 
   const requestDeleteSelection = useCallback((
     targetSelection: ShowSelection,
     visibleComposition?: ShowCompositionV1 | null,
     visibleSourceCellIdByPlacementId?: Record<string, string>,
   ): boolean => {
+    if (recordVersion === 2) {
+      if (readOnly) return false
+      if (targetSelection.kind !== 'clip') return false
+      return requestDeleteClipV2(targetSelection.clipId, false)
+    }
     if (recordVersion !== 1 || !activeShow || readOnly) return false
     if (targetSelection.kind === 'transition') {
       const transition = activeShow.transitions?.find((candidate) => candidate.id === targetSelection.transitionId)
@@ -1675,7 +1740,7 @@ export function ShowEditor({
       return true
     }
     return false
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, removeBoundaryTransition, removeZone, requestDeleteClip, setSelection, updateShowInBackground])
+  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, removeBoundaryTransition, removeZone, requestDeleteClip, requestDeleteClipV2, setSelection, updateShowInBackground])
   useEffect(() => {
     if (!blockedDeleteFeedback) return
     const timeout = window.setTimeout(() => setBlockedDeleteFeedback(null), 1100)
@@ -2095,6 +2160,12 @@ export function ShowEditor({
   const pendingConnectedTransitions = timelineComposition && compositionClipPendingDelete
     ? showLayerTransitionsConnectedToClip(timelineComposition, compositionClipPendingDelete.placementId)
     : []
+  const pendingConnectedTransitionsV2 = savedShowV2 && v2ClipPendingDelete
+    ? showV2ConnectedTransitionIds(savedShowV2, v2ClipPendingDelete)
+    : []
+  const pendingConnectedCount = compositionClipPendingDelete
+    ? pendingConnectedTransitions.length
+    : pendingConnectedTransitionsV2.length
   const declaredSliderNamesFor = (ref: ShowPatternRef) => declaredPatternSliderNames(
     ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : userPatterns.find(pattern => pattern.id === ref.id)?.src,
   )
@@ -3283,6 +3354,10 @@ export function ShowEditor({
                   }}
                   onPatternCommit={returnFocusToTimelineSelection}
                   onRemoveClip={(clip) => {
+                    if (recordVersion === 2) {
+                      requestDeleteClipV2(clip.id, false)
+                      return
+                    }
                     const placementId = Object.entries(
                       timelineProjection?.sourceCellIdByPlacementId ?? {},
                     ).find(([, sourceCellId]) => sourceCellId === clip.id)?.[0] ?? clip.id
@@ -3291,6 +3366,9 @@ export function ShowEditor({
                       timelineComposition,
                       findTimelineClipOwner(timelineComposition, placementId),
                     )
+                  }}
+                  onRemoveClipV2={(clipId) => {
+                    requestDeleteClipV2(clipId, false)
                   }}
                   onUpdateAdaptations={(cell, changes) => {
                     if (!legacyShow) return
@@ -3363,6 +3441,12 @@ export function ShowEditor({
                     updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
                   }}
                   onRemoveCompositionClip={(owner) => {
+                    if (recordVersion === 2) {
+                      const timelineOwner = showTimelineOwnerForInspector(owner)
+                      if (!timelineOwner) return
+                      requestDeleteClipV2(timelineOwner.placementId, false)
+                      return
+                    }
                     if (!legacyShow || !timelineComposition) return
                     const timelineOwner = showTimelineOwnerForInspector(owner)
                     if (!timelineOwner) return
@@ -3649,13 +3733,13 @@ export function ShowEditor({
               onClose={() => setLayerTransitionTarget(null)}
             />
           )}
-          <AlertDialogRoot open={compositionClipPendingDelete !== null} onOpenChange={(open) => { if (!open) setCompositionClipPendingDelete(null) }}>
+          <AlertDialogRoot open={compositionClipPendingDelete !== null || v2ClipPendingDelete !== null} onOpenChange={(open) => { if (!open) { setCompositionClipPendingDelete(null); setV2ClipPendingDelete(null) } }}>
             <AlertDialogContent className="z-[90]">
               <AlertDialogTitle>Remove connected Clip?</AlertDialogTitle>
               <AlertDialogDescription>
-                Removing this Clip also removes {pendingConnectedTransitions.length === 1
+                Removing this Clip also removes {pendingConnectedCount === 1
                   ? 'its connected Transition'
-                  : `${pendingConnectedTransitions.length} connected Transitions`}. Other Clip durations and positions stay unchanged.
+                  : `${pendingConnectedCount} connected Transitions`}. Other Clip durations and positions stay unchanged.
               </AlertDialogDescription>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -3668,8 +3752,11 @@ export function ShowEditor({
                         compositionClipPendingDelete,
                         true,
                       )
+                    } else if (v2ClipPendingDelete) {
+                      requestDeleteClipV2(v2ClipPendingDelete, true)
                     }
                     setCompositionClipPendingDelete(null)
+                    setV2ClipPendingDelete(null)
                   }}
                 >
                   Remove Clip and Transition
@@ -9040,6 +9127,7 @@ function ContextualInspector({
   onMakeCompositionPatternIndependent,
   onRejoinCompositionPattern,
   onRemoveCompositionClip,
+  onRemoveClipV2,
   onDuplicateGroup,
   onMakeGroupUnique,
   onTranslateGroup,
@@ -9098,6 +9186,7 @@ function ContextualInspector({
   onMakeCompositionPatternIndependent: (owner: ShowClipInspectorOwner) => void
   onRejoinCompositionPattern: (owner: ShowClipInspectorOwner, targetInstanceId: string) => void
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
+  onRemoveClipV2?: (clipId: string) => void
   onDuplicateGroup: (occurrenceId: string) => void
   onMakeGroupUnique: (occurrenceId: string) => void
   onTranslateGroup: (occurrenceId: string, translationX: number, translationY: number) => void
@@ -9222,10 +9311,10 @@ function ContextualInspector({
           onRejoinPattern={() => {}}
           // v1 offers Delete on an ordinary Clip's inspector and none on a
           // Group child's, so the v2 branch matches per selection. The control
-          // keeps v1's markup and enabled state; the write is simply not
-          // connected here, so it stops with no record, history entry or save.
+          // keeps v1's markup and enabled state; the write reaches the
+          // clip-delete admission (#1066).
           {...(selection.kind === 'clip'
-            ? { canRemove: canRemoveClipV2, onRemove: () => {} }
+            ? { canRemove: canRemoveClipV2, onRemove: () => onRemoveClipV2?.(selection.clipId) }
             : {})}
         />
       )
