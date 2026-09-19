@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1068",
+  "route": "/PXLBLZ-IDE/studio/shows/oracle-fresh-v2",
+  "operation": "Playwright (repo oracle, fixture fresh) at this commit captured the v2-stored row and the v1 row of the same Show in the existing editor at 1440; 21 of 22 verdict rows equivalent (only the palette row tracked on #1066), and all five behavioral gestures equal on both backings. Separately at this commit, e2e/shows.auth.spec.ts:888 ('reclaims Scene-boundary Transition time after resizing its Clip away', #695) PASSES on the v2 backing: the Alt-drag breaks the converted Scene-boundary junction, the Transition becomes a zero-duration cut and Show End reclaims to 60 seconds, as v1 does.",
+  "captures": [
+    ".wrsp/ui-proof/1068-boundary-repair-fresh-desktop-v2.png",
+    ".wrsp/ui-proof/1068-boundary-repair-fresh-desktop-v1.png"
+  ],
+  "capturedAtCommit": "27e86fb22777c324c96f5df2de2fa42b27ec7e14"
+}
