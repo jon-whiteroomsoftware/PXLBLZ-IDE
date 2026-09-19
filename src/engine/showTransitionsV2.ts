@@ -1,5 +1,6 @@
 import {
   validateShowRecordV2,
+  type ShowClipV2,
   type ShowPropertyTrackV2,
   type ShowRecordV2,
   type ShowTransitionV2,
@@ -248,6 +249,10 @@ export function editShowTransitionV2(
   if (intent.kind === 'resize-transition' && intent.durationMs === 0) {
     return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })
   }
+  if (intent.kind === 'reset-to-cut') {
+    const spec = convertedBoundaryRepairSpecV2(record, transition.id)
+    if (spec.status === 'ready') return resetConvertedBoundaryToCut(record, spec.repair)
+  }
   const endpoints = transitionEndpoints(transition)
   const affectedClipIds = downstreamClosure(record, endpoints.to)
   if (endpoints.from.some(id => affectedClipIds.includes(id))) {
@@ -262,6 +267,225 @@ export function editShowTransitionV2(
   return commitShift(record, affectedClipIds, deltaMs, replacements, intent.kind === 'reset-to-cut' ? [transition.id] : [])
 }
 
+/**
+ * Converted Scene-boundary repair (#1068).
+ *
+ * A converted Scene-boundary Transition is a v1 scene edge wearing a Layer
+ * junction shape: the converter lands it at participant scope whenever one
+ * pair of Clips meets exactly, but its provenance still names the boundary
+ * inspector, not the junction popover. Growing it like a native crossfade
+ * invents choreography v1 never had: v1 plans the requested Clip range
+ * against original timing, then replaces the orphaned boundary with a Cut
+ * and shortens its loop by the boundary duration, keeping every Scene-local
+ * offset. The v2 repair below is that same commit in global coordinates: cut
+ * the boundary record, move the boundary's downstream side (every Clip at or
+ * after the destination entry plus the transition-connected closure) earlier
+ * by the boundary duration, and lower Show End by the same duration, keeping
+ * the single Layout coverage exact by shortening its tail occurrence.
+ *
+ * The repair fires only for Transitions carrying
+ * `origin: 'converted-boundary-transition'` at single-participant scope.
+ * Provenance is the only reliable family signal: a converted boundary at
+ * participant scope is structurally identical to a native Layer junction, so
+ * structure alone must never select this path. Native Transitions,
+ * converted Layer Transitions and whole-output boundaries keep the existing
+ * grow/shift behaviour, and Clip deletion keeps survivor times and Show End
+ * exactly (v1 preserves its loop on delete; only the unrepresentable orphan
+ * record is dropped).
+ *
+ * One repair never invents room: content spanning the reclaimed window end,
+ * a tail occurrence that cannot absorb the reclaim, stranded Property
+ * activation, broken Layout availability or compiler placement refuse the
+ * whole edit atomically. A boundary carrier that still holds Property ramps
+ * refuses here; Reset it explicitly with a projection plan first.
+ */
+export interface ConvertedBoundaryRepairV2 {
+  transitionId: string
+  fromClipId: string
+  toClipId: string
+  windowStartMs: number
+  windowEndMs: number
+  durationMs: number
+}
+
+export type ConvertedBoundaryRepairEligibilityV2 =
+  | { status: 'ready'; repair: ConvertedBoundaryRepairV2 }
+  | { status: 'ramp-carrier'; transitionId: string }
+  | { status: 'ignore' }
+
+export function isConvertedBoundaryTransitionV2(transition: ShowTransitionV2): boolean {
+  return transition.origin === 'converted-boundary-transition'
+}
+
+/** Classify one Transition for boundary repair without mutating the record. */
+export function convertedBoundaryRepairSpecV2(
+  record: ShowRecordV2,
+  transitionId: string,
+): ConvertedBoundaryRepairEligibilityV2 {
+  const transition = record.composition.transitions.find(candidate => candidate.id === transitionId)
+  if (!transition || !isConvertedBoundaryTransitionV2(transition)) return { status: 'ignore' }
+  if (transition.wholeOutput || transition.participants.length !== 1) return { status: 'ignore' }
+  if (transition.propertyRamps.length > 0) return { status: 'ramp-carrier', transitionId: transition.id }
+  const participant = transition.participants[0]
+  const from = record.composition.clips.find(clip => clip.id === participant.fromClipId)
+  const to = record.composition.clips.find(clip => clip.id === participant.toClipId)
+  if (!from || !to) return { status: 'ignore' }
+  if (from.zoneId !== participant.zoneId || to.zoneId !== participant.zoneId
+    || from.layerId !== participant.layerId || to.layerId !== participant.layerId) return { status: 'ignore' }
+  const windowStartMs = from.startMs + from.durationMs
+  const windowEndMs = to.startMs
+  if (windowStartMs + transition.durationMs !== windowEndMs) return { status: 'ignore' }
+  return {
+    status: 'ready',
+    repair: {
+      transitionId: transition.id,
+      fromClipId: from.id,
+      toClipId: to.id,
+      windowStartMs,
+      windowEndMs,
+      durationMs: transition.durationMs,
+    },
+  }
+}
+
+export interface ConvertedBoundaryRepairAppliedV2 {
+  removedTransitionIds: string[]
+  shiftedClipIds: string[]
+  shiftedTrackIds: string[]
+  shortenedLayoutOccurrenceIds: string[]
+  reclaimedMs: number
+}
+
+/**
+ * Commit converted-boundary cuts on a working candidate. The Clip retime in
+ * old coordinates belongs to the caller; this moves the downstream side,
+ * reclaims Show End and keeps Layout coverage exact. Returns a refusal
+ * message when protected content collides; the caller refuses atomically
+ * with its original record.
+ */
+export function commitConvertedBoundaryRepairsV2(
+  record: ShowRecordV2,
+  next: ShowRecordV2,
+  repairs: readonly ConvertedBoundaryRepairV2[],
+): { status: 'applied'; applied: ConvertedBoundaryRepairAppliedV2 } | { status: 'refused'; message: string } {
+  // Windows, closures and membership all read the pre-edit record: the caller
+  // retimes the edited Clip in old coordinates first, and the repair closes
+  // the reclaimed window underneath it. Shifts are absolute, so several
+  // repairs compose additively in any order.
+  const ordered = [...repairs].sort((left, right) => right.windowEndMs - left.windowEndMs)
+  const removedTransitionIds: string[] = []
+  const shiftedClipIds = new Set<string>()
+  const shiftedTrackIds = new Set<string>()
+  let reclaimedMs = 0
+  for (const repair of ordered) {
+    if (!next.composition.transitions.some(candidate => candidate.id === repair.transitionId)) {
+      return { status: 'refused', message: `Transition "${repair.transitionId}" is no longer present.` }
+    }
+    const durationMs = repair.durationMs
+    const shiftIds = new Set(downstreamClosure(record, [repair.toClipId]))
+    for (const clip of record.composition.clips) {
+      if (clip.startMs >= repair.windowEndMs) shiftIds.add(clip.id)
+      else if (clip.startMs + clip.durationMs > repair.windowEndMs) {
+        return { status: 'refused', message: `Clip "${clip.id}" spans the reclaimed boundary window ending at ${repair.windowEndMs} ms; split or trim it away from the boundary first.` }
+      }
+    }
+    next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== repair.transitionId)
+    const movedTrackIds = applyShowTransitionClipShiftV2(record, next, [...shiftIds], -durationMs, [repair.transitionId])
+    for (const id of shiftIds) shiftedClipIds.add(id)
+    for (const id of movedTrackIds) shiftedTrackIds.add(id)
+    next.composition.showEndMs -= durationMs
+    reclaimedMs += durationMs
+    removedTransitionIds.push(repair.transitionId)
+  }
+  const orderedOccurrences = [...next.composition.layoutOccurrences]
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+  const tail = orderedOccurrences[orderedOccurrences.length - 1]
+  if (!tail || tail.durationMs <= reclaimedMs) {
+    return { status: 'refused', message: 'The reclaimed boundary window does not fit behind the final Layout occurrence; consolidate Layouts first.' }
+  }
+  next.composition.layoutOccurrences.find(candidate => candidate.id === tail.id)!.durationMs -= reclaimedMs
+  return {
+    status: 'applied',
+    applied: {
+      removedTransitionIds: removedTransitionIds.sort(),
+      shiftedClipIds: [...shiftedClipIds].sort(),
+      shiftedTrackIds: [...shiftedTrackIds].sort(),
+      shortenedLayoutOccurrenceIds: [tail.id],
+      reclaimedMs,
+    },
+  }
+}
+
+/** Reset a converted boundary to a Cut while reclaiming its window from Show End. */
+function resetConvertedBoundaryToCut(record: ShowRecordV2, repair: ConvertedBoundaryRepairV2): ShowTransitionEditResultV2 {
+  const next = structuredClone(record)
+  const committed = commitConvertedBoundaryRepairsV2(record, next, [repair])
+  if (committed.status === 'refused') return refusedResult(record, 'invalid-result', committed.message)
+  const issue = validateShowRecordV2(next)[0]
+  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
+  const moved = new Set(committed.applied.shiftedClipIds)
+  const unavailable = firstUnavailableContributor(next, [...new Set([...moved, repair.fromClipId, repair.toClipId])])
+  if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
+  return {
+    status: 'changed',
+    record: next,
+    affectedClipIds: [...moved].sort(),
+    affectedTransitionIds: [...new Set([repair.transitionId, ...affectedTransitionIdsFor(record, moved)])].sort(),
+    affectedTrackIds: committed.applied.shiftedTrackIds,
+    removedIds: [repair.transitionId],
+  }
+}
+
+/**
+ * Retime one Clip edge in old coordinates, then repair its converted
+ * boundary: cut the record, move the downstream side earlier and reclaim
+ * Show End. Callers refuse extension into the boundary before reaching here.
+ */
+function resizeConvertedBoundaryEdge(
+  record: ShowRecordV2,
+  clip: ShowClipV2,
+  startMs: number,
+  endMs: number,
+  repair: ConvertedBoundaryRepairV2,
+): ShowTransitionEditResultV2 {
+  const oldEndMs = clip.startMs + clip.durationMs
+  const leading = startMs !== clip.startMs
+  const trackEdit = editShowClipPropertyTracksV2(record, clip, { kind: 'trim', startMs, endMs })
+  const next = structuredClone(record)
+  next.composition.propertyTracks = trackEdit.propertyTracks
+  const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
+  edited.startMs = startMs
+  edited.durationMs = endMs - startMs
+  if (leading) {
+    const held = [...clip.appearance.keys].reverse().find(key => key.timeMs <= startMs) ?? clip.appearance.keys[0]
+    edited.appearance.keys = [
+      { ...structuredClone(held), timeMs: startMs },
+      ...structuredClone(clip.appearance.keys.filter(key => key !== held && key.timeMs > startMs && key.timeMs < oldEndMs)),
+    ]
+  } else {
+    edited.appearance.keys = edited.appearance.keys.filter(key => key.timeMs < endMs)
+  }
+  const committed = commitConvertedBoundaryRepairsV2(record, next, [repair])
+  if (committed.status === 'refused') return refusedResult(record, 'invalid-result', committed.message)
+  const issue = validateShowRecordV2(next)[0]
+  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
+  const moved = new Set([clip.id, ...committed.applied.shiftedClipIds])
+  const unavailable = firstUnavailableContributor(next, [...new Set([...moved, repair.fromClipId, repair.toClipId])])
+  if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
+  return {
+    status: 'changed',
+    record: next,
+    affectedClipIds: [...moved].sort(),
+    affectedTransitionIds: [...new Set([repair.transitionId, ...affectedTransitionIdsFor(record, moved)])].sort(),
+    affectedTrackIds: [...new Set([...trackEdit.affectedTrackIds, ...committed.applied.shiftedTrackIds])].sort(),
+    removedIds: [repair.transitionId],
+  }
+}
+
 function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): ShowTransitionEditResultV2 {
   const clip = record.composition.clips.find(candidate => candidate.id === clipId)!
   const oldEndMs = clip.startMs + clip.durationMs
@@ -272,6 +496,11 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
   const transition = outgoing[0]
   const endpoints = transitionEndpoints(transition)
   if (endpoints.from.length !== 1) return refusedResult(record, 'invalid-topology', 'Resize cannot split a multi-contributor Transition window.')
+  const boundary = convertedBoundaryRepairSpecV2(record, transition.id)
+  if (boundary.status === 'ready') {
+    if (endMs > oldEndMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${boundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
+    return resizeConvertedBoundaryEdge(record, clip, clip.startMs, endMs, boundary.repair)
+  }
   const deltaMs = endMs - oldEndMs
   const affectedClipIds = downstreamClosure(record, endpoints.to)
   if (affectedClipIds.includes(clip.id)) return refusedResult(record, 'invalid-topology', 'Transition topology contains a directed cycle.')
@@ -354,6 +583,11 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   const transition = incoming[0]
   const endpoints = transitionEndpoints(transition)
   if (endpoints.to.length !== 1) return refusedResult(record, 'invalid-topology', 'Resize cannot split a multi-contributor Transition window.')
+  const boundary = convertedBoundaryRepairSpecV2(record, transition.id)
+  if (boundary.status === 'ready') {
+    if (startMs < clip.startMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${boundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
+    return resizeConvertedBoundaryEdge(record, clip, startMs, oldEndMs, boundary.repair)
+  }
   const durationMs = transition.durationMs + startMs - clip.startMs
   if (durationMs < 0) return refusedResult(record, 'invalid-intent', 'Leading resize cannot create a negative Transition duration.')
   if (durationMs === 0) return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })

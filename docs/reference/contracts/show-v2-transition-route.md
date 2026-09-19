@@ -117,6 +117,20 @@ atomic refusal, unrepaired and unwidened by this slice.
 [authenticated flow](../../../e2e/show-v2-transitions.auth.spec.ts) own this proof;
 the packet is [issue-1038-transition-route](../evidence/issue-1038-transition-route/test-design.json).
 
+## Converted-boundary repair on this route (#1068)
+
+`resize-leading`, `resize-trailing` and plan-less `reset-to-cut` consult
+`convertedBoundaryRepairSpecV2` and route a ready converted boundary through the
+same cut-and-reclaim commit the temporal owner uses: the record leaves, the
+downstream side moves earlier by the boundary duration, and Show End and the tail
+Layout occurrence shrink by the same duration. Extension into the boundary
+refuses `invalid-topology`; `reset-to-cut` with projections projects first and
+refuses a stranded activation exactly like the temporal side. `delete-clip`
+performs no shift and no Show End move on any boundary: survivor times are
+preserved exactly and only attached records leave, with projected-track survival
+decided by the projection section above. Full accepted behaviour lives in the
+[clip-temporal contract](show-v2-clip-temporal.md).
+
 ## Ordinary Clip deletion adoption (#1038)
 
 The pilot's explicit ordinary selection can call `admitShowV2PilotClipDelete` with exactly `{kind:'delete-clip',clipId}`. Materialized Group children are not deletion targets. The wrapper delegates to the existing Transition owner: attached visual Transitions and Clip-owned tracks are removed atomically; Property-ramp carrier refusal is preserved. Dormant instance setup, unrelated Group owners, survivor positions and Show End remain unchanged.

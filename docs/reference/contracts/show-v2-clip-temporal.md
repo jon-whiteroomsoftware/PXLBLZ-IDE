@@ -117,6 +117,44 @@ The reusable pure range predicate solves Back and Bezier derivative extrema; it
 never samples or approximates endpoint equality.
 No emitter range, compiler source domain, RL08–RL10 or schema is widened.
 
+## Converted Scene-boundary repair (#1068)
+
+A converted Scene-boundary Transition is a v1 scene edge wearing a
+participant-scope junction shape. Growing it like a native crossfade invents
+choreography v1 never had, so a meeting-edge edit repairs it inside the same
+accepted edit instead. `convertedBoundaryRepairSpecV2` fires only on provenance
+plus exact structure: the Transition carries
+`origin: 'converted-boundary-transition'`, has no whole-output window and exactly
+one participant, holds no `propertyRamps`, names two existing Clips on the
+participant's Zone and Layer, and the junction is exact
+(`from.end + durationMs == to.start`). Native Transitions, converted Layer
+Transitions and whole-output boundaries keep the existing grow/shift behaviour on
+every entry point; a carrier that still holds ramps reports `ramp-carrier` and
+every resize or plan-less reset refuses `unsupported-property-carrier` until an
+explicit projection plan clears it.
+
+A Trim/Extend that moves the meeting edge always commits the repair: the Clip is
+retimed in preimage coordinates first, then `commitConvertedBoundaryRepairsV2`
+drops the boundary record, moves the boundary's downstream side (the
+transition-connected closure of the destination plus every Clip at or after the
+window end) earlier by the boundary duration, lowers Show End by the same
+duration, and shortens the tail Layout occurrence to keep coverage exact.
+Extending into the boundary refuses `invalid-topology` on all four entry points
+(temporal Trim/Extend, `resize-leading`, `resize-trailing`); reset the Transition
+explicitly first. An edge with no meeting boundary never consults the repair, so
+far-edge trims keep the junction and Show End exact.
+
+One repair never invents room: a Clip spanning the reclaimed window end, a tail
+occurrence that cannot absorb the reclaim, a projected activation stranded beyond
+the reclaimed Show End, broken Layout availability or compiler placement refuse
+the whole edit atomically. `reset-to-cut` with a fitting projection plan projects
+first and then commits the same reclaim. Clip deletion commits no repair:
+survivors keep exact times and Show End keeps its value; only the orphan boundary
+record leaves, with deleted-anchored projections dropped per the transition-route
+contract. One accepted edit is one history entry and one save with exact Undo and
+Redo. Direct duration edits (`resize-transition`) on a ready boundary keep the
+generic shift semantics; they are outside the #1068 gaps and do not reclaim.
+
 ## Consumer evidence
 
 [Temporal tests](../../../src/engine/showClipTemporalV2.test.ts) compare reopened
@@ -133,6 +171,15 @@ Precise arithmetic uses binary-exact125ms steps and a five-Q16 sample bound; thi
 not an arbitrary-millisecond exact-state claim. The47-record parity corpus and closed
 v1 schema gate remain unchanged. Named semantic faults and qualification are in the
 [test design](../evidence/issue-1038-clip-temporal/test-design.json).
+
+[Boundary repair tests](../../../src/engine/showConvertedBoundaryRepairV2.test.ts) prove
+the v1 counterexample exactly (requested scene-local offset, Cut, shortened
+loop), one-edit admission with exact Undo and Redo through
+[boundary admission tests](../../../src/store/showV2BoundaryRepairAdmission.test.ts),
+non-firing where the junction survives, native/layer grow preservation,
+ramp-carrier refusals, deleted-anchor projection drops beside survivor-anchored
+retention, and Fast/Fidelity frame equality against both independently authored
+choreography and the v1 repair.
 
 [Re-placement tests](../../../src/engine/showClipReplacePlacementV2.test.ts) compare
 reopened records and reopened `.epe` Fast/Precise output and state against an
