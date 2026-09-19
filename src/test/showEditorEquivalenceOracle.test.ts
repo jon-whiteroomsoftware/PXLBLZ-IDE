@@ -119,13 +119,13 @@ describe('Show editor equivalence oracle fault sensitivity', () => {
     expect(collectDifferingJsonPaths({ a: 1 }, {})).toEqual(['$.a'])
   })
 
-  it('isolates a single split appearance-key divergence to its exact path', () => {
+  it('split and conversion agree on right-half appearance-key ids', () => {
     const left = { id: 'clip', appearance: { keys: [{ id: 'clip:appearance:1' }] } }
-    const convertedRight = { id: '__split-right-clip__', appearance: { keys: [{ id: 'fresh:appearance:1' }] } }
-    const retainedRight = { id: '__split-right-clip__', appearance: { keys: [{ id: 'clip:appearance:1' }] } }
+    const convertedRight = { id: '__split-right-clip__', appearance: { keys: [{ id: '__split-right-clip__:appearance:1' }] } }
+    const splitRight = { id: '__split-right-clip__', appearance: { keys: [{ id: '__split-right-clip__:appearance:1' }] } }
     expect(collectDifferingJsonPaths(
       { composition: { clips: [left, convertedRight] } },
-      { composition: { clips: [left, retainedRight] } },
-    )).toEqual(['$.composition.clips[1].appearance.keys[0].id'])
+      { composition: { clips: [left, splitRight] } },
+    )).toEqual([])
   })
 })

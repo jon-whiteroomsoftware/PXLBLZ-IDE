@@ -68,9 +68,35 @@ it('splits a connected Clip with incoming endpoints on the left and outgoing end
   expect(next.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs, clip.entryPolicy])).toEqual([['before', 0, 100, 'continue'], ['selected', 200, 200, 'restart'], ['right', 400, 200, 'continue'], ['after', 700, 300, 'continue']])
   expect(next.composition.transitions[0].participants[0].toClipId).toBe('selected')
   expect(next.composition.transitions[1].participants[0].fromClipId).toBe('right')
-  expect(next.composition.clips[2].appearance.keys[0]).toMatchObject({ id: 'dim', timeMs: 400, value: { opacity: 0.5 } })
+  expect(next.composition.clips[2].appearance.keys[0]).toMatchObject({ id: 'right:appearance:1', timeMs: 400, value: { opacity: 0.5 } })
   expect(next.composition.patternInstances).toEqual(source.composition.patternInstances)
   expect(source).toEqual(prior)
+})
+
+it('mints conversion-style appearance-key ids on the split right half (#1068 gap 5)', () => {
+  const source = fixture()
+  const selected = source.composition.clips[1]
+  const value = structuredClone(selected.appearance.keys[0].value)
+  selected.appearance.keys = [{ id: 'selected:appearance:1', timeMs: 200, value }]
+  source.composition.transitions = []
+  expect(validateShowRecordV2(source)).toEqual([])
+  const result = editShowClipTemporalV2(source, { kind: 'split', clipId: 'selected', atMs: 400, rightClipId: 'right' })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  const next = reopen(result.record)
+  expect(next.composition.clips[1].appearance.keys).toEqual([{ id: 'selected:appearance:1', timeMs: 200, value }])
+  expect(next.composition.clips[2].appearance.keys).toEqual([{ id: 'right:appearance:1', timeMs: 400, value }])
+  expect(result.affectedAppearanceKeyIds).toEqual(['right:appearance:1'])
+  expect(result.removedIds).toEqual([])
+})
+
+it('renumbers a multi-key split right half from one under the right Clip id (#1068 gap 5)', () => {
+  const source = fixture()
+  const result = editShowClipTemporalV2(source, { kind: 'split', clipId: 'selected', atMs: 300, rightClipId: 'right' })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  const next = reopen(result.record)
+  expect(next.composition.clips[2].appearance.keys.map(key => [key.id, key.timeMs])).toEqual([['right:appearance:1', 300], ['right:appearance:2', 400]])
 })
 
 it('moves a component once with a held Group user while shared global animation stays fixed', () => {

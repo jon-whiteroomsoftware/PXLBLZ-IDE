@@ -41,7 +41,7 @@ right Clip ID. Left retains identity, incoming endpoints and Restart. Right shar
 its runtime and uses Continue; outgoing participant endpoints, whole-output outgoing
 contributors and outgoing Clip-ramp targets retarget right. Clip tracks partition
 exactly and use collision-safe existing fresh-piece identities reserved against the
-complete effective Group projection. Instance tracks remain one global owner.
+complete effective Group projection. The right half's appearance keys are re-derived from the right Clip ID as `<rightClipId>:appearance:<n>`, numbered from 1 in retained order exactly as conversion mints them; the left half keeps its appearance-key ids with its identity. Instance tracks remain one global owner.
 Definitions, bindings, payloads, held Group time and unrelated tracks remain exact.
 
 Complete candidate structure, Layout contribution coverage (including pre-roll and

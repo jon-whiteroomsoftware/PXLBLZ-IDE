@@ -121,7 +121,7 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     edited.durationMs = intent.atMs - clip.startMs
     edited.appearance.keys = retainedAppearance(clip, clip.startMs, intent.atMs)
     next.composition.clips.splice(next.composition.clips.indexOf(edited) + 1, 0, {
-      ...structuredClone(clip), id: intent.rightClipId, startMs: intent.atMs, durationMs: oldEndMs - intent.atMs, entryPolicy: 'continue', appearance: { keys: retainedAppearance(clip, intent.atMs, oldEndMs) },
+      ...structuredClone(clip), id: intent.rightClipId, startMs: intent.atMs, durationMs: oldEndMs - intent.atMs, entryPolicy: 'continue', appearance: { keys: retainedAppearance(clip, intent.atMs, oldEndMs).map((key, index) => ({ ...key, id: `${intent.rightClipId}:appearance:${index + 1}` })) },
     })
     for (const transition of next.composition.transitions) {
       if (transition.wholeOutput) transition.wholeOutput.fromClipIds = transition.wholeOutput.fromClipIds.map(id => id === clip.id ? intent.rightClipId : id)
