@@ -427,17 +427,25 @@ server startup, and release their state after the run. See
 [`dev-runtime.md`](dev-runtime.md) for the shared-versus-isolated contract.
 The harness enables the Agent service with no static OAuth clients and seeds
 64 test accounts per parallel worker. Each running worker assigns its tests
-successive accounts from a cursor persisted in the run's temp dir, so a
-restarted worker continues with fresh accounts instead of reusing the dead
-process's accounts inside the agent-registration TTL; pre-use
-personal-content cleanup and isolated D1 teardown remove synthetic data
-before each test and after browser pages have closed.
+successive accounts from a cursor persisted in the run's temp dir together
+with each account's last-use timestamp: an account is reused only after the
+agent-registration TTL (300 s) plus margin has elapsed since its last use,
+so a restarted worker advances past the dead process's accounts while a long
+single-worker suite wraps within its pool instead of exhausting it. When
+every account in the slot is still inside the TTL the allocator throws
+loudly rather than reusing a live account, which requires a single worker
+slot to average about one test per 5.6 s. Pre-use personal-content cleanup
+and isolated D1 teardown remove synthetic data before each test and after
+browser pages have closed.
 
 Agent-window hygiene is a harness rule, never a product allowance: fixture
 teardown sends the product's own `leave` for every registration the page was
-observed to acquire (bounded wait, never throwing, including after failed
-tests), while a 409 from `/api/agent/channel` still fails the boundary's
-unexpected-browser-errors check. The fixture also appends every account allocation to `agent-account-allocations.jsonl` in the run temp dir, so a probe can audit whether a later test reused a dead worker account. Navigation-based release would not work here: `page.goto` and `about:blank` unload the document, and although the editor attempts `leave` on `pagehide`, that POST is a plain fetch with no keepalive, so the unload cancels it before it lands; only the persisted cursor holds for crashed pages and timed-out gestures.
+observed to acquire, posted from the page context itself (keepalive
+same-origin fetch, so the browser attaches the Origin header the route
+requires) with a request-fixture fallback carrying an explicit Origin header
+matching the runtime origin (bounded wait, never throwing, including after
+failed tests), while a 409 from `/api/agent/channel` still fails the
+boundary's unexpected-browser-errors check. The fixture also appends every account allocation to `agent-account-allocations.jsonl` in the run temp dir, so a probe can audit whether a later test reused a dead worker account. Navigation-based release would not work here: `page.goto` and `about:blank` unload the document, and although the editor attempts `leave` on `pagehide`, that POST is a plain fetch with no keepalive, so the unload cancels it before it lands; only the persisted cursor holds for crashed pages and timed-out gestures.
 
 ### Visual Effects Guide screenshots
 

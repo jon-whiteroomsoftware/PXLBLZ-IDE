@@ -4,7 +4,9 @@ import { readDevVarsFile } from '../../scripts/dev-runtime-auth'
 import { authenticatedPlaywrightAccountIndex, authenticatedPlaywrightUser } from '../../scripts/authenticated-playwright-user'
 import {
   AGENT_OBSERVE_SETTLE_MS,
+  accountSlotForSequence,
   allocatePersistedAccountSequence,
+  channelOrigin,
   logAccountAllocation,
   observeAgentChannel,
   releaseAgentRegistrations,
@@ -27,14 +29,19 @@ export const test = base.extend<AuthenticatedFixtures>({
     const devVarsFile = requiredEnvironment('PXLBLZ_DEV_VARS_FILE')
     const secret = process.env.SESSION_SECRET ?? readDevVarsFile(devVarsFile).SESSION_SECRET
     if (!secret) throw new Error(`SESSION_SECRET is required in ${devVarsFile} or the shell environment.`)
-    // The cursor is persisted per parallel worker in the run's own temp dir,
-    // so a restarted worker process continues with fresh accounts instead of
-    // reusing the dead process's accounts inside the registration TTL (#1064).
-    // Without the run dir (ad-hoc runs) this falls back to a process-local
-    // sequence, exactly the old behavior.
+    // The cursor is persisted per parallel worker in the run's own temp dir
+    // with each account's last-use timestamp, so a restarted worker process
+    // continues the sequence instead of reusing the dead process's accounts
+    // inside the registration TTL (#1064). An account wraps back into use
+    // only after the TTL plus margin has elapsed since its last use, which
+    // keeps long single-worker suites inside their 64-account pool; when
+    // every account is still inside the TTL the allocator throws loudly
+    // instead of silently reusing a live account. Without the run dir
+    // (ad-hoc runs) this falls back to a process-local cursor under the
+    // same rule, which cannot survive a worker restart.
     const directory = persistenceDirectory()
     const sequence = allocatePersistedAccountSequence(directory, workerInfo.parallelIndex)
-    const accountIndex = authenticatedPlaywrightAccountIndex(workerInfo.parallelIndex, sequence)
+    const accountIndex = authenticatedPlaywrightAccountIndex(workerInfo.parallelIndex, accountSlotForSequence(sequence))
     logAccountAllocation(directory, { parallelIndex: workerInfo.parallelIndex, sequence, accountIndex })
     const token = await createSessionToken(
       authenticatedPlaywrightUser(accountIndex),
@@ -63,7 +70,7 @@ export const test = base.extend<AuthenticatedFixtures>({
     await use(page)
   },
 
-  authenticatedBoundary: [async ({ page, request, allowedBrowserErrors }, use) => {
+  authenticatedBoundary: [async ({ page, request, baseURL, allowedBrowserErrors }, use) => {
     // Each test receives a separate account. This pre-use cleanup also makes
     // worker-restart account reuse deterministic without deleting an active
     // page's Show underneath its save and Agent callbacks during teardown.
@@ -77,7 +84,7 @@ export const test = base.extend<AuthenticatedFixtures>({
     registrationTracker.stop()
     errorWatch.stop()
     await registrationTracker.settled()
-    await releaseAgentRegistrations(request, registrationTracker.pending())
+    await releaseAgentRegistrations({ page, request, origin: channelOrigin(baseURL) }, registrationTracker.pending())
     const unexpected = errorWatch.errors.filter((error) => !allowedBrowserErrors.some((allowed) => allowed.test(error)))
     expect(unexpected, `Unexpected browser errors:\n${unexpected.join('\n')}`).toEqual([])
   }, { auto: true }],
