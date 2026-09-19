@@ -5,8 +5,8 @@ import {
   type ShowRecordV2,
   type ShowTransitionV2,
 } from './showCompositionV2'
-import { effectiveShowInstanceUseCountV2 } from './showGroupsV2'
-import { validateClipLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
+import { effectiveShowInstanceUseCountV2, groupOccurrenceDuration } from './showGroupsV2'
+import { showLayoutOccurrenceAtTimeV2, validateClipLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import {
   editShowClipPropertyTracksV2,
   projectShowTransitionPropertyRampsV2,
@@ -54,6 +54,9 @@ interface ShowTransitionEditAffectedV2 {
   affectedClipIds: string[]
   affectedTransitionIds: string[]
   affectedTrackIds: string[]
+  affectedLayoutOccurrenceIds: string[]
+  affectedMarkerIds: string[]
+  affectedGroupOccurrenceIds: string[]
   removedIds: string[]
 }
 
@@ -96,7 +99,8 @@ export function editShowTransitionV2(
   intent: ShowTransitionEditIntentV2,
 ): ShowTransitionEditResultV2 {
   const empty = (): ShowTransitionEditAffectedV2 => ({
-    affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [], removedIds: [],
+    affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [],
+    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   })
   const refuse = (code: ShowTransitionEditRefusalV2, message: string): ShowTransitionEditResultV2 => ({
     status: 'refused', record, code, message, ...empty(),
@@ -147,6 +151,7 @@ export function editShowTransitionV2(
       affectedClipIds: [clip.id],
       affectedTransitionIds: removedTransitionIds.sort(),
       affectedTrackIds: [...new Set([...projectedTrackIds, ...removedTrackIds])].sort(),
+      affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [],
       removedIds: [clip.id, ...removedTransitionIds, ...removedTrackIds].sort(),
     }
   }
@@ -178,7 +183,7 @@ export function editShowTransitionV2(
     if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction.message)
     return {
       status: 'changed', record: next, affectedClipIds: [], affectedTransitionIds: [current.id],
-      affectedTrackIds: [], removedIds: [],
+      affectedTrackIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
     }
   }
 
@@ -354,6 +359,9 @@ export interface ConvertedBoundaryRepairAppliedV2 {
   shiftedClipIds: string[]
   shiftedTrackIds: string[]
   shortenedLayoutOccurrenceIds: string[]
+  shiftedLayoutOccurrenceIds: string[]
+  shiftedMarkerIds: string[]
+  shiftedGroupOccurrenceIds: string[]
   reclaimedMs: number
 }
 
@@ -378,6 +386,9 @@ export function commitConvertedBoundaryRepairsV2(
   const shiftedClipIds = new Set<string>()
   const shiftedTrackIds = new Set<string>()
   const shortenedLayoutOccurrenceIds = new Set<string>()
+  const shiftedLayoutOccurrenceIds = new Set<string>()
+  const shiftedMarkerIds = new Set<string>()
+  const shiftedGroupOccurrenceIds = new Set<string>()
   let reclaimedMs = 0
   for (const repair of ordered) {
     if (!next.composition.transitions.some(candidate => candidate.id === repair.transitionId)) {
@@ -391,6 +402,13 @@ export function commitConvertedBoundaryRepairsV2(
         return { status: 'refused', message: `Clip "${clip.id}" spans the reclaimed boundary window ending at ${repair.windowEndMs} ms; split or trim it away from the boundary first.` }
       }
     }
+    for (const group of record.composition.groupOccurrences) {
+      const definition = record.composition.groupDefinitions.find(candidate => candidate.id === group.definitionId)
+      const occurrenceEndMs = group.startMs + (definition ? groupOccurrenceDuration(definition, group) : 0)
+      if (group.startMs < repair.windowEndMs && occurrenceEndMs > repair.windowEndMs) {
+        return { status: 'refused', message: `Group occurrence "${group.id}" spans the reclaimed boundary window ending at ${repair.windowEndMs} ms; move it away from the boundary first.` }
+      }
+    }
     next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== repair.transitionId)
     const movedTrackIds = applyShowTransitionClipShiftV2(record, next, [...shiftIds], -durationMs, [repair.transitionId])
     for (const id of shiftIds) shiftedClipIds.add(id)
@@ -398,6 +416,26 @@ export function commitConvertedBoundaryRepairsV2(
     next.composition.showEndMs -= durationMs
     reclaimedMs += durationMs
     removedTransitionIds.push(repair.transitionId)
+    // Converted Scene labels materialize v1 Scene starts, which move with the
+    // reclaim; authored guides are absolute Show times v1 leaves on the same
+    // edit, so they stay. Membership reads the pre-edit record so stacked
+    // repairs compose additively.
+    for (const marker of record.composition.markers) {
+      if (marker.origin !== 'converted-scene-label' || marker.timeMs < repair.windowEndMs) continue
+      next.composition.markers.find(candidate => candidate.id === marker.id)!.timeMs -= durationMs
+      shiftedMarkerIds.add(marker.id)
+    }
+    // Group occurrences are global Show times; v1 anchors the same content to
+    // its Scene start, which the reclaim moves, so the occurrence and its
+    // track activation move with the downstream side. Holds and definition
+    // content stay definition-local.
+    for (const group of record.composition.groupOccurrences) {
+      if (group.startMs < repair.windowEndMs) continue
+      const live = next.composition.groupOccurrences.find(candidate => candidate.id === group.id)!
+      live.startMs -= durationMs
+      if (live.trackActivation) live.trackActivation.startMs -= durationMs
+      shiftedGroupOccurrenceIds.add(group.id)
+    }
     // The reclaimed window leaves Layout coverage from inside one occurrence:
     // that occurrence absorbs the reclaim and every later occurrence moves
     // earlier by the same duration, so shifted content keeps its Layout. A
@@ -420,10 +458,32 @@ export function commitConvertedBoundaryRepairsV2(
       return { status: 'refused', message: `Layout occurrence "${owner.id}" cannot absorb the reclaimed ${durationMs} ms boundary window; consolidate Layouts first.` }
     }
     live.durationMs -= durationMs
+    const shiftedLayoutIdsThisRepair = new Set<string>()
     for (const later of orderedOccurrences.slice(ownerIndex + 1)) {
       next.composition.layoutOccurrences.find(candidate => candidate.id === later.id)!.startMs -= durationMs
+      shiftedLayoutOccurrenceIds.add(later.id)
+      shiftedLayoutIdsThisRepair.add(later.id)
     }
     shortenedLayoutOccurrenceIds.add(owner.id)
+    // Layout-owned animation is anchored to its occurrence interval: the
+    // owning occurrence absorbs the reclaim in place, so its tracks stay, but
+    // a shifted occurrence carries its tracks with it.
+    for (const track of next.composition.propertyTracks) {
+      if (track.target.kind !== 'layout-occurrence-split-position') continue
+      if (!shiftedLayoutIdsThisRepair.has(track.target.layoutOccurrenceId)) continue
+      track.activeStartMs -= durationMs
+      track.keyframes.forEach(keyframe => { keyframe.timeMs -= durationMs })
+      shiftedTrackIds.add(track.id)
+    }
+  }
+  // A shifted occurrence keeps its Layout association exact. Ownership is
+  // preserved by construction (the owner absorbs, later occurrences move
+  // rigidly), so this rebinds a stale binding instead of inventing one; an
+  // unshifted occurrence keeps the binding the preimage validated.
+  for (const id of shiftedGroupOccurrenceIds) {
+    const shifted = next.composition.groupOccurrences.find(candidate => candidate.id === id)!
+    const association = showLayoutOccurrenceAtTimeV2(next, shifted.startMs)
+    if (association && association.id !== shifted.layoutOccurrenceId) shifted.layoutOccurrenceId = association.id
   }
   return {
     status: 'applied',
@@ -432,6 +492,9 @@ export function commitConvertedBoundaryRepairsV2(
       shiftedClipIds: [...shiftedClipIds].sort(),
       shiftedTrackIds: [...shiftedTrackIds].sort(),
       shortenedLayoutOccurrenceIds: [...shortenedLayoutOccurrenceIds].sort(),
+      shiftedLayoutOccurrenceIds: [...shiftedLayoutOccurrenceIds].sort(),
+      shiftedMarkerIds: [...shiftedMarkerIds].sort(),
+      shiftedGroupOccurrenceIds: [...shiftedGroupOccurrenceIds].sort(),
       reclaimedMs,
     },
   }
@@ -455,6 +518,9 @@ function resetConvertedBoundaryToCut(record: ShowRecordV2, repair: ConvertedBoun
     affectedClipIds: [...moved].sort(),
     affectedTransitionIds: [...new Set([repair.transitionId, ...affectedTransitionIdsFor(record, moved)])].sort(),
     affectedTrackIds: committed.applied.shiftedTrackIds,
+    affectedLayoutOccurrenceIds: [...new Set([...committed.applied.shortenedLayoutOccurrenceIds, ...committed.applied.shiftedLayoutOccurrenceIds])].sort(),
+    affectedMarkerIds: committed.applied.shiftedMarkerIds,
+    affectedGroupOccurrenceIds: committed.applied.shiftedGroupOccurrenceIds,
     removedIds: [repair.transitionId],
   }
 }
@@ -503,6 +569,9 @@ function resizeConvertedBoundaryEdge(
     affectedClipIds: [...moved].sort(),
     affectedTransitionIds: [...new Set([repair.transitionId, ...affectedTransitionIdsFor(record, moved)])].sort(),
     affectedTrackIds: [...new Set([...trackEdit.affectedTrackIds, ...committed.applied.shiftedTrackIds])].sort(),
+    affectedLayoutOccurrenceIds: [...new Set([...committed.applied.shortenedLayoutOccurrenceIds, ...committed.applied.shiftedLayoutOccurrenceIds])].sort(),
+    affectedMarkerIds: committed.applied.shiftedMarkerIds,
+    affectedGroupOccurrenceIds: committed.applied.shiftedGroupOccurrenceIds,
     removedIds: [repair.transitionId],
   }
 }
@@ -555,7 +624,8 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
     status: 'changed', record: next,
     affectedClipIds: [clip.id, ...affectedClipIds].sort(),
     affectedTransitionIds: affectedTransitionIdsFor(record, new Set([clip.id, ...affectedClipIds])),
-    affectedTrackIds: [...new Set([...trackEdit.affectedTrackIds, ...shiftedTrackIds])].sort(), removedIds: [],
+    affectedTrackIds: [...new Set([...trackEdit.affectedTrackIds, ...shiftedTrackIds])].sort(),
+    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
 }
 
@@ -638,13 +708,15 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
   return {
     status: 'changed', record: next, affectedClipIds: [clip.id], affectedTransitionIds: [transition.id],
-    affectedTrackIds: trackEdit.affectedTrackIds.sort(), removedIds: [],
+    affectedTrackIds: trackEdit.affectedTrackIds.sort(),
+    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
 }
 
 function unchangedResult(record: ShowRecordV2): ShowTransitionEditResultV2 {
   return {
-    status: 'unchanged', record, affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [], removedIds: [],
+    status: 'unchanged', record, affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [],
+    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
 }
 
@@ -695,6 +767,7 @@ function commitShift(
     affectedClipIds: [...moved].sort(),
     affectedTransitionIds,
     affectedTrackIds: affectedTrackIds.sort(),
+    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [],
     removedIds: [...removedIds].sort(),
   }
 }
@@ -737,7 +810,8 @@ function refusedResult(
 ): ShowTransitionEditResultV2 {
   return {
     status: 'refused', record, code, message,
-    affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [], removedIds: [],
+    affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [],
+    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
 }
 

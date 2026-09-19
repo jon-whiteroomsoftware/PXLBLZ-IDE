@@ -138,19 +138,53 @@ retimed in preimage coordinates first, then `commitConvertedBoundaryRepairsV2`
 drops the boundary record, moves the boundary's downstream side (the
 transition-connected closure of the destination plus every Clip at or after the
 window end) earlier by the boundary duration, lowers Show End by the same
-duration, shortens the Layout occurrence that owns the reclaimed window, and
-moves every later occurrence earlier by the same duration to keep coverage
-exact. A window that is not inside one occurrence, or an owning occurrence that
-cannot cover the reclaim, refuses the whole edit atomically.
+duration, shortens the Layout occurrence that owns the reclaimed window, moves
+every later occurrence earlier by the same duration to keep coverage exact,
+shifts converted Scene labels and Group occurrences at or after the window end
+earlier by the same duration, and carries Layout-owned tracks of shifted
+occurrences along. A window that is not inside one occurrence, or an owning
+occurrence that cannot cover the reclaim, refuses the whole edit atomically.
 Extending into the boundary refuses `invalid-topology` on all four entry points
 (temporal Trim/Extend, `resize-leading`, `resize-trailing`); reset the Transition
 explicitly first. An edge with no meeting boundary never consults the repair, so
 far-edge trims keep the junction and Show End exact.
 
-One repair never invents room: a Clip spanning the reclaimed window end, a tail
+Time-anchored record inventory for the reclaim. The commit moves exactly the
+content whose Show-time anchor moved, mirroring what v1 does to the same window
+when its connected resize reclaims it (`resizeShowConnectedClipInShowAtGlobalTime`
+shifts the downstream chain and shortens its loop while Scene starts follow):
+ordinary Clips at or after the window end shift with their appearance keys,
+Clip- and sole-instance-owned Property tracks, and whole-output windows whose
+endpoints all move, while participant Transition windows follow their endpoint
+Clips with no record of their own. Converted Scene labels
+(`origin: 'converted-scene-label'`) at or after the window end shift: they
+materialize v1 Scene starts, which the reclaim moves, and the Scene-2 label sits
+exactly at the window end on every converted Show. Authored Markers (including
+absorbed chapter guides) stay: v1 global guides never move under any edit,
+including this reclaim. Group occurrences at or after the window end shift
+`startMs` and `trackActivation.startMs` together and re-verify the Layout
+association: v1 anchors the same content Scene-locally, so it rides the moving
+Scene start, while Holds and definition content stay definition-local. Layout
+occurrences keep coverage exact (the owner absorbs with a fixed start, later
+ones move rigidly); `incomingTransfer` rides its occurrence start and
+`incomingSwitch` provenance is inert. Layout-owned Property tracks of shifted
+occurrences move with their occurrence; tracks of the absorbing owner stay, and
+a window that no longer fits refuses at validation. Global envelopes
+(`show-repeat-scale`, shared-instance tracks), Pattern instances, Layers,
+definitions and routing stay: no Show-time anchor moved. A Group occurrence
+starting exactly at the window end is unrepresentable while the boundary lives
+(RL09 forbids unrelated content starting at or inside a Layer Transition
+window), so the boundary-inclusive shift rule mirrors the Clip rule while its
+equality arm stays uninhabited.
+
+One repair never invents room: a Clip or Group occurrence spanning the reclaimed
+window end, a tail
 occurrence that cannot absorb the reclaim, a projected activation stranded beyond
 the reclaimed Show End, broken Layout availability or compiler placement refuse
-the whole edit atomically. `reset-to-cut` with a fitting projection plan projects
+the whole edit atomically. The planner mirrors the Clip- and Group-span guards
+and the Layout-absorption guard so a gesture the owner would refuse never paints
+a preview; ramp carriers, Layout availability and compiler placement stay
+owner-side, exactly as for every other connected gesture. `reset-to-cut` with a fitting projection plan projects
 first and then commits the same reclaim. Clip deletion commits no repair:
 survivors keep exact times and Show End keeps its value; only the orphan boundary
 record leaves, with deleted-anchored projections dropped per the transition-route
@@ -159,7 +193,12 @@ Redo. Direct duration edits (`resize-transition`) with a nonzero duration on a
 ready boundary keep the generic shift semantics; they are outside the #1068 gaps
 and do not reclaim. Setting the duration to 0 routes through `reset-to-cut` and
 commits the same cut-and-reclaim as a detach-away resize (a carrier that still
-holds Property ramps refuses without an explicit projection plan first).
+holds Property ramps refuses without an explicit projection plan first). Both
+routes report every occurrence the repair touched: shortened plus shifted Layout
+occurrences, shifted converted labels, and shifted Group occurrences (temporal
+`affectedLayoutOccurrenceIds` / `affectedMarkerIds` /
+`affectedGroupOccurrenceIds`, and the same three collections on the transition
+result).
 
 ## Consumer evidence
 

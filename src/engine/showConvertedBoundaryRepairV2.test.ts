@@ -7,11 +7,13 @@ import { buildShowEpeExport } from './showEpeExport'
 import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { deleteShowClipInShow } from './showClipDeletion'
-import { createDefaultShow, showLoopDurationMs, showRecordToCompileRecipe } from './showModel'
+import { createDefaultShow, projectShowTimeline, showLoopDurationMs, showRecordToCompileRecipe } from './showModel'
 import { projectFlatShowToCompositionV1 } from './showCompositionModel'
 import { resizeShowConnectedClipInShowAtGlobalTime } from './showLayerTransitionAuthoring'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { createShowGroupFromSelectionV2 } from './showGroupCreationV2'
+import { materializeShowGroupsV2 } from './showGroupsV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { editShowClipTemporalV2 } from './showClipTemporalV2'
 import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
@@ -597,3 +599,226 @@ function deleteShowClipInShowV1(
   if (outcome.status !== 'applied') throw new Error(`v1 delete refused: ${outcome.status}`)
   return outcome.record
 }
+describe('converted Scene-boundary repair moves every Show-time anchor (#1068 P1s)', () => {
+  const OVERLAY = 'overlay-probe'
+  const LAYOUT_B = 'layout-occurrence:probe-b'
+  const GROUP_AFTER = 'group-after'
+
+  function probeClip(donor: ShowRecordV2['composition']['clips'][number], id: string, startMs: number, durationMs: number) {
+    return {
+      ...structuredClone(donor),
+      id,
+      layerId: OVERLAY,
+      startMs,
+      durationMs,
+      appearance: {
+        keys: [{ ...structuredClone(donor.appearance.keys[0]), id: `${id}-key`, timeMs: startMs }],
+      },
+    }
+  }
+
+  function groupIntent(record: ShowRecordV2, clipId: string, definitionId: string, occurrenceId: string) {
+    const clip = record.composition.clips.find(candidate => candidate.id === clipId)!
+    const local = (id: string): string => `local-${occurrenceId}-${id}`
+    const map = (ids: string[]): Record<string, string> => Object.fromEntries(ids.map(id => [id, local(id)]))
+    return {
+      kind: 'create-group' as const,
+      selectedClipIds: [clipId],
+      transitionIds: [] as string[],
+      definitionId,
+      occurrenceId,
+      name: occurrenceId,
+      originMs: clip.startMs,
+      identities: {
+        patternInstanceIds: map([clip.instanceId]),
+        layerIds: map([clip.layerId]),
+        clipIds: map([clipId]),
+        transitionIds: {},
+        propertyTrackIds: {},
+        appearanceKeyIdsByClipId: { [clipId]: map(clip.appearance.keys.map(key => key.id)) },
+        propertyKeyIdsByTrackId: {},
+      },
+    }
+  }
+
+  function groupOne(record: ShowRecordV2, clipId: string, definitionId: string, occurrenceId: string): ShowRecordV2 {
+    const result = createShowGroupFromSelectionV2(record, groupIntent(record, clipId, definitionId, occurrenceId))
+    expect(result.status, JSON.stringify(result)).toBe('changed')
+    if (result.status !== 'changed') throw new Error('Group setup refused')
+    return result.record
+  }
+
+  /**
+   * Converted default plus an authored guide, Layouts split exactly at the
+   * reclaim boundary, and one real Group after the window carrying a
+   * converter-shaped track activation. A Group starting exactly at the window
+   * end is unrepresentable while the boundary lives: RL09 forbids unrelated
+   * content starting at or inside a Layer Transition window, so only the
+   * converted scene label and the later Layout occurrence cover the
+   * boundary-exact case.
+   */
+  function convertedAnchoredShow(): ShowRecordV2 {
+    let record = convertedDefaultShow()
+    record.composition.markers.push({ id: 'guide-after', timeMs: 40000, name: 'After' })
+    const split = editShowLayoutIntervalsV2(record, {
+      kind: 'insert', occurrenceId: LAYOUT_B, atMs: 32000, layoutId: record.zoneLayouts[0].id,
+    })
+    expect(split.status, JSON.stringify(split)).toBe('changed')
+    if (split.status !== 'changed') throw new Error('Layout setup refused')
+    record = split.record
+    record.composition.propertyTracks.push({
+      id: 'layout-track-b',
+      target: { kind: 'layout-occurrence-split-position', layoutOccurrenceId: LAYOUT_B },
+      activeStartMs: 42000,
+      activeDurationMs: 4000,
+      keyframes: [
+        { id: 'layout-track-b-start', timeMs: 42000, value: 0.2, easing: { curve: 'linear' } },
+        { id: 'layout-track-b-end', timeMs: 46000, value: 0.8, easing: { curve: 'linear' } },
+      ],
+    })
+    const zoneId = record.zones[0].id
+    record.composition.layers.push({ id: OVERLAY, zoneId, name: 'Probe', rank: 1 })
+    const donor = record.composition.clips.find(clip => clip.id === RIGHT)!
+    record.composition.clips.push(probeClip(donor, 'probe-after', 40000, 6000))
+    expect(validateShowRecordV2(record), 'probe clip validates').toEqual([])
+    record = groupOne(record, 'probe-after', 'def-after', GROUP_AFTER)
+    const after = record.composition.groupOccurrences.find(occurrence => occurrence.id === GROUP_AFTER)!
+    after.trackActivation = { startMs: after.startMs, durationMs: 6000 }
+    expect(validateShowRecordV2(record), 'grouped fixture validates').toEqual([])
+    return record
+  }
+
+  /** One real Group whose materialized content spans the reclaimed window end. */
+  function convertedSpanningGroupShow(): ShowRecordV2 {
+    let record = convertedDefaultShow()
+    const zoneId = record.zones[0].id
+    record.composition.layers.push({ id: OVERLAY, zoneId, name: 'Probe', rank: 1 })
+    const donor = record.composition.clips.find(clip => clip.id === RIGHT)!
+    record.composition.clips.push(probeClip(donor, 'probe-span', 28000, 8000))
+    expect(validateShowRecordV2(record), 'probe clip validates').toEqual([])
+    record = groupOne(record, 'probe-span', 'def-span', 'group-span')
+    expect(validateShowRecordV2(record), 'spanning fixture validates').toEqual([])
+    return record
+  }
+
+  function sceneLabel(record: ShowRecordV2, timeMs: number) {
+    const marker = record.composition.markers.find(candidate => candidate.origin === 'converted-scene-label' && candidate.timeMs === timeMs)!
+    expect(marker, `converted scene label at ${timeMs}`).toBeDefined()
+    return marker
+  }
+
+  it('shifts converted scene labels and a later Group on the temporal route and reports every touched occurrence', () => {
+    const source = convertedAnchoredShow()
+    const before = structuredClone(source)
+    const labelId = sceneLabel(source, 32000).id
+    const result = editShowClipTemporalV2(source, { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(source).toEqual(before)
+    const next = reopen(result.record)
+    expect(next.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+      [LEFT, 0, 30000],
+      [RIGHT, 34000, 26000],
+    ])
+    expect(next.composition.showEndMs).toBe(60000)
+    expect(next.composition.markers.map(marker => [marker.id, marker.timeMs])).toContainEqual([labelId, 30000])
+    expect(next.composition.markers.find(marker => marker.id === 'guide-after')?.timeMs).toBe(40000)
+    expect(next.composition.markers.find(marker => marker.origin === 'converted-scene-label' && marker.timeMs === 0)).toBeDefined()
+    const after = next.composition.groupOccurrences.find(occurrence => occurrence.id === GROUP_AFTER)!
+    expect(after.startMs).toBe(38000)
+    expect(after.trackActivation).toMatchObject({ startMs: 38000, durationMs: 6000 })
+    expect(after.layoutOccurrenceId).toBe(LAYOUT_B)
+    expect(next.composition.layoutOccurrences.map(occurrence => [occurrence.id, occurrence.startMs, occurrence.durationMs])).toEqual([
+      ['layout-occurrence:1', 0, 30000],
+      [LAYOUT_B, 30000, 30000],
+    ])
+    const effective = materializeShowGroupsV2(next).composition.clips
+    expect(effective.find(clip => clip.id === `${GROUP_AFTER}:local-${GROUP_AFTER}-probe-after`)?.startMs).toBe(38000)
+    const layoutTrack = next.composition.propertyTracks.find(track => track.id === 'layout-track-b')!
+    expect(layoutTrack.activeStartMs).toBe(40000)
+    expect(layoutTrack.keyframes.map(key => key.timeMs)).toEqual([40000, 44000])
+    expect(result.affectedTrackIds).toContain('layout-track-b')
+    expect(result.affectedLayoutOccurrenceIds).toEqual(['layout-occurrence:1', LAYOUT_B])
+    expect(result.affectedMarkerIds).toEqual([labelId])
+    expect(result.affectedGroupOccurrenceIds).toEqual([GROUP_AFTER])
+    expect(validateShowRecordV2(next)).toEqual([])
+  })
+
+  it('matches v1 scene starts with converted labels after the same repair', () => {
+    const { show, composition } = v1ProjectedDefaultShow()
+    const resized = resizeShowConnectedClipInShowAtGlobalTime(show, composition, {
+      owner: { kind: 'main', sceneId: show.scenes[1].id, zoneId: show.zones[0].id, placementId: RIGHT },
+      globalStartMs: 36000,
+      durationMs: 26000,
+    })
+    const sceneStarts = projectShowTimeline(resized).scenes.map(scene => [scene.sceneId, scene.startMs])
+    expect(sceneStarts[1][1]).toBe(30000)
+    const repaired = editShowClipTemporalV2(convertedAnchoredShow(), { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 })
+    expect(repaired.status).toBe('changed')
+    if (repaired.status !== 'changed') return
+    const labels = repaired.record.composition.markers
+      .filter(marker => marker.origin === 'converted-scene-label')
+      .sort((left, right) => left.timeMs - right.timeMs)
+    expect(labels.map(marker => marker.timeMs)).toEqual(sceneStarts.map(([, startMs]) => startMs))
+  })
+
+  it('shifts the same anchors through the connected route and reports them there', () => {
+    const source = convertedAnchoredShow()
+    const labelId = sceneLabel(source, 32000).id
+    const result = editShowTransitionV2(source, { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+      [LEFT, 0, 30000],
+      [RIGHT, 34000, 26000],
+    ])
+    expect(result.record.composition.markers.map(marker => [marker.id, marker.timeMs])).toContainEqual([labelId, 30000])
+    expect(result.record.composition.markers.find(marker => marker.id === 'guide-after')?.timeMs).toBe(40000)
+    expect(result.record.composition.groupOccurrences.map(occurrence => [occurrence.id, occurrence.startMs])).toContainEqual([GROUP_AFTER, 38000])
+    expect(result.record.composition.groupOccurrences.find(occurrence => occurrence.id === GROUP_AFTER)?.trackActivation).toMatchObject({ startMs: 38000, durationMs: 6000 })
+    expect(result.affectedLayoutOccurrenceIds).toEqual(['layout-occurrence:1', LAYOUT_B])
+    expect(result.affectedMarkerIds).toEqual([labelId])
+    expect(result.affectedGroupOccurrenceIds).toEqual([GROUP_AFTER])
+    expect(validateShowRecordV2(reopen(result.record))).toEqual([])
+  })
+
+  it('reclaims the same anchors on reset-to-cut through the connected route', () => {
+    const source = convertedAnchoredShow()
+    const labelId = sceneLabel(source, 32000).id
+    const result = editShowTransitionV2(source, { kind: 'reset-to-cut', transitionId: BOUNDARY })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+      [LEFT, 0, 30000],
+      [RIGHT, 30000, 30000],
+    ])
+    expect(result.record.composition.showEndMs).toBe(60000)
+    expect(result.record.composition.markers.map(marker => [marker.id, marker.timeMs])).toContainEqual([labelId, 30000])
+    expect(result.record.composition.groupOccurrences.map(occurrence => [occurrence.id, occurrence.startMs])).toContainEqual([GROUP_AFTER, 38000])
+    expect(result.affectedLayoutOccurrenceIds).toEqual(['layout-occurrence:1', LAYOUT_B])
+    expect(result.affectedMarkerIds).toEqual([labelId])
+    expect(result.affectedGroupOccurrenceIds).toEqual([GROUP_AFTER])
+    expect(validateShowRecordV2(reopen(result.record))).toEqual([])
+  })
+
+  it('refuses the repair on every route when a Group occurrence spans the reclaimed window end', () => {
+    const runs: Array<(source: ShowRecordV2) => ReturnType<typeof editShowClipTemporalV2> | ReturnType<typeof editShowTransitionV2>> = [
+      (source) => editShowClipTemporalV2(source, { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 }),
+      (source) => editShowTransitionV2(source, { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 }),
+      (source) => editShowTransitionV2(source, { kind: 'reset-to-cut', transitionId: BOUNDARY }),
+    ]
+    for (const run of runs) {
+      const source = convertedSpanningGroupShow()
+      const attempt = run(source)
+      expect(attempt.status).toBe('refused')
+      if (attempt.status !== 'refused') continue
+      expect(attempt.message).toMatch(/Group occurrence "group-span" spans the reclaimed boundary window/)
+      expect(attempt.record).toBe(source)
+    }
+    const source = convertedSpanningGroupShow()
+    const before = structuredClone(source)
+    const refused = editShowClipTemporalV2(source, { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 })
+    expect(refused.status).toBe('refused')
+    expect(source).toEqual(before)
+  })
+})

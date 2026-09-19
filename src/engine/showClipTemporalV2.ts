@@ -101,6 +101,8 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   }
   const projectionTracks: ShowRecordV2['composition']['propertyTracks'] = []
   const shortenedLayoutOccurrenceIds: string[] = []
+  const shiftedMarkerIds: string[] = []
+  const shiftedGroupOccurrenceIds: string[] = []
   let usedProjectionPlan = false
   const next = structuredClone(record)
   if (intent.kind === 'move' || intent.kind === 'replace-placement') {
@@ -190,7 +192,9 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     if (pendingRepairs.length > 0) {
       const committed = commitConvertedBoundaryRepairsV2(record, next, pendingRepairs)
       if (committed.status === 'refused') return refuse('invalid-result', committed.message)
-      shortenedLayoutOccurrenceIds.push(...committed.applied.shortenedLayoutOccurrenceIds)
+      shortenedLayoutOccurrenceIds.push(...committed.applied.shortenedLayoutOccurrenceIds, ...committed.applied.shiftedLayoutOccurrenceIds)
+      shiftedMarkerIds.push(...committed.applied.shiftedMarkerIds)
+      shiftedGroupOccurrenceIds.push(...committed.applied.shiftedGroupOccurrenceIds)
     }
   }
   if ((intent.kind === 'trim' || intent.kind === 'extend') && Object.prototype.hasOwnProperty.call(intent, 'propertyRampProjections') && !usedProjectionPlan) return refuse('invalid-intent', 'Property ramp projections apply only to a leading zero-duration Reset with existing ramps.')
@@ -230,6 +234,8 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     affected.affectedPropertyKeyIds.push(...candidate.keyframes.map(key => key.id))
   }
   for (const id of shortenedLayoutOccurrenceIds) if (!affected.affectedLayoutOccurrenceIds.includes(id)) affected.affectedLayoutOccurrenceIds.push(id)
-  for (const ids of [affected.affectedClipIds, affected.affectedTransitionIds, affected.affectedTrackIds, affected.affectedAppearanceKeyIds, affected.affectedPropertyKeyIds, affected.affectedLayoutOccurrenceIds, affected.removedIds]) ids.sort()
+  for (const id of shiftedMarkerIds) if (!affected.affectedMarkerIds.includes(id)) affected.affectedMarkerIds.push(id)
+  for (const id of shiftedGroupOccurrenceIds) if (!affected.affectedGroupOccurrenceIds.includes(id)) affected.affectedGroupOccurrenceIds.push(id)
+  for (const ids of [affected.affectedClipIds, affected.affectedTransitionIds, affected.affectedTrackIds, affected.affectedAppearanceKeyIds, affected.affectedPropertyKeyIds, affected.affectedLayoutOccurrenceIds, affected.affectedMarkerIds, affected.affectedGroupOccurrenceIds, affected.removedIds]) ids.sort()
   return { status: 'changed', record: next, ...affected }
 }

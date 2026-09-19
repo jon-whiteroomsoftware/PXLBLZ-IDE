@@ -253,6 +253,11 @@ function blockedBoundaryRepair(
         }
       }
     }
+    for (const group of row.groups) {
+      if (group.startMs < shape.windowEndMs && group.endMs > shape.windowEndMs) {
+        return 'boundary-repair-blocked'
+      }
+    }
   }
   const owner = view.layoutIntervals.find((interval) => (
     interval.startMs <= shape.windowStartMs && shape.windowStartMs < interval.endMs

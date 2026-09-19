@@ -124,11 +124,17 @@ the packet is [issue-1038-transition-route](../evidence/issue-1038-transition-ro
 same cut-and-reclaim commit the temporal owner uses: the record leaves, the
 downstream side moves earlier by the boundary duration, Show End shrinks by the
 same duration, the Layout occurrence that owns the reclaimed window shortens,
-and every later occurrence moves earlier. A window that is not inside one
-occurrence, or an owning occurrence that cannot cover the reclaim, refuses the
-whole edit atomically. Extension into the boundary
+every later occurrence moves earlier, converted Scene labels and Group
+occurrences at or after the window end move earlier with their track
+activations, and Layout-owned tracks of shifted occurrences follow. A Clip or
+Group occurrence spanning the reclaimed window end, a window that is not inside
+one occurrence, or an owning occurrence that cannot cover the reclaim, refuses
+the whole edit atomically. Extension into the boundary
 refuses `invalid-topology`; `reset-to-cut` with projections projects first and
-refuses a stranded activation exactly like the temporal side. `delete-clip`
+refuses a stranded activation exactly like the temporal side. The result names
+every occurrence the repair touched (`affectedLayoutOccurrenceIds`,
+`affectedMarkerIds`, `affectedGroupOccurrenceIds`), shortened and shifted
+alike. `delete-clip`
 performs no shift and no Show End move on any boundary: survivor times are
 preserved exactly and only attached records leave, with projected-track survival
 decided by the projection section above. Full accepted behaviour lives in the

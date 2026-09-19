@@ -370,3 +370,35 @@ describe('planShowV2ClipResize across conversion provenance (#1068)', () => {
       .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-trailing', clipId: 'h', endMs: 15500 } })
   })
 })
+
+describe('planShowV2ClipResize across Group occurrences (#1068)', () => {
+  function group(id: string, startMs: number, durationMs: number) {
+    return {
+      id,
+      definitionId: 'def',
+      name: id,
+      zoneId: 'z1',
+      startMs,
+      endMs: startMs + durationMs,
+      durationMs,
+      topLayerIndex: 0,
+      bottomLayerIndex: 1,
+      linkedOccurrenceCount: 1,
+      selection: { kind: 'group' as const, occurrenceId: id },
+    }
+  }
+
+  it('refuses a detach-away resize whose reclaim window a Group occurrence spans', () => {
+    const view = fixture()
+    view.rows[0].groups.push(group('grp-span', 17000, 2000))
+    expect(planShowV2ClipResize(view, { clipId: 'f', edge: 'leading', startMs: 18500, endMs: 20000 }))
+      .toEqual({ kind: 'refuse', reason: 'boundary-repair-blocked' })
+  })
+
+  it('routes a detach-away resize past a Group occurrence starting exactly at the window end', () => {
+    const view = fixture()
+    view.rows[0].groups.push(group('grp-exact', 18000, 2000))
+    expect(planShowV2ClipResize(view, { clipId: 'f', edge: 'leading', startMs: 18500, endMs: 20000 }))
+      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-leading', clipId: 'f', startMs: 18500 } })
+  })
+})
