@@ -115,7 +115,8 @@ export function planShowV2ClipMove(
   if (reroutes) {
     if (!findLayer(view, input.zoneId, input.layerId)) return refuse('missing-target')
     // A joined Clip re-places through the same intent: the owner detaches
-    // plain participant Transitions and refuses ramp carriers at commit.
+    // plain participant Transitions, repairs converted boundaries in the same
+    // commit, and refuses ramp carriers or blocked repairs at commit.
     return {
       kind: 'temporal',
       intent: {

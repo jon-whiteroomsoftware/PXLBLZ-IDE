@@ -411,6 +411,8 @@ it('detaches symmetrically when the first Clip of the join is dragged', () => {
   // The former downstream partner stays exactly where it was.
   expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
     .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 500 })
+  // Native joins detach with no timeline reclaim.
+  expect(result.record.composition.showEndMs).toBe(2_000)
   expect(source).toEqual(prior)
 })
 
@@ -448,12 +450,105 @@ it.each([
   // The former join partner stays exactly where it was: only the dragged Clip moves.
   expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
     .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 0, durationMs: 400 })
+  // Native joins detach with no timeline reclaim: Show End and Layouts stay exact.
+  expect(result.record.composition.showEndMs).toBe(2_000)
+  expect(result.record.composition.layoutOccurrences).toEqual(source.composition.layoutOccurrences)
   expect(source).toEqual(prior)
 })
 
-it('detaches a converted-boundary participant exactly like a Layer join', () => {
+it('repairs a converted boundary on a cross-Layer drop instead of leaving its window unplayed', () => {
+  const source = convertedJoin()
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  // The 100 ms boundary window [500, 600) is reclaimed: the dragged downstream
+  // Clip lands 100 ms earlier, Show End shrinks by the same 100 ms, and the
+  // owning Layout occurrence absorbs the reclaim, so nothing is left unplayed.
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 500, durationMs: 400 })
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 0, durationMs: 500 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.record.composition.showEndMs).toBe(1_900)
+  expect(result.record.composition.layoutOccurrences).toEqual([
+    { id: 'coverage', layoutId: 'both', startMs: 0, durationMs: 1_900, parameters: {} },
+  ])
+  expect(result.affectedTransitionIds).toEqual(['incoming'])
+  expect(result.removedIds).toEqual(['incoming'])
+  expect(result.affectedClipIds).toEqual(['selected'])
+  expect(result.affectedLayoutOccurrenceIds).toEqual(['coverage'])
+  expect(source).toEqual(prior)
+})
+
+it('repairs the same converted boundary when the upstream Clip of the join is dragged', () => {
+  const source = convertedJoin()
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over' })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  // The dragged upstream Clip is untouched by the reclaim; the downstream side
+  // still moves earlier by the boundary duration and Show End still shrinks.
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 0, durationMs: 500 })
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 500, durationMs: 400 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.record.composition.showEndMs).toBe(1_900)
+  expect(result.affectedTransitionIds).toEqual(['incoming'])
+  expect(result.removedIds).toEqual(['incoming'])
+  expect(result.affectedClipIds).toEqual(expect.arrayContaining(['outgoing', 'selected']))
+  expect(source).toEqual(prior)
+})
+
+it('refuses the whole drop atomically when the converted-boundary repair is blocked', () => {
+  const source = convertedJoin()
+  // A Clip on an untouched Layer spans the reclaimed window end (600 ms), so
+  // the commit cannot move the downstream side and must refuse without a write.
+  source.composition.clips.push(clip('blocker', 'right-base', 550, 250, 'right'))
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  expect(result.status).toBe('refused')
+  if (result.status !== 'refused') return
+  expect(result.code).toBe('invalid-result')
+  expect(result.message).toContain('600')
+  expect(result.record).toBe(source)
+  expect(result.affectedTransitionIds).toEqual([])
+  expect(result.removedIds).toEqual([])
+  expect(result.record.composition.transitions).toHaveLength(1)
+  expect(result.record.composition.showEndMs).toBe(2_000)
+  expect(source).toEqual(prior)
+})
+
+it('refuses to detach a converted boundary that carries Property ramps', () => {
+  const source = convertedJoin()
+  // Participant scope cannot carry global scalar ramps (those require whole-output
+  // scope), so the carrier targets the joining Clip's own appearance instead.
+  source.composition.transitions[0].propertyRamps = [{
+    participantId: 'pair', target: { kind: 'clip-view', clipId: 'selected', property: 'brightness' },
+    from: 0.2, easing: { curve: 'quadratic', direction: 'in' },
+  }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  expect(result.status).toBe('refused')
+  if (result.status !== 'refused') return
+  expect(result.code).toBe('unsupported-property-carrier')
+  expect(result.message).toContain('incoming')
+  expect(result.record).toBe(source)
+  expect(result.record.composition.transitions).toHaveLength(1)
+  expect(result.affectedTransitionIds).toEqual([])
+  expect(source).toEqual(prior)
+})
+
+/**
+ * A converted Scene boundary at participant scope: the 100 ms Transition
+ * window runs [500, 600) between exact endpoints, structurally identical to a
+ * native Layer junction but carrying boundary provenance.
+ */
+function convertedJoin(): ShowRecordV2 {
   const source = fixture()
-  // Exact participant endpoints: the 100 ms Transition window runs [500, 600).
   source.composition.clips = [clip('outgoing', 'base', 0, 500), clip('selected', 'base', 600, 400)]
   source.composition.propertyTracks = []
   source.composition.transitions = [{
@@ -462,19 +557,8 @@ it('detaches a converted-boundary participant exactly like a Layer join', () => 
     participants: [{ id: 'pair', zoneId: 'left', layerId: 'base', fromClipId: 'outgoing', toClipId: 'selected' }],
   }]
   expect(validateShowRecordV2(source)).toEqual([])
-  const prior = structuredClone(source)
-  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
-  expect(result.status, JSON.stringify(result)).toBe('changed')
-  if (result.status !== 'changed') return
-  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
-    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 600 })
-  expect(result.record.composition.transitions).toEqual([])
-  expect(result.affectedTransitionIds).toEqual(['incoming'])
-  expect(result.removedIds).toEqual(['incoming'])
-  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
-    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 0 })
-  expect(source).toEqual(prior)
-})
+  return source
+}
 
 it('refuses to detach a participant Transition that carries Property ramps', () => {
   const source = gappedJoin()

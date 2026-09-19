@@ -90,8 +90,12 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   if (startMs === clip.startMs && endMs === oldEndMs && !reroutes) return { status: 'unchanged', record, ...emptyAffected() }
   // A cross-Zone or cross-Layer re-placement detaches the Clip's participant
   // Transitions and moves the Clip alone; a Transition carrying Property ramps
-  // is never silently deleted.
+  // is never silently deleted. A converted Scene boundary at participant scope
+  // is timeline structure rather than a gap between placements, so detaching it
+  // reclaims its window through the same cut-and-reclaim commit the resize path
+  // uses, or refuses the whole edit when that reclaim is blocked.
   let detachedTransitionIds: string[] = []
+  const pendingBoundaryRepairs: ConvertedBoundaryRepairV2[] = []
   if (reroutes) {
     if (!record.zones.some(zone => zone.id === destination.zoneId)) return refuse('missing-target', `Zone "${destination.zoneId}" does not exist.`)
     const layer = record.composition.layers.find(candidate => candidate.id === destination.layerId)
@@ -101,6 +105,12 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     ))
     const carrier = attached.find(transition => transition.propertyRamps.length > 0)
     if (carrier) return refuse('unsupported-property-carrier', `Transition "${carrier.id}" carries Property ramps. Reset it with an explicit projection plan before moving its participant to another Zone or Layer.`)
+    // The blanket carrier check above subsumes the repair spec's ramp-carrier
+    // case, so a ready spec here always carries a committable cut-and-reclaim.
+    for (const transition of attached) {
+      const boundary = convertedBoundaryRepairSpecV2(record, transition.id)
+      if (boundary.status === 'ready') pendingBoundaryRepairs.push(boundary.repair)
+    }
     detachedTransitionIds = attached.map(transition => transition.id)
   }
   const projectionTracks: ShowRecordV2['composition']['propertyTracks'] = []
@@ -114,15 +124,25 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     // Clip moves; surviving whole-output links still bind, as in the already
     // allowed contributor re-placement. Validation below runs post-detach.
     const detached = new Set(detachedTransitionIds)
+    const repaired = new Set(pendingBoundaryRepairs.map(repair => repair.transitionId))
     const componentSource: ShowRecordV2 = detached.size > 0
       ? { ...record, composition: { ...record.composition, transitions: record.composition.transitions.filter(transition => !detached.has(transition.id)) } }
       : record
-    if (detached.size > 0) next.composition.transitions = next.composition.transitions.filter(transition => !detached.has(transition.id))
+    // Repair-ready boundaries stay present until the commit removes them: the
+    // commit requires their presence and refuses atomically when blocked.
+    if (detached.size > 0) next.composition.transitions = next.composition.transitions.filter(transition => !detached.has(transition.id) || repaired.has(transition.id))
     applyShowTransitionClipShiftV2(record, next, connectedComponent(componentSource, [clip.id]), startMs - clip.startMs)
     if (reroutes) {
       const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
       edited.zoneId = destination.zoneId
       edited.layerId = destination.layerId
+    }
+    if (pendingBoundaryRepairs.length > 0) {
+      const committed = commitConvertedBoundaryRepairsV2(record, next, pendingBoundaryRepairs)
+      if (committed.status === 'refused') return refuse('invalid-result', committed.message)
+      shortenedLayoutOccurrenceIds.push(...committed.applied.shortenedLayoutOccurrenceIds, ...committed.applied.shiftedLayoutOccurrenceIds)
+      shiftedMarkerIds.push(...committed.applied.shiftedMarkerIds)
+      shiftedGroupOccurrenceIds.push(...committed.applied.shiftedGroupOccurrenceIds)
     }
   } else if (intent.kind === 'split') {
     const authoredTrackIds = new Set(record.composition.propertyTracks.map(track => track.id))

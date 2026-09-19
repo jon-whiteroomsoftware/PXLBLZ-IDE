@@ -175,7 +175,10 @@ separately:
   — Zone `zone-1`, overlay ordinal 0, divergent `name` across Scenes.
 - A cross-Layer or cross-Zone drop of a Clip joined by a Transition detaches its
   plain participant Transitions and moves the Clip alone, refusing ramp carriers
-  as `unsupported-property-carrier`; the detach-and-move owner is engine issue #1068.
+  as `unsupported-property-carrier`; a converted Scene boundary at participant
+  scope additionally reclaims its window in the same commit (downstream and Show
+  End move earlier, blocked reclaims refuse atomically); the detach-and-move
+  owner is engine issue #1068.
 
 Two cases (1644, 1755) are class **c** in the sense the issue asks about: their
 test bodies read `/api/shows` directly, and a version-2 document is absent from

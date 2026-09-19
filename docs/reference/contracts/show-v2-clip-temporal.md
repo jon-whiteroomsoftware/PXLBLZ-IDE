@@ -59,13 +59,23 @@ a blank Zone/Layer identity or a non-safe-integer start refuses `invalid-intent`
 The destination Zone must exist and the destination Layer must belong to it, or
 `missing-target` refuses naming both. A Clip that is a participant endpoint of one
 or more Transitions detaches exactly those participant Transitions when its Zone
-or Layer changes, symmetric in `from` and `to`: the Transitions disappear and the
-Clip lands where it was dropped while the former join partners stay, matching the
-v1 drag. A Transition in that set that carries `propertyRamps` refuses
-`unsupported-property-carrier` instead; Reset it with an explicit projection plan
-first. Nothing is retargeted or stubbed. A whole-output contributor set is named
-by exact time rather than routing, so a whole-output contributor may change its
-destination while its Transition record stays exact.
+or Layer changes, symmetric in `from` and `to`: natively authored and converted
+Layer joins disappear and the Clip lands where it was dropped while the former
+join partners stay, matching the v1 drag. A Transition in that set carrying
+`origin: 'converted-boundary-transition'` at single-participant scope is timeline
+structure rather than a gap between placements, so the same transaction also
+commits its cut-and-reclaim repair: the boundary record leaves, the downstream
+side moves earlier by the boundary duration, Show End shrinks by the same
+duration, and the owning Layout occurrence absorbs the reclaim exactly as the
+resize path does. A repair the commit cannot absorb — content spanning the
+reclaimed window end, a window outside one Layout occurrence, or an owning
+occurrence that cannot cover the reclaim — refuses the whole edit atomically as
+`invalid-result` with the original record identity. A Transition in that set
+that carries `propertyRamps` refuses `unsupported-property-carrier` instead;
+Reset it with an explicit projection plan first. Nothing is retargeted or
+stubbed. A whole-output contributor set is named by exact time rather than
+routing, so a whole-output contributor may change its destination while its
+Transition record stays exact.
 
 A start change translates the full explicit connected component rigidly through the
 same owner as Move, so Clip-owned appearance keys and Clip Property tracks follow
