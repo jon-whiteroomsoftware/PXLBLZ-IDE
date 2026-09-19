@@ -18,7 +18,6 @@ export type ShowV2ClipTemporalRefusal =
   | 'group-child'
   | 'no-change'
   | 'outside-clip'
-  | 'connected-reroute'
   | 'boundary-extend-unsupported'
   | 'boundary-repair-blocked'
   | 'invalid-request'
@@ -74,19 +73,6 @@ function endpointClips(view: ShowTimelineViewModel, clipId: string): { incoming:
   return { incoming, outgoing }
 }
 
-/**
- * Participant endpoints only. The temporal owner refuses a re-placement that
- * would detach a participant pair, but a whole-output contributor list is not
- * a placement bond, so the planner must not refuse those up front: the owner
- * stays the authority at commit.
- */
-function isParticipantEndpoint(view: ShowTimelineViewModel, clipId: string): boolean {
-  return view.transitions.some((transition) => transition.scope.kind === 'participants'
-    && transition.scope.participants.some((participant) => (
-      participant.fromItemId === clipId || participant.toItemId === clipId
-    )))
-}
-
 function isEndpoint(view: ShowTimelineViewModel, clipId: string): boolean {
   const { incoming, outgoing } = endpointClips(view, clipId)
   return incoming > 0 || outgoing > 0
@@ -111,9 +97,10 @@ function edgeTransitions(
 /**
  * Plan a pointer drop of one Clip onto a Zone Layer at a snapped start time.
  * A same-Layer move of a joined Clip shifts its connected component through
- * the connected move form; a cross-Layer or cross-Zone drop re-places a free
- * Clip. A joined Clip never re-places: the temporal owner refuses to detach a
- * transition participant, so the gesture refuses before any submission.
+ * the connected move form; a cross-Layer or cross-Zone drop re-places the Clip
+ * and detaches its participant Transitions in the temporal owner. The planner
+ * cannot see Property ramps from the presented timeline, so a ramp carrier is
+ * planned optimistically and the owner refuses it at commit.
  */
 export function planShowV2ClipMove(
   view: ShowTimelineViewModel,
@@ -127,7 +114,8 @@ export function planShowV2ClipMove(
   if (!reroutes && startMs === found.item.startMs) return refuse('no-change')
   if (reroutes) {
     if (!findLayer(view, input.zoneId, input.layerId)) return refuse('missing-target')
-    if (isParticipantEndpoint(view, input.clipId)) return refuse('connected-reroute')
+    // A joined Clip re-places through the same intent: the owner detaches
+    // plain participant Transitions and refuses ramp carriers at commit.
     return {
       kind: 'temporal',
       intent: {

@@ -143,9 +143,16 @@ describe('planShowV2ClipMove', () => {
       })
   })
 
-  it('refuses a cross-layer drop of a joined clip instead of detaching its transition', () => {
+  it('re-places a cross-layer drop of a joined clip and leaves the detach to the owner', () => {
+    // Gap 2 flips the connected-reroute refusal into a detach-and-move: the
+    // planner cannot see Property ramps, so it plans the re-placement and the
+    // temporal owner detaches plain participant Transitions (refusing ramp
+    // carriers) at commit.
     expect(planShowV2ClipMove(fixture(), { clipId: 'a', zoneId: 'z1', layerId: 'l2', startMs: 1000 }))
-      .toEqual({ kind: 'refuse', reason: 'connected-reroute' })
+      .toEqual({
+        kind: 'temporal',
+        intent: { kind: 'replace-placement', clipId: 'a', zoneId: 'z1', layerId: 'l2', startMs: 1000 },
+      })
   })
 
   it('re-places a whole-output-only endpoint instead of refusing it up front', () => {

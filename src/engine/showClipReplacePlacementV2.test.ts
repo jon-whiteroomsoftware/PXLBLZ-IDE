@@ -319,7 +319,8 @@ it('refuses a destination Zone the active Layout does not provide for the whole 
  * Whole-output pre-roll: a contributor set is named by exact time, not by Zone
  * or Layer, so a whole-output contributor may change its destination. That is
  * the only partition where incoming pre-roll decides availability on its own —
- * a participant pair refuses the Zone/Layer change before availability runs.
+ * a participant pair detaches before availability runs, so its pre-roll leaves
+ * with the Transition.
  */
 function wholeOutputPreRoll(): ShowRecordV2 {
   const source = fixture()
@@ -374,7 +375,51 @@ it('keeps a whole-output Transition record exact when a contributor changes dest
   expect(result.affectedTransitionIds).toEqual(['boundary'])
 })
 
-it('refuses a Zone change that would leave an attached participant Transition behind', () => {
+it('detaches the attached participant Transition on a Zone or Layer change (#1068 gap 2)', () => {
+  // Rewriting this refusal is the point of the slice, not a weakening of it:
+  // gap 2 turns the connected-reroute refusal into a detach-and-move, matching
+  // the v1 drag on both endpoints of the join.
+  const source = gappedJoin()
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  for (const destination of [{ layerId: 'over' }, { zoneId: 'right', layerId: 'right-base' }]) {
+    const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', ...destination })
+    expect(result.status, JSON.stringify(result)).toBe('changed')
+    if (result.status !== 'changed') continue
+    expect(result.record.composition.transitions).toEqual([])
+    expect(result.affectedTransitionIds).toEqual(['incoming'])
+    expect(result.removedIds).toEqual(['incoming'])
+  }
+  // The same Clip still moves in time through its connected component.
+  const moved = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', startMs: 700 })
+  expect(moved.status).toBe('changed')
+  if (moved.status !== 'changed') return
+  expect(moved.record.composition.transitions).toEqual(source.composition.transitions)
+  expect(source).toEqual(prior)
+})
+
+it('detaches symmetrically when the first Clip of the join is dragged', () => {
+  const source = gappedJoin()
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over' })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 0, durationMs: 400 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.removedIds).toEqual(['incoming'])
+  // The former downstream partner stays exactly where it was.
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 500 })
+  expect(source).toEqual(prior)
+})
+
+/**
+ * A joined Clip with a 100 ms gap before its incoming participant: the
+ * contribution interval [400, 900) extends 100 ms before the Clip's own
+ * [500, 900), which is the pre-roll the detach probes below exercise.
+ */
+function gappedJoin(): ShowRecordV2 {
   const source = fixture()
   source.composition.clips = [clip('outgoing', 'base', 0, 400), clip('selected', 'base', 500, 400)]
   source.composition.propertyTracks = []
@@ -383,21 +428,127 @@ it('refuses a Zone change that would leave an attached participant Transition be
     participants: [{ id: 'pair', zoneId: 'left', layerId: 'base', fromClipId: 'outgoing', toClipId: 'selected' }],
   }]
   expect(validateShowRecordV2(source)).toEqual([])
+  return source
+}
+
+it.each([
+  { label: 'another Layer', destination: { layerId: 'over' }, zoneId: 'left', layerId: 'over' },
+  { label: 'another Zone', destination: { zoneId: 'right', layerId: 'right-base' }, zoneId: 'right', layerId: 'right-base' },
+])('detaches a plain participant Transition when a joined Clip moves to $label', ({ destination, zoneId, layerId }) => {
+  const source = gappedJoin()
   const prior = structuredClone(source)
-  for (const destination of [{ layerId: 'over' }, { zoneId: 'right', layerId: 'right-base' }]) {
-    const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', ...destination })
-    expect(result.status).toBe('refused')
-    if (result.status !== 'refused') continue
-    expect(result.code).toBe('invalid-topology')
-    expect(result.message).toContain('incoming')
-    expect(result.record).toBe(source)
-    expect(result.affectedTransitionIds).toEqual([])
-  }
-  // The same Clip still moves in time through its connected component.
-  const moved = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', startMs: 700 })
-  expect(moved.status).toBe('changed')
-  if (moved.status !== 'changed') return
-  expect(moved.record.composition.transitions).toEqual(source.composition.transitions)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', ...destination })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId, layerId, startMs: 500, durationMs: 400 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.affectedTransitionIds).toEqual(['incoming'])
+  expect(result.removedIds).toEqual(['incoming'])
+  // The former join partner stays exactly where it was: only the dragged Clip moves.
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 0, durationMs: 400 })
+  expect(source).toEqual(prior)
+})
+
+it('detaches a converted-boundary participant exactly like a Layer join', () => {
+  const source = fixture()
+  // Exact participant endpoints: the 100 ms Transition window runs [500, 600).
+  source.composition.clips = [clip('outgoing', 'base', 0, 500), clip('selected', 'base', 600, 400)]
+  source.composition.propertyTracks = []
+  source.composition.transitions = [{
+    id: 'incoming', kind: 'crossfade', durationMs: 100, easing: { curve: 'linear' }, crossfadePolicy: 'live-live', propertyRamps: [],
+    origin: 'converted-boundary-transition',
+    participants: [{ id: 'pair', zoneId: 'left', layerId: 'base', fromClipId: 'outgoing', toClipId: 'selected' }],
+  }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 600 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.affectedTransitionIds).toEqual(['incoming'])
+  expect(result.removedIds).toEqual(['incoming'])
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 0 })
+  expect(source).toEqual(prior)
+})
+
+it('refuses to detach a participant Transition that carries Property ramps', () => {
+  const source = gappedJoin()
+  // Participant scope cannot carry global scalar ramps (those require whole-output
+  // scope), so the carrier targets the joining Clip's own appearance instead.
+  source.composition.transitions[0].propertyRamps = [{
+    participantId: 'pair', target: { kind: 'clip-view', clipId: 'selected', property: 'brightness' },
+    from: 0.2, easing: { curve: 'quadratic', direction: 'in' },
+  }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  expect(result.status).toBe('refused')
+  if (result.status !== 'refused') return
+  expect(result.code).toBe('unsupported-property-carrier')
+  expect(result.message).toContain('incoming')
+  expect(result.record).toBe(source)
+  expect(result.record.composition.transitions).toHaveLength(1)
+  expect(result.affectedTransitionIds).toEqual([])
+  expect(source).toEqual(prior)
+})
+
+it('succeeds after detach when the destination is unavailable only across the detached pre-roll', () => {
+  const source = gappedJoin()
+  // Right is unrouted while the detached incoming contribution runs [400, 500)
+  // but routed across the Clip's own [500, 900): the pre-roll leaves with the
+  // Transition, so the destination validates.
+  source.composition.layoutOccurrences = [
+    { id: 'left-first', layoutId: 'left-only', startMs: 0, durationMs: 500, parameters: {} },
+    { id: 'both-later', layoutId: 'both', startMs: 500, durationMs: 1_500, parameters: {} },
+  ]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', zoneId: 'right', layerId: 'right-base' })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'right', layerId: 'right-base', startMs: 500 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(source).toEqual(prior)
+})
+
+it("still refuses when the destination is unavailable across the Clip's own interval", () => {
+  const source = gappedJoin()
+  // Right stays unrouted until 700, inside the Clip's own [500, 900): the
+  // detach cannot repair that, so the destination still refuses.
+  source.composition.layoutOccurrences = [
+    { id: 'left-first', layoutId: 'left-only', startMs: 0, durationMs: 700, parameters: {} },
+    { id: 'both-later', layoutId: 'both', startMs: 700, durationMs: 1_300, parameters: {} },
+  ]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', zoneId: 'right', layerId: 'right-base' })
+  expect(result.status).toBe('refused')
+  if (result.status !== 'refused') return
+  expect(result.code).toBe('zone-unavailable')
+  expect(result.message).toContain('selected')
+  expect(result.record).toBe(source)
+  expect(result.record.composition.transitions).toHaveLength(1)
+  expect(source).toEqual(prior)
+})
+
+it('still enforces destination occupancy after the detach', () => {
+  const source = gappedJoin()
+  source.composition.clips.push(clip('blocker', 'over', 600, 400))
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  expect(result.status).toBe('refused')
+  if (result.status !== 'refused') return
+  expect(result.code).toBe('invalid-result')
+  expect(result.message).toContain('overlap')
+  expect(result.record).toBe(source)
+  expect(result.record.composition.transitions).toHaveLength(1)
   expect(source).toEqual(prior)
 })
 

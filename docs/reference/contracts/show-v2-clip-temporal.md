@@ -57,11 +57,13 @@ current value, an already-satisfied destination is unchanged, and any other fiel
 a blank Zone/Layer identity or a non-safe-integer start refuses `invalid-intent`.
 
 The destination Zone must exist and the destination Layer must belong to it, or
-`missing-target` refuses naming both. A Clip that is a participant endpoint of any
-Transition refuses `invalid-topology` naming those Transitions when its Zone or
-Layer changes: a participant pair joins exact endpoints on one Zone and Layer, so
-the counterpart would be detached. Nothing is detached, retargeted or stubbed;
-Reset those Transitions explicitly first. A whole-output contributor set is named
+`missing-target` refuses naming both. A Clip that is a participant endpoint of one
+or more Transitions detaches exactly those participant Transitions when its Zone
+or Layer changes, symmetric in `from` and `to`: the Transitions disappear and the
+Clip lands where it was dropped while the former join partners stay, matching the
+v1 drag. A Transition in that set that carries `propertyRamps` refuses
+`unsupported-property-carrier` instead; Reset it with an explicit projection plan
+first. Nothing is retargeted or stubbed. A whole-output contributor set is named
 by exact time rather than routing, so a whole-output contributor may change its
 destination while its Transition record stays exact.
 
@@ -74,8 +76,9 @@ rebound, and no Transition duration or setting changes.
 One candidate then validates completely: `invalid-result` covers ordinary and
 materialized Group occupancy on the destination Layer, where exact half-open
 adjacency is accepted; `zone-unavailable` covers the destination Zone across the
-Clip's complete contribution interval, including incoming Transition pre-roll and
-outgoing extension; `compiler-ineligible` covers the shared RL08–RL10 placement
+Clip's post-detach contribution interval — detached incoming pre-roll and outgoing
+extension leave with their Transitions, so only the Clip's own interval decides;
+`compiler-ineligible` covers the shared RL08–RL10 placement
 restrictions. Refusal returns the original record identity with empty affected
 collections. A change reports the Clip, and the appearance and Property keys only
 a start change actually moved; Layer records are untouched and are not reported.

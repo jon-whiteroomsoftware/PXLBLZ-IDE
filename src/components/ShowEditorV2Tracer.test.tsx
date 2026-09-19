@@ -1548,10 +1548,15 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     await expectUndoRedoExact(editor, before)
   })
 
-  it('refuses a cross-Layer drop of a joined Clip without detaching its Transition', async () => {
+  it('detaches the Transition on a cross-Layer drop of a joined Clip (#1068 gap 2)', async () => {
+    // Rewriting this refusal is the point of the slice, not a weakening of it:
+    // gap 2 turns the connected-reroute refusal into a detach-and-move through
+    // the clip-temporal door — one edit, one history entry and one save.
     const editor = openV2EditorForRecord(connectedV2Record('slice1-connected-reroute'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
+    const zoneId = authoredClip(before.record, 'resize-a').zoneId
+    const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-a').layerId)!.id
     const surface = dragSurface('resize-a')
 
     surface.fire(surface.clip, 'dragstart', 0)
@@ -1560,14 +1565,22 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     await act(async () => {})
 
     const after = editor.state()
-    // v1 detaches the Transition and moves; the v2 owner refuses the
-    // re-placement, so the gesture plans nothing and submits no command.
-    expect(surface.dataTransfer.dropEffect).toBe('none')
-    expectNoWrite(before, after)
-    expect(authoredClip(after.record, 'resize-a').startMs).toBe(1_000)
-    expect(authoredClip(after.record, 'resize-a').layerId)
-      .toBe(authoredClip(before.record, 'resize-a').layerId)
-    expect(after.record.composition.transitions).toHaveLength(1)
+    // DROP_X asks for 4000, but the dragged end magnetizes to the former join
+    // partner's start (7000), so the Clip settles at 3000 on the overlay.
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: {
+        kind: 'replace-placement', clipId: 'resize-a', zoneId, layerId: overlayLayerId, startMs: 3_000,
+      },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'resize-a').layerId).toBe(overlayLayerId)
+    expect(authoredClip(after.record, 'resize-a').startMs).toBe(3_000)
+    // Only the dragged Clip moves: the former join partner stays and the join is gone.
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(7_000)
+    expect(after.record.composition.transitions).toEqual([])
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
   })
 
   it('splits the selected Clip at the playhead and selects the right half', async () => {

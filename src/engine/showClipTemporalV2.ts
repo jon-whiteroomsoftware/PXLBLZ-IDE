@@ -88,16 +88,20 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   if (intent.kind === 'split' && (endMs >= oldEndMs || typeof intent.rightClipId !== 'string' || !intent.rightClipId.trim() || effective.composition.clips.some(candidate => candidate.id === intent.rightClipId))) return refuse('invalid-intent', 'Split requires an interior time and a fresh effective Clip identity.')
   if (startMs === clip.startMs && endMs === oldEndMs && (intent.kind === 'trim' || intent.kind === 'extend') && Object.prototype.hasOwnProperty.call(intent, 'propertyRampProjections')) return refuse('invalid-intent', 'An unchanged interval cannot consume Property ramp projections.')
   if (startMs === clip.startMs && endMs === oldEndMs && !reroutes) return { status: 'unchanged', record, ...emptyAffected() }
+  // A cross-Zone or cross-Layer re-placement detaches the Clip's participant
+  // Transitions and moves the Clip alone; a Transition carrying Property ramps
+  // is never silently deleted.
+  let detachedTransitionIds: string[] = []
   if (reroutes) {
     if (!record.zones.some(zone => zone.id === destination.zoneId)) return refuse('missing-target', `Zone "${destination.zoneId}" does not exist.`)
     const layer = record.composition.layers.find(candidate => candidate.id === destination.layerId)
     if (!layer || layer.zoneId !== destination.zoneId) return refuse('missing-target', `Layer "${destination.layerId}" is not a Layer of Zone "${destination.zoneId}".`)
-    // A participant pair joins its endpoints on one Zone and Layer, so the
-    // counterpart would be detached. Reset those Transitions explicitly first.
     const attached = record.composition.transitions.filter(transition => (
       transition.participants.some(participant => participant.fromClipId === clip.id || participant.toClipId === clip.id)
     ))
-    if (attached.length) return refuse('invalid-topology', `Clip "${clip.id}" is a participant endpoint of Transition ${attached.map(transition => `"${transition.id}"`).join(', ')}; re-placement never detaches or retargets a Transition.`)
+    const carrier = attached.find(transition => transition.propertyRamps.length > 0)
+    if (carrier) return refuse('unsupported-property-carrier', `Transition "${carrier.id}" carries Property ramps. Reset it with an explicit projection plan before moving its participant to another Zone or Layer.`)
+    detachedTransitionIds = attached.map(transition => transition.id)
   }
   const projectionTracks: ShowRecordV2['composition']['propertyTracks'] = []
   const shortenedLayoutOccurrenceIds: string[] = []
@@ -106,7 +110,15 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   let usedProjectionPlan = false
   const next = structuredClone(record)
   if (intent.kind === 'move' || intent.kind === 'replace-placement') {
-    applyShowTransitionClipShiftV2(record, next, connectedComponent(record, [clip.id]), startMs - clip.startMs)
+    // Detached participant bonds release before the shift, so only the dragged
+    // Clip moves; surviving whole-output links still bind, as in the already
+    // allowed contributor re-placement. Validation below runs post-detach.
+    const detached = new Set(detachedTransitionIds)
+    const componentSource: ShowRecordV2 = detached.size > 0
+      ? { ...record, composition: { ...record.composition, transitions: record.composition.transitions.filter(transition => !detached.has(transition.id)) } }
+      : record
+    if (detached.size > 0) next.composition.transitions = next.composition.transitions.filter(transition => !detached.has(transition.id))
+    applyShowTransitionClipShiftV2(record, next, connectedComponent(componentSource, [clip.id]), startMs - clip.startMs)
     if (reroutes) {
       const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
       edited.zoneId = destination.zoneId

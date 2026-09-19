@@ -173,9 +173,9 @@ separately:
 - `ambiguous-layer` when one overlay ordinal carries different names in
   different Scenes. Smallest counterexample: `src/test/showRemoveClipFixture.ts`
   — Zone `zone-1`, overlay ordinal 0, divergent `name` across Scenes.
-- A cross-Layer or cross-Zone drop of a Clip joined by a Transition refuses as
-  `connected-reroute` because re-placement never detaches a Transition, and the
-  single detach-and-move owner is engine issue #1068.
+- A cross-Layer or cross-Zone drop of a Clip joined by a Transition detaches its
+  plain participant Transitions and moves the Clip alone, refusing ramp carriers
+  as `unsupported-property-carrier`; the detach-and-move owner is engine issue #1068.
 
 Two cases (1644, 1755) are class **c** in the sense the issue asks about: their
 test bodies read `/api/shows` directly, and a version-2 document is absent from
