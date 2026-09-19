@@ -416,107 +416,178 @@ test('visual oracle compares stable v1/v2 stored rows over the corpus', async ({
 })
 
 test('the same pointer Clip drag has equal durable result, exact history and one save', async ({ page }) => {
+  await runBehaviorGestureEquivalence(page, {
+    seedKey: 'pointer-drag',
+    gesture: 'pointer Clip drag by +2000ms',
+    reportFile: 'behavior-report.json',
+    unavailableDetail: 'The ordinary pointer Clip gesture was unavailable on at least one stored row.',
+    perform: ({ version }) => dragFirstOrdinaryClip(page, version),
+  })
+})
+
+test('the same trailing Clip resize has equal durable result, exact history and one save', async ({ page }) => {
+  await runBehaviorGestureEquivalence(page, {
+    seedKey: 'resize-trailing',
+    gesture: 'free trailing Clip resize by +2000ms',
+    reportFile: 'behavior-resize-trailing-report.json',
+    unavailableDetail: 'The free trailing Clip resize was unavailable on at least one stored row.',
+    perform: ({ id, version }) => resizeBehaviorClipEdge(page, id, version, { edge: 'end', deltaMs: 2_000, shiftKey: false }),
+  })
+})
+
+test('the same leading Clip resize has equal durable result, exact history and one save', async ({ page }) => {
+  await runBehaviorGestureEquivalence(page, {
+    seedKey: 'resize-leading',
+    gesture: 'free leading Clip resize by +500ms',
+    reportFile: 'behavior-resize-leading-report.json',
+    unavailableDetail: 'The free leading Clip resize was unavailable on at least one stored row.',
+    perform: ({ id, version }) => resizeBehaviorClipEdge(page, id, version, { edge: 'start', deltaMs: 500, shiftKey: true }),
+  })
+})
+
+// Red by design on `records` until #1068 (gap 5): the v2 split owner keeps the
+// left Clip's appearance-key id on both halves, while v1 then conversion derives
+// the right half's key id from its new Clip id. History, the single save, reload
+// and Undo match on both backings; that one leaf is the whole difference.
+test('the same toolbar Clip Split has equal durable result, exact history and one save', async ({ page }) => {
+  await runBehaviorGestureEquivalence(page, {
+    seedKey: 'clip-split',
+    gesture: 'toolbar Split at 500ms',
+    reportFile: 'behavior-split-report.json',
+    unavailableDetail: 'The toolbar Split gesture was unavailable on at least one stored row.',
+    perform: ({ id, version }) => splitBehaviorClipAtPlayhead(page, id, version),
+    compareRecords: (args) => compareSplitRecordsModuloMintedId(args),
+  })
+})
+
+type BehaviorGestureRun = { outcome: BehaviorOutcome; preimage: unknown }
+type BehaviorGestureContext = { id: string; version: 'v1' | 'v2' }
+
+async function runBehaviorGestureEquivalence(page: Page, input: {
+  seedKey: string
+  gesture: string
+  reportFile: string
+  unavailableDetail: string
+  perform: (context: BehaviorGestureContext) => Promise<void>
+  compareRecords?: (args: {
+    convertedV1: unknown
+    savedV2: unknown
+    v1: BehaviorGestureRun
+    v2: BehaviorGestureRun
+  }) => { convertedV1: unknown; savedV2: unknown }
+}): Promise<void> {
   test.setTimeout(120_000)
   page.setDefaultTimeout(5_000)
   await mkdir(outputRoot, { recursive: true })
-  const pair = await seedPair(page, 'pointer-drag', manifest.behavior)
-  const outcomes: BehaviorOutcome[] = []
+  const pair = await seedPair(page, input.seedKey, manifest.behavior)
+  const runs = {} as Record<'v1' | 'v2', BehaviorGestureRun>
   for (const version of ['v1', 'v2'] as const) {
     const id = version === 'v1' ? pair.v1Id : pair.v2Id
-    const outcome: BehaviorOutcome = { version, available: false }
-    let saves = 0
-    const countSave = (request: import('@playwright/test').Request) => {
-      if ((request.method() === 'PATCH' || request.method() === 'PUT') && request.url().includes(`/api/shows/${id}`)) saves += 1
-    }
-    page.on('request', countSave)
-    try {
-      await page.setViewportSize({ width: 1440, height: 1000 })
-      await page.goto(`studio/shows/${id}`)
-      await expect(page.getByTestId('show-stage-preview')).toBeVisible()
-      await closeAgentDrawer(page)
-      const preimage = await readStoredShow(page, id, version)
-      const pause = page.getByRole('button', { name: 'Pause Show preview' }).first()
-      if (await pause.isVisible()) await pause.click()
-      await page.getByRole('button', { name: 'Go to Show start' }).first().click()
-      await dragFirstOrdinaryClip(page, version)
-      outcome.available = true
-      await expect.poll(() => saves).toBe(1)
-      const saved = await readStoredShow(page, id, version)
-      outcome.saved = saved
-      outcome.savesAfterDrag = saves
-      outcome.historyAfterDrag = await readHistoryShape(page, id, version)
-      const freshPage = await page.context().newPage()
-      try {
-        await freshPage.goto(`studio/shows/${id}`)
-        await expect(freshPage.getByTestId('show-stage-preview')).toBeVisible()
-        const hydratedMoved = await readHydratedShow(freshPage, id, version)
-        outcome.movedPreservedOnFreshPage = isDeepStrictEqual(
-          normalizeShowEquivalenceRecord(hydratedMoved),
-          normalizeShowEquivalenceRecord(saved),
-        )
-      } finally {
-        await freshPage.close()
-      }
-      await undoThroughUi(page)
-      await expect.poll(() => saves).toBe(2)
-      await expect.poll(async () => isDeepStrictEqual(
-        normalizeShowEquivalenceRecord(await readStoredShow(page, id, version)),
-        normalizeShowEquivalenceRecord(preimage),
-      )).toBe(true)
-      outcome.savesAfterUndo = saves
-      outcome.historyAfterUndo = await readHistoryShape(page, id, version)
-      await page.reload()
-      await expect(page.getByTestId('show-stage-preview')).toBeVisible()
-      const restoredAfterReload = await readStoredShow(page, id, version)
-      outcome.undoRestoredAfterReload = isDeepStrictEqual(
-        normalizeShowEquivalenceRecord(restoredAfterReload),
-        normalizeShowEquivalenceRecord(preimage),
-      )
-    } catch (error) {
-      outcome.error = error instanceof Error ? error.message : String(error)
-    } finally {
-      page.off('request', countSave)
-      outcomes.push(outcome)
-    }
+    runs[version] = await runBehaviorGestureVersion(page, id, version, () => input.perform({ id, version }))
   }
-
+  const [v1, v2] = [runs.v1.outcome, runs.v2.outcome]
   let assessment: ReturnType<typeof assessBehaviorPair> | undefined
   let assessmentError: string | undefined
-  const [v1, v2] = outcomes
   if (v1.available && v2.available) {
-    const conversion = await convertInBrowser(page, v1.saved as ShowRecord, 'post-gesture-v1')
+    const conversion = await convertInBrowser(page, runs.v1.outcome.saved as ShowRecord, 'post-gesture-v1')
     if (conversion.status === 'converted') {
+      const records = input.compareRecords
+        ? input.compareRecords({ convertedV1: conversion.record, savedV2: v2.saved, v1: runs.v1, v2: runs.v2 })
+        : { convertedV1: conversion.record, savedV2: v2.saved }
       assessment = assessBehaviorPair({
-        convertedV1: conversion.record,
-        savedV2: v2.saved,
+        convertedV1: records.convertedV1,
+        savedV2: records.savedV2,
         history: { v1: v1.historyAfterDrag!.past, v2: v2.historyAfterDrag!.past },
         saves: { v1: v1.savesAfterDrag!, v2: v2.savesAfterDrag! },
         reloadPreserved: { v1: v1.movedPreservedOnFreshPage!, v2: v2.movedPreservedOnFreshPage! },
         undoRestored: { v1: v1.undoRestoredAfterReload!, v2: v2.undoRestoredAfterReload! },
       })
     } else assessmentError = `Post-gesture v1 record refused conversion: ${JSON.stringify(conversion.issues)}`
-  } else assessmentError = 'The ordinary pointer Clip gesture was unavailable on at least one stored row.'
+  } else assessmentError = input.unavailableDetail
   const report = {
     schemaVersion: 1,
     runId,
     generatedAt: new Date().toISOString(),
     outputRoot,
     issue: 1065,
-    gesture: 'pointer Clip drag by +2000ms',
-    outcomes,
+    gesture: input.gesture,
+    outcomes: [v1, v2],
     assessment,
   }
   if (assessmentError) Object.assign(report, { assessmentError })
-  await writeFile(resolve(outputRoot, 'behavior-report.json'), `${JSON.stringify(report, null, 2)}\n`)
-  expect(outcomes.map(outcome => outcome.available), `Gesture availability failed; see ${resolve(outputRoot, 'behavior-report.json')}`).toEqual([true, true])
-  expect(outcomes.map(outcome => outcome.savesAfterDrag)).toEqual([1, 1])
-  expect(outcomes.map(outcome => outcome.movedPreservedOnFreshPage)).toEqual([true, true])
-  expect(outcomes.map(outcome => outcome.historyAfterDrag)).toEqual([{ past: 1, future: 0 }, { past: 1, future: 0 }])
-  expect(outcomes.map(outcome => outcome.savesAfterUndo)).toEqual([2, 2])
-  expect(outcomes.map(outcome => outcome.historyAfterUndo)).toEqual([{ past: 0, future: 1 }, { past: 0, future: 1 }])
-  expect(assessment?.equivalent, `Behavioral equivalence failed; see ${resolve(outputRoot, 'behavior-report.json')}`).toBe(true)
-})
+  await writeFile(resolve(outputRoot, input.reportFile), `${JSON.stringify(report, null, 2)}\n`)
+  expect([v1, v2].map(outcome => outcome.available), `Gesture availability failed; see ${resolve(outputRoot, input.reportFile)}`).toEqual([true, true])
+  expect([v1, v2].map(outcome => outcome.savesAfterDrag)).toEqual([1, 1])
+  expect([v1, v2].map(outcome => outcome.movedPreservedOnFreshPage)).toEqual([true, true])
+  expect([v1, v2].map(outcome => outcome.historyAfterDrag)).toEqual([{ past: 1, future: 0 }, { past: 1, future: 0 }])
+  expect([v1, v2].map(outcome => outcome.savesAfterUndo)).toEqual([2, 2])
+  expect([v1, v2].map(outcome => outcome.historyAfterUndo)).toEqual([{ past: 0, future: 1 }, { past: 0, future: 1 }])
+  expect(assessment?.equivalent, `Behavioral equivalence failed; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
+}
 
+async function runBehaviorGestureVersion(
+  page: Page,
+  id: string,
+  version: 'v1' | 'v2',
+  gesture: () => Promise<void>,
+): Promise<BehaviorGestureRun> {
+  const outcome: BehaviorOutcome = { version, available: false }
+  let preimage: unknown
+  let saves = 0
+  const countSave = (request: import('@playwright/test').Request) => {
+    if ((request.method() === 'PATCH' || request.method() === 'PUT') && request.url().includes(`/api/shows/${id}`)) saves += 1
+  }
+  page.on('request', countSave)
+  try {
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.goto(`studio/shows/${id}`)
+    await expect(page.getByTestId('show-stage-preview')).toBeVisible()
+    await closeAgentDrawer(page)
+    preimage = await readStoredShow(page, id, version)
+    const pause = page.getByRole('button', { name: 'Pause Show preview' }).first()
+    if (await pause.isVisible()) await pause.click()
+    await page.getByRole('button', { name: 'Go to Show start' }).first().click()
+    await gesture()
+    outcome.available = true
+    await expect.poll(() => saves).toBe(1)
+    const saved = await readStoredShow(page, id, version)
+    outcome.saved = saved
+    outcome.savesAfterDrag = saves
+    outcome.historyAfterDrag = await readHistoryShape(page, id, version)
+    const freshPage = await page.context().newPage()
+    try {
+      await freshPage.goto(`studio/shows/${id}`)
+      await expect(freshPage.getByTestId('show-stage-preview')).toBeVisible()
+      const hydratedMoved = await readHydratedShow(freshPage, id, version)
+      outcome.movedPreservedOnFreshPage = isDeepStrictEqual(
+        normalizeShowEquivalenceRecord(hydratedMoved),
+        normalizeShowEquivalenceRecord(saved),
+      )
+    } finally {
+      await freshPage.close()
+    }
+    await undoThroughUi(page)
+    await expect.poll(() => saves).toBe(2)
+    await expect.poll(async () => isDeepStrictEqual(
+      normalizeShowEquivalenceRecord(await readStoredShow(page, id, version)),
+      normalizeShowEquivalenceRecord(preimage),
+    )).toBe(true)
+    outcome.savesAfterUndo = saves
+    outcome.historyAfterUndo = await readHistoryShape(page, id, version)
+    await page.reload()
+    await expect(page.getByTestId('show-stage-preview')).toBeVisible()
+    const restoredAfterReload = await readStoredShow(page, id, version)
+    outcome.undoRestoredAfterReload = isDeepStrictEqual(
+      normalizeShowEquivalenceRecord(restoredAfterReload),
+      normalizeShowEquivalenceRecord(preimage),
+    )
+  } catch (error) {
+    outcome.error = error instanceof Error ? error.message : String(error)
+  } finally {
+    page.off('request', countSave)
+  }
+  return { outcome, preimage }
+}
 
 /** Everything the bounded noise plan collected for one surface, recorded whatever it concluded. */
 type SurfaceNoiseReport = {
@@ -1425,6 +1496,138 @@ async function dragFirstOrdinaryClip(page: Page, version: 'v1' | 'v2') {
     if (version === 'v1') return (stored as ShowRecord).composition?.scenes[0].zones[0].main[0].startMs
     return (stored as ShowRecordV2).composition.clips[0].startMs
   }).toBe(2_000)
+}
+
+async function resizeBehaviorClipEdge(
+  page: Page,
+  id: string,
+  version: 'v1' | 'v2',
+  input: { edge: 'start' | 'end'; deltaMs: number; shiftKey: boolean },
+): Promise<void> {
+  const handle = page.getByRole('separator', { name: `Resize TestPattern1D ${input.edge}` })
+  await expect(handle).toBeVisible()
+  const box = await handle.boundingBox()
+  expect(box).not.toBeNull()
+  const laneWidth = await handle.evaluate(element =>
+    element.closest('[data-show-layer-kind]')?.getBoundingClientRect().width ?? 0)
+  expect(laneWidth).toBeGreaterThan(0)
+  const stored = await readStoredShow(page, id, version)
+  const totalMs = version === 'v1'
+    ? (stored as ShowRecord).composition?.durationMs
+    : (stored as ShowRecordV2).composition.showEndMs
+  if (totalMs !== 6_000) throw new Error(`The behavior Show time base is ${String(totalMs)}ms, expected 6000ms.`)
+  const from = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 }
+  const deltaPx = laneWidth * input.deltaMs / totalMs
+  if (input.shiftKey) await page.keyboard.down('Shift')
+  try {
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(from.x + deltaPx, from.y, { steps: 10 })
+    await page.mouse.up()
+  } finally {
+    if (input.shiftKey) await page.keyboard.up('Shift')
+  }
+  const expected = input.edge === 'end'
+    ? { startMs: 0, durationMs: 3_000 }
+    : { startMs: 500, durationMs: 500 }
+  await expect.poll(async () => {
+    const moved = await readStoredShow(page, id, version)
+    if (version === 'v1') {
+      const placement = (moved as ShowRecord).composition?.scenes[0].zones[0].main[0]
+      return { startMs: placement?.startMs, durationMs: placement?.durationMs }
+    }
+    const clip = (moved as ShowRecordV2).composition.clips[0]
+    return { startMs: clip?.startMs, durationMs: clip?.durationMs }
+  }).toEqual(expected)
+}
+
+async function splitBehaviorClipAtPlayhead(page: Page, id: string, version: 'v1' | 'v2'): Promise<void> {
+  await page.evaluate(async ({ showId, startMs }) => {
+    const load = (path: string) => import(path)
+    const { useShowTransportStore } = await load('/PXLBLZ-IDE/src/store/showTransportStore.ts')
+    const transport = useShowTransportStore.getState()
+    transport.setPosition(showId, startMs)
+    transport.requestSeek(showId, startMs)
+  }, { showId: id, startMs: 500 })
+  await expect.poll(() => page.evaluate(async () => {
+    const load = (path: string) => import(path)
+    const { useShowTransportStore } = await load('/PXLBLZ-IDE/src/store/showTransportStore.ts')
+    return useShowTransportStore.getState().seekStatus
+  })).toBe('idle')
+  await expect.poll(() => page.evaluate(async () => {
+    const load = (path: string) => import(path)
+    const { useShowTransportStore } = await load('/PXLBLZ-IDE/src/store/showTransportStore.ts')
+    return useShowTransportStore.getState().positionMs
+  })).toBe(500)
+  // The playhead's hit target covers the Clip's centre at 500ms, so select the
+  // Clip well to the right of it rather than at Playwright's default centre.
+  const splitClip = page.getByRole('button', { name: /^Select TestPattern1D/ }).first()
+  const splitClipBox = await splitClip.boundingBox()
+  if (!splitClipBox) throw new Error('The Clip to split has no bounding box.')
+  await splitClip.click({ position: { x: Math.round(splitClipBox.width * 0.75), y: Math.round(splitClipBox.height / 2) } })
+  await page.getByRole('button', { name: 'Split at playhead', exact: true }).click()
+  await expect.poll(async () => {
+    const stored = await readStoredShow(page, id, version)
+    if (version === 'v1') {
+      const main = (stored as ShowRecord).composition?.scenes[0].zones[0].main ?? []
+      return { count: main.length, leftDurationMs: main[0]?.durationMs, rightStartMs: main[1]?.startMs }
+    }
+    const clips = (stored as ShowRecordV2).composition.clips
+    return { count: clips.length, leftDurationMs: clips[0]?.durationMs, rightStartMs: clips[1]?.startMs }
+  }).toEqual({ count: 2, leftDurationMs: 500, rightStartMs: 500 })
+}
+
+const SPLIT_MINTED_CLIP_PLACEHOLDER = '__split-right-clip__'
+
+function collectRecordStrings(value: unknown, into: Set<string>): void {
+  if (typeof value === 'string') {
+    into.add(value)
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) collectRecordStrings(entry, into)
+    return
+  }
+  if (value && typeof value === 'object') {
+    for (const entry of Object.values(value as Record<string, unknown>)) collectRecordStrings(entry, into)
+  }
+}
+
+function remapRecordString(value: unknown, from: string, to: string): unknown {
+  if (typeof value === 'string') return value === from ? to : value
+  if (Array.isArray(value)) return value.map(entry => remapRecordString(entry, from, to))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, remapRecordString(entry, from, to)]),
+    )
+  }
+  return value
+}
+
+function compareSplitRecordsModuloMintedId(args: {
+  convertedV1: unknown
+  savedV2: unknown
+  v1: BehaviorGestureRun
+  v2: BehaviorGestureRun
+}): { convertedV1: unknown; savedV2: unknown } {
+  const freshStrings = (preimage: unknown, saved: unknown): string[] => {
+    const before = new Set<string>()
+    collectRecordStrings(preimage, before)
+    const after = new Set<string>()
+    collectRecordStrings(saved, after)
+    return [...after].filter(entry => !before.has(entry))
+  }
+  const mintedV1 = freshStrings(args.v1.preimage, args.v1.outcome.saved)
+  const mintedV2 = freshStrings(args.v2.preimage, args.v2.outcome.saved)
+  if (mintedV1.length !== 1 || mintedV2.length !== 1) {
+    throw new Error(
+      `Split must mint exactly one fresh Clip id per backing; got v1=${JSON.stringify(mintedV1)} v2=${JSON.stringify(mintedV2)}.`,
+    )
+  }
+  return {
+    convertedV1: remapRecordString(args.convertedV1, mintedV1[0], SPLIT_MINTED_CLIP_PLACEHOLDER),
+    savedV2: remapRecordString(args.savedV2, mintedV2[0], SPLIT_MINTED_CLIP_PLACEHOLDER),
+  }
 }
 
 async function readStoredShow(page: Page, id: string, version: 'v1' | 'v2'): Promise<unknown> {
