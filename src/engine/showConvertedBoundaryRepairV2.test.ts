@@ -275,6 +275,39 @@ describe('converted Scene-boundary repair through the Transition owner', () => {
     expect(trailing.status).toBe('refused')
   })
 
+  it('refuses connected resize while the converted-boundary carrier still holds Property ramps', () => {
+    const rampCarrier = (): ShowRecordV2 => {
+      const source = convertedDefaultShow()
+      const carrier = source.composition.transitions.find(transition => transition.id === BOUNDARY)!
+      const incoming = source.composition.clips.find(clip => clip.id === RIGHT)!
+      carrier.propertyRamps = [{
+        participantId: carrier.participants[0].id,
+        target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+        from: 0.2,
+        easing: { curve: 'quadratic', direction: 'in' },
+      }]
+      expect(validateShowRecordV2(source)).toEqual([])
+      return source
+    }
+    const leadingSource = rampCarrier()
+    const leadingBefore = structuredClone(leadingSource)
+    const leading = editShowTransitionV2(leadingSource, { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 })
+    expect(leading.status).toBe('refused')
+    if (leading.status !== 'refused') return
+    expect(leading.code).toBe('unsupported-property-carrier')
+    expect(leading.record).toBe(leadingSource)
+    expect(leadingSource).toEqual(leadingBefore)
+
+    const trailingSource = rampCarrier()
+    const trailingBefore = structuredClone(trailingSource)
+    const trailing = editShowTransitionV2(trailingSource, { kind: 'resize-trailing', clipId: LEFT, endMs: 25000 })
+    expect(trailing.status).toBe('refused')
+    if (trailing.status !== 'refused') return
+    expect(trailing.code).toBe('unsupported-property-carrier')
+    expect(trailing.record).toBe(trailingSource)
+    expect(trailingSource).toEqual(trailingBefore)
+  })
+
   it('reclaims Show End on reset-to-cut for a converted boundary and keeps it for native ones', () => {
     const repaired = editShowTransitionV2(convertedDefaultShow(), { kind: 'reset-to-cut', transitionId: BOUNDARY })
     expect(repaired.status).toBe('changed')

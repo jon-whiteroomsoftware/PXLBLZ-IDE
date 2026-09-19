@@ -587,6 +587,7 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
   const endpoints = transitionEndpoints(transition)
   if (endpoints.from.length !== 1) return refusedResult(record, 'invalid-topology', 'Resize cannot split a multi-contributor Transition window.')
   const boundary = convertedBoundaryRepairSpecV2(record, transition.id)
+  if (boundary.status === 'ramp-carrier') return refusedResult(record, 'unsupported-property-carrier', `Transition "${boundary.transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
   if (boundary.status === 'ready') {
     if (endMs > oldEndMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${boundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
     return resizeConvertedBoundaryEdge(record, clip, clip.startMs, endMs, boundary.repair)
@@ -675,6 +676,7 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   const endpoints = transitionEndpoints(transition)
   if (endpoints.to.length !== 1) return refusedResult(record, 'invalid-topology', 'Resize cannot split a multi-contributor Transition window.')
   const boundary = convertedBoundaryRepairSpecV2(record, transition.id)
+  if (boundary.status === 'ramp-carrier') return refusedResult(record, 'unsupported-property-carrier', `Transition "${boundary.transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
   if (boundary.status === 'ready') {
     if (startMs < clip.startMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${boundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
     return resizeConvertedBoundaryEdge(record, clip, startMs, oldEndMs, boundary.repair)
