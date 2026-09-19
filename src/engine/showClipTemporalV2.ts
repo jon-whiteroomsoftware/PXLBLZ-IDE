@@ -138,7 +138,14 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
       edited.layerId = destination.layerId
     }
     if (pendingBoundaryRepairs.length > 0) {
-      const committed = commitConvertedBoundaryRepairsV2(record, next, pendingBoundaryRepairs)
+      // An explicit startMs names post-repair coordinates — the number the
+      // preview paints is the number the timeline must show — so the already
+      // placed Clip stays out of the preimage-derived shift set. Without an
+      // explicit start the Clip keeps its preimage position and rides the
+      // reclaim downstream like any other Clip.
+      const committed = commitConvertedBoundaryRepairsV2(record, next, pendingBoundaryRepairs, {
+        alreadyRelocatedClipIds: intent.startMs !== undefined ? [clip.id] : [],
+      })
       if (committed.status === 'refused') return refuse('invalid-result', committed.message)
       shortenedLayoutOccurrenceIds.push(...committed.applied.shortenedLayoutOccurrenceIds, ...committed.applied.shiftedLayoutOccurrenceIds)
       shiftedMarkerIds.push(...committed.applied.shiftedMarkerIds)

@@ -501,6 +501,103 @@ it('repairs the same converted boundary when the upstream Clip of the join is dr
   expect(source).toEqual(prior)
 })
 
+it('lands an explicit start exactly on a converted-boundary drop while downstream still reclaims', () => {
+  const source = convertedJoin()
+  // A tail Clip downstream of the join makes the reclaim observable apart from
+  // the dragged Clip: it must ride the repair even though the dragged Clip is
+  // pinned to its requested start.
+  source.composition.clips.push(clip('tail', 'base', 1_000, 400))
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 1_200 })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  // The requested start names post-repair coordinates: the Clip lands exactly
+  // at 1200, not 1100. If the preimage-derived shift returns, this is the
+  // assertion that fails.
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 1_200, durationMs: 400 })
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 0, durationMs: 500 })
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'tail'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 900, durationMs: 400 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.record.composition.showEndMs).toBe(1_900)
+  expect(result.record.composition.layoutOccurrences).toEqual([
+    { id: 'coverage', layoutId: 'both', startMs: 0, durationMs: 1_900, parameters: {} },
+  ])
+  expect(source).toEqual(prior)
+})
+
+it('accepts an explicit start smaller than the boundary duration instead of refusing it', () => {
+  const source = convertedJoin()
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 50 })
+  // A preimage-frame repair would move the Clip to -50 and refuse; the
+  // requested start is post-repair, so this drop is legal and lands at 50.
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 50, durationMs: 400 })
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 0, durationMs: 500 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.record.composition.showEndMs).toBe(1_900)
+  expect(source).toEqual(prior)
+})
+
+it('honours an explicit start on the from-side endpoint without moving the dragged Clip', () => {
+  const source = convertedJoin()
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over', startMs: 1_200 })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 1_200, durationMs: 500 })
+  // The downstream side still reclaims by the boundary duration.
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 500, durationMs: 400 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.record.composition.showEndMs).toBe(1_900)
+  expect(source).toEqual(prior)
+})
+
+it('refuses a drop whose post-move interval straddles the reclaimed window end', () => {
+  const source = convertedJoin()
+  const prior = structuredClone(source)
+  // The preimage [0, 500) passes the old guard, but the candidate [520, 1020)
+  // straddles windowEndMs 600 while everything from 600 shifts 100 ms earlier.
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'outgoing', layerId: 'over', startMs: 520 })
+  expect(result.status, JSON.stringify(result)).toBe('refused')
+  if (result.status !== 'refused') return
+  expect(result.code).toBe('invalid-result')
+  expect(result.message).toContain('600')
+  expect(result.record).toBe(source)
+  expect(result.affectedClipIds).toEqual([])
+  expect(result.removedIds).toEqual([])
+  expect(result.record.composition.transitions).toHaveLength(1)
+  expect(result.record.composition.showEndMs).toBe(2_000)
+  expect(source).toEqual(prior)
+})
+
+it.each([
+  { label: 'a native join', join: 'gapped' },
+  { label: 'a converted-Layer join', join: 'converted-layer' },
+])('leaves $label unrepaired on an explicit-start drop', ({ join }) => {
+  const source = join === 'gapped' ? gappedJoin() : convertedLayerJoin()
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 1_000 })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 1_000, durationMs: 400 })
+  expect(result.record.composition.transitions).toEqual([])
+  // No boundary repair runs here: Show End and Layouts stay exact.
+  expect(result.record.composition.showEndMs).toBe(2_000)
+  expect(result.record.composition.layoutOccurrences).toEqual(source.composition.layoutOccurrences)
+  expect(source).toEqual(prior)
+})
+
 it('refuses the whole drop atomically when the converted-boundary repair is blocked', () => {
   const source = convertedJoin()
   // A Clip on an untouched Layer spans the reclaimed window end (600 ms), so
@@ -555,6 +652,20 @@ function convertedJoin(): ShowRecordV2 {
     id: 'incoming', kind: 'crossfade', durationMs: 100, easing: { curve: 'linear' }, crossfadePolicy: 'live-live', propertyRamps: [],
     origin: 'converted-boundary-transition',
     participants: [{ id: 'pair', zoneId: 'left', layerId: 'base', fromClipId: 'outgoing', toClipId: 'selected' }],
+  }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  return source
+}
+
+/**
+ * A converted Layer junction at participant scope: structurally identical to
+ * the boundary above, but Layer provenance means it detaches with no repair.
+ */
+function convertedLayerJoin(): ShowRecordV2 {
+  const source = convertedJoin()
+  source.composition.transitions = [{
+    ...source.composition.transitions[0],
+    origin: 'converted-layer-transition',
   }]
   expect(validateShowRecordV2(source)).toEqual([])
   return source

@@ -371,11 +371,29 @@ export interface ConvertedBoundaryRepairAppliedV2 {
  * reclaims Show End and keeps Layout coverage exact. Returns a refusal
  * message when protected content collides; the caller refuses atomically
  * with its original record.
+ *
+ * Coordinate frame: `record` is the pre-edit preimage — windows, closures and
+ * membership all read it — and every shift applied to `next` is relative
+ * (-durationMs). A caller that retimes its edited Clip in old coordinates
+ * (both resize owners) passes no options, so the edited Clip rides the
+ * reclaim like any other downstream Clip. A caller that already placed a Clip
+ * at its requested post-repair coordinates (the re-placement owner: an
+ * explicit startMs names the final number, the one the preview paints) names
+ * it in `alreadyRelocatedClipIds`, and this commit neither shifts it nor its
+ * owned tracks/whole-output windows; its post-move interval in `next` is
+ * guard-checked for straddling the reclaimed end instead, because its
+ * preimage interval no longer describes where it is.
  */
+export interface ConvertedBoundaryRepairCommitOptionsV2 {
+  /** Clips already sitting at post-repair coordinates in `next`: excluded from the relative shift. */
+  alreadyRelocatedClipIds?: readonly string[]
+}
+
 export function commitConvertedBoundaryRepairsV2(
   record: ShowRecordV2,
   next: ShowRecordV2,
   repairs: readonly ConvertedBoundaryRepairV2[],
+  options?: ConvertedBoundaryRepairCommitOptionsV2,
 ): { status: 'applied'; applied: ConvertedBoundaryRepairAppliedV2 } | { status: 'refused'; message: string } {
   // Windows, closures and membership all read the pre-edit record: the caller
   // retimes the edited Clip in old coordinates first, and the repair closes
@@ -395,8 +413,17 @@ export function commitConvertedBoundaryRepairsV2(
       return { status: 'refused', message: `Transition "${repair.transitionId}" is no longer present.` }
     }
     const durationMs = repair.durationMs
+    const relocated = new Set(options?.alreadyRelocatedClipIds ?? [])
     const shiftIds = new Set(downstreamClosure(record, [repair.toClipId]))
+    for (const id of relocated) shiftIds.delete(id)
     for (const clip of record.composition.clips) {
+      if (relocated.has(clip.id)) {
+        const live = next.composition.clips.find(candidate => candidate.id === clip.id)!
+        if (live.startMs < repair.windowEndMs && live.startMs + live.durationMs > repair.windowEndMs) {
+          return { status: 'refused', message: `Clip "${clip.id}" spans the reclaimed boundary window ending at ${repair.windowEndMs} ms; split or trim it away from the boundary first.` }
+        }
+        continue
+      }
       if (clip.startMs >= repair.windowEndMs) shiftIds.add(clip.id)
       else if (clip.startMs + clip.durationMs > repair.windowEndMs) {
         return { status: 'refused', message: `Clip "${clip.id}" spans the reclaimed boundary window ending at ${repair.windowEndMs} ms; split or trim it away from the boundary first.` }

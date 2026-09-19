@@ -479,6 +479,53 @@ describe('v2 tracer settlement routing (#1065)', () => {
     expect(legacy.calls).toEqual([])
   })
 
+  it('settles a converted-boundary-joined Clip at its explicit start with the window reclaimed (#1068)', async () => {
+    // join-a-b is exact (resize-a ends 5000, resize-b starts 7000, 2000 ms
+    // crossfade), so reinterpreting it as a converted boundary gives a ready
+    // repair with window [5000, 7000). The drop paints startMs 8000 and the
+    // Clip must land at exactly 8000 — not 6000 — while the window reclaims.
+    const record = connectedV2Record('tracer-boundary-drop')
+    const boundary = record.composition.transitions.find((transition) => transition.id === 'join-a-b')
+    if (!boundary) throw new Error('No join-a-b Transition to reinterpret as a converted boundary.')
+    record.composition.transitions = [{
+      ...boundary,
+      id: 'transition-scene-1',
+      origin: 'converted-boundary-transition',
+    }]
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-b').layerId)!.id
+    const surface = dragSurface('resize-b')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('overlay'), 'dragover', 80)
+    surface.fire(surface.lane('overlay'), 'drop', 80)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: {
+        kind: 'replace-placement', clipId: 'resize-b', zoneId: 'z1', layerId: overlayLayerId, startMs: 8_000,
+      },
+      baseRevision: 0,
+    }])
+    // Post-repair coordinates: the Clip is where it was dropped. A preimage
+    // repair shift would leave it at 6000 instead.
+    expect(authoredClip(after.record, 'resize-b').layerId).toBe(overlayLayerId)
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(8_000)
+    // The boundary window still reclaims: Show End shrinks by its duration and
+    // downstream content rides the repair.
+    expect(after.record.composition.showEndMs).toBe(before.record.composition.showEndMs - 2_000)
+    expect(authoredClip(after.record, 'overlay-a').startMs).toBe(
+      authoredClip(before.record, 'overlay-a').startMs - 2_000,
+    )
+    expectOneEdit(before, after)
+    expect(legacy.calls).toEqual([])
+  })
+
   it('submits one settlement per gesture when the drop repeats', async () => {
     const editor = openV2Editor('tracer-duplicate-settlement')
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)

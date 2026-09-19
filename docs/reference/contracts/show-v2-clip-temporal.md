@@ -67,10 +67,16 @@ structure rather than a gap between placements, so the same transaction also
 commits its cut-and-reclaim repair: the boundary record leaves, the downstream
 side moves earlier by the boundary duration, Show End shrinks by the same
 duration, and the owning Layout occurrence absorbs the reclaim exactly as the
-resize path does. A repair the commit cannot absorb — content spanning the
-reclaimed window end, a window outside one Layout occurrence, or an owning
-occurrence that cannot cover the reclaim — refuses the whole edit atomically as
-`invalid-result` with the original record identity. A Transition in that set
+resize path does. An explicit startMs names post-repair coordinates: the
+relocated Clip is excluded from that relative shift and lands exactly at the
+requested start, while its post-move interval is checked for straddling the
+reclaimed window end. Without an explicit start the Clip keeps its preimage
+position and rides the reclaim with the downstream side. A repair the commit
+cannot absorb — content spanning the reclaimed window end in its preimage
+interval, or in the relocated Clip's post-move interval, a window outside one
+Layout occurrence, or an owning occurrence that cannot cover the reclaim —
+refuses the whole edit atomically as `invalid-result` with the original record
+identity. A Transition in that set
 that carries `propertyRamps` refuses `unsupported-property-carrier` instead;
 Reset it with an explicit projection plan first. Nothing is retargeted or
 stubbed. A whole-output contributor set is named by exact time rather than
