@@ -446,11 +446,12 @@ test('the same leading Clip resize has equal durable result, exact history and o
   })
 })
 
-// Split characterizes its one known `records` divergence exactly (#1068): the v2
-// split owner keeps the left Clip's appearance-key id on both halves, while v1
-// then conversion derives the right half's key id from its new Clip id.
-// History, the single save, reload and Undo match on both backings; that one
-// leaf is the whole difference.
+// Split mints a fresh right-half Clip id on each backing, and both backings
+// derive the right half's appearance-key ids from that id as
+// `<clipId>:appearance:<n>` (#1068). The comparison normalizes the minted id
+// and every id derived from it to a placeholder on each side, then asserts
+// full record equality. History, the single save, reload and Undo match on
+// both backings.
 test('the same toolbar Clip Split has equal durable result, exact history and one save', async ({ page }) => {
   await runBehaviorGestureEquivalence(page, {
     seedKey: 'clip-split',
@@ -458,8 +459,7 @@ test('the same toolbar Clip Split has equal durable result, exact history and on
     reportFile: 'behavior-split-report.json',
     unavailableDetail: 'The toolbar Split gesture was unavailable on at least one stored row.',
     perform: ({ id, version }) => splitBehaviorClipAtPlayhead(page, id, version),
-    compareRecords: (args) => compareSplitRecordsWithKnownKeyDivergence(args),
-    expectKnownRecordsDifference: true,
+    compareRecords: (args) => compareSplitRecords(args),
   })
 })
 
@@ -493,7 +493,6 @@ async function runBehaviorGestureEquivalence(page: Page, input: {
     v1: BehaviorGestureRun
     v2: BehaviorGestureRun
   }) => { convertedV1: unknown; savedV2: unknown }
-  expectKnownRecordsDifference?: true
 }): Promise<void> {
   test.setTimeout(120_000)
   page.setDefaultTimeout(5_000)
@@ -541,18 +540,7 @@ async function runBehaviorGestureEquivalence(page: Page, input: {
   expect([v1, v2].map(outcome => outcome.historyAfterDrag)).toEqual([{ past: 1, future: 0 }, { past: 1, future: 0 }])
   expect([v1, v2].map(outcome => outcome.savesAfterUndo)).toEqual([2, 2])
   expect([v1, v2].map(outcome => outcome.historyAfterUndo)).toEqual([{ past: 0, future: 1 }, { past: 0, future: 1 }])
-  if (input.expectKnownRecordsDifference) {
-    expect(assessment?.checks.history, `Behavioral history diverged; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
-    expect(assessment?.checks.saves, `Behavioral save count diverged; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
-    expect(assessment?.checks.reload, `Behavioral reload diverged; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
-    expect(assessment?.checks.undo, `Behavioral Undo diverged; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
-    expect(
-      assessment?.checks.records,
-      'Split records unexpectedly match: #1068 has landed, so tighten this test back to full record equality.',
-    ).toBe(false)
-  } else {
-    expect(assessment?.equivalent, `Behavioral equivalence failed; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
-  }
+  expect(assessment?.equivalent, `Behavioral equivalence failed; see ${resolve(outputRoot, input.reportFile)}`).toBe(true)
 }
 
 async function runBehaviorGestureVersion(
@@ -1643,12 +1631,16 @@ function collectRecordStrings(value: unknown, into: Set<string>): void {
   }
 }
 
-function remapRecordString(value: unknown, from: string, to: string): unknown {
-  if (typeof value === 'string') return value === from ? to : value
-  if (Array.isArray(value)) return value.map(entry => remapRecordString(entry, from, to))
+function remapMintedSplitId(value: unknown, minted: string): unknown {
+  if (typeof value === 'string') {
+    if (value === minted) return SPLIT_MINTED_CLIP_PLACEHOLDER
+    if (value.startsWith(`${minted}:`)) return `${SPLIT_MINTED_CLIP_PLACEHOLDER}${value.slice(minted.length)}`
+    return value
+  }
+  if (Array.isArray(value)) return value.map(entry => remapMintedSplitId(entry, minted))
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, remapRecordString(entry, from, to)]),
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, remapMintedSplitId(entry, minted)]),
     )
   }
   return value
@@ -1662,19 +1654,30 @@ function mintedSplitClipIds(args: { v1: BehaviorGestureRun; v2: BehaviorGestureR
     collectRecordStrings(saved, after)
     return [...after].filter(entry => !before.has(entry))
   }
-  const mintedV1 = freshStrings(args.v1.preimage, args.v1.outcome.saved)
-  const mintedV2 = freshStrings(args.v2.preimage, args.v2.outcome.saved)
-  if (mintedV1.length !== 1 || mintedV2.length !== 1) {
-    throw new Error(
-      `Split must mint exactly one fresh Clip id per backing; got v1=${JSON.stringify(mintedV1)} v2=${JSON.stringify(mintedV2)}.`,
-    )
+  const splitClipId = (label: string, preimage: unknown, saved: unknown): string => {
+    const fresh = freshStrings(preimage, saved)
+    const clipIds = fresh.filter(entry => !/^(.+):appearance:\d+$/.test(entry))
+    const derived = fresh.filter(entry => /^(.+):appearance:\d+$/.test(entry))
+    if (clipIds.length !== 1) {
+      throw new Error(
+        `Split must mint exactly one fresh Clip id on ${label}; got ${JSON.stringify(fresh)}.`,
+      )
+    }
+    const stray = derived.filter(entry => !entry.startsWith(`${clipIds[0]}:appearance:`))
+    if (stray.length > 0) {
+      throw new Error(
+        `Split derived appearance-key ids must root at the minted Clip id on ${label}; got ${JSON.stringify(stray)}.`,
+      )
+    }
+    return clipIds[0]
   }
-  return { v1: mintedV1[0], v2: mintedV2[0] }
+  return {
+    v1: splitClipId('v1', args.v1.preimage, args.v1.outcome.saved),
+    v2: splitClipId('v2', args.v2.preimage, args.v2.outcome.saved),
+  }
 }
 
-const SPLIT_KNOWN_KEY_DIVERGENCE_PATH = '$.composition.clips[1].appearance.keys[0].id'
-
-function compareSplitRecordsWithKnownKeyDivergence(args: {
+function compareSplitRecords(args: {
   convertedV1: unknown
   savedV2: unknown
   v1: BehaviorGestureRun
@@ -1682,29 +1685,26 @@ function compareSplitRecordsWithKnownKeyDivergence(args: {
 }): { convertedV1: unknown; savedV2: unknown } {
   const minted = mintedSplitClipIds(args)
   const records = {
-    convertedV1: remapRecordString(args.convertedV1, minted.v1, SPLIT_MINTED_CLIP_PLACEHOLDER),
-    savedV2: remapRecordString(args.savedV2, minted.v2, SPLIT_MINTED_CLIP_PLACEHOLDER),
+    convertedV1: remapMintedSplitId(args.convertedV1, minted.v1),
+    savedV2: remapMintedSplitId(args.savedV2, minted.v2),
   }
-  const differing = collectDifferingJsonPaths(
-    normalizeShowEquivalenceRecord(records.convertedV1),
-    normalizeShowEquivalenceRecord(records.savedV2),
-  )
-  expect(
-    differing,
-    'Split records must differ in exactly the documented appearance-key allocation (#1068): '
-      + 'when #1068 lands, tighten this test back to full record equality.',
-  ).toEqual([SPLIT_KNOWN_KEY_DIVERGENCE_PATH])
   const convertedKey = (records.convertedV1 as ShowRecordV2).composition.clips[1]?.appearance.keys[0]?.id
-  const retainedKey = (records.savedV2 as ShowRecordV2).composition.clips[0]?.appearance.keys[0]?.id
   const splitKey = (records.savedV2 as ShowRecordV2).composition.clips[1]?.appearance.keys[0]?.id
   expect(
     convertedKey,
-    'The converted right half must derive its appearance-key id from its minted Clip id (#1068).',
-  ).toBe(`${minted.v1}:appearance:1`)
+    'The converted right half must derive its appearance-key id from the placeholder Clip id (#1068).',
+  ).toBe(`${SPLIT_MINTED_CLIP_PLACEHOLDER}:appearance:1`)
   expect(
     splitKey,
-    'The v2 right half must retain the left Clip appearance-key id (#1068).',
-  ).toBe(retainedKey)
+    'The v2 split right half must derive its appearance-key id from the placeholder Clip id (#1068).',
+  ).toBe(`${SPLIT_MINTED_CLIP_PLACEHOLDER}:appearance:1`)
+  expect(
+    collectDifferingJsonPaths(
+      normalizeShowEquivalenceRecord(records.convertedV1),
+      normalizeShowEquivalenceRecord(records.savedV2),
+    ),
+    'Split records must match exactly: both backings derive the right-half appearance-key ids from the minted Clip id (#1068).',
+  ).toEqual([])
   return records
 }
 

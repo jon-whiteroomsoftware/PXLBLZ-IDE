@@ -120,12 +120,20 @@ describe('Show editor equivalence oracle fault sensitivity', () => {
   })
 
   it('split and conversion agree on right-half appearance-key ids', () => {
-    const left = { id: 'clip', appearance: { keys: [{ id: 'clip:appearance:1' }] } }
-    const convertedRight = { id: '__split-right-clip__', appearance: { keys: [{ id: '__split-right-clip__:appearance:1' }] } }
-    const splitRight = { id: '__split-right-clip__', appearance: { keys: [{ id: '__split-right-clip__:appearance:1' }] } }
+    const appearanceKeyId = (clipId: string, index: number): string => `${clipId}:appearance:${index + 1}`
+    const leftClipId = 'clip'
+    const rightClipId = '__split-right-clip__'
+    const left = { id: leftClipId, appearance: { keys: [{ id: appearanceKeyId(leftClipId, 0) }] } }
+    const convertedRight = { id: rightClipId, appearance: { keys: [{ id: appearanceKeyId(rightClipId, 0) }] } }
+    const splitRight = { id: rightClipId, appearance: { keys: [{ id: `${rightClipId}:appearance:1` }] } }
     expect(collectDifferingJsonPaths(
       { composition: { clips: [left, convertedRight] } },
       { composition: { clips: [left, splitRight] } },
     )).toEqual([])
+    const regressedRight = { id: rightClipId, appearance: { keys: [{ id: appearanceKeyId(leftClipId, 0) }] } }
+    expect(collectDifferingJsonPaths(
+      { composition: { clips: [left, convertedRight] } },
+      { composition: { clips: [left, regressedRight] } },
+    )).toEqual(['$.composition.clips[1].appearance.keys[0].id'])
   })
 })
