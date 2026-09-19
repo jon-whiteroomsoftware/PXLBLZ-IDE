@@ -162,6 +162,26 @@ describe('planShowV2ClipMove', () => {
     expect(planShowV2ClipMove(view, { clipId: 'g', zoneId: 'z1', layerId: 'l1', startMs: 12000 }))
       .toEqual({ kind: 'refuse', reason: 'group-child' })
   })
+
+  it('rounds a fractional Alt-drag start before planning, exactly as v1 moveShowClip does', () => {
+    const view = fixture()
+    expect(planShowV2ClipMove(view, { clipId: 'c', zoneId: 'z1', layerId: 'l1', startMs: 11234.57 }))
+      .toEqual({
+        kind: 'temporal',
+        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z1', layerId: 'l1', startMs: 11235 },
+      })
+    expect(planShowV2ClipMove(view, { clipId: 'c', zoneId: 'z2', layerId: 'l3', startMs: 5000.5 }))
+      .toEqual({
+        kind: 'temporal',
+        intent: { kind: 'replace-placement', clipId: 'c', zoneId: 'z2', layerId: 'l3', startMs: 5001 },
+      })
+    expect(planShowV2ClipMove(view, { clipId: 'a', zoneId: 'z1', layerId: 'l1', startMs: 1000.49 }))
+      .toEqual({ kind: 'transition-resize', intent: { kind: 'move-connected', clipId: 'a', startMs: 1000 } })
+    expect(planShowV2ClipMove(view, { clipId: 'c', zoneId: 'z1', layerId: 'l2', startMs: 13000.5 }))
+      .toEqual({ kind: 'temporal', intent: { kind: 'move', clipId: 'c', startMs: 13001 } })
+    expect(planShowV2ClipMove(view, { clipId: 'c', zoneId: 'z1', layerId: 'l2', startMs: 12000.4 }))
+      .toEqual({ kind: 'refuse', reason: 'no-change' })
+  })
 })
 
 describe('planShowV2ClipResize', () => {

@@ -406,6 +406,22 @@ it('public temporal missing-target refusal carries every empty affected collecti
   expect(editShowClipV2(source, intent)).toEqual(editShowClipTemporalV2(source, intent))
 })
 
+it('refuses a fractional startMs at the temporal owner instead of rounding it', () => {
+  const source = fixture()
+  const template = source.composition.clips[0]
+  const prior = structuredClone(source)
+  const move = editShowClipTemporalV2(source, { kind: 'move', clipId: 'selected', startMs: 250.4 })
+  expect(move).toMatchObject({ status: 'refused', code: 'invalid-intent' })
+  expect(move.record).toBe(source)
+  const replace = editShowClipTemporalV2(source, {
+    kind: 'replace-placement', clipId: 'selected',
+    zoneId: template.zoneId, layerId: template.layerId, startMs: 250.4,
+  })
+  expect(replace).toMatchObject({ status: 'refused', code: 'invalid-intent' })
+  expect(replace.record).toBe(source)
+  expect(source).toEqual(prior)
+})
+
 it.each((['participants', 'whole-output'] as const).flatMap(topology => ([['full', 100, 700], ['incoming-only', 100, 200], ['outgoing-only', 600, 700]] as const).map(([name, start, end]) => ({ topology, name, start, end }))))('Split partitions $name contribution animation through $topology endpoints', ({ topology, name, start, end }) => {
     const source = fixture()
     if (topology === 'whole-output') for (const transition of source.composition.transitions) {

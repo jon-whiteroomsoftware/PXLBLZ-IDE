@@ -121,8 +121,9 @@ export function planShowV2ClipMove(
   const found = findItem(view, input.clipId)
   if (!found) return refuse('missing-clip')
   if (found.item.groupOccurrenceId) return refuse('group-child')
+  const startMs = Math.round(input.startMs)
   const reroutes = input.zoneId !== found.item.zoneId || input.layerId !== found.item.layerId
-  if (!reroutes && input.startMs === found.item.startMs) return refuse('no-change')
+  if (!reroutes && startMs === found.item.startMs) return refuse('no-change')
   if (reroutes) {
     if (!findLayer(view, input.zoneId, input.layerId)) return refuse('missing-target')
     if (isParticipantEndpoint(view, input.clipId)) return refuse('connected-reroute')
@@ -133,17 +134,17 @@ export function planShowV2ClipMove(
         clipId: input.clipId,
         zoneId: input.zoneId,
         layerId: input.layerId,
-        startMs: input.startMs,
+        startMs,
       },
     }
   }
   if (isEndpoint(view, input.clipId)) {
     return {
       kind: 'transition-resize',
-      intent: { kind: 'move-connected', clipId: input.clipId, startMs: input.startMs },
+      intent: { kind: 'move-connected', clipId: input.clipId, startMs },
     }
   }
-  return { kind: 'temporal', intent: { kind: 'move', clipId: input.clipId, startMs: input.startMs } }
+  return { kind: 'temporal', intent: { kind: 'move', clipId: input.clipId, startMs } }
 }
 
 /**

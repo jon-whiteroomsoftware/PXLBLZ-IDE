@@ -1629,6 +1629,120 @@ describe('v2 converted-boundary resize refusals (#1068)', () => {
     expectOneEdit(before, after)
     await expectUndoRedoExact(editor, before)
   })
+
+  it('lands an Alt cross-Layer drop on the rounded millisecond v1 lands on (#1066)', async () => {
+    const editor = openV2Editor('tracer-alt-cross-layer')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-a').layerId)!.id
+    const surface = dragSurface('resize-a')
+
+    // Alt is held only after gesture start, so the drag stays a move while the
+    // drop escapes the snap grid: x=40.37 asks for 4036.9999999999995 ms, and
+    // v1 moveShowClip rounds that same resolver output to 4037.
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('overlay'), 'dragover', 40.37, true)
+    surface.fire(surface.lane('overlay'), 'drop', 40.37, true)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: {
+        kind: 'replace-placement', clipId: 'resize-a', zoneId: 'z1', layerId: overlayLayerId, startMs: 4_037,
+      },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'resize-a').layerId).toBe(overlayLayerId)
+    expect(authoredClip(after.record, 'resize-a').startMs).toBe(4_037)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('lands an Alt cross-Zone drop on the rounded millisecond v1 lands on (#1066)', async () => {
+    const editor = openV2EditorForRecord(twoZoneV2Record('slice1-alt-cross-zone'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = zoneDropSurface('overlay-a')
+
+    // x=110.37 asks for 11037.000000000002 ms with Alt escaping the grid.
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.zoneLane('z2', 'main'), 'dragover', 110.37, true)
+    surface.fire(surface.zoneLane('z2', 'main'), 'drop', 110.37, true)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: {
+        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_037,
+      },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').zoneId).toBe('z2')
+    expect(authoredClip(after.record, 'overlay-a').layerId).toBe('layer:z2:main')
+    expect(authoredClip(after.record, 'overlay-a').startMs).toBe(11_037)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('lands an Alt collapsed-Zone drop on the rounded millisecond v1 lands on (#1066)', async () => {
+    const editor = openV2EditorForRecord(twoZoneV2Record('slice1-alt-collapsed-drop'))
+    useShowEditorSessionStore.getState().setZoneCollapsed(editor.showId, 'z2', true)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = zoneDropSurface('overlay-a')
+    const collapsed = surface.collapsedZone('z2')
+    vi.spyOn(collapsed, 'getBoundingClientRect').mockReturnValue({
+      left: 0, right: 200, top: 0, bottom: 28, width: 200, height: 28, x: 0, y: 0, toJSON() {},
+    })
+
+    // x=110.37 asks for 11037.000000000002 ms with Alt escaping the grid.
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(collapsed, 'dragover', 110.37, true)
+    surface.fire(collapsed, 'drop', 110.37, true)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: {
+        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_037,
+      },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').zoneId).toBe('z2')
+    expect(authoredClip(after.record, 'overlay-a').layerId).toBe('layer:z2:main')
+    expect(authoredClip(after.record, 'overlay-a').startMs).toBe(11_037)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('lands an Alt same-Layer drag of a joined Clip on the rounded connected start (#1066)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-alt-move-connected'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+
+    // x=30.77 asks for 3076.9999999999995 ms with Alt escaping the grid; the
+    // connected component shifts rigidly to the rounded start.
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('main'), 'dragover', 30.77, true)
+    surface.fire(surface.lane('main'), 'drop', 30.77, true)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'move-connected', clipId: 'resize-a', startMs: 3_077 },
+    ])
+    expect(authoredClip(after.record, 'resize-a').startMs).toBe(3_077)
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(9_077)
+    expect(after.record.composition.clips.map((clip) => clip.id))
+      .toEqual(before.record.composition.clips.map((clip) => clip.id))
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
 })
 
 /**
