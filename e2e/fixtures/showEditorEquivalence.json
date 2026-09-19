@@ -5236,6 +5236,17 @@
                       "phase": 0,
                       "brightness": 1
                     }
+                  },
+                  {
+                    "id": "clip-b",
+                    "instanceId": "instance",
+                    "startMs": 4000,
+                    "durationMs": 1000,
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    }
                   }
                 ],
                 "overlays": [
@@ -5339,6 +5350,33 @@
                 {
                   "id": "clip:appearance:1",
                   "timeMs": 0,
+                  "value": {
+                    "opacity": 1,
+                    "view": {
+                      "mirror": false,
+                      "phase": 0,
+                      "brightness": 1
+                    },
+                    "effects": []
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "clip-b",
+            "instanceId": "instance",
+            "zoneId": "zone",
+            "layerId": "layer:zone:main",
+            "startMs": 4000,
+            "durationMs": 1000,
+            "entryPolicy": "continue",
+            "zoneSampleMode": "span",
+            "appearance": {
+              "keys": [
+                {
+                  "id": "clip-b:appearance:1",
+                  "timeMs": 4000,
                   "value": {
                     "opacity": 1,
                     "view": {
@@ -5465,6 +5503,41 @@
           "sourcePath": "composition.scenes.0.zones.0.main.0.view.phase",
           "outcome": "mapped",
           "targetPath": "composition.clips.0.view.phase"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.1.durationMs",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.1.durationMs"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.1.id",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.1.id"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.1.instanceId",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.1.instanceId"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.1.startMs",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.1.startMs"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.1.view.brightness",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.1.view.brightness"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.1.view.mirror",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.1.view.mirror"
+        },
+        {
+          "sourcePath": "composition.scenes.0.zones.0.main.1.view.phase",
+          "outcome": "mapped",
+          "targetPath": "composition.clips.1.view.phase"
         },
         {
           "sourcePath": "composition.scenes.0.zones.0.overlays.0.id",
@@ -5630,6 +5703,12 @@
             "clip"
           ],
           "clipId": "clip"
+        },
+        {
+          "sourcePlacementIds": [
+            "clip-b"
+          ],
+          "clipId": "clip-b"
         }
       ],
       "markerMappings": [

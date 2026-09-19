@@ -47,6 +47,19 @@ export function buildShowEditorEquivalenceFixtures() {
   behavior.scenes[0].durationMs = 6_000
   if (!behavior.composition) throw new Error('Behavior fixture needs composition.')
   behavior.composition.durationMs = 6_000
+  // A second free Clip sharing the first Clip's instance (#1066 slice 2). The
+  // gaps on both sides keep every existing gesture's inputs fixed: drag,
+  // resize and Split still act on the first Clip with the same geometry and
+  // time base, and the shared instance keeps delete a pure Clip removal on
+  // both backings (no orphan-instance pruning, no execution-model change), so
+  // converted(saved v1) stays exactly equal to saved v2.
+  behavior.composition.scenes[0].zones[0].main.push({
+    id: 'clip-b',
+    instanceId: 'instance',
+    startMs: 4_000,
+    durationMs: 1_000,
+    view: { mirror: false, phase: 0, brightness: 1 },
+  })
 
   const installationLayouts = fromStock(
     'stock-show-206-changing-zone-layouts',

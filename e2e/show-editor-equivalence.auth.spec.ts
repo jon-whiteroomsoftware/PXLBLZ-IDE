@@ -463,6 +463,21 @@ test('the same toolbar Clip Split has equal durable result, exact history and on
   })
 })
 
+// Clip delete needs two Clips (deleting the last one is refused on both
+// backings), so this gesture targets the behavior Show's free trailing Clip.
+// It is joined to nothing on either backing — the fixture carries no
+// Transitions — so no confirmation dialog appears and the strict full-equality
+// comparison holds with no minted-id or divergence pinning (#1066 slice 2).
+test('the same Clip delete has equal durable result, exact history and one save', async ({ page }) => {
+  await runBehaviorGestureEquivalence(page, {
+    seedKey: 'clip-delete',
+    gesture: 'keyboard Delete of the free trailing Clip',
+    reportFile: 'behavior-delete-report.json',
+    unavailableDetail: 'The free Clip delete was unavailable on at least one stored row.',
+    perform: ({ id, version }) => deleteBehaviorClip(page, id, version),
+  })
+})
+
 type BehaviorGestureRun = { outcome: BehaviorOutcome; preimage: unknown }
 type BehaviorGestureContext = { id: string; version: 'v1' | 'v2' }
 
@@ -1519,7 +1534,9 @@ async function resizeBehaviorClipEdge(
   version: 'v1' | 'v2',
   input: { edge: 'start' | 'end'; deltaMs: number; shiftKey: boolean },
 ): Promise<void> {
-  const handle = page.getByRole('separator', { name: `Resize TestPattern1D ${input.edge}` })
+  // The behavior Show's second Clip shares this Pattern name, so the gesture
+  // addresses its Clip — the first — explicitly (#1066 slice 2).
+  const handle = page.getByRole('separator', { name: `Resize TestPattern1D ${input.edge}` }).first()
   await expect(handle).toBeVisible()
   const box = await handle.boundingBox()
   expect(box).not.toBeNull()
@@ -1589,7 +1606,25 @@ async function splitBehaviorClipAtPlayhead(page: Page, id: string, version: 'v1'
     }
     const clips = (stored as ShowRecordV2).composition.clips
     return { count: clips.length, leftDurationMs: clips[0]?.durationMs, rightStartMs: clips[1]?.startMs }
-  }).toEqual({ count: 2, leftDurationMs: 500, rightStartMs: 500 })
+    // The behavior Show's untouched trailing Clip survives the Split, so both backings count 3 (#1066 slice 2).
+  }).toEqual({ count: 3, leftDurationMs: 500, rightStartMs: 500 })
+}
+
+async function deleteBehaviorClip(page: Page, id: string, version: 'v1' | 'v2'): Promise<void> {
+  // Both behavior Clips share one Pattern name, so the accessible name cannot
+  // address the trailing Clip. The timeline's own selection key is the
+  // per-Clip identity both backings render for ordinary Clips.
+  await page.locator('button[data-show-selection-key="clip:clip-b"]').click()
+  await page.keyboard.press('Delete')
+  await expect.poll(async () => {
+    const stored = await readStoredShow(page, id, version)
+    if (version === 'v1') {
+      const main = (stored as ShowRecord).composition?.scenes[0].zones[0].main ?? []
+      return { count: main.length, ids: main.map(entry => entry.id) }
+    }
+    const clips = (stored as ShowRecordV2).composition.clips
+    return { count: clips.length, ids: clips.map(clip => clip.id) }
+  }).toEqual({ count: 1, ids: ['clip'] })
 }
 
 const SPLIT_MINTED_CLIP_PLACEHOLDER = '__split-right-clip__'
