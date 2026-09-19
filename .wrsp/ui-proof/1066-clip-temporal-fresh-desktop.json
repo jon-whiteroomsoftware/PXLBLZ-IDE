@@ -2,10 +2,10 @@
   "version": 1,
   "issue": "1066",
   "route": "/PXLBLZ-IDE/studio/shows/oracle-fresh-v2",
-  "operation": "Playwright (repo oracle, npm run show:editor-equivalence, fixture fresh) at this commit opened the same Show as a stored v1 row and as its converted v2 row in the existing editor and captured the editor pane at 1440; first capture is the v2-stored row, second the v1 row; 21 of 22 verdict rows equivalent (only the palette row tracked on #1066 is red). The same run drove real pointer gestures on both rows: Clip drag, free trailing resize and free leading resize each gave an equal durable record, one save, exact history, exact Undo and reload; toolbar Split matched on all but one leaf tracked on #1068.",
+  "operation": "Playwright (repo oracle, npm run show:editor-equivalence, fixture fresh) at this commit opened the same Show as a stored v1 row and as its converted v2 row in the existing editor and captured the editor pane at 1440; first capture is the v2-stored row, second the v1 row; 21 of 22 verdict rows equivalent (only the palette row tracked on #1066 is red). The same run drove real pointer gestures on both rows: Clip drag, free trailing resize, free leading resize and toolbar Split each gave one save, exact history, exact Undo and a correct reload, with the durable record equal through the converter except the single appearance-key leaf pinned to #1068.",
   "captures": [
     ".wrsp/ui-proof/1066-clip-temporal-fresh-desktop-v2.png",
     ".wrsp/ui-proof/1066-clip-temporal-fresh-desktop-v1.png"
   ],
-  "capturedAtCommit": "17ddcc08673458ff3fe99586cb0011a808c33664"
+  "capturedAtCommit": "08f0287c599a31039a7f4796d8a7d15a9c8e0f2d"
 }
