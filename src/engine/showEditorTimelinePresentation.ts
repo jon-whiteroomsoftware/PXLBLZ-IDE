@@ -197,6 +197,7 @@ function projectTransition(
   return {
     id: transition.id,
     kind: transition.kind,
+    ...(transition.origin === undefined ? {} : { origin: transition.origin }),
     startMs,
     durationMs: transition.durationMs,
     endMs: startMs + transition.durationMs,

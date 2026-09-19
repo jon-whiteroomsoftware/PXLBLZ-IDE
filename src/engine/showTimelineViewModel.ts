@@ -213,6 +213,14 @@ export interface ShowTimelineTransitionView {
   durationMs: number
   endMs: number
   scope: ShowTimelineTransitionScopeView
+  /**
+   * Conversion provenance threaded from the v2 record (#1068). Present only
+   * when the record carries it; a natively authored Transition and every v1
+   * Transition omit the field. It carries no render meaning: the editor draws
+   * the same junction with or without it, and only the resize planner reads it
+   * to tell a Scene-boundary join from a Layer-Transition join.
+   */
+  origin?: 'converted-boundary-transition' | 'converted-layer-transition'
 }
 
 export interface ShowTimelineLayoutTransferView {

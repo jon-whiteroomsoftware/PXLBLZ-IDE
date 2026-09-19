@@ -4,6 +4,8 @@ import { ShowEditor } from './ShowEditor'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { validateShowRecordV2 } from '@/engine/showCompositionV2'
+import { editShowZoneV2 } from '@/engine/showZonesV2'
+import { editShowLayerV2 } from '@/engine/showLayersV2'
 import { showBoundaryClipIdentity } from '@/engine/showClipIdentity'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
@@ -421,10 +423,11 @@ describe('v2 tracer settlement routing (#1065)', () => {
     expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length)
   })
 
-  it('refuses a cross-Layer drag instead of settling it as a same-Layer move', async () => {
+  it('settles a cross-Layer drag of a free Clip as a placement replacement', async () => {
     const editor = openV2Editor('tracer-cross-layer')
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
+    const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-a').layerId)!.id
     const surface = dragSurface('resize-a')
 
     surface.fire(surface.clip, 'dragstart', 0)
@@ -433,12 +436,21 @@ describe('v2 tracer settlement routing (#1065)', () => {
     await act(async () => {})
 
     const after = editor.state()
-    expect(surface.dataTransfer.dropEffect).toBe('none')
-    expectNoWrite(before, after)
-    // Refusing the Layer change must not quietly keep the time change.
-    expect(authoredClip(after.record, 'resize-a').startMs).toBe(0)
-    expect(authoredClip(after.record, 'resize-a').layerId)
-      .toBe(authoredClip(before.record, 'resize-a').layerId)
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: {
+        kind: 'replace-placement', clipId: 'resize-a', zoneId: 'z1', layerId: overlayLayerId, startMs: SETTLED_START_MS,
+      },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'resize-a').layerId).toBe(overlayLayerId)
+    expect(authoredClip(after.record, 'resize-a').startMs).toBe(SETTLED_START_MS)
+    expect(after.v2Writes).toBe(1)
+    expect(after.history.past).toEqual([before.record])
+    expect(after.history.future).toEqual([])
+    expect(after.legacyWrites).toBe(0)
+    expect(after.legacyShows).toEqual([])
+    expect(legacy.calls).toEqual([])
   })
 
   it('submits one settlement per gesture when the drop repeats', async () => {
@@ -600,14 +612,14 @@ describe('v2 tracer unconnected commands (#1065)', () => {
     await act(async () => {})
   }
 
-  it.each(['Split at playhead', 'Clone selection'] as const)(
-    'resolves %s as an internal no-change result without disabling the control',
-    async (command) => {
-      const editor = openV2Editor(`tracer-unconnected-${command.split(' ')[0].toLowerCase()}`)
+  it(
+    'resolves Clone selection as an internal no-change result without disabling the control',
+    async () => {
+      const editor = openV2Editor('tracer-unconnected-clone')
       render(<ShowEditor showId={editor.showId} recordVersion={2} />)
       await selectFirstClip(editor.showId)
       const before = editor.state()
-      const button = timelineCommand(command)
+      const button = timelineCommand('Clone selection')
       // The tracer changes no enabled styling: the control the v1 editor offers
       // for this selection stays offered, and stays reachable.
       expect(button).toBeEnabled()
@@ -617,7 +629,7 @@ describe('v2 tracer unconnected commands (#1065)', () => {
       await act(async () => {})
 
       expectNoWrite(before, editor.state())
-      expect(timelineCommand(command)).toBeEnabled()
+      expect(timelineCommand('Clone selection')).toBeEnabled()
     },
   )
 
@@ -637,21 +649,14 @@ describe('v2 tracer unconnected commands (#1065)', () => {
       .toHaveLength(before.record.composition.clips.length)
   })
 
-  it('resolves a Clip edge resize as an internal no-change result', async () => {
-    const editor = openV2Editor('tracer-unconnected-resize')
+  it('keeps the Clip edge handles rendered on a v2 backing', async () => {
+    const editor = openV2Editor('tracer-resize-handles')
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     await selectFirstClip(editor.showId)
-    const before = editor.state()
-    // The handle is still rendered: the tracer hides no v1 affordance.
-    const handle = screen.getAllByRole('separator', { name: 'Resize CometLoom end' })[0]
-
-    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 40 })
-    fireEvent.pointerMove(window, { pointerId: 1, clientX: 80 })
-    fireEvent.pointerUp(window, { pointerId: 1, clientX: 80 })
-    await act(async () => {})
-
-    expectNoWrite(before, editor.state())
-    expect(authoredClip(editor.state().record, 'resize-a').durationMs).toBe(4_000)
+    // The handles are still rendered: connecting the gesture hides no v1
+    // affordance. Their behavior is proved in the slice-1 suite below.
+    expect(screen.getAllByRole('separator', { name: 'Resize CometLoom end' })[0]).toBeInTheDocument()
+    expect(screen.getAllByRole('separator', { name: 'Resize CometLoom start' })[0]).toBeInTheDocument()
   })
 })
 
@@ -1076,3 +1081,574 @@ describe('v2 time grid columns (#1065)', () => {
     })
   }
 })
+
+// ── Slice-1 Clip temporal commands (#1066) ───────────────────────────────────
+// The rest of the Clip temporal intents through the existing handlers: free
+// trim/extend and placement replacement through the clip-temporal door, split
+// at the playhead through the same door, and the connected forms
+// (resize-leading, resize-trailing, move-connected) through the
+// transition-resize door. Every case keeps the tracer fences: exactly one
+// history entry and one save per accepted edit, record identity on refusal,
+// exact Undo then Redo, and no legacy owner invocation on a v2 row.
+
+/**
+ * The tracer baseline plus a joined main pair: resize-a 1000-5000 joined to
+ * resize-b 7000-9000 by a 2000 ms crossfade, overlay-a free at 12000-14000,
+ * Show End 20000. Both move directions have slack, so connected outcomes are
+ * exercisable instead of only refusals.
+ */
+function connectedV2Record(id: string): ShowRecordV2 {
+  const source: ShowRecord = resizeBoundaryShow(id)
+  const zone = source.composition!.scenes[0].zones[0]
+  source.composition!.patternInstances.push(
+    { id: 'resize-b-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } },
+    { id: 'overlay-instance', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D', time: { timeScale: 1, timeOffsetMs: 0 } },
+  )
+  const view = { mirror: false, phase: 0, brightness: 1 }
+  zone.main = [
+    { id: 'resize-a', instanceId: 'resize-instance', startMs: 1000, durationMs: 4000, view },
+    { id: 'resize-b', instanceId: 'resize-b-instance', startMs: 7000, durationMs: 2000, view },
+  ]
+  zone.overlays = [{
+    id: 'overlay-1',
+    name: 'Atmosphere',
+    placements: [{
+      id: 'overlay-a',
+      instanceId: 'overlay-instance',
+      startMs: 12_000,
+      durationMs: 2_000,
+      opacity: 1,
+      view,
+    }],
+  }]
+  source.composition!.transitions = [{
+    id: 'join-a-b',
+    fromPlacementId: 'resize-a',
+    toPlacementId: 'resize-b',
+    kind: 'crossfade',
+    durationMs: 2_000,
+    easing: { curve: 'linear' },
+    crossfadePolicy: 'live-live',
+  }]
+  const converted = convertShowRecordV1ToV2(source)
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  expect(validateShowRecordV2(converted.record)).toEqual([])
+  return converted.record
+}
+
+/** One accepted edit: exactly one history entry, one save, no legacy touch. */
+function expectOneEdit(before: EditorState, after: EditorState): void {
+  expect(after.history.past).toEqual([before.record])
+  expect(after.history.future).toEqual([])
+  expect(after.revision).toBe(before.revision + 1)
+  expect(after.v2Writes).toBe(before.v2Writes + 1)
+  expect(after.legacyWrites).toBe(0)
+  expect(after.legacyShows).toEqual([])
+  expect(after.legacyHistories).toEqual({})
+  expect(legacy.calls).toEqual([])
+}
+
+/** Undo restores the preimage composition exactly; Redo restores the edit. */
+async function expectUndoRedoExact(editor: OpenV2Editor, before: EditorState): Promise<void> {
+  const applied = editor.state()
+  fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+  await act(async () => {})
+  // Undo restamps `updatedAt` because the restored record is itself a save;
+  // the authored content is exact.
+  expect(editor.state().record.composition).toEqual(before.record.composition)
+  fireEvent.click(screen.getByRole('button', { name: 'Redo Show edit' }))
+  await act(async () => {})
+  expect(editor.state().record.composition).toEqual(applied.record.composition)
+}
+
+/**
+ * An Alt edge drag: Alt escapes grid and magnetism to raw milliseconds, so
+ * the settled boundary is the pointer position exactly.
+ */
+async function resizeDrag(
+  patternName: string,
+  edge: 'start' | 'end',
+  index: number,
+  fromX: number,
+  toX: number,
+  altKey = true,
+  laneWidthPx = 200,
+): Promise<void> {
+  const handle = screen.getAllByRole('separator', { name: `Resize ${patternName} ${edge}` })[index]
+  const lane = handle.closest('[data-show-layer-kind]') as HTMLElement
+  vi.spyOn(lane, 'getBoundingClientRect').mockReturnValue({
+    left: 0, right: laneWidthPx, top: 0, bottom: 40, width: laneWidthPx, height: 40, x: 0, y: 0, toJSON() {},
+  })
+  // jsdom reports clientWidth 0, and `0 ?? rect.width` keeps 0, which blows
+  // the 10 px magnet threshold up to the whole timeline: plain-pointer targets
+  // would snap back onto a structural time and refuse as no-change.
+  Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', {
+    configurable: true,
+    value: laneWidthPx,
+  })
+  fireEvent.pointerDown(handle, { pointerId: 1, clientX: fromX, altKey })
+  fireEvent.pointerMove(window, { pointerId: 1, clientX: toX, altKey })
+  fireEvent.pointerUp(window, { pointerId: 1, clientX: toX, altKey })
+  await act(async () => {})
+}
+
+async function selectClipAt(showId: string, name: string, index: number, positionMs: number): Promise<void> {
+  act(() => useShowTransportStore.setState({ showId, positionMs }))
+  fireEvent.click(screen.getAllByRole('button', { name: `Select ${name}` })[index])
+  await act(async () => {})
+}
+
+describe('v2 clip temporal commands (#1066)', () => {
+  it('trims a free trailing edge through the clip-temporal door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-trim'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    await resizeDrag('TestPattern1D', 'end', 0, 40, 30)
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: { kind: 'trim', clipId: 'overlay-a', startMs: 12_000, endMs: 13_000 },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').durationMs).toBe(1_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('extends a free trailing edge through the clip-temporal door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-extend'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    await resizeDrag('TestPattern1D', 'end', 0, 40, 60)
+
+    const after = editor.state()
+    expect(temporalSubmissions()).toEqual([{
+      intent: { kind: 'extend', clipId: 'overlay-a', startMs: 12_000, endMs: 16_000 },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').durationMs).toBe(4_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('resizes a joined trailing edge through the connected trailing form', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-resize-trailing'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    await resizeDrag('CometLoom', 'end', 0, 40, 60)
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-trailing', clipId: 'resize-a', endMs: 7_000 },
+    ])
+    // The trailing growth ripples the joined successor later, exactly as the
+    // transition owner defines: resize-b follows its incoming window.
+    expect(authoredClip(after.record, 'resize-a').durationMs).toBe(6_000)
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(9_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('resizes a joined leading edge through the connected leading form', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-resize-leading'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    await resizeDrag('CometLoom', 'start', 1, 40, 30)
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-leading', clipId: 'resize-b', startMs: 6_000 },
+    ])
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(6_000)
+    expect(after.record.composition.transitions[0].durationMs).toBe(1_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('treats an Alt resize away from a Layer-Transition join as the connected form (#1068)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-alt-layer-away'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    // CometLoom resize-b starts at 7000 on a 200 px / 20000 ms lane, so +10 px
+    // asks for 8000: away from the incoming join-a-b window. Alt escapes
+    // magnetism to raw milliseconds but never detaches, and join-a-b carries
+    // converted-layer-transition provenance, so the gesture takes the
+    // connected leading form exactly as without Alt.
+    await resizeDrag('CometLoom', 'start', 1, 70, 80)
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-leading', clipId: 'resize-b', startMs: 8_000 },
+    ])
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(8_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('keeps the connected leading form for the same resize without Alt (#1066)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-plain-away'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    // 20 ms per px on the wide lane: +50 px asks for 8000, clear of the
+    // 200 ms magnet threshold around the 7000 and 9000 structural times.
+    await resizeDrag('CometLoom', 'start', 1, 350, 400, false, 1000)
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-leading', clipId: 'resize-b', startMs: 8_000 },
+    ])
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(8_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('treats a plain free-edge resize like the Alt free resize (#1066)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-plain-trim'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    // 20 ms per px: -50 px asks for 13000, clear of the 12000/14000 edges.
+    await resizeDrag('TestPattern1D', 'end', 0, 700, 650, false, 1000)
+
+    const after = editor.state()
+    expect(temporalSubmissions()).toEqual([{
+      intent: { kind: 'trim', clipId: 'overlay-a', startMs: 12_000, endMs: 13_000 },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').durationMs).toBe(1_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+/**
+ * The converted Clip id behind one stock Pattern: conversion mints Clip
+ * identity per run, so boundary assertions resolve it through the instance.
+ */
+function convertedClipIdByPattern(record: ShowRecordV2, patternName: string): string {
+  const instance = record.composition.patternInstances.find((candidate) => candidate.patternName === patternName)
+  if (!instance) throw new Error(`No ${patternName} instance.`)
+  const clip = record.composition.clips.find((candidate) => candidate.instanceId === instance.id)
+  if (!clip) throw new Error(`No ${patternName} clip.`)
+  return clip.id
+}
+
+describe('v2 converted-boundary resize refusals (#1068)', () => {
+  it('refuses an Alt resize that pulls a converted-boundary leading edge away', async () => {
+    const { record } = convertedFreshBoundary('slice1-boundary-alt-away')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const clipId = convertedClipIdByPattern(record, 'CometLoom')
+    // CometLoom starts at 32000 on a 200 px / 62000 ms lane, so +10 px asks
+    // for 35100: away from the incoming converted-boundary window. v1 detaches
+    // that edge into a trim plus a Transition reset and Show-End reclaim,
+    // which no single landed v2 owner expresses in one edit (#1068) - the
+    // gesture submits nothing and the Transition stays intact.
+    await resizeDrag('CometLoom', 'start', 0, 70, 80)
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, after)
+    expect(authoredClip(after.record, clipId).startMs).toBe(32_000)
+    expect(after.record.composition.transitions).toHaveLength(1)
+    expect(after.record.composition.transitions[0]).toMatchObject({
+      id: 'transition-scene-1', kind: 'crossfade', durationMs: 2_000,
+      origin: 'converted-boundary-transition',
+    })
+  })
+
+  it('refuses the same boundary-away resize without Alt', async () => {
+    const { record } = convertedFreshBoundary('slice1-boundary-plain-away')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const clipId = convertedClipIdByPattern(record, 'CometLoom')
+    // 62 ms per px on the wide lane: +50 px asks for 35100, clear of the
+    // structural-time magnets, so the plain pointer refuses exactly as Alt.
+    await resizeDrag('CometLoom', 'start', 0, 350, 400, false, 1000)
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, after)
+    expect(authoredClip(after.record, clipId).startMs).toBe(32_000)
+    expect(after.record.composition.transitions).toHaveLength(1)
+    expect(after.record.composition.transitions[0].durationMs).toBe(2_000)
+  })
+
+  it('refuses an Alt resize that pulls a converted-boundary trailing edge away', async () => {
+    const { record } = convertedFreshBoundary('slice1-boundary-trailing-away')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const clipId = convertedClipIdByPattern(record, 'TestPattern1D')
+    // -10 px asks for end 26900: away from the outgoing converted-boundary
+    // window, refused for the same missing detach owner.
+    await resizeDrag('TestPattern1D', 'end', 0, 70, 60)
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, after)
+    expect(authoredClip(after.record, clipId).durationMs).toBe(30_000)
+    expect(after.record.composition.transitions).toHaveLength(1)
+    expect(after.record.composition.transitions[0].durationMs).toBe(2_000)
+  })
+
+  it('keeps the connected leading form toward a converted-boundary join', async () => {
+    const { record } = convertedFreshBoundary('slice1-boundary-toward')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const clipId = convertedClipIdByPattern(record, 'CometLoom')
+    // -1 px asks for 31690: toward the incoming window, which the connected
+    // leading form retunes (2000 ms -> 1690 ms) exactly as for a Layer join.
+    await resizeDrag('CometLoom', 'start', 0, 70, 69)
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-leading', clipId, startMs: 31_690 },
+    ])
+    expect(authoredClip(after.record, clipId).startMs).toBe(31_690)
+    expect(after.record.composition.transitions[0].durationMs).toBe(1_690)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('keeps the connected form away from a natively authored join', async () => {
+    const record = connectedV2Record('slice1-native-away')
+    for (const transition of record.composition.transitions) delete transition.origin
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    // 20 ms per px on the wide lane: +50 px asks for 8000, away from the
+    // incoming window. No provenance means a natively authored join, which
+    // the connected leading form keeps.
+    await resizeDrag('CometLoom', 'start', 1, 350, 400, false, 1000)
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-leading', clipId: 'resize-b', startMs: 8_000 },
+    ])
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(8_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+})
+
+  it('moves a joined Clip with its connected component', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-move-connected'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('main'), 'dragover', 30)
+    surface.fire(surface.lane('main'), 'drop', 30)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'move-connected', clipId: 'resize-a', startMs: 3_000 },
+    ])
+    expect(authoredClip(after.record, 'resize-a').startMs).toBe(3_000)
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(9_000)
+    expect(after.record.composition.clips.map((clip) => clip.id))
+      .toEqual(before.record.composition.clips.map((clip) => clip.id))
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('refuses a cross-Layer drop of a joined Clip without detaching its Transition', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-connected-reroute'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('overlay'), 'dragover', DROP_X)
+    surface.fire(surface.lane('overlay'), 'drop', DROP_X)
+    await act(async () => {})
+
+    const after = editor.state()
+    // v1 detaches the Transition and moves; the v2 owner refuses the
+    // re-placement, so the gesture plans nothing and submits no command.
+    expect(surface.dataTransfer.dropEffect).toBe('none')
+    expectNoWrite(before, after)
+    expect(authoredClip(after.record, 'resize-a').startMs).toBe(1_000)
+    expect(authoredClip(after.record, 'resize-a').layerId)
+      .toBe(authoredClip(before.record, 'resize-a').layerId)
+    expect(after.record.composition.transitions).toHaveLength(1)
+  })
+
+  it('splits the selected Clip at the playhead and selects the right half', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-split'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipAt(editor.showId, 'CometLoom', 1, 8_000)
+    const before = editor.state()
+    const button = timelineCommand('Split at playhead')
+    expect(button).toBeEnabled()
+    expect(button).not.toHaveAttribute('aria-disabled', 'true')
+
+    fireEvent.click(button)
+    await act(async () => {})
+
+    const submissions = temporalSubmissions()
+    expect(submissions).toHaveLength(1)
+    expect(submissions[0].baseRevision).toBe(0)
+    const intent = submissions[0].intent as { kind: string; clipId: string; atMs: number; rightClipId: string }
+    expect(intent.kind).toBe('split')
+    expect(intent.clipId).toBe('resize-b')
+    expect(intent.atMs).toBe(8_000)
+    expect(typeof intent.rightClipId).toBe('string')
+    expect(before.record.composition.clips.some((clip) => clip.id === intent.rightClipId)).toBe(false)
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(authoredClip(after.record, 'resize-b').durationMs).toBe(1_000)
+    const right = authoredClip(after.record, intent.rightClipId)
+    expect([right.startMs, right.durationMs, right.entryPolicy]).toEqual([8_000, 1_000, 'continue'])
+    expect(after.record.composition.clips).toHaveLength(4)
+    expect(clipButton(intent.rightClipId).getAttribute('aria-pressed')).toBe('true')
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('splits a joined Clip with the outgoing endpoint following the right half', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice1-split-joined'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipAt(editor.showId, 'CometLoom', 0, 3_000)
+    const before = editor.state()
+
+    fireEvent.click(timelineCommand('Split at playhead'))
+    await act(async () => {})
+
+    const submissions = temporalSubmissions()
+    expect(submissions).toHaveLength(1)
+    const intent = submissions[0].intent as { kind: string; clipId: string; atMs: number; rightClipId: string }
+    expect({ kind: intent.kind, clipId: intent.clipId, atMs: intent.atMs }).toEqual({
+      kind: 'split', clipId: 'resize-a', atMs: 3_000,
+    })
+    const after = editor.state()
+    expect(authoredClip(after.record, 'resize-a').durationMs).toBe(2_000)
+    const right = authoredClip(after.record, intent.rightClipId)
+    expect([right.startMs, right.durationMs]).toEqual([3_000, 2_000])
+    const transition = after.record.composition.transitions[0]
+    expect(transition.participants[0].fromClipId).toBe(intent.rightClipId)
+    expect(transition.participants[0].toClipId).toBe('resize-b')
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('settles a collapsed-Zone drop of a free Clip on the Zone bottom Layer (#1066)', async () => {
+    const editor = openV2EditorForRecord(twoZoneV2Record('slice1-collapsed-drop'))
+    useShowEditorSessionStore.getState().setZoneCollapsed(editor.showId, 'z2', true)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = zoneDropSurface('overlay-a')
+    const collapsed = surface.collapsedZone('z2')
+    // The collapsed drop reads the target box itself; an unmocked jsdom width
+    // of 0 would clamp every drop onto the latest same-Layer start.
+    vi.spyOn(collapsed, 'getBoundingClientRect').mockReturnValue({
+      left: 0, right: 200, top: 0, bottom: 28, width: 200, height: 28, x: 0, y: 0, toJSON() {},
+    })
+
+    // x=110 lands at 11000: clear of the join-a-b window edges and of the
+    // dragged Clip's own excluded boundaries, so the grid keeps it exactly.
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(collapsed, 'dragover', 110)
+    surface.fire(collapsed, 'drop', 110)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: {
+        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_000,
+      },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').zoneId).toBe('z2')
+    expect(authoredClip(after.record, 'overlay-a').layerId).toBe('layer:z2:main')
+    expect(authoredClip(after.record, 'overlay-a').startMs).toBe(11_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('settles a cross-Zone drop of a free Clip as a placement replacement (#1066)', async () => {
+    const editor = openV2EditorForRecord(twoZoneV2Record('slice1-cross-zone'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = zoneDropSurface('overlay-a')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.zoneLane('z2', 'main'), 'dragover', 110)
+    surface.fire(surface.zoneLane('z2', 'main'), 'drop', 110)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: {
+        kind: 'replace-placement', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_000,
+      },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').zoneId).toBe('z2')
+    expect(authoredClip(after.record, 'overlay-a').layerId).toBe('layer:z2:main')
+    expect(authoredClip(after.record, 'overlay-a').startMs).toBe(11_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+})
+
+/**
+ * The joined-pair record plus an empty second Zone, built through the landed
+ * Zone and Layer owners so every layout routes the new Zone - a hand-pushed
+ * Zone stops the prepared Stage capture with `references missing zone` and
+ * the gesture then captures nothing and submits nothing. One bottom main
+ * Layer and no Clips, so a cross-Zone or collapsed-Zone drop of a free Clip
+ * has a real target while every other authoring shape stays exactly the
+ * Slice-1 one.
+ */
+function twoZoneV2Record(id: string): ShowRecordV2 {
+  const zoned = editShowZoneV2(connectedV2Record(id), {
+    kind: 'add', zone: { id: 'z2', name: 'Second', nominalPixelCount: 64 },
+  })
+  if (zoned.status !== 'changed') throw new Error(`add zone refused: ${zoned.status}`)
+  const layered = editShowLayerV2(zoned.record, {
+    kind: 'add', layer: { id: 'layer:z2:main', zoneId: 'z2', name: 'Main', rank: 0 },
+  })
+  if (layered.status !== 'changed') throw new Error(`add layer refused: ${layered.status}`)
+  expect(validateShowRecordV2(layered.record)).toEqual([])
+  return layered.record
+}
+
+/** Drop surface for the two-Zone record: lanes addressed by Zone and kind. */
+function zoneDropSurface(clipId: string): DragSurface & {
+  zoneLane(zoneId: string, kind: 'main' | 'overlay'): HTMLElement
+  collapsedZone(zoneId: string): HTMLElement
+} {
+  const surface = dragSurface(clipId)
+  return {
+    ...surface,
+    zoneLane(zoneId: string, kind: 'main' | 'overlay') {
+      const lane = document.querySelector<HTMLElement>(
+        `[data-show-zone-id="${zoneId}"][data-show-layer-kind="${kind}"]`,
+      )
+      if (!lane) throw new Error(`No ${kind} lane is rendered for Zone ${zoneId}.`)
+      return lane
+    },
+    collapsedZone(zoneId: string) {
+      const zone = document.querySelector<HTMLElement>(`[data-collapsed-zone="${zoneId}"]`)
+      if (!zone) throw new Error(`No collapsed Zone ${zoneId} is rendered.`)
+      return zone
+    },
+  }
+}

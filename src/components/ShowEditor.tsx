@@ -282,8 +282,18 @@ import { useLibraryStore } from '@/store/libraryStore'
 import { useShowStore } from '@/store/showStore'
 import {
   admitShowV2PilotClipTemporal,
+  admitShowV2PilotTransitionResize,
   type ShowV2PilotPreparedCapture,
+  type ShowV2PilotTransitionResizeIntent,
 } from '@/store/showV2PreparedEditAdmission'
+import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
+import {
+  planShowV2ClipMove,
+  planShowV2ClipResize,
+  planShowV2ClipSplit,
+  resolveShowV2SplitTarget,
+  type ShowV2ClipTemporalPlan,
+} from '@/engine/showV2ClipTemporalPlanning'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
@@ -702,6 +712,7 @@ type ShowClipMovePlan = {
   recordVersion: 2
   clipId: string
   startMs: number
+  plan: ShowV2ClipTemporalPlan
 })
 
 type ShowClipResizePreview = {
@@ -1530,17 +1541,38 @@ export function ShowEditor({
       baseRevision: useShowStore.getState().showRevisions[showId] ?? 0,
     }
   }, [showId])
-  const moveV2Clip = useCallback(async (input: {
+  // Slice 1 connects the remaining Clip temporal gestures through the same two
+  // doors: free temporal edits (trim/extend, re-placement, split) through the
+  // clip-temporal owner, and the connected forms (resize-leading,
+  // resize-trailing, move-connected) through the transition-resize door, whose
+  // partition this slice opens for exactly those owner-defined kinds (#1066).
+  const commitV2ClipTemporal = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
-    clipId: string
-    startMs: number
+    intent: ShowClipTemporalIntentV2
   }) => {
     const outcome = await admitShowV2PilotClipTemporal({
       showId,
       baseRevision: input.baseRevision,
       capture: input.capture,
-      intent: { kind: 'move', clipId: input.clipId, startMs: input.startMs },
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome.status === 'applied'
+  }, [showId])
+  const commitV2TransitionResize = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotTransitionResizeIntent
+  }) => {
+    const outcome = await admitShowV2PilotTransitionResize({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
       onAdopted: () => {},
       isCurrent: () => editorAliveRef.current
         && preparedV2CaptureRef.current === input.capture
@@ -2862,7 +2894,9 @@ export function ShowEditor({
                 zoneMapOverride={zoneMapV2}
                 recordVersion={recordVersion}
                 captureV2Move={captureV2Move}
-                onMoveV2Clip={moveV2Clip}
+                captureV2ClipEdit={captureV2Move}
+                onCommitV2ClipTemporal={commitV2ClipTemporal}
+                onCommitV2TransitionResize={commitV2TransitionResize}
                 timelineComposition={timelineComposition}
                 readOnly={readOnly}
                 transportActive
@@ -3864,6 +3898,8 @@ function ShowTimelineCommands({
   onCreateGroup,
   onSplitCompositionClip,
   onDuplicateCompositionClip,
+  captureV2ClipEdit,
+  onCommitV2ClipTemporal,
 }: {
   // One command surface, read through whichever record backs the editor. The
   // v1 record and its planners stay inside the v1 branch (#1065).
@@ -3878,6 +3914,12 @@ function ShowTimelineCommands({
   onCreateGroup: (selection: ShowGroupSelection) => Promise<string | null>
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
+  captureV2ClipEdit?: () => { capture: ShowV2PilotPreparedCapture; baseRevision: number } | null
+  onCommitV2ClipTemporal?: (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowClipTemporalIntentV2
+  }) => Promise<boolean>
 }) {
   const show = backing.recordVersion === 1 ? backing.show : null
   const composition = backing.recordVersion === 1 ? backing.composition : null
@@ -4018,7 +4060,30 @@ function ShowTimelineCommands({
               return
             }
             if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
-            // Split is likewise unconnected on the v2 backing.
+            if (backing.recordVersion === 2) {
+              // The landed capability already gates the control; the planner
+              // resolves the same target and refuses a rounded-out playhead
+              // before any owner runs. Success selects the new right Clip,
+              // exactly as the v1 split selects its new placement.
+              const target = resolveShowV2SplitTarget(timelineView, {
+                selectionClipId: selection.kind === 'clip' ? selection.clipId : null,
+                playheadMs: positionMs,
+                isolatedGroupOccurrenceId,
+              })
+              const gesture = captureV2ClipEdit?.()
+              if (!target || !gesture) return
+              const rightClipId = newPersonalContentId()
+              const gesturePlan = planShowV2ClipSplit(timelineView, {
+                clipId: target,
+                atMs: Math.round(positionMs),
+                rightClipId,
+              })
+              if (gesturePlan.kind !== 'temporal') return
+              void onCommitV2ClipTemporal?.({ ...gesture, intent: gesturePlan.intent }).then((applied) => {
+                if (applied) onSelect({ kind: 'clip', clipId: rightClipId })
+              }).catch(() => {})
+              return
+            }
             if (show && splitOwner) {
               void onSplitCompositionClip(splitOwner, positionMs).then((placementId) => {
                 if (placementId) onSelect({ kind: 'clip', clipId: placementId })
@@ -4309,8 +4374,10 @@ function ShowTimelineWorkspace({
   onAddZone,
   onUpdateZone,
   onRemoveZone,
-  onMoveV2Clip,
   captureV2Move,
+  captureV2ClipEdit,
+  onCommitV2ClipTemporal,
+  onCommitV2TransitionResize,
 }: {
   show: ShowRecord | null
   timelineViewOverride?: ShowTimelineViewModel | null
@@ -4398,11 +4465,16 @@ function ShowTimelineWorkspace({
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
   captureV2Move?: () => { capture: ShowV2PilotPreparedCapture; baseRevision: number } | null
-  onMoveV2Clip?: (input: {
+  captureV2ClipEdit?: () => { capture: ShowV2PilotPreparedCapture; baseRevision: number } | null
+  onCommitV2ClipTemporal?: (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
-    clipId: string
-    startMs: number
+    intent: ShowClipTemporalIntentV2
+  }) => Promise<boolean>
+  onCommitV2TransitionResize?: (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotTransitionResizeIntent
   }) => Promise<boolean>
 }) {
   const [showEndPreviewMs, setShowEndPreviewMs] = useState<number | null>(null)
@@ -4834,7 +4906,23 @@ function ShowTimelineWorkspace({
         : undefined,
     })
     if (recordVersion === 2) {
-      if (draggedClip.mode !== 'move' || clip.groupOccurrenceId || input.layer.id !== clip.layerId) {
+      if (draggedClip.mode !== 'move' || clip.groupOccurrenceId) {
+        if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
+        movePlanRef.current = null
+        setMovePreview(null)
+        return
+      }
+      // The planner names the door: a same-Layer move of a joined Clip shifts
+      // its connected component, a cross-Layer or cross-Zone drop re-places a
+      // free Clip, and a joined Clip never re-places. A refusal plans nothing,
+      // so the drop target reads `none` and the gesture submits no command.
+      const gesturePlan = planShowV2ClipMove(timelineView, {
+        clipId: clip.id,
+        zoneId: input.zoneId,
+        layerId: input.layer.id,
+        startMs: resolved.startMs,
+      })
+      if (gesturePlan.kind === 'refuse') {
         if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
         movePlanRef.current = null
         setMovePreview(null)
@@ -4854,6 +4942,7 @@ function ShowTimelineWorkspace({
         mode: 'move',
         clipId: clip.id,
         startMs: resolved.startMs,
+        plan: gesturePlan,
       }
       setMovePreview(nextPreview)
       return
@@ -4925,6 +5014,17 @@ function ShowTimelineWorkspace({
     onDirectManipulationChange(false)
     refreshMoveActivity()
   }
+  // One switch for every v2 Clip temporal commit: the planner's door decides
+  // which admission runs. A refused plan or a lost capture commits nothing.
+  const commitV2ClipPlan = (
+    capture: { capture: ShowV2PilotPreparedCapture; baseRevision: number } | undefined,
+    plan: ShowV2ClipTemporalPlan,
+  ): Promise<boolean> => {
+    if (!capture || plan.kind === 'refuse') return Promise.resolve(false)
+    return plan.kind === 'transition-resize'
+      ? onCommitV2TransitionResize?.({ ...capture, intent: plan.intent }) ?? Promise.resolve(false)
+      : onCommitV2ClipTemporal?.({ ...capture, intent: plan.intent }) ?? Promise.resolve(false)
+  }
   const commitCompositionClipMove = (targetKey: string) => {
     const draggedClip = draggingCompositionClipRef.current
     const activePlan = movePlanRef.current
@@ -4936,10 +5036,10 @@ function ShowTimelineWorkspace({
       return
     }
     draggedClip.settling = true
+    // The painted plan names its own door, so the commit submits the exact
+    // intent the preview showed; a refused owner settles as no change.
     const commit = activePlan.recordVersion === 2
-      ? draggedClip.v2Move
-        ? onMoveV2Clip?.({ ...draggedClip.v2Move, clipId: activePlan.clipId, startMs: activePlan.startMs }) ?? Promise.resolve(false)
-        : Promise.resolve(false)
+      ? commitV2ClipPlan(draggedClip.v2Move, activePlan.plan)
       : activePlan.mode === 'duplicate'
         ? onDuplicateCompositionClipAtTarget({
             sourceComposition: activePlan.sourceComposition,
@@ -5292,12 +5392,134 @@ function ShowTimelineWorkspace({
     element.addEventListener('wheel', handleWheel, { passive: false })
     return () => element.removeEventListener('wheel', handleWheel)
   }, [zoomAroundPlayhead])
+  const resizeV2PlanRef = useRef<{
+    preview: ShowClipResizePreview
+    capture: { capture: ShowV2PilotPreparedCapture; baseRevision: number }
+    plan: ShowV2ClipTemporalPlan
+  } | null>(null)
+  // Slice 1 resizes a v2 Clip through the same handles and snap as v1: the
+  // planner names the trim/extend or the connected resize form from the
+  // presented view, and the commit submits the exact painted plan. A refused
+  // plan paints no preview and submits nothing.
+  const beginCompositionResizeV2 = (
+    clip: ShowTimelineItemView,
+    edge: 'start' | 'end',
+    event: ReactPointerEvent<HTMLSpanElement>,
+  ) => {
+    if (readOnly || resizeGestureRef.current || clip.groupOccurrenceId) return
+    event.preventDefault()
+    event.stopPropagation()
+    const lane = event.currentTarget.closest<HTMLElement>('[data-show-layer-kind]')
+    if (!lane) return
+    const gesture = captureV2ClipEdit?.()
+    if (!gesture) return
+    const pointerId = event.pointerId
+    const handle = event.currentTarget
+    const rect = lane.getBoundingClientRect()
+    onDirectManipulationChange(true)
+    const startClientX = event.clientX
+    const totalMs = Math.max(1, timelineView.showEndMs)
+    const resolve = (pointer: PointerEvent) => {
+      const deltaMs = (pointer.clientX - startClientX) / Math.max(1, rect.width) * totalMs
+      const rawBoundaryMs = edge === 'start' ? clip.startMs + deltaMs : clip.endMs + deltaMs
+      const minTimeMs = edge === 'start' ? 0 : clip.startMs + 1
+      const maxTimeMs = edge === 'start' ? clip.endMs - 1 : totalMs
+      const boundaryMs = snapClipBoundary(rawBoundaryMs, {
+        altKey: pointer.altKey,
+        shiftKey: pointer.shiftKey,
+        visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
+        minTimeMs,
+        maxTimeMs,
+      }).timeMs
+      const startMs = edge === 'start' ? boundaryMs : clip.startMs
+      const durationMs = edge === 'start' ? clip.endMs - boundaryMs : boundaryMs - clip.startMs
+      return { startMs: Math.round(startMs), durationMs: Math.max(1, Math.round(durationMs)) }
+    }
+    const plan = (pointer: PointerEvent) => {
+      const next = resolve(pointer)
+      // Alt already shaped the snapped interval above and reaches the planner
+      // only through it, exactly as v1: a resize that pulls a joined edge away
+      // from a converted Scene-boundary Transition refuses on provenance
+      // (#1068), every other edge plans its connected or temporal form.
+      const gesturePlan = planShowV2ClipResize(timelineView, {
+        clipId: clip.id,
+        edge: edge === 'start' ? 'leading' : 'trailing',
+        startMs: next.startMs,
+        endMs: next.startMs + next.durationMs,
+      })
+      if (gesturePlan.kind === 'refuse') return null
+      return {
+        preview: { clipId: clip.id, startMs: next.startMs, durationMs: next.durationMs },
+        plan: gesturePlan,
+      }
+    }
+    const move = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== pointerId || !resizeGestureRef.current) return
+      const nextPlan = plan(pointer)
+      resizeV2PlanRef.current = nextPlan ? { ...nextPlan, capture: gesture } : null
+      setResizePreview(nextPlan?.preview ?? null)
+    }
+    const detach = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', cancel)
+      handle.removeEventListener('lostpointercapture', cancel)
+    }
+    const settle = () => {
+      if (resizeGestureRef.current !== detach) return
+      resizeGestureRef.current = null
+      resizePlanRef.current = null
+      resizeV2PlanRef.current = null
+      setResizePreview(null)
+      onDirectManipulationChange(false)
+      refreshResizeActivity()
+    }
+    const finish = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== pointerId || resizeGestureRef.current !== detach) return
+      detach()
+      const activePlan = resizeV2PlanRef.current ?? (() => {
+        const nextPlan = plan(pointer)
+        return nextPlan ? { ...nextPlan, capture: gesture } : null
+      })()
+      suppressResizeClipClickRef.current = clip.id
+      window.setTimeout(() => {
+        if (suppressResizeClipClickRef.current === clip.id) suppressResizeClipClickRef.current = null
+      }, 0)
+      if (!activePlan) {
+        settle()
+        return
+      }
+      resizeV2PlanRef.current = activePlan
+      setResizePreview(activePlan.preview)
+      // Selection and any open Details remain suppressed until the exact
+      // painted resize plan has committed.
+      void commitV2ClipPlan(activePlan.capture, activePlan.plan).catch(() => {}).finally(settle)
+    }
+    const cancel = (pointer: PointerEvent) => {
+      if (pointer.pointerId !== pointerId || resizeGestureRef.current !== detach) return
+      detach()
+      settle()
+    }
+    resizeGestureRef.current = detach
+    refreshResizeActivity()
+    resizePlanRef.current = null
+    resizeV2PlanRef.current = null
+    setResizePreview({ clipId: clip.id, startMs: clip.startMs, durationMs: clip.durationMs })
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', cancel)
+    handle.addEventListener('lostpointercapture', cancel)
+  }
   const beginCompositionResize = (
     clip: ShowTimelineItemView,
     edge: 'start' | 'end',
     event: ReactPointerEvent<HTMLSpanElement>,
   ) => {
-    if (readOnly || recordVersion === 2 || !show || !timelineComposition || !clip.legacy || resizeGestureRef.current) return
+    if (recordVersion === 2) {
+      beginCompositionResizeV2(clip, edge, event)
+      return
+    }
+    if (readOnly || !show || !timelineComposition || !clip.legacy || resizeGestureRef.current) return
     event.preventDefault()
     event.stopPropagation()
     const lane = event.currentTarget.closest<HTMLElement>('[data-show-layer-kind]')
@@ -5775,6 +5997,8 @@ function ShowTimelineWorkspace({
             onCreateGroup={onCreateGroup}
             onSplitCompositionClip={onSplitCompositionClip}
             onDuplicateCompositionClip={onDuplicateCompositionClip}
+            captureV2ClipEdit={captureV2ClipEdit}
+            onCommitV2ClipTemporal={onCommitV2ClipTemporal}
           />
           <ShowTimelineHistoryCommands showId={showId} recordVersion={recordVersion} readOnly={readOnly} />
           {!readOnly && (
@@ -6392,11 +6616,24 @@ function ShowTimelineWorkspace({
                     : null
                   draggedClip.settling = true
                   const commit = recordVersion === 2
-                    ? clip && !clip.groupOccurrenceId && clip.zoneId === row.zoneId && draggedClip.mode === 'move'
-                      ? draggedClip.v2Move
-                        ? onMoveV2Clip?.({ ...draggedClip.v2Move, clipId: clip.id, startMs: globalStartMs }) ?? Promise.resolve(false)
-                        : Promise.resolve(false)
-                      : Promise.resolve(false)
+                    ? (() => {
+                        if (!clip || clip.groupOccurrenceId || draggedClip.mode !== 'move') return Promise.resolve(false)
+                        // A collapsed Zone drop lands on its bottom Layer; the
+                        // planner routes a free Clip there and refuses a joined
+                        // one, exactly as on the open lanes.
+                        const targetLayer = timelineView.rows
+                          .find((candidate) => candidate.zoneId === row.zoneId)?.layers
+                          .reduce<ShowTimelineLayerView | null>((bottom, candidate) => (
+                            !bottom || candidate.rank < bottom.rank ? candidate : bottom
+                          ), null)
+                        if (!targetLayer) return Promise.resolve(false)
+                        return commitV2ClipPlan(draggedClip.v2Move, planShowV2ClipMove(timelineView, {
+                          clipId: clip.id,
+                          zoneId: row.zoneId,
+                          layerId: targetLayer.id,
+                          startMs: globalStartMs,
+                        }))
+                      })()
                     : draggedClip.mode === 'duplicate' && timelineComposition && plannedComposition
                       ? onDuplicateCompositionClipAtTarget({
                           sourceComposition: timelineComposition,

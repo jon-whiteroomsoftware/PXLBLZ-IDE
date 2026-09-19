@@ -91,7 +91,7 @@ v1 accepts), **e** not applicable to v2 by design. No case fell into **e**.
 | 822 | scroll, trackpad pan and Shift-wheel pan (#476) | ✓ | | | |
 | 851 | playhead hidden outside the panned viewport | ✓ | | | |
 | 871 | Undo restores a deleted Clip | ✗ | the Clip is never deleted | a | as line 135 → `admitShowV2PilotClipDelete` (Undo/Redo already dispatch by backing, `:3839`) |
-| 888 | Transition time reclaimed after a resize (#695) | ✗ | trailing resize writes nothing | a | `onResizeCompositionClip` (`:2997`) → `admitShowV2PilotClipTemporal` (`trim`/`extend`), `admitShowV2PilotTransitionResize` (`resize-trailing`) |
+| 888 | Transition time reclaimed after a resize (#695) | ✗ | trailing resize writes nothing | a | `onResizeCompositionClip` (`:2997`) → `admitShowV2PilotClipTemporal` (`trim`/`extend`), `admitShowV2PilotTransitionResize` (`resize-trailing`); slice 1 refuses the resize-away as `boundary-detach-unsupported`, blocked on engine issue #1068 |
 | 934 | Snap preference after a reload | ✓ | | | |
 | 947 | Option-drag duplicate onto another Layer (#668) | ✗ | no editor: conversion refuses `unsupported-boundary-transition` — "Whole-boundary scope requires two nonempty contributor sets without unrelated contribution or boundary carriers" | d | `convertShowRecordV1ToV2`, path `transitions` |
 | 1040 | Clip drag snapping modifiers (#789) | ✗ | same refusal as line 947 | d | as above |
@@ -173,6 +173,9 @@ separately:
 - `ambiguous-layer` when one overlay ordinal carries different names in
   different Scenes. Smallest counterexample: `src/test/showRemoveClipFixture.ts`
   — Zone `zone-1`, overlay ordinal 0, divergent `name` across Scenes.
+- A cross-Layer or cross-Zone drop of a Clip joined by a Transition refuses as
+  `connected-reroute` because re-placement never detaches a Transition, and the
+  single detach-and-move owner is engine issue #1068.
 
 Two cases (1644, 1755) are class **c** in the sense the issue asks about: their
 test bodies read `/api/shows` directly, and a version-2 document is absent from
@@ -192,7 +195,7 @@ panel, a form or a second implementation.
    and `split` through the same `admitShowV2PilotClipTemporal`, and the
    connected forms `resize-leading`/`resize-trailing`/`move-connected` through
    `admitShowV2PilotTransitionResize`. Handlers: `onResizeCompositionClip`,
-   `onMoveCompositionClip`, `onSplitCompositionClip`. Green: **888**.
+   `onMoveCompositionClip`, `onSplitCompositionClip`. Green: **888**. Case 888 stays red until engine issue #1068 lands the single-owner detach operation the resize-away now refuses for.
 2. **Clip delete, with Undo and Redo.** `requestDeleteClip` and
    `onRemoveCompositionClip` → `admitShowV2PilotClipDelete`; history already
    dispatches by backing. Green: **135, 871**.

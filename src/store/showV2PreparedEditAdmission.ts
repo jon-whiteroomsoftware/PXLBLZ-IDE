@@ -59,7 +59,10 @@ export type ShowV2PilotMarkerEditOutcome =
 type AdmissionRefusal = 'stale-edit' | 'missing-show' | 'unsupported-provider' | 'unsupported-pilot-record'
 type ResizeAffected = Pick<ShowTransitionEditResultV2, 'affectedClipIds' | 'affectedTransitionIds' | 'affectedTrackIds' | 'removedIds'>
 type ResizeEmpty = { [K in keyof ResizeAffected]: [] }
-export type ShowV2PilotTransitionResizeIntent = Extract<ShowTransitionEditIntentV2, { kind: 'resize-transition' }>
+export type ShowV2PilotTransitionResizeIntent = Extract<
+  ShowTransitionEditIntentV2,
+  { kind: 'resize-transition' | 'resize-leading' | 'resize-trailing' | 'move-connected' }
+>
 export type ShowV2PilotTransitionResizeRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotTransitionResizeIntent }
 export type ShowV2PilotTransitionResizeOutcome =
   | ({ status: 'applied'; settlement: 'saved' | 'superseded' } & ResizeAffected)
@@ -221,10 +224,31 @@ export async function admitShowV2PilotMarkerEdit(request: ShowV2PilotMarkerEditR
   return outcome.status === 'unchanged' ? { status: 'unchanged', affectedMarkerIds: [] } : { status: 'applied', settlement: outcome.settlement, affectedMarkerIds: outcome.result.affectedMarkerIds }
 }
 const resizeEmpty = (): ResizeEmpty => ({ affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [], removedIds: [] })
+function validTransitionResizeIntent(intent: unknown): intent is ShowV2PilotTransitionResizeIntent {
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return false
+  const raw = intent as Record<string, unknown>
+  if (raw.kind === 'resize-transition') {
+    return Object.keys(raw).every(key => ['kind', 'transitionId', 'durationMs'].includes(key))
+  }
+  if (raw.kind === 'resize-leading') {
+    return Object.keys(raw).every(key => ['kind', 'clipId', 'startMs'].includes(key))
+  }
+  if (raw.kind === 'resize-trailing') {
+    return Object.keys(raw).every(key => ['kind', 'clipId', 'endMs'].includes(key))
+  }
+  if (raw.kind === 'move-connected') {
+    return Object.keys(raw).every(key => ['kind', 'clipId', 'startMs', 'zoneId', 'layerId'].includes(key))
+      && ['kind', 'clipId', 'startMs'].every(key => Object.prototype.hasOwnProperty.call(raw, key))
+  }
+  return false
+}
 export async function admitShowV2PilotTransitionResize(request: ShowV2PilotTransitionResizeRequest): Promise<ShowV2PilotTransitionResizeOutcome> {
   // Guard the public command partition before the broad pure Transition owner.
-  if (!request.intent || request.intent.kind !== 'resize-transition' || Object.keys(request.intent).some(key => !['kind', 'transitionId', 'durationMs'].includes(key))) {
-    return { status: 'refused', source: 'transition', code: 'invalid-intent', message: 'Give one explicit Transition resize.', ...resizeEmpty() }
+  // The door admits the Transition-duration resize plus the three connected
+  // Clip forms the owner defines; palette insert/update, reset and delete
+  // stay on their own doors.
+  if (!validTransitionResizeIntent(request.intent)) {
+    return { status: 'refused', source: 'transition', code: 'invalid-intent', message: 'Give one explicit Transition resize or connected Clip edit.', ...resizeEmpty() }
   }
   const outcome = await admitPreparedEdit({ ...request, owner: 'transition-resize' as const })
   if (outcome.status === 'refused') {

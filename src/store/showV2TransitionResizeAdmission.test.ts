@@ -164,3 +164,52 @@ it('keeps explicit empty and refused nonempty capabilities from becoming an admi
  expect(await admitShowV2PilotTransitionResize({...fresh.request,capture:{...fresh.request.capture,prepared:unsupported}})).toMatchObject({status:'refused',source:'admission',code:'unsupported-pilot-record'})
  expect(fresh.write).not.toHaveBeenCalled();expect(useShowStore.getState().showV2Pilots[fresh.record.id]).toBe(fresh.record)
 })
+
+it.each([
+  { name: 'leading', intent: { kind: 'resize-leading', clipId: 'in', startMs: 650 } },
+  { name: 'trailing', intent: { kind: 'resize-trailing', clipId: 'out', endMs: 350 } },
+] as const)('admits a connected clip $name with one history entry and one save', async ({ intent }) => {
+  const { record, request, write, readSaved } = setup()
+  const before = structuredClone(record)
+  const expected = editShowTransitionV2(record, intent as never)
+  expect(expected.status, JSON.stringify(expected)).toBe('changed')
+  if (expected.status !== 'changed') throw Error(expected.status)
+  const outcome = await admitShowV2PilotTransitionResize({ ...request, intent: intent as never })
+  expect(outcome).toMatchObject({ status: 'applied', settlement: 'saved' })
+  expect(write).toHaveBeenCalledTimes(1)
+  expect(readSaved().composition).toEqual(expected.record.composition)
+  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([before])
+  expect(useShowStore.getState().showV2Histories[record.id].future).toEqual([])
+})
+
+it('admits a connected move with one history entry and one save', async () => {
+  const { record, request, write, readSaved } = setup((candidate) => {
+    candidate.composition.showEndMs = 2000
+    candidate.composition.layoutOccurrences[0].durationMs = 2000
+  })
+  const intent = { kind: 'move-connected', clipId: 'out', startMs: 50 } as const
+  const before = structuredClone(record)
+  const expected = editShowTransitionV2(record, intent as never)
+  expect(expected.status, JSON.stringify(expected)).toBe('changed')
+  if (expected.status !== 'changed') throw Error(expected.status)
+  const outcome = await admitShowV2PilotTransitionResize({ ...request, intent: intent as never })
+  expect(outcome).toMatchObject({ status: 'applied', settlement: 'saved' })
+  expect(write).toHaveBeenCalledTimes(1)
+  expect(readSaved().composition).toEqual(expected.record.composition)
+  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([before])
+  expect(useShowStore.getState().showV2Histories[record.id].future).toEqual([])
+})
+
+it.each([
+  { kind: 'resize-leading', clipId: 'in', endMs: 650 },
+  { kind: 'resize-trailing', clipId: 'out', startMs: 50 },
+  { kind: 'move-connected', clipId: 'out', startMs: 50, extra: true },
+  { kind: 'update-transition', transition: null },
+] as const)('refuses a malformed connected intent %s without history or save', async (intent) => {
+  const { record, request, write } = setup()
+  const outcome = await admitShowV2PilotTransitionResize({ ...request, intent: intent as never })
+  expect(outcome).toMatchObject({ status: 'refused', source: 'transition', code: 'invalid-intent' })
+  expect(write).not.toHaveBeenCalled()
+  expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record)
+  expect(useShowStore.getState().showV2Histories[record.id]).toEqual({ past: [], future: [] })
+})

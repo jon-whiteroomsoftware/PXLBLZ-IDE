@@ -74,6 +74,23 @@ describe('projectShowEditorTimelineV2', () => {
     ])
     expect(view.structuralTimesMs).toEqual([0, 5_000, 7_000, 12_000])
   })
+
+  it('threads the record conversion provenance onto the presented Transition', () => {
+    const source = record()
+    source.composition.transitions[0]!.origin = 'converted-boundary-transition'
+
+    expect(projectShowEditorTimelineV2(source).transitions[0]).toMatchObject({
+      id: 'transition',
+      origin: 'converted-boundary-transition',
+    })
+  })
+
+  it('omits the provenance field for a natively authored Transition', () => {
+    const view = projectShowEditorTimelineV2(record())
+
+    expect(view.transitions).toHaveLength(1)
+    expect('origin' in view.transitions[0]!).toBe(false)
+  })
 })
 
 describe('whole-output boundary junctions (#1065)', () => {
