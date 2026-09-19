@@ -281,8 +281,10 @@ import { usePatternStore } from '@/store/patternStore'
 import { useLibraryStore } from '@/store/libraryStore'
 import { useShowStore } from '@/store/showStore'
 import {
+  admitShowV2PilotAppearanceEdit,
   admitShowV2PilotClipDelete,
   admitShowV2PilotClipTemporal,
+  admitShowV2PilotInstanceProperties,
   admitShowV2PilotTransitionResize,
   type ShowV2PilotClipDeleteIntent,
   type ShowV2PilotPreparedCapture,
@@ -300,6 +302,11 @@ import {
   planShowV2ClipDelete,
   showV2ConnectedTransitionIds,
 } from '@/engine/showV2ClipDeletePlanning'
+import {
+  planShowV2ClipInspectorPatch,
+  type ShowV2ClipInspectorInstanceIntent,
+} from '@/engine/showV2ClipAppearancePlanning'
+import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
@@ -1605,6 +1612,62 @@ export function ShowEditor({
     })
     return outcome
   }, [showId])
+  // Slice 3 connects the Clip detail panel's appearance surface through the
+  // same prepared-capture plumbing: one inspector patch plans at most one
+  // appearance or instance-properties intent, so one accepted edit stays one
+  // history entry and one save. Refused and no-op patches return false
+  // synchronously, exactly as the legacy chokepoint does, so fields revert
+  // their drafts and no legacy owner runs for a v2 row (#1066).
+  const commitV2ClipAppearance = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowClipAppearanceEditIntentV2
+  }) => {
+    const outcome = await admitShowV2PilotAppearanceEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
+  const commitV2InstanceProperties = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2ClipInspectorInstanceIntent
+  }) => {
+    const outcome = await admitShowV2PilotInstanceProperties({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
+  const commitV2ClipInspectorPatch = useCallback((clipId: string, patch: ShowClipInspectorPatch): boolean | Promise<void> => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return false
+    const plan = planShowV2ClipInspectorPatch(capture.record, clipId, patch)
+    if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    const commit = plan.kind === 'appearance'
+      ? commitV2ClipAppearance({ capture, baseRevision, intent: plan.intent })
+      : commitV2InstanceProperties({ capture, baseRevision, intent: plan.intent })
+    // The async settlement is observed through the re-projected record, not
+    // the return: every caller only distinguishes a synchronous false (revert
+    // the draft) from anything else (keep the draft), exactly as the legacy
+    // chokepoint's contract reads.
+    return commit.then(() => {}, () => {})
+  }, [commitV2ClipAppearance, commitV2InstanceProperties, readOnly, recordVersion, savedShowV2, showId])
   const requestDeleteClipV2 = useCallback((clipId: string, connectedDeletionConfirmed = false): boolean => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
@@ -3375,6 +3438,7 @@ export function ShowEditor({
                     void updateCellAdaptations(legacyShow.id, cell.id, changes)
                   }}
                   onUpdateClipInspector={commitClipInspectorPatch}
+                  onUpdateClipInspectorV2={commitV2ClipInspectorPatch}
                   onPropertyAnimationChange={(owner, change) => {
                     if (!legacyShow || !inspectorShow?.composition) return false
                     const composition = inspectorShow.composition
@@ -9121,6 +9185,7 @@ function ContextualInspector({
   onRemoveClip,
   onUpdateAdaptations,
   onUpdateClipInspector,
+  onUpdateClipInspectorV2,
   onPropertyAnimationChange,
   onUpdateGroupClipInspector,
   onPreviewClipInspector,
@@ -9180,6 +9245,7 @@ function ContextualInspector({
   onRemoveClip: (clip: ShowCell) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
+  onUpdateClipInspectorV2?: (clipId: string, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPropertyAnimationChange: (owner: ShowPropertyAnimationStorageOwner, change: ShowPropertyAnimationChange) => boolean | void
   onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
@@ -9301,10 +9367,13 @@ function ContextualInspector({
             showTimeOffsetMs: presented.animation.showTimeOffsetMs,
             instanceUseCount: presented.animation.instanceUseCount,
           }}
-          // Clip inspector writes are not connected for the v2 backing in this
-          // tracer: each returns an internal no-change result here, producing no
-          // record, history entry or save, and never reaching a legacy owner.
-          onPatch={() => false}
+          // Clip inspector writes reach the landed appearance and
+          // instance-properties admissions through the v2 inspector commit,
+          // one patch to at most one intent (#1066 slice 3). A Group Clip use
+          // below keeps the unconnected no-change result.
+          onPatch={selection.kind === 'clip'
+            ? (patch) => onUpdateClipInspectorV2?.(selection.clipId, patch) ?? false
+            : () => false}
           onPropertyAnimationChange={() => false}
           onPreviewPatch={() => {}}
           onPreviewEnd={onPreviewEnd}

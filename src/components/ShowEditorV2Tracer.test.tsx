@@ -29,6 +29,8 @@ import {
 } from '@/engine/personalContentProvider'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
+import type { ShowV2ClipInspectorInstanceIntent } from '@/engine/showV2ClipAppearancePlanning'
 
 /**
  * #1065: v2 tracer command routing through the existing Show editor.
@@ -62,6 +64,28 @@ vi.mock('@/store/showV2PreparedEditAdmission', async (importOriginal) => {
     }
   }
   return observed
+})
+
+/**
+ * The slice-3 patch planner. Refused and no-op patches never reach an
+ * admission door, so without this seam a refusal test could not tell a wired
+ * refusal from a control that no longer calls anything. The real planner
+ * still runs: a recorded call is a real plan.
+ */
+const planned = vi.hoisted(() => ({ calls: [] as Array<{ clipId: string; patch: Record<string, unknown> }> }))
+vi.mock('@/engine/showV2ClipAppearancePlanning', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/engine/showV2ClipAppearancePlanning')>()
+  return {
+    ...actual,
+    planShowV2ClipInspectorPatch: (record: unknown, clipId: string, patch: Record<string, unknown>) => {
+      planned.calls.push({ clipId, patch })
+      return actual.planShowV2ClipInspectorPatch(
+        record as never,
+        clipId,
+        patch as never,
+      )
+    },
+  }
 })
 
 /**
@@ -327,6 +351,7 @@ function timelineCommand(name: 'Split at playhead' | 'Clone selection'): HTMLEle
 
 beforeEach(() => {
   admission.calls.length = 0
+  planned.calls.length = 0
   legacy.calls.length = 0
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
@@ -1098,7 +1123,7 @@ describe('v2 time grid columns (#1065)', () => {
  * Show End 20000. Both move directions have slack, so connected outcomes are
  * exercisable instead of only refusals.
  */
-function connectedV2Record(id: string): ShowRecordV2 {
+function connectedV1Record(id: string): ShowRecord {
   const source: ShowRecord = resizeBoundaryShow(id)
   const zone = source.composition!.scenes[0].zones[0]
   source.composition!.patternInstances.push(
@@ -1131,10 +1156,30 @@ function connectedV2Record(id: string): ShowRecordV2 {
     easing: { curve: 'linear' },
     crossfadePolicy: 'live-live',
   }]
-  const converted = convertShowRecordV1ToV2(source)
+  return source
+}
+
+function connectedV2Record(id: string): ShowRecordV2 {
+  const converted = convertShowRecordV1ToV2(connectedV1Record(id))
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
   expect(validateShowRecordV2(converted.record)).toEqual([])
   return converted.record
+}
+
+function v2TracerV1Record(id: string): ShowRecord {
+  return connectedV1Record(id)
+}
+
+/**
+ * Slice-3 Place tests need the 2D Stage the browser seed carries
+ * (`stageMapId: 'plane'`): the Place tab is only applicable on a 2D Stage,
+ * whichever record backs the editor (#1065).
+ */
+function stagedV2Record(id: string): ShowRecordV2 {
+  const record = connectedV2Record(id)
+  const staged = { ...record, stageMapId: 'plane' }
+  expect(validateShowRecordV2(staged)).toEqual([])
+  return staged
 }
 
 /** One accepted edit: exactly one history entry, one save, no legacy touch. */
@@ -1977,5 +2022,636 @@ describe('v2 clip delete (#1066 slice 2)', () => {
     expect(after.history).toEqual({ past: [], future: [] })
     expect(after.v2Writes).toBe(0)
     expect(legacy.calls).toEqual([])
+  })
+})
+
+// ── Slice-3 Clip appearance (#1066) ────────────────────────────────────────
+// The Clip detail panel's appearance surface on a v2-stored Show through the
+// v2 inspector commit: brightness, opacity, phase, mirror, transform,
+// aperture, presentation, blink and the Effects stack through the appearance
+// door; speed, control targets, stepped clock and evaluation through the
+// instance-properties door. Every accepted edit is one history entry and one
+// save; refusals and no-ops write nothing and keep record identity; Undo and
+// Redo are exact; no legacy owner runs. Each control is driven as the user
+// would drive it, and the test fails if the drive does not reach the
+// admission exactly once.
+
+function appearanceSubmissions(): Array<{ intent: ShowClipAppearanceEditIntentV2; baseRevision: number }> {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotAppearanceEdit')
+    .map((call) => ({
+      intent: call.request.intent as ShowClipAppearanceEditIntentV2,
+      baseRevision: call.request.baseRevision as number,
+    }))
+}
+
+function instanceSubmissions(): Array<{ intent: ShowV2ClipInspectorInstanceIntent; baseRevision: number }> {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotInstanceProperties')
+    .map((call) => ({
+      intent: call.request.intent as ShowV2ClipInspectorInstanceIntent,
+      baseRevision: call.request.baseRevision as number,
+    }))
+}
+
+function showTab(name: 'Pattern' | 'Place' | 'Effects' | 'Playback'): void {
+  fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }))
+}
+
+function typeAndCommit(name: string, text: string): void {
+  const field = screen.getByRole('textbox', { name })
+  fireEvent.change(field, { target: { value: text } })
+  fireEvent.keyDown(field, { key: 'Enter' })
+}
+
+function chooseOption(name: string, optionValue: string): void {
+  fireEvent.change(screen.getByRole('combobox', { name }), { target: { value: optionValue } })
+}
+
+async function addEffectThroughPalette(label: string): Promise<void> {
+  fireEvent.click(screen.getByRole('button', { name: 'Add Effect' }))
+  fireEvent.click(screen.getByRole('button', { name: `Add ${label} Effect` }))
+  await act(async () => {})
+}
+
+function openEffectMenu(label: string, scope?: HTMLElement): void {
+  const root = scope ?? document.body
+  const trigger = within(root as HTMLElement).getByRole('button', { name: `More actions for ${label} Effect` });
+  fireEvent.click(trigger)
+}
+
+async function authoredClipValue(showId: string, clipId: string) {
+  const { projectShowEditorInspectorPresentationV2 } = await import('@/engine/showEditorInspectorPresentation')
+  const record = useShowStore.getState().showV2Pilots[showId]
+  return projectShowEditorInspectorPresentationV2(record, 0)!.clipsById[clipId].value
+}
+
+describe('v2 clip appearance (#1066 slice 3)', () => {
+  it('stores header Brightness through the appearance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-brightness'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+
+    typeAndCommit('Brightness exact percentage', '63')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotAppearanceEdit'])
+    expect(appearanceSubmissions()).toEqual([{
+      intent: { kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip', patch: { view: { brightness: 0.63 } } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).view.brightness).toBe(0.63)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('stores header Opacity through the appearance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-opacity'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+
+    typeAndCommit('Opacity exact percentage', '50')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(appearanceSubmissions()).toEqual([{
+      intent: { kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip', patch: { opacity: 0.5 } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).local.opacity).toBe(0.5)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('stores Pattern-tab Speed through the instance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-speed'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+    const before = editor.state()
+
+    typeAndCommit('Animation speed exact multiplier', '2')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotInstanceProperties'])
+    expect(instanceSubmissions()).toEqual([{
+      intent: { clipId: 'resize-a', properties: { time_scale: 2 } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.timeScale).toBe(2)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('enables a Pattern control target through the instance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-control-enable'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(instanceSubmissions()).toEqual([{
+      intent: { clipId: 'resize-a', properties: { controls: { sliderSpeed: 0.5 } } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.controlTargets).toEqual({ sliderSpeed: 0.5 })
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('edits a Pattern control target value through the instance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-control-value'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+
+    typeAndCommit('Speed target exact percentage', '75')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(instanceSubmissions()).toEqual([
+      { intent: { clipId: 'resize-a', properties: { controls: { sliderSpeed: 0.5 } } }, baseRevision: 0 },
+      { intent: { clipId: 'resize-a', properties: { controls: { sliderSpeed: 0.75 } } }, baseRevision: 1 },
+    ])
+    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.controlTargets).toEqual({ sliderSpeed: 0.75 })
+    expect(after.history.past).toHaveLength(2)
+    expect(after.v2Writes).toBe(2)
+    expect(legacy.calls).toEqual([])
+    expect(planned.calls).toHaveLength(2)
+  })
+
+  it('refuses a Pattern control target removal with no write', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-control-remove'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+    const enabled = editor.state()
+    expect(instanceSubmissions()).toHaveLength(1)
+
+    // Unchecking deletes the target, which the merge owner cannot express:
+    // the removal submits nothing and the enabled record stands.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(instanceSubmissions()).toHaveLength(1)
+    expect(planned.calls).toHaveLength(2)
+    expect(after.record).toBe(enabled.record)
+    expect(after.history).toEqual(enabled.history)
+    expect(after.v2Writes).toBe(enabled.v2Writes)
+    expect(legacy.calls).toEqual([])
+    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.controlTargets).toEqual({ sliderSpeed: 0.5 })
+  })
+
+  it('checks and clears the stutter clock through the instance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-stutter'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Stutter Pattern clock' }))
+    await act(async () => {})
+
+    expect(instanceSubmissions()).toEqual([{
+      intent: { clipId: 'resize-a', properties: { stepped_clock: { stepMs: 250 } } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.steppedClock).toEqual({ stepMs: 250 })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Stutter Pattern clock' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(instanceSubmissions()).toEqual([
+      { intent: { clipId: 'resize-a', properties: { stepped_clock: { stepMs: 250 } } }, baseRevision: 0 },
+      { intent: { clipId: 'resize-a', properties: { stepped_clock: null } }, baseRevision: 1 },
+    ])
+    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.steppedClock).toBeUndefined()
+    expect(after.history.past).toHaveLength(2)
+    expect(after.v2Writes).toBe(2)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('stores Playback evaluation through the instance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-evaluation'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Playback')
+    const before = editor.state()
+
+    chooseOption('Clip evaluation', 'freeze-at-entry')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotInstanceProperties'])
+    expect(instanceSubmissions()).toEqual([{
+      intent: { clipId: 'overlay-a', properties: { evaluation: 'freeze-at-entry' } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).evaluationPolicy).toBe('freeze-at-entry')
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('stores Playback phase through the appearance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-phase'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Playback')
+    const before = editor.state()
+
+    typeAndCommit('Phase exact phase', '0.5')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(appearanceSubmissions()).toEqual([{
+      intent: { kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip', patch: { view: { phase: 0.5 } } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).view.phase).toBe(0.5)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('stores a strobe presentation through the appearance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-presentation'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Playback')
+    const before = editor.state()
+
+    chooseOption('Clip presentation', 'strobe')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(appearanceSubmissions()).toEqual([{
+      intent: {
+        kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip',
+        patch: { presentation: { mode: 'strobe', cadenceMs: 1_000 } },
+      },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).presentation).toEqual({ mode: 'strobe', cadenceMs: 1_000 })
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('enables Blink through the appearance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-blink'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Playback')
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Blink Clip output' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(appearanceSubmissions()).toEqual([{
+      intent: {
+        kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip',
+        patch: { blink: { rateHz: 2, duty: 0.5, phase: 0 } },
+      },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).blink).toEqual({ rateHz: 2, duty: 0.5, phase: 0 })
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('stores Place Content X through the appearance door', async () => {
+    const editor = openV2EditorForRecord(stagedV2Record('slice3-transform-x'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Place')
+    const before = editor.state()
+
+    typeAndCommit('Content X exact position', '0.25')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(appearanceSubmissions()).toEqual([{
+      intent: { kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip', patch: { transform: { positionX: 0.25 } } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).transform.positionX).toBe(0.25)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('stores Place rotation through the appearance door', async () => {
+    const editor = openV2EditorForRecord(stagedV2Record('slice3-rotation'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Place')
+    const before = editor.state()
+
+    typeAndCommit('Rotation exact rotation', '-90')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(appearanceSubmissions()).toEqual([{
+      intent: { kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip', patch: { transform: { rotation: -0.25 } } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).transform.rotation).toBe(-0.25)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('enables the aperture from the Place summary through the appearance door', async () => {
+    const editor = openV2EditorForRecord(stagedV2Record('slice3-aperture-enable'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Place')
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotAppearanceEdit'])
+    expect(appearanceSubmissions()).toHaveLength(1)
+    const [submission] = appearanceSubmissions()
+    expect(submission.baseRevision).toBe(0)
+    expect(submission.intent.kind).toBe('appearance')
+    expect(submission.intent.scope).toBe('whole-clip')
+    if (submission.intent.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    expect(submission.intent.patch.aperture).toMatchObject({ enabled: true })
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).viewport.enabled).toBe(true)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('stores an ellipse silhouette and edge width through the appearance door', async () => {
+    const editor = openV2EditorForRecord(stagedV2Record('slice3-aperture-shape'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Place')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' }))
+    await act(async () => {})
+    chooseOption('Aperture shape', 'ellipse')
+    await act(async () => {})
+
+    expect(appearanceSubmissions()).toHaveLength(2)
+    const [, shape] = appearanceSubmissions()
+    expect(shape.baseRevision).toBe(1)
+    if (shape.intent.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    expect(shape.intent.patch.aperture).toMatchObject({ aperture: 'ellipse' })
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).viewport.aperture).toBe('ellipse')
+
+    typeAndCommit('Aperture edge width', '0.1')
+    await act(async () => {})
+
+    const submissions = appearanceSubmissions()
+    expect(submissions).toHaveLength(3)
+    const [, , feather] = submissions
+    expect(feather.baseRevision).toBe(2)
+    if (feather.intent.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    expect(feather.intent.patch).toEqual({ aperture: { feather: 0.1 } })
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).viewport.feather).toBe(0.1)
+    const after = editor.state()
+    expect(after.history.past).toHaveLength(3)
+    expect(after.v2Writes).toBe(3)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('adds a Ripple Effect through the palette and the appearance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-add'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Effects')
+    const before = editor.state()
+
+    await addEffectThroughPalette('Ripple')
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotAppearanceEdit'])
+    expect(appearanceSubmissions()).toHaveLength(1)
+    const [submission] = appearanceSubmissions()
+    expect(submission.baseRevision).toBe(0)
+    if (submission.intent.kind !== 'add-effect' || submission.intent.scope !== 'whole-clip') {
+      throw new Error('Expected a whole-Clip add-effect intent.')
+    }
+    expect(submission.intent.effect.id).toBe('ripple')
+    expect(submission.intent.effect.kind).toBe('ripple')
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).effects.map((effect) => effect.id)).toEqual(['ripple'])
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('edits a Ripple parameter through the appearance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-param'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Effects')
+
+    await addEffectThroughPalette('Ripple')
+    typeAndCommit('Amount', '0.2')
+    await act(async () => {})
+
+    expect(appearanceSubmissions()).toHaveLength(2)
+    const [, param] = appearanceSubmissions()
+    expect(param).toEqual({
+      intent: {
+        kind: 'update-effect', clipId: 'overlay-a', scope: 'whole-clip',
+        effectId: 'ripple', effectKind: 'ripple', parameter: 'amount', value: 0.2,
+      },
+      baseRevision: 1,
+    })
+    const after = editor.state()
+    expect(after.history.past).toHaveLength(2)
+    expect(after.v2Writes).toBe(2)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('removes one Effect and leaves the Clip through the appearance door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-remove'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Effects')
+
+    await addEffectThroughPalette('Ripple')
+    openEffectMenu('Ripple')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove Ripple Effect' }))
+    await act(async () => {})
+
+    expect(appearanceSubmissions()).toHaveLength(2)
+    const [, removal] = appearanceSubmissions()
+    expect(removal).toEqual({
+      intent: { kind: 'remove-effect', clipId: 'overlay-a', scope: 'whole-clip', effectId: 'ripple', effectKind: 'ripple' },
+      baseRevision: 1,
+    })
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).effects).toEqual([])
+    const after = editor.state()
+    expect(after.history.past).toHaveLength(2)
+    expect(after.v2Writes).toBe(2)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('duplicates and reorders Effects through the overflow menu', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-duplicate'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Effects')
+
+    await addEffectThroughPalette('Ripple')
+    await addEffectThroughPalette('Swirl')
+    openEffectMenu('Ripple')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate Ripple Effect' }))
+    await act(async () => {})
+
+    expect(appearanceSubmissions()).toHaveLength(3)
+    const [, , duplicate] = appearanceSubmissions()
+    expect(duplicate.baseRevision).toBe(2)
+    if (duplicate.intent.kind !== 'duplicate-effect') throw new Error('Expected a duplicate-effect intent.')
+    expect(duplicate.intent.effectId).toBe('ripple')
+    expect(duplicate.intent.newEffectId).toBe('ripple-2')
+
+    const stack = screen.getByRole('region', { name: 'Clip Effects' })
+    openEffectMenu('Ripple', within(stack).getByTestId('show-effect-ripple-2'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move Ripple Effect later' }))
+    await act(async () => {})
+
+    const submissions = appearanceSubmissions()
+    expect(submissions).toHaveLength(4)
+    const [, , , reorder] = submissions
+    expect(reorder.baseRevision).toBe(3)
+    if (reorder.intent.kind !== 'reorder-effect') throw new Error('Expected a reorder-effect intent.')
+    expect(reorder.intent.effectId).toBe('ripple-2')
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).effects.map((effect) => effect.id))
+      .toEqual(['ripple', 'swirl', 'ripple-2'])
+    const after = editor.state()
+    expect(after.history.past).toHaveLength(4)
+    expect(after.v2Writes).toBe(4)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('adds and removes Mirror through its fixed Transform row', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-mirror'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Effects')
+
+    await addEffectThroughPalette('Mirror')
+    expect(appearanceSubmissions()).toEqual([{
+      intent: { kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip', patch: { view: { mirror: true } } },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).view.mirror).toBe(true)
+
+    openEffectMenu('Mirror')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove Mirror Effect' }))
+    await act(async () => {})
+
+    expect(appearanceSubmissions()).toEqual([
+      {
+        intent: { kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip', patch: { view: { mirror: true } } },
+        baseRevision: 0,
+      },
+      {
+        intent: { kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip', patch: { view: { mirror: false } } },
+        baseRevision: 1,
+      },
+    ])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).view.mirror).toBe(false)
+    const after = editor.state()
+    expect(after.history.past).toHaveLength(2)
+    expect(after.v2Writes).toBe(2)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('refuses header Start timing with no write and keeps record identity', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-timing-refuse'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+
+    typeAndCommit('Start seconds exact time', '13')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(planned.calls).toHaveLength(1)
+    expect(planned.calls[0].clipId).toBe('overlay-a')
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, after)
+  })
+
+  it('refuses a Source pattern swap with no write and keeps record identity', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-pattern-refuse'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+    const before = editor.state()
+
+    const pattern = screen.getByRole('combobox', { name: 'Source pattern' })
+    fireEvent.focus(pattern)
+    fireEvent.change(pattern, { target: { value: 'testpattern1d' } })
+    const option = screen.queryByRole('option', { name: 'TestPattern1D' })
+    if (option) fireEvent.click(option)
+    await act(async () => {})
+
+    const after = editor.state()
+    // The drive must reach the planner: without this assertion a combobox
+    // that emits nothing would pass vacuously.
+    expect(planned.calls).toHaveLength(1)
+    expect(planned.calls[0].clipId).toBe('resize-a')
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, after)
+  })
+
+  it('keeps a v1 row on the legacy inspector path', async () => {
+    const source: ShowRecord = v2TracerV1Record('slice3-v1-brightness')
+    const v2Writes = vi.fn(async (_id: string, _next: ShowRecordV2) => {})
+    const legacyWrites = vi.fn(async () => {})
+    setPersonalContentProvider({
+      id: 'tracer-guard-provider',
+      listPatterns: async () => [],
+      listMaps: async () => [],
+      listMixins: async () => [],
+      listControllerProfiles: async () => [],
+      createShow: legacyWrites,
+      updateShow: legacyWrites,
+      deleteShow: legacyWrites,
+      replaceShowV2: v2Writes,
+      getLastActive: async () => undefined,
+      setLastActive: async () => {},
+    } as unknown as PersonalContentProvider)
+    useShowStore.setState({
+      shows: [source],
+      showsLoaded: true,
+      activeShowId: source.id,
+      showV2Pilots: {},
+      showV2Histories: {},
+      showRevisions: {},
+    })
+    render(<ShowEditor showId={source.id} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
+    await act(async () => {})
+
+    typeAndCommit('Brightness exact percentage', '75')
+    await act(async () => {})
+
+    expect(admission.calls).toEqual([])
+    expect(v2Writes).not.toHaveBeenCalled()
+    expect(legacyWrites.mock.calls.length).toBeGreaterThan(0)
+    const stored = useShowStore.getState().shows[0]
+    const brightness = stored.composition!.scenes[0].zones[0].overlays[0].placements[0].view.brightness
+    expect(brightness).toBe(0.75)
   })
 })
