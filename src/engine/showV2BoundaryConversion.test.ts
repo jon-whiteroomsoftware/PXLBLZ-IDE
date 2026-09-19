@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { transitionV1Show } from '../test/showV2TracerFixture'
+import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { editShowClipTemporalV2 } from './showClipTemporalV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '../pixelblaze/libs'
-import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2 } from './showCompositionV2'
+import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2 } from './showCompositionV2'
 
 function boundaryShow(kind: Parameters<typeof transitionV1Show>[0] = 'crossfade') {
   const show = transitionV1Show(kind)
@@ -192,4 +193,183 @@ it.each(['missing-contributor', 'unknown-contributor', 'wrong-endpoint', 'mixed-
   const before = structuredClone(converted.record)
   expect(prepareShowV2ForCompile(converted.record, lookup).status).toBe('refused')
   expect(converted.record).toEqual(before)
+})
+
+function oneSidedBoundaryShow(variant: 'fade-out' | 'fade-in' | 'empty-both') {
+  const show = convertibleV1Show()
+  show.stageMapId = 'plane'
+  show.composition!.durationMs = 11000
+  show.scenes = [
+    { id: 'scene-a', name: 'Outgoing', durationMs: 5000 },
+    { id: 'scene-b', name: 'Incoming', durationMs: 5000 },
+  ]
+  show.composition!.patternInstances = [
+    { id: 'out-instance', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'Outgoing', time: { timeScale: 1, timeOffsetMs: 0 } },
+    { id: 'in-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Incoming', time: { timeScale: 1, timeOffsetMs: 0 } },
+  ]
+  const outgoing = variant === 'fade-in' ? [] : [{
+    id: 'out', instanceId: 'out-instance', startMs: 0, durationMs: variant === 'empty-both' ? 1000 : 5000,
+    view: { mirror: false, phase: 0, brightness: 1 },
+  }]
+  const incoming = variant === 'fade-out' || variant === 'empty-both' ? [] : [{
+    id: 'in', instanceId: 'in-instance', startMs: 0, durationMs: 5000,
+    view: { mirror: false, phase: 0, brightness: 1 },
+  }]
+  show.composition!.scenes = [
+    { sceneId: 'scene-a', zones: [{ zoneId: 'zone', main: outgoing, overlays: [] }] },
+    { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: incoming, overlays: [] }] },
+  ]
+  show.transitions = [{
+    id: 't1', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 1000,
+    easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+  }]
+  return show
+}
+
+function expectOneSidedBoundaryParity(variant: 'fade-out' | 'fade-in' | 'empty-both') {
+  const source = oneSidedBoundaryShow(variant)
+  const before = structuredClone(source)
+  const result = convertShowRecordV1ToV2(source)
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
+  expect(source).toEqual(before)
+  expect(result.report.unaccountedSourcePaths).toEqual([])
+  expect(validateShowRecordV2(result.record)).toEqual([])
+  expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
+  const again = convertShowRecordV1ToV2(structuredClone(source))
+  if (again.status !== 'converted') throw new Error(JSON.stringify(again.status === 'refused' ? again.issues : []))
+  expect(again.record).toEqual(result.record)
+  const prepared = prepareShowV2ForCompile(result.record, lookup)
+  expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+  if (prepared.status !== 'ready') return
+  const oldArtifact = compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES)
+  const newArtifact = compileShow(prepared.recipe, LIBRARIES)
+  expect(newArtifact.code).toBe(oldArtifact.code)
+  for (const fidelity of ['fast', 'fidelity'] as const) {
+    const runtime = (artifact: typeof newArtifact) => createFastReplayRuntime({ code: artifact.code, fxCode: artifact.fxCode, metadata: artifact.metadata, dimension: nativeDimension(artifact.metadata.renderFns) }, { fidelity, randomSeed: 1034, mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }] })
+    const left = runtime(oldArtifact)
+    const right = runtime(newArtifact)
+    for (const atMs of [0, 1, 999, 1000, 1001, 4999, 5000, 5001, 5500, 5999, 6000, 6001, 8000, 10999, 11001]) {
+      const a = atMs ? left.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true }) : left.renderCurrentFrame()
+      const expected = { frame: Array.from(a.frame), exports: { ...a.exports } }
+      const b = atMs ? right.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true }) : right.renderCurrentFrame()
+      expect({ frame: Array.from(b.frame), exports: { ...b.exports } }).toEqual(expected)
+    }
+  }
+}
+
+it('converts a boundary crossfade whose incoming Scene contributes no Clip', () => {
+  expectOneSidedBoundaryParity('fade-out')
+})
+
+it('converts a boundary crossfade whose outgoing Scene contributes no Clip', () => {
+  expectOneSidedBoundaryParity('fade-in')
+})
+
+it('converts a boundary crossfade where neither Scene contributes a boundary Clip', () => {
+  expectOneSidedBoundaryParity('empty-both')
+})
+
+it('names the empty side of a one-sided boundary Transition explicitly', () => {
+  const expectations = {
+    'fade-out': { fromClipIds: ['out'], toClipIds: [] as string[] },
+    'fade-in': { fromClipIds: [] as string[], toClipIds: ['in'] },
+    'empty-both': { fromClipIds: [] as string[], toClipIds: [] as string[] },
+  } as const
+  for (const variant of ['fade-out', 'fade-in', 'empty-both'] as const) {
+    const result = convertShowRecordV1ToV2(oneSidedBoundaryShow(variant))
+    expect(result.status, variant).toBe('converted')
+    if (result.status !== 'converted') continue
+    expect(result.record.composition.transitions).toEqual([expect.objectContaining({
+      id: 't1',
+      origin: 'converted-boundary-transition',
+      participants: [],
+      wholeOutput: { startMs: 5000, ...expectations[variant] },
+    })])
+  }
+})
+
+it('leaves an empty/empty boundary window anchored when an unrelated Clip moves', () => {
+  const result = convertShowRecordV1ToV2(oneSidedBoundaryShow('empty-both'))
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
+  const moved = editShowClipTemporalV2(result.record, { kind: 'move', clipId: 'out', startMs: 100 })
+  expect(moved.status).toBe('changed')
+  if (moved.status !== 'changed') return
+  expect(moved.record.composition.transitions).toEqual([expect.objectContaining({
+    id: 't1',
+    wholeOutput: { startMs: 5000, fromClipIds: [], toClipIds: [] },
+  })])
+  expect(validateShowRecordV2(moved.record)).toEqual([])
+  expect(moved.affectedTransitionIds).not.toContain('t1')
+})
+
+it.each(['layoutId', 'routingDirection'] as const)('still refuses a one-sided boundary carrying %s', (carrier) => {
+  const source = oneSidedBoundaryShow('fade-out')
+  Object.assign(source.transitions[0], carrier === 'layoutId' ? { layoutId: 'layout' } : { routingDirection: 'reverse' })
+  const before = structuredClone(source)
+  const result = convertShowRecordV1ToV2(source)
+  expect(result.status).toBe('refused')
+  expect(source).toEqual(before)
+  if (result.status === 'refused') expect(result.issues.some(issue => issue.code === 'unsupported-boundary-transition')).toBe(true)
+})
+
+function timeZeroBoundaryShow() {
+  const show = convertibleV1Show()
+  show.stageMapId = 'plane'
+  show.composition!.durationMs = 6000
+  show.scenes = [
+    { id: 'scene-a', name: 'Opening', durationMs: 0 },
+    { id: 'scene-b', name: 'Incoming', durationMs: 5000 },
+  ]
+  show.composition!.patternInstances = [
+    { id: 'in-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Incoming', time: { timeScale: 1, timeOffsetMs: 0 } },
+  ]
+  show.composition!.scenes = [
+    { sceneId: 'scene-a', zones: [{ zoneId: 'zone', main: [], overlays: [] }] },
+    { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: [{
+      id: 'in', instanceId: 'in-instance', startMs: 0, durationMs: 5000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }], overlays: [] }] },
+  ]
+  show.transitions = [{
+    id: 't1', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 1000,
+    easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+  }]
+  return show
+}
+
+it('lowers a boundary crossfade at time zero from the compiler-owned Empty', () => {
+  const source = timeZeroBoundaryShow()
+  const before = structuredClone(source)
+  const result = convertShowRecordV1ToV2(source)
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
+  expect(source).toEqual(before)
+  expect(result.report.unaccountedSourcePaths).toEqual([])
+  expect(result.record.composition.transitions).toEqual([expect.objectContaining({
+    id: 't1',
+    origin: 'converted-boundary-transition',
+    participants: [],
+    wholeOutput: { startMs: 0, fromClipIds: [], toClipIds: ['in'] },
+  })])
+  expect(validateShowRecordV2(result.record)).toEqual([])
+  expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
+  const prepared = prepareShowV2ForCompile(result.record, lookup)
+  expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+  if (prepared.status !== 'ready') return
+  const oldArtifact = compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES)
+  const newArtifact = compileShow(prepared.recipe, LIBRARIES)
+  expect(newArtifact.code).toBe(oldArtifact.code)
+  for (const fidelity of ['fast', 'fidelity'] as const) {
+    const runtime = (artifact: typeof newArtifact) => createFastReplayRuntime({ code: artifact.code, fxCode: artifact.fxCode, metadata: artifact.metadata, dimension: nativeDimension(artifact.metadata.renderFns) }, { fidelity, randomSeed: 1034, mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }] })
+    const left = runtime(oldArtifact)
+    const right = runtime(newArtifact)
+    for (const atMs of [0, 1, 999, 1000, 1001, 2500, 4999, 5000, 5001, 5999, 6000, 6001]) {
+      const a = atMs ? left.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true }) : left.renderCurrentFrame()
+      const expected = { frame: Array.from(a.frame), exports: { ...a.exports } }
+      const b = atMs ? right.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true }) : right.renderCurrentFrame()
+      expect({ frame: Array.from(b.frame), exports: { ...b.exports } }).toEqual(expected)
+    }
+  }
 })

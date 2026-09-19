@@ -794,7 +794,11 @@ function shiftWholeOutputWindows(
     if (!transition.wholeOutput || excluded.has(transition.id)) continue
     const original = source.composition.transitions.find(candidate => candidate.id === transition.id)!
     const endpoints = transitionEndpoints(original)
-    if (endpoints.all.every(id => moved.has(id))) transition.wholeOutput.startMs += deltaMs
+    // A window with no endpoints has nothing to follow, so it stays anchored
+    // while exact-match validation refuses any edit that breaks it. Without
+    // the length gate the every below is vacuously true and any unrelated
+    // Clip move silently shifts every empty/empty boundary (#1068).
+    if (endpoints.all.length > 0 && endpoints.all.every(id => moved.has(id))) transition.wholeOutput.startMs += deltaMs
   }
 }
 

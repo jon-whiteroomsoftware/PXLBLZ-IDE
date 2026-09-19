@@ -115,7 +115,13 @@ export interface ShowTransitionV2 extends Omit<
   'afterSceneId' | 'kind' | 'layoutId' | 'routingDirection' | 'propertyTransitions'
 > {
   kind: Exclude<ShowTransitionKind, 'cut'>
-  /** Whole-output ownership preserves existing boundary compositing without pairing Layers. */
+  /**
+   * Whole-output ownership preserves existing boundary compositing without pairing Layers.
+   * Either contributor side may be empty: the empty side renders the
+   * compiler-owned Empty, so a boundary that fades to or from Black needs no
+   * invented Clip (#1068). Validation still requires each side to name every
+   * Clip abutting its window edge, so emptiness is exact, never a default.
+   */
   wholeOutput?: { startMs: number; fromClipIds: string[]; toClipIds: string[] }
   participants: ShowTransitionParticipantV2[]
   propertyRamps: ShowTransitionPropertyRampV2[]
@@ -462,8 +468,13 @@ export function validateShowRecordV2Domain(record: ShowRecordV2, derivedStructur
         || composition.clips.some(clip => clip.startMs < endMs && safeAdd(clip.startMs, clip.durationMs) > scope.startMs)) {
         addIssue(issues, path, 'invalid-transition', 'Whole-output scope must name every boundary contributor and cannot hide an intervening Clip.')
       }
+      // Either side may be empty: a v1 boundary Transition blends its named
+      // contributors to or from the compiler-owned Empty when the neighbouring
+      // Scene contributes no Clip in that Zone (#1068). The exact-match rule
+      // above already forces completeness, so an empty side is valid only when
+      // no Clip abuts that window edge.
       for (const [side, ids] of [['from', scope.fromClipIds], ['to', scope.toClipIds]] as const) {
-        if (ids.length === 0 || new Set(ids).size !== ids.length) addIssue(issues, path, 'invalid-transition', 'Whole-output contributor sets must be nonempty and unique.')
+        if (new Set(ids).size !== ids.length) addIssue(issues, path, 'invalid-transition', `Whole-output ${side} contributors must be unique.`)
         for (const id of ids) {
           const clip = clips.get(id)
           if (!clip) addIssue(issues, path, 'missing-reference', 'Whole-output contributor Clips must exist.')

@@ -256,8 +256,8 @@
           "type": "object",
           "properties": {
             "startMs": { "$ref": "#/$defs/NonnegativeSafeInteger" },
-            "fromClipIds": { "type": "array", "items": { "$ref": "#/$defs/Id" }, "minItems": 1, "uniqueItems": true },
-            "toClipIds": { "type": "array", "items": { "$ref": "#/$defs/Id" }, "minItems": 1, "uniqueItems": true }
+            "fromClipIds": { "type": "array", "description": "Clips ending exactly at the window start. Empty when the outgoing side contributes no Clip: the blend starts from the compiler-owned Empty (#1068).", "items": { "$ref": "#/$defs/Id" }, "uniqueItems": true },
+            "toClipIds": { "type": "array", "description": "Clips starting exactly at the window end. Empty when the incoming side contributes no Clip: the blend lands on the compiler-owned Empty (#1068).", "items": { "$ref": "#/$defs/Id" }, "uniqueItems": true }
           },
           "required": ["startMs", "fromClipIds", "toClipIds"],
           "additionalProperties": false

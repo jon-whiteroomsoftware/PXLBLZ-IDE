@@ -653,3 +653,54 @@ it('converts a divergent overlay name when the earlier placement never routes', 
   expect(validateShowRecordV2(result.record)).toEqual([])
   expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
 })
+
+// A one-sided boundary converts to whole-output scope, so pairing it with a
+// Layer Transition still refuses the pre-existing mixed-scope preparation gate
+// ("Mixed whole-output and Layer scopes require separate preservation proof").
+// That gate is outside the converter: conversion itself stays faithful.
+it('reports the pre-existing mixed-scope preparation refusal on a one-sided boundary beside a Layer Transition', () => {
+  const source = convertibleV1Show()
+  source.stageMapId = 'plane'
+  source.composition!.durationMs = 11000
+  source.scenes = [
+    { id: 'scene-a', name: 'Outgoing', durationMs: 5000 },
+    { id: 'scene-b', name: 'Incoming', durationMs: 5000 },
+  ]
+  source.composition!.scenes = [
+    {
+      sceneId: 'scene-a',
+      zones: [{ zoneId: 'zone', main: [
+        {
+          id: 'clip-a', instanceId: 'instance', startMs: 0, durationMs: 2000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        },
+        {
+          id: 'clip-b', instanceId: 'instance', startMs: 3000, durationMs: 2000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        },
+      ], overlays: [] }],
+    },
+    { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: [], overlays: [] }] },
+  ]
+  source.composition!.transitions = [{
+    id: 'layer-t', fromPlacementId: 'clip-a', toPlacementId: 'clip-b',
+    kind: 'crossfade', durationMs: 1000, easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+  }]
+  source.transitions = [{
+    id: 't1', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 1000,
+    easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+  }]
+  const result = convertShowRecordV1ToV2(source)
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
+  const tinySource = 'export var calls=0; export var elapsed=0; export function beforeRender(delta) { calls++; elapsed+=delta/1000 } export function render2D(index,x,y) { rgb(1,x,y) }'
+  const lookup = {
+    byCellId: {},
+    byPatternInstanceId: { instance: tinySource },
+    stageDimension: 2 as const,
+  }
+  expect(prepareShowV2ForCompile(result.record, lookup)).toMatchObject({
+    status: 'refused',
+    issues: expect.arrayContaining([expect.objectContaining({ code: 'unsupported-transition-participants' })]),
+  })
+})

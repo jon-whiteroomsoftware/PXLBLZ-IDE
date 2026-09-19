@@ -135,6 +135,43 @@ through real admission, and
 `src/store/showV2IntegratedGroupHoldSequence.test.ts` runs the §4
 shared-animation conflict with its internal Group Transition present.
 
+## Whole-output Transitions at time zero, and lowering as a closed net
+
+A whole-output Transition attaches after the derived section that ends at its
+start. At `startMs = 0` no section can end there, because the predecessor is not
+an authored section at all: it is the compiler-owned Empty, the same black
+source that already renders the empty side of every mid-Show one-sided boundary.
+Preparation emits that Empty as an explicit zero-duration hold ahead of the
+derived scenes and attaches the boundary after it, rather than searching for a
+predecessor that by definition does not exist. Section derivation, placement
+identity and track splitting are unchanged; the hold carries no Clips, and its
+scene identity is transient, minted inside lowering and never persisted. To the
+user this is a Show that opens by fading in from black, which the v1 pipeline
+compiles today.
+
+`prepareShowV2ForCompile` refuses; it does not throw. Any record that domain
+validation admits but lowering cannot represent returns a typed refusal naming
+the offending path, whatever produced the record. A lowering error escaping as
+an exception is a fail-closed violation independent of any one shape: the caller
+cannot distinguish it from a crash, and a refusal the editor can render is the
+only outcome the compile seam is allowed to produce.
+
+### Evidence
+
+[Boundary conversion tests](../../../src/engine/showV2BoundaryConversion.test.ts)
+carry the time-zero case end to end — a v1 Show with a zero-duration opening
+Scene, an empty Zone and a boundary crossfade converts, validates, round-trips
+through the codec, prepares `ready`, and compiles to bytes identical to v1's,
+with frame and exported-state parity at sampled times in both Fast and Precise.
+
+The refusal net itself is unpinned, and deliberately so stated rather than
+claimed: the time-zero boundary was the only shape known to reach a lowering
+throw, and this slice removes it. The remaining throws sit behind typed
+refusals that already reject the same conditions earlier, so no record is
+currently known to exercise the net. It is a backstop against a future
+lowering path, not a tested route, and the next slice that finds a reachable
+shape should pin it.
+
 ## Global Layout switches with participant Transitions
 
 The [Layout/Transition preparation contract](show-v2-layout-transition-preparation.md)

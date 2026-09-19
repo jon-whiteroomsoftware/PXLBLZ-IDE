@@ -297,7 +297,15 @@ function resolveAndLowerShowV2(
   }
   const resolved = resolveShowV2CompileContext(compileRecord, { ...lookup, byPatternInstanceId: sources })
   if ('issues' in resolved) return resolved
-  const lowered = emitResolvedShowV2(resolved)
+  let lowered: LoweredShowCompositionV2
+  try {
+    lowered = emitResolvedShowV2(resolved)
+  } catch (error) {
+    // Validation admits the record but lowering cannot represent it: fail
+    // closed with a typed refusal rather than an uncaught throw (#1068).
+    // The message preserves the lowering diagnosis for the repair owner.
+    return refuse('unsupported-transition-participants', 'composition.transitions', error instanceof Error ? error.message : String(error))
+  }
   const sceneIds = new Set(lowered.show.scenes.map(scene => scene.id))
   if (lowered.show.transitions.some(transition => transition.kind === 'routing' && !sceneIds.has(transition.afterSceneId))) {
     return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior.')
@@ -774,6 +782,28 @@ function lowerGlobalClipsToSections(
       .filter(layer => layer.zoneId === zone.id)
       .sort((left, right) => left.rank - right.rank || left.id.localeCompare(right.id)),
   ]))
+  // A whole-output Transition at time zero has no authored predecessor
+  // section: no derived section can end at 0, and derivation removes the
+  // window itself. The hold before the window is the compiler-owned Empty
+  // by definition, so emit that hold ahead of the derived scenes rather
+  // than looking one up (#1068). Section derivation, placement identity
+  // and track splitting are untouched: the hold carries no Clips.
+  const emptyHoldId = 'v2-section:empty'
+  const needsEmptyHold = composition.transitions.some(transition => transition.wholeOutput?.startMs === 0)
+  const emptyHoldCompositions = needsEmptyHold ? [{
+    sceneId: emptyHoldId,
+    zones: record.zones.map(zone => {
+      const holdLayers = layersByZone.get(zone.id) ?? []
+      return {
+        zoneId: zone.id,
+        main: [],
+        overlays: holdLayers
+          .filter(layer => layer.rank > 0)
+          .sort((left, right) => right.rank - left.rank || left.id.localeCompare(right.id))
+          .map(layer => ({ id: `${layer.id}@${emptyHoldId}`, name: layer.name, placements: [] })),
+      }
+    }),
+  }] : []
   const v1Scenes = sections.map(section => {
     const zones: ShowZoneComposition[] = record.zones.map(zone => {
       const layers = layersByZone.get(zone.id) ?? []
@@ -832,23 +862,34 @@ function lowerGlobalClipsToSections(
       : {}),
     durationMs: composition.showEndMs,
     patternInstances: structuredClone(composition.patternInstances),
-    scenes: v1Scenes,
+    scenes: [...emptyHoldCompositions, ...v1Scenes],
     ...(composition.markers.length > 0 ? { markers: structuredClone(composition.markers) } : {}),
     ...(participantTransitions.length > 0 ? { transitions: participantTransitions } : {}),
   }
-  const scenes = sections.map((section, index) => buildDerivedScene(
+  const derivedScenes = sections.map((section, index) => buildDerivedScene(
     context,
     section.id,
     `Section ${index + 1}`,
     section.endMs - section.startMs,
     section.startMs,
   ))
+  const scenes = [...(needsEmptyHold ? [buildDerivedScene(context, emptyHoldId, 'Empty hold', 0, 0)] : []), ...derivedScenes]
   const lowered = buildLoweredShow(context, scenes, [], v1Composition)
   if (context.route !== 'transition') {
     for (const transition of composition.transitions) {
       const sectionIndex = sections.findIndex(section => section.endMs === transition.wholeOutput!.startMs)
-      if (sectionIndex < 0) throw new Error('Whole-output Transition has no outgoing hold section.')
-      lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: scenes[sectionIndex].id, ...(transition.propertyRamps.length > 0 ? { propertyTransitions: scalarBoundaryRamps(transition) } : {}) })
+      if (sectionIndex < 0) {
+        // At time zero the predecessor is the emitted Empty hold: attach the
+        // boundary there rather than looking an authored section up (#1068).
+        // Any other missing hold has no representation without losing
+        // behavior, and the typed-refusal net above carries it.
+        if (transition.wholeOutput!.startMs === 0 && needsEmptyHold) {
+          lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: emptyHoldId, ...(transition.propertyRamps.length > 0 ? { propertyTransitions: scalarBoundaryRamps(transition) } : {}) })
+          continue
+        }
+        throw new Error('Whole-output Transition has no outgoing hold section.')
+      }
+      lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: derivedScenes[sectionIndex].id, ...(transition.propertyRamps.length > 0 ? { propertyTransitions: scalarBoundaryRamps(transition) } : {}) })
     }
   }
   return { show: lowered, lookup }

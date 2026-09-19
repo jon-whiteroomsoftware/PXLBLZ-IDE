@@ -278,8 +278,14 @@ export function convertShowRecordV1ToV2(
     const atMs = sceneEndById.get(boundary.afterSceneId)
     const from = clips.filter(clip => clip.startMs + clip.durationMs === atMs)
     const to = clips.filter(clip => clip.startMs === (atMs ?? 0) + boundary.durationMs)
-    if (from.length === 0 || to.length === 0 || clips.some(clip => !from.includes(clip) && !to.includes(clip) && clip.startMs < (atMs ?? 0) + boundary.durationMs && clip.startMs + clip.durationMs > (atMs ?? 0)) || (boundary.propertyTransitions !== undefined && !isScalarCarrier(boundary.propertyTransitions)) || boundary.layoutId || boundary.routingDirection) {
-      issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'Whole-boundary scope requires two nonempty contributor sets without unrelated contribution or boundary carriers.' })
+    // Either contributor side may be empty: a neighbouring Scene can contribute
+    // no Clip in a Zone while the v1 editor still draws and compiles the boundary
+    // Transition as a timed blend to or from Black (#1068). The empty side
+    // converts as an explicitly empty contributor set, and validation still
+    // requires each side to name every abutting Clip, so emptiness is exact.
+    // A contributor spanning the window and any boundary carrier still refuse.
+    if (clips.some(clip => !from.includes(clip) && !to.includes(clip) && clip.startMs < (atMs ?? 0) + boundary.durationMs && clip.startMs + clip.durationMs > (atMs ?? 0)) || (boundary.propertyTransitions !== undefined && !isScalarCarrier(boundary.propertyTransitions)) || boundary.layoutId || boundary.routingDirection) {
+      issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'Whole-boundary scope requires exact contributor sets without unrelated contribution or boundary carriers.' })
       continue
     }
     const { afterSceneId: _after, layoutId: _layout, routingDirection: _routing, propertyTransitions: _ramps, ...settings } = structuredClone(boundary)
