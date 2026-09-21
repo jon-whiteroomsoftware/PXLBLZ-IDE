@@ -24,6 +24,27 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.13.0 adoption (#1076)
+
+This adoption updates the executable package from 0.12.0. Source release is
+WRSP 0.13.0; see its `docs/reference/process-release-0.13.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.13.0, tag `v0.13.0` |
+| Source | `28626495a76cd4eacd0ca84bb0ca492c36d6421b` |
+| Tarball | `vendor/whiteroom-software-process-0.13.0.tgz` |
+| SHA256 | `39110d508b5f345d8ca60c670c9cc9235d2d15751b010a52609d59ee8e2577db` |
+
+Publication now composes consecutive segments of one outgoing range: native
+chains, coverage waivers and finding acceptances each cover exactly their own
+first-parent segment, and a refusal names the first unsatisfied segment. The
+same-family review exception and the operator-authorization procedures in the
+0.12.0 section below are unchanged. Process skills and templates now ship in
+the package; `wrsp-agents install` / `check` manage `~/.agents` per machine,
+not per repository. Annotated tag pushes are refused by the gate until WRSP
+#111 is fixed.
+
 ## WRSP 0.12.0 adoption (#1072)
 
 This adoption updates the executable package from 0.10.0 (0.11.0 was vendored
