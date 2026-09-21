@@ -325,4 +325,12 @@ describe('converted boundary promotion on section-scoped Property tracks (#1068)
     const preparedAvoiding = prepareShowV2ForCompile(avoiding.record, boundaryLookup)
     expect(preparedAvoiding.status, JSON.stringify(preparedAvoiding.status === 'refused' ? preparedAvoiding.issues[0] : '')).toBe('ready')
   })
+  it('P10 malformed add-track on the participant record refuses invalid-result without throwing', () => {
+    const recordA = convertedTwoScene(false)
+    const result = editShowPropertyV2(recordA, { kind: 'show' }, { kind: 'add-track', track: { id: 'bad' } as never })
+    expect(result.status).toBe('refused')
+    if (result.status !== 'refused') return
+    expect(result.code).toBe('invalid-result')
+    expect(result.record).toBe(recordA)
+  })
 })

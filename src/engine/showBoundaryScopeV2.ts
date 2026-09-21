@@ -46,7 +46,7 @@ export function participantSectionBoundaries(record: ShowRecordV2): number[] {
     composition.showEndMs,
     ...composition.clips.flatMap(clip => clip.appearance.keys.slice(1).map(key => key.timeMs)),
     ...composition.propertyTracks.flatMap(track => (
-      track.target.kind === 'show-repeat-scale' || track.target.kind === 'layout-occurrence-split-position'
+      track.target?.kind === 'show-repeat-scale' || track.target?.kind === 'layout-occurrence-split-position'
         ? []
         : [track.activeStartMs, track.activeStartMs + track.activeDurationMs]
     )),
