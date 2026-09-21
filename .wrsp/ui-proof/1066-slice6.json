@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice6-capture?show-v2-editor",
+  "operation": "Driven in one run by repository Playwright (Chromium) against this worktree's managed runtime (issue 1066, port 5178, shared API) as the synthetic local developer github:local-agent-23. The run seeded a Show through POST /api/shows, converted it with the application's own convertShowRecordV1ToV2, and stored it as a version-2 document through PUT /api/shows/<id>?show-version=2 with showEndMs 62000. It then pressed the Show End handle and moved the pointer 120px right WITHOUT releasing, and captured mid-gesture: 1066-slice6-drag.png shows the live drag badge reading 69s and the transport reading 01:09.0 while the button still holds. That is the defect this slice fixes — the preview basis read the v1 record, so on a v2 Show both numbers stayed at 62s for the whole drag. On release the stored version-2 document read showEndMs 69000, and after a reload the handle's accessible name read 'Show End at 69 seconds', captured as 1066-slice6-after.png. Readbacks asserted in the run: seeded 62000, stored-after-release 69000, post-reload label 69 seconds.",
+  "captures": [
+    ".wrsp/ui-proof/1066-slice6-drag.png",
+    ".wrsp/ui-proof/1066-slice6-after.png"
+  ],
+  "capturedAtCommit": "bd4b3d9e755b33959ff3d387bb806f38fbeb4fd3"
+}
