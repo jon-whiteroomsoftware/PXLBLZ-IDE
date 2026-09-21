@@ -223,7 +223,7 @@ construction finishes a size and completeness preflight before launching a
 reviewer. Missing, incomplete, or oversized input remains a non-approval; the
 packet is never truncated to fit the transport.
 
-The reviewer tier is Opus 5 Extra High, Sol 5.6 High, Astra Low, then
+The reviewer tier is Opus 5 Extra High, Sol 5.6 Extra High, Astra Low, then
 Fable Medium (WRSP 0.12.0). A single-family candidate tries only the opposite
 family's reviewers in that order: GPT authorship tries Opus then Fable; Claude
 authorship tries Sol then Astra. A valid review with findings stops the route for repair. Unavailable
