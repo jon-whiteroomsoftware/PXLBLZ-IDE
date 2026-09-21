@@ -241,8 +241,9 @@ export function resolveShowTimelineClipDropV2(
   }
   const reroutes = Boolean(input.destination
     && (input.destination.zoneId !== item.zoneId || input.destination.layerId !== item.layerId))
-  // Re-placement moves the selected Clip alone; the temporal owner refuses to
-  // detach a Transition endpoint, so the chain never follows it across Layers.
+  // Re-placement moves the selected Clip alone: this door grants the detach
+  // permission, so an endpoint tears off its Transitions rather than dragging
+  // the chain across Layers with it.
   const movedItemIds = reroutes || input.carry === 'clip'
     ? [item.id]
     : showTimelineConnectedItemIdsV2(view, item.id)

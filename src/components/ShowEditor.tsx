@@ -5126,9 +5126,10 @@ function ShowTimelineWorkspace({
         return
       }
       // The planner names the door: a same-Layer move of a joined Clip shifts
-      // its connected component, a cross-Layer or cross-Zone drop re-places a
-      // free Clip, and a joined Clip never re-places. A refusal plans nothing,
-      // so the drop target reads `none` and the gesture submits no command.
+      // its connected component, and a cross-Layer or cross-Zone drop re-places
+      // the Clip with the detach permission, so a joined Clip tears off its
+      // Transitions and moves alone. A refusal plans nothing, so the drop
+      // target reads `none` and the gesture submits no command.
       const gesturePlan = planShowV2ClipMove(timelineView, {
         clipId: clip.id,
         zoneId: input.zoneId,
@@ -6836,8 +6837,9 @@ function ShowTimelineWorkspace({
                     ? (() => {
                         if (!clip || clip.groupOccurrenceId || draggedClip.mode !== 'move') return Promise.resolve(false)
                         // A collapsed Zone drop lands on its bottom Layer; the
-                        // planner routes a free Clip there and refuses a joined
-                        // one, exactly as on the open lanes.
+                        // planner re-places the Clip there with the detach
+                        // permission, joined or free, exactly as on the open
+                        // lanes.
                         const targetLayer = timelineView.rows
                           .find((candidate) => candidate.zoneId === row.zoneId)?.layers
                           .reduce<ShowTimelineLayerView | null>((bottom, candidate) => (
