@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice4-recapture?show-v2-editor",
+  "operation": "Driven in one run by repository Playwright (Chromium) against this worktree's managed runtime (issue 1066, port 5178, shared API) as the synthetic local developer github:local-agent-23; the flow was first established interactively in Claude's built-in browser pane on the same runtime. The run seeded a Show through the product's POST /api/shows, converted it with the application's own convertShowRecordV1ToV2, and stored the result as a version-2 document through PUT /api/shows/<id>?show-version=2. It then opened the Show editor on the v2 backing, selected the TestPattern1D Clip, checked 'Restart Pattern on entry' on the Playback tab, switched to the Pattern tab and replaced the source Pattern with CometLoom, reloaded the route, re-selected the Clip and captured. Readback asserted against stored storage before the capture: version 2, patternInstances['cell-1'].patternName 'CometLoom', and the Clip's entryPolicy 'restart'. The image shows both writes surviving the reload — the Entity Detail Panel header and the timeline Clip read CometLoom where the Clip's Pattern was TestPattern1D, and 'Restart on entry' is checked. Re-captured after rebasing onto main ca907db0, which adopted WRSP 0.11.0 from outside this session: the rebase rewrote the code commits, so the earlier capture named a commit that no longer exists.",
+  "captures": [
+    ".wrsp/ui-proof/1066-slice4.png"
+  ],
+  "capturedAtCommit": "0d8447a527386ef62228225333de203b25bf6099"
+}
