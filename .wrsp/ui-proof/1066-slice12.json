@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice12-capture?show-v2-editor",
+  "operation": "Driven in one run by repository Playwright (Chromium) against this worktree's managed runtime (issue 1066, port 5178, shared API) as the synthetic local developer github:local-agent-23. The run seeded a default Show through POST /api/shows, converted it with convertShowRecordV1ToV2 and stored it as a version-2 document through PUT /api/shows/<id>?show-version=2. (1) Header export: 'Show actions' -> 'Export Show file…' downloaded slice-12-proof.pxlshow (929 bytes); parseShowFileBundle(bytes, { acceptV2: true }) returned bundle version 2 whose show equals the stored version-2 record apart from updatedAt. (2) Save failure: with every PUT ...?show-version=2 aborted, Zone 'main' nominal pixels was set 60 -> 48 in the Zone inspector; the notice 'Couldn't save this Show. The last edit was reverted.' appeared with Retry, the field reverted to 60 and the stored record still read 60 - captured as 1066-slice12-notice.png. (3) With the network restored, 'Retry save' removed the notice and the stored record read 48, also after a reload (1066-slice12-after.png).",
+  "captures": [
+    ".wrsp/ui-proof/1066-slice12-notice.png",
+    ".wrsp/ui-proof/1066-slice12-after.png"
+  ],
+  "capturedAtCommit": "6bc29839ca5f39f9a266d6f62869993ba56e7c49"
+}
