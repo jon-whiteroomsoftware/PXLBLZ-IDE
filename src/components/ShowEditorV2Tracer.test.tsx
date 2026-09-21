@@ -10,6 +10,7 @@ import { showBoundaryClipIdentity } from '@/engine/showClipIdentity'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { duplicateShowClipAfter } from '@/engine/showTimelineClipAuthoring'
+import { convertibleV1Show } from '@/test/showV2TracerFixture'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
@@ -1027,6 +1028,77 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     const palette = screen.getByRole('dialog', { name: 'Choose Transition' })
     expect(within(palette).getByRole('button', { name: 'Use Crossfade Transition' })).toBeEnabled()
     expect(within(palette).getByRole('searchbox', { name: 'Search Transitions' })).toBeVisible()
+
+    expectNoWrite(before, editor.state())
+  })
+
+  /**
+   * A converted one-sided boundary (#1068): the converter admits an empty
+   * contributor side, and the empty side is the compiler-owned Empty.
+   */
+  function convertedOneSidedBoundary(id: string, variant: 'fade-out' | 'fade-in' | 'empty-both'): ShowRecordV2 {
+    const source = convertibleV1Show()
+    source.id = id
+    source.stageMapId = 'plane'
+    source.composition!.durationMs = 11000
+    source.scenes = [
+      { id: 'scene-a', name: 'Outgoing', durationMs: 5000 },
+      { id: 'scene-b', name: 'Incoming', durationMs: 5000 },
+    ]
+    source.composition!.patternInstances = [
+      { id: 'out-instance', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'Outgoing', time: { timeScale: 1, timeOffsetMs: 0 } },
+      { id: 'in-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Incoming', time: { timeScale: 1, timeOffsetMs: 0 } },
+    ]
+    const outgoing = variant === 'fade-in' ? [] : [{
+      id: 'out', instanceId: 'out-instance', startMs: 0, durationMs: variant === 'empty-both' ? 1000 : 5000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+    const incoming = variant === 'fade-out' || variant === 'empty-both' ? [] : [{
+      id: 'in', instanceId: 'in-instance', startMs: 0, durationMs: 5000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+    source.composition!.scenes = [
+      { sceneId: 'scene-a', zones: [{ zoneId: 'zone', main: outgoing, overlays: [] }] },
+      { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: incoming, overlays: [] }] },
+    ]
+    source.transitions = [{
+      id: 't1', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 1000,
+      easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+    }]
+    const result = convertShowRecordV1ToV2(source)
+    if (result.status !== 'converted') throw new Error(JSON.stringify(result.issues))
+    expect(validateShowRecordV2(result.record), `${source.id} converted`).toEqual([])
+    return result.record
+  }
+
+  it('renders a one-sided fade-out boundary once selected, with the empty side as Empty', async () => {
+    const record = convertedOneSidedBoundary('tracer-boundary-fade-out', 'fade-out')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    // No junction is drawn for a one-sided boundary (reported gap for Jon),
+    // so no click can reach this Transition yet. The panel is opened on the
+    // neighbouring Clip through the real gesture, then the selection below —
+    // the exact identity a future junction would produce — retargets the open
+    // panel. That proves the inspector half end to end: projection, memo,
+    // selection branch, panel, palette gate.
+    expect(screen.queryByRole('region', { name: 'Transition properties' })).not.toBeInTheDocument()
+    await selectClipByName('Outgoing', 0)
+    act(() => { useShowEditorViewStore.getState().setSelection({ kind: 'transition', transitionId: 't1' }) })
+    await act(async () => {})
+
+    const panel = boundaryPanel()
+    // The empty destination side renders as the compiler-owned Empty: the
+    // panel draws its heading, Change entry and crossfade controls with no
+    // destination rows, rather than refusing the selection.
+    expect(within(panel).getByRole('button', { name: /Change$/ })).toBeEnabled()
+    expect(within(panel).getByRole('combobox', { name: 'Crossfade source' })).toHaveValue('snapshot-live')
+
+    fireEvent.click(within(panel).getByRole('button', { name: /Change$/ }))
+    await act(async () => {})
+    const palette = screen.getByRole('dialog', { name: 'Choose Transition' })
+    expect(within(palette).getByRole('button', { name: 'Use Crossfade Transition' })).toBeEnabled()
 
     expectNoWrite(before, editor.state())
   })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { transitionV1Show } from '../test/showV2TracerFixture'
+import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
@@ -663,5 +663,120 @@ describe('v2 Transition ownership', () => {
     expect(reset.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
       ['out', 0, 400], ['in', 400, 400],
     ])
+  })
+
+  /**
+   * Removing a one-sided whole-output boundary (#1068) goes through the
+   * landed `reset-to-cut` owner by Transition identity: endpoint membership
+   * never enters that path, so an empty contributor side needs no owner
+   * change. Every record below is a real conversion the validator accepts.
+   */
+  describe.each(['fade-out', 'fade-in', 'empty-both'] as const)('one-sided boundary removal: %s', variant => {
+    function oneSidedBoundaryRecord(): ShowRecordV2 {
+      const show = convertibleV1Show()
+      show.stageMapId = 'plane'
+      show.composition!.durationMs = 11000
+      show.scenes = [
+        { id: 'scene-a', name: 'Outgoing', durationMs: 5000 },
+        { id: 'scene-b', name: 'Incoming', durationMs: 5000 },
+      ]
+      show.composition!.patternInstances = [
+        { id: 'out-instance', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'Outgoing', time: { timeScale: 1, timeOffsetMs: 0 } },
+        { id: 'in-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Incoming', time: { timeScale: 1, timeOffsetMs: 0 } },
+      ]
+      const outgoing = variant === 'fade-in' ? [] : [{
+        id: 'out', instanceId: 'out-instance', startMs: 0, durationMs: variant === 'empty-both' ? 1000 : 5000,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }]
+      const incoming = variant === 'fade-out' || variant === 'empty-both' ? [] : [{
+        id: 'in', instanceId: 'in-instance', startMs: 0, durationMs: 5000,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }]
+      show.composition!.scenes = [
+        { sceneId: 'scene-a', zones: [{ zoneId: 'zone', main: outgoing, overlays: [] }] },
+        { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: incoming, overlays: [] }] },
+      ]
+      show.transitions = [{
+        id: 't1', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 1000,
+        easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+      }]
+      const converted = convertShowRecordV1ToV2(show)
+      if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+      expect(validateShowRecordV2(converted.record)).toEqual([])
+      return reopen(converted.record)
+    }
+
+    it('resets the one-sided boundary to a cut without moving survivors', () => {
+      const source = oneSidedBoundaryRecord()
+      const before = structuredClone(source)
+
+      const reset = editShowTransitionV2(source, { kind: 'reset-to-cut', transitionId: 't1' })
+
+      expect(source).toEqual(before)
+      expect(reset).toMatchObject({ status: 'changed', removedIds: ['t1'] })
+      if (reset.status !== 'changed') return
+      expect(reset.record.composition.transitions).toEqual([])
+      // The reset path shifts the downstream closure of the `to` endpoints.
+      // A fade-in names its incoming side, so it reclaims exactly like a
+      // two-sided reset; an empty `to` side names nothing downstream, so
+      // survivors keep their times and the window becomes blank time: a hard
+      // cut to the Empty instead of the blend. Both are the existing generic
+      // whole-output behaviour, not one-sided special cases.
+      if (variant === 'fade-in') {
+        expect(reset.record.composition.clips.map(clip => [clip.id, clip.startMs])).toEqual([['in', 5000]])
+      } else {
+        expect(reset.record.composition.clips).toEqual(before.composition.clips)
+      }
+      expect(reset.record.composition.showEndMs).toBe(before.composition.showEndMs)
+      expect(validateShowRecordV2(reset.record)).toEqual([])
+      const prepared = prepareShowV2ForCompile(reset.record, {
+        byCellId: {},
+        byPatternInstanceId: {
+          'out-instance': 'export function render2D(index, x, y) { rgb(1, x / 4, y / 4) }',
+          'in-instance': 'export function render2D(index, x, y) { rgb(x / 4, y / 4, 1) }',
+        },
+        stageDimension: 2,
+      })
+      expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+    })
+  })
+
+  it('resets the time-zero fade-in to a cut without moving survivors', () => {
+    const show = convertibleV1Show()
+    show.stageMapId = 'plane'
+    show.composition!.durationMs = 6000
+    show.scenes = [
+      { id: 'scene-a', name: 'Opening', durationMs: 0 },
+      { id: 'scene-b', name: 'Incoming', durationMs: 5000 },
+    ]
+    show.composition!.patternInstances = [
+      { id: 'in-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Incoming', time: { timeScale: 1, timeOffsetMs: 0 } },
+    ]
+    show.composition!.scenes = [
+      { sceneId: 'scene-a', zones: [{ zoneId: 'zone', main: [], overlays: [] }] },
+      { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: [{
+        id: 'in', instanceId: 'in-instance', startMs: 0, durationMs: 5000,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }], overlays: [] }] },
+    ]
+    show.transitions = [{
+      id: 't1', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 1000,
+      easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+    }]
+    const converted = convertShowRecordV1ToV2(show)
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const source = reopen(converted.record)
+    expect(source.composition.transitions[0].wholeOutput).toEqual({ startMs: 0, fromClipIds: [], toClipIds: ['in'] })
+    const before = structuredClone(source)
+
+    const reset = editShowTransitionV2(source, { kind: 'reset-to-cut', transitionId: 't1' })
+
+    expect(source).toEqual(before)
+    expect(reset).toMatchObject({ status: 'changed', removedIds: ['t1'] })
+    if (reset.status !== 'changed') return
+    expect(reset.record.composition.transitions).toEqual([])
+    // The incoming side is named, so the reset reclaims it to time zero.
+    expect(reset.record.composition.clips.map(clip => [clip.id, clip.startMs])).toEqual([['in', 0]])
+    expect(validateShowRecordV2(reset.record)).toEqual([])
   })
 })

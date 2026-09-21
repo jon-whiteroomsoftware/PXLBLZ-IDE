@@ -1081,8 +1081,16 @@ export function projectShowEditorBoundaryTransitionsV2(
       ? transition.wholeOutput.toClipIds
       : transition.participants.map(participant => participant.toClipId))
       .flatMap(id => clipsById.get(id) ?? [])
-    if (toClips.length === 0) return []
-    const destinationStartMs = Math.min(...toClips.map(clip => clip.startMs))
+    // A one-sided whole-output boundary (#1068) names no contributor on its
+    // empty side, so contributor extents cannot supply the window there. The
+    // Transition's own recorded window is authoritative instead: validation
+    // pins every contributor edge to wholeOutput.startMs and
+    // startMs + durationMs. A participant-scope Transition always names both
+    // endpoints, so an empty side there is invalid and still drops.
+    if (toClips.length === 0 && transition.wholeOutput === undefined) return []
+    const destinationStartMs = toClips.length > 0
+      ? Math.min(...toClips.map(clip => clip.startMs))
+      : transition.wholeOutput!.startMs + transition.durationMs
     // A held scalar is read where the handover happens, not where the outgoing
     // Clip began: that Clip can start long before the value it hands over. The
     // authored boundary start is the whole-output start, or the instant the

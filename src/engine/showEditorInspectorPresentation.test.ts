@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import type { ShowRecord } from './personalContentRecords'
-import { showBoundaryClipIdentity } from './showClipIdentity'
+import { formatShowBoundaryIdentity, showBoundaryClipIdentity } from './showClipIdentity'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
+import { convertibleV1Show } from '../test/showV2TracerFixture'
 import {
   projectShowEditorBoundaryTransitionsV2,
   projectShowEditorInspectorPresentationV2,
@@ -742,5 +743,149 @@ describe('projectShowEditorBoundaryTransitionsV2', () => {
     expect(boundary.repeat).toEqual({ from: v1From, to: v1To })
     // No split Layout exists, so the v1 panel draws no split row either.
     expect(boundary.split).toBeUndefined()
+  })
+
+  /**
+   * One-sided boundaries (#1068): the converter admits an empty contributor
+   * set on either side, and the empty side is the compiler-owned Empty. Every
+   * record below is a real conversion the domain validator accepts, so the
+   * projection cannot drift into a competing model of the shape.
+   */
+  function oneSidedBoundarySource(variant: 'fade-out' | 'fade-in' | 'empty-both'): ShowRecord {
+    const show = convertibleV1Show()
+    show.stageMapId = 'plane'
+    show.composition!.durationMs = 11000
+    show.scenes = [
+      { id: 'scene-a', name: 'Outgoing', durationMs: 5000 },
+      { id: 'scene-b', name: 'Incoming', durationMs: 5000 },
+    ]
+    show.composition!.patternInstances = [
+      { id: 'out-instance', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'Outgoing', time: { timeScale: 1, timeOffsetMs: 0 } },
+      { id: 'in-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Incoming', time: { timeScale: 1, timeOffsetMs: 0 } },
+    ]
+    const outgoing = variant === 'fade-in' ? [] : [{
+      id: 'out', instanceId: 'out-instance', startMs: 0, durationMs: variant === 'empty-both' ? 1000 : 5000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+    const incoming = variant === 'fade-out' || variant === 'empty-both' ? [] : [{
+      id: 'in', instanceId: 'in-instance', startMs: 0, durationMs: 5000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+    show.composition!.scenes = [
+      { sceneId: 'scene-a', zones: [{ zoneId: 'zone', main: outgoing, overlays: [] }] },
+      { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: incoming, overlays: [] }] },
+    ]
+    show.transitions = [{
+      id: 't1', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 1000,
+      easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+    }]
+    return show
+  }
+
+  function oneSidedBoundaryRecord(variant: 'fade-out' | 'fade-in' | 'empty-both'): ShowRecordV2 {
+    const record = convert(oneSidedBoundarySource(variant))
+    expect(record.composition.transitions).toHaveLength(1)
+    expect(record.composition.transitions[0].origin).toBe('converted-boundary-transition')
+    return record
+  }
+
+  it('presents a fade-out boundary with an empty destination side, not a missing entry', () => {
+    const record = oneSidedBoundaryRecord('fade-out')
+    const before = structuredClone(record)
+    const transition = record.composition.transitions[0]
+
+    const boundaries = projectShowEditorBoundaryTransitionsV2(record)
+
+    expect(Object.keys(boundaries)).toEqual(['t1'])
+    const boundary = boundaries['t1']
+    // The empty side is the compiler-owned Empty: no destination rows, rather
+    // than no entry at all. This matches v1's own construction, which builds
+    // destinations from the next Scene's covering cells and yields none when
+    // no cell covers it.
+    expect(boundary.destinations).toEqual([])
+    // The window comes from the Transition's own recorded window, not from
+    // contributor extents: validation pins every contributor edge to
+    // wholeOutput.startMs and startMs + durationMs, so those fields are
+    // authoritative where a side contributes nothing.
+    expect(transition.wholeOutput).toEqual({ startMs: 5000, fromClipIds: ['out'], toClipIds: [] })
+    expect(boundary.boundaryIdentity).toBe(formatShowBoundaryIdentity(6000, []))
+    expect(boundary.repeat).toEqual({ from: 1, to: 1 })
+    expect(boundary.split).toBeUndefined()
+    expect(boundary.settings).toMatchObject({ id: 't1', kind: 'crossfade', durationMs: 1000 })
+    for (const field of ['participants', 'wholeOutput', 'propertyRamps', 'origin']) {
+      expect(boundary.settings, field).not.toHaveProperty(field)
+    }
+    expect(record).toEqual(before)
+  })
+
+  it('presents a fade-in boundary with destinations but no outgoing side', () => {
+    const record = oneSidedBoundaryRecord('fade-in')
+    const before = structuredClone(record)
+    const transition = record.composition.transitions[0]
+    expect(transition.wholeOutput).toEqual({ startMs: 5000, fromClipIds: [], toClipIds: ['in'] })
+
+    const boundaries = projectShowEditorBoundaryTransitionsV2(record)
+
+    expect(Object.keys(boundaries)).toEqual(['t1'])
+    const boundary = boundaries['t1']
+    expect(boundary.destinations).toHaveLength(1)
+    expect(boundary.destinations[0].id).toBe('in')
+    expect('outgoing' in boundary.destinations[0]).toBe(false)
+    const incoming = record.composition.clips.find(clip => clip.id === 'in')!
+    expect(boundary.boundaryIdentity).toBe(
+      formatShowBoundaryIdentity(incoming.startMs, ['Incoming']),
+    )
+    expect(record).toEqual(before)
+  })
+
+  it('presents an empty/empty boundary with an empty destination side, not a missing entry', () => {
+    const record = oneSidedBoundaryRecord('empty-both')
+    const before = structuredClone(record)
+    const transition = record.composition.transitions[0]
+    expect(transition.wholeOutput).toEqual({ startMs: 5000, fromClipIds: [], toClipIds: [] })
+
+    const boundaries = projectShowEditorBoundaryTransitionsV2(record)
+
+    expect(Object.keys(boundaries)).toEqual(['t1'])
+    expect(boundaries['t1'].destinations).toEqual([])
+    expect(boundaries['t1'].boundaryIdentity).toBe(formatShowBoundaryIdentity(6000, []))
+    expect(record).toEqual(before)
+  })
+
+  it('presents the time-zero fade-in the converter already admitted', () => {
+    const show = convertibleV1Show()
+    show.stageMapId = 'plane'
+    show.composition!.durationMs = 6000
+    show.scenes = [
+      { id: 'scene-a', name: 'Opening', durationMs: 0 },
+      { id: 'scene-b', name: 'Incoming', durationMs: 5000 },
+    ]
+    show.composition!.patternInstances = [
+      { id: 'in-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Incoming', time: { timeScale: 1, timeOffsetMs: 0 } },
+    ]
+    show.composition!.scenes = [
+      { sceneId: 'scene-a', zones: [{ zoneId: 'zone', main: [], overlays: [] }] },
+      { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: [{
+        id: 'in', instanceId: 'in-instance', startMs: 0, durationMs: 5000,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }], overlays: [] }] },
+    ]
+    show.transitions = [{
+      id: 't1', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 1000,
+      easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+    }]
+    const record = convert(show)
+    expect(record.composition.transitions).toEqual([expect.objectContaining({
+      id: 't1',
+      wholeOutput: { startMs: 0, fromClipIds: [], toClipIds: ['in'] },
+    })])
+    const before = structuredClone(record)
+
+    const boundaries = projectShowEditorBoundaryTransitionsV2(record)
+
+    expect(Object.keys(boundaries)).toEqual(['t1'])
+    expect(boundaries['t1'].destinations).toHaveLength(1)
+    expect('outgoing' in boundaries['t1'].destinations[0]).toBe(false)
+    expect(record).toEqual(before)
   })
 })
