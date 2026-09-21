@@ -288,7 +288,7 @@ function clipValue(input: {
   }
 }
 
-function targetBelongsToClip(target: ShowPropertyTargetV2, clipId: string, instanceId: string): boolean {
+export function targetBelongsToClip(target: ShowPropertyTargetV2, clipId: string, instanceId: string): boolean {
   if ('clipId' in target) return target.clipId === clipId
   if ('instanceId' in target) return target.instanceId === instanceId
   return false

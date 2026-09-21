@@ -289,6 +289,7 @@ import {
   admitShowV2PilotClipReplacementEdit,
   admitShowV2PilotClipTemporal,
   admitShowV2PilotInstanceProperties,
+  admitShowV2PilotPropertyEdit,
   admitShowV2PilotSetShowEnd,
   admitShowV2PilotShowMetadata,
   admitShowV2PilotTransitionResize,
@@ -339,6 +340,14 @@ import {
   planShowV2ZoneUpdate,
   type ShowV2ZonePlan,
 } from '@/engine/showV2ZonePlanning'
+import {
+  planShowV2PropertyAnimationChange,
+  type ShowV2PropertyAnimationFrame,
+} from '@/engine/showV2PropertyAnimationPlanning'
+import type {
+  ShowPropertyEditIntentV2,
+  ShowPropertyTrackOwnerV2,
+} from '@/engine/showPropertyEditsV2'
 import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
 import type { ShowZoneEditIntentV2 } from '@/engine/showZonesV2'
 import type { ShowZoneLayoutDefinitionIntentV2 } from '@/engine/showZoneLayoutDefinitionsV2'
@@ -1693,6 +1702,29 @@ export function ShowEditor({
     })
     return outcome
   }, [showId])
+  // Slice 10 connects Property animation writes through the same plumbing:
+  // one accepted change is one history entry and one save. The synchronous
+  // part of admission adopts the new record before its first await, so the
+  // boolean commit below never loses a follow-up edit (#1066).
+  const commitV2PropertyEdit = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    propertyOwner: ShowPropertyTrackOwnerV2
+    intent: ShowPropertyEditIntentV2
+  }) => {
+    const outcome = await admitShowV2PilotPropertyEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      propertyOwner: input.propertyOwner,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
   const commitV2InstanceProperties = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
@@ -1885,6 +1917,22 @@ export function ShowEditor({
       closePinnedDetailForSelection({ kind: 'transition', transitionId })
     }).catch(() => {})
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2TransitionEdit, readOnly, recordVersion, savedShowV2, showId])
+  // Slice 10 connects ordinary-Clip Property animation through the property
+  // door, line for line on the inspector chokepoint above: refused and no-op
+  // plans return false synchronously so the popover reverts its draft, and an
+  // accepted change fires one property admission and returns true. The return
+  // stays boolean because the inspector prop is typed `(change) => boolean |
+  // void` and the draft popover treats anything but false as accepted (#1066).
+  const commitV2PropertyAnimationChange = useCallback((clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange): boolean => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return false
+    const plan = planShowV2PropertyAnimationChange(capture.record, clipId, frame, change, newPersonalContentId)
+    if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    void commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent })
+    return true
+  }, [commitV2PropertyEdit, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 chokepoints: a refused or no-op Show-level edit resolves
   // synchronously (or as a resolved false) so the committing surface reverts
   // instead of showing a value that was never stored. The plan reads the
@@ -3777,6 +3825,7 @@ export function ShowEditor({
                   onUpdateClipInspectorV2={commitV2ClipInspectorPatch}
                   onUpdateBoundaryTransitionV2={commitV2BoundaryTransitionChanges}
                   onRemoveBoundaryTransitionV2={commitV2BoundaryTransitionRemove}
+                  onPropertyAnimationChangeV2={commitV2PropertyAnimationChange}
                   onPropertyAnimationChange={(owner, change) => {
                     if (!legacyShow || !inspectorShow?.composition) return false
                     const composition = inspectorShow.composition
@@ -9565,6 +9614,7 @@ function ContextualInspector({
   onUpdateClipInspectorV2,
   onUpdateBoundaryTransitionV2,
   onRemoveBoundaryTransitionV2,
+  onPropertyAnimationChangeV2,
   onPropertyAnimationChange,
   onUpdateGroupClipInspector,
   onPreviewClipInspector,
@@ -9627,6 +9677,7 @@ function ContextualInspector({
   onUpdateClipInspectorV2?: (clipId: string, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onUpdateBoundaryTransitionV2?: (transitionId: string, changes: ShowTransitionChanges) => void
   onRemoveBoundaryTransitionV2?: (transitionId: string) => void
+  onPropertyAnimationChangeV2?: (clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange) => boolean
   onPropertyAnimationChange: (owner: ShowPropertyAnimationStorageOwner, change: ShowPropertyAnimationChange) => boolean | void
   onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
@@ -9751,12 +9802,22 @@ function ContextualInspector({
           // Clip inspector writes reach the landed appearance,
           // instance-properties, entry-policy and replacement admissions
           // through the v2 inspector commit, one patch to at most one intent
-          // (#1066 slices 3-4). A Group Clip use below keeps the unconnected
-          // no-change result.
+          // (#1066 slices 3-4), and Property animation writes reach the
+          // property admission through the v2 animation commit (slice 10).
+          // A Group Clip use below keeps the unconnected no-change result.
           onPatch={selection.kind === 'clip'
             ? (patch) => onUpdateClipInspectorV2?.(selection.clipId, patch) ?? false
             : () => false}
-          onPropertyAnimationChange={() => false}
+          onPropertyAnimationChange={selection.kind === 'clip'
+            ? (change) => onPropertyAnimationChangeV2?.(
+              selection.clipId,
+              {
+                showTimeOffsetMs: presented.animation.showTimeOffsetMs,
+                storageDurationMs: presented.animation.storageDurationMs,
+              },
+              change,
+            ) ?? false
+            : () => false}
           onPreviewPatch={() => {}}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}

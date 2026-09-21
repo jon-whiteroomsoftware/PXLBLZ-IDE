@@ -3603,3 +3603,52 @@ describe('v2 header export (#1066 slice 12)', () => {
     }
   })
 })
+
+// ── Slice-10 Property animation writes (#1066) ───────────────────────────────
+// The authored-v2 Clip inspector's animation surface reaches the property
+// admission door through the same prepared-capture plumbing as the slice-3
+// appearance commit: one accepted change is one history entry and one save.
+// A Group child's inspector keeps the unconnected no-change result because its
+// hold-aware time mapping has no landed inverse.
+describe('v2 property animation (#1066 slice 10)', () => {
+  it('stores a Brightness animation through the property door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice10-brightness'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
+    await act(async () => {})
+    typeAndCommit('Brightness animation to exact percentage', '42')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotPropertyEdit'])
+    expect(after.record.composition.propertyTracks).toHaveLength(1)
+    const [track] = after.record.composition.propertyTracks
+    expect(track.target).toEqual({ kind: 'clip-view', clipId: 'overlay-a', property: 'brightness' })
+    expect(track.keyframes.map((key) => key.timeMs)).toEqual([12_000, 14_000])
+    expect(track.keyframes[1].value).toBe(0.42)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('leaves a Group child animation unconnected with no write', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-animation-unconnected'
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    // v1 reaches a Group's internals only through isolation, and so does this.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0], { detail: 2 })
+    await act(async () => {})
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
+    await act(async () => {})
+    typeAndCommit('Brightness animation to exact percentage', '42')
+    await act(async () => {})
+
+    expectNoWrite(before, editor.state())
+  })
+})
