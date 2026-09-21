@@ -7,6 +7,7 @@ import type {
 import type {
   ShowClipEffect,
   ShowClipEvaluationPolicy,
+  ShowPatternRef,
 } from './personalContentRecords'
 import {
   moveShowClipEffectToStagePosition,
@@ -18,14 +19,16 @@ import { normalizeShowClipTransform } from './showClipTransform'
 import { normalizeShowClipViewport } from './showClipViewport'
 
 /**
- * Plan one Clip inspector patch on a v2 backing (#1066 slice 3).
+ * Plan one Clip inspector patch on a v2 backing (#1066 slices 3-4).
  *
  * The existing inspector funnels every appearance control through one patch
  * shape. This planner names the single landed door for that patch: scalar
  * appearance facets (brightness, phase, mirror, opacity, transform, aperture,
  * presentation, blink) and whole-stack Effect operations through the
  * appearance owner, Pattern-instance facets (speed, control targets, stepped
- * clock, evaluation) through the instance-properties owner. Anything else
+ * clock, evaluation) through the instance-properties owner, the entry-policy
+ * facet through the entry-policy owner, and the Pattern facet through the
+ * replacement owner. Anything else
  * refuses before any owner runs: no record, no history entry, no save.
  *
  * One patch plans at most one intent, so one accepted edit stays exactly one
@@ -39,7 +42,6 @@ export type ShowV2ClipInspectorRefusal =
   | 'missing-clip'
   | 'group-child'
   | 'multi-key-clip'
-  | 'pattern-edit'
   | 'timing-edit'
   | 'control-target-removal'
   | 'unsupported-simulation'
@@ -63,9 +65,22 @@ export interface ShowV2ClipInspectorInstanceIntent {
   }
 }
 
+/**
+ * The entry-policy intent in the admission's own field names, declared
+ * structurally for the same reason as the instance intent above. The admission
+ * and the owner both require exactly these three keys.
+ */
+export interface ShowV2ClipInspectorEntryPolicyIntent {
+  kind: 'set-entry-policy'
+  clipId: string
+  entryPolicy: 'continue' | 'restart'
+}
+
 export type ShowV2ClipInspectorPlan =
   | { kind: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
   | { kind: 'instance-properties'; intent: ShowV2ClipInspectorInstanceIntent }
+  | { kind: 'entry-policy'; intent: ShowV2ClipInspectorEntryPolicyIntent }
+  | { kind: 'replacement'; clipId: string; reference: ShowPatternRef; name: string }
   | { kind: 'no-op' }
   | { kind: 'refuse'; reason: ShowV2ClipInspectorRefusal; message: string }
 
@@ -261,6 +276,23 @@ const VIEW_KEYS = new Set(['mirror', 'phase', 'brightness'])
 const TRANSFORM_KEYS = new Set(['positionX', 'positionY', 'rotation', 'scaleX', 'scaleY'])
 
 /**
+ * Whether the patch carries any facet outside the exclusive Pattern and
+ * entry-policy doors: every appearance, instance or timing key. Blink is the
+ * only nullable facet, so it reads by presence while the rest read defined.
+ */
+function hasOtherInspectorFacet(patch: ShowClipInspectorPatch): boolean {
+  return patch.evaluationPolicy !== undefined
+    || patch.presentation !== undefined
+    || has(patch, 'blink')
+    || patch.simulation !== undefined
+    || patch.view !== undefined
+    || patch.transform !== undefined
+    || patch.viewport !== undefined
+    || patch.effects !== undefined
+    || patch.local !== undefined
+}
+
+/**
  * Plan one inspector patch against the current v2 record. The record is the
  * before-image for every comparison, matching the legacy owner's apply-to-
  * current semantics; the UI's displayed value is never trusted for stored
@@ -282,8 +314,40 @@ export function planShowV2ClipInspectorPatch(
   }
   const clip = record.composition.clips.find((candidate) => candidate.id === clipId)
   if (!clip) return refuse('missing-clip', `Clip "${clipId}" does not exist.`)
-  if (patch.pattern !== undefined) {
-    return refuse('pattern-edit', 'Replace Pattern travels through the replacement owner, not this surface.')
+  // The Pattern and entry-policy facets each own their admission, so either
+  // one travels alone: a combined write could not land as one history entry.
+  // No shipped control emits such a patch; both gestures below read the
+  // record as the before-image, exactly like the facet flow underneath.
+  if (patch.pattern !== undefined || patch.entryPolicy !== undefined) {
+    if (hasOtherInspectorFacet(patch)) {
+      return refuse('mixed-facets', 'One inspector write carries one owner edit; mixed appearance and instance writes stay unconnected.')
+    }
+    if (patch.pattern !== undefined && patch.entryPolicy !== undefined) {
+      return refuse('mixed-facets', 'One inspector write carries one owner edit; mixed appearance and instance writes stay unconnected.')
+    }
+    if (patch.entryPolicy !== undefined) {
+      if (patch.entryPolicy !== 'continue' && patch.entryPolicy !== 'restart') {
+        return refuse('invalid-request', 'Choose Continue or Restart for one ordinary Clip.')
+      }
+      if (clip.entryPolicy === patch.entryPolicy) return { kind: 'no-op' }
+      return { kind: 'entry-policy', intent: { kind: 'set-entry-policy', clipId, entryPolicy: patch.entryPolicy } }
+    }
+    const replacement = patch.pattern as unknown
+    if (!object(replacement) || !object(replacement.ref)
+      || (replacement.ref.kind !== 'stock' && replacement.ref.kind !== 'user')
+      || typeof replacement.ref.id !== 'string' || replacement.ref.id.trim().length === 0
+      || Object.keys(replacement.ref).length !== 2
+      || typeof replacement.name !== 'string' || replacement.name.trim().length === 0) {
+      return refuse('invalid-request', 'Choose one captured Pattern with a name.')
+    }
+    const reference: ShowPatternRef = { kind: replacement.ref.kind, id: replacement.ref.id }
+    const instance = record.composition.patternInstances.find((candidate) => candidate.id === clip.instanceId)
+    if (!instance) return refuse('missing-clip', `Clip "${clipId}" has no Pattern instance.`)
+    if (instance.pattern.kind === reference.kind && instance.pattern.id === reference.id
+      && instance.patternName === replacement.name) {
+      return { kind: 'no-op' }
+    }
+    return { kind: 'replacement', clipId, reference, name: replacement.name }
   }
   if (patch.local !== undefined && (patch.local.startMs !== undefined || patch.local.durationMs !== undefined)) {
     return refuse('timing-edit', 'Clip timing travels through the temporal owners, not this surface.')

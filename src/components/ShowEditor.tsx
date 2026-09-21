@@ -283,13 +283,21 @@ import { useShowStore } from '@/store/showStore'
 import {
   admitShowV2PilotAppearanceEdit,
   admitShowV2PilotClipDelete,
+  admitShowV2PilotClipEntryPolicy,
+  admitShowV2PilotClipReplacementEdit,
   admitShowV2PilotClipTemporal,
   admitShowV2PilotInstanceProperties,
   admitShowV2PilotTransitionResize,
   type ShowV2PilotClipDeleteIntent,
+  type ShowV2PilotClipEntryPolicyIntent,
   type ShowV2PilotPreparedCapture,
   type ShowV2PilotTransitionResizeIntent,
 } from '@/store/showV2PreparedEditAdmission'
+import {
+  createShowV2ClipReplacementIntent,
+  previewShowV2ClipReplacement,
+  type ShowV2ClipReplacementIntent,
+} from '@/engine/showV2ClipReplacementModel'
 import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
 import {
   planShowV2ClipMove,
@@ -1652,6 +1660,50 @@ export function ShowEditor({
     })
     return outcome
   }, [showId])
+  // Slice 4 connects the entry-policy facet through the same plumbing: one
+  // accepted write is one history entry and one save (#1066).
+  const commitV2ClipEntryPolicy = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotClipEntryPolicyIntent
+  }) => {
+    const outcome = await admitShowV2PilotClipEntryPolicy({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
+  // Slice 4 connects Replace Pattern through the same plumbing. The planner
+  // names the captured reference; trusted resolution and the independence
+  // mint happen here against the prepared capture, so a Clip whose instance
+  // is shared still lands as one history entry and one save. A replacement
+  // that would drop incompatible controls refuses with no write: the owner
+  // reports that loss for an adapter confirmation this patch path has no
+  // surface for, and the legacy inspector applies it silently, so this is a
+  // named divergence rather than an approximation (#1066, #1068 rule).
+  const commitV2ClipReplacement = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2ClipReplacementIntent
+  }) => {
+    const outcome = await admitShowV2PilotClipReplacementEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
   const commitV2ClipInspectorPatch = useCallback((clipId: string, patch: ShowClipInspectorPatch): boolean | Promise<void> => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
@@ -1659,6 +1711,16 @@ export function ShowEditor({
     const plan = planShowV2ClipInspectorPatch(capture.record, clipId, patch)
     if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    if (plan.kind === 'entry-policy') {
+      return commitV2ClipEntryPolicy({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+    }
+    if (plan.kind === 'replacement') {
+      const replacement = createShowV2ClipReplacementIntent(capture, clipId, plan.reference, newPersonalContentId)
+      if (replacement.status === 'refused') return false
+      const preview = previewShowV2ClipReplacement(capture, clipId, plan.reference)
+      if (preview.status === 'refused' || preview.discardedControlTargets.length > 0) return false
+      return commitV2ClipReplacement({ capture, baseRevision, intent: replacement.intent }).then(() => {}, () => {})
+    }
     const commit = plan.kind === 'appearance'
       ? commitV2ClipAppearance({ capture, baseRevision, intent: plan.intent })
       : commitV2InstanceProperties({ capture, baseRevision, intent: plan.intent })
@@ -1667,7 +1729,7 @@ export function ShowEditor({
     // the draft) from anything else (keep the draft), exactly as the legacy
     // chokepoint's contract reads.
     return commit.then(() => {}, () => {})
-  }, [commitV2ClipAppearance, commitV2InstanceProperties, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2InstanceProperties, readOnly, recordVersion, savedShowV2, showId])
   const requestDeleteClipV2 = useCallback((clipId: string, connectedDeletionConfirmed = false): boolean => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
@@ -9367,10 +9429,11 @@ function ContextualInspector({
             showTimeOffsetMs: presented.animation.showTimeOffsetMs,
             instanceUseCount: presented.animation.instanceUseCount,
           }}
-          // Clip inspector writes reach the landed appearance and
-          // instance-properties admissions through the v2 inspector commit,
-          // one patch to at most one intent (#1066 slice 3). A Group Clip use
-          // below keeps the unconnected no-change result.
+          // Clip inspector writes reach the landed appearance,
+          // instance-properties, entry-policy and replacement admissions
+          // through the v2 inspector commit, one patch to at most one intent
+          // (#1066 slices 3-4). A Group Clip use below keeps the unconnected
+          // no-change result.
           onPatch={selection.kind === 'clip'
             ? (patch) => onUpdateClipInspectorV2?.(selection.clipId, patch) ?? false
             : () => false}

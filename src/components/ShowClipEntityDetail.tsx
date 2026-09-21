@@ -977,6 +977,24 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                       </select>
                     </td>
                   </tr>
+                  {'entryPolicy' in value && value.entryPolicy !== undefined && (
+                    <tr className="h-6 whitespace-nowrap">
+                      <td className="py-0.5 pr-2">
+                        <input
+                          type="checkbox"
+                          aria-label="Restart Pattern on entry"
+                          checked={value.entryPolicy === 'restart'}
+                          disabled={readOnly}
+                          className="h-3 w-3 accent-cyan-400"
+                          onChange={(event) => onPatch({ entryPolicy: event.target.checked ? 'restart' : 'continue' })}
+                        />
+                      </td>
+                      <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Restart on entry</th>
+                      <td className="truncate py-0.5 text-zinc-500">
+                        Reset the whole Pattern instance at this Clip&apos;s first contribution
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

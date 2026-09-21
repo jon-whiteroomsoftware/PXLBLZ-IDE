@@ -355,11 +355,74 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     })
   })
 
-  it('refuses the pattern arm for the replacement slice', () => {
-    expect(plan(fixture(), { pattern: { ref: { kind: 'stock', id: 'CometLoom' }, name: 'CometLoom' } })).toEqual({
+  it('plans a Pattern swap through the replacement door', () => {
+    expect(plan(fixture(), { pattern: { ref: { kind: 'stock', id: 'TestPattern2D' }, name: 'TestPattern2D' } })).toEqual({
+      kind: 'replacement',
+      clipId: 'clip',
+      reference: { kind: 'stock', id: 'TestPattern2D' },
+      name: 'TestPattern2D',
+    })
+  })
+
+  it('treats re-picking the current Pattern as a no-op', () => {
+    const record = fixture()
+    const instance = record.composition.patternInstances[0]
+    expect(plan(record, { pattern: { ref: { ...instance.pattern }, name: instance.patternName } })).toEqual({
+      kind: 'no-op',
+    })
+  })
+
+  it('refuses a malformed Pattern reference', () => {
+    expect(plan(fixture(), { pattern: { ref: { kind: 'user', id: '' }, name: 'Missing' } })).toEqual({
+      kind: 'refuse', reason: 'invalid-request', message: 'Choose one captured Pattern with a name.',
+    })
+    expect(plan(fixture(), { pattern: { ref: { kind: 'stock', id: 'TestPattern2D' }, name: '' } })).toEqual({
+      kind: 'refuse', reason: 'invalid-request', message: 'Choose one captured Pattern with a name.',
+    })
+  })
+
+  it('refuses a Pattern swap mixed with another facet rather than splitting history', () => {
+    expect(plan(fixture(), {
+      pattern: { ref: { kind: 'stock', id: 'TestPattern2D' }, name: 'TestPattern2D' },
+      view: { brightness: 0.5 },
+    })).toEqual({
       kind: 'refuse',
-      reason: 'pattern-edit',
-      message: 'Replace Pattern travels through the replacement owner, not this surface.',
+      reason: 'mixed-facets',
+      message: 'One inspector write carries one owner edit; mixed appearance and instance writes stay unconnected.',
+    })
+  })
+
+  it('refuses a Pattern swap when the Clip has no Pattern instance', () => {
+    const record = fixture()
+    record.composition.patternInstances = []
+    expect(plan(record, { pattern: { ref: { kind: 'stock', id: 'TestPattern2D' }, name: 'TestPattern2D' } })).toEqual({
+      kind: 'refuse', reason: 'missing-clip', message: 'Clip "clip" has no Pattern instance.',
+    })
+  })
+
+  it('plans an entry-policy change through the entry-policy door', () => {
+    const record = fixture()
+    const current = record.composition.clips[0].entryPolicy
+    const next = current === 'restart' ? 'continue' : 'restart'
+    expect(plan(record, { entryPolicy: next })).toEqual({
+      kind: 'entry-policy',
+      intent: { kind: 'set-entry-policy', clipId: 'clip', entryPolicy: next },
+    })
+  })
+
+  it('treats an unchanged entry policy as a no-op', () => {
+    const record = fixture()
+    expect(plan(record, { entryPolicy: record.composition.clips[0].entryPolicy })).toEqual({ kind: 'no-op' })
+  })
+
+  it('refuses a malformed or mixed entry-policy write', () => {
+    expect(plan(fixture(), { entryPolicy: 'sometimes' as never })).toEqual({
+      kind: 'refuse', reason: 'invalid-request', message: 'Choose Continue or Restart for one ordinary Clip.',
+    })
+    expect(plan(fixture(), { entryPolicy: 'restart', simulation: { timeScale: 2 } })).toEqual({
+      kind: 'refuse',
+      reason: 'mixed-facets',
+      message: 'One inspector write carries one owner edit; mixed appearance and instance writes stay unconnected.',
     })
   })
 

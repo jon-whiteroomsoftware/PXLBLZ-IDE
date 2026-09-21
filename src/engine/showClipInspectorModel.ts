@@ -111,6 +111,7 @@ export interface ShowClipInspectorPatch {
   viewport?: Partial<ShowClipViewport>
   effects?: ShowClipEffect[]
   local?: Partial<NonNullable<ShowClipInspectorValue['local']>>
+  entryPolicy?: 'continue' | 'restart'
 }
 
 const COMMON_CAPABILITIES = {

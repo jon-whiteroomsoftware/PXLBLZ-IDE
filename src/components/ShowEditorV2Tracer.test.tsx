@@ -2114,6 +2114,29 @@ function instanceSubmissions(): Array<{ intent: ShowV2ClipInspectorInstanceInten
     }))
 }
 
+function entryPolicySubmissions(): Array<{ intent: unknown; baseRevision: number }> {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotClipEntryPolicy')
+    .map((call) => ({ intent: call.request.intent, baseRevision: call.request.baseRevision as number }))
+}
+
+function replacementSubmissions(): Array<{ intent: Record<string, unknown>; baseRevision: number }> {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotClipReplacementEdit')
+    .map((call) => ({
+      intent: call.request.intent as Record<string, unknown>,
+      baseRevision: call.request.baseRevision as number,
+    }))
+}
+
+function pickSourcePattern(optionName: string): void {
+  const pattern = screen.getByRole('combobox', { name: 'Source pattern' })
+  fireEvent.focus(pattern)
+  fireEvent.change(pattern, { target: { value: optionName.toLocaleLowerCase() } })
+  const option = screen.queryByRole('option', { name: optionName })
+  if (option) fireEvent.click(option)
+}
+
 function showTab(name: 'Pattern' | 'Place' | 'Effects' | 'Playback'): void {
   fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }))
 }
@@ -2684,12 +2707,21 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     await act(async () => {})
 
     const after = editor.state()
-    // The drive must reach the planner: without this assertion a combobox
-    // that emits nothing would pass vacuously.
+    // Slice 4 connects this drive: the shared CometLoom instance causes an
+    // independence mint, and the swap lands as one history entry and one save.
     expect(planned.calls).toHaveLength(1)
     expect(planned.calls[0].clipId).toBe('resize-a')
-    expect(admission.calls).toEqual([])
-    expectNoWrite(before, after)
+    expect(replacementSubmissions()).toHaveLength(1)
+    const [submission] = replacementSubmissions()
+    expect(submission.baseRevision).toBe(0)
+    expect(submission.intent).toMatchObject({
+      kind: 'replace-pattern',
+      clipId: 'resize-a',
+      patternReference: { kind: 'stock', id: 'TestPattern1D' },
+    })
+    expect((await authoredClipValue(editor.showId, 'resize-a')).patternName).toBe('TestPattern1D')
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
   })
 
   it('keeps a v1 row on the legacy inspector path', async () => {
@@ -2730,5 +2762,121 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     const stored = useShowStore.getState().shows[0]
     const brightness = stored.composition!.scenes[0].zones[0].overlays[0].placements[0].view.brightness
     expect(brightness).toBe(0.75)
+  })
+})
+
+// ── Slice-4 entry policy and Replace Pattern (#1066) ─────────────────────────
+// The restart write reaches the entry-policy door and the Source pattern
+// combobox reaches the replacement door, both through the same v2 inspector
+// commit as slice 3. Every accepted edit is one history entry and one save;
+// refusals and no-ops write nothing and keep record identity; no legacy owner
+// runs. A replacement that would drop incompatible controls refuses with no
+// write: the patch path carries no loss-confirmation surface, so the adapter
+// cannot adopt what the owner would report (#1068 rule).
+describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
+  it('stores Restart on entry through the entry-policy door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice4-entry-restart'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Playback')
+    const before = editor.state()
+    const next = authoredClip(before.record, 'overlay-a').entryPolicy === 'restart' ? 'continue' : 'restart'
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Restart Pattern on entry' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipEntryPolicy'])
+    expect(entryPolicySubmissions()).toEqual([{
+      intent: { kind: 'set-entry-policy', clipId: 'overlay-a', entryPolicy: next },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').entryPolicy).toBe(next)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('replaces a sole-user Pattern with no independence mint', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice4-replace-sole'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Pattern')
+    const before = editor.state()
+
+    pickSourcePattern('TestPattern2D')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipReplacementEdit'])
+    expect(replacementSubmissions()).toEqual([{
+      intent: {
+        kind: 'replace-pattern',
+        clipId: 'overlay-a',
+        patternReference: { kind: 'stock', id: 'TestPattern2D' },
+      },
+      baseRevision: 0,
+    }])
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).patternName).toBe('TestPattern2D')
+    expect(authoredClip(after.record, 'overlay-a').instanceId)
+      .toBe(authoredClip(before.record, 'overlay-a').instanceId)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('refuses a lossy Source pattern swap with no write and keeps record identity', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice4-replace-lossy'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+
+    // The incompatible control target is authored first through the connected
+    // instance door; replacing CometLoom (exports sliderSpeed) with
+    // TestPattern2D (exports nothing) would drop it.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+    const enabled = editor.state()
+    expect(instanceSubmissions()).toHaveLength(1)
+
+    pickSourcePattern('TestPattern2D')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(planned.calls).toHaveLength(2)
+    expect(replacementSubmissions()).toHaveLength(0)
+    expect(after.record).toBe(enabled.record)
+    expect(after.history).toEqual(enabled.history)
+    expect(after.v2Writes).toBe(enabled.v2Writes)
+    expect(legacy.calls).toEqual([])
+    expect((await authoredClipValue(editor.showId, 'resize-a')).patternName).toBe('CometLoom')
+    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.controlTargets)
+      .toEqual({ sliderSpeed: 0.5 })
+  })
+
+  it('refuses an unresolvable Source pattern with no write', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice4-replace-unresolvable'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    // The option exists in the catalogue, but its source cannot be bundled,
+    // so trusted resolution refuses and nothing is submitted.
+    act(() => {
+      usePatternStore.setState({
+        userPatterns: [{
+          id: 'ghost-pattern', name: 'Ghost Pattern', src: 'this is not parseable (((( ',
+          controls: {}, updatedAt: 1,
+        }],
+        patternsLoaded: true,
+      })
+    })
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Pattern')
+    const before = editor.state()
+
+    pickSourcePattern('Ghost Pattern')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(planned.calls).toHaveLength(1)
+    expect(replacementSubmissions()).toHaveLength(0)
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, after)
   })
 })
