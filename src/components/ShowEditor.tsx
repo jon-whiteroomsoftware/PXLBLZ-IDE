@@ -287,10 +287,14 @@ import {
   admitShowV2PilotClipReplacementEdit,
   admitShowV2PilotClipTemporal,
   admitShowV2PilotInstanceProperties,
+  admitShowV2PilotSetShowEnd,
+  admitShowV2PilotShowMetadata,
   admitShowV2PilotTransitionResize,
   type ShowV2PilotClipDeleteIntent,
   type ShowV2PilotClipEntryPolicyIntent,
   type ShowV2PilotPreparedCapture,
+  type ShowV2PilotSetShowEndRequest,
+  type ShowV2PilotShowMetadataRequest,
   type ShowV2PilotTransitionResizeIntent,
 } from '@/store/showV2PreparedEditAdmission'
 import {
@@ -314,6 +318,12 @@ import {
   planShowV2ClipInspectorPatch,
   type ShowV2ClipInspectorInstanceIntent,
 } from '@/engine/showV2ClipAppearancePlanning'
+import {
+  planShowV2PortableReferenceEdit,
+  planShowV2SetShowEnd,
+  planShowV2TrailsEdit,
+  type ShowV2ShowMetadataPlan,
+} from '@/engine/showV2ShowLevelPlanning'
 import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
@@ -1704,6 +1714,47 @@ export function ShowEditor({
     })
     return outcome
   }, [showId])
+  // Slice 6 connects Show End through the same plumbing: one accepted write
+  // is one history entry and one save. The drag preview never writes and the
+  // commit never reads preview state, so a keyboard set with no drag still
+  // commits (#1066).
+  const commitV2SetShowEnd = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotSetShowEndRequest['intent']
+  }) => {
+    const outcome = await admitShowV2PilotSetShowEnd({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
+  // Slice 6 connects the Show metadata the setup panel edits on this backing
+  // (Trails, portable reference) through the same plumbing. Target controller
+  // has no landed door, so it stays unconnected (see onUpdateTargetProfile).
+  const commitV2ShowMetadata = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotShowMetadataRequest['intent']
+  }) => {
+    const outcome = await admitShowV2PilotShowMetadata({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
   const commitV2ClipInspectorPatch = useCallback((clipId: string, patch: ShowClipInspectorPatch): boolean | Promise<void> => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
@@ -1730,6 +1781,32 @@ export function ShowEditor({
     // chokepoint's contract reads.
     return commit.then(() => {}, () => {})
   }, [commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2InstanceProperties, readOnly, recordVersion, savedShowV2, showId])
+  // Slice 6 chokepoints: a refused or no-op Show-level edit resolves
+  // synchronously (or as a resolved false) so the committing surface reverts
+  // instead of showing a value that was never stored. The plan reads the
+  // prepared capture, never preview state (#1066).
+  const commitV2ShowEndTime = useCallback((durationMs: number): Promise<boolean> => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return Promise.resolve(false)
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return Promise.resolve(false)
+    const plan = planShowV2SetShowEnd(capture.record, durationMs)
+    if (plan.kind === 'refuse' || plan.kind === 'no-op') return Promise.resolve(false)
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    return commitV2SetShowEnd({ capture, baseRevision, intent: plan.intent }).then(
+      (outcome) => outcome.status === 'applied',
+      () => false,
+    )
+  }, [commitV2SetShowEnd, readOnly, recordVersion, savedShowV2, showId])
+  const commitV2ShowMetadataEdit = useCallback((
+    capture: ShowV2PilotPreparedCapture,
+    plan: ShowV2ShowMetadataPlan,
+  ): boolean | Promise<void> => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    if (capture.prepared.status === 'refused') return false
+    if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    return commitV2ShowMetadata({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+  }, [commitV2ShowMetadata, readOnly, recordVersion, savedShowV2, showId])
   const requestDeleteClipV2 = useCallback((clipId: string, connectedDeletionConfirmed = false): boolean => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
@@ -3307,6 +3384,7 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, result.record)
                 }}
                 onSetShowEnd={async (durationMs) => {
+                  if (recordVersion === 2) return commitV2ShowEndTime(durationMs)
                   if (!legacyShow || !timelineComposition) return false
                   const basis = { ...legacyShow, composition: timelineComposition }
                   const next = setShowEndMs(basis, durationMs)
@@ -3457,6 +3535,12 @@ export function ShowEditor({
                     }
                   }}
                   onUpdateTargetProfile={(targetControllerProfileId) => {
+                    // No landed door admits set_target_controller_profile (the
+                    // show-metadata allowlist names only output contract,
+                    // Stage map, Zone and Trails), so a v2 target-profile edit
+                    // cannot land as one accepted edit: it stays unconnected
+                    // and the select snaps back (#1066 slice 6, #1068 rule).
+                    if (recordVersion === 2) return
                     if (!legacyShow) return
                     updateShowInBackground(legacyShow.id, {
                       ...legacyShow,
@@ -3465,6 +3549,14 @@ export function ShowEditor({
                     })
                   }}
                   onUpdatePortableReference={(referenceMapId, referencePixelCount) => {
+                    if (recordVersion === 2) {
+                      const capture = preparedV2CaptureRef.current
+                      if (!capture) return
+                      commitV2ShowMetadataEdit(capture, planShowV2PortableReferenceEdit(
+                        capture.record, referenceMapId, referencePixelCount,
+                      ))
+                      return
+                    }
                     if (!legacyShow) return
                     updateShowInBackground(legacyShow.id, {
                       ...legacyShow,
@@ -3474,6 +3566,12 @@ export function ShowEditor({
                     })
                   }}
                   onUpdateOutputTrails={(input) => {
+                    if (recordVersion === 2) {
+                      const capture = preparedV2CaptureRef.current
+                      if (!capture) return
+                      commitV2ShowMetadataEdit(capture, planShowV2TrailsEdit(capture.record, input))
+                      return
+                    }
                     if (!legacyShow) return
                     updateShowInBackground(legacyShow.id, setShowOutputTrails(legacyShow, input))
                   }}
@@ -4709,7 +4807,7 @@ function ShowTimelineWorkspace({
   // One version-agnostic description of the surface this workspace draws. The
   // v1 record reaches it through the adapter; slices 2-6 move the remaining
   // gesture and inspector seams onto the same view.
-  const timelineView = (timelineViewOverride ?? (displayShow && timeline && strip
+  const baseTimelineView = (timelineViewOverride ?? (displayShow && timeline && strip
     ? fromShowTimelineProjection({
         showId: displayShow.id,
         timeline,
@@ -4719,6 +4817,16 @@ function ShowTimelineWorkspace({
         markers: timelineComposition?.markers ?? [],
       })
     : null))!
+  // The Show End drag preview basis. The v1 preview reaches the view through
+  // displayShow above; a v2 backing has no v1 record, so the previewed end
+  // overrides the v2-projected view directly. Read-only: nothing here writes,
+  // and the commit path never reads preview state (row 98, #1066 slice 6).
+  // Memoized so the override keeps a stable identity while the preview is off.
+  const timelineView = useMemo(() => (
+    showEndPreviewMs === null || show
+      ? baseTimelineView
+      : { ...baseTimelineView, showEndMs: showEndPreviewMs }
+  ), [baseTimelineView, show, showEndPreviewMs])
   const showId = timelineView.showId
   const layoutIntervals = timelineView.layoutIntervals
   // v1 traverses its unified composition; a flat Show has none and keeps its
@@ -9797,10 +9905,12 @@ function ContextualInspector({
         }}
         controllerProfiles={controllerProfiles}
         userMaps={userMaps}
-        // Show-setup writes are not connected for the v2 backing in this tracer.
-        onUpdateTargetProfile={() => {}}
-        onUpdatePortableReference={() => {}}
-        onUpdateOutputTrails={() => {}}
+        // Show-setup writes reach the landed set-show-end and show-metadata
+        // admissions through the same v2-aware handlers as the timeline; only
+        // Target controller stays unconnected (no landed door, #1066 slice 6).
+        onUpdateTargetProfile={onUpdateTargetProfile}
+        onUpdatePortableReference={onUpdatePortableReference}
+        onUpdateOutputTrails={onUpdateOutputTrails}
         compiledOutputEffects={compiledOutputEffects}
       />
     )

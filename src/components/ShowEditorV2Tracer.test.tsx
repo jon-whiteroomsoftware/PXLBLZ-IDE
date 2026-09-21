@@ -89,6 +89,26 @@ vi.mock('@/engine/showV2ClipAppearancePlanning', async (importOriginal) => {
 })
 
 /**
+ * The slice-6 show-level planner. Plans never reach a door on refusal or
+ * no-op, so without this seam a refused plan could not be told apart from a
+ * control that no longer plans at all. The real planners still run.
+ */
+const plannedShowLevel = vi.hoisted(() => ({ calls: [] as Array<{ fn: string }> }))
+vi.mock('@/engine/showV2ShowLevelPlanning', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/engine/showV2ShowLevelPlanning')>()
+  const observed: Record<string, unknown> = { ...actual }
+  for (const fn of ['planShowV2SetShowEnd', 'planShowV2TrailsEdit', 'planShowV2PortableReferenceEdit']) {
+    const real = (actual as Record<string, unknown>)[fn]
+    if (typeof real !== 'function') throw new Error(`No show-level planner named ${fn} to observe.`)
+    observed[fn] = (...args: unknown[]) => {
+      plannedShowLevel.calls.push({ fn })
+      return (real as (...input: unknown[]) => unknown)(...args)
+    }
+  }
+  return observed
+})
+
+/**
  * The legacy command owners the unconnected v1 commands reach: Split, Clone,
  * Delete, manual resize and the two legacy drag owners. Provider spies cannot
  * stand in for these - with no legacy row open every one of them returns its
@@ -352,6 +372,7 @@ function timelineCommand(name: 'Split at playhead' | 'Clone selection'): HTMLEle
 beforeEach(() => {
   admission.calls.length = 0
   planned.calls.length = 0
+  plannedShowLevel.calls.length = 0
   legacy.calls.length = 0
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
@@ -2878,5 +2899,223 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
     expect(replacementSubmissions()).toHaveLength(0)
     expect(admission.calls).toEqual([])
     expectNoWrite(before, after)
+  })
+})
+
+// ── Slice-6 Show End and Show metadata (#1066) ─────────────────────────────
+// Show End commits through the set-show-end door and Show-level metadata
+// (Trails, portable reference) through the show-metadata door, every accepted
+// edit one history entry and one save. The drag preview paints from the
+// v2-projected view and never writes; the commit reads the prepared capture,
+// never preview state. Target controller has no landed door (the metadata
+// allowlist names only output contract, Stage map, Zone and Trails), so its
+// select stays unconnected: changing it writes nothing. A shortened end that
+// would cut protected content refuses with no write instead of clamping.
+function showEndSubmissions() {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotSetShowEnd')
+    .map((call) => ({ intent: call.request.intent, baseRevision: call.request.baseRevision }))
+}
+
+function showMetadataSubmissions() {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotShowMetadata')
+    .map((call) => ({ intent: call.request.intent, baseRevision: call.request.baseRevision }))
+}
+
+function openShowProperties(): void {
+  fireEvent.click(screen.getByRole('button', { name: 'Show properties' }))
+}
+
+function installationV2Record(id: string): ShowRecordV2 {
+  const record = connectedV2Record(id)
+  const installation: ShowRecordV2 = {
+    ...record,
+    outputContract: { version: 1, kind: 'installation', outputMapId: null, pixelCount: 256, resolution: 'fixed' },
+  }
+  expect(validateShowRecordV2(installation)).toEqual([])
+  return installation
+}
+
+describe('v2 show end and show metadata (#1066 slice 6)', () => {
+  it('paints the dragged Show End label from the v2 record while dragging (row 98)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice6-end-preview'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const handle = screen.getByRole('button', { name: 'Show End at 20 seconds' })
+    const surface = screen.getByLabelText('Timeline Markers and Show End')
+    vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+      left: 0, right: 200, top: 0, bottom: 40, width: 200, height: 40, x: 0, y: 0, toJSON: () => {},
+    })
+    const before = editor.state()
+
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 100, altKey: true })
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 150, altKey: true })
+
+    // The label tracks the pointer before release, and nothing has been
+    // submitted: the preview path never writes.
+    expect(screen.getByTestId('show-end-drag-time')).toHaveTextContent('25s')
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: 150, altKey: true })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(showEndSubmissions()).toEqual([{
+      intent: { kind: 'set-show-end', showEndMs: 25_000 },
+      baseRevision: 0,
+    }])
+    expect(after.record.composition.showEndMs).toBe(25_000)
+    expect(screen.queryByTestId('show-end-drag-time')).not.toBeInTheDocument()
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('sets Show End from the details seconds field through the set-show-end door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice6-end-field'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Show End at 20 seconds' }))
+    })
+    const field = within(screen.getByRole('dialog', { name: 'Show End details' }))
+      .getByRole('textbox', { name: 'Show End time in seconds exact time' })
+    const before = editor.state()
+
+    fireEvent.change(field, { target: { value: '25' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(plannedShowLevel.calls).toEqual([{ fn: 'planShowV2SetShowEnd' }])
+    expect(showEndSubmissions()).toEqual([{
+      intent: { kind: 'set-show-end', showEndMs: 25_000 },
+      baseRevision: 0,
+    }])
+    expect(after.record.composition.showEndMs).toBe(25_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('refuses a Show End that would cut protected content with no write', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice6-end-refuse'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Show End at 20 seconds' }))
+    })
+    const field = within(screen.getByRole('dialog', { name: 'Show End details' }))
+      .getByRole('textbox', { name: 'Show End time in seconds exact time' })
+    const before = editor.state()
+
+    fireEvent.change(field, { target: { value: '5' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(showEndSubmissions()).toEqual([{
+      intent: { kind: 'set-show-end', showEndMs: 5_000 },
+      baseRevision: 0,
+    }])
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('enables Trails through the show-metadata door (row 796)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice6-trails'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    openShowProperties()
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable Trails' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(plannedShowLevel.calls).toEqual([{ fn: 'planShowV2TrailsEdit' }])
+    expect(showMetadataSubmissions()).toEqual([{
+      intent: { command: 'set_output_trails', input: { enabled: true, retention: 15 / 16 } },
+      baseRevision: 0,
+    }])
+    expect(after.record.outputEffects).toEqual([{ id: 'trails', kind: 'trails', retention: 15 / 16 }])
+    expectOneEdit(before, after)
+  })
+
+  it('retunes the portable reference pixels through the show-metadata door (row 1469)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice6-portable-pixels'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    openShowProperties()
+    expect(editor.state().record.outputContract).toMatchObject({
+      kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 256,
+    })
+    const before = editor.state()
+
+    const field = screen.getByRole('textbox', { name: 'Portable reference pixels' })
+    fireEvent.change(field, { target: { value: '300' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(showMetadataSubmissions()).toEqual([{
+      intent: { command: 'set_output_contract', input: { kind: 'portable-2d', pixel_count: 300, map_id: 'plane' } },
+      baseRevision: 0,
+    }])
+    expect(after.record.outputContract).toMatchObject({
+      kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 300,
+    })
+    expect(after.record.stageMapId).toBe('plane')
+    expectOneEdit(before, after)
+  })
+
+  it('clears the portable reference map through the show-metadata door (row 1469)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice6-portable-map'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    openShowProperties()
+    const before = editor.state()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Portable reference map' }), { target: { value: '' } })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(showMetadataSubmissions()).toEqual([{
+      intent: { command: 'set_output_contract', input: { kind: 'portable-2d', pixel_count: 256, map_id: null } },
+      baseRevision: 0,
+    }])
+    expect(after.record.outputContract).toMatchObject({ kind: 'portable-2d', referenceMapId: null })
+    expect(after.record.stageMapId).toBe(null)
+    expectOneEdit(before, after)
+  })
+
+  it('leaves Target controller unconnected on v2: no door admits it, so it writes nothing', async () => {
+    const editor = openV2EditorForRecord(installationV2Record('slice6-target-profile'))
+    act(() => {
+      useControllerProfileStore.setState({
+        profiles: [{
+          id: 'profile-1',
+          name: 'Profile 1',
+          board: { kind: 'pixelblaze-v3-standard' },
+          inputs: [],
+          globalTransforms: [],
+          patternBindings: [],
+          updatedAt: 1,
+        }],
+        profilesLoaded: true,
+      })
+    })
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    openShowProperties()
+    const select = screen.getByRole('combobox', { name: 'Target controller' })
+    const before = editor.state()
+
+    fireEvent.change(select, { target: { value: 'profile-1' } })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
   })
 })

@@ -143,6 +143,9 @@ const malformed: unknown[] = [
   { command: 'update_zone', input: null },
   { command: 'update_zone', input: {}, extra: 1 },
   // A command outside the Show-metadata allowlist may not reach this surface.
+  // set_target_controller_profile is the slice-6 divergence: the registry
+  // defines it, but this door has no wrapper for it yet (#1066).
+  { command: 'set_target_controller_profile', input: { profile_id: 'profile-1' } },
   { command: 'remove_clips', input: { clip_ids: ['clip-a'] } },
   { command: 'set_show_end', input: { end_ms: 1_000 } },
   { command: 'rename_show', input: { name: 'Renamed' } },
