@@ -103,24 +103,57 @@ describe('converted boundary promotion on section-scoped Property tracks (#1068)
       ],
     }
   }
-  const ignoredIdKeys = new Set(['id', 'logicalClipId', 'instanceId', 'fromClipId', 'toClipId', 'clipId', 'placementId', 'fromClipIds', 'toClipIds'])
-  function canonicalIgnoringIds(value: unknown): unknown {
-    if (Array.isArray(value)) return value.map(canonicalIgnoringIds)
+  function canonical(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(canonical)
     if (value && typeof value === 'object') {
       return Object.fromEntries(Object.entries(value)
-        .filter(([key]) => !ignoredIdKeys.has(key))
         .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-        .map(([key, item]) => [key, canonicalIgnoringIds(item)]))
+        .map(([key, item]) => [key, canonical(item)]))
     }
     return value
   }
+  function parityTrack(track: ShowPropertyTrackV2): unknown {
+    return canonical({
+      target: track.target,
+      activeStartMs: track.activeStartMs,
+      activeDurationMs: track.activeDurationMs,
+      keyframes: track.keyframes.map(key => Object.fromEntries(Object.entries(key).filter(([name]) => name !== 'id'))),
+    })
+  }
   function paritySignature(record: ShowRecordV2): string {
     return JSON.stringify({
-      transitions: canonicalIgnoringIds(record.composition.transitions),
-      clips: canonicalIgnoringIds(record.composition.clips),
-      tracks: canonicalIgnoringIds(record.composition.propertyTracks),
+      transitions: canonical(record.composition.transitions),
+      clips: canonical(record.composition.clips),
+      tracks: record.composition.propertyTracks.map(parityTrack),
       showEndMs: record.composition.showEndMs,
     })
+  }
+  function withSecondLayerTransition(record: ShowRecordV2): ShowRecordV2 {
+    const next = structuredClone(record)
+    const [boundary] = next.composition.transitions
+    next.composition.layers.push({ id: 'second-layer', zoneId: 'zone', name: 'Second', rank: 1 })
+    const out = next.composition.clips.find(clip => clip.id === 'out')!
+    const incoming = next.composition.clips.find(clip => clip.id === 'in')!
+    const first = structuredClone(out)
+    first.id = 'second-a'
+    first.layerId = 'second-layer'
+    first.startMs = 0
+    first.durationMs = 10000
+    first.appearance.keys = out.appearance.keys.map((key, index) => ({ ...structuredClone(key), id: `second-a:appearance:${index}`, timeMs: 0 }))
+    const second = structuredClone(incoming)
+    second.id = 'second-b'
+    second.layerId = 'second-layer'
+    second.startMs = 12000
+    second.durationMs = 22000
+    second.appearance.keys = incoming.appearance.keys.map((key, index) => ({ ...structuredClone(key), id: `second-b:appearance:${index}`, timeMs: 12000 }))
+    next.composition.clips.push(first, second)
+    next.composition.transitions.push({
+      ...structuredClone(boundary),
+      id: 'layer-transition',
+      origin: 'converted-layer-transition',
+      participants: [{ id: 'layer-transition:participant:1', zoneId: 'zone', layerId: 'second-layer', fromClipId: 'second-a', toClipId: 'second-b' }],
+    })
+    return next
   }
   function withOverlaySpanningWindow(record: ShowRecordV2): ShowRecordV2 {
     const next = structuredClone(record)
@@ -177,30 +210,36 @@ describe('converted boundary promotion on section-scoped Property tracks (#1068)
     expect(artifactPromoted.fxCode ?? '').toBe(artifactDirect.fxCode ?? '')
     expect(artifactPromoted.metadata).toEqual(artifactDirect.metadata)
   })
-  it('P4 leaves Transitions alone for a whole-Show track', () => {
+  it('P4 a track that avoids the window leaves Transitions alone and prepares ready', () => {
     const recordA = convertedTwoScene(false)
     const firstClipId = recordA.composition.clips[0].id
     const before = structuredClone(recordA.composition.transitions)
-    const result = editShowPropertyV2(recordA, { kind: 'show' }, { kind: 'add-track', track: sectionTrack('whole-track', firstClipId, 0, recordA.composition.showEndMs, 30000) })
+    const result = editShowPropertyV2(recordA, { kind: 'show' }, { kind: 'add-track', track: sectionTrack('p4-track', firstClipId, 0, 15000, 15000) })
     expect(result.status).toBe('changed')
     if (result.status !== 'changed') return
     expect(result.record.composition.transitions).toEqual(before)
-    expect(result.affectedTransitionIds).toEqual([])
-  })
-  it('P5 never promotes a converted layer transition', () => {
-    const recordA = convertedTwoScene(false)
-    const [boundary] = recordA.composition.transitions
-    const layerTransition = structuredClone(boundary)
-    layerTransition.id = 'layer-transition'
-    layerTransition.origin = 'converted-layer-transition'
-    recordA.composition.transitions = [layerTransition]
-    const firstClipId = recordA.composition.clips[0].id
-    const result = editShowPropertyV2(recordA, { kind: 'show' }, { kind: 'add-track', track: sectionTrack('p5-track', firstClipId, 0, 32000, 30000) })
-    expect(result.status).toBe('changed')
-    if (result.status !== 'changed') return
-    expect(result.record.composition.transitions).toEqual([layerTransition])
     expect(result.record.composition.transitions[0].wholeOutput).toBeUndefined()
     expect(result.affectedTransitionIds).toEqual([])
+    const prepared = prepareShowV2ForCompile(result.record, boundaryLookup)
+    expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues[0] : '')).toBe('ready')
+  })
+  it('P5 a layer transition blocks promotion for the whole record', () => {
+    const layered = withSecondLayerTransition(convertedTwoScene(false))
+    expect(validateShowRecordV2(layered)).toEqual([])
+    const preparedBase = prepareShowV2ForCompile(layered, boundaryLookup)
+    expect(preparedBase.status, JSON.stringify(preparedBase.status === 'refused' ? preparedBase.issues[0] : '')).toBe('ready')
+    const before = structuredClone(layered.composition.transitions)
+    const firstClipId = layered.composition.clips[0].id
+    const result = editShowPropertyV2(layered, { kind: 'show' }, { kind: 'add-track', track: sectionTrack('p5-track', firstClipId, 0, 32000, 30000) })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.transitions).toEqual(before)
+    expect(result.record.composition.transitions[0].wholeOutput).toBeUndefined()
+    expect(result.affectedTransitionIds).toEqual([])
+    const prepared = prepareShowV2ForCompile(result.record, boundaryLookup)
+    expect(prepared.status).toBe('refused')
+    if (prepared.status !== 'refused') return
+    expect(prepared.issues[0].code).toBe('unsupported-transition-property-track')
   })
   it('P6 a second section-scoped track changes nothing about the Transitions', () => {
     const recordA = convertedTwoScene(false)
@@ -214,6 +253,15 @@ describe('converted boundary promotion on section-scoped Property tracks (#1068)
     if (second.status !== 'changed') return
     expect(second.record.composition.transitions).toEqual(before)
     expect(second.affectedTransitionIds).toEqual([])
+    // The incoming-Clip activation crosses a derived Clip/appearance section,
+    // so preparation refuses it. The same track on the converter-direct
+    // whole-output record refuses identically: a pre-existing cross-section
+    // limitation, independent of promotion.
+    const prepared = prepareShowV2ForCompile(second.record, boundaryLookup)
+    expect(prepared.status).toBe('refused')
+    if (prepared.status !== 'refused') return
+    expect(prepared.issues[0].code).toBe('unsupported-track-activation')
+    expect(prepared.issues[0].path).toBe('composition.propertyTracks[1]')
   })
   it('P7 removing the track keeps whole-output scope and identical compiled bytes', () => {
     const recordA = convertedTwoScene(false)
@@ -252,17 +300,29 @@ describe('converted boundary promotion on section-scoped Property tracks (#1068)
     expect(result.record.composition.transitions[0].wholeOutput).toBeUndefined()
     expect(result.affectedTransitionIds).toEqual([])
   })
-  it('P9 promotion that would hide an intervening Clip refuses without touching the record', () => {
+  it('P9 a spanning Clip blocks promotion; an avoiding track still prepares', () => {
     const recordA = convertedTwoScene(false)
     const withOverlay = withOverlaySpanningWindow(recordA)
     expect(validateShowRecordV2(withOverlay)).toEqual([])
-    const prepared = prepareShowV2ForCompile(withOverlay, boundaryLookup)
-    expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues[0] : '')).toBe('ready')
+    const preparedBase = prepareShowV2ForCompile(withOverlay, boundaryLookup)
+    expect(preparedBase.status, JSON.stringify(preparedBase.status === 'refused' ? preparedBase.issues[0] : '')).toBe('ready')
     const firstClipId = withOverlay.composition.clips[0].id
-    const result = editShowPropertyV2(withOverlay, { kind: 'show' }, { kind: 'add-track', track: sectionTrack('p9-track', firstClipId, 0, 32000, 30000) })
-    expect(result.status).toBe('refused')
-    if (result.status !== 'refused') return
-    expect(result.code).toBe('invalid-result')
-    expect(result.record).toBe(withOverlay)
+    const blocked = editShowPropertyV2(withOverlay, { kind: 'show' }, { kind: 'add-track', track: sectionTrack('p9-track', firstClipId, 0, 32000, 30000) })
+    expect(blocked.status).toBe('changed')
+    if (blocked.status !== 'changed') return
+    expect(blocked.record.composition.transitions).toEqual(withOverlay.composition.transitions)
+    expect(blocked.record.composition.transitions[0].wholeOutput).toBeUndefined()
+    expect(blocked.affectedTransitionIds).toEqual([])
+    const preparedBlocked = prepareShowV2ForCompile(blocked.record, boundaryLookup)
+    expect(preparedBlocked.status).toBe('refused')
+    if (preparedBlocked.status !== 'refused') return
+    expect(preparedBlocked.issues[0].code).toBe('unsupported-transition-property-track')
+    const avoiding = editShowPropertyV2(withOverlay, { kind: 'show' }, { kind: 'add-track', track: sectionTrack('p9-avoid-track', firstClipId, 0, 15000, 15000) })
+    expect(avoiding.status).toBe('changed')
+    if (avoiding.status !== 'changed') return
+    expect(avoiding.record.composition.transitions).toEqual(withOverlay.composition.transitions)
+    expect(avoiding.affectedTransitionIds).toEqual([])
+    const preparedAvoiding = prepareShowV2ForCompile(avoiding.record, boundaryLookup)
+    expect(preparedAvoiding.status, JSON.stringify(preparedAvoiding.status === 'refused' ? preparedAvoiding.issues[0] : '')).toBe('ready')
   })
 })

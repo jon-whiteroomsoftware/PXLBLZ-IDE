@@ -149,10 +149,6 @@ scene identity is transient, minted inside lowering and never persisted. To the
 user this is a Show that opens by fading in from black, which the v1 pipeline
 compiles today.
 
-### Converted boundaries are promoted when a Property track needs sections
-
-The Property owner promotes participant-scope converted Scene-boundary Transitions to the converter's whole-output shape whenever the resulting Show has a section-scoped track; it never demotes, and the lowering's participant-window refusal is unchanged. The result equals what the converter produces for a v1 Show carrying the same track (see P2 in `src/engine/showBoundaryScopeV2.test.ts`).
-
 `prepareShowV2ForCompile` refuses; it does not throw. Any record that domain
 validation admits but lowering cannot represent returns a typed refusal naming
 the offending path, whatever produced the record. A lowering error escaping as
@@ -175,6 +171,20 @@ refusals that already reject the same conditions earlier, so no record is
 currently known to exercise the net. It is a backstop against a future
 lowering path, not a tested route, and the next slice that finds a reachable
 shape should pin it.
+
+### Converted boundaries promote only under the participant-window refusal
+
+The Property owner promotes participant-scope converted Scene-boundary
+Transitions only when the edited Show would otherwise be refused by the
+participant-window rule: every participant-scope Transition promotes together
+or none does, so a Show never holds mixed scopes. A boundary a Clip spans, a
+Transition carrying ramps, and every Layer Transition are never eligible; any
+of those leaves the edit unpromoted and refused exactly as before, a named
+limitation rather than a regression. Nothing ever demotes. A promoted boundary
+behaves as the converter's whole-output boundaries do, which includes Clip
+edits no longer applying the converted-boundary repair to it. See P1-P9 in
+`src/engine/showPropertyEditsV2.test.ts` and P11 in
+`src/engine/showBoundaryScopeV2.test.ts`.
 
 ## Global Layout switches with participant Transitions
 

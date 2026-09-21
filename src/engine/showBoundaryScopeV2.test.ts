@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { hasSectionScopedTrackActivationV2, promoteConvertedBoundariesToWholeOutputV2 } from './showBoundaryScopeV2'
+import { hasSectionScopedTrackActivationV2, participantWindowBlockedV2, promoteConvertedBoundariesToWholeOutputV2 } from './showBoundaryScopeV2'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import type { ShowRecordV2, ShowPropertyTrackV2 } from './showCompositionV2'
 
 function buildTwoSceneV1(withTrack: boolean) {
@@ -41,13 +42,18 @@ function converted(withTrack: boolean): ShowRecordV2 {
   return result.record
 }
 
-function sectionTrack(clipId: string): ShowPropertyTrackV2 {
+const boundaryLookup = { byCellId: {}, byPatternInstanceId: {
+  'out-instance': 'export var calls=0; export function beforeRender(delta) { calls++ } export function render2D(index,x,y) { rgb(1,x,y) }',
+  'in-instance': 'export var calls=0; export function beforeRender(delta) { calls++ } export function render2D(index,x,y) { rgb(x,y,1) }',
+}, stageDimension: 2 as const }
+
+function sectionTrack(clipId: string, activeStartMs = 0, activeDurationMs = 32000, endKeyTimeMs = 30000): ShowPropertyTrackV2 {
   return {
     id: 'section-track', target: { kind: 'clip-view', clipId, property: 'brightness' },
-    activeStartMs: 0, activeDurationMs: 32000,
+    activeStartMs, activeDurationMs,
     keyframes: [
-      { id: 'section-k0', timeMs: 0, value: 1, easing: { curve: 'linear' } },
-      { id: 'section-k1', timeMs: 30000, value: 0.5, easing: { curve: 'linear' } },
+      { id: 'section-k0', timeMs: activeStartMs, value: 1, easing: { curve: 'linear' } },
+      { id: 'section-k1', timeMs: endKeyTimeMs, value: 0.5, easing: { curve: 'linear' } },
     ],
   }
 }
@@ -111,5 +117,31 @@ describe('showBoundaryScopeV2', () => {
     expect(promotion.record).toBe(record)
     expect(promotion.promotedTransitionIds).toEqual([])
     expect(record.composition.transitions[0].wholeOutput).toBeDefined()
+  })
+
+  it('P11 participantWindowBlockedV2 agrees with the lowering refusal', () => {
+    const recordA = converted(false)
+    const firstClipId = recordA.composition.clips[0].id
+    const blocking = structuredClone(recordA)
+    blocking.composition.propertyTracks.push({ ...sectionTrack(firstClipId), id: 'blocking-track' })
+    expect(participantWindowBlockedV2(blocking)).toBe(true)
+    const preparedBlocking = prepareShowV2ForCompile(blocking, boundaryLookup)
+    expect(preparedBlocking.status).toBe('refused')
+    if (preparedBlocking.status !== 'refused') return
+    expect(preparedBlocking.issues[0].code).toBe('unsupported-transition-property-track')
+    const avoiding = structuredClone(recordA)
+    avoiding.composition.propertyTracks.push({ ...sectionTrack(firstClipId, 0, 15000, 15000), id: 'avoiding-track' })
+    expect(participantWindowBlockedV2(avoiding)).toBe(false)
+    const preparedAvoiding = prepareShowV2ForCompile(avoiding, boundaryLookup)
+    expect(preparedAvoiding.status, JSON.stringify(preparedAvoiding.status === 'refused' ? preparedAvoiding.issues[0] : '')).toBe('ready')
+    expect(participantWindowBlockedV2(converted(true))).toBe(false)
+    const preparedWholeOutput = prepareShowV2ForCompile(converted(true), boundaryLookup)
+    expect(preparedWholeOutput.status, JSON.stringify(preparedWholeOutput.status === 'refused' ? preparedWholeOutput.issues[0] : '')).toBe('ready')
+    const transitionFree = structuredClone(recordA)
+    transitionFree.composition.transitions = []
+    transitionFree.composition.propertyTracks.push({ ...sectionTrack(firstClipId), id: 'blocking-track' })
+    expect(participantWindowBlockedV2(transitionFree)).toBe(false)
+    const preparedTransitionFree = prepareShowV2ForCompile(transitionFree, boundaryLookup)
+    expect(preparedTransitionFree.status, JSON.stringify(preparedTransitionFree.status === 'refused' ? preparedTransitionFree.issues[0] : '')).toBe('ready')
   })
 })
