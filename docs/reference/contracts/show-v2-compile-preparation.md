@@ -149,6 +149,10 @@ scene identity is transient, minted inside lowering and never persisted. To the
 user this is a Show that opens by fading in from black, which the v1 pipeline
 compiles today.
 
+### Converted boundaries are promoted when a Property track needs sections
+
+The Property owner promotes participant-scope converted Scene-boundary Transitions to the converter's whole-output shape whenever the resulting Show has a section-scoped track; it never demotes, and the lowering's participant-window refusal is unchanged. The result equals what the converter produces for a v1 Show carrying the same track (see P2 in `src/engine/showBoundaryScopeV2.test.ts`).
+
 `prepareShowV2ForCompile` refuses; it does not throw. Any record that domain
 validation admits but lowering cannot represent returns a typed refusal naming
 the offending path, whatever produced the record. A lowering error escaping as

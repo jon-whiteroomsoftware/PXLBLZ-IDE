@@ -2,6 +2,7 @@ import { validateShowRecordV2, type ShowRecordV2, type ShowPropertyTrackV2, type
 import { reauthorShowPropertyKeyframeInTrackV2 } from './showPropertyAnimationV2'
 import { groupRuntimeBindings, effectiveShowClipsV2 } from './showGroupsV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
+import { promoteConvertedBoundariesToWholeOutputV2 } from './showBoundaryScopeV2'
 import type { ShowTimelineEditAffectedV2 } from './showTimelineV2'
 
 export type ShowPropertyTrackOwnerV2 = { kind: 'show' } | { kind: 'group-definition'; definitionId: string }
@@ -86,11 +87,13 @@ export function editShowPropertyV2(record: ShowRecordV2, owner: ShowPropertyTrac
   const next = structuredClone(record)
   const nextTracks = ownerTracks(next, owner)
   setTracks(next, owner, intent.kind === 'add-track' ? [...nextTracks, updated!] : intent.kind === 'remove-track' ? nextTracks.filter(track => track.id !== trackId) : nextTracks.map(track => track.id === trackId ? updated! : track))
-  const resultIssue = issue(next)
+  const promotion = owner.kind === 'show' ? promoteConvertedBoundariesToWholeOutputV2(next) : { record: next, promotedTransitionIds: [] }
+  const resultIssue = issue(promotion.record)
   if (resultIssue) return refuse('invalid-result', resultIssue)
-  if (equal(tracks, ownerTracks(next, owner))) return { status: 'unchanged', record, ...emptyAffected() }
+  if (equal(tracks, ownerTracks(promotion.record, owner))) return { status: 'unchanged', record, ...emptyAffected() }
   const affected = emptyAffected()
   affected.affectedTrackIds = [trackId]
+  affected.affectedTransitionIds = promotion.promotedTransitionIds
   const oldKeys = source?.keyframes ?? []; const newKeys = updated?.keyframes ?? []
   affected.affectedPropertyKeyIds = [...oldKeys.filter(key => !equal(key, newKeys.find(candidate => candidate.id === key.id))).map(key => key.id), ...newKeys.filter(key => !oldKeys.some(candidate => candidate.id === key.id)).map(key => key.id)]
   affected.removedIds = intent.kind === 'remove-track' ? [trackId, ...oldKeys.map(key => key.id)] : intent.kind === 'remove-key' ? [intent.keyId] : []
@@ -112,5 +115,5 @@ export function editShowPropertyV2(record: ShowRecordV2, owner: ShowPropertyTrac
   affected.affectedLayoutOccurrenceIds = [...new Set(affected.affectedLayoutOccurrenceIds)]
   affected.affectedLayoutDefinitionIds = [...new Set(affected.affectedLayoutDefinitionIds)]
   affected.affectedLayerIds = [...new Set(effectiveShowClipsV2(record).filter(clip => affected.affectedClipIds.includes(clip.id)).map(clip => clip.layerId))]
-  return { status: 'changed', record: next, ...affected }
+  return { status: 'changed', record: promotion.record, ...affected }
 }
