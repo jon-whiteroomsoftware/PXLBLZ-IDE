@@ -24,6 +24,45 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.12.0 adoption (#1072)
+
+This adoption updates the executable package from 0.10.0 (0.11.0 was vendored
+but never installed). Source release is WRSP 0.12.0; see its
+`docs/reference/process-release-0.12.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.12.0, tag `v0.12.0` |
+| Source | `823fd6362bf47ac383ddedde5a6c71a66ae7a750` |
+| Tarball | `vendor/whiteroom-software-process-0.12.0.tgz` |
+| SHA256 | `faac22be693a0aeaf3d267553546781bc24050f53241d20e706a807b03ba55a2` |
+
+Same-family review is unchanged: when Jon explicitly authorizes one supported
+same-family reviewer for an exact candidate, pass `--reviewer-model`,
+`--reviewer-effort`, `--allow-same-family` and a nonblank `--override-reason`.
+Proof-only commits under the configured proof directory no longer count toward
+author family, so worker code plus a coordinator proof routes cross-family
+without that exception. UI proof is validated by content identity, so a rebase
+onto unrelated work no longer invalidates it.
+
+Two review flags are retired and now error; each is replaced by a recorded,
+exact-scope operator authorization made through
+`npm run operator-authorization -- <subcommand>`:
+
+- `--acknowledge-non-convergence` -> `inspect-non-convergence <base> <tip>`
+  prints the paused lineage (lineageRound, previousOutcomeId, terminalStreak);
+  write those, the exact baseSha/tipSha, and actor, instruction, source and
+  reason to a request JSON and run `accept-non-convergence <request.json>`. It
+  admits exactly one further attempt; a consumed authorization reports
+  `consumed` and a fresh one can be recorded.
+- `--allow-stale-base` -> `inspect-freshness <base> <tip>` prints the diverged
+  main tip; record it with `accept-freshness <request.json>` (exact
+  baseSha/tipSha/mainTipSha plus actor, instruction, source, reason).
+
+Coverage waivers (`inspect-coverage` / `accept-coverage`) and finding
+acceptance (`inspect` / `accept`) use the same command. Authorizations are
+Jon's: an agent prepares the request, Jon records it.
+
 ## WRSP 0.10.0 adoption (#1022)
 
 This adoption updates the executable package from 0.9.0. Source release and
@@ -184,10 +223,10 @@ construction finishes a size and completeness preflight before launching a
 reviewer. Missing, incomplete, or oversized input remains a non-approval; the
 packet is never truncated to fit the transport.
 
-The reviewer tier is Fable High, Astra Medium, Sol 5.6 High, then Opus 5 Extra
-High. A single-family candidate tries only the opposite family's reviewers in
-that order: GPT authorship tries Fable then Opus; Claude authorship tries Astra
-then Sol. A valid review with findings stops the route for repair. Unavailable
+The reviewer tier is Opus 5 Extra High, Sol 5.6 High, Astra Low, then
+Fable Medium (WRSP 0.12.0). A single-family candidate tries only the opposite
+family's reviewers in that order: GPT authorship tries Opus then Fable; Claude
+authorship tries Sol then Astra. A valid review with findings stops the route for repair. Unavailable
 or unusable reviewers advance to the next eligible model; exhaustion fails.
 Mixed-family ranges need splitting, and unsignalled authorship stays unverified.
 
@@ -257,7 +296,7 @@ The heading retains its historical anchor; the outcomes below are current:
 | --- | --- | --- |
 | `CANDIDATE CONTRACT DISCUSSION REQUIRED` | A valid `contract-infeasible` result identifies a requirement beyond the supported domain and proposes bounded rescope. No approval or pending code attestation is created. | Discuss immediately with Jon before further affected implementation or review. No fallback, added P0/P1 evidence, or breaker reset. Missing proof or ordinary achievable defects do not qualify. |
 | `CANDIDATE REPAIR REQUIRED` | The review completed and found P0/P1 defects. No approval is created for that candidate. | Authorized repair: fix, verify, commit a new tip, and review the replacement full range while the candidate converges. Landing is blocked; correction is not. |
-| `CANDIDATE REVIEW PAUSED` | Three consecutive P0/P1 (terminal) outcomes on one candidate lineage. The breaker refused the fourth reviewer launch before it started. | Discuss the invariant, the approach, or the enforcement layer with Jon. `--acknowledge-non-convergence` admits exactly one further attempt and prints a warning naming the streak it overrode. A clean or advisory outcome ends the streak. |
+| `CANDIDATE REVIEW PAUSED` | Three consecutive P0/P1 (terminal) outcomes on one candidate lineage. The breaker refused the fourth reviewer launch before it started. | Discuss the invariant, the approach, or the enforcement layer with Jon. A one-attempt `review.non-convergence` authorization (see WRSP 0.12.0 adoption) admits exactly one further attempt; the retired `--acknowledge-non-convergence` flag now errors. A clean or advisory outcome ends the streak. |
 | `CANDIDATE REVIEW ERROR` | Provider, prerequisite, validation, lock, freshness, or contradictory-structured-output failure. No valid review approval is available. | A transient error is retried after its cause is fixed. A real permission or security denial, unusable verification, or unrecoverable failure stops that action: report the exact reason and never bypass the gate. |
 
 Independent work continues through any of these unless it shares the blocker.

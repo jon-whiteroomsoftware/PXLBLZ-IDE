@@ -238,8 +238,12 @@ actual result rather than the word BLOCKED or a nonzero exit:
   candidate converges.
 - `CANDIDATE REVIEW PAUSED`: three consecutive P0/P1 outcomes on one candidate
   lineage. The gate refuses a fourth reviewer launch. Discuss the invariant,
-  the approach, or the enforcement layer with Jon before passing
-  `--acknowledge-non-convergence`, which admits exactly one further attempt.
+  the approach, or the enforcement layer with Jon before recording a
+  one-attempt `review.non-convergence` authorization
+  (`npm run operator-authorization -- inspect-non-convergence <base> <tip>`,
+  then `accept-non-convergence <request.json>`; see docs/agents/verification.md),
+  which admits exactly one further attempt. The old
+  `--acknowledge-non-convergence` and `--allow-stale-base` flags are retired.
 - `CANDIDATE REVIEW ERROR`: a provider, prerequisite, validation, or
   contradictory-output failure. No receipt exists and no valid review
   approval is available; a real permission or security denial, unusable
