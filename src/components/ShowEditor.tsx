@@ -1131,6 +1131,9 @@ export function ShowEditor({
   const showSaveFailure = useShowStore((state) => state.showSaveFailure)
   const dismissShowSaveFailure = useShowStore((state) => state.dismissShowSaveFailure)
   const retryShowSaveFailure = useShowStore((state) => state.retryShowSaveFailure)
+  const showV2SaveFailure = useShowStore((state) => state.showV2SaveFailure)
+  const dismissShowV2SaveFailure = useShowStore((state) => state.dismissShowV2SaveFailure)
+  const retryShowV2SaveFailure = useShowStore((state) => state.retryShowV2SaveFailure)
   const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
   const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
@@ -2904,6 +2907,17 @@ export function ShowEditor({
   const editorRecordId = legacyShow?.id ?? savedShowV2!.id
 
   const exportAuthoredShowFile = async () => {
+    if (recordVersion === 2) {
+      if (!savedShowV2) return
+      const { filename, bundle } = buildShowFileBundle(savedShowV2, {
+        patterns: userPatterns,
+        maps: userMaps,
+        libraries: userLibraries,
+      }, { appVersion: __PXLBLZ_APP_VERSION__ })
+      const bytes = await serializeShowFileBundle(bundle)
+      downloadBrowserFile(filename, Uint8Array.from(bytes), 'application/gzip')
+      return
+    }
     if (!legacyShow) return
     const { filename, bundle } = buildShowFileBundle(legacyShow, {
       patterns: userPatterns,
@@ -3198,12 +3212,12 @@ export function ShowEditor({
           )}
         </div>
       )}
-      {showSaveFailure?.showId === showId && (
+      {(recordVersion === 2 ? showV2SaveFailure : showSaveFailure)?.showId === showId && (
         <SaveFailureNotice
           testId="show-save-failure"
           message="Couldn't save this Show. The last edit was reverted."
-          onRetry={() => void retryShowSaveFailure()}
-          onDismiss={dismissShowSaveFailure}
+          onRetry={() => void (recordVersion === 2 ? retryShowV2SaveFailure() : retryShowSaveFailure())}
+          onDismiss={recordVersion === 2 ? dismissShowV2SaveFailure : dismissShowSaveFailure}
         />
       )}
       <div className="relative flex min-h-0 flex-1 flex-col">

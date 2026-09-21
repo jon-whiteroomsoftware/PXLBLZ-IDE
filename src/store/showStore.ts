@@ -304,6 +304,9 @@ interface ShowState {
   dismissShowSaveFailure: () => void
   /** Re-applies the rolled-back record; a still-failing write keeps the notice without rejecting. */
   retryShowSaveFailure: () => Promise<void>
+  dismissShowV2SaveFailure: () => void
+  /** Re-applies the rolled-back v2 record; a still-failing write keeps the notice without rejecting. */
+  retryShowV2SaveFailure: () => Promise<void>
   acquireShowEditActivity: (sessionId: string, showId: string, kind: ShowEditActivity['kind']) => ShowEditActivity | undefined
   releaseShowEditActivity: (token: ShowEditActivity) => void
   deliverShowEditCandidate: (request: ShowEditRequest, candidate: unknown, validate: (candidate: ShowRecord, current: ShowRecord) => ShowEditValidationResult, validateRaw?: (candidate: unknown) => ShowEditValidationResult) => ShowInputWaitReceipt
@@ -1015,6 +1018,14 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     if (!failure) return
     // A still-failing write re-records showSaveFailure; the notice stays up.
     await updateShowQuietly(get().updateShow, failure.showId, { ...failure.record, updatedAt: Date.now() })
+  },
+
+  dismissShowV2SaveFailure: () => set({ showV2SaveFailure: null }),
+
+  retryShowV2SaveFailure: async () => {
+    const failure = get().showV2SaveFailure
+    if (!failure) return
+    try { await get().updateShowV2Pilot(failure.showId, failure.record) } catch { /* a still-failing write re-records showV2SaveFailure */ }
   },
 
     openShowV2Pilot: async (showId) => {

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { ShowEditor } from './ShowEditor'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
@@ -30,6 +30,8 @@ import {
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import type { ShowRecord } from '@/engine/personalContentRecords'
+import * as download from '@/engine/browserDownload'
+import { buildShowFileBundle, parseShowFileBundle } from '@/engine/showFileBundle'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
 import type { ShowV2ClipInspectorInstanceIntent } from '@/engine/showV2ClipAppearancePlanning'
@@ -3432,5 +3434,118 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
     })
     expect(after.record.zoneLayouts.find((layout) => layout.id === layoutId)?.zones).toEqual([{ zoneId, ranges: [] }])
     expectOneEdit(before, after)
+  })
+})
+
+describe('v2 save-failure notice (#1066 slice 12)', () => {
+  it('shows the save-failure notice on a rolled-back v2 edit and retries it from the notice', async () => {
+    const record = v2TracerRecord('v2-save-failure-notice')
+    let offline = true
+    const v2Writes = vi.fn(async (_id: string, _next: ShowRecordV2) => {
+      if (offline) throw new Error('offline')
+    })
+    setPersonalContentProvider({
+      id: 'v2-notice-provider',
+      listPatterns: async () => [],
+      listMaps: async () => [],
+      listMixins: async () => [],
+      listShows: async () => [],
+      listControllerProfiles: async () => [],
+      createShow: async () => {},
+      updateShow: async () => {},
+      deleteShow: async () => {},
+      replaceShowV2: v2Writes,
+      getLastActive: async () => undefined,
+      setLastActive: async () => {},
+    } as unknown as PersonalContentProvider)
+    useShowStore.setState({
+      shows: [],
+      showsLoaded: true,
+      activeShowId: null,
+      showV2Pilots: { [record.id]: record },
+      showV2Histories: { [record.id]: { past: [], future: [] } },
+      showRevisions: { [record.id]: 0 },
+    })
+    render(<ShowEditor showId={record.id} recordVersion={2} />)
+
+    await act(async () => {
+      await expect(useShowStore.getState().updateShowV2Pilot(record.id, { ...record, name: 'Lost edit' }))
+        .rejects.toThrow('offline')
+    })
+    expect(screen.getByTestId('show-save-failure'))
+      .toHaveTextContent("Couldn't save this Show. The last edit was reverted.")
+
+    // Dismiss clears the notice without writing.
+    const writesBeforeDismiss = v2Writes.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss save notice' }))
+    await waitFor(() => expect(screen.queryByTestId('show-save-failure')).not.toBeInTheDocument())
+    expect(useShowStore.getState().showV2SaveFailure).toBeNull()
+    expect(v2Writes.mock.calls.length).toBe(writesBeforeDismiss)
+
+    // A later edit can fail again after the dismiss.
+    await act(async () => {
+      await expect(useShowStore.getState().updateShowV2Pilot(record.id, { ...record, name: 'Lost edit' }))
+        .rejects.toThrow('offline')
+    })
+    expect(screen.getByTestId('show-save-failure')).toBeInTheDocument()
+
+    offline = false
+    const writesBeforeRetry = v2Writes.mock.calls.length
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry save' }))
+    })
+    await waitFor(() => expect(screen.queryByTestId('show-save-failure')).not.toBeInTheDocument())
+    expect(v2Writes.mock.calls.length).toBe(writesBeforeRetry + 1)
+    expect(useShowStore.getState().showV2Pilots[record.id].name).toBe('Lost edit')
+  })
+})
+
+describe('v2 header export (#1066 slice 12)', () => {
+  // jsdom's Blob has no .stream(), which serialize/parseShowFileBundle use
+  // around the real gzip step. The shim below supplies the byte stream; the
+  // gzip round trip itself stays genuine.
+  function ensureBlobStream() {
+    const proto = Blob.prototype as Blob & { stream?: unknown }
+    if (typeof proto.stream === 'function') return
+    Object.defineProperty(Blob.prototype, 'stream', {
+      configurable: true,
+      writable: true,
+      value(this: Blob) {
+        const pending = this.arrayBuffer()
+        return new ReadableStream<Uint8Array>({
+          async start(controller) {
+            controller.enqueue(new Uint8Array(await pending))
+            controller.close()
+          },
+        })
+      },
+    })
+  }
+
+  it('exports the authored v2 Show file from the header', async () => {
+    ensureBlobStream();
+    const editor = openV2Editor('v2-header-export')
+    const write = vi.spyOn(download, 'downloadBrowserFile').mockImplementation(() => {})
+    try {
+      render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Export Show file…' }))
+      await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
+      const [filename, body, type] = write.mock.calls[0]
+      const stored = useShowStore.getState().showV2Pilots[editor.showId]
+      const expected = buildShowFileBundle(stored, {
+        patterns: usePatternStore.getState().userPatterns,
+        maps: useMapStore.getState().userMaps,
+        libraries: useLibraryStore.getState().userLibraries,
+      }, { appVersion: 'slice-12-test' })
+      expect(filename).toBe(expected.filename)
+      expect(filename.endsWith('.pxlshow')).toBe(true)
+      expect(type).toBe('application/gzip')
+      const reopened = await parseShowFileBundle(body as Uint8Array, { acceptV2: true })
+      expect(reopened.version).toBe(2)
+      expect(reopened.show).toEqual(stored)
+    } finally {
+      write.mockRestore()
+    }
   })
 })

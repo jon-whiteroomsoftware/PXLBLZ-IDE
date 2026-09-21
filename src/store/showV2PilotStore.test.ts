@@ -624,3 +624,62 @@ describe('opt-in v2 Show route adoption', () => {
     expect(state().showV2Pilots[source.id]).toBe(invalid)
   })
 })
+
+describe('v2 save-failure notice actions (#1066 slice 12)', () => {
+  it('rolls back a failed edit, then retries and dismisses through the v2 failure actions', async () => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    let stored = structuredClone(converted.record)
+    let offline = true
+    const writes: ShowRecordV2[] = []
+    setPersonalContentProvider({
+      id: 'v2-save-failure-actions',
+      listShows: async () => [],
+      listShowDocumentsV2: async () => [structuredClone(stored)],
+      replaceShowV2: async (_id: string, record: ShowRecordV2) => {
+        if (offline) throw new Error('offline')
+        stored = structuredClone(record)
+        writes.push(structuredClone(record))
+      },
+    } as unknown as PersonalContentProvider)
+
+    const opened = await state().openShowV2Pilot(converted.record.id)
+    if (opened.status !== 'ready') throw new Error(JSON.stringify(opened))
+    const showId = opened.record.id
+
+    await expect(state().updateShowV2Pilot(showId, { ...opened.record, name: 'Rejected edit' }))
+      .rejects.toThrow('offline')
+    expect(state().showV2Pilots[showId]).toEqual(opened.record)
+    expect(state().showV2Histories[showId]).toEqual({ past: [], future: [] })
+    expect(state().showV2SaveFailure).toMatchObject({ showId, record: { name: 'Rejected edit' } })
+    expect(writes).toHaveLength(0)
+
+    // A retry while still offline keeps the notice without rejecting the caller.
+    await state().retryShowV2SaveFailure()
+    expect(state().showV2SaveFailure?.showId).toBe(showId)
+    expect(state().showV2Pilots[showId]).toEqual(opened.record)
+
+    const failure = state().showV2SaveFailure
+    if (!failure) throw new Error('Expected a v2 save failure to retry.')
+
+    offline = false
+    await state().retryShowV2SaveFailure()
+    expect(state().showV2SaveFailure).toBeNull()
+    const restored = state().showV2Pilots[showId]
+    expect(restored.name).toBe('Rejected edit')
+    expect({ ...restored, updatedAt: failure.record.updatedAt }).toEqual(failure.record)
+    expect(state().showV2Histories[showId].past).toHaveLength(1)
+    expect(state().showV2Histories[showId].past[0]).toEqual(opened.record)
+    expect(writes).toHaveLength(1)
+    expect(stored).toEqual(restored)
+
+    offline = true
+    const writesBeforeDismiss = writes.length
+    await expect(state().updateShowV2Pilot(showId, { ...restored, name: 'Dismissed edit' }))
+      .rejects.toThrow('offline')
+    expect(state().showV2SaveFailure?.showId).toBe(showId)
+    state().dismissShowV2SaveFailure()
+    expect(state().showV2SaveFailure).toBeNull()
+    expect(writes).toHaveLength(writesBeforeDismiss)
+  })
+})
