@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice7-capture-c?show-v2-editor",
+  "operation": "Driven in one run by repository Playwright (Chromium) against this worktree's managed runtime (issue 1066, port 5178, shared API) as the synthetic local developer github:local-agent-23. The run seeded an installation Show on the stock 2D 'plane' Stage map (60 px) through POST /api/shows, converted it with convertShowRecordV1ToV2 and stored it as a version-2 document through PUT /api/shows/<id>?show-version=2. On the v2 editor it (1) set Zone 'main' nominal pixels 60 -> 48 in the Zone inspector (stored readback 48); (2) opened 'Select main LEDs on output map', enlarged the timeline pane with the 'Resize timeline and Stage' splitter, dragged across the left half of the map and captured 1066-slice7-spatial.png mid-selection, showing 18 selected LEDs with exact indexes 9-11, 17-19, 25-27, 33-35, 41-43, 49-51; after 'Save physical zone' the stored layout-1 entry for zone-1 read exactly those six ranges; (3) opened the Zone Map and pressed 'Add Zone' (stored readback: zone-2, 60 px, appended to layout-1). After a reload all three writes read back from the version-2 document, and 1066-slice7-after.png shows the Zone Map listing main (18 px) and zone-2 (60 px).",
+  "captures": [
+    ".wrsp/ui-proof/1066-slice7-spatial.png",
+    ".wrsp/ui-proof/1066-slice7-after.png"
+  ],
+  "capturedAtCommit": "67310063b8760bce37c89e8603bf99b0fda18d3e"
+}
