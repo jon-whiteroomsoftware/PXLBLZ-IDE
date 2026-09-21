@@ -627,17 +627,21 @@ function retainedVisiblePlacementIds(
 /**
  * Resolve divergent overlay names against the content the conversion retains.
  * A name survives when its Scene-local layer carries a placement that becomes
- * a v2 Clip, or a Group-occurrence child bound to that layer. The survivor is
- * forced, never chosen: it is the only name any retained Clip will display in
- * the v2 inspector, lane headers and Layer pickers. A resolved name must still
- * be displayable: two global Layers in one Zone sharing a name cannot be told
- * apart in lane headers or Layer pickers, so a resolution that collides with
- * another Layer's final name stays refused. Names with no surviving content
- * retire with the per-scene structure and take no provenance. Zero or several
- * surviving names is a guess either way and stays refused.
+ * a v2 Clip, or a Group-occurrence child bound to that layer. One surviving
+ * name is forced; where several survive, the first Scene's name wins in Scene
+ * order (candidates arrive in composition.scenes order, so the first surviving
+ * candidate carries it). Refusing to open a Show the user already has is a
+ * worse failure than picking one of two reasonable names (#1068). This is
+ * display-only: Layer-name properties carry no domain validation and
+ * layerIdByOwner attribution is untouched, so placement-to-Clip mapping is
+ * byte-unchanged and only the Layer's display name is written. Two Layers in
+ * a Zone may share a name, as they may in v1 (which uniquifies Scene, Zone
+ * and routing-layout names but has no uniqueLayerName), so no resolved name
+ * is refused for colliding with another Layer's final name. Names with no
+ * surviving content retire with the per-scene structure and take no
+ * provenance. Zero surviving names stays refused.
  */
 function resolveDivergentLayerNames(
-  layers: ShowLayerV2[],
   pending: PendingLayerName[],
   retainedPlacementIds: Set<string>,
   groupBound: Map<string, Set<string>>,
@@ -645,26 +649,11 @@ function resolveDivergentLayerNames(
   const resolutions = new Map<string, string>()
   const refusedLayerIds = new Map<string, string>()
   for (const entry of pending) {
-    const survivors = new Set(entry.candidates
-      .filter(candidate => candidate.placementIds.some(placementId => retainedPlacementIds.has(placementId))
+    const surviving = entry.candidates.filter(candidate =>
+      candidate.placementIds.some(placementId => retainedPlacementIds.has(placementId))
         || groupBound.get(entry.layerId)?.has(candidate.sceneId))
-      .map(candidate => candidate.name))
-    if (survivors.size === 1) resolutions.set(entry.layerId, [...survivors][0])
-    else refusedLayerIds.set(entry.layerId, survivors.size === 0 ? 'none' : 'several')
-  }
-  const finalName = (layerId: string): string | undefined => (
-    resolutions.get(layerId) ?? layers.find(layer => layer.id === layerId)?.name
-  )
-  for (const entry of pending) {
-    const survivor = resolutions.get(entry.layerId)
-    if (survivor === undefined) continue
-    const layer = layers.find(candidate => candidate.id === entry.layerId)
-    if (!layer) continue
-    const collision = layers.some(candidate => candidate.zoneId === layer.zoneId && candidate.id !== layer.id && finalName(candidate.id) === survivor)
-    if (collision) {
-      resolutions.delete(entry.layerId)
-      refusedLayerIds.set(entry.layerId, 'collision')
-    }
+    if (surviving.length === 0) refusedLayerIds.set(entry.layerId, 'none')
+    else resolutions.set(entry.layerId, surviving[0].name)
   }
   return { resolutions, refusedLayerIds }
 }
@@ -684,19 +673,14 @@ function resolvePendingLayerNames(
 ): void {
   const retainedPlacementIds = retainedVisiblePlacementIds(report, spans, occurrences, layouts, allZoneIds, instanceIds)
   const groupBound = groupBoundSceneIdsByLayerId(composition, layerIdByOwner)
-  const { resolutions, refusedLayerIds } = resolveDivergentLayerNames(layers, pending, retainedPlacementIds, groupBound)
+  const { resolutions, refusedLayerIds } = resolveDivergentLayerNames(pending, retainedPlacementIds, groupBound)
   for (const [layerId, name] of resolutions) layers.find(layer => layer.id === layerId)!.name = name
   for (const entry of pending) {
-    const reason = refusedLayerIds.get(entry.layerId)
-    if (reason === undefined) continue
+    if (!refusedLayerIds.has(entry.layerId)) continue
     issues.push({
       path: `composition.scenes.*.zones[${entry.zoneId}].overlays[${entry.ordinal}].name`,
       code: 'ambiguous-layer',
-      message: reason === 'several'
-        ? `Overlay ordinal ${entry.ordinal} in Zone "${entry.zoneId}" has divergent surviving names.`
-        : reason === 'collision'
-          ? `Overlay ordinal ${entry.ordinal} in Zone "${entry.zoneId}" resolves to a name another Layer in the Zone already displays.`
-          : `Overlay ordinal ${entry.ordinal} in Zone "${entry.zoneId}" has divergent names with no surviving Clip to name the Layer.`,
+      message: `Overlay ordinal ${entry.ordinal} in Zone "${entry.zoneId}" has divergent names with no surviving Clip to name the Layer.`,
     })
   }
 }
@@ -1189,7 +1173,6 @@ function auditComposition(
     })))
   })
   const { resolutions: resolvedAuditNames } = resolveDivergentLayerNames(
-    record.composition.layers,
     pendingAudit,
     retainedVisiblePlacementIds(
       report,
@@ -1250,12 +1233,13 @@ function auditComposition(
         const targetIndex = record.composition.layers.findIndex(candidate => candidate.id === layerMapping?.layerId)
         const target = record.composition.layers[targetIndex]
         mapped(`${layerPath}.id`, targetIndex >= 0 ? `composition.layers.${targetIndex}.id` : 'composition.layers', layer.id, Boolean(target && layerMapping))
-        // A superseded name belongs to a Scene-local Layer with no surviving
-        // content — neither a placement that became a v2 Clip nor a
-        // Group-occurrence child bound to the layer — while v2's global Layer
-        // keeps the surviving name, so this leaf retires with the per-scene
-        // structure (#1068). Any other mismatch is not what the rule
-        // supersedes: it stays unaccounted and refuses below.
+        // A superseded name belongs to a Scene-local Layer whose name lost:
+        // either it carries no surviving content — neither a placement that
+        // became a v2 Clip nor a Group-occurrence child bound to the layer —
+        // or its surviving name lost the first-Scene tiebreak — while v2's
+        // global Layer keeps the winning name, so this leaf retires with the
+        // per-scene structure (#1068). Any other mismatch is not what the
+        // rule supersedes: it stays unaccounted and refuses below.
         if (target?.name === layer.name) {
           mapped(`${layerPath}.name`, `composition.layers.${targetIndex}.name`, layer.name, true)
         } else if (target && layerMapping) {

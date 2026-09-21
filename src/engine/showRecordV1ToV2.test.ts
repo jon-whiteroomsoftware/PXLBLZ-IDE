@@ -378,18 +378,26 @@ function bothPopulatedDivergentLayers() {
   return source
 }
 
-it('still refuses divergent overlay names when the second survivor arrives through a Group occurrence', () => {
+it('resolves two surviving overlay names to the first Scene\'s name', () => {
   const source = showRemoveClipFixture()
   const before = JSON.stringify(source)
   const result = convertShowRecordV1ToV2(source)
-  expect(result).toMatchObject({
-    status: 'refused',
-    issues: expect.arrayContaining([expect.objectContaining({
-      code: 'ambiguous-layer',
-      path: expect.stringContaining('overlays[0].name'),
-    })]),
-  })
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
   expect(JSON.stringify(source)).toBe(before)
+  expect(result.report.unaccountedSourcePaths).toEqual([])
+  expect(result.record.composition.layers).toContainEqual(
+    expect.objectContaining({ id: 'layer:zone-1:overlay:2', zoneId: 'zone-1', name: 'Overlay 1', rank: 2 }),
+  )
+  expect(result.report.layerMappings).toEqual(expect.arrayContaining([
+    expect.objectContaining({ sceneId: 'scene-1', zoneId: 'zone-1', sourceLayerId: 'overlay-1', layerId: 'layer:zone-1:overlay:2' }),
+    expect.objectContaining({ sceneId: 'scene-2', zoneId: 'zone-1', sourceLayerId: 'bottom-scene-2', layerId: 'layer:zone-1:overlay:2' }),
+  ]))
+  const clipId = result.report.clipMappings.find(mapping => mapping.sourcePlacementIds.includes('clip-ov'))?.clipId
+  expect(result.record.composition.clips.find(clip => clip.id === clipId)?.layerId).toBe('layer:zone-1:overlay:2')
+  expect(validateShowRecordV2(result.record)).toEqual([])
+  expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
+  expect(auditShowV1ToV2Accounting(source, result.record, result.report).unaccountedSourcePaths).toEqual([])
 })
 
 function groupOnlyDivergentLayers() {
@@ -502,18 +510,23 @@ it('converts a divergent overlay name whose only surviving content arrives throu
   expect(again.record).toEqual(result.record)
 })
 
-it('still refuses divergent ordinals that resolve to a name another Layer already displays', () => {
+it('converts a resolved overlay name that another Layer in the Zone already displays', () => {
   const source = collidingGroupResolvedLayers()
   const before = JSON.stringify(source)
   const result = convertShowRecordV1ToV2(source)
-  expect(result).toMatchObject({
-    status: 'refused',
-    issues: expect.arrayContaining([expect.objectContaining({
-      code: 'ambiguous-layer',
-      message: expect.stringContaining('already displays'),
-    })]),
-  })
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
   expect(JSON.stringify(source)).toBe(before)
+  expect(result.report.unaccountedSourcePaths).toEqual([])
+  expect(result.record.composition.layers).toContainEqual(
+    expect.objectContaining({ id: 'layer:zone:overlay:2', zoneId: 'zone', name: 'Beta', rank: 2 }),
+  )
+  expect(result.record.composition.layers).toContainEqual(
+    expect.objectContaining({ id: 'layer:zone:overlay:1', zoneId: 'zone', name: 'Beta', rank: 1 }),
+  )
+  expect(validateShowRecordV2(result.record)).toEqual([])
+  expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
+  expect(auditShowV1ToV2Accounting(source, result.record, result.report).unaccountedSourcePaths).toEqual([])
 })
 
 it('leaves a renamed overlay name unaccounted instead of retiring it', () => {
@@ -580,15 +593,24 @@ it('compiles the admitted divergent-layer shape to the same program v1 compiles'
 })
 
 
-it('still refuses divergent overlay names when both names carry Clips', () => {
+it('resolves two Clip-carrying overlay names to the first Scene\'s name', () => {
   const source = bothPopulatedDivergentLayers()
   const before = JSON.stringify(source)
   const result = convertShowRecordV1ToV2(source)
-  expect(result).toMatchObject({
-    status: 'refused',
-    issues: expect.arrayContaining([expect.objectContaining({ code: 'ambiguous-layer' })]),
-  })
+  expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+  if (result.status !== 'converted') return
   expect(JSON.stringify(source)).toBe(before)
+  expect(result.report.unaccountedSourcePaths).toEqual([])
+  expect(result.record.composition.layers).toContainEqual(
+    expect.objectContaining({ id: 'layer:zone:overlay:1', zoneId: 'zone', name: 'Atmosphere', rank: 1 }),
+  )
+  for (const placementId of ['clip-a', 'clip-b']) {
+    const clipId = result.report.clipMappings.find(mapping => mapping.sourcePlacementIds.includes(placementId))?.clipId
+    expect(result.record.composition.clips.find(clip => clip.id === clipId)?.layerId).toBe('layer:zone:overlay:1')
+  }
+  expect(validateShowRecordV2(result.record)).toEqual([])
+  expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
+  expect(auditShowV1ToV2Accounting(source, result.record, result.report).unaccountedSourcePaths).toEqual([])
 })
 
 function unroutedDivergentLayerShow() {

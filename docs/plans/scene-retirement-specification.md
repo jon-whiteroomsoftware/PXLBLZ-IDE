@@ -89,7 +89,7 @@ differ; the parity report must measure them rather than treating them as exact.
 | --- | --- |
 | G0 / P1, P10–P13 | Measured v2 envelope, global milliseconds, sample-remap ownership, lifecycle and sampling accepted. Extensions in §3 are explicit engineering deltas; each lands with schema and owner proof. |
 | G1 / P4–P5 | Current supported Transition scope and incoming contribution accepted; Cut is absence; Reset cascade is §5. RL08–RL10 widening is deferred. |
-| G2 / P2 | Stable Zone-owned Layers accepted. Reconcile legacy identity/order deterministically; ambiguous conversion refuses without loss. #1068 refines ambiguous: divergent ordinal names resolve only to the unique name carried by retained content (placements that become v2 Clips, or Group-occurrence children bound to the Scene-local layer). |
+| G2 / P2 | Stable Zone-owned Layers accepted. Reconcile legacy identity/order deterministically; ambiguous conversion refuses without loss. #1068 refines ambiguous: divergent ordinal names resolve to the name carried by retained content (placements that become v2 Clips, or Group-occurrence children bound to the Scene-local layer), first Scene's name winning where several survive; a resolved name colliding with another Layer's displayed name converts (no uniqueLayerName in v1; v2 Layers keyed by id). |
 | G3 / P3 | One Clip with held appearance keys accepted, including trim/split/extend policies in §6. |
 | G4 / P6, P10, P14 | Global storage, ownership-based moves, exact curve restriction and Insert Time accepted; source activation stays explicit. §6–§7 specify the mechanisms. |
 | G5 / P7, P11 | Sharing and Restart are separate. New Restart resets the existing shared Pattern instance's clock and Pattern-owned variable/private state at first contribution without creating another runtime; legacy lifecycle conversion stays preserved. |
@@ -673,12 +673,15 @@ A whole-boundary Transition whose neighbouring Scene contributes no Clip in a
 Zone converts to whole-output scope with that side as an explicitly empty
 contributor set (fade to or from Black); spanning contributors and boundary
 carriers still refuse. An overlay ordinal with divergent Scene-local names
-converts when exactly one name is carried by retained content — placements that
-become v2 Clips, or Group-occurrence children bound to the Scene-local layer:
-that survivor is forced, never chosen, and superseded names of content-free
-layers retire with the per-scene structure. Zero or several surviving names, or
-a survivor that collides with another Layer's displayed name, stays refused. A
-name mismatch the rule does not supersede stays unaccounted and refuses.
+converts when at least one name is carried by retained content — placements
+that become v2 Clips, or Group-occurrence children bound to the Scene-local
+layer: a sole survivor is forced, never chosen, and where several survive the
+first Scene's name wins in Scene order, with superseded names (content-free or
+tiebreak losers) retiring with the per-scene structure exactly as before. A
+resolved name is never refused for colliding with another Layer's displayed
+name: v1 has no uniqueLayerName and v2 keys Layers by id, so two Layers in a
+Zone may share a name. Zero surviving names stays refused, as does a name
+mismatch the rule does not supersede, which stays unaccounted and refuses.
 Conversion may therefore admit a record preparation still refuses,
 notably a one-sided boundary beside a Layer Transition under the pre-existing
 mixed-scope gate; that gate keeps its own separate preservation proof.

@@ -125,15 +125,16 @@ the existing editor can reproduce a surface it already draws.
   uncheckable origin. The Transition keeps its `converted-boundary-transition`
   family origin; no second origin value is minted.
 - A superseded Scene-local overlay name retires with the per-scene structure.
-  Only the unique name carried by retained content survives: a placement that
-  becomes a v2 Clip, or a Group-occurrence child bound to the Scene-local
-  layer (which materializes as a v2 Clip drawn under that lane header). So no
-  surviving Clip, lane header or Layer picker can display a guessed name, and
-  no editor surface needs the dropped names reproduced. A fourth form with no
-  consumer would be dead schema carried through the codec, Worker admission
-  and import for nothing to read. A resolution that collides with another
-  Layer's displayed name stays refused, and any other name mismatch stays
-  unaccounted and refuses rather than retiring.
+  The name carried by retained content survives: a placement that becomes a v2
+  Clip, or a Group-occurrence child bound to the Scene-local layer (which
+  materializes as a v2 Clip drawn under that lane header). Where several names
+  survive, the first Scene's name wins in Scene order, and superseded names —
+  content-free or tiebreak losers — retire exactly as before. Two Layers in a
+  Zone may share the resolved name, as they may in v1 (which has no
+  uniqueLayerName) and in v2 (whose layer identity is keyed by id, not name),
+  so a resolved name is never refused for colliding with another Layer's
+  displayed name. A name mismatch with no surviving content stays unaccounted
+  and refuses rather than retiring.
 - An occurrence with no `incomingSwitch` behaves exactly as before: a Layout
   change with no selectable switch identity.
 - A Marker with no `origin` stays plainly authored and visible.
