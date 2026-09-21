@@ -3194,7 +3194,7 @@ function defaultCell(id: string, zoneId: string, sceneId: string, sceneIndex: nu
   }
 }
 
-function nextEntityId(prefix: string, existing: Array<{ id: string }>): string {
+export function nextEntityId(prefix: string, existing: Array<{ id: string }>): string {
   return nextStringId(prefix, new Set(existing.map((item) => item.id)))
 }
 
@@ -3208,7 +3208,7 @@ function nextStringId(prefix: string, used: Set<string>): string {
   return id
 }
 
-function uniqueZoneName(name: string, zones: ShowZone[]): string {
+export function uniqueZoneName(name: string, zones: ShowZone[]): string {
   const taken = new Set(zones.map((zone) => zone.name.toLowerCase()))
   if (!taken.has(name.toLowerCase())) return name
   let index = 2
@@ -3232,7 +3232,7 @@ function uniqueSceneName(name: string, scenes: ShowScene[]): string {
   return next
 }
 
-function uniqueRoutingLayoutName(name: string, layouts: ShowRoutingLayout[]): string {
+export function uniqueRoutingLayoutName(name: string, layouts: ShowRoutingLayout[]): string {
   const taken = new Set(layouts.map((layout) => layout.name.toLowerCase()))
   if (!taken.has(name.toLowerCase())) return name
   let index = 2

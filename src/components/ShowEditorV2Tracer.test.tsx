@@ -11,6 +11,7 @@ import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { duplicateShowClipAfter } from '@/engine/showTimelineClipAuthoring'
 import { convertibleV1Show } from '@/test/showV2TracerFixture'
+import { commandFixtureV2 } from '@/engine/showCommandsV2/fixtures'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
@@ -3189,5 +3190,247 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
     expect(after.v2Writes).toBe(0)
     expect(after.legacyWrites).toBe(0)
     expect(legacy.calls).toEqual([])
+  })
+})
+
+describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
+  function zoneDoors() {
+    return admission.calls.filter((call) => call.door === 'admitShowV2PilotZoneEdit')
+  }
+  function layoutDoors() {
+    return admission.calls.filter((call) => call.door === 'admitShowV2PilotLayoutDefinitionEdit')
+  }
+  function metadataDoors() {
+    return admission.calls.filter((call) => call.door === 'admitShowV2PilotShowMetadata')
+  }
+
+  it('adds a Zone from the Zone Map popover through the zone door', async () => {
+    const editor = openV2EditorForRecord(twoZoneV2Record('slice7-d2-add'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Zone Map' }))
+    await act(async () => {})
+    const dialog = screen.getByRole('dialog', { name: 'Zone Map' })
+    const before = editor.state()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add Zone' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotZoneEdit'])
+    expect(zoneDoors()[0].request.intent).toMatchObject({ kind: 'add', zone: { id: 'zone-3', name: 'zone-3' } })
+    expect(after.record.zones.map((zone) => zone.id).sort()).toEqual(['z1', 'z2', 'zone-3'])
+    expect(after.record.zones.find((zone) => zone.id === 'zone-3')).toMatchObject({ name: 'zone-3', nominalPixelCount: 60 })
+    expectOneEdit(before, after)
+  })
+
+  it('retunes a Zone pixel count through the show-metadata door', async () => {
+    const editor = openV2EditorForRecord(installationV2Record('slice7-d2-pixels'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Zones' }))
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Open zone Main properties' }))
+    await act(async () => {})
+    const before = editor.state()
+
+    typeAndCommit('Nominal pixels Main', '12')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotShowMetadata'])
+    expect(metadataDoors()[0].request.intent).toEqual({
+      command: 'update_zone',
+      input: expect.objectContaining({ nominal_pixel_count: 12 }),
+    })
+    expect(after.record.zones.find((zone) => zone.name === 'Main')?.nominalPixelCount).toBe(12)
+    expectOneEdit(before, after)
+  })
+
+  it('removes a Zone from its inspector through the zone door', async () => {
+    const editor = openV2EditorForRecord(twoZoneV2Record('slice7-d2-remove-zone'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Zones' }))
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Open zone Second properties' }))
+    await act(async () => {})
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove zone Second' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotZoneEdit'])
+    expect(zoneDoors()[0].request.intent).toEqual({ kind: 'remove', zoneId: 'z2' })
+    expect(after.record.zones.some((zone) => zone.id === 'z2')).toBe(false)
+    expectOneEdit(before, after)
+  })
+
+  it('duplicates a Zone Layout through the definition door', async () => {
+    const base = commandFixtureV2()
+    base.id = 'slice7-d2-duplicate'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
+    await act(async () => {})
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate Zone Layout Both' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutDefinitionEdit'])
+    expect(layoutDoors()[0].request.intent).toMatchObject({ kind: 'duplicate', sourceLayoutId: 'both' })
+    expect(after.record.zoneLayouts.length).toBe(before.record.zoneLayouts.length + 1)
+    expect(after.record.zoneLayouts.map((layout) => layout.id)).toContain('layout-3')
+    expectOneEdit(before, after)
+  })
+
+  it('writes physical ranges through the definition door', async () => {
+    const base = commandFixtureV2()
+    const record = {
+      ...base,
+      id: 'slice7-d2-ranges',
+      outputContract: { version: 1, kind: 'installation', outputMapId: null, pixelCount: 256, resolution: 'fixed' } as const,
+      zones: [{ id: 'left', name: 'Left', nominalPixelCount: 8 }, { id: 'right', name: 'Right', nominalPixelCount: 8 }],
+      zoneLayouts: [{ id: 'phys', name: 'Physical', zones: [{ zoneId: 'left', ranges: [{ start: 0, end: 127 }] }, { zoneId: 'right', ranges: [{ start: 128, end: 255 }] }] }],
+      composition: { ...base.composition, layoutOccurrences: [{ id: 'interval-1', layoutId: 'phys', startMs: 0, durationMs: 5_000, parameters: {} }, { id: 'interval-2', layoutId: 'phys', startMs: 5_000, durationMs: 5_000, parameters: {} }] },
+    }
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Physical ranges Zone Layout' }))
+    await act(async () => {})
+    const before = editor.state()
+
+    typeAndCommit('Physical Left pixel ranges', '0-199')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutDefinitionEdit'])
+    expect(layoutDoors()[0].request.intent).toEqual({
+      kind: 'set-physical-ranges',
+      layoutId: 'phys',
+      zoneId: 'left',
+      ranges: [{ start: 0, end: 199 }],
+    })
+    expect(after.record.zoneLayouts.find((layout) => layout.id === 'phys')?.zones.find((entry) => entry.zoneId === 'left')?.ranges).toEqual([{ start: 0, end: 199 }])
+    expectOneEdit(before, after)
+  })
+
+  it('removes an unused Zone Layout through the definition door', async () => {
+    const base = commandFixtureV2()
+    base.id = 'slice7-d2-remove-unused'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
+    await act(async () => {})
+    const { useShowEditorViewStore: view } = await import('@/store/showEditorViewStore')
+    act(() => { view.getState().setSelection({ kind: 'zone-layout', layoutId: 'left-only' }) })
+    await act(async () => {})
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Zone Layout Left only' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutDefinitionEdit'])
+    expect(layoutDoors()[0].request.intent).toEqual({ kind: 'remove', layoutId: 'left-only' })
+    expect(after.record.zoneLayouts.some((layout) => layout.id === 'left-only')).toBe(false)
+    expectOneEdit(before, after)
+  })
+
+  it('refuses to remove a Zone Layout an occurrence uses, with no write', async () => {
+    const base = commandFixtureV2()
+    base.id = 'slice7-d2-remove-used'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
+    await act(async () => {})
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Zone Layout Both' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutDefinitionEdit'])
+    expect(layoutDoors()[0].request.intent).toEqual({ kind: 'remove', layoutId: 'both' })
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
+    expect(after.record.zoneLayouts.some((layout) => layout.id === 'both')).toBe(true)
+  })
+
+  it('refuses a Zone rename to a taken name, with no write', async () => {
+    const editor = openV2EditorForRecord(twoZoneV2Record('slice7-d2-rename-taken'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Zones' }))
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Open zone Second properties' }))
+    await act(async () => {})
+    const before = editor.state()
+
+    typeAndCommit('Zone name Second', 'Main')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotShowMetadata'])
+    expect(metadataDoors()[0].request.intent).toMatchObject({ command: 'update_zone' })
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
+    expect(after.record.zones.find((zone) => zone.id === 'z2')?.name).toBe('Second')
+  })
+
+  it('saves a spatial physical-zone selection through the definition door', async () => {
+    const base = commandFixtureV2()
+    const layoutId = base.zoneLayouts[0].id
+    const zoneId = base.zones[0].id
+    const zoneName = base.zones[0].name
+    const record = {
+      ...base,
+      id: 'slice7-d2-spatial',
+      stageMapId: 'plane',
+      outputContract: { version: 1, kind: 'installation', outputMapId: 'plane', pixelCount: 4, resolution: 'fixed' } as const,
+      zoneLayouts: base.zoneLayouts.map((layout) => ({
+        id: layout.id,
+        name: layout.name,
+        zones: [{ zoneId, ranges: [{ start: 0, end: 1 }] }],
+      })),
+      composition: {
+        ...base.composition,
+        layoutOccurrences: base.composition.layoutOccurrences.map((occurrence) => ({
+          ...occurrence,
+          layoutId: base.zoneLayouts[0].id,
+        })),
+      },
+    }
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Zones' }))
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: `Open zone ${zoneName} properties` }))
+    await act(async () => {})
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: `Select ${zoneName} LEDs on output map` }))
+    await act(async () => {})
+    expect(screen.getByText('Indexes 0-1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(screen.getByText('Indexes none')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByLabelText(`Select LEDs for zone ${zoneName}`), { key: 'Enter' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutDefinitionEdit'])
+    expect(layoutDoors()[0].request.intent).toEqual({
+      kind: 'set-physical-ranges',
+      layoutId,
+      zoneId,
+      ranges: [],
+    })
+    expect(after.record.zoneLayouts.find((layout) => layout.id === layoutId)?.zones).toEqual([{ zoneId, ranges: [] }])
+    expectOneEdit(before, after)
   })
 })

@@ -67,12 +67,12 @@ export function indexesFromPhysicalRanges(
   return indexes
 }
 
-export function updateShowPhysicalZoneSelection(
-  show: ShowRecord,
+export function updateShowPhysicalZoneSelection<T extends Pick<ShowRecord, 'outputContract' | 'zones' | 'routingLayouts'>>(
+  show: T,
   layoutId: string,
   zoneId: string,
   indexes: ReadonlyArray<number>,
-): ShowRecord {
+): T {
   if (show.outputContract?.kind !== 'installation') return show
   const layout = show.routingLayouts.find((candidate) => candidate.id === layoutId)
   if (!layout || layout.logical || !show.zones.some((zone) => zone.id === zoneId)) return show
@@ -89,5 +89,5 @@ export function updateShowPhysicalZoneSelection(
         }
       : candidate),
     updatedAt: Date.now(),
-  }
+  } as T
 }

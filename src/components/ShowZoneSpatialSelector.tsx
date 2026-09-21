@@ -22,7 +22,7 @@ export function ShowZoneSpatialSelector({
   onCommit,
   onCancel,
 }: {
-  show: ShowRecord
+  show: Pick<ShowRecord, 'id' | 'outputContract' | 'zones' | 'routingLayouts'>
   zone: ShowRecord['zones'][number]
   layoutId: string
   mapName: string

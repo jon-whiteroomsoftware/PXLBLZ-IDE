@@ -290,6 +290,8 @@ import {
   admitShowV2PilotSetShowEnd,
   admitShowV2PilotShowMetadata,
   admitShowV2PilotTransitionResize,
+  admitShowV2PilotZoneEdit,
+  admitShowV2PilotLayoutDefinitionEdit,
   type ShowV2PilotClipDeleteIntent,
   type ShowV2PilotClipEntryPolicyIntent,
   type ShowV2PilotPreparedCapture,
@@ -324,7 +326,19 @@ import {
   planShowV2TrailsEdit,
   type ShowV2ShowMetadataPlan,
 } from '@/engine/showV2ShowLevelPlanning'
+import {
+  planShowV2LayoutDuplicate,
+  planShowV2LayoutRemove,
+  planShowV2LayoutUpdate,
+  planShowV2PhysicalZoneSelection,
+  planShowV2ZoneAdd,
+  planShowV2ZoneRemove,
+  planShowV2ZoneUpdate,
+  type ShowV2ZonePlan,
+} from '@/engine/showV2ZonePlanning'
 import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
+import type { ShowZoneEditIntentV2 } from '@/engine/showZonesV2'
+import type { ShowZoneLayoutDefinitionIntentV2 } from '@/engine/showZoneLayoutDefinitionsV2'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
@@ -1755,6 +1769,40 @@ export function ShowEditor({
     })
     return outcome
   }, [showId])
+  const commitV2ZoneEdit = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowZoneEditIntentV2
+  }) => {
+    const outcome = await admitShowV2PilotZoneEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
+  const commitV2LayoutDefinitionEdit = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowZoneLayoutDefinitionIntentV2
+  }) => {
+    const outcome = await admitShowV2PilotLayoutDefinitionEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
   const commitV2ClipInspectorPatch = useCallback((clipId: string, patch: ShowClipInspectorPatch): boolean | Promise<void> => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
@@ -1807,6 +1855,23 @@ export function ShowEditor({
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     return commitV2ShowMetadata({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
   }, [commitV2ShowMetadata, readOnly, recordVersion, savedShowV2, showId])
+  const commitV2ZonePlan = useCallback((build: (record: ShowRecordV2) => ShowV2ZonePlan): boolean => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return false
+    const plan = build(capture.record)
+    if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
+    if (plan.kind === 'metadata') {
+      return commitV2ShowMetadataEdit(capture, plan.plan) !== false
+    }
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    if (plan.kind === 'zone') {
+      void commitV2ZoneEdit({ capture, baseRevision, intent: plan.intent })
+      return true
+    }
+    void commitV2LayoutDefinitionEdit({ capture, baseRevision, intent: plan.intent })
+    return true
+  }, [commitV2LayoutDefinitionEdit, commitV2ShowMetadataEdit, commitV2ZoneEdit, readOnly, recordVersion, savedShowV2, showId])
   const requestDeleteClipV2 = useCallback((clipId: string, connectedDeletionConfirmed = false): boolean => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
@@ -1999,16 +2064,19 @@ export function ShowEditor({
       ? savedStageMap.generator === 'custom' ? savedStageMap.points?.length : undefined
       : savedStageMap.bakedCount
     : undefined
-  const spatialRoutingLayout = activeShow?.routingLayouts.find((candidate) => !candidate.logical)
-  const spatialSelectionUnavailableReason = activeShow?.outputContract?.kind === 'installation'
+  const spatialRoutingLayout = recordVersion === 2
+    ? savedShowV2?.zoneLayouts.find((candidate) => !candidate.logical)
+    : activeShow?.routingLayouts.find((candidate) => !candidate.logical)
+  const spatialBackingContract = recordVersion === 2 ? savedShowV2?.outputContract : activeShow?.outputContract
+  const spatialSelectionUnavailableReason = spatialBackingContract?.kind === 'installation'
     ? !spatialRoutingLayout
       ? 'Spatial selection needs a physical routing layout.'
       : !savedStageMap
       ? 'Spatial selection needs a saved output map.'
       : savedStageMap.dim !== 2
         ? `Spatial selection is unavailable for ${savedStageMap.dim}D maps.`
-        : savedStageFixedCount !== undefined && savedStageFixedCount !== activeShow.outputContract.pixelCount
-          ? `Spatial selection needs the map's ${savedStageFixedCount} points to match the ${activeShow.outputContract.pixelCount}-pixel output.`
+        : savedStageFixedCount !== undefined && savedStageFixedCount !== spatialBackingContract.pixelCount
+          ? `Spatial selection needs the map's ${savedStageFixedCount} points to match the ${spatialBackingContract.pixelCount}-pixel output.`
           : null
     : null
   const compilationControllerZones = useMemo(
@@ -2847,6 +2915,32 @@ export function ShowEditor({
     downloadBrowserFile(filename, Uint8Array.from(bytes), 'application/gzip')
   }
 
+  if (recordVersion === 2 && savedShowV2 && spatialZoneSelection && savedShowV2.outputContract.kind === 'installation' && savedStageMap?.dim === 2) {
+    const zone = savedShowV2.zones.find((candidate) => candidate.id === spatialZoneSelection.zoneId)
+    const map = resolveMap(savedStageMap.id, userMaps)
+    const resolved = applyNormalizeMode(map.resolve(savedShowV2.outputContract.pixelCount), 'contain')
+    if (zone && resolved.length === savedShowV2.outputContract.pixelCount) {
+      const points = resolved.map((point) => {
+        const raw = point.pos ?? point.sample
+        return { x: raw[0] ?? 0.5, y: raw[1] ?? 0.5 }
+      })
+      return (
+        <FieldActivityContext.Provider value={fieldActivity}>
+          <ShowZoneSpatialSelector
+            key={JSON.stringify([savedShowV2.id, spatialZoneSelection.layoutId, zone.id, savedStageMap.id])}
+            show={{ id: savedShowV2.id, outputContract: savedShowV2.outputContract, zones: savedShowV2.zones, routingLayouts: savedShowV2.zoneLayouts }}
+            zone={zone}
+            layoutId={spatialZoneSelection.layoutId}
+            mapName={savedStageMap.name}
+            points={points}
+            onCancel={() => setSpatialZoneSelection(null)}
+            onCommit={(indexes) => { commitV2ZonePlan((record) => planShowV2PhysicalZoneSelection(record, spatialZoneSelection.layoutId, zone.id, indexes)); setSpatialZoneSelection(null) }}
+          />
+        </FieldActivityContext.Provider>
+      )
+    }
+  }
+
   if (legacyShow && spatialZoneSelection && legacyShow.outputContract?.kind === 'installation' && savedStageMap?.dim === 2) {
     const zone = legacyShow.zones.find((candidate) => candidate.id === spatialZoneSelection.zoneId)
     const map = resolveMap(savedStageMap.id, userMaps)
@@ -3430,15 +3524,30 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, next)
                 }}
                 onAddZone={() => {
+                  if (recordVersion === 2) {
+                    timelineWorkspaceRef.current?.focus()
+                    commitV2ZonePlan((record) => planShowV2ZoneAdd(record))
+                    return
+                  }
                   if (!legacyShow) return
                   timelineWorkspaceRef.current?.focus()
                   void addZone(legacyShow.id)
                 }}
                 onUpdateZone={(zoneId, changes) => {
+                  if (recordVersion === 2) {
+                    commitV2ZonePlan((record) => planShowV2ZoneUpdate(record, zoneId, changes))
+                    return
+                  }
                   if (!legacyShow) return
                   void updateZone(legacyShow.id, zoneId, changes)
                 }}
                 onRemoveZone={(zoneId) => {
+                  if (recordVersion === 2) {
+                    closeDetailPanel()
+                    closePinnedDetailForSelection({ kind: 'zone', zoneId })
+                    commitV2ZonePlan((record) => planShowV2ZoneRemove(record, zoneId))
+                    return
+                  }
                   if (!legacyShow) return
                   closeDetailPanel()
                   closePinnedDetailForSelection({ kind: 'zone', zoneId })
@@ -3761,29 +3870,56 @@ export function ShowEditor({
                     void removeBoundaryTransition(legacyShow.id, transitionId)
                   }}
                   onAddZone={() => {
+                    if (recordVersion === 2) {
+                      timelineWorkspaceRef.current?.focus()
+                      commitV2ZonePlan((record) => planShowV2ZoneAdd(record))
+                      return
+                    }
                     if (!legacyShow) return
                     timelineWorkspaceRef.current?.focus()
                     void addZone(legacyShow.id)
                   }}
                   onUpdateZone={(zoneId, changes) => {
+                    if (recordVersion === 2) {
+                      commitV2ZonePlan((record) => planShowV2ZoneUpdate(record, zoneId, changes))
+                      return
+                    }
                     if (!legacyShow) return
                     void updateZone(legacyShow.id, zoneId, changes)
                   }}
                   onRemoveZone={(zoneId) => {
+                    if (recordVersion === 2) {
+                      closeDetailPanel()
+                      closePinnedDetailForSelection({ kind: 'zone', zoneId })
+                      commitV2ZonePlan((record) => planShowV2ZoneRemove(record, zoneId))
+                      return
+                    }
                     if (!legacyShow) return
                     closeDetailPanel()
                     closePinnedDetailForSelection({ kind: 'zone', zoneId })
                     void removeZone(legacyShow.id, zoneId)
                   }}
                   onAddRoutingLayout={(sourceLayoutId) => {
+                    if (recordVersion === 2) {
+                      commitV2ZonePlan((record) => planShowV2LayoutDuplicate(record, sourceLayoutId ?? ''))
+                      return
+                    }
                     if (!legacyShow) return
                     void addRoutingLayout(legacyShow.id, sourceLayoutId)
                   }}
                   onUpdateRoutingLayout={(layoutId, changes) => {
+                    if (recordVersion === 2) {
+                      commitV2ZonePlan((record) => planShowV2LayoutUpdate(record, layoutId, changes))
+                      return
+                    }
                     if (!legacyShow) return
                     void updateRoutingLayout(legacyShow.id, layoutId, changes)
                   }}
                   onRemoveRoutingLayout={(layoutId) => {
+                    if (recordVersion === 2) {
+                      commitV2ZonePlan((record) => planShowV2LayoutRemove(record, layoutId))
+                      return
+                    }
                     if (!legacyShow) return
                     void removeRoutingLayout(legacyShow.id, layoutId)
                   }}
@@ -7743,10 +7879,10 @@ function ShowTimelineWorkspace({
           anchor={zoneMapAnchor}
           zoneMap={zoneMap}
           readOnly={readOnly}
-          onAddZone={show ? onAddZone : () => {}}
+          onAddZone={onAddZone}
           onDismiss={() => setZoneMapOpen(false)}
-          onUpdateZone={show ? onUpdateZone : () => {}}
-          onRemoveZone={show ? onRemoveZone : () => {}}
+          onUpdateZone={onUpdateZone}
+          onRemoveZone={onRemoveZone}
         />
       )}
     </div>
@@ -9756,9 +9892,9 @@ function ContextualInspector({
           zone={presentedZone.zone}
           spatialSelectionUnavailableReason={spatialSelectionUnavailableReason}
           onOpenSpatialSelection={() => onOpenSpatialSelection(presentedZone.id)}
-          // Zone writes are not connected for the v2 backing in this tracer.
-          onUpdateZone={() => {}}
-          onRemoveZone={() => {}}
+          // Zone writes reach the v2 backing through the Zone owner (#1066 slice 7).
+          onUpdateZone={(changes) => onUpdateZone(presentedZone.id, changes)}
+          onRemoveZone={() => onRemoveZone(presentedZone.id)}
         />
       )
     }
@@ -9805,10 +9941,10 @@ function ContextualInspector({
             endMs: entry.occurrence.startMs + entry.occurrence.durationMs,
           }))}
           selectedIntervalId={selection.intervalId}
-          // Zone Layout writes are not connected for the v2 backing here.
-          onAddRoutingLayout={() => {}}
-          onUpdateRoutingLayout={() => {}}
-          onRemoveRoutingLayout={() => {}}
+          // Zone Layout definition writes reach the v2 backing through the definition owner (#1066 slice 7).
+          onAddRoutingLayout={onAddRoutingLayout}
+          onUpdateRoutingLayout={onUpdateRoutingLayout}
+          onRemoveRoutingLayout={onRemoveRoutingLayout}
           onMakeIntervalUnique={() => {}}
         />
       )
