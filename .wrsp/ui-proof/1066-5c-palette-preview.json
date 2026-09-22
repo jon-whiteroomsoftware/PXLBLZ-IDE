@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/5cfbf587-a1f3-4e96-8625-13c0d37e2416",
+  "operation": "On the v2 backing at the code tip: a fresh Installation Show; open the boundary crossfade's Transition panel, then Change to open the Choose Transition palette (first capture). Hovering 'Use Cut Transition' previews Cut on the Stage (second capture) with no write: the stored v2 record still holds the crossfade (readback). The equivalence visual oracle at this tip passes strictly, including its transition-palette row at desktop and narrow widths, previously the one non-equivalent row.",
+  "captures": [".wrsp/ui-proof/1066-5c-palette-before.png", ".wrsp/ui-proof/1066-5c-palette-hover.png"],
+  "capturedAtCommit": "7dc0abef7fd1df12efdbff0540ae0f1a5ccd95eb"
+}
