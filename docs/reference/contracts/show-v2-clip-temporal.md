@@ -86,8 +86,11 @@ identity. A Transition in that set
 that carries `propertyRamps` refuses `unsupported-property-carrier` instead;
 Reset it with an explicit projection plan first. Nothing is retargeted or
 stubbed. A whole-output contributor set is named by exact time rather than
-routing, so a whole-output contributor may change its destination while its
-Transition record stays exact.
+routing, so a native or ramp-carrying whole-output contributor may change
+its destination while its Transition record stays exact. A converted Scene
+boundary at whole-output scope is instead attached exactly as its
+participant form: with the detach permission it is detached and repaired,
+and without it the re-placement refuses `invalid-topology` (#1068).
 
 A start change translates the full explicit connected component rigidly through the
 same owner as Move, so Clip-owned appearance keys and Clip Property tracks follow

@@ -111,7 +111,7 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
         && convertedBoundaryRepairSpecV2(record, transition.id).status === 'ready')
     ))
     const mayDetach = intent.kind === 'replace-placement' && intent.detachParticipantTransitions === true
-    if (attached.length > 0 && !mayDetach) return refuse('invalid-topology', `Clip "${clip.id}" is a participant endpoint of Transition ${attached.map(transition => `"${transition.id}"`).join(', ')}; re-placement never detaches or retargets a Transition unless the caller grants it. Reset those Transitions explicitly first.`)
+    if (attached.length > 0 && !mayDetach) return refuse('invalid-topology', `Clip "${clip.id}" is a participant endpoint or whole-output contributor of Transition ${attached.map(transition => `"${transition.id}"`).join(', ')}; re-placement never detaches or retargets a Transition unless the caller grants it. Reset those Transitions explicitly first.`)
     const carrier = attached.find(transition => transition.propertyRamps.length > 0)
     if (carrier) return refuse('unsupported-property-carrier', `Transition "${carrier.id}" carries Property ramps. Reset it with an explicit projection plan before moving its participant to another Zone or Layer.`)
     // The blanket carrier check above subsumes the repair spec's ramp-carrier

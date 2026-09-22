@@ -723,11 +723,52 @@ it('refuses to detach a whole-output converted boundary without the caller-grant
   if (result.status !== 'refused') return
   expect(result.code).toBe('invalid-topology')
   expect(result.message).toContain('incoming')
+  expect(result.message).toContain('whole-output contributor')
   expect(result.record).toBe(source)
   expect(result.affectedClipIds).toEqual([])
   expect(result.removedIds).toEqual([])
   expect(result.record.composition.transitions).toHaveLength(1)
   expect(source).toEqual(prior)
+})
+
+it('lands an explicit start exactly on a whole-output converted-boundary drop while downstream still reclaims', () => {
+  const source = convertedWholeOutputJoin()
+  // A tail Clip downstream of the join makes the reclaim observable apart from
+  // the dragged Clip: it must ride the repair even though the dragged Clip is
+  // pinned to its requested start.
+  source.composition.clips.push(clip('tail', 'base', 1_000, 400))
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 1_200, detachParticipantTransitions: true })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  // The requested start names post-repair coordinates: the Clip lands exactly
+  // at 1200, not 1100. If the preimage-derived shift returns, this is the
+  // assertion that fails.
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected'))
+    .toMatchObject({ zoneId: 'left', layerId: 'over', startMs: 1_200, durationMs: 400 })
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'outgoing'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 0, durationMs: 500 })
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'tail'))
+    .toMatchObject({ zoneId: 'left', layerId: 'base', startMs: 900, durationMs: 400 })
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.record.composition.showEndMs).toBe(1_900)
+  expect(result.record.composition.layoutOccurrences).toEqual([
+    { id: 'coverage', layoutId: 'both', startMs: 0, durationMs: 1_900, parameters: {} },
+  ])
+  expect(source).toEqual(prior)
+})
+
+it('keeps a ramp-carrying whole-output converted boundary exact on re-placement', () => {
+  const source = convertedWholeOutputJoin()
+  source.composition.transitions[0].propertyRamps = [{ target: { kind: 'show-repeat-scale' }, from: 2, easing: { curve: 'quadratic', direction: 'in' } }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', detachParticipantTransitions: true })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(reopen(result.record).composition.transitions).toEqual(source.composition.transitions)
+  expect(result.record.composition.showEndMs).toBe(2_000)
+  expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected')).toMatchObject({ layerId: 'over', startMs: 600, durationMs: 400 })
 })
 
 it('refuses to detach a participant Transition that carries Property ramps', () => {
