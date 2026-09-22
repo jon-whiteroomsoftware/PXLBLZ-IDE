@@ -1,6 +1,6 @@
 import type { ShowCrossfadePolicy, ShowTransitionKind } from './personalContentRecords'
 import { repeatScaleAt } from './showV2ScalarProperties'
-import { showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation } from './showTransitionAuthoring'
+import { showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation, type ShowTransitionChanges } from './showTransitionAuthoring'
 import type { ShowToolkitParameterValue } from './showVisualToolkit'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
 import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
@@ -229,6 +229,42 @@ export function planShowV2TransitionEdit(
       },
     },
   }
+}
+
+/**
+ * Plan one boundary Transition settings edit from v1-shaped changes (#1066
+ * slice 5a). The settings surface owns everything the `update-transition`
+ * owner accepts except identity, timing, endpoints, ramps and provenance, so
+ * the palette (`kind`), resize (`durationMs`), repeat-scale descriptors
+ * (`propertyTransitions`) and Layout surfaces (`layoutId`,
+ * `routingDirection`) refuse here before any owner.
+ */
+export type ShowV2BoundaryChangesPlan =
+  | { status: 'ready'; intent: Extract<ShowTransitionEditIntentV2, { kind: 'update-transition' }> }
+  | { status: 'no-op' }
+  | { status: 'refused'; code: 'missing-transition' | 'unsupported-field'; message: string }
+
+const BOUNDARY_SETTINGS_REFUSED_FIELDS = ['kind', 'durationMs', 'propertyTransitions', 'layoutId', 'routingDirection'] as const
+
+export function planShowV2BoundaryTransitionChanges(
+  record: ShowRecordV2,
+  transitionId: string,
+  changes: ShowTransitionChanges,
+): ShowV2BoundaryChangesPlan {
+  const current = record.composition.transitions.find(candidate => candidate.id === transitionId)
+  if (!current) return { status: 'refused', code: 'missing-transition', message: `Transition "${transitionId}" does not exist.` }
+  for (const key of BOUNDARY_SETTINGS_REFUSED_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(changes, key)) {
+      return { status: 'refused', code: 'unsupported-field', message: `"${key}" is not edited through the boundary settings surface.` }
+    }
+  }
+  const next = structuredClone(current) as unknown as Record<string, unknown>
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === undefined) delete next[key]
+    else next[key] = structuredClone(value)
+  }
+  if (JSON.stringify(next) === JSON.stringify(current)) return { status: 'no-op' }
+  return { status: 'ready', intent: { kind: 'update-transition', transition: next as unknown as ShowTransitionV2 } }
 }
 
 /**

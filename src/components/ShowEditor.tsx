@@ -249,6 +249,7 @@ import {
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
 import { exportedDims } from '@/engine/exportedDims'
+import { planShowV2BoundaryTransitionChanges } from '@/engine/showV2TransitionEditorModel'
 import {
   replaceShowBoundaryTransition,
   showBoundaryTransitionParameterChanges,
@@ -283,6 +284,7 @@ import { useShowStore } from '@/store/showStore'
 import {
   admitShowV2PilotAppearanceEdit,
   admitShowV2PilotClipDelete,
+  admitShowV2PilotTransitionEdit,
   admitShowV2PilotClipEntryPolicy,
   admitShowV2PilotClipReplacementEdit,
   admitShowV2PilotClipTemporal,
@@ -293,6 +295,7 @@ import {
   admitShowV2PilotZoneEdit,
   admitShowV2PilotLayoutDefinitionEdit,
   type ShowV2PilotClipDeleteIntent,
+  type ShowV2PilotTransitionEditIntent,
   type ShowV2PilotClipEntryPolicyIntent,
   type ShowV2PilotPreparedCapture,
   type ShowV2PilotSetShowEndRequest,
@@ -1670,6 +1673,26 @@ export function ShowEditor({
     })
     return outcome
   }, [showId])
+  // Slice 5a connects the boundary Transition settings surface through the
+  // same prepared-capture plumbing: one accepted settings edit stays one
+  // history entry and one save (#1066).
+  const commitV2TransitionEdit = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotTransitionEditIntent
+  }) => {
+    const outcome = await admitShowV2PilotTransitionEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
   const commitV2InstanceProperties = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
@@ -1832,6 +1855,20 @@ export function ShowEditor({
     // chokepoint's contract reads.
     return commit.then(() => {}, () => {})
   }, [commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2InstanceProperties, readOnly, recordVersion, savedShowV2, showId])
+  // Slice 5a connects the boundary Transition settings writes (the Transition
+  // parameter editor and the Crossfade source select) through the
+  // transition-edit door. Refused and no-op changes return synchronously so
+  // the committing control reverts its draft, exactly as the Clip inspector
+  // commit does (#1066).
+  const commitV2BoundaryTransitionChanges = useCallback((transitionId: string, changes: ShowTransitionChanges): void => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return
+    const plan = planShowV2BoundaryTransitionChanges(capture.record, transitionId, changes)
+    if (plan.status !== 'ready') return
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
+  }, [commitV2TransitionEdit, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 chokepoints: a refused or no-op Show-level edit resolves
   // synchronously (or as a resolved false) so the committing surface reverts
   // instead of showing a value that was never stored. The plan reads the
@@ -3722,6 +3759,7 @@ export function ShowEditor({
                   }}
                   onUpdateClipInspector={commitClipInspectorPatch}
                   onUpdateClipInspectorV2={commitV2ClipInspectorPatch}
+                  onUpdateBoundaryTransitionV2={commitV2BoundaryTransitionChanges}
                   onPropertyAnimationChange={(owner, change) => {
                     if (!legacyShow || !inspectorShow?.composition) return false
                     const composition = inspectorShow.composition
@@ -9508,6 +9546,7 @@ function ContextualInspector({
   onUpdateAdaptations,
   onUpdateClipInspector,
   onUpdateClipInspectorV2,
+  onUpdateBoundaryTransitionV2,
   onPropertyAnimationChange,
   onUpdateGroupClipInspector,
   onPreviewClipInspector,
@@ -9568,6 +9607,7 @@ function ContextualInspector({
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onUpdateClipInspectorV2?: (clipId: string, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
+  onUpdateBoundaryTransitionV2?: (transitionId: string, changes: ShowTransitionChanges) => void
   onPropertyAnimationChange: (owner: ShowPropertyAnimationStorageOwner, change: ShowPropertyAnimationChange) => boolean | void
   onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
@@ -10021,10 +10061,11 @@ function ContextualInspector({
           // A v2 side names its Pattern instance, which is what automatable
           // control metadata is keyed by on this backing.
           patternControlsBySourceId={patternControlsByInstanceId}
-          // Boundary Transition writes are not connected for the v2 backing in
-          // this tracer. Every control stays enabled and reachable; each one
-          // resolves as an internal no-change result before any owner.
-          onUpdate={() => {}}
+          // Boundary Transition settings writes are connected (#1066 slice
+          // 5a); preview, Remove and the destination rows are not. Every
+          // unconnected control stays enabled and reachable; each one resolves
+          // as an internal no-change result before any owner.
+          onUpdate={(transitionId, changes) => onUpdateBoundaryTransitionV2?.(transitionId, changes)}
           onPreviewSettings={() => {}}
           onPreviewEnd={() => {}}
           onOpenPalette={() => onOpenTransitions(selection.transitionId)}

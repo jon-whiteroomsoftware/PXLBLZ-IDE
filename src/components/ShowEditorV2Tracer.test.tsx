@@ -942,7 +942,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     expectNoWrite(before, editor.state())
   })
 
-  it('reads every advanced row the v1 panel draws from the authored record, and writes nothing', async () => {
+  it('reads every advanced row the v1 panel draws from the authored record; only settings write', async () => {
     const { source, record } = convertedAdvancedBoundary('tracer-boundary-advanced')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
@@ -977,10 +977,9 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     expect(within(advanced).getByRole('checkbox', { name: 'Animate brightness for main' })).toBeEnabled()
     expect(within(advanced).getByRole('checkbox', { name: 'Animate Speed for main' })).toBeEnabled()
 
-    // Every write this panel offers resolves as an internal no-change result.
-    fireEvent.change(within(panel).getByRole('combobox', { name: 'Crossfade source' }), {
-      target: { value: 'live-live' },
-    })
+    // The settings write is connected (#1066 slice 5a); the repeat-scale
+    // descriptor and Reset rows stay unconnected and resolve as internal
+    // no-change results.
     fireEvent.click(within(advanced).getByRole('checkbox', { name: 'Animate speed for main' }))
     fireEvent.click(screen.getByRole('button', { name: 'Reset transition to cut' }))
     await act(async () => {})
@@ -989,6 +988,39 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     // The panel is still open and still reads the authored settings.
     expect(within(boundaryPanel()).getByRole('combobox', { name: 'Crossfade source' }))
       .toHaveValue('snapshot-live')
+  })
+
+  it('writes a Crossfade source change through the transition-edit door', async () => {
+    const { record } = convertedAdvancedBoundary('tracer-boundary-settings-write')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between CometLoom and CometLoom',
+    }))
+    await act(async () => {})
+
+    const panel = boundaryPanel()
+    expect(within(panel).getByRole('combobox', { name: 'Crossfade source' })).toHaveValue('snapshot-live')
+
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Crossfade source' }), {
+      target: { value: 'live-live' },
+    })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const request = admission.calls[0].request as {
+      intent: { kind: string; transition: { crossfadePolicy?: string } }
+      baseRevision: number
+    }
+    expect(request.intent.kind).toBe('update-transition')
+    expect(request.intent.transition.crossfadePolicy).toBe('live-live')
+    expect(request.baseRevision).toBe(0)
+    expectOneEdit(before, after)
+    expect(within(boundaryPanel()).getByRole('combobox', { name: 'Crossfade source' }))
+      .toHaveValue('live-live')
   })
 
   it('reads a native whole-output Transition through the same boundary panel', async () => {

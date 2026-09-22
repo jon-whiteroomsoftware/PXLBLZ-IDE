@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
+import type { ShowRecord } from './personalContentRecords'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { updateShowBoundaryTransition } from './showModel'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
-import { buildShowV2TransitionEditorModel, planShowV2TransitionEdit } from './showV2TransitionEditorModel'
+import {
+  buildShowV2TransitionEditorModel,
+  planShowV2TransitionEdit,
+  planShowV2BoundaryTransitionChanges,
+} from './showV2TransitionEditorModel'
+import {
+  showBoundaryTransitionParameterChanges,
+  showBoundaryTransitionPresentationKey,
+  type ShowTransitionChanges,
+} from './showTransitionAuthoring'
+import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 
 function converted(kind: Parameters<typeof transitionV1Show>[0] = 'crossfade'): ShowRecordV2 {
@@ -197,5 +210,190 @@ describe('v2 Transition editor model', () => {
     if (existingPlan.status !== 'ready' || existingPlan.intent.kind !== 'insert') throw new Error('plan')
     withExisting.composition.transitions = [existingPlan.intent.transition]
     expect(planShowV2TransitionEdit(withExisting, { kind: 'insert', junctionKey, kindKey: 'transition:blend:crossfade', durationMs: 100, crossfadePolicy: 'live-live' }, () => 'fresh-1', 2)).toMatchObject({ status: 'refused', message: expect.stringContaining('identity') })
+  })
+})
+
+/** Boundary copy of the conversion spec's helper: Layer settings lowered to a boundary Transition (#1066 slice 5a). */
+function boundaryShow(kind: Parameters<typeof transitionV1Show>[0] = 'crossfade'): ShowRecord {
+  const show = transitionV1Show(kind)
+  const composition = show.composition!
+  const [out, incoming] = composition.scenes[0].zones[0].main
+  show.scenes = [{ id: 'scene-a', name: 'Outgoing', durationMs: 400 }, { id: 'scene-b', name: 'Incoming', durationMs: 400 }]
+  composition.scenes = [
+    { sceneId: 'scene-a', zones: [{ zoneId: 'zone', main: [out], overlays: [] }] },
+    { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: [{ ...incoming, startMs: 0 }], overlays: [] }] },
+  ]
+  const { fromPlacementId: _from, toPlacementId: _to, ...settings } = composition.transitions![0]
+  show.transitions = [{ ...settings, afterSceneId: 'scene-a' }]
+  delete composition.transitions
+  return show
+}
+
+const COMPILE_LOOKUP = { byCellId: {}, byPatternInstanceId: {
+  'out-instance': 'export var calls=0; export var elapsed=0; export function beforeRender(delta) { calls++; elapsed+=delta/1000 } export function render2D(index,x,y) { rgb(1,x,y) }',
+  'in-instance': 'export var calls=0; export var elapsed=0; export function beforeRender(delta) { calls++; elapsed+=delta/1000 } export function render2D(index,x,y) { rgb(x,y,1) }',
+}, stageDimension: 2 as const }
+
+function convertedBoundaryRecord(kind: Parameters<typeof transitionV1Show>[0] = 'crossfade'): ShowRecordV2 {
+  const result = convertShowRecordV1ToV2(boundaryShow(kind))
+  if (result.status !== 'converted') throw new Error(JSON.stringify(result.issues))
+  return result.record
+}
+
+function wipeDirectionChanges(): { record: ShowRecordV2; transitionId: string; changes: ShowTransitionChanges } {
+  const record = converted('wipe')
+  const current = record.composition.transitions[0]
+  const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    .find(candidate => candidate.key === showBoundaryTransitionPresentationKey(current))
+  if (!item) throw new Error('wipe catalogue item missing')
+  const changes = showBoundaryTransitionParameterChanges(current, item, 'direction', 0.25)
+  if (!changes) throw new Error('direction is not a wipe parameter')
+  return { record, transitionId: current.id, changes }
+}
+
+describe('v2 boundary Transition settings planner (#1066 slice 5a)', () => {
+  it('plans a crossfade-policy change as a complete update-transition', () => {
+    const record = convertedBoundaryRecord('crossfade')
+    const current = record.composition.transitions[0]
+    expect(current.crossfadePolicy).toBe('snapshot-live')
+
+    const plan = planShowV2BoundaryTransitionChanges(record, current.id, { crossfadePolicy: 'live-live' })
+    expect(plan.status).toBe('ready')
+    if (plan.status !== 'ready') return
+    expect(plan.intent).toEqual({
+      kind: 'update-transition',
+      transition: { ...structuredClone(current), crossfadePolicy: 'live-live' },
+    })
+  })
+
+  it('agrees with the parameter path on a spatial wipe change', () => {
+    const { record, transitionId, changes } = wipeDirectionChanges()
+
+    const plan = planShowV2BoundaryTransitionChanges(record, transitionId, changes)
+    expect(plan.status).toBe('ready')
+    if (plan.status !== 'ready') return
+    const parameterPlan = planShowV2TransitionEdit(record, {
+      kind: 'parameter', transitionId, parameterId: 'direction', value: 0.25,
+    }, () => 'unused', 2)
+    expect(parameterPlan.status).toBe('ready')
+    if (parameterPlan.status !== 'ready') return
+    expect(plan.intent).toEqual(parameterPlan.intent)
+  })
+
+  it('reports an unchanged settings write as a no-op', () => {
+    const record = convertedBoundaryRecord('crossfade')
+    const current = record.composition.transitions[0]
+    expect(planShowV2BoundaryTransitionChanges(record, current.id, { crossfadePolicy: current.crossfadePolicy }))
+      .toEqual({ status: 'no-op' })
+  })
+
+  it.each([
+    [{ kind: 'crossfade' } as ShowTransitionChanges, 'kind'],
+    [{ durationMs: 200 } as ShowTransitionChanges, 'durationMs'],
+    [{ propertyTransitions: { sample: {} } } as ShowTransitionChanges, 'propertyTransitions'],
+  ])('refuses a %s write owned by another surface', (changes, key) => {
+    const record = convertedBoundaryRecord('crossfade')
+    const current = record.composition.transitions[0]
+    const plan = planShowV2BoundaryTransitionChanges(record, current.id, changes)
+    expect(plan).toEqual({ status: 'refused', code: 'unsupported-field', message: expect.stringContaining(key) })
+  })
+
+  it('refuses an unknown Transition before reading any field', () => {
+    const record = convertedBoundaryRecord('crossfade')
+    expect(planShowV2BoundaryTransitionChanges(record, 'absent', { crossfadePolicy: 'live-live' }))
+      .toEqual({ status: 'refused', code: 'missing-transition', message: expect.stringContaining('absent') })
+  })
+
+  it('drops a key cleared to undefined', () => {
+    const record = convertedBoundaryRecord('crossfade')
+    const current = record.composition.transitions[0]
+    expect(current.crossfadePolicy).toBe('snapshot-live')
+
+    const plan = planShowV2BoundaryTransitionChanges(record, current.id, { crossfadePolicy: undefined })
+    expect(plan.status).toBe('ready')
+    if (plan.status !== 'ready') return
+    expect('crossfadePolicy' in plan.intent.transition).toBe(false)
+    expect(plan.intent.transition).toEqual((() => {
+      const next = structuredClone(current)
+      delete (next as unknown as Record<string, unknown>).crossfadePolicy
+      return next
+    })())
+  })
+
+  it('round-trips every settings intent through the transition owner', () => {
+    const first = convertedBoundaryRecord('crossfade')
+    const firstCurrent = first.composition.transitions[0]
+    const firstPlan = planShowV2BoundaryTransitionChanges(first, firstCurrent.id, { crossfadePolicy: 'live-live' })
+    if (firstPlan.status !== 'ready') throw new Error('crossfade-policy plan not ready')
+    expect(editShowTransitionV2(first, firstPlan.intent)).toMatchObject({ status: 'changed' })
+
+    const { record: second, transitionId, changes } = wipeDirectionChanges()
+    const secondPlan = planShowV2BoundaryTransitionChanges(second, transitionId, changes)
+    if (secondPlan.status !== 'ready') throw new Error('wipe direction plan not ready')
+    expect(editShowTransitionV2(second, secondPlan.intent)).toMatchObject({ status: 'changed' })
+
+    const third = convertedBoundaryRecord('crossfade')
+    const thirdCurrent = third.composition.transitions[0]
+    const thirdPlan = planShowV2BoundaryTransitionChanges(third, thirdCurrent.id, { crossfadePolicy: undefined })
+    if (thirdPlan.status !== 'ready') throw new Error('clear-policy plan not ready')
+    expect(editShowTransitionV2(third, thirdPlan.intent)).toMatchObject({ status: 'changed' })
+  })
+
+  it('matches the v1 owner on the crossfade-policy and wipe-direction cases', () => {
+    for (const [kind, transitionId, changes] of [
+      ['crossfade', 'transition-crossfade', { crossfadePolicy: 'live-live' } as ShowTransitionChanges],
+      ['wipe', 'transition-wipe', (() => {
+        const source = boundaryShow('wipe')
+        const boundary = source.transitions[0]
+        const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+          .find(candidate => candidate.key === showBoundaryTransitionPresentationKey(boundary))
+        if (!item) throw new Error('wipe catalogue item missing')
+        const produced = showBoundaryTransitionParameterChanges(boundary, item, 'direction', 0.25)
+        if (!produced) throw new Error('direction is not a wipe parameter')
+        return produced
+      })()],
+    ] as Array<[Parameters<typeof transitionV1Show>[0], string, ShowTransitionChanges]>) {
+      const v1First = updateShowBoundaryTransition(boundaryShow(kind), transitionId, changes)
+      const convertedFirst = convertShowRecordV1ToV2(v1First)
+      if (convertedFirst.status !== 'converted') throw new Error(JSON.stringify(convertedFirst.issues))
+      const v1Transition = convertedFirst.record.composition.transitions.find(candidate => candidate.id === transitionId)
+      expect(v1Transition).toBeDefined()
+
+      const record = convertedBoundaryRecord(kind)
+      const plan = planShowV2BoundaryTransitionChanges(record, transitionId, changes)
+      expect(plan.status).toBe('ready')
+      if (plan.status !== 'ready') return
+      const applied = editShowTransitionV2(record, plan.intent)
+      expect(applied.status).toBe('changed')
+      if (applied.status !== 'changed') return
+      const v2Transition = applied.record.composition.transitions.find(candidate => candidate.id === transitionId)
+      expect(v2Transition).toEqual(v1Transition)
+    }
+  })
+
+  it('prepares every owner-applied settings record for compile', () => {
+    const first = convertedBoundaryRecord('crossfade')
+    const firstCurrent = first.composition.transitions[0]
+    const firstPlan = planShowV2BoundaryTransitionChanges(first, firstCurrent.id, { crossfadePolicy: 'live-live' })
+    if (firstPlan.status !== 'ready') throw new Error('crossfade-policy plan not ready')
+    const firstApplied = editShowTransitionV2(first, firstPlan.intent)
+    if (firstApplied.status !== 'changed') throw new Error('crossfade-policy owner refused')
+
+    const { record: second, transitionId, changes } = wipeDirectionChanges()
+    const secondPlan = planShowV2BoundaryTransitionChanges(second, transitionId, changes)
+    if (secondPlan.status !== 'ready') throw new Error('wipe direction plan not ready')
+    const secondApplied = editShowTransitionV2(second, secondPlan.intent)
+    if (secondApplied.status !== 'changed') throw new Error('wipe direction owner refused')
+
+    const third = convertedBoundaryRecord('crossfade')
+    const thirdCurrent = third.composition.transitions[0]
+    const thirdPlan = planShowV2BoundaryTransitionChanges(third, thirdCurrent.id, { crossfadePolicy: undefined })
+    if (thirdPlan.status !== 'ready') throw new Error('clear-policy plan not ready')
+    const thirdApplied = editShowTransitionV2(third, thirdPlan.intent)
+    if (thirdApplied.status !== 'changed') throw new Error('clear-policy owner refused')
+
+    for (const applied of [firstApplied, secondApplied, thirdApplied]) {
+      expect(prepareShowV2ForCompile(applied.record, COMPILE_LOOKUP).status).toBe('ready')
+    }
   })
 })
