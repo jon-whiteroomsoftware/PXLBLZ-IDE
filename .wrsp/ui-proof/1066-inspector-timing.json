@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/b69bfe93-21c6-498f-9a62-a96154dc0393",
+  "operation": "On the v2 backing at the code tip: a fresh Installation Show, select TestPattern1D, set Duration to 20 s in the Entity Detail Panel. The stored v2 record went from Clip 1 0-30 s, a 2 s crossfade, Clip 2 at 32 s and Show End 62 s, to Clip 1 0-20 s, Transition reclaimed, Clip 2 at 30 s and Show End 60 s (capture). The same steps on the v1 backing reclaim the crossfade to a Cut, with both Scenes at 30 s: the same timing.",
+  "captures": [".wrsp/ui-proof/1066-inspector-timing.png"],
+  "capturedAtCommit": "63947be137b628416c68b6d70f36f47101772f14"
+}
