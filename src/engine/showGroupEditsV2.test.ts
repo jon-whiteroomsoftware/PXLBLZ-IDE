@@ -15,6 +15,7 @@ import {
 } from './showCompositionV2'
 import {
   duplicateShowGroupOccurrenceV2,
+  editShowGroupDefinitionClipAppearanceV2,
   makeShowGroupUniqueV2,
   moveShowGroupOccurrenceV2,
   setShowGroupDefinitionClipTimingV2,
@@ -1468,4 +1469,70 @@ it('stores a Start inside a hold as the hold local time (#1075 G2a)', () => {
   expect(applied.status, applied.status === 'refused' ? applied.message : '').toBe('changed')
   if (applied.status !== 'changed') return
   expect(applied.record.composition.groupDefinitions[0].clips.find(clip => clip.id === 'child')!.startMs).toBe(200)
+})
+
+it('writes Group Clip brightness to the definition and both occurrences observe it (#1075 G2b)', () => {
+  const converted = convertShowRecordV1ToV2(q6GroupedBefore())
+  expect(converted.status).toBe('converted')
+  if (converted.status !== 'converted') return
+  const before = converted.record
+  const result = editShowGroupDefinitionClipAppearanceV2(before, {
+    kind: 'edit-definition-clip-appearance', definitionId: 'def-1',
+    appearance: { kind: 'appearance', clipId: 'clip-main', scope: 'whole-clip', patch: { view: { brightness: 0.5 } } },
+  })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.groupDefinitions[0].clips.find(clip => clip.id === 'clip-main')!.appearance.keys[0].value.view.brightness).toBe(0.5)
+  expect(result.record.composition.clips).toEqual(before.composition.clips)
+  expect(result.record.composition.patternInstances).toEqual(before.composition.patternInstances)
+  expect(result.record.composition.groupOccurrences).toEqual(before.composition.groupOccurrences)
+  expect(result.record.composition.groupDefinitions[0].clips.find(clip => clip.id === 'clip-overlay')).toEqual(before.composition.groupDefinitions[0].clips.find(clip => clip.id === 'clip-overlay'))
+  const materialized = materializeShowGroupsV2(result.record)
+  expect(materialized.composition.clips.find(clip => clip.id === 'occ-2:clip-main')!.appearance.keys[0].value.view.brightness).toBe(0.5)
+  expect(result.affectedGroupDefinitionIds).toEqual(['def-1'])
+  expect([...result.affectedGroupOccurrenceIds].sort()).toEqual(['occ-1', 'occ-2'])
+})
+
+it('returns unchanged for an identical Group Clip appearance value (#1075 G2b)', () => {
+  const converted = convertShowRecordV1ToV2(q6GroupedBefore())
+  expect(converted.status).toBe('converted')
+  if (converted.status !== 'converted') return
+  const before = converted.record
+  const current = before.composition.groupDefinitions[0].clips.find(clip => clip.id === 'clip-main')!.appearance.keys[0].value.view.brightness
+  const result = editShowGroupDefinitionClipAppearanceV2(before, {
+    kind: 'edit-definition-clip-appearance', definitionId: 'def-1',
+    appearance: { kind: 'appearance', clipId: 'clip-main', scope: 'whole-clip', patch: { view: { brightness: current } } },
+  })
+  expect(result.status).toBe('unchanged')
+  expect(result.record).toBe(before)
+})
+
+it('refuses Group Clip appearance for a missing definition without writing (#1075 G2b)', () => {
+  const converted = convertShowRecordV1ToV2(q6GroupedBefore())
+  expect(converted.status).toBe('converted')
+  if (converted.status !== 'converted') return
+  const before = converted.record
+  const snapshot = structuredClone(before)
+  const result = editShowGroupDefinitionClipAppearanceV2(before, {
+    kind: 'edit-definition-clip-appearance', definitionId: 'missing',
+    appearance: { kind: 'appearance', clipId: 'clip-main', scope: 'whole-clip', patch: { view: { brightness: 0.5 } } },
+  })
+  expect(result.status).toBe('refused')
+  expect(result.record).toBe(before)
+  expect(before).toEqual(snapshot)
+})
+
+it('refuses an adapter appearance refusal without writing (#1075 G2b)', () => {
+  const converted = convertShowRecordV1ToV2(q6GroupedBefore())
+  expect(converted.status).toBe('converted')
+  if (converted.status !== 'converted') return
+  const before = converted.record
+  const snapshot = structuredClone(before)
+  const result = editShowGroupDefinitionClipAppearanceV2(before, {
+    kind: 'edit-definition-clip-appearance', definitionId: 'def-1',
+    appearance: { kind: 'appearance', clipId: 'missing', scope: 'whole-clip', patch: { view: { brightness: 0.5 } } },
+  })
+  expect(result.status).toBe('refused')
+  expect(result.record).toBe(before)
+  expect(before).toEqual(snapshot)
 })

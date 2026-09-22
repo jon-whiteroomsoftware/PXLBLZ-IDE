@@ -6,9 +6,12 @@ import {
   type ShowPropertyTargetV2,
   type ShowRecordV2,
 } from './showCompositionV2'
-import { groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
+import { groupDefinitionAsRecord, groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
+import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2 } from './showClipAppearanceEditsV2'
+import { writeShowInstancePropertiesV2, type ShowInstancePropertyDependenciesV2 } from './showInstancePropertiesV2'
+import type { ShowV2ClipInspectorInstanceIntent } from './showV2ClipAppearancePlanning'
 
 export interface ShowGroupUniqueIdentityPlanV2 {
   definitionId: string
@@ -65,12 +68,26 @@ export interface SetShowGroupDefinitionClipTimingIntentV2 {
   durationMs?: number
 }
 
+export interface EditShowGroupDefinitionClipAppearanceIntentV2 {
+  kind: 'edit-definition-clip-appearance'
+  definitionId: string
+  appearance: ShowClipAppearanceEditIntentV2
+}
+
+export interface WriteShowGroupDefinitionInstancePropertiesIntentV2 {
+  kind: 'write-definition-instance-properties'
+  definitionId: string
+  clipId: string
+  properties: ShowV2ClipInspectorInstanceIntent['properties']
+}
+
 export type ShowGroupEditRefusalV2 =
   | 'invalid-record'
   | 'missing-occurrence'
   | 'invalid-identity-plan'
   | 'invalid-occurrence-id'
   | 'invalid-placement'
+  | 'invalid-intent'
   | 'compiler-ineligible'
   | 'invalid-result'
 
@@ -356,6 +373,74 @@ export function setShowGroupDefinitionClipTimingV2(
     }
   }
   if (hasDuration) edited.durationMs = intent.durationMs!
+  const resultIssue = validateGroupEditResult(next)
+  if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  const restriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (restriction) return refuseGroupEdit(record, 'compiler-ineligible', restriction.message)
+  return {
+    status: 'changed',
+    record: next,
+    ...emptyGroupEditAffected(),
+    affectedGroupDefinitionIds: [definition.id],
+    affectedGroupOccurrenceIds: record.composition.groupOccurrences.filter(value => value.definitionId === definition.id).map(value => value.id),
+  }
+}
+
+/** Write one definition Clip's appearance through the ordinary appearance owner (#1075 G2b). */
+export function editShowGroupDefinitionClipAppearanceV2(
+  record: ShowRecordV2,
+  intent: EditShowGroupDefinitionClipAppearanceIntentV2,
+): ShowGroupEditResultV2 {
+  const preimage = validateGroupEditPreimage(record)
+  if (preimage) return preimage
+  const definition = record.composition.groupDefinitions.find(value => value.id === intent.definitionId)
+  if (!definition) return refuseGroupEdit(record, 'invalid-placement', `Group definition "${intent.definitionId}" does not exist.`)
+  const outcome = editShowClipAppearanceV2(groupDefinitionAsRecord(record, definition), intent.appearance)
+  if (outcome.status === 'refused') return refuseGroupEdit(record, 'invalid-intent', outcome.message)
+  if (outcome.status === 'unchanged') return { status: 'unchanged', record, ...emptyGroupEditAffected() }
+  const edited = outcome.record.composition.clips.find(candidate => candidate.id === intent.appearance.clipId)
+  if (!edited) return refuseGroupEdit(record, 'invalid-intent', `Group definition Clip "${intent.appearance.clipId}" does not exist.`)
+  const next = structuredClone(record)
+  const target = next.composition.groupDefinitions.find(value => value.id === definition.id)!.clips.find(value => value.id === edited.id)
+  if (!target) return refuseGroupEdit(record, 'invalid-intent', `Group definition Clip "${edited.id}" does not exist.`)
+  target.appearance = structuredClone(edited.appearance)
+  next.composition.groupDefinitions.find(value => value.id === definition.id)!.propertyTracks = structuredClone(outcome.record.composition.propertyTracks)
+  const resultIssue = validateGroupEditResult(next)
+  if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  const restriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (restriction) return refuseGroupEdit(record, 'compiler-ineligible', restriction.message)
+  return {
+    status: 'changed',
+    record: next,
+    ...emptyGroupEditAffected(),
+    affectedGroupDefinitionIds: [definition.id],
+    affectedGroupOccurrenceIds: record.composition.groupOccurrences.filter(value => value.definitionId === definition.id).map(value => value.id),
+  }
+}
+
+/** Write one definition Clip's Pattern-instance values through the ordinary instance owner (#1075 G2b). */
+export function writeShowGroupDefinitionInstancePropertiesV2(
+  record: ShowRecordV2,
+  intent: WriteShowGroupDefinitionInstancePropertiesIntentV2,
+  dependencies: ShowInstancePropertyDependenciesV2 | undefined,
+): ShowGroupEditResultV2 {
+  const preimage = validateGroupEditPreimage(record)
+  if (preimage) return preimage
+  const definition = record.composition.groupDefinitions.find(value => value.id === intent.definitionId)
+  if (!definition) return refuseGroupEdit(record, 'invalid-placement', `Group definition "${intent.definitionId}" does not exist.`)
+  const outcome = writeShowInstancePropertiesV2(groupDefinitionAsRecord(record, definition), intent.clipId, intent.properties, dependencies)
+  if (outcome.status === 'refused') return refuseGroupEdit(record, 'invalid-intent', outcome.message ?? 'The Pattern-instance owner declined this edit.')
+  if (outcome.status === 'unchanged') return { status: 'unchanged', record, ...emptyGroupEditAffected() }
+  const adapterClip = outcome.record.composition.clips.find(candidate => candidate.id === intent.clipId)
+  if (!adapterClip) return refuseGroupEdit(record, 'invalid-intent', `Group definition Clip "${intent.clipId}" does not exist.`)
+  const edited = outcome.record.composition.patternInstances.find(candidate => candidate.id === adapterClip.instanceId)
+  if (!edited) return refuseGroupEdit(record, 'invalid-intent', `Group definition Clip "${intent.clipId}" has no Pattern instance.`)
+  const next = structuredClone(record)
+  const targetDefinition = next.composition.groupDefinitions.find(value => value.id === definition.id)!
+  const targetIndex = targetDefinition.patternInstances.findIndex(candidate => candidate.id === edited.id)
+  if (targetIndex < 0) return refuseGroupEdit(record, 'invalid-intent', `Group definition Clip "${intent.clipId}" has no Pattern instance.`)
+  targetDefinition.patternInstances[targetIndex] = structuredClone(edited)
+  targetDefinition.propertyTracks = structuredClone(outcome.record.composition.propertyTracks)
   const resultIssue = validateGroupEditResult(next)
   if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
   const restriction = firstShowTransitionPlacementRestrictionV2(next)

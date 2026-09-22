@@ -20,7 +20,7 @@ function setup(linked = true, onlyGroup = false) {
   expect(capture.inputCapture.status).toBe('qualified'); expect(capture.prepared.status, capture.prepared.status === 'refused' ? capture.prepared.message : '').toBe('ready')
   return { record, dependencies, write, saved: () => saved, context: { showId: record.id, baseRevision: 0, capture, isCurrent: () => true, onAdopted: vi.fn() } }
 }
-function intentFor(record: ShowRecordV2, kind: Exclude<ShowV2GroupOccurrenceIntent['kind'], 'set-definition-clip-timing'>) {
+function intentFor(record: ShowRecordV2, kind: Exclude<ShowV2GroupOccurrenceIntent['kind'], 'set-definition-clip-timing' | 'edit-definition-clip-appearance' | 'write-definition-instance-properties'>) {
   const occurrence = record.composition.groupOccurrences[0]; let id = 0
   const request = kind === 'move-occurrence' || kind === 'duplicate-occurrence'
     ? { kind, occurrenceId: occurrence.id, placement: { startMs: 18000, zoneId: occurrence.zoneId, layerBindings: occurrence.layerBindings, translationX: 0, translationY: 0 } }
@@ -37,6 +37,9 @@ function owner(record: ShowRecordV2, intent: ShowV2GroupOccurrenceIntent) {
     case 'ungroup-occurrence': return ungroupShowGroupOccurrenceV2(record, intent)
     case 'delete-occurrence': return deleteShowGroupOccurrenceV2(record, intent)
     case 'set-definition-clip-timing': return setShowGroupDefinitionClipTimingV2(record, intent)
+    case 'edit-definition-clip-appearance':
+    case 'write-definition-instance-properties':
+      throw new Error('unused')
   }
 }
 function effects(value: object) { return Object.entries(value).filter(([key]) => key.startsWith('affected') || ['hoistedInstanceIds', 'removedIds', 'discardedControlTargets'].includes(key)) }

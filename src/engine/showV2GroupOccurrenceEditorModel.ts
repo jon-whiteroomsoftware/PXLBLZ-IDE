@@ -1,12 +1,15 @@
 import type { ShowRecordV2 } from './showCompositionV2'
-import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, SetShowGroupDefinitionClipTimingIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2 } from './showGroupEditsV2'
-import { groupOccurrenceDuration, groupOccurrenceLocalTimeAtV2 } from './showGroupsV2'
+import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, EditShowGroupDefinitionClipAppearanceIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, SetShowGroupDefinitionClipTimingIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2, WriteShowGroupDefinitionInstancePropertiesIntentV2 } from './showGroupEditsV2'
+import { groupDefinitionAsRecord, groupOccurrenceDuration, groupOccurrenceLocalTimeAtV2 } from './showGroupsV2'
+import { planShowV2ClipInspectorPatch } from './showV2ClipAppearancePlanning'
+import type { ShowClipInspectorPatch } from './showClipInspectorModel'
 
-export type ShowV2GroupOccurrenceIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2
+export type ShowV2GroupOccurrenceIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2 | EditShowGroupDefinitionClipAppearanceIntentV2 | WriteShowGroupDefinitionInstancePropertiesIntentV2
 export type ShowV2GroupOccurrenceRequest =
   | { kind: 'move-occurrence' | 'duplicate-occurrence'; occurrenceId: string; placement: Omit<ShowGroupOccurrencePlacementV2, 'layoutOccurrenceId'> }
   | { kind: 'make-unique' | 'ungroup-occurrence' | 'delete-occurrence'; occurrenceId: string }
   | { kind: 'set-child-timing'; occurrenceId: string; clipId: string; startMs?: number; durationMs?: number }
+  | { kind: 'set-child-inspector-patch'; occurrenceId: string; clipId: string; patch: ShowClipInspectorPatch }
 export function buildShowV2GroupOccurrenceEditorModel(record: ShowRecordV2) {
   return {
     occurrences: record.composition.groupOccurrences.map(occurrence => {
@@ -61,6 +64,32 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
         ...(hasDuration ? { durationMs: Math.round(request.durationMs!) } : {}),
       }
       return { status: 'ready', intent }
+    }
+    if (request.kind === 'set-child-inspector-patch') {
+      const child = definition.clips.find(value => value.id === request.clipId)
+      if (!child) return { status: 'refused', message: 'Select an existing Group Clip.' }
+      const plan = planShowV2ClipInspectorPatch(groupDefinitionAsRecord(record, definition), request.clipId, request.patch)
+      if (plan.kind === 'appearance') {
+        const intent: EditShowGroupDefinitionClipAppearanceIntentV2 = {
+          kind: 'edit-definition-clip-appearance',
+          definitionId: definition.id,
+          appearance: plan.intent,
+        }
+        return { status: 'ready', intent }
+      }
+      if (plan.kind === 'instance-properties') {
+        const intent: WriteShowGroupDefinitionInstancePropertiesIntentV2 = {
+          kind: 'write-definition-instance-properties',
+          definitionId: definition.id,
+          clipId: plan.intent.clipId,
+          properties: plan.intent.properties,
+        }
+        return { status: 'ready', intent }
+      }
+      if (plan.kind === 'replacement') return { status: 'refused', message: 'Changing a Group Clip\'s Pattern is not connected yet.' }
+      if (plan.kind === 'refuse') return { status: 'refused', message: plan.message }
+      if (plan.kind === 'entry-policy') return { status: 'refused', message: 'Changing a Group Clip\'s entry policy is not connected yet.' }
+      return { status: 'refused', message: 'No change.' }
     }
     if (request.kind !== 'make-unique') return { status: 'ready', intent: { kind: request.kind, occurrenceId: occurrence.id } }
     const definitions = record.composition.groupDefinitions

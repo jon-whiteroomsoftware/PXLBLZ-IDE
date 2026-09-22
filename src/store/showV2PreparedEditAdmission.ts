@@ -17,7 +17,7 @@ import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2, type Sho
 import { editShowPropertyV2, type ShowPropertyTrackOwnerV2, type ShowPropertyEditIntentV2, type ShowPropertyEditResultV2 } from '@/engine/showPropertyEditsV2'
 import { createShowGroupFromSelectionV2, type CreateShowGroupFromSelectionIntentV2, type ShowGroupCreateResultV2 } from '@/engine/showGroupCreationV2'
 import type { ShowGroupEditAffectedV2 } from '@/engine/showGroupEditsV2'
-import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, setShowGroupDefinitionClipTimingV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type SetShowGroupDefinitionClipTimingIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
+import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, setShowGroupDefinitionClipTimingV2, editShowGroupDefinitionClipAppearanceV2, writeShowGroupDefinitionInstancePropertiesV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type SetShowGroupDefinitionClipTimingIntentV2, type EditShowGroupDefinitionClipAppearanceIntentV2, type WriteShowGroupDefinitionInstancePropertiesIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
 import { resolveCapturedShowPatternReplacementV2, type ShowV2ClipReplacementIntent } from '@/engine/showV2ClipReplacementModel'
 import { writeShowInstancePropertiesV2, type ShowInstancePropertiesResultV2, type ShowInstancePropertyDependenciesV2 } from '@/engine/showInstancePropertiesV2'
 import type { ShowClipEvaluationPolicy } from '@/engine/personalContentRecords'
@@ -140,7 +140,7 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   const result = (command.owner === 'layout-occurrence'
     ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
     : command.owner === 'group-occurrence'
-        ? groupOccurrenceOwnerResult(current, structuredClone(command.intent))
+        ? groupOccurrenceOwnerResult(current, structuredClone(command.intent), request.capture)
         : command.owner === 'group-replace'
         ? replaceShowGroupDefinitionClipPatternV2(current, structuredClone(command.intent))
         : command.owner === 'create-group'
@@ -624,10 +624,10 @@ export async function admitShowV2PilotInstanceProperties(request: ShowV2PilotIns
   }
   return { status: 'applied', settlement: outcome.settlement, ...effects }
 }
-export type ShowV2PilotGroupOccurrenceEditIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2
+export type ShowV2PilotGroupOccurrenceEditIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2 | EditShowGroupDefinitionClipAppearanceIntentV2 | WriteShowGroupDefinitionInstancePropertiesIntentV2
 export type ShowV2PilotGroupOccurrenceEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotGroupOccurrenceEditIntent }
 export type ShowV2PilotGroupOccurrenceEditOutcome = PilotOwnerOutcome<ShowGroupEditResultV2, ShowGroupEditAffectedV2>
-function groupOccurrenceOwnerResult(record: ShowRecordV2, intent: ShowV2PilotGroupOccurrenceEditIntent): ShowGroupEditResultV2 {
+function groupOccurrenceOwnerResult(record: ShowRecordV2, intent: ShowV2PilotGroupOccurrenceEditIntent, capture: ShowV2PilotPreparedCapture): ShowGroupEditResultV2 {
   switch (intent.kind) {
     case 'move-occurrence': return moveShowGroupOccurrenceV2(record, intent)
     case 'duplicate-occurrence': return duplicateShowGroupOccurrenceV2(record, intent)
@@ -635,6 +635,8 @@ function groupOccurrenceOwnerResult(record: ShowRecordV2, intent: ShowV2PilotGro
     case 'ungroup-occurrence': return ungroupShowGroupOccurrenceV2(record, intent)
     case 'delete-occurrence': return deleteShowGroupOccurrenceV2(record, intent)
     case 'set-definition-clip-timing': return setShowGroupDefinitionClipTimingV2(record, intent)
+    case 'edit-definition-clip-appearance': return editShowGroupDefinitionClipAppearanceV2(record, intent)
+    case 'write-definition-instance-properties': return writeShowGroupDefinitionInstancePropertiesV2(record, intent, capturedPatternResolver(capture))
   }
 }
 function validGroupOccurrenceIntent(intent: unknown): intent is ShowV2PilotGroupOccurrenceEditIntent {
@@ -652,6 +654,16 @@ function validGroupOccurrenceIntent(intent: unknown): intent is ShowV2PilotGroup
     if (hasStart && (typeof value.startMs !== 'number' || !Number.isSafeInteger(value.startMs) || (value.startMs as number) < 0)) return false
     if (hasDuration && (typeof value.durationMs !== 'number' || !Number.isSafeInteger(value.durationMs) || (value.durationMs as number) <= 0)) return false
     return true
+  }
+  if (value.kind === 'edit-definition-clip-appearance') {
+    if (!exactIntentFields(value, ['kind', 'definitionId', 'appearance'])) return false
+    if (!text(value.definitionId)) return false
+    return validAppearanceIntentShape(value.appearance)
+  }
+  if (value.kind === 'write-definition-instance-properties') {
+    if (!exactIntentFields(value, ['kind', 'definitionId', 'clipId', 'properties'])) return false
+    if (!text(value.definitionId) || !text(value.clipId)) return false
+    return validInstancePropertiesIntent({ clipId: value.clipId, properties: value.properties })
   }
   if (!text(value.occurrenceId)) return false
   if (value.kind === 'ungroup-occurrence' || value.kind === 'delete-occurrence') return exactIntentFields(value, ['kind', 'occurrenceId'])

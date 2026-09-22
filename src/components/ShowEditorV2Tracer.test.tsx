@@ -4677,12 +4677,71 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     expect(admission.calls).toHaveLength(1)
     expect(after.record.composition.groupDefinitions[0]!.clips.find((clip) => clip.id === 'child')!.durationMs).toBe(300)
     expectOneEdit(before, after)
-    admission.calls.length = 0
-    const mid = editor.state()
+  })
+
+  it('writes a Group Clip Brightness through the group-occurrence door (#1075 G2b)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-brightness'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    const before = editor.state()
     typeAndCommit('Brightness exact percentage', '50')
     await act(async () => {})
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(admission.calls).toHaveLength(1)
+    expect(after.record.composition.groupDefinitions[0]!.clips.find((clip) => clip.id === 'child')!.appearance.keys[0]!.value.view!.brightness).toBe(0.5)
+    expectOneEdit(before, after)
+  })
+
+  it('writes a Group Clip control value through the group-occurrence door (#1075 G2b)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-control'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) {
+      delete instance.controlTargets
+      instance.pattern = { kind: 'stock', id: 'CometLoom' }
+      instance.patternName = 'CometLoom'
+    }
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    showTab('Pattern')
+    const before = editor.state()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(admission.calls).toHaveLength(1)
+    expect(after.record.composition.groupDefinitions[0]!.patternInstances[0]!.controlTargets).toEqual({ sliderSpeed: 0.5 })
+    expectOneEdit(before, after)
+  })
+
+  it('leaves a Group Clip Pattern change unconnected with no door call (#1075 G2b)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-pattern'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    showTab('Pattern')
+    const before = editor.state()
+    pickSourcePattern('TestPattern2D')
+    await act(async () => {})
+    const after = editor.state()
     expect(admission.calls).toEqual([])
-    expect(editor.state().record).toBe(mid.record)
+    expect(after.record).toBe(before.record)
+    expect(after.record.composition.groupDefinitions[0]!.patternInstances[0]!.pattern).toEqual(before.record.composition.groupDefinitions[0]!.patternInstances[0]!.pattern)
   })
 
   it('makes no Group occurrence door call when read-only', async () => {

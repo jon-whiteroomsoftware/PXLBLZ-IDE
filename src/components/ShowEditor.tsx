@@ -2263,15 +2263,15 @@ export function ShowEditor({
     }).catch(() => {})
     return true
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2ClipDelete, recordVersion, readOnly, reportBlockedDelete, savedShowV2, showId])
-  const requestV2GroupOccurrenceEdit = useCallback((request: ShowV2GroupOccurrenceRequest): void => {
-    if (readOnly) return
+  const requestV2GroupOccurrenceEdit = useCallback((request: ShowV2GroupOccurrenceRequest): boolean | Promise<void> => {
+    if (readOnly) return false
     const capture = preparedV2CaptureRef.current
-    if (!capture || capture.prepared.status === 'refused') return
+    if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2GroupOccurrenceEdit(capture.record, request, newPersonalContentId)
-    if (plan.status !== 'ready') return
+    if (plan.status !== 'ready') return false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     const intent = plan.intent
-    void commitV2GroupOccurrenceEdit({ capture, baseRevision, intent }).then((applied) => {
+    return commitV2GroupOccurrenceEdit({ capture, baseRevision, intent }).then((applied) => {
       if (!applied) return
       if (intent.kind === 'duplicate-occurrence') {
         selectTimeline({ kind: 'group', occurrenceId: intent.newOccurrenceId })
@@ -2283,7 +2283,7 @@ export function ShowEditor({
         closePinnedDetailForSelection({ kind: 'group', occurrenceId: intent.occurrenceId })
         setSelection({ kind: 'show' })
       }
-    }).catch(() => {})
+    }).then(() => {}, () => {})
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2GroupOccurrenceEdit, readOnly, selectTimeline, setSelection, showId])
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
@@ -10362,7 +10362,7 @@ function ContextualInspector({
   onRejoinCompositionPattern: (owner: ShowClipInspectorOwner, targetInstanceId: string) => void
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
   onRemoveClipV2?: (clipId: string) => void
-  onV2GroupOccurrenceRequest?: (request: ShowV2GroupOccurrenceRequest) => void
+  onV2GroupOccurrenceRequest?: (request: ShowV2GroupOccurrenceRequest) => boolean | Promise<void>
   onDuplicateGroup: (occurrenceId: string) => void
   onMakeGroupUnique: (occurrenceId: string) => void
   onTranslateGroup: (occurrenceId: string, translationX: number, translationY: number) => void
@@ -10481,31 +10481,42 @@ function ContextualInspector({
           // (#1066 slices 3-4), and Property animation writes reach the
           // property admission through the v2 animation commit (slice 10).
           // A Group Clip Start/Duration write reaches the definition-timing
-          // owner through the group-occurrence door (#1075 G2a); every other
-          // Group Clip patch stays unconnected. The v2 selection carries the
-          // occurrence plus the definition-local Clip id (group-clip
-          // occurrenceId/placementId, the same encoding onEnterGroupIsolation
-          // selects), and the presented Start is Show time (globalStartMs via
-          // occurrenceBoundaryAfter), so the planner inverts it back to local.
+          // owner through the group-occurrence door, and appearance and
+          // instance values reach the definition through the same door
+          // (#1075 G2b); a Pattern change stays unconnected for G2c. The v2
+          // selection carries the occurrence plus the definition-local Clip id
+          // (group-clip occurrenceId/placementId, the same encoding
+          // onEnterGroupIsolation selects), and the presented Start is Show
+          // time (globalStartMs via occurrenceBoundaryAfter), so the planner
+          // inverts it back to local.
           onPatch={selection.kind === 'clip'
             ? (patch) => onUpdateClipInspectorV2?.(selection.clipId, patch) ?? false
             : (patch) => {
               if (selection.kind !== 'group-clip') return false
-              if (Object.keys(patch).length !== 1 || !patch.local) return false
-              const localKeys = Object.keys(patch.local)
-              const hasStart = patch.local.startMs !== undefined
-              const hasDuration = patch.local.durationMs !== undefined
-              if (!hasStart && !hasDuration) return false
-              if (!localKeys.every(key => key === 'startMs' || key === 'durationMs')) return false
+              const hasTiming = patch.local?.startMs !== undefined || patch.local?.durationMs !== undefined
+              if (hasTiming) {
+                if (Object.keys(patch).length !== 1 || !patch.local) return false
+                const localKeys = Object.keys(patch.local)
+                const hasStart = patch.local.startMs !== undefined
+                const hasDuration = patch.local.durationMs !== undefined
+                if (!hasStart && !hasDuration) return false
+                if (!localKeys.every(key => key === 'startMs' || key === 'durationMs')) return false
+                if (!onV2GroupOccurrenceRequest) return false
+                return onV2GroupOccurrenceRequest({
+                  kind: 'set-child-timing',
+                  occurrenceId: selection.occurrenceId,
+                  clipId: selection.placementId,
+                  ...(hasStart ? { startMs: patch.local.startMs! } : {}),
+                  ...(hasDuration ? { durationMs: patch.local.durationMs! } : {}),
+                }) ?? false
+              }
               if (!onV2GroupOccurrenceRequest) return false
-              onV2GroupOccurrenceRequest({
-                kind: 'set-child-timing',
+              return onV2GroupOccurrenceRequest({
+                kind: 'set-child-inspector-patch',
                 occurrenceId: selection.occurrenceId,
                 clipId: selection.placementId,
-                ...(hasStart ? { startMs: patch.local.startMs! } : {}),
-                ...(hasDuration ? { durationMs: patch.local.durationMs! } : {}),
-              })
-              return true
+                patch,
+              }) ?? false
             }}
           onPropertyAnimationChange={selection.kind === 'clip'
             ? (change) => onPropertyAnimationChangeV2?.(
