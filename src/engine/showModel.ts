@@ -1325,6 +1325,11 @@ export function showRoutingTransitionAfter(
   ))
 }
 
+/** The v1 boundary Transition normalizer, shared so the v2 palette planner applies the same kind rules (#1066 5b). */
+export function normalizeShowBoundaryTransition(transition: ShowBoundaryTransition): ShowBoundaryTransition {
+  return normalizeBoundaryTransition(transition)
+}
+
 function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBoundaryTransition {
   // A zero-duration visual transition IS a Cut: the compiler requires
   // positive durations for non-Cut kinds, and deleting a visual Transition

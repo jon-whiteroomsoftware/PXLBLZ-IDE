@@ -1092,6 +1092,35 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     expectNoWrite(before, editor.state())
   })
 
+  it('applies a palette choice through the transition-edit door', async () => {
+    const { record } = convertedFreshBoundary('tracer-boundary-palette-apply')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await act(async () => {})
+    fireEvent.click(within(boundaryPanel()).getByRole('button', { name: /Change$/ }))
+    await act(async () => {})
+
+    const palette = screen.getByRole('dialog', { name: 'Choose Transition' })
+    fireEvent.click(within(palette).getByRole('button', { name: 'Use Block Transition' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const request = admission.calls[0].request as {
+      intent: { kind: string; transition: { kind?: string; dissolveVariant?: string } }
+      baseRevision: number
+    }
+    expect(request.intent.kind).toBe('update-transition')
+    expect(request.intent.transition.kind).toBe('dither')
+    expect(request.intent.transition.dissolveVariant).toBe('block')
+    expectOneEdit(before, editor.state())
+    expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
+  })
+
   /**
    * A converted one-sided boundary (#1068): the converter admits an empty
    * contributor side, and the empty side is the compiler-owned Empty.

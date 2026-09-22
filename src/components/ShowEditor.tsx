@@ -249,7 +249,7 @@ import {
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
 import { exportedDims } from '@/engine/exportedDims'
-import { planShowV2BoundaryTransitionChanges, planShowV2TransitionReset } from '@/engine/showV2TransitionEditorModel'
+import { planShowV2BoundaryPaletteApply, planShowV2BoundaryTransitionChanges, planShowV2TransitionReset } from '@/engine/showV2TransitionEditorModel'
 import {
   replaceShowBoundaryTransition,
   showBoundaryTransitionParameterChanges,
@@ -1933,6 +1933,19 @@ export function ShowEditor({
     void commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent })
     return true
   }, [commitV2PropertyEdit, readOnly, recordVersion, savedShowV2, showId])
+  // Slice 5b connects the boundary palette's Apply through the same door: the
+  // choice is planned exactly as v1 normalizes it, and a new duration retimes
+  // the loop inside the same edit (#1066).
+  const commitV2BoundaryPaletteApply = useCallback((transitionId: string, item: ShowToolkitPresentationItem, presetId?: string): boolean => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return false
+    const plan = planShowV2BoundaryPaletteApply(capture.record, transitionId, showTransitionChangesForPresentation(item, presetId), newPersonalContentId)
+    if (plan.status !== 'ready') return false
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
+    return true
+  }, [commitV2TransitionEdit, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 chokepoints: a refused or no-op Show-level edit resolves
   // synchronously (or as a resolved false) so the committing surface reverts
   // instead of showing a value that was never stored. The plan reads the
@@ -4072,7 +4085,8 @@ export function ShowEditor({
               // v1 keeps every owner the palette used to hold itself: the
               // candidate record, the preview override and the transport seek.
               // The authored-v2 backing has no legacy owner to reach, so its
-              // preview and apply resolve as no-change results (#1065).
+              // preview resolves as a no-change result (#1065); Apply writes
+              // through the transition-edit door (#1066 slice 5b).
               onPreviewItem={(item, presetId) => {
                 if (!legacyShow) return
                 const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId)
@@ -4092,7 +4106,7 @@ export function ShowEditor({
                 useShowTransportStore.getState().requestSeek(legacyShow.id, transitionPaletteReturnMsRef.current)
               }}
               onApplyItem={(item, presetId) => {
-                if (!legacyShow) return false
+                if (!legacyShow) return commitV2BoundaryPaletteApply(transitionPaletteId, item, presetId)
                 const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId)
                 const transition = changed.transitions?.find((entry) => entry.id === transitionPaletteId)
                 if (!transition) return false

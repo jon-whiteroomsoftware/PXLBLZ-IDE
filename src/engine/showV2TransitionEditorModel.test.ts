@@ -9,14 +9,18 @@ import {
   buildShowV2TransitionEditorModel,
   planShowV2TransitionEdit,
   planShowV2BoundaryTransitionChanges,
+  planShowV2BoundaryPaletteApply,
   planShowV2TransitionReset,
 } from './showV2TransitionEditorModel'
 import {
+  replaceShowBoundaryTransition,
   showBoundaryTransitionParameterChanges,
   showBoundaryTransitionPresentationKey,
+  showTransitionChangesForPresentation,
   type ShowTransitionChanges,
 } from './showTransitionAuthoring'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
+import { getShowToolkitFamily } from './showVisualToolkit'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 
@@ -444,5 +448,92 @@ describe('planShowV2TransitionReset (#1066 slice 5d)', () => {
       v1Converted.record.composition.markers.map(marker => [marker.id, marker.timeMs]),
     )
     expect(planShowV2TransitionReset(record, 'absent', () => 'x')).toEqual({ status: 'refused', message: 'Select an existing Transition.' })
+  })
+})
+
+describe('planShowV2BoundaryPaletteApply (#1066 slice 5b)', () => {
+  function canonicalize(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(canonicalize)
+    if (value !== null && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+          .map(([key, entry]) => [key, canonicalize(entry)]),
+      )
+    }
+    return value
+  }
+
+  function convertWithStock(source: ShowRecord): ShowRecordV2 {
+    const byCellId = Object.fromEntries(
+      source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]]),
+    )
+    const converted = convertShowRecordV1ToV2(source, { byCellId })
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted))
+    return converted.record
+  }
+
+  function buildFixtures(): ShowRecord[] {
+    const base = (): ShowRecord => createDefaultShow('b', 'B', 1)
+    const retimed = (): ShowRecord => updateShowBoundaryTransition(base(), 'transition-scene-1', { durationMs: 3000 })
+    const dissolved = (): ShowRecord => updateShowBoundaryTransition(base(), 'transition-scene-1', { kind: 'dither', dissolveVariant: 'block', durationMs: 2500, blockSize: 4 })
+    const scaled = (): ShowRecord => {
+      const source = base()
+      source.scenes[0].sampleTargets = { repeatScale: 1 }
+      source.scenes[1].sampleTargets = { repeatScale: 2 }
+      return source
+    }
+    return [base(), retimed(), dissolved(), scaled()]
+  }
+
+  it('matches v1 Apply then convert on Clips, Show End, Transitions, Layout and markers', () => {
+    const items = buildShowToolkitPresentationCatalogue({ stageDimensions: 1 }).filter(item => item.kind === 'transition' && item.compatible)
+    let compared = 0
+    for (const source of buildFixtures()) {
+      for (const item of items) {
+        const presetIds = [undefined, ...(getShowToolkitFamily('transition', item.familyId)?.variants.find(variant => variant.id === item.variantId)?.presets?.map(preset => preset.id) ?? [])] as Array<string | undefined>
+        for (const presetId of presetIds) {
+          if (showTransitionChangesForPresentation(item, presetId).kind === 'cut') continue
+          let v1Converted: ShowRecordV2
+          try {
+            const applied = replaceShowBoundaryTransition(source, 'transition-scene-1', item, presetId)
+            v1Converted = convertWithStock(applied)
+          } catch {
+            continue
+          }
+          const record = convertWithStock(source)
+          const plan = planShowV2BoundaryPaletteApply(record, 'transition-scene-1', showTransitionChangesForPresentation(item, presetId), () => 'unused')
+          expect(plan.status).toBe('ready')
+          if (plan.status !== 'ready') throw new Error('palette plan not ready')
+          const edited = editShowTransitionV2(record, plan.intent)
+          expect(['changed', 'unchanged']).toContain(edited.status)
+          if (edited.status !== 'changed' && edited.status !== 'unchanged') throw new Error(JSON.stringify(edited))
+          const actual = {
+            clips: edited.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs]),
+            showEndMs: edited.record.composition.showEndMs,
+            transitions: canonicalize(edited.record.composition.transitions),
+            occurrences: edited.record.composition.layoutOccurrences.map(occurrence => [occurrence.startMs, occurrence.durationMs]),
+            markers: edited.record.composition.markers.map(marker => marker.timeMs),
+          }
+          const expected = {
+            clips: v1Converted.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs]),
+            showEndMs: v1Converted.composition.showEndMs,
+            transitions: canonicalize(v1Converted.composition.transitions),
+            occurrences: v1Converted.composition.layoutOccurrences.map(occurrence => [occurrence.startMs, occurrence.durationMs]),
+            markers: v1Converted.composition.markers.map(marker => marker.timeMs),
+          }
+          expect(actual).toEqual(expected)
+          compared += 1
+        }
+      }
+    }
+    expect(compared).toBe(36)
+  })
+
+  it('plans a Cut choice as Reset to Cut', () => {
+    const record = convertWithStock(createDefaultShow('b', 'B', 1))
+    expect(planShowV2BoundaryPaletteApply(record, 'transition-scene-1', { kind: 'cut' }, () => 'x')).toEqual(
+      planShowV2TransitionReset(record, 'transition-scene-1', () => 'x'),
+    )
   })
 })

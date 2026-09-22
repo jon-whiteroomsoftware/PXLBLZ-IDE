@@ -170,7 +170,27 @@ export function editShowTransitionV2(
       origin: transition.origin,
     })
     if (JSON.stringify(ownership(current)) !== JSON.stringify(ownership(intent.transition))) {
-      return refuse('invalid-intent', 'A settings edit cannot change Transition identity, timing, participants, property ramps or conversion provenance.')
+      // A palette choice may carry a new duration for a converted Scene
+      // boundary: v1 applies it in the same edit, retiming the loop. Retime
+      // through the boundary repair first, then apply the settings to that
+      // result, so the whole choice stays one accepted edit (#1066 5b).
+      const retimed = JSON.stringify(ownership(current)) === JSON.stringify({ ...ownership(intent.transition), durationMs: current.durationMs })
+        && intent.transition.durationMs > 0
+        && convertedBoundaryRepairSpecV2(record, current.id).status === 'ready'
+        ? editShowTransitionV2(record, { kind: 'resize-transition', transitionId: current.id, durationMs: intent.transition.durationMs })
+        : null
+      if (!retimed) {
+        return refuse('invalid-intent', 'A settings edit cannot change Transition identity, timing, participants, property ramps or conversion provenance.')
+      }
+      if (retimed.status !== 'changed') return retimed
+      const retimedTransition = retimed.record.composition.transitions.find(candidate => candidate.id === current.id)!
+      const settled = structuredClone(retimed.record)
+      settled.composition.transitions = settled.composition.transitions.map(transition => (
+        transition.id === current.id ? { ...structuredClone(intent.transition), wholeOutput: retimedTransition.wholeOutput, participants: retimedTransition.participants } : transition
+      ))
+      const settledIssue = validateShowRecordV2(settled)[0]
+      if (settledIssue) return refusedResult(record, 'invalid-result', `${settledIssue.path}: ${settledIssue.message}`)
+      return { ...retimed, record: settled }
     }
     if (JSON.stringify(current) === JSON.stringify(intent.transition)) return { status: 'unchanged', record, ...empty() }
     const next = structuredClone(record)

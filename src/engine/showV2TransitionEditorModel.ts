@@ -1,5 +1,6 @@
-import type { ShowCrossfadePolicy, ShowTransitionKind } from './personalContentRecords'
+import type { ShowBoundaryTransition, ShowCrossfadePolicy, ShowTransitionKind } from './personalContentRecords'
 import { repeatScaleAt } from './showV2ScalarProperties'
+import { normalizeShowBoundaryTransition } from './showModel'
 import { showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation, type ShowTransitionChanges } from './showTransitionAuthoring'
 import type { ShowToolkitParameterValue } from './showVisualToolkit'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
@@ -138,6 +139,35 @@ export function planShowV2TransitionReset(
   const projections = planShowV2TransitionRampProjections(record, transition, allocate)
   if (projections.status === 'refused') return projections
   return { status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id, propertyRampProjections: projections.projections } }
+}
+
+/**
+ * Apply one palette choice to a boundary Transition (#1066 slice 5b). v1 runs
+ * the choice through its boundary normalizer, which rebuilds the Transition
+ * for its kind; the same normalizer runs here and the v2-only fields are
+ * reattached. A Cut choice is Reset to Cut.
+ */
+export function planShowV2BoundaryPaletteApply(
+  record: ShowRecordV2,
+  transitionId: string,
+  changes: ShowTransitionChanges,
+  allocate: () => string,
+): ShowV2TransitionEditorPlan {
+  if (changes.kind === 'cut') return planShowV2TransitionReset(record, transitionId, allocate)
+  const current = record.composition.transitions.find(candidate => candidate.id === transitionId)
+  if (!current) return { status: 'refused', message: 'Select an existing Transition.' }
+  const { participants, wholeOutput, propertyRamps, origin, ...settings } = current
+  const normalized = normalizeShowBoundaryTransition({ ...settings, ...changes, id: current.id, afterSceneId: 'boundary' } as ShowBoundaryTransition)
+  if (normalized.kind === 'cut') return planShowV2TransitionReset(record, transitionId, allocate)
+  const { afterSceneId: _afterSceneId, propertyTransitions: _propertyTransitions, layoutId: _layoutId, routingDirection: _routingDirection, ...fields } = normalized
+  const next = {
+    ...fields,
+    participants,
+    ...(wholeOutput ? { wholeOutput } : {}),
+    propertyRamps,
+    ...(origin ? { origin } : {}),
+  } as unknown as ShowTransitionV2
+  return { status: 'ready', intent: { kind: 'update-transition', transition: next } }
 }
 
 /**
