@@ -15,9 +15,10 @@ import { editShowZoneV2 } from './showZonesV2'
  * Two of the three rows this file used to hold are gone: `showZonesV2` and
  * `showZoneLayoutDefinitionsV2` own adding and removing a Zone and a Layout
  * definition's routing, and the editor submits them through the closed
- * prepared-edit admission. What remains are the deliberate absences - no MCP
- * command for Show structure, by Jon's #943 scope principle - and the one
- * surface still to port, the Stage's spatial LED selector.
+ * prepared-edit admission. What remains is the deliberate absence - no MCP
+ * command for Show structure, by Jon's #943 scope principle - and the pinned
+ * seam that keeps the ported Stage LED selector a projection onto the Zone
+ * Layout owner (#1066 slice 7).
  */
 const dependencies = {
   patterns: [{ id: 'voice', name: 'Voice', src: 'export function render2D(i,x,y){rgb(x,y,0)}', controls: {}, updatedAt: 1 }],

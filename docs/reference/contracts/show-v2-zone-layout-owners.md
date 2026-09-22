@@ -151,15 +151,12 @@ owner, so a malformed runtime object never reaches preparation or adoption.
 
 ## Residuals
 
-- **The Stage's spatial LED selector.** `ShowZoneSpatialSelector` - dragging
-  across the Stage map to select an Installation Zone's LEDs - still takes a v1
-  `ShowRecord`, and its draft coverage preview runs through
-  `updateShowPhysicalZoneSelection`, which returns one. Porting it means
-  narrowing that shared component's props, a v1-editor change this slice was
-  not scoped to make. The data is fully authorable here, and
-  `showV2ShowSurfaceResiduals.test.ts` pins the seam: the exact ranges
+- **The Stage's spatial LED selector is ported.** #1066 slice 7 narrowed
+  `ShowZoneSpatialSelector` to the fields both backings share and routed its v2
+  commit through `planShowV2PhysicalZoneSelection`.
+  `showV2ShowSurfaceResiduals.test.ts` still pins the seam: the exact ranges
   `compactSpatialIndexes` produces are what `set-physical-ranges` accepts, so
-  the port stays a projection instead of becoming a second writer.
+  the selector stays a projection instead of becoming a second writer.
 - **No editor route offers a Clip-sampling control.** Only `update_clips`
   writes `zone_sample_mode`, so a Show that needs `span` can only reach it
   through an agent command or the provider. A fresh Show no longer needs it to
