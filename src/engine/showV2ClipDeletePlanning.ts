@@ -1,5 +1,5 @@
 import type { ShowRecordV2 } from './showCompositionV2'
-import { transitionEndpoints, type ShowTransitionEditIntentV2 } from './showTransitionsV2'
+import { isConvertedBoundaryTransitionV2, transitionEndpoints, type ShowTransitionEditIntentV2 } from './showTransitionsV2'
 import { planShowV2ClipDeleteRampProjections } from './showV2TransitionEditorModel'
 
 export type ShowV2ClipDeleteIntent = Extract<ShowTransitionEditIntentV2, { kind: 'delete-clip' }>
@@ -24,8 +24,14 @@ export function showV2ClipCount(record: ShowRecordV2): number {
     ), 0)
 }
 
+/**
+ * v1 confirms only Layer Transitions (showLayerTransitionAuthoring.ts:426); a converted
+ * Scene boundary is repaired by the delete owner without a dialog, as v1 deletes across
+ * a Scene boundary without one. `converted-layer-transition` and native Transitions still ask.
+ */
 export function showV2ConnectedTransitionIds(record: ShowRecordV2, clipId: string): string[] {
   return record.composition.transitions
+    .filter((transition) => !isConvertedBoundaryTransitionV2(transition))
     .filter((transition) => transitionEndpoints(transition).all.includes(clipId))
     .map((transition) => transition.id)
     .sort()

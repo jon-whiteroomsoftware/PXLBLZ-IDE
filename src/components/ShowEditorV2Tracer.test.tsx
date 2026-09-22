@@ -2162,7 +2162,7 @@ describe('v2 clip delete (#1066 slice 2)', () => {
     )
   })
 
-  it('stops a converted-boundary-joined Clip at the connected dialog v1 never shows (#1068)', async () => {
+  it('deletes a converted-boundary-joined Clip without the connected dialog, as v1 does (#1068)', async () => {
     const record = connectedV2Record('slice2-boundary-dialog')
     const boundary = record.composition.transitions.find((transition) => transition.id === 'join-a-b')
     if (!boundary) throw new Error('No join-a-b Transition to reinterpret as a converted boundary.')
@@ -2184,12 +2184,9 @@ describe('v2 clip delete (#1066 slice 2)', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
     await act(async () => {})
 
-    expect(screen.getByRole('alertdialog', { name: 'Remove connected Clip?' })).toBeInTheDocument()
-    const after = editor.state()
-    expect(admission.calls).toEqual([])
-    expect(after.record.composition.clips.map((clip) => clip.id).sort()).toEqual(['overlay-a', 'resize-a', 'resize-b'])
-    expect(after.history).toEqual({ past: [], future: [] })
-    expect(after.v2Writes).toBe(0)
+    expect(screen.queryByRole('alertdialog', { name: 'Remove connected Clip?' })).not.toBeInTheDocument()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipDelete'])
+    expect(deleteSubmissions()).toEqual([{ intent: { kind: 'delete-clip', clipId: 'resize-a' }, baseRevision: 0 }])
     expect(legacy.calls).toEqual([])
   })
 

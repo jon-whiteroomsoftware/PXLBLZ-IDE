@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { validateShowRecordV2 } from './showCompositionV2'
+import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
+import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
+import { createDefaultShow } from './showModel'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { convertibleV1Show } from '@/test/showV2TracerFixture'
 import { propertyEditRecord } from '@/test/showV2PropertyEditsFixture'
@@ -14,6 +16,25 @@ import {
   showV2ClipCount,
   showV2ConnectedTransitionIds,
 } from './showV2ClipDeletePlanning'
+
+const LEFT = 'placement-cell-1-scene-1'
+const RIGHT = 'placement-cell-2-scene-2'
+const BOUNDARY = 'transition-scene-1'
+
+function convertedDefaultShow(): ShowRecordV2 {
+  const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
+  const byCellId = Object.fromEntries(
+    source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]]),
+  )
+  const converted = convertShowRecordV1ToV2(source, { byCellId })
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  expect(converted.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+    [LEFT, 0, 30000],
+    [RIGHT, 32000, 30000],
+  ])
+  expect(converted.record.composition.showEndMs).toBe(62000)
+  return converted.record
+}
 
 function twoClipRecord(id: string) {
   const source: ShowRecord = resizeBoundaryShow(id)
@@ -55,25 +76,41 @@ describe('planShowV2ClipDelete', () => {
     expect(planShowV2ClipDelete(record, target, { confirmed: false, allocate: () => 'x' })).toEqual({ kind: 'needs-confirm', clipId: target, connectedTransitionIds: ['join'] })
     expect(planShowV2ClipDelete(record, target, { confirmed: true, allocate: () => 'x' }).kind).toBe('ready')
   })
-  it('counts a converted-boundary participant as joined, pending the #1068 owner repair', () => {
-    const record = twoClipRecord('delete-plan-boundary')
+  it('does not ask for confirmation across a converted Scene boundary, as v1 does not', () => {
+    for (const id of [LEFT, RIGHT]) {
+      const record = convertedDefaultShow()
+      expect(record.composition.transitions.map((t) => t.id)).toEqual([BOUNDARY])
+      expect(showV2ConnectedTransitionIds(record, id)).toEqual([])
+      const plan = planShowV2ClipDelete(record, id, { confirmed: false, allocate: () => 'x' })
+      expect(plan).toEqual({ kind: 'ready', intent: { kind: 'delete-clip', clipId: id } })
+      if (plan.kind !== 'ready') throw new Error('not ready')
+      expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
+    }
+  })
+  it('still asks for a converted Layer Transition', () => {
+    const record = twoClipRecord('delete-plan-joined')
     const first = record.composition.clips[0]
     const second = record.composition.clips[1]
+    first.startMs = 0
+    first.durationMs = 4000
+    second.startMs = 4000
+    second.durationMs = 4000
+    const target = first.id
     record.composition.transitions = [{
-      id: 'transition-scene-1',
+      id: 'join',
       kind: 'crossfade',
-      durationMs: 2000,
+      durationMs: 500,
       easing: { curve: 'linear' },
-      crossfadePolicy: 'snapshot-live',
-      origin: 'converted-boundary-transition',
-      participants: [{ id: 'transition-scene-1:participant:1', fromClipId: first.id, toClipId: second.id, zoneId: first.zoneId, layerId: first.layerId }],
+      crossfadePolicy: 'live-live',
+      origin: 'converted-layer-transition',
+      participants: [{ id: 'join-p', fromClipId: first.id, toClipId: second.id, zoneId: first.zoneId, layerId: first.layerId }],
       wholeOutput: undefined as never,
       propertyRamps: [],
     }]
-    expect(showV2ConnectedTransitionIds(record, first.id)).toEqual(['transition-scene-1'])
-    expect(planShowV2ClipDelete(record, first.id, { confirmed: false, allocate: () => 'x' })).toEqual({
-      kind: 'needs-confirm', clipId: first.id, connectedTransitionIds: ['transition-scene-1'],
-    })
+    const connected = showV2ConnectedTransitionIds(record, target)
+    expect(connected).toEqual(['join'])
+    expect(planShowV2ClipDelete(record, target, { confirmed: false, allocate: () => 'x' })).toEqual({ kind: 'needs-confirm', clipId: target, connectedTransitionIds: ['join'] })
+    expect(planShowV2ClipDelete(record, target, { confirmed: true, allocate: () => 'x' }).kind).toBe('ready')
   })
   it('refuses the final remaining Clip', () => {
     const record = propertyEditRecord()
