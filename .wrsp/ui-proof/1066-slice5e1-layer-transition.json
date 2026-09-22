@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice5e1-capture2?show-v2-editor",
+  "operation": "Stored the converted stock-lesson corpus Show as version 2 as the synthetic local user, opened the Wipe Layer Transition between EventHorizon and SignalMandala, typed 0.5 s in the popover duration and pressed Enter. The stored Transition changed from 1500 ms to 500 ms (converted-layer-transition origin kept); after reload the popover reads 0.5 s with Reset to Cut offered.",
+  "captures": [".wrsp/ui-proof/1066-slice5e1-layer-transition.png"],
+  "capturedAtCommit": "1aa98ff48a71f30cd10c4240c55d7dd428c7fadc"
+}
