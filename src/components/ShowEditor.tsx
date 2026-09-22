@@ -3392,6 +3392,7 @@ export function ShowEditor({
                 boundaryTransitionIdsOverride={boundaryTransitionIdsV2}
                 zoneLayoutsOverride={recordVersion === 2 ? savedShowV2?.zoneLayouts ?? null : null}
                 sampleRepeatAtOverride={sampleRepeatAtV2}
+                boundaryTransitionsOverride={boundaryTransitionsV2}
                 clipSummarySourcesOverride={clipSummarySourcesV2}
                 propertyLanesOverride={propertyLanesV2}
                 zoneMapOverride={zoneMapV2}
@@ -4956,6 +4957,7 @@ function ShowTimelineWorkspace({
   boundaryTransitionIdsOverride,
   zoneLayoutsOverride,
   sampleRepeatAtOverride,
+  boundaryTransitionsOverride,
   clipSummarySourcesOverride,
   propertyLanesOverride,
   zoneMapOverride,
@@ -5026,6 +5028,8 @@ function ShowTimelineWorkspace({
   zoneLayoutsOverride?: readonly ShowRoutingLayout[] | null
   /** The v2 record's repeat scale at a Show time, present only when the sample-repeat lane shows (#1066 slice 9c1). */
   sampleRepeatAtOverride?: ((timeMs: number) => number) | null
+  /** v2 boundary Transitions by id, read by the Sample repeat lane's boundary buttons (#1066 slice 9c2b). */
+  boundaryTransitionsOverride?: Record<string, ShowBoundaryTransitionInspectorValue> | null
   /** Resolved Clip-summary facts the caption reads when no v1 record backs the view. */
   clipSummarySourcesOverride?: Record<string, ShowEditorTimelineClipSummarySourceV2> | null
   /** Presented Property lanes when no v1 record backs the view. */
@@ -7080,6 +7084,31 @@ function ShowTimelineWorkspace({
                 {formatRepeatScale(sampleRepeatAtOverride(section.startMs))}
               </div>
             ))}
+            {/* One button per boundary Transition, between the two sections it
+                joins, selecting it as v1 does (#1066 slice 9c2b). A derived Cut
+                has no Transition to select until Insert from Cut connects. */}
+            {Object.values(boundaryTransitionsOverride ?? {}).flatMap((boundary) => {
+              const sectionIndex = timeSections.findIndex((section) => section.startMs === boundary.destinationStartMs)
+              if (sectionIndex < 1) return []
+              const descriptor = boundary.settings.propertyTransitions?.sample?.repeatScale
+              return [(
+                <button
+                  key={`sample-repeat-boundary-${boundary.id}`}
+                  type="button"
+                  aria-label={`Edit repeat scale at ${boundary.boundaryIdentity}`}
+                  data-show-timeline-focus
+                  data-show-selection-key={`transition:${boundary.id}`}
+                  className={descriptor ? 'border-t border-zinc-900/80 bg-cyan-400/10 font-mono text-[9px] text-cyan-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-cyan-300'}
+                  style={{ gridColumn: 1 + sectionIndex * 2, gridRow: contentStartRow + (layoutLaneVisible ? 1 : 0) }}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onSelect({ kind: 'transition', transitionId: boundary.id }, event.currentTarget)
+                  }}
+                >
+                  {descriptor ? `${formatRepeatScale(descriptor.from)}→${formatRepeatScale(boundary.repeat?.to ?? 1)}` : '—'}
+                </button>
+              )]
+            })}
           </div>
         )}
         {show && hasSampleRemap && (

@@ -1006,6 +1006,8 @@ export interface ShowBoundaryTransitionInspectorValue {
   id: string
   /** Destination time and Pattern identity, in the existing vocabulary. */
   boundaryIdentity: string
+  /** v2 only: where the incoming side starts, the time its timeline section boundary sits at. */
+  destinationStartMs?: number
   settings: ShowTransitionSettingsCarrier
   destinations: ShowBoundaryTransitionDestinationValue[]
   /** Repeat scale on each side; absent where v1 draws no destination. */
@@ -1137,6 +1139,7 @@ export function projectShowEditorBoundaryTransitionsV2(
         destinationStartMs,
         incomingPatternNamesAtV2(record, destinationStartMs),
       ),
+      destinationStartMs,
       settings: {
         ...structuredClone(stored),
         ...(ramps ? { propertyTransitions: ramps } : {}),

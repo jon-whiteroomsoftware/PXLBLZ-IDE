@@ -3852,6 +3852,35 @@ describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
     expect(v2Grid).toBe(v1Grid)
   })
 
+  it('draws a boundary button where v1 does for every boundary Transition, and selecting it opens that boundary (#1066 slice 9c2b)', async () => {
+    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const source = structuredClone(stock.show) as ShowRecord
+    const buttons = () => Array.from(screen.getByRole('group', { name: 'Sample repeat lane' }).querySelectorAll('button'))
+      .map((button) => `${button.getAttribute('aria-label')}|${button.style.gridColumn}|${button.textContent}|${button.getAttribute('data-show-selection-key')}`)
+    useShowStore.setState({ shows: [source], showsLoaded: true, activeShowId: source.id, showV2Pilots: {}, showV2Histories: {}, showRevisions: {} })
+    render(<ShowEditor showId={source.id} />)
+    const v1 = buttons()
+    cleanup()
+    const editor = openV2EditorForRecord(convertCorpus(source))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const v2 = buttons()
+
+    // v1 also draws a button at each of its six Cut boundaries; a derived Cut
+    // on v2 has no Transition to select until Insert from Cut connects.
+    expect(v1).toHaveLength(8)
+    expect(v2).toEqual([
+      'Edit repeat scale at 36.8: LineDancer2D + 1|15|—|transition:transition-effect-parameter',
+      'Edit repeat scale at 43.6: LineDancer2D + 1|17|1x→4x|transition:transition-split-position',
+    ])
+    expect(v2).toEqual(v1.slice(6))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit repeat scale at 43.6: LineDancer2D + 1' }))
+    await act(async () => {})
+    expect(within(boundaryPanel()).getByRole('checkbox', { name: 'Animate repeat scale' })).toBeChecked()
+    expect(admission.calls).toEqual([])
+  })
+
   it('draws no lane for a Show that never sets a repeat scale', () => {
     const { v1, v2 } = renderBoth(corpusSource('stock-lesson'))
 
