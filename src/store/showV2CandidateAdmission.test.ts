@@ -5,6 +5,7 @@ import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
 import * as stage from '@/engine/showPreparedStageV2'
 import { captureShowAuthoringBaselineV2 } from '@/engine/showAuthoringValidationV2'
 import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '@/engine/personalContentProvider'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import type { ShowPreparedStageDependenciesV2 } from '@/engine/showPreparedStageV2'
@@ -16,16 +17,27 @@ beforeEach(() => { resetPersonalContentProvider(); useShowStore.setState(showIni
 afterEach(() => { resetPersonalContentProvider(); vi.restoreAllMocks() })
 
 let index = 0
+function voiceDependencies(): ShowPreparedStageDependenciesV2 {
+  return {
+    patterns: [{ id: 'voice', name: 'Voice', src: VOICE, controls: {}, updatedAt: 1 }],
+    maps: [], libraries: [], profiles: [], stageMap: null,
+  }
+}
+
+function voiceBaseline(record: ShowRecordV2) {
+  return captureShowAuthoringBaselineV2(record, {
+    source: reference => (reference.kind === 'user' && reference.id === 'voice' ? VOICE : undefined),
+    libraries: LIBRARIES,
+  })
+}
+
 function setup(options: { failSave?: boolean } = {}) {
   const converted = convertShowRecordV1ToV2(convertibleV1Show())
   if (converted.status !== 'converted') throw new Error('Conversion')
   const record = converted.record
   record.id = `candidate-${++index}`
   for (const instance of record.composition.patternInstances) instance.pattern = { kind: 'user', id: 'voice' }
-  const dependencies: ShowPreparedStageDependenciesV2 = {
-    patterns: [{ id: 'voice', name: 'Voice', src: VOICE, controls: {}, updatedAt: 1 }],
-    maps: [], libraries: [], profiles: [], stageMap: null,
-  }
+  const dependencies = voiceDependencies()
   let saved = structuredClone(record)
   const write = vi.fn(async (_id: string, next: ShowRecordV2) => {
     if (options.failSave) throw new Error('save refused')
@@ -37,10 +49,7 @@ function setup(options: { failSave?: boolean } = {}) {
   if (capture.prepared.status === 'refused') throw new Error(capture.prepared.message)
   const store = useShowStore.getState()
   const sessionId = store.beginShowEditSession(record.id)
-  const baseline = captureShowAuthoringBaselineV2(record, {
-    source: reference => (reference.kind === 'user' && reference.id === 'voice' ? VOICE : undefined),
-    libraries: LIBRARIES,
-  })
+  const baseline = voiceBaseline(record)
   const begin = (operationId = 'op-1') => {
     const receipt = useShowStore.getState().beginShowEdit(sessionId, { operationId, payloadKey: `payload-${operationId}`, referenceContext: 'context', targets: [record.id] })
     if (receipt.status !== 'pending') throw new Error(`begin refused: ${receipt.status}`)
@@ -208,4 +217,43 @@ it('settles a superseded save without reporting it as saved', async () => {
   await later
   await settled()
   expect(useShowStore.getState().readShowEdit(context.sessionId, 'op-1')).toMatchObject({ status: 'applied', settlement: 'superseded' })
+})
+
+it('adopts a lesson draft through the candidate path with a draft settlement and no provider write', async () => {
+  const context = setup()
+  const lessonId = 'stock-show-103-clip-transform'
+  const lesson = stockShowV2ById(lessonId)
+  if (!lesson) throw new Error(`Missing lesson ${lessonId}`)
+  // The lesson opens first so its pilot is a session draft; the capture below
+  // is built from that live draft, never from setup's own record.
+  await expect(useShowStore.getState().openShowV2Pilot(lessonId)).resolves.toMatchObject({ status: 'ready' })
+  const live = useShowStore.getState().showV2Pilots[lessonId]
+  if (!live) throw new Error('Lesson pilot missing after open')
+  const voiced = structuredClone(live)
+  for (const instance of voiced.composition.patternInstances) instance.pattern = { kind: 'user', id: 'voice' }
+  useShowStore.setState(state => ({ showV2Pilots: { ...state.showV2Pilots, [lessonId]: voiced } }))
+  const capture = captureShowStageEditV2(voiced, voiceDependencies())
+  if (capture.prepared.status === 'refused') throw new Error(capture.prepared.message)
+  const store = useShowStore.getState()
+  const sessionId = store.beginShowEditSession(lessonId)
+  const baseline = voiceBaseline(voiced)
+  const begin = (operationId = 'op-lesson') => {
+    const receipt = useShowStore.getState().beginShowEdit(sessionId, { operationId, payloadKey: `payload-${operationId}`, referenceContext: 'context', targets: [lessonId] })
+    if (receipt.status !== 'pending') throw new Error(`begin refused: ${receipt.status}`)
+    return receipt.request
+  }
+  const candidate = structuredClone(voiced)
+  candidate.composition.clips[0].durationMs = 500
+  const receipt = useShowStore.getState().deliverShowV2EditCandidate({
+    request: begin(),
+    candidate,
+    capture,
+    baseline,
+    isCurrent: () => useShowStore.getState().showV2Pilots[lessonId] === capture.record,
+  })
+  expect(receipt).toMatchObject({ status: 'applied', settlement: 'draft' })
+  await settled()
+  expect(useShowStore.getState().readShowEdit(sessionId, 'op-lesson')).toMatchObject({ status: 'applied', settlement: 'draft' })
+  expect(context.write).not.toHaveBeenCalled()
+  expect(useShowStore.getState().showV2Histories[lessonId]?.past).toHaveLength(1)
 })

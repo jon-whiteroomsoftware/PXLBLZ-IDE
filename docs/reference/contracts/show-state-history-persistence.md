@@ -219,6 +219,20 @@ store revisions; existing manual replacement callers retain their original API.
 - Stock draft write/reset: `updateShow`, `undoShow`, and `redoShow` change only
   the in-memory draft/history pair; `resetStockShowDraft` removes both and
   exposes the pristine stock fixture again. Provider methods are never called.
+- Lesson draft write/reset (v2): a built-in lesson opens from its native v2 copy
+  (`stockShowV2ById`) as a session-only in-memory draft. Lesson-draft
+  membership is explicit store state, never inferred from the id, so a personal
+  v2 pilot placed directly under a built-in id still saves. Opening makes no
+  provider call and records no durable baseline; a second open keeps the
+  session draft. `updateShowV2Pilot`, Undo, Redo, and the agent candidate path
+  adopt through the same synchronous state update as personal replacements but
+  skip the provider check, queue no persistence, enter no rollback path, and
+  settle as `draft`. A lesson pilot never appears in `showV2Rows` and never
+  routes rename, delete, or duplicate as a personal v2 row.
+  `resetShowV2LessonDraft` re-seeds the pilot from the lesson copy with an
+  empty history and an advanced revision. Built-in Shows still open on the
+  version-1 editor until the slice 11c routing switch, so this capability has
+  no user-visible surface yet.
 - Notice reset: `dismissShowSaveFailure` removes only the recovery notice. It
   changes no record, history, queued operation, or durable baseline.
 

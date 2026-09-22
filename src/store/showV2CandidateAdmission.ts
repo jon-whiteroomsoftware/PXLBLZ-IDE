@@ -148,7 +148,9 @@ export interface ShowV2CandidateAdmissionOwner {
   current: (showId: string) => ShowRecordV2 | undefined
   revision: (showId: string) => number
   missing: (showId: string) => boolean
-  adopt: (showId: string, next: ShowRecordV2, settle: (settlement: Exclude<ShowEditSettlement, 'saving' | 'draft'>) => void) => Promise<void>
+  adopt: (showId: string, next: ShowRecordV2, settle: (settlement: Exclude<ShowEditSettlement, 'saving'>) => void) => Promise<void>
+  /** Whether this Show's v2 pilot is a session-only draft, which settles as one. */
+  isDraft?: (showId: string) => boolean
 }
 
 /**
@@ -253,9 +255,10 @@ export function createShowV2CandidateAdmission(owner: ShowV2CandidateAdmissionOw
     const session = owner.session()
     const outcome = evaluate(delivery, timing)
     if (!('adopt' in outcome)) return outcome
-    const adopted = session!.adopted(delivery.request.operationId, 'saving')
+    const draft = owner.isDraft?.(delivery.request.showId) ?? false
+    const adopted = session!.adopted(delivery.request.operationId, draft ? 'draft' : 'saving')
     void owner.adopt(delivery.request.showId, outcome.adopt, settlement => {
-      session!.settle(delivery.request.operationId, settlement)
+      if (settlement !== 'draft') session!.settle(delivery.request.operationId, settlement)
     }).catch(() => { /* The store recovery notice and the receipt own the failure. */ })
     return adopted
   }

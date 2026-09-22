@@ -56,6 +56,7 @@ import { useMapStore } from '@/store/mapStore'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
 import { normalizeShowComposition } from '@/engine/showCompositionModel'
 import { stockShowById } from '@/pixelblaze/stock/shows'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import {
   createShowEditSession,
   type ShowEditIntent,
@@ -137,6 +138,12 @@ let showsHydration: Promise<void> | null = null
 // could replay one.
 const lastPersistedShowRecords = new Map<string, { record: ShowRecord; history: ShowHistory }>()
 const lastPersistedShowV2Pilots = new Map<string, { record: ShowRecordV2; history: ShowV2History }>()
+// The Show ids whose v2 pilot was opened as a built-in lesson (#1066
+// slice 11a). Membership is explicit state, never inferred from the id: a
+// pilot placed directly under a built-in id (as agent tests do for channel
+// authority) is personal content and still saves. Lesson pilots are
+// session-only in-memory drafts, exactly as v1 stock drafts are.
+const showV2LessonDraftIds = new Set<string>()
 let showV2WorkspaceGeneration = 0
 
 // Advance the durable baseline for a completed write, but never behind the
@@ -247,6 +254,14 @@ interface ShowState {
   // record, an in-memory built-in draft, or the pristine built-in fixture.
   resolveEditableShow: (id: string) => ShowRecord | undefined
   resetStockShowDraft: (id: string) => void
+  /**
+   * Re-seed one lesson's session-only v2 draft from its built-in copy (#1066
+   * slice 11a). A no-op unless the id names a built-in lesson, the pilot was
+   * opened as that lesson, and a pilot exists. Otherwise the pilot returns to
+   * a fresh clone of the lesson copy with an empty history, and the revision
+   * advances. No provider call, exactly as opening the lesson makes none.
+   */
+  resetShowV2LessonDraft: (id: string) => void
   updateStageMap: (showId: string, stageMapId: string | null) => Promise<void>
   addScene: (showId: string) => Promise<void>
   duplicateScene: (showId: string, sceneId: string) => Promise<void>
@@ -399,6 +414,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     revision: id => get().showRevisions[id] ?? 0,
     missing: id => showsPendingDeletion.has(id),
     adopt: (id, next, settle) => updateShowV2Record(id, next, settle),
+    isDraft: id => showV2LessonDraftIds.has(id),
   })
   const revisionPatch = (state: ShowState, id: string) => ({
     showRevisions: { ...state.showRevisions, [id]: (state.showRevisions[id] ?? 0) + 1 },
@@ -417,7 +433,8 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   )
   /** Whether this personal Show is stored as a v2 document rather than a v1 record. */
   const isPersonalShowV2Row = (id: string): boolean => (
-    get().showV2Pilots[id] !== undefined || get().showV2Rows.some(row => row.id === id)
+    !showV2LessonDraftIds.has(id)
+    && (get().showV2Pilots[id] !== undefined || get().showV2Rows.some(row => row.id === id))
   )
   /**
    * Rename one stored v2 row. An open Show renames through its own adoption
@@ -457,11 +474,15 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     replacement: ShowRecordV2,
     history: ShowV2History,
     fallback: { record: ShowRecordV2; history: ShowV2History },
-    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving' | 'draft'>) => void,
+    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving'>) => void,
   ): Promise<void> => {
+    // A lesson draft is session-only: the same synchronous state update as a
+    // personal adoption, but no provider check, no queued persistence and no
+    // rollback path. The settlement reports the draft, as v1 stock drafts do.
+    const lessonDraft = showV2LessonDraftIds.has(id)
     const provider = getPersonalContentProvider()
     const workspaceGeneration = showV2WorkspaceGeneration
-    if (!provider.replaceShowV2) throw new Error('The active personal-content provider does not support v2 Shows.')
+    if (!lessonDraft && !provider.replaceShowV2) throw new Error('The active personal-content provider does not support v2 Shows.')
     const validated = cloneValidShowRecordV2(replacement)
     const adopted = { ...validated, updatedAt: nextShowOrderingStamp(fallback.record.updatedAt) }
     set(state => ({
@@ -471,6 +492,10 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       ...showV2RowPatch(state, adopted),
       ...(state.showV2SaveFailure?.showId === id ? { showV2SaveFailure: null } : {}),
     }))
+    if (lessonDraft) {
+      onSettlement?.('draft')
+      return
+    }
     try {
       await queueShowPersistence(id, () => provider.replaceShowV2!(id, adopted))
       if (showV2WorkspaceGeneration !== workspaceGeneration || getPersonalContentProvider() !== provider) {
@@ -508,7 +533,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   const updateShowV2Record = async (
     showId: string,
     next: ShowRecordV2,
-    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving' | 'draft'>) => void,
+    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving'>) => void,
   ): Promise<void> => {
     const current = get().showV2Pilots[showId]
     if (!current || next === current || next.id !== showId) return
@@ -755,6 +780,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     // satisfy the next route before its provider has been consulted.
     showV2WorkspaceGeneration += 1
     lastPersistedShowV2Pilots.clear()
+    showV2LessonDraftIds.clear()
     set({ showV2Pilots: {}, showV2Histories: {}, showV2SaveFailure: null, showV2Rows: [] })
     const listProvider = getPersonalContentProvider()
     const listGeneration = showV2WorkspaceGeneration
@@ -924,6 +950,7 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       await deletePersistedShow(id)
       lastPersistedShowRecords.delete(id)
       lastPersistedShowV2Pilots.delete(id)
+      showV2LessonDraftIds.delete(id)
       set((state) => {
         const showHistories = { ...state.showHistories }
         delete showHistories[id]
@@ -998,6 +1025,22 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       ?? stockShowById(id)?.show
   },
 
+  resetShowV2LessonDraft: (id) => {
+    const lesson = stockShowV2ById(id)
+    if (!lesson || !showV2LessonDraftIds.has(id) || !get().showV2Pilots[id]) return
+    resizeAdmission.invalidate(id)
+    inputWait.invalidate(id)
+    const record = cloneValidShowRecordV2(lesson)
+    set((state) => {
+      if (!state.showV2Pilots[id]) return state
+      return {
+        ...revisionPatch(state, id),
+        showV2Pilots: { ...state.showV2Pilots, [id]: record },
+        showV2Histories: { ...state.showV2Histories, [id]: { past: [], future: [] } },
+      }
+    })
+  },
+
   resetStockShowDraft: (id) => set((state) => {
     resizeAdmission.invalidate(id)
     inputWait.invalidate(id)
@@ -1029,6 +1072,24 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   },
 
     openShowV2Pilot: async (showId) => {
+      // A built-in lesson opens from its native v2 copy as a session-only
+      // draft. A second open keeps the session draft; neither open consults
+      // the provider nor records a durable baseline.
+      const lesson = stockShowV2ById(showId)
+      if (lesson) {
+        const existing = get().showV2Pilots[showId]
+        if (existing && showV2LessonDraftIds.has(showId)) {
+          return { status: 'ready', record: existing }
+        }
+        const record = cloneValidShowRecordV2(lesson)
+        const history = { past: [], future: [] }
+        showV2LessonDraftIds.add(showId)
+        set(state => ({
+          showV2Pilots: { ...state.showV2Pilots, [showId]: record },
+          showV2Histories: { ...state.showV2Histories, [showId]: history },
+        }))
+        return { status: 'ready', record }
+      }
       const provider = getPersonalContentProvider()
       const workspaceGeneration = showV2WorkspaceGeneration
       const hydration = showsHydration
