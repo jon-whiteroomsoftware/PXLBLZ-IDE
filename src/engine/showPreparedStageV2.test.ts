@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { convertibleV1Show } from '../test/showV2TracerFixture'
+import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { validateShowRecordV2, parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { prepareShowStageV2, type ShowPreparedStageDependenciesV2 } from './showPreparedStageV2'
@@ -144,4 +144,46 @@ it.each(['fast', 'fidelity'] as const)('prepared%s native Layout split keeps ret
     const frame = runtime.advanceTo(time, { stepMs: 125, forceFullIntermediateRender: true })
     expect(frame.frame[0]).toBeCloseTo(expected, fidelity === 'fast' ? 12 : 3)
   }
+})
+
+describe('shared content-keyed compile cache (#1066)', () => {
+  it('(e) returns the identical prepared artifact for two separate captures of one record', () => {
+    const record = fixture()
+    const assets = dependencies()
+    const first = prepareShowStageV2(structuredClone(record), assets)
+    const second = prepareShowStageV2(structuredClone(record), assets)
+    expect(first.status).toBe('ready')
+    expect(second.status).toBe('ready')
+    if (first.status !== 'ready' || second.status !== 'ready') throw new Error('Preparation refused')
+    expect(second.bundle.artifact).toBe(first.bundle.artifact)
+  })
+
+  it('(f) compiles a different artifact when one Transition changes', () => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error('Conversion refused')
+    expect(converted.record.composition.transitions.length).toBeGreaterThan(0)
+    const assets: ShowPreparedStageDependenciesV2 = { patterns: [], maps: [], libraries: [], profiles: [], stageMap: null }
+    const first = prepareShowStageV2(structuredClone(converted.record), assets)
+    expect(first.status).toBe('ready')
+    if (first.status !== 'ready') throw new Error('Preparation refused')
+    const varied = structuredClone(converted.record)
+    varied.composition.transitions[0] = { ...varied.composition.transitions[0], easing: { curve: 'sine', direction: 'in' } }
+    const second = prepareShowStageV2(varied, assets)
+    expect(second.status).toBe('ready')
+    if (second.status !== 'ready') throw new Error('Preparation refused')
+    expect(second.bundle.artifact).not.toBe(first.bundle.artifact)
+  })
+
+  it('(g) matches a fresh uncached compile byte-for-byte on a hit', () => {
+    const record = fixture()
+    const assets = dependencies()
+    const first = prepareShowStageV2(structuredClone(record), assets)
+    const second = prepareShowStageV2(structuredClone(record), assets)
+    expect(first.status).toBe('ready')
+    expect(second.status).toBe('ready')
+    if (first.status !== 'ready' || second.status !== 'ready') throw new Error('Preparation refused')
+    expect(second.bundle.artifact).toBe(first.bundle.artifact)
+    const fresh = compileShow(first.bundle.recipe, first.bundle.libraries)
+    expect(second.bundle.artifact.code).toBe(fresh.code)
+  })
 })

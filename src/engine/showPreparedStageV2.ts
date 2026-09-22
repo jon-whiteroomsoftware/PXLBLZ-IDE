@@ -3,7 +3,8 @@ import { LIBRARIES } from '../pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { groupRuntimeBindings, effectiveShowClipsV2 } from './showGroupsV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
-import { compileShow, type GeneratedShowArtifact, type ShowRecipe } from './showCompiler'
+import { type GeneratedShowArtifact, type ShowRecipe } from './showCompiler'
+import { compileShowRecipeCached } from './showPreviewArtifact'
 import { prepareShowV2ForCompile, type ShowV2CompileProvenance } from './showCompositionLoweringV2'
 import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
@@ -125,7 +126,10 @@ function prepareCapturedStage(snapshot: ShowRecordV2, inputs: ShowPreparedStageI
     const libraries = compileLibraries(LIBRARIES, assets.libraries)
     const prepared = prepareShowV2ForCompile(snapshot, { byCellId: {}, byPatternInstanceId: sources, stageDimension }, { libraries })
     if (prepared.status !== 'ready') return { status: 'refused', message: prepared.issues.map(issue => `${issue.path}: ${issue.message}`).join('; ') }
-    const artifact = compileShow(prepared.recipe, libraries)
+    const libraryOverrides = Object.fromEntries(
+      Object.entries(libraries).filter(([name, source]) => LIBRARIES[name] !== source),
+    )
+    const artifact = compileShowRecipeCached(prepared.recipe, libraryOverrides, {})
     const occurrence = snapshot.composition.layoutOccurrences.find(candidate => candidate.startMs === 0)!
     const activeLayout = snapshot.zoneLayouts.find(layout => layout.id === occurrence.layoutId)!
     const routingLayouts = [activeLayout, ...snapshot.zoneLayouts.filter(layout => layout !== activeLayout)]

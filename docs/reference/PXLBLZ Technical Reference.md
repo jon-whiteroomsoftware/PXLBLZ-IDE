@@ -1370,7 +1370,7 @@ the same Installation coverage and Portable gates live in `buildShowV2RouteArtif
 which the delivery panel and Send to Controller both read (#1039), together
 with the compiled artifact's own resource ledger, whose first blocker that
 route now returns verbatim the way `compileShowForArtifact` reports it as
-`artifactBlocker`. The coverage and Portable gates never compete: the coverage
+`artifactBlocker`. v1 preview (`compileShowForPreview` in `showPreviewArtifact.ts`) and v2 Stage preparation share one content-keyed LRU-8 compile cache keyed by the compile recipe, library overrides, compile options and attribution. The coverage and Portable gates never compete: the coverage
 rule returns nothing for a Portable contract and the Portable rule nothing for
 an Installation one. The Portable target-Controller pixel-count blocker has no
 v2 counterpart yet, because nothing supplies a connected Controller's count to

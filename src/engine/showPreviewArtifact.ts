@@ -7,7 +7,7 @@ import {
 } from './showInstallationCoverage'
 import { portableCompatibilityBlockingMessage, validatePortableShowCompatibility } from './showPortableCompatibility'
 import type { PatternRecord, ShowCell, ShowPatternRef, ShowRecord } from './personalContentRecords'
-import { compileShow, type GeneratedShowArtifact, type ShowCompileOptions } from './showCompiler'
+import { compileShow, type GeneratedShowArtifact, type ShowCompileOptions, type ShowRecipe } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
 import { DEMO_AUTHORS, DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -31,7 +31,34 @@ interface ShowCompilationOptions extends ShowCompileOptions {
 }
 
 const SHOW_PREVIEW_COMPILE_CACHE_LIMIT = 8
-const showPreviewCompileCache = new Map<string, CompiledShowState>()
+const showPreviewCompileCache = new Map<string, GeneratedShowArtifact>()
+const compiledShowStateByArtifact = new WeakMap<GeneratedShowArtifact, CompiledShowState>()
+
+/** One content-keyed LRU-8 Show compile cache shared by v1 preview and v2
+ * Stage preparation. The key covers the compile recipe, library overrides,
+ * compile options and attribution; a hit returns the same artifact object and
+ * errors never populate the cache. */
+export function compileShowRecipeCached(
+  recipe: ShowRecipe,
+  libraryOverrides: Record<string, string>,
+  compileOptions: ShowCompileOptions,
+  attribution?: ShowArtifactAttribution,
+): GeneratedShowArtifact {
+  const cacheKey = showCompilationIdentity({ recipe, libraryOverrides, compileOptions, attribution })
+  const cached = showPreviewCompileCache.get(cacheKey)
+  if (cached) {
+    showPreviewCompileCache.delete(cacheKey)
+    showPreviewCompileCache.set(cacheKey, cached)
+    return cached
+  }
+  const artifact = compileShow(recipe, { ...LIBRARIES, ...libraryOverrides }, compileOptions)
+  const stored = attribution ? { ...artifact, attribution } : artifact
+  showPreviewCompileCache.set(cacheKey, stored)
+  if (showPreviewCompileCache.size > SHOW_PREVIEW_COMPILE_CACHE_LIMIT) {
+    showPreviewCompileCache.delete(showPreviewCompileCache.keys().next().value!)
+  }
+  return stored
+}
 
 /** The zones a Show compiles over come from the Show itself: an Installation
  * physical Zone Layout supplies ranges, and every other contract routes
@@ -84,39 +111,26 @@ export function compileShowForPreview(
     const libraryOverrides = Object.fromEntries(
       Object.entries(libraries).filter(([name, source]) => LIBRARIES[name] !== source),
     )
-    const cacheKey = showCompilationIdentity({
-      recipe,
-      libraryOverrides,
-      compileOptions,
-      attribution,
-    })
-    const cached = showPreviewCompileCache.get(cacheKey)
-    if (cached) {
-      showPreviewCompileCache.delete(cacheKey)
-      showPreviewCompileCache.set(cacheKey, cached)
-      cacheHit = true
-      ok = true
-      return cached
-    }
     const compilerStarted = import.meta.env.DEV ? performance.now() : 0
     let artifact: GeneratedShowArtifact
     try {
-      artifact = compileShow(recipe, { ...LIBRARIES, ...libraryOverrides }, compileOptions)
+      artifact = compileShowRecipeCached(recipe, libraryOverrides, compileOptions, attribution)
     } finally {
       if (import.meta.env.DEV) compilerMs = performance.now() - compilerStarted
     }
+    const existing = compiledShowStateByArtifact.get(artifact)
+    if (existing) {
+      cacheHit = true
+      compilerMs = null
+      ok = true
+      return existing
+    }
     ok = true
     const compiled = {
-      artifact: {
-        ...artifact,
-        attribution,
-      },
+      artifact,
       error: null,
     } satisfies CompiledShowState
-    showPreviewCompileCache.set(cacheKey, compiled)
-    if (showPreviewCompileCache.size > SHOW_PREVIEW_COMPILE_CACHE_LIMIT) {
-      showPreviewCompileCache.delete(showPreviewCompileCache.keys().next().value!)
-    }
+    compiledShowStateByArtifact.set(artifact, compiled)
     return compiled
   } catch (error) {
     return { artifact: null, error: error instanceof Error ? error.message : 'Show compile failed' }

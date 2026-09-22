@@ -25,6 +25,17 @@ import { createInstallationShowOutputContract, createPortableShowOutputContract 
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { vi } from 'vitest'
+import * as showCompilerModule from './showCompiler'
+import * as agentObservationModule from '@/dev/agentObservation'
+import {
+  buildShowArtifactAttribution,
+  compileShowRecipeCached,
+  sourceForShowCell,
+} from './showPreviewArtifact'
+import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
+import type { ShowRecipe } from './showCompiler'
+import type { ShowRecord } from './personalContentRecords'
 
 describe('retired stock Pattern references (#63)', () => {
   it('resolves a retired stock id to its successor source', () => {
@@ -700,5 +711,107 @@ export function render(index) { rgb(field[index], 0, 0) }
     const restartArtifact = compileShowForPreview(restarted, [], undefined, {}).artifact
     expect(restartArtifact?.summary.clipCount).toBe(3)
     expect(restartArtifact?.expandedCode).toContain('var __pxlblz_show_c2_elapsed_ms = 0')
+  })
+})
+
+describe('compileShowRecipeCached shared compile cache (#1066)', () => {
+  const compileSpy = vi.spyOn(showCompilerModule, 'compileShow')
+
+  function recipeForCacheTest(show: ShowRecord): ShowRecipe {
+    const lookup: ShowCompileRecipeSourceLookup = {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, sourceForShowCell(cell, [])])),
+      byPatternInstanceId: {},
+      controllerZones: undefined,
+    }
+    return showRecordToCompileRecipe(show, lookup)
+  }
+
+  it('(a) returns the identical artifact for separately built equal recipes, compiling once', () => {
+    const show = updateShowCellAdaptations(
+      createDefaultShow('cache-shared-a', 'Cache shared A', 1),
+      'cell-1',
+      { brightness: 0.33 },
+    )
+    const recipeOne = recipeForCacheTest(show)
+    const recipeTwo = recipeForCacheTest(structuredClone(show))
+    expect(recipeTwo).not.toBe(recipeOne)
+    expect(recipeTwo).toEqual(recipeOne)
+    const callsBefore = compileSpy.mock.calls.length
+    const first = compileShowRecipeCached(recipeOne, {}, {})
+    const second = compileShowRecipeCached(recipeTwo, {}, {})
+    expect(second).toBe(first)
+    expect(compileSpy.mock.calls.length).toBe(callsBefore + 1)
+  })
+
+  it('(b) misses when the recipe changes', () => {
+    const show = createDefaultShow('cache-miss-b', 'Cache miss B', 1)
+    const base = compileShowRecipeCached(recipeForCacheTest(show), {}, {})
+    const changed = updateShowCellAdaptations(show, 'cell-1', { brightness: 0.5 })
+    const recompiled = compileShowRecipeCached(recipeForCacheTest(changed), {}, {})
+    expect(recompiled).not.toBe(base)
+  })
+
+  it('(c) evicts the oldest entry beyond the shared LRU-8 limit', () => {
+    const firstShow = () => updateShowCellAdaptations(
+      createDefaultShow('cache-lru-first', 'Cache LRU first', 1),
+      'cell-1',
+      { brightness: 0.11 },
+    )
+    const first = compileShowRecipeCached(recipeForCacheTest(firstShow()), {}, {})
+    for (let index = 0; index < 9; index += 1) {
+      const show = updateShowCellAdaptations(
+        createDefaultShow(`cache-lru-fill-${index}`, `Cache LRU fill ${index}`, 1),
+        'cell-1',
+        { brightness: 0.21 + index * 0.07 },
+      )
+      compileShowRecipeCached(recipeForCacheTest(show), {}, {})
+    }
+    expect(compileShowRecipeCached(recipeForCacheTest(firstShow()), {}, {})).not.toBe(first)
+  })
+
+  it('(d) keys the same recipe with and without attribution as distinct entries', () => {
+    const show = updateShowCellAdaptations(
+      createDefaultShow('cache-attr-d', 'Cache attribution D', 1),
+      'cell-1',
+      { brightness: 0.44 },
+    )
+    const attribution = buildShowArtifactAttribution(show, [])
+    const unattributed = compileShowRecipeCached(structuredClone(recipeForCacheTest(show)), {}, {})
+    const attributed = compileShowRecipeCached(
+      structuredClone(recipeForCacheTest(show)),
+      {},
+      {},
+      structuredClone(attribution),
+    )
+    expect(attributed).not.toBe(unattributed)
+    expect(unattributed.attribution).toBeUndefined()
+    expect(attributed.attribution).toEqual(attribution)
+    expect(
+      compileShowRecipeCached(
+        structuredClone(recipeForCacheTest(show)),
+        {},
+        {},
+        structuredClone(attribution),
+      ),
+    ).toBe(attributed)
+  })
+
+  it('reports cacheHit:true on the second identical preview compile', () => {
+    const spy = vi.spyOn(agentObservationModule, 'recordAgentObservation')
+    try {
+      const show = updateShowCellAdaptations(
+        createDefaultShow('cache-telemetry', 'Cache telemetry', 1),
+        'cell-1',
+        { brightness: 0.77 },
+      )
+      compileShowForPreview(show, [], undefined, {})
+      compileShowForPreview(structuredClone(show), [], undefined, {})
+      const hits = spy.mock.calls.filter(
+        (call) => (call[0] as { cacheHit?: unknown }).cacheHit === true,
+      )
+      expect(hits.length).toBeGreaterThan(0)
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
