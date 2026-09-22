@@ -1,8 +1,10 @@
 {
   "version": 1,
   "issue": "1066",
-  "route": "/PXLBLZ-IDE/studio/shows/1066-slice9a-capture?show-v2-editor",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice9a-recapture2?show-v2-editor",
   "operation": "Stored a version-2 copy of the stock property-animation Show as the synthetic local user, opened it on the v2 editor route, and captured the Zone Layouts lane: each Moving split X occurrence shows its own split share (50% cells, then 25%, 75%, 50%) with the two Zone colours as a gradient.",
-  "captures": [".wrsp/ui-proof/1066-slice9a-split-cell.png"],
-  "capturedAtCommit": "2112fe22ba8c0e62f779dd1e0451231cb0abb63f"
+  "captures": [
+    ".wrsp/ui-proof/1066-slice9a-split-cell.png"
+  ],
+  "capturedAtCommit": "7c616805877680b79c0a2c71bee14ed64e0815dd"
 }
