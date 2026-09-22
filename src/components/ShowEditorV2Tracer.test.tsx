@@ -42,6 +42,13 @@ import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
 import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
 import type { ShowV2ClipInspectorInstanceIntent } from '@/engine/showV2ClipAppearancePlanning'
+import userEvent from '@testing-library/user-event'
+import { applyShowPatternSlotSelectionsV2 } from '@/engine/showReferenceShowV2'
+import { resolveBundledPatternSliderNames } from '@/engine/showPatternControls'
+import { compileLibraries } from '@/engine/libraries'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import type { ShowPatternRef } from '@/engine/personalContentRecords'
+import type { ShowPatternSlotGroup } from '@/engine/showReferenceShow'
 
 vi.mock('@/components/PixelblazeCodeEditor', () => ({
   PixelblazeCodeEditor: ({ value }: { value: string }) => <pre data-testid="v2-viewcode-source">{value}</pre>,
@@ -5087,6 +5094,186 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
     await renderLessonV2('stock-show-reference-aperture-icons', false)
     expect(screen.queryByRole('region', { name: /live strip/ })).not.toBeInTheDocument()
     expect(admission.calls).toEqual([])
+  })
+
+  function lessonStripTitle(stock: { note: { number?: string; title: string } }): string {
+    return stock.note.number ? `${stock.note.number} ${stock.note.title}` : stock.note.title
+  }
+
+  function projectLessonV2(
+    record: ShowRecordV2,
+    groups: readonly ShowPatternSlotGroup[],
+    selections: Readonly<Record<number, ShowPatternRef>>,
+  ): ShowRecordV2 {
+    const librarySet = compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries)
+    const patterns = usePatternStore.getState().userPatterns
+    return applyShowPatternSlotSelectionsV2(
+      record,
+      groups,
+      selections,
+      (ref) => (ref.kind === 'stock' ? resolveStockPatternId(ref.id) : patterns.find((pattern) => pattern.id === ref.id)?.name),
+      (ref) => {
+        const source = ref.kind === 'stock'
+          ? DEMOS[resolveStockPatternId(ref.id)]
+          : patterns.find((pattern) => pattern.id === ref.id)?.src
+        return resolveBundledPatternSliderNames(source, librarySet)
+      },
+    )
+  }
+
+  function expectedLessonSource(record: ShowRecordV2): string {
+    const maps = useMapStore.getState().userMaps
+    const capture = captureShowStageEditV2(record, {
+      patterns: usePatternStore.getState().userPatterns,
+      libraries: useLibraryStore.getState().userLibraries,
+      maps,
+      profiles: useControllerProfileStore.getState().profiles,
+      stageMap: resolveShowV2StageMap(record.stageMapId, maps),
+    })
+    if (capture.prepared.status !== 'ready') throw new Error(`lesson fixture not ready: ${capture.prepared.status}`)
+    const artifact = capture.prepared.bundle.artifact
+    const exported = buildShowEpeExportV2(record, artifact.code, {
+      stampedAt: new Date(record.updatedAt),
+      userMaps: maps,
+      attribution: artifact.attribution,
+    })
+    if (exported.status !== 'exported') throw new Error(`lesson fixture refused export: ${exported.status}`)
+    return exported.source
+  }
+
+  it('confirms a single slot swap that removes a control animation with no write (#1066 L2)', async () => {
+    const user = userEvent.setup()
+    const { stock, editor } = await renderLessonV2('stock-show-reference-property-animation')
+    const strip = screen.getByRole('region', { name: `${lessonStripTitle(stock)} live strip` })
+    const picker = () => within(strip).getByRole('combobox', { name: 'Try with Pattern' })
+    expect(picker()).toHaveValue('LineDancer2D')
+    const choose = async (patternName: string) => {
+      await user.click(picker())
+      await user.click(screen.getByRole('option', { name: patternName }))
+    }
+
+    await choose('TestPattern2D')
+    const dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    expect(within(dialog).getByText(
+      "TestPattern2D doesn't have the Speed control. The Speed animation will be removed.",
+    )).toBeInTheDocument()
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[editor.showId]).toBeUndefined()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(picker()).toHaveValue('LineDancer2D')
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[editor.showId]).toBeUndefined()
+    expect(admission.calls).toEqual([])
+    expect(editor.state().history).toEqual({ past: [], future: [] })
+
+    await choose('TestPattern2D')
+    await user.click(within(screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })).getByRole('button', { name: 'Use TestPattern2D' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(picker()).toHaveValue('TestPattern2D')
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[editor.showId]).toEqual({
+      0: { kind: 'stock', id: 'TestPattern2D' },
+    })
+    expect(admission.calls).toEqual([])
+    const after = editor.state()
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+  }, 20_000)
+
+  it('swaps one chip slot with no write while siblings keep their values (#1066 L2)', async () => {
+    const user = userEvent.setup()
+    const { stock, editor } = await renderLessonV2('stock-show-102-transitions-values')
+    const strip = screen.getByRole('region', { name: `${lessonStripTitle(stock)} live strip` })
+    await user.click(within(strip).getByRole('button', { name: 'Patterns (3)' }))
+    const chooser = screen.getByRole('dialog', { name: 'Try with Pattern' })
+    expect(within(chooser).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('ClockworkIris')
+    expect(within(chooser).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('EventHorizon')
+    expect(within(chooser).getByRole('combobox', { name: 'Pattern 3' })).toHaveValue('SignalMandala')
+
+    await user.click(within(chooser).getByRole('combobox', { name: 'Pattern 2' }))
+    await user.click(screen.getByRole('option', { name: 'Caustics' }))
+    await act(async () => {})
+
+    expect(screen.queryByRole('dialog', { name: 'Try with Pattern' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Select EventHorizon' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Select ClockworkIris' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: 'Select SignalMandala' }).length).toBeGreaterThan(0)
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[editor.showId]).toEqual({
+      1: { kind: 'stock', id: 'Caustics' },
+    })
+    expect(admission.calls).toEqual([])
+    expect(editor.state().history).toEqual({ past: [], future: [] })
+  }, 20_000)
+
+  it('compiles the projected record into View code with no write (#1066 L2)', async () => {
+    const user = userEvent.setup()
+    const { stock, editor } = await renderLessonV2('stock-show-reference-aperture-icons')
+    const strip = screen.getByRole('region', { name: `${lessonStripTitle(stock)} live strip` })
+    const picker = within(strip).getByRole('combobox', { name: 'Try with Pattern' })
+    await user.click(picker)
+    await user.click(screen.getByRole('option', { name: 'TestPattern2D' }))
+    await act(async () => {})
+    expect(within(strip).getByRole('combobox', { name: 'Try with Pattern' })).toHaveValue('TestPattern2D')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    const stored = useShowStore.getState().showV2Pilots[editor.showId]
+    const groups = stock.patternSlots ?? (stock.reference?.patternSlots ? [stock.reference.patternSlots] : [])
+    const selections = useShowEditorSessionStore.getState().referencePatternsByShowId[editor.showId]!
+    const projected = projectLessonV2(stored, groups, selections)
+    expect(projected).not.toBe(stored)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View code' }))
+    const source = screen.getByTestId('v2-viewcode-source').textContent
+    expect(source).toBe(expectedLessonSource(projected))
+    expect(source).not.toBe(expectedLessonSource(stored))
+    expect(admission.calls).toEqual([])
+  }, 20_000)
+
+  it('keeps Clip edits on the stored record with exactly one history entry (#1066 L2)', async () => {
+    const { editor } = await renderLessonV2('stock-show-102-transitions-values')
+    act(() => {
+      useShowEditorSessionStore.getState().setReferencePattern(editor.showId, 1, { kind: 'stock', id: 'Caustics' })
+    })
+    expect(screen.getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
+    const before = editor.state()
+
+    await selectClipByName('ClockworkIris', 0)
+    typeAndCommit('Brightness exact percentage', '37')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotAppearanceEdit'])
+    expectOneEdit(before, after)
+    expect(after.record.composition.patternInstances.find((instance) => instance.id === 'horizon')?.pattern)
+      .toEqual({ kind: 'stock', id: 'EventHorizon' })
+    expect(screen.getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Select EventHorizon' })).not.toBeInTheDocument()
+  })
+
+  it('clears a slot selection when Clip Detail replaces a slot member Pattern (#1066 L2)', async () => {
+    const { editor } = await renderLessonV2('stock-show-102-transitions-values')
+    act(() => {
+      const session = useShowEditorSessionStore.getState()
+      session.setReferencePattern(editor.showId, 0, { kind: 'stock', id: 'Caustics' })
+      session.setReferencePattern(editor.showId, 2, { kind: 'stock', id: 'TestPattern2D' })
+    })
+    const before = editor.state()
+
+    await selectClipByName('Caustics', 0)
+    showTab('Pattern')
+    pickSourcePattern('TestPattern2D')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(replacementSubmissions()).toHaveLength(1)
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[editor.showId]).toEqual({
+      2: { kind: 'stock', id: 'TestPattern2D' },
+    })
+    expect(after.record.composition.patternInstances.find((instance) => instance.id === 'iris')?.pattern)
+      .toEqual({ kind: 'stock', id: 'TestPattern2D' })
+    expectOneEdit(before, after)
   })
 })
 

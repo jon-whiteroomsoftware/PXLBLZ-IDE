@@ -248,6 +248,10 @@ import {
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
 import {
+  applyShowPatternSlotSelectionsV2,
+  showPatternSlotRemovedControlNamesV2,
+} from '@/engine/showReferenceShowV2'
+import {
   showLessonAuthoredSlotPatternV1,
   showLessonAuthoredSlotPatternV2,
   showLessonNarrationV1,
@@ -1207,6 +1211,15 @@ export function ShowEditor({
     const source = ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : userPatterns.find(pattern => pattern.id === ref.id)?.src
     return resolveBundledPatternSliderNames(source, compileLibrarySet)
   }, [compileLibrarySet, userPatterns])
+  // Lessons and reference Showcases declare ordered groups on the catalogue
+  // entry. The legacy single reference slot remains a compatibility fallback.
+  const builtInSlotGroups = useMemo<readonly ShowPatternSlotGroup[] | undefined>(() => (
+    builtInContext?.patternSlots
+      ?? (builtInContext?.reference?.patternSlots ? [builtInContext.reference.patternSlots] : undefined)
+  ), [builtInContext?.reference?.patternSlots, builtInContext?.patternSlots])
+  const slotPatternNameFor = useCallback((ref: ShowCell['pattern']) => (
+    ref.kind === 'stock' ? resolveStockPatternId(ref.id) : userPatterns.find((pattern) => pattern.id === ref.id)?.name
+  ), [userPatterns])
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const preparedV2Dependencies = useMemo(() => recordVersion === 2 ? {
@@ -1223,33 +1236,51 @@ export function ShowEditor({
   ), [preparedV2Dependencies, recordVersion, savedShowV2])
   const preparedV2CaptureRef = useRef(preparedV2Capture)
   preparedV2CaptureRef.current = preparedV2Capture
+  const lessonProjectionV2 = useMemo(() => (
+    recordVersion === 2 && savedShowV2 && builtInSlotGroups && selectedReferencePatterns
+      ? applyShowPatternSlotSelectionsV2(
+          savedShowV2,
+          builtInSlotGroups,
+          selectedReferencePatterns,
+          slotPatternNameFor,
+          exportedSliderNamesFor,
+        )
+      : savedShowV2
+  ), [builtInSlotGroups, exportedSliderNamesFor, recordVersion, savedShowV2, selectedReferencePatterns, slotPatternNameFor])
+  const presentationV2Capture = useMemo(() => (
+    recordVersion === 2 && lessonProjectionV2 && preparedV2Dependencies
+      ? lessonProjectionV2 === savedShowV2
+        ? preparedV2Capture
+        : captureShowStageEditV2(lessonProjectionV2, preparedV2Dependencies)
+      : null
+  ), [lessonProjectionV2, preparedV2Capture, preparedV2Dependencies, recordVersion, savedShowV2])
   const timelineViewV2 = useMemo(() => (
-    recordVersion === 2 && savedShowV2 ? projectShowEditorTimelineV2(savedShowV2) : null
-  ), [recordVersion, savedShowV2])
+    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorTimelineV2(lessonProjectionV2) : null
+  ), [recordVersion, lessonProjectionV2])
   // The time grid's own columns. v1 reads them off its Scenes inside the
   // workspace; a v2 backing resolves the same section and boundary spans from
   // the authored record, so the same Show lays out in the same CSS tracks
   // whichever version stores it (#1065).
   const timeColumnsV2 = useMemo(() => (
-    recordVersion === 2 && savedShowV2 ? projectShowEditorTimeColumnsV2(savedShowV2) : null
-  ), [recordVersion, savedShowV2])
+    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorTimeColumnsV2(lessonProjectionV2) : null
+  ), [recordVersion, lessonProjectionV2])
   const transitionSettingsV2 = useMemo(() => (
-    recordVersion === 2 && savedShowV2 ? projectShowEditorTransitionSettingsV2(savedShowV2) : null
-  ), [recordVersion, savedShowV2])
+    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorTransitionSettingsV2(lessonProjectionV2) : null
+  ), [recordVersion, lessonProjectionV2])
   // Which Transitions v1's boundary surfaces own, read from the authored
   // record. Both the inspector panel and the Change palette gate on this, so it
   // is projected once here rather than twice further down (#1065).
   const boundaryTransitionsV2 = useMemo(() => (
-    recordVersion === 2 && savedShowV2 ? projectShowEditorBoundaryTransitionsV2(savedShowV2) : null
-  ), [recordVersion, savedShowV2])
+    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorBoundaryTransitionsV2(lessonProjectionV2) : null
+  ), [recordVersion, lessonProjectionV2])
   const boundaryTransitionIdsV2 = useMemo(() => (
     boundaryTransitionsV2 ? new Set(Object.keys(boundaryTransitionsV2)) : null
   ), [boundaryTransitionsV2])
   // The timeline caption reads each Clip at its own authored start, so it stays
   // independent of the playhead exactly as the v1 caption is (#1065).
   const clipSummarySourcesV2 = useMemo(() => (
-    recordVersion === 2 && savedShowV2 ? projectShowEditorTimelineClipSummarySourcesV2(savedShowV2) : null
-  ), [recordVersion, savedShowV2])
+    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorTimelineClipSummarySourcesV2(lessonProjectionV2) : null
+  ), [recordVersion, lessonProjectionV2])
   const activeIp = useControllerStore((state) => state.activeIp)
   const activeController = useControllerStore((state) => (state.activeIp ? state.controllers[state.activeIp] : undefined))
   const controllerPushing = useControllerStore((state) => state.pushing)
@@ -1525,18 +1556,9 @@ export function ShowEditor({
   const editableShow = recordVersion === 1
     ? stockShowDraft ?? savedShow ?? canonicalStockShow ?? showOverride ?? null
     : null
-  // Lessons and reference Showcases declare ordered groups on the catalogue
-  // entry. The legacy single reference slot remains a compatibility fallback.
-  const builtInSlotGroups = useMemo<readonly ShowPatternSlotGroup[] | undefined>(() => (
-    builtInContext?.patternSlots
-      ?? (builtInContext?.reference?.patternSlots ? [builtInContext.reference.patternSlots] : undefined)
-  ), [builtInContext?.reference?.patternSlots, builtInContext?.patternSlots])
   const afterSceneIdByTransitionId = useMemo<Readonly<Record<string, string>>>(() => (
     Object.fromEntries((stockShowById(showId)?.show.transitions ?? []).map((transition) => [transition.id, transition.afterSceneId]))
   ), [showId])
-  const slotPatternNameFor = useCallback((ref: ShowCell['pattern']) => (
-    ref.kind === 'stock' ? resolveStockPatternId(ref.id) : userPatterns.find((pattern) => pattern.id === ref.id)?.name
-  ), [userPatterns])
   const activeShow = useMemo(() => (
     editableShow && builtInSlotGroups && selectedReferencePatterns
       ? applyShowPatternSlotSelections(
@@ -1551,9 +1573,29 @@ export function ShowEditor({
   const requestPatternSlotSelection = useCallback((slotIndex: number, pattern: ShowPatternRef) => {
     const group = builtInSlotGroups?.[slotIndex]
     const patternName = slotPatternNameFor(pattern)
-    if (!activeShow || !group || !patternName) return
+    if (!group || !patternName) return
     const sliderNames = exportedSliderNamesFor(pattern)
     if (sliderNames === null) return
+    if (recordVersion === 2) {
+      if (!lessonProjectionV2) return
+      const removedControlNames = showPatternSlotRemovedControlNamesV2(
+        lessonProjectionV2,
+        group,
+        sliderNames,
+      )
+      if (removedControlNames.length === 0) {
+        setReferencePattern(showId, slotIndex, pattern)
+        return
+      }
+      setPendingPatternSlotSelection({
+        slotIndex,
+        pattern,
+        patternName,
+        removedControlNames: removedControlNames.map(patternControlDisplayName),
+      })
+      return
+    }
+    if (!activeShow) return
     const removedControlNames = showPatternSlotRemovedControlNames(
       activeShow,
       group,
@@ -1569,7 +1611,7 @@ export function ShowEditor({
       patternName,
       removedControlNames: removedControlNames.map(patternControlDisplayName),
     })
-  }, [activeShow, builtInSlotGroups, exportedSliderNamesFor, setReferencePattern, showId, slotPatternNameFor])
+  }, [activeShow, builtInSlotGroups, exportedSliderNamesFor, lessonProjectionV2, recordVersion, setReferencePattern, showId, slotPatternNameFor])
   // Every legacy whole-record write funnels through here, so this is the one
   // place a v2 backing is fenced off from the v1 save path (#1065). An
   // unconnected v2 write resolves as an internal no-change result: no record,
@@ -1922,8 +1964,20 @@ export function ShowEditor({
         && preparedV2CaptureRef.current === input.capture
         && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
     })
+    if (outcome.status === 'applied') {
+      const replaced = input.capture.record.composition.clips.find((clip) => clip.id === input.intent.clipId)
+      const instanceId = replaced?.instanceId
+      if (instanceId && builtInSlotGroups) {
+        const selections = useShowEditorSessionStore.getState().referencePatternsByShowId[showId]
+        builtInSlotGroups.forEach((group, index) => {
+          if (selections?.[index] && group.instanceIds.includes(instanceId)) {
+            setReferencePattern(showId, index, null)
+          }
+        })
+      }
+    }
     return outcome
-  }, [showId])
+  }, [builtInSlotGroups, setReferencePattern, showId])
   // Slice 6 connects Show End through the same plumbing: one accepted write
   // is one history entry and one save. The drag preview never writes and the
   // commit never reads preview state, so a keyboard set with no drag still
@@ -2503,7 +2557,7 @@ export function ShowEditor({
   // rather than a second editor-local one (#1065).
   const compiled = useMemo<CompiledShowState>(() => {
     if (recordVersion === 2) {
-      const prepared = preparedV2Capture?.prepared
+      const prepared = presentationV2Capture?.prepared
       // The tray banner and its View code/Download gating read artifactBlocker
       // exactly as on v1, so the v2 Installation coverage verdict surfaces
       // there while artifact and error stay as prepared (#1066).
@@ -2525,7 +2579,7 @@ export function ShowEditor({
           },
         )
       : { artifact: null, error: null }
-  }, [effectiveArtifactCompilationInput, preparedV2Capture, recordVersion, savedShowV2])
+  }, [effectiveArtifactCompilationInput, presentationV2Capture, recordVersion, savedShowV2])
   const patternControlsByCellId = useMemo(() => Object.fromEntries((activeShow?.cells ?? []).map((cell) => {
     const saved = cell.pattern.kind === 'user'
       ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}
@@ -2723,8 +2777,8 @@ export function ShowEditor({
   // name its own runtime instances; the discovery below is shared (#1065).
   const controlSourceInstances = useMemo(() => {
     if (recordVersion === 2) {
-      return savedShowV2
-        ? materializeShowGroupsV2(savedShowV2).composition.patternInstances
+      return lessonProjectionV2
+        ? materializeShowGroupsV2(lessonProjectionV2).composition.patternInstances
           .map((instance) => ({ id: instance.id, pattern: instance.pattern }))
         : []
     }
@@ -2734,7 +2788,7 @@ export function ShowEditor({
           ...projectShowGroupRuntimePatternInstances(timelineComposition),
         ].map((instance) => ({ id: instance.id, pattern: instance.pattern }))
       : []
-  }, [recordVersion, savedShowV2, timelineComposition])
+  }, [recordVersion, lessonProjectionV2, timelineComposition])
   const patternControlsByInstanceId = useMemo(() => Object.fromEntries(controlSourceInstances.map((instance) => {
     try {
       return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {}, instance.pattern.kind === 'stock' ? resolveStockPatternId(instance.pattern.id) : undefined)]
@@ -2797,18 +2851,18 @@ export function ShowEditor({
     return () => window.clearTimeout(timeout)
   }, [activeShow, closeDetailPanel, detailPanelOpen, pinnedDetail, selection, setSelection, timelineComposition])
   const propertyLanesV2 = useMemo(() => (
-    recordVersion === 2 && savedShowV2
-      ? projectShowEditorPropertyLanesV2(savedShowV2, Object.values(patternControlsByInstanceId).flat())
+    recordVersion === 2 && lessonProjectionV2
+      ? projectShowEditorPropertyLanesV2(lessonProjectionV2, Object.values(patternControlsByInstanceId).flat())
       : null
-  ), [patternControlsByInstanceId, recordVersion, savedShowV2])
+  ), [patternControlsByInstanceId, recordVersion, lessonProjectionV2])
   const sampleRepeatAtV2 = useMemo(() => (
-    recordVersion === 2 && savedShowV2 && showV2SampleRepeatLaneVisible(savedShowV2)
-      ? (timeMs: number) => repeatScaleAt(savedShowV2, timeMs)
+    recordVersion === 2 && lessonProjectionV2 && showV2SampleRepeatLaneVisible(lessonProjectionV2)
+      ? (timeMs: number) => repeatScaleAt(lessonProjectionV2, timeMs)
       : null
-  ), [recordVersion, savedShowV2])
+  ), [recordVersion, lessonProjectionV2])
   const zoneMapV2 = useMemo(() => (
-    recordVersion === 2 && savedShowV2 ? projectShowEditorZoneMapV2(savedShowV2) : null
-  ), [recordVersion, savedShowV2])
+    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorZoneMapV2(lessonProjectionV2) : null
+  ), [recordVersion, lessonProjectionV2])
   const inspectorShow = activeShow && timelineComposition && !activeShow.composition
     ? { ...activeShow, composition: timelineComposition }
     : activeShow
@@ -2890,9 +2944,9 @@ export function ShowEditor({
   const inspectableShowExport = useMemo(() => {
     if (!compiled.artifact) return null
     if (recordVersion === 2) {
-      if (!savedShowV2) return null
-      const exported = buildShowEpeExportV2(savedShowV2, compiled.artifact.code, {
-        stampedAt: new Date(savedShowV2.updatedAt),
+      if (!lessonProjectionV2) return null
+      const exported = buildShowEpeExportV2(lessonProjectionV2, compiled.artifact.code, {
+        stampedAt: new Date(lessonProjectionV2.updatedAt),
         userMaps,
         attribution: compiled.artifact.attribution,
       })
@@ -2905,7 +2959,7 @@ export function ShowEditor({
           attribution: compiled.artifact.attribution,
         })
       : null
-  }, [compiledShow, compiled.artifact, recordVersion, savedShowV2, userMaps])
+  }, [compiledShow, compiled.artifact, recordVersion, lessonProjectionV2, userMaps])
   // The pressure numerator is the delivered total (generated source plus
   // delivery header) — the same bytes the gauge and inventory report (#63).
   const compilePressure = useMemo(() => compiled.artifact
@@ -2922,7 +2976,7 @@ export function ShowEditor({
     : null
   const artifactInventory = useMemo(() => {
     if (!compiled.artifact || !inspectableShowExport) return null
-    const describedRecord = recordVersion === 2 ? savedShowV2 : compiledShow
+    const describedRecord = recordVersion === 2 ? lessonProjectionV2 : compiledShow
     if (!describedRecord) return null
     const inventory = buildDeliveredShowSourceInventory(
       compiled.artifact.summary.sourceInventory,
@@ -2941,7 +2995,7 @@ export function ShowEditor({
         budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
       }),
     }
-  }, [compiledShow, compiled.artifact, inspectableShowExport, recordVersion, savedShowV2])
+  }, [compiledShow, compiled.artifact, inspectableShowExport, recordVersion, lessonProjectionV2])
   const activeControllerMapDim = activeController?.mapDim ?? null
   const showArtifactId = `show:${showId}`
   const showControllerPushResult = controllerArtifactPushResult?.artifactId === showArtifactId
@@ -3058,7 +3112,7 @@ export function ShowEditor({
 
   const buildCurrentCompilationSnapshot = (): ShowCompilationSnapshot | null => {
     if (recordVersion === 2) {
-      const record = savedShowV2
+      const record = lessonProjectionV2
       const v2Artifact = compiled.artifact
       if (!record || !v2Artifact || compiled.artifactBlocker) return null
       const v2Maps = useMapStore.getState().userMaps
@@ -3648,13 +3702,13 @@ export function ShowEditor({
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
         {(legacyShow || (recordVersion === 2 && savedShowV2)) && builtInContext?.note && showNoteOpen && (
-          recordVersion === 2 && savedShowV2 ? (
+          recordVersion === 2 && lessonProjectionV2 ? (
             <ShowLiveStrip
               key={showId}
               note={builtInContext.note}
               showId={showId}
-              narrationAt={(positionMs) => showLessonNarrationV2(savedShowV2, builtInContext.reference, positionMs, afterSceneIdByTransitionId)}
-              authoredPatternFor={(group) => showLessonAuthoredSlotPatternV2(savedShowV2, group)}
+              narrationAt={(positionMs) => showLessonNarrationV2(lessonProjectionV2, builtInContext.reference, positionMs, afterSceneIdByTransitionId)}
+              authoredPatternFor={(group) => showLessonAuthoredSlotPatternV2(lessonProjectionV2, group)}
               patternSlots={builtInSlotGroups}
               patternOptions={referencePatternOptions}
               selections={selectedReferencePatterns}
@@ -4107,7 +4161,7 @@ export function ShowEditor({
                   <ContextualInspector
                   show={legacyShow}
                   compositionShow={legacyShow ? inspectorShow ?? legacyShow : null}
-                  recordV2={recordVersion === 2 ? savedShowV2 ?? null : null}
+                  recordV2={recordVersion === 2 ? lessonProjectionV2 ?? null : null}
                   boundaryTransitionsV2={boundaryTransitionsV2}
                   panelKey={detail.id}
                   selection={detail.selection}
