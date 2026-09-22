@@ -1,6 +1,7 @@
 import { showDeliveryInvalidationMessage } from '@/engine/showControllerDelivery'
 import { useShowControllerDelivery } from './useShowControllerDelivery'
 import { editShowMarkerFromUI } from '../engine/showExactTimelineMarker'
+import { repeatScaleAt, showV2SampleRepeatLaneVisible } from '../engine/showV2ScalarProperties'
 import { Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, CopyPlus, Download, Eye, Flag, FlipHorizontal2, Grid2X2, Layers3, Lightbulb, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scaling, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, SquareDashed, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
@@ -2527,6 +2528,11 @@ export function ShowEditor({
       ? projectShowEditorPropertyLanesV2(savedShowV2, Object.values(patternControlsByInstanceId).flat())
       : null
   ), [patternControlsByInstanceId, recordVersion, savedShowV2])
+  const sampleRepeatAtV2 = useMemo(() => (
+    recordVersion === 2 && savedShowV2 && showV2SampleRepeatLaneVisible(savedShowV2)
+      ? (timeMs: number) => repeatScaleAt(savedShowV2, timeMs)
+      : null
+  ), [recordVersion, savedShowV2])
   const zoneMapV2 = useMemo(() => (
     recordVersion === 2 && savedShowV2 ? projectShowEditorZoneMapV2(savedShowV2) : null
   ), [recordVersion, savedShowV2])
@@ -3385,6 +3391,7 @@ export function ShowEditor({
                 transitionSettingsOverride={transitionSettingsV2}
                 boundaryTransitionIdsOverride={boundaryTransitionIdsV2}
                 zoneLayoutsOverride={recordVersion === 2 ? savedShowV2?.zoneLayouts ?? null : null}
+                sampleRepeatAtOverride={sampleRepeatAtV2}
                 clipSummarySourcesOverride={clipSummarySourcesV2}
                 propertyLanesOverride={propertyLanesV2}
                 zoneMapOverride={zoneMapV2}
@@ -4948,6 +4955,7 @@ function ShowTimelineWorkspace({
   transitionSettingsOverride,
   boundaryTransitionIdsOverride,
   zoneLayoutsOverride,
+  sampleRepeatAtOverride,
   clipSummarySourcesOverride,
   propertyLanesOverride,
   zoneMapOverride,
@@ -5016,6 +5024,8 @@ function ShowTimelineWorkspace({
   boundaryTransitionIdsOverride?: ReadonlySet<string> | null
   /** Authored Zone Layout definitions the kind label reads when no v1 record backs the view. */
   zoneLayoutsOverride?: readonly ShowRoutingLayout[] | null
+  /** The v2 record's repeat scale at a Show time, present only when the sample-repeat lane shows (#1066 slice 9c1). */
+  sampleRepeatAtOverride?: ((timeMs: number) => number) | null
   /** Resolved Clip-summary facts the caption reads when no v1 record backs the view. */
   clipSummarySourcesOverride?: Record<string, ShowEditorTimelineClipSummarySourceV2> | null
   /** Presented Property lanes when no v1 record backs the view. */
@@ -5863,6 +5873,7 @@ function ShowTimelineWorkspace({
   ))
   const hasSampleRemap = Boolean(show && (show.scenes.some((scene) => scene.sampleTargets?.repeatScale !== undefined)
     || show.transitions?.some((transition) => transition.propertyTransitions?.sample?.repeatScale)))
+    || Boolean(!show && sampleRepeatAtOverride)
   const hasNonTrivialLayout = recordVersion === 2
     ? timelineView.layoutIntervals.some((interval) => interval.zoneIds.length > 1)
     : Boolean(show?.routingLayouts.some((layout) => (
@@ -7050,6 +7061,27 @@ function ShowTimelineWorkspace({
             </div>
           )
         })()}
+        {!show && sampleRepeatAtOverride && (
+          // The authored-v2 record has no Scenes: one cell per structural
+          // section shows that section's repeat scale (#1066 slice 9c1).
+          <div role="group" aria-label="Sample repeat lane" className="contents">
+            <div
+              className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[9px] text-cyan-300/80"
+              style={{ gridColumn: 1, gridRow: contentStartRow + (layoutLaneVisible ? 1 : 0) }}
+            >
+              {showMicroZonePicker ? <Repeat2 size={12} aria-hidden /> : '↳ sample repeat'}
+            </div>
+            {timeSections.map((section, index) => (
+              <div
+                key={`sample-repeat-span-${index}`}
+                className="flex items-center justify-center border-t border-zinc-900/80 bg-[repeating-linear-gradient(135deg,rgba(34,211,238,0.12)_0_3px,transparent_3px_8px)] font-mono text-[9px] text-cyan-100"
+                style={{ gridColumn: 2 + index * 2, gridRow: contentStartRow + (layoutLaneVisible ? 1 : 0) }}
+              >
+                {formatRepeatScale(sampleRepeatAtOverride(section.startMs))}
+              </div>
+            ))}
+          </div>
+        )}
         {show && hasSampleRemap && (
           <div role="group" aria-label="Sample repeat lane" className="contents">
             <div

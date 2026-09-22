@@ -3820,3 +3820,42 @@ describe('v2 boundary scalar ramp edits (#1066 slice 9c2a)', () => {
     expect(within(boundaryPanel()).getByRole('checkbox', { name: 'Animate split position' })).toBeChecked()
   })
 })
+
+describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
+  function laneCells(): string[] | null {
+    const lane = screen.queryByRole('group', { name: 'Sample repeat lane' })
+    if (!lane) return null
+    return Array.from(lane.children).slice(1)
+      .filter((cell) => cell.tagName === 'DIV')
+      .map((cell) => `${(cell as HTMLElement).style.gridColumn}|${(cell as HTMLElement).style.gridRow}|${cell.textContent}`)
+  }
+
+  function renderBoth(source: ShowRecord): { v1: string[] | null; v2: string[] | null; v1Grid: string | null; v2Grid: string | null } {
+    const record = convertCorpus(source)
+    useShowStore.setState({ shows: [source], showsLoaded: true, activeShowId: source.id, showV2Pilots: {}, showV2Histories: {}, showRevisions: {} })
+    render(<ShowEditor showId={source.id} />)
+    const v1 = laneCells()
+    const v1Grid = screen.getByTestId('show-timeline-grid').getAttribute('style')
+    cleanup()
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    return { v1, v2: laneCells(), v1Grid, v2Grid: screen.getByTestId('show-timeline-grid').getAttribute('style') }
+  }
+
+  it('reads each section\'s repeat scale in the cells v1 draws for the same Show', async () => {
+    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const { v1, v2, v1Grid, v2Grid } = renderBoth(structuredClone(stock.show) as ShowRecord)
+
+    expect(v1).toEqual(['2|3|1x', '4|3|1x', '6|3|1x', '8|3|1x', '10|3|1x', '12|3|1x', '14|3|1x', '16|3|1x', '18|3|4x'])
+    expect(v2).toEqual(v1)
+    expect(v2Grid).toBe(v1Grid)
+  })
+
+  it('draws no lane for a Show that never sets a repeat scale', () => {
+    const { v1, v2 } = renderBoth(corpusSource('stock-lesson'))
+
+    expect(v1).toBeNull()
+    expect(v2).toBeNull()
+  })
+})

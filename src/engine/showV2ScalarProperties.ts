@@ -15,6 +15,17 @@ export function repeatScaleAt(record: ShowRecordV2, timeMs: number): number {
   return keys[keys.length - 1]?.value ?? record.composition.sampleRemap.repeatScale
 }
 
+/** Whether the authored-v2 timeline shows the sample-repeat lane: the record
+ * authored or converted a repeat scale, holds one on a track, or ramps one at a
+ * boundary (#1066 slice 9c1). */
+export function showV2SampleRepeatLaneVisible(record: ShowRecordV2): boolean {
+  const { sampleRemap, propertyTracks, transitions } = record.composition
+  return sampleRemap.origin !== undefined
+    || sampleRemap.repeatScale !== 1
+    || propertyTracks.some(track => track.target.kind === 'show-repeat-scale')
+    || transitions.some(transition => transition.propertyRamps.some(ramp => ramp.target.kind === 'show-repeat-scale'))
+}
+
 /** Existing scalar carrier descriptors, without Clip or instance ownership. */
 export function scalarBoundaryRamps(transition: ShowTransitionV2): ShowPropertyTransitions | undefined {
   if (transition.propertyRamps.length === 0) return undefined
