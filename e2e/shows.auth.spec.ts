@@ -10,7 +10,7 @@ import { createShowWithOutputContract } from '../src/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
 import { showBackingIsV2 } from './support/showBacking'
 import { mergeShowListingsById } from '../src/test/showV2HarnessDecisions'
-import { listStoredShowsV2, storeSeededShowAsV2, waitForV2BarrierSave } from './support/showBackingRecords'
+import { listStoredShowsV2, storeSeededShowAsV2, storedShowV2RevisionMatchesAnchor, waitForV2BarrierSave } from './support/showBackingRecords'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -1478,8 +1478,8 @@ test.describe('authenticated Show authoring', () => {
     // v1 backing's own shape of these surfaces: its output summary, Show
     // properties panel, Zone Map and Zone Layout routing mode, so this seeds
     // the v1 row they belong to. Adding a Zone and a Layout definition's
-    // routing mode remain v1-only here, because no v2
-    // owner writes them.
+    // routing mode are owned on v2 as well (planShowV2ZoneAdd, and the
+    // logical branch of planShowV2LayoutUpdate, wired in ShowEditor.tsx).
     const portable = createShowWithOutputContract(
       `v1-portable-${randomUUID()}`,
       'Touring field',
@@ -1491,7 +1491,7 @@ test.describe('authenticated Show authoring', () => {
 
     await expect(page).toHaveURL(new RegExp(`/studio/shows/${portable.id}$`))
     await expect(page.getByTitle('Show output summary')).toContainText('Portable')
-    await waitForCurrentShow(page, (show) => (
+    await expectCurrentShowUnsaved(page, (show) => (
       show.outputContract?.kind === 'portable-2d'
       && show.outputContract.referencePixelCount === 1024
       && show.outputContract.referenceMapId === 'plane'
@@ -1689,7 +1689,7 @@ test.describe('authenticated Show authoring', () => {
 
       let blockWrites = true
       await page.route('**/api/shows/**', (route) => {
-        if (blockWrites && route.request().method() === 'PATCH') return route.abort()
+        if (blockWrites && (route.request().method() === 'PATCH' || route.request().method() === 'PUT')) return route.abort()
         return route.continue()
       })
 
@@ -2466,7 +2466,7 @@ test.describe('authenticated Show authoring', () => {
     await page.keyboard.press('Escape')
     await expect(popover).toHaveCount(0)
     await expect(clipPanel).toBeVisible()
-    await waitForCurrentShow(page, (show) => !show.composition?.scenes[0]?.propertyTracks?.length)
+    await expectCurrentShowUnsaved(page, (show) => !show.composition?.scenes[0]?.propertyTracks?.length)
 
     await diamond.click()
     const from = page.getByRole('textbox', { name: 'Brightness animation from exact percentage' })
@@ -3188,23 +3188,24 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
  * the test, so the inventory never reads such a run as an unqualified pass.
  * What the save contains is left to the assertions that follow.
  *
- * Every barrier takes the save path, deliberately. Classifying by evaluating
+ * Every barrier through this function takes the save path, deliberately. Classifying by evaluating
  * the v1 predicate against the v2 document is unsound in both directions: a
  * predicate can throw on the v2 shape (`composition.scenes`, which v2
  * replaces) or hold vacuously (`transitions?.[0]?.... === undefined`, true
  * because v2 carries no top-level `transitions`). The predicate alone cannot
  * tell "this barrier waits for a save" from "this barrier asserts nothing was
- * saved", so the run treats each barrier as a save barrier and waits for the
+ * saved", so a barrier through this function waits for the
  * stored revision to advance past its pre-gesture anchor: the previous
  * barrier's consumed revision, else the revision this run wrote when it
  * seeded the version-2 document. The anchor never comes from a barrier-start
  * read, because a v2 edit's adoption and persistence are one awaited flow and
  * the awaited save routinely reaches storage before the barrier runs. The call sites
  * that assert absence of a save (spec:2469, the popover-dismiss barrier) and
- * the pre-edit readback (spec:1494, the seeded Portable contract) stay unverifiable on v2 until
- * an explicit absence helper is adopted by a test-body edit, which is outside
- * this harness-only scope: until then it times out loudly rather than passing
- * silently.
+ * the pre-edit readback (spec:1494, the seeded Portable contract) use the
+ * explicit absence helper `expectCurrentShowUnsaved` (below) instead: on v2 it
+ * waits out a settle window and then requires the stored revision to still
+ * equal its pre-gesture anchor. Any other barrier reaching this function
+ * still times out loudly rather than passing silently when no save follows.
  */
 async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) => boolean): Promise<void> {
   const id = new URL(page.url()).pathname.split('/').at(-1)
@@ -3214,6 +3215,48 @@ async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) =
       description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits for the stored revision to advance past its pre-gesture anchor',
     })
     await waitForV2BarrierSave(page, id!)
+    return
+  }
+  await expect.poll(async () => {
+    try {
+      const response = await page.context().request.get('/api/shows')
+      if (!response.ok()) return false
+      const { shows } = await response.json() as { shows: PersistedShow[] }
+      const show = shows.find((candidate) => candidate.id === id)
+      return show ? predicate(show) : false
+    } catch {
+      // A shared local Wrangler can reset one connection under parallel load.
+      // Treat that sample as not ready so expect.poll can retry; persistent
+      // transport or durability failures still exhaust the assertion timeout.
+      return false
+    }
+  }).toBe(true)
+}
+
+/**
+ * Assert that a gesture saved nothing, for the stored record the open Show route addresses.
+ *
+ * The absence half of the save-barrier pair, adopted by the two test-body
+ * sites that assert nothing was saved (spec:1494, the seeded Portable
+ * readback; spec:2469, the popover-dismiss barrier). The v1 branch is exactly
+ * `waitForCurrentShow`'s readback: poll `/api/shows` until the predicate
+ * holds. The v2 run cannot evaluate the version-1 predicate against a
+ * version-2 document, and no gesture before these barriers performs a save,
+ * so it waits out a settle window and then requires the stored revision to
+ * still equal its pre-gesture anchor, without updating the observed-save
+ * stamp — a later save barrier still anchors where this read did. Annotates
+ * the test so the inventory never reads such a run as an unqualified pass.
+ */
+async function expectCurrentShowUnsaved(page: Page, predicate: (show: PersistedShow) => boolean): Promise<void> {
+  const id = new URL(page.url()).pathname.split('/').at(-1)
+  if (showBackingIsV2()) {
+    test.info().annotations.push({
+      type: 'show-backing-v2',
+      description: 'absence barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits out a settle window and then asserts the stored revision still equals its pre-gesture anchor (no save)',
+    })
+    await page.waitForTimeout(1500)
+    const reading = await storedShowV2RevisionMatchesAnchor(page, id!)
+    expect(reading.unchanged, `The v2 run observed a version-2 save for Show ${id} where none was expected (anchor revision ${String(reading.anchor)}, stored revision ${String(reading.current)})`).toBe(true)
     return
   }
   await expect.poll(async () => {

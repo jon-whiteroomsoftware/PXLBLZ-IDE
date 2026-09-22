@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Page } from '@playwright/test'
 import { storeShowAsV2 } from '../../e2e/support/showBacking'
 import {
+  storedShowV2RevisionMatchesAnchor,
   v2SaveReachedStorage,
   waitForV2BarrierSave,
 } from '../../e2e/support/showBackingRecords'
@@ -186,5 +187,53 @@ describe('waitForV2BarrierSave against its pre-gesture anchor', () => {
     // fix; every current barrier site is seeded, so the fallback is idle.
     const { page } = fakeBarrierPage([v2(12)])
     await expect(waitForV2BarrierSave(page, id, 250)).rejects.toThrow(/no pre-gesture anchor/)
+  })
+})
+
+describe('storedShowV2RevisionMatchesAnchor', () => {
+  it('reads unchanged when the stored revision still equals the seeded anchor', async () => {
+    const id = 'wiring-absence-unchanged'
+    const v2 = (revision: number): FakeStoredRow[] => [{ id, version: 2, updatedAt: revision }]
+    const { page } = fakeSeededBarrierPage(id, 10, () => v2(10))
+    await storeShowAsV2(page, id)
+    await expect(storedShowV2RevisionMatchesAnchor(page, id)).resolves.toEqual({
+      anchor: 10,
+      current: 10,
+      unchanged: true,
+    })
+  })
+
+  it('reads changed when the stored revision advanced past the anchor', async () => {
+    const id = 'wiring-absence-advanced'
+    const v2 = (revision: number): FakeStoredRow[] => [{ id, version: 2, updatedAt: revision }]
+    const { page } = fakeSeededBarrierPage(id, 10, () => v2(12))
+    await storeShowAsV2(page, id)
+    await expect(storedShowV2RevisionMatchesAnchor(page, id)).resolves.toEqual({
+      anchor: 10,
+      current: 12,
+      unchanged: false,
+    })
+  })
+
+  it('reads changed for an appearing document with no anchor', async () => {
+    const id = 'wiring-absence-appearing'
+    const v2 = (revision: number): FakeShowRow[] => [{ id, version: 2, updatedAt: revision }]
+    const { page } = fakeBarrierPage([v2(5)])
+    await expect(storedShowV2RevisionMatchesAnchor(page, id)).resolves.toEqual({
+      anchor: undefined,
+      current: 5,
+      unchanged: false,
+    })
+  })
+
+  it('never consumes the anchor: a save past it still satisfies a later barrier', async () => {
+    const id = 'wiring-absence-keeps-anchor'
+    const v2 = (revision: number): FakeStoredRow[] => [{ id, version: 2, updatedAt: revision }]
+    const { page } = fakeSeededBarrierPage(id, 10, () => v2(12))
+    await storeShowAsV2(page, id)
+    await expect(storedShowV2RevisionMatchesAnchor(page, id)).resolves.toMatchObject({ unchanged: false })
+    // Against a stamp-consuming read this rejects: the consumed revision 12
+    // would become the new anchor and no later read advances past it.
+    await waitForV2BarrierSave(page, id, 300)
   })
 })

@@ -116,3 +116,23 @@ export async function waitForV2BarrierSave(page: Page, id: string, timeoutMs = 1
     await page.waitForTimeout(100)
   }
 }
+
+/**
+ * Whether the stored version-2 document still carries its pre-gesture anchor revision (#1066).
+ *
+ * The absence half of the barrier pair: `waitForV2BarrierSave` waits for the
+ * stored revision to advance past the anchor, while this reports whether it
+ * stayed put. The comparison is strict equality in both directions — an
+ * advanced revision, a deleted document, and an appearing document all read
+ * as changed, mirroring `v2RevisionAdvanced`'s reading of an appearing
+ * document as a save. Reads only: the observed-save stamp is never updated,
+ * so a later save barrier still anchors where this read did.
+ */
+export async function storedShowV2RevisionMatchesAnchor(
+  page: Page,
+  id: string,
+): Promise<{ anchor: number | undefined; current: number | undefined; unchanged: boolean }> {
+  const anchor = barrierAnchor(id)
+  const current = (await findStoredShowV2(page, id))?.updatedAt
+  return { anchor, current, unchanged: current === anchor }
+}
