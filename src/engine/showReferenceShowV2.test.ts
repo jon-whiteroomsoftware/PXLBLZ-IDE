@@ -67,7 +67,12 @@ function convertedOracle(id: string, selections: Readonly<Record<number, ShowPat
     exportedSliderNamesFor,
   )
   const cleaned = structuredClone(projected)
-  if (cleaned.composition) delete cleaned.composition.executionModel
+  // v1's forfeiture leaves a present-but-undefined executionModel key, which the
+  // V1 schema (type string) refuses; drop it only in that case. Absence maps to
+  // the converter's continuous default, matching v2's forfeiture.
+  if (cleaned.composition && cleaned.composition.executionModel === undefined) {
+    delete cleaned.composition.executionModel
+  }
   const converted = convertShowRecordV1ToV2(cleaned, {
     byCellId: Object.fromEntries(
       cleaned.cells.map((cell) => {
@@ -133,9 +138,30 @@ function expectParity(id: string, selections: Readonly<Record<number, ShowPatter
     normalizeKeyOrder(instanceControlTracks(oracle)),
   )
   expect(clipSpans(projected)).toEqual(clipSpans(oracle))
+  expect(projected.composition.executionModel).toEqual(oracle.composition.executionModel)
 }
 
 describe('Try-with-Pattern projection over v2 records (#1066 slice 11b1)', () => {
+  it('forfeits the deterministic-loop stamp when the Pattern changes', () => {
+    const native = stockShowV2ById('stock-show-103-clip-transform')
+    if (!native) throw new Error('missing native v2 lesson 103')
+    expect(native.composition.executionModel).toBe('deterministic-loop')
+    const { projected } = nativeProjected('stock-show-103-clip-transform', { 0: CAUSTICS })
+    expect(projected.composition.executionModel).toBe('continuous')
+  })
+
+  it('keeps the deterministic-loop stamp when reselecting the current Pattern', () => {
+    const native = stockShowV2ById('stock-show-103-clip-transform')
+    if (!native) throw new Error('missing native v2 lesson 103')
+    const current = native.composition.patternInstances.find((instance) => instance.id === 'rose')
+      ?.pattern
+    if (!current) throw new Error('missing rose instance')
+    const { projected } = nativeProjected('stock-show-103-clip-transform', {
+      0: structuredClone(current),
+    })
+    expect(projected.composition.executionModel).toBe('deterministic-loop')
+  })
+
   it('matches the v1 oracle on lesson 103 with Caustics', () => {
     expectParity('stock-show-103-clip-transform', { 0: CAUSTICS })
   })

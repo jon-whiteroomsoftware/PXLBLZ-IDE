@@ -21,6 +21,15 @@ export function showPatternSlotRemovedControlNamesV2(
   return [...removed]
 }
 
+/**
+ * Applies the user's per-slot Try with Pattern selections in slot order over a
+ * v2 record. Each group swaps as one unit; slots without a selection keep the
+ * authored cast. Control targets and instance-control tracks survive only where
+ * the new Pattern still exports them. A swapped source forfeits the
+ * deterministic-loop stamp to continuous: the exact-reset proof (#823 wrap
+ * census) belongs to the authored cast, and control compatibility does not prove
+ * runtime-state compatibility. Reselecting the current Pattern keeps the stamp.
+ */
 export function applyShowPatternSlotSelectionsV2(
   record: ShowRecordV2,
   slotGroups: readonly ShowPatternSlotGroup[],
@@ -48,10 +57,16 @@ function applyShowPatternSlotSelectionV2(
 ): ShowRecordV2 {
   const presentIds = new Set(record.composition.patternInstances.map((instance) => instance.id))
   const swappedIds = new Set(group.instanceIds.filter((id) => presentIds.has(id)))
+  const sourceChanged = record.composition.patternInstances.some(
+    (instance) =>
+      swappedIds.has(instance.id) &&
+      (instance.pattern.kind !== pattern.kind || instance.pattern.id !== pattern.id),
+  )
   return {
     ...record,
     composition: {
       ...record.composition,
+      ...(sourceChanged ? { executionModel: 'continuous' as const } : {}),
       patternInstances: record.composition.patternInstances.map((instance) => {
         if (!swappedIds.has(instance.id)) return instance
         const keptEntries = Object.entries(instance.controlTargets ?? {}).filter(
