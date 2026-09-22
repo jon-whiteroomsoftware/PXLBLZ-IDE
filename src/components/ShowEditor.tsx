@@ -1977,6 +1977,34 @@ export function ShowEditor({
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
+    // Inspector Start and Duration reuse the timeline drag's planners, as v1's
+    // inspector reuses its move and resize (#1066).
+    if (timelineViewV2 && Object.keys(patch).length === 1 && patch.local !== undefined) {
+      const localKeys = Object.keys(patch.local)
+      const hasStart = patch.local.startMs !== undefined
+      const hasDuration = patch.local.durationMs !== undefined
+      if (localKeys.length === 1 && (hasStart !== hasDuration)) {
+        let placed: { zoneId: string; layerId: string; startMs: number } | null = null
+        for (const row of timelineViewV2.rows) {
+          for (const layer of row.layers) {
+            const item = layer.items.find((candidate) => candidate.id === clipId)
+            if (item) { placed = item; break }
+          }
+          if (placed) break
+        }
+        if (placed) {
+          const temporalPlan = hasDuration
+            ? planShowV2ClipResize(timelineViewV2, { clipId, edge: 'trailing', startMs: placed.startMs, endMs: placed.startMs + Math.round(patch.local.durationMs!) })
+            : planShowV2ClipMove(timelineViewV2, { clipId, zoneId: placed.zoneId, layerId: placed.layerId, startMs: Math.round(patch.local.startMs!) })
+          if (temporalPlan.kind === 'refuse') return false
+          const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+          const temporalCommit = temporalPlan.kind === 'transition-resize'
+            ? commitV2TransitionResize({ capture, baseRevision, intent: temporalPlan.intent })
+            : commitV2ClipTemporal({ capture, baseRevision, intent: temporalPlan.intent })
+          return temporalCommit.then(() => {}, () => {})
+        }
+      }
+    }
     const plan = planShowV2ClipInspectorPatch(capture.record, clipId, patch)
     if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
@@ -1998,7 +2026,7 @@ export function ShowEditor({
     // the draft) from anything else (keep the draft), exactly as the legacy
     // chokepoint's contract reads.
     return commit.then(() => {}, () => {})
-  }, [commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2InstanceProperties, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2ClipTemporal, commitV2InstanceProperties, commitV2TransitionResize, readOnly, recordVersion, savedShowV2, showId, timelineViewV2])
   // Slice 5a connects the boundary Transition settings writes (the Transition
   // parameter editor and the Crossfade source select) through the
   // transition-edit door. Refused and no-op changes return synchronously so

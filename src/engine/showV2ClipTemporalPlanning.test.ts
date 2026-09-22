@@ -416,3 +416,80 @@ describe('planShowV2ClipResize across Group occurrences (#1068)', () => {
       .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-leading', clipId: 'f', startMs: 18500 } })
   })
 })
+
+describe('v2 Clip inspector Start and Duration oracle (#1066)', () => {
+  it('v1 Duration edit then convert equals v2 trailing resize plus its owner on the converted before-record', async () => {
+    const { createDefaultShow } = await import('./showModel')
+    const { updateShowClipInspector } = await import('./showClipInspectorModel')
+    const { convertShowRecordV1ToV2 } = await import('./showRecordV1ToV2')
+    const { DEMOS, resolveStockPatternId } = await import('../pixelblaze/stock/patterns')
+    const { validateShowRecordV2 } = await import('./showCompositionV2')
+    const { projectShowEditorTimelineV2 } = await import('./showEditorTimelinePresentation')
+    const { editShowClipTemporalV2 } = await import('./showClipTemporalV2')
+
+    const base = createDefaultShow('inspector-oracle-v1', 'Inspector oracle', 1)
+    const sceneId = base.scenes[0]!.id
+    const zoneId = base.zones[0]!.id
+    const sceneDurationMs = base.scenes[0]!.durationMs
+    const before: typeof base = {
+      ...base,
+      composition: {
+        version: 1,
+        patternInstances: [
+          { id: 'instance-main', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D', time: { timeScale: 1, timeOffsetMs: 0 } },
+          { id: 'instance-overlay', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } },
+        ],
+        scenes: [{
+          sceneId,
+          zones: [{
+            zoneId,
+            main: [{ id: 'placement-main', instanceId: 'instance-main', startMs: 0, durationMs: sceneDurationMs, view: { mirror: false, phase: 0, brightness: 1 } }],
+            overlays: [{
+              id: 'layer-front',
+              name: 'Front',
+              placements: [{ id: 'placement-overlay', instanceId: 'instance-overlay', startMs: 1_000, durationMs: 2_000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } }],
+            }],
+          }],
+        }],
+      },
+    }
+    const owner = { kind: 'scene-overlay' as const, sceneId, zoneId, layerId: 'layer-front', placementId: 'placement-overlay' }
+    const v1Edited = updateShowClipInspector(before, owner, { local: { durationMs: 3_000 } })
+    expect(v1Edited).not.toBe(before)
+
+    const convert = (show: typeof base) => {
+      const result = convertShowRecordV1ToV2(show, {
+        byCellId: Object.fromEntries(show.cells.map((cell) => {
+          const source = DEMOS[resolveStockPatternId(cell.pattern.id)]
+          if (!source) throw new Error(`missing stock source ${cell.pattern.id}`)
+          return [cell.id, source]
+        })),
+      })
+      if (result.status !== 'converted') throw new Error(JSON.stringify(result.issues))
+      expect(validateShowRecordV2(result.record)).toEqual([])
+      return result.record
+    }
+    const convertedBefore = convert(before)
+    const convertedAfter = convert(v1Edited)
+
+    const view = projectShowEditorTimelineV2(convertedBefore)
+    const item = view.rows.flatMap((row) => row.layers.flatMap((layer) => layer.items))
+      .find((candidate) => candidate.startMs === 1_000 && candidate.durationMs === 2_000)
+    if (!item) throw new Error('converted free clip not found at 1000+2000')
+    const planned = planShowV2ClipResize(view, { clipId: item.id, edge: 'trailing', startMs: item.startMs, endMs: item.startMs + 3_000 })
+    expect(planned.kind).not.toBe('refuse')
+    if (planned.kind === 'refuse') throw new Error(`resize refused: ${planned.reason}`)
+    if (planned.kind !== 'temporal') throw new Error(`expected temporal plan, got ${planned.kind}`)
+    const applied = editShowClipTemporalV2(convertedBefore, planned.intent)
+    expect(applied.status).toBe('changed')
+    if (applied.status !== 'changed') throw new Error(`owner refused: ${JSON.stringify(applied)}`)
+
+    const shape = (record: typeof convertedBefore) => ({
+      showEndMs: record.composition.showEndMs,
+      clips: [...record.composition.clips]
+        .map((clip) => [clip.startMs, clip.durationMs].join(':'))
+        .sort(),
+    })
+    expect(shape(applied.record)).toEqual(shape(convertedAfter))
+  })
+})

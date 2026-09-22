@@ -3094,12 +3094,11 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
-    typeAndCommit('Start seconds exact time', '13')
+    typeAndCommit('Start seconds exact time', '12')
     await act(async () => {})
 
     const after = editor.state()
-    expect(planned.calls).toHaveLength(1)
-    expect(planned.calls[0].clipId).toBe('overlay-a')
+    expect(planned.calls).toHaveLength(0)
     expect(admission.calls).toEqual([])
     expectNoWrite(before, after)
   })
@@ -5226,5 +5225,138 @@ describe('v2 Zone Layout routing transfers (#1066)', () => {
     await act(async () => {})
     expect(admission.calls).toEqual([])
     expectNoWrite(before, editor.state())
+  })
+})
+
+describe('v2 Clip inspector Start and Duration (#1066)', () => {
+  function transitionResizeSubmissions() {
+    return admission.calls
+      .filter((call) => call.door === 'admitShowV2PilotTransitionResize')
+      .map((call) => ({ intent: call.request.intent, baseRevision: call.request.baseRevision }))
+  }
+
+  it('sets a free Clip Duration through the temporal door, matching a trailing drag resize', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('inspector-duration-free'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+    expect(authoredClip(before.record, 'overlay-a').startMs).toBe(12_000)
+    expect(authoredClip(before.record, 'overlay-a').durationMs).toBe(2_000)
+
+    typeAndCommit('Duration seconds exact time', '3')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: { kind: 'extend', clipId: 'overlay-a', startMs: 12_000, endMs: 15_000 },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').startMs).toBe(12_000)
+    expect(authoredClip(after.record, 'overlay-a').durationMs).toBe(3_000)
+    expectOneEdit(before, after)
+
+    const { projectShowEditorTimelineV2 } = await import('@/engine/showEditorTimelinePresentation')
+    const { planShowV2ClipResize } = await import('@/engine/showV2ClipTemporalPlanning')
+    const view = projectShowEditorTimelineV2(before.record)
+    const planned = planShowV2ClipResize(view, { clipId: 'overlay-a', edge: 'trailing', startMs: 12_000, endMs: 15_000 })
+    expect(planned.kind).not.toBe('refuse')
+    if (planned.kind !== 'refuse') {
+      expect(temporalSubmissions()[0]!.intent).toEqual(planned.intent)
+    }
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('moves a free Clip Start through the temporal door with duration unchanged', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('inspector-start-free'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+    expect(authoredClip(before.record, 'overlay-a').startMs).toBe(12_000)
+    expect(authoredClip(before.record, 'overlay-a').durationMs).toBe(2_000)
+
+    typeAndCommit('Start seconds exact time', '13')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(temporalSubmissions()).toEqual([{
+      intent: { kind: 'move', clipId: 'overlay-a', startMs: 13_000 },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'overlay-a').startMs).toBe(13_000)
+    expect(authoredClip(after.record, 'overlay-a').durationMs).toBe(2_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('routes a joined Clip Duration through the transition-resize door, exactly as the drag does', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('inspector-duration-joined'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    const before = editor.state()
+    expect(authoredClip(before.record, 'resize-a').startMs).toBe(1_000)
+    expect(authoredClip(before.record, 'resize-a').durationMs).toBe(4_000)
+
+    typeAndCommit('Duration seconds exact time', '3')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(transitionResizeSubmissions()).toEqual([{
+      intent: { kind: 'resize-trailing', clipId: 'resize-a', endMs: 4_000 },
+      baseRevision: 0,
+    }])
+    expect(authoredClip(after.record, 'resize-a').startMs).toBe(1_000)
+    expect(authoredClip(after.record, 'resize-a').durationMs).toBe(3_000)
+    expectOneEdit(before, after)
+
+    const { projectShowEditorTimelineV2 } = await import('@/engine/showEditorTimelinePresentation')
+    const { planShowV2ClipResize } = await import('@/engine/showV2ClipTemporalPlanning')
+    const view = projectShowEditorTimelineV2(before.record)
+    expect(planShowV2ClipResize(view, { clipId: 'resize-a', edge: 'trailing', startMs: 1_000, endMs: 4_000 }))
+      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-trailing', clipId: 'resize-a', endMs: 4_000 } })
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('reverts no-change and refused values with no door call and record identity', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('inspector-timing-refused'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+
+    typeAndCommit('Duration seconds exact time', '2')
+    await act(async () => {})
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+
+    typeAndCommit('Start seconds exact time', '12')
+    await act(async () => {})
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+    expectNoWrite(before, editor.state())
+  })
+
+  it('refuses a duration that grows into a converted boundary with no door call', async () => {
+    const { record } = convertedFreshBoundary('inspector-timing-collide')
+    const transition = record.composition.transitions.find((candidate) => candidate.origin === 'converted-boundary-transition') ?? record.composition.transitions[0]!
+    const fromId = transition.participants[0]!.fromClipId
+    const clip = record.composition.clips.find((candidate) => candidate.id === fromId)!
+    const instance = record.composition.patternInstances.find((candidate) => candidate.id === clip.instanceId)!
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName(instance.patternName, 0)
+    const before = editor.state()
+
+    typeAndCommit('Duration seconds exact time', String((clip.durationMs + 5_000) / 1_000))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.record).toBe(before.record)
+    expectNoWrite(before, after)
   })
 })
