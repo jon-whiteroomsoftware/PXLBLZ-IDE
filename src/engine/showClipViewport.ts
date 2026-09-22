@@ -158,6 +158,29 @@ export function showClipViewportMaskExpression(
   return mix
 }
 
+/**
+ * The frame's centre-line y, folded to a constant when static: the 1D Clip
+ * Viewport downgrade (#1080) evaluates the mask along this line. Animated
+ * frames reuse the same track values the 2D path reads.
+ */
+export function showClipViewportCentreLineExpression(
+  viewport: Partial<ShowClipViewport> | undefined,
+  propertyExpressions: Partial<Record<'x' | 'y' | 'width' | 'height', string>> = {},
+): string | null {
+  const normalized = normalizeShowClipViewport(viewport)
+  if (!normalized.enabled) return null
+  const yExpression = propertyExpressions.y
+  const heightExpression = propertyExpressions.height
+  if (yExpression === undefined) {
+    return heightExpression === undefined
+      ? numberSource(normalized.y + normalized.height / 2)
+      : `${numberSource(normalized.y)} + (${heightExpression}) * 0.5`
+  }
+  return heightExpression === undefined
+    ? `(${yExpression}) + ${numberSource(normalized.height / 2)}`
+    : `(${yExpression}) + (${heightExpression}) * 0.5`
+}
+
 /** The boolean inside-test for the effective-hard aperture. */
 export function showClipViewportHardPredicateExpression(
   viewport: Partial<ShowClipViewport> | undefined,

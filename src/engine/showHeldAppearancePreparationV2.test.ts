@@ -165,7 +165,7 @@ const admittedBytes = {
   live: { recipe: '1c52218ff19acc8d514b15b6f21ea8e207e3c8aa521fca3e1804abab2b11b888', source: '485e662f754d1808d4075e1dcc8c403c09dd0ee534418ca491fdebceac957587', epe: 'e5c36e9bfcf0a607d41623d3490697cef5a581f22e7ca6439a38f9e27e421163' },
   freeze: { recipe: '1eb4dcb94501a648ccd1d6dba0d28fd1c102e507414a0ccea2385aa88d8bcf6f', source: '0c50989922888e0f2539f68fc88209d175b8a18bca8b7e38959163725ccb5d17', epe: 'f6b9d18255e1a04ba10741e80419e5efca6479f52910cbe0624b01bf1cee7f14' },
   strobe: { recipe: '7d3b82d5dc7403ba7cbf380f7e47909cb71e959726364a4245e70b1c91a2fd5b', source: '0f05af8bc43750dff2711ca2a0c8d4a24c49e5db27d9fe99bb5fd4218612530a', epe: 'b3ff080f1d2ff1f94f9e0fc4af7f7e90fe7d003341cccda0e9e57512cec18152' },
-  transition: { recipe: '0b0832617ac886598d381dc68daf415d76453e63cb17319e7146afde8b6682ac', source: '81403e5d2573b3f97853bc5190890c493da09a4938335d8a652c716a7cb48e35', epe: '2f7d3ef1f8868614dc5b7ee688a79a8cdea386d69f7d359bf030e1bc93148fd4' },
+  transition: { recipe: '9717492149aab2138f42bc870ad3732d1a04e6c8b4484fd4d94063e13d9e51b0', source: '81403e5d2573b3f97853bc5190890c493da09a4938335d8a652c716a7cb48e35', epe: '2f7d3ef1f8868614dc5b7ee688a79a8cdea386d69f7d359bf030e1bc93148fd4' },
 }
 it.each(['live', 'freeze', 'strobe', 'transition'] as const)('preserves pinned admitted %s recipe/source/EPE bytes including canonical field-order equivalence', mode => {
   const record = compatibilityFixture(mode), before = structuredClone(record)

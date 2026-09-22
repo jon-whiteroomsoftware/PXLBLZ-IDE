@@ -2624,10 +2624,9 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     expect(keyedFreeze).toThrow(/Freeze.*cannot be compiled exactly/i)
   })
 
-  it('rejects an enabled Clip Viewport when routed output is 1D (#585)', () => {
+  it('promotes 1D members to 2D output for an enabled Clip Viewport with a 2D Stage map (#1080)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
-
-    expect(() => compileShow({
+    const recipe = {
       clips: [{ id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' }],
       zones,
       routingLayouts: [{ id: 'default', name: 'Default', zones }],
@@ -2650,7 +2649,134 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
         ],
       },
       loopDurationMs: 2_000,
-    }, {})).toThrow('Clip Viewports require 2D Show output.')
+      stageDimension: 2,
+    } as never
+    const artifact = compileShow(recipe, {})
+    expect(artifact.code).toContain('export function render2D(index, x, y)')
+    // The Viewport mask follows the zone grid, not the render2D arguments:
+    // four pixels make a 2x2 grid, so local 0 sits exactly on the frame
+    // corner (the default soft edge blends it to half) and local 1 (x 1) is
+    // fully outside it. A dense pixelCount keeps the soft band tight.
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 10_001)
+    handle.beforeRender(100)
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([0, 0, 0.5])
+    handle.render2D(1, 1, 0)
+    expect(pixel()).toEqual([0, 0, 0])
+  })
+
+  it('downgrades an enabled Clip Viewport to the frame centre line when routed output is 1D (#1080)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+
+    const artifact = compileShow({
+      clips: [{ id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements: [{
+              placementId: 'blue-placement',
+              zoneName: 'main',
+              clipId: 'blue',
+              viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+            }],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1_000,
+            placements: [{ placementId: 'blue-again', zoneName: 'main', clipId: 'blue' }],
+          },
+        ],
+      },
+      loopDurationMs: 2_000,
+    }, {})
+    expect(artifact.code).toContain('export function render(index)')
+    expect(artifact.code).not.toContain('export function render2D')
+  })
+
+  it('clips a hard rectangle to its x interval along the downgraded centre line (#1080)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 10 }] }]
+    const downgraded = (viewport: Record<string, unknown>) => compileShow({
+      clips: [{ id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements: [{
+              placementId: 'blue-placement',
+              zoneName: 'main',
+              clipId: 'blue',
+              viewport,
+            }],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1_000,
+            placements: [{ placementId: 'blue-again', zoneName: 'main', clipId: 'blue' }],
+          },
+        ],
+      },
+      loopDurationMs: 2_000,
+    } as never, {})
+    const frame = { enabled: true, x: 0.3, y: 0.8, width: 0.4, height: 0.1, edge: 'hard' }
+    const renderAll = (viewport: Record<string, unknown>) => {
+      const artifact = downgraded(viewport)
+      const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 11)
+      handle.beforeRender(100)
+      return Array.from({ length: 11 }, (_, index) => {
+        handle.render(index)
+        return pixel()
+      })
+    }
+    const pixels = renderAll(frame)
+    for (const index of [0, 1, 2, 8, 9, 10]) expect(pixels[index]).toEqual([0, 0, 0])
+    for (const index of [4, 5, 6]) expect(pixels[index]).toEqual([0, 0, 1])
+    // y and height do not matter on the downgrade: the mask reads the frame's
+    // centre line, so sliding the frame to y 0 changes nothing.
+    expect(renderAll({ ...frame, y: 0 })).toEqual(pixels)
+  })
+
+  it('admits a full-frame ellipse chord on the downgrade and rejects it inverted (#1080)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 10 }] }]
+    const downgraded = (viewport: Record<string, unknown>) => {
+      const artifact = compileShow({
+        clips: [{ id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' }],
+        zones,
+        routingLayouts: [{ id: 'default', name: 'Default', zones }],
+        routedSceneSequence: {
+          scenes: [
+            {
+              holdMs: 1_000,
+              placements: [{
+                placementId: 'blue-placement',
+                zoneName: 'main',
+                clipId: 'blue',
+                viewport,
+              }],
+              transitionOut: { kind: 'cut', durationMs: 0 },
+            },
+            {
+              holdMs: 1_000,
+              placements: [{ placementId: 'blue-again', zoneName: 'main', clipId: 'blue' }],
+            },
+          ],
+        },
+        loopDurationMs: 2_000,
+      } as never, {})
+      const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 11)
+      handle.beforeRender(100)
+      return Array.from({ length: 11 }, (_, index) => {
+        handle.render(index)
+        return pixel()
+      })
+    }
+    const frame = { enabled: true, x: 0, y: 0, width: 1, height: 1, aperture: 'ellipse', edge: 'hard' }
+    for (const pixel of downgraded(frame)) expect(pixel).toEqual([0, 0, 1])
+    for (const pixel of downgraded({ ...frame, invert: true })) expect(pixel).toEqual([0, 0, 0])
   })
 
   it('animates a Clip Viewport boundary without changing the Pattern coordinate field (#585)', () => {

@@ -2,7 +2,8 @@ import { expect, it } from 'vitest'
 import { continuingV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
-import { showRecordToCompileRecipe } from './showModel'
+import { createDefaultShow, showRecordToCompileRecipe } from './showModel'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { validateShowRecordV2 } from './showCompositionV2'
 import { compileShow } from './showCompiler'
 import { LIBRARIES } from '../pixelblaze/libs'
@@ -103,4 +104,51 @@ it('keeps a split gapped Clip byte-identical through compile and replay in Fast 
   const after = compileShow(prepared.recipe, LIBRARIES)
   expect(after.code).toBe(before.code)
   for (const fidelity of ['fast', 'fidelity'] as const) expect(runtimeParity(before, after, source, converted.record, fidelity, []).matched).toBe(true)
+})
+
+it('promotes a Clip Viewport on 1D members with a 2D Stage map and downgrades it without one (#1080)', () => {
+  const censusCases: Array<{ stageMapId: string | null; stageDimension: 2 | undefined; promoted: boolean }> = [
+    { stageMapId: 'plane', stageDimension: 2, promoted: true },
+    { stageMapId: null, stageDimension: undefined, promoted: false },
+  ]
+  for (const { stageMapId, stageDimension, promoted } of censusCases) {
+    const show = createDefaultShow('census-1080', 'Census', 1)
+    show.transitions = show.transitions.map((transition) => (
+      transition.kind === 'crossfade' ? { ...transition, crossfadePolicy: 'live-live' as const } : transition
+    ))
+    show.cells[0] = {
+      ...show.cells[0],
+      viewport: { enabled: true, x: 0, y: 0, width: 1, height: 1, aperture: 'ellipse' },
+    }
+    show.stageMapId = stageMapId
+    const lookup = {
+      byCellId: { 'cell-1': DEMOS.TestPattern1D, 'cell-2': DEMOS.CometLoom },
+      ...(stageDimension === undefined ? {} : { stageDimension }),
+    }
+    const v1 = compileShow(showRecordToCompileRecipe(show, lookup), LIBRARIES)
+    const converted = convertShowRecordV1ToV2(show, lookup)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const v2Lookup = {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(converted.record.composition.patternInstances.map(
+        (instance) => [instance.id, DEMOS[instance.pattern.id]],
+      )),
+      ...(stageDimension === undefined ? {} : { stageDimension }),
+    }
+    const prepared = prepareShowV2ForCompile(converted.record, v2Lookup)
+    expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
+    if (prepared.status !== 'ready') return
+    const v2 = compileShow(prepared.recipe, LIBRARIES)
+    if (promoted) {
+      expect(v1.code).toContain('export function render2D(index, x, y)')
+      expect(v2.code).toContain('export function render2D(index, x, y)')
+    } else {
+      expect(v1.code).toContain('export function render(index)')
+      expect(v1.code).not.toContain('export function render2D')
+      expect(v2.code).toContain('export function render(index)')
+      expect(v2.code).not.toContain('export function render2D')
+    }
+    expect(v2.code).toBe(v1.code)
+  }
 })

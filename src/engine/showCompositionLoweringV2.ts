@@ -118,6 +118,9 @@ export function prepareShowV2ForCompile(
     }
   }
   const recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
+  // #1080: mirror the v1 recipe's Stage dimension from this record so an
+  // enabled Clip Viewport promotes 1D members to 2D output identically.
+  if (record.stageMapId && lookup.stageDimension !== undefined) recipe.stageDimension = lookup.stageDimension
   if (needsGlobalLayoutRecipe(context.record, context.route)) {
     const occurrences = [...context.record.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
     recipe.routingSwitches = occurrences.flatMap((occurrence, index) => index > 0 && (occurrence.incomingTransfer || occurrence.layoutId !== occurrences[index - 1].layoutId)

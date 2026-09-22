@@ -1871,13 +1871,40 @@ export function showRecordToCompileRecipe(
   lookup: ShowCompileRecipeSourceLookup,
   useRoutedInstallationRecipe = true,
 ): ShowRecipe {
+  return withRecipeStageDimension(
+    show,
+    lookup,
+    showRecordToCompileRecipeInner(show, lookup, useRoutedInstallationRecipe),
+  )
+}
+
+/**
+ * #1080: the compile recipe carries the Stage dimension so an enabled Clip
+ * Viewport can promote 1D members to 2D output. Set when the Show names a
+ * Stage map; the compiler ignores it otherwise.
+ */
+function withRecipeStageDimension(
+  show: ShowRecord,
+  lookup: ShowCompileRecipeSourceLookup,
+  recipe: ShowRecipe,
+): ShowRecipe {
+  return show.stageMapId && lookup.stageDimension !== undefined
+    ? { ...recipe, stageDimension: lookup.stageDimension }
+    : recipe
+}
+
+function showRecordToCompileRecipeInner(
+  show: ShowRecord,
+  lookup: ShowCompileRecipeSourceLookup,
+  useRoutedInstallationRecipe = true,
+): ShowRecipe {
   show = normalizeShowTransitionState(show)
   const outputEffects = normalizeShowOutputEffects(show.outputEffects)
   if (show.composition) {
     const deterministicLoopReset = show.composition.executionModel === 'deterministic-loop'
     const lowered = lowerShowCompositionForCompile(show, lookup)
     return {
-      ...showRecordToCompileRecipe(lowered.show, lowered.lookup),
+      ...showRecordToCompileRecipeInner(lowered.show, lowered.lookup),
       ...(deterministicLoopReset ? { deterministicLoopReset: true } : {}),
       outputEffects,
     }
@@ -1897,7 +1924,7 @@ export function showRecordToCompileRecipe(
     && show.zones.length === 1
     && !show.transitions.some((transition) => transition.kind === 'routing')
   ) {
-    const singleZoneRecipe = showRecordToCompileRecipe(show, lookup, false)
+    const singleZoneRecipe = showRecordToCompileRecipeInner(show, lookup, false)
     return {
       ...singleZoneRecipe,
       zones: show.routingLayouts[0]

@@ -42,6 +42,7 @@ import {
   normalizeShowClipViewport,
   showClipViewportEffectiveEdge,
   showClipViewportHardPredicateExpression,
+  showClipViewportCentreLineExpression,
   showClipViewportMaskExpression,
   showClipViewportSoftMixExpression,
 } from './showClipViewport'
@@ -483,6 +484,12 @@ export interface ShowRecipe {
   routingLayouts?: ShowRoutingLayoutRecipe[]
   /** Authoritative physical output size for fixed Installation routing. */
   masterPixelCount?: number
+  /**
+   * Stage-map dimension the recipe was built against (#1080). An enabled Clip
+   * Viewport promotes 1D members to 2D output when this is 2; without a Stage
+   * map the Viewport downgrades to its frame's centre line.
+   */
+  stageDimension?: 1 | 2 | 3
   routingSwitches?: ShowRoutingSwitchRecipe[]
   routingPropertyRamps?: ShowRoutingPropertyRampsRecipe
   samplePropertyRamps?: ShowSamplePropertyRampsRecipe
@@ -2599,7 +2606,15 @@ export function compileShow(
   const needsInstalledMapZ = members.some((member) => (
     member.hasRender2D && memberNeeds3DCoordinateTransform(member)
   ))
-  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion || sequenceHasSpatialDissolve ? 2 : memberOutputDimension
+  const hasEnabledViewport = expandedRecipe.routedSceneSequence?.scenes.some((scene) => (
+    scene.placements.some((placement) => placement.viewport?.enabled)
+  )) ?? false
+  // #1080: an enabled Clip Viewport with a 2D Stage map promotes 1D members
+  // to 2D output on the same footing as a spatial Transition. Without a 2D
+  // Stage map the Viewport downgrades to the frame's centre line instead of
+  // refusing (see the 1D viewport coordinates below).
+  const viewportPromotesTo2D = hasEnabledViewport && expandedRecipe.stageDimension === 2
+  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion || sequenceHasSpatialDissolve || viewportPromotesTo2D ? 2 : memberOutputDimension
   const transitionOutputDimension: ShowOutputDimension = portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition ? 2 : memberOutputDimension
   const routedOutputDimension: 1 | 2 = routingLayouts?.some((layout) => layout.logical)
     ? 2
@@ -2608,14 +2623,6 @@ export function compileShow(
     : routeMode || routingLayouts
       ? memberOutputDimension
       : 1
-  if (
-    routedOutputDimension === 1
-    && expandedRecipe.routedSceneSequence?.scenes.some((scene) => (
-      scene.placements.some((placement) => placement.viewport?.enabled)
-    ))
-  ) {
-    throw new Error('Clip Viewports require 2D Show output.')
-  }
   const hasLogicalRouting = routingLayouts?.some((layout) => layout.logical) ?? false
   const hasSoftSplit = routingLayouts?.some((layout) => layout.logical?.kind === 'soft-split') ?? false
   const hasBlendedSoftSplit = routingLayouts?.some((layout) => (
@@ -6926,7 +6933,15 @@ function emitSharedPhysicalSceneZoneStack(
     localTimeExpression,
     outputDimension === 2
       ? { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y', index: 'index' }
-      : undefined,
+      : {
+          // #1080: 1D downgrade x is the zone-local index over
+          // max(1, zonePixelCount - 1); y is derived per placement from its
+          // frame's centre line (see emitRoutedPlacementCapture).
+          x: '(__pxlblz_show_route_local_index / max(1, __pxlblz_show_route_pixelCount - 1))',
+          y: '0.5',
+          index: 'index',
+          downgrade1D: true,
+        },
   )
   return [
     ...placements.map((placement) => `${placement.member.pixelCountName} = __pxlblz_show_route_pixelCount`),
@@ -7798,7 +7813,17 @@ function emitRoutedSceneStackWrapper(
         outputDimension,
         propertyTracks,
         localTimeExpression,
-        outputDimension === 2 ? { x: 'x', y: 'y', index: 'index' } : undefined,
+        outputDimension === 2
+          ? { x: 'x', y: 'y', index: 'index' }
+          : {
+              // #1080: 1D downgrade x is the wrapper index over the wrapper's
+              // own pixel count, matching the member convention; y is derived
+              // per placement from its frame's centre line.
+              x: `(index / max(1, ${prefix}_pixelCount - 1))`,
+              y: '0.5',
+              index: 'index',
+              downgrade1D: true,
+            },
       )}
 ${prefix}_r = ${prefix}_capture_r
 ${prefix}_g = ${prefix}_capture_g
@@ -7917,7 +7942,15 @@ function emitPhysicalSceneZoneStack(
           x: `__pxlblz_show_scene_zone_${zoneIndex}_x`,
           y: `__pxlblz_show_scene_zone_${zoneIndex}_y`,
         }
-      : undefined,
+      : {
+          // #1080: 1D downgrade x is the zone-local index over
+          // max(1, zonePixelCount - 1); y is derived per placement from its
+          // frame's centre line (see emitRoutedPlacementCapture).
+          index: 'index',
+          x: `(${local} / max(1, ${pixelCount} - 1))`,
+          y: '0.5',
+          downgrade1D: true,
+        },
   )
   return [
     `var ${local} = -1`,
@@ -7951,6 +7984,19 @@ ${indentBlock(capture.lines.slice(0, -1).join('\n'), 2)}${capture.lines.length >
   }).join('\n')
 }
 
+/**
+ * Zone-normalized Viewport coordinates for one routed stack. In the 1D
+ * downgrade (#1080, `downgrade1D`), `x` is the zone-local index over
+ * `max(1, zonePixelCount - 1)` and `y` is unused: each placement derives its
+ * frame's centre line instead (see `showClipViewportCentreLineExpression`).
+ */
+interface RoutedViewportCoordinates {
+  x: string
+  y: string
+  index: string
+  downgrade1D?: boolean
+}
+
 function emitRoutedPlacementStackCapture(
   placements: ResolvedRoutedScenePlacement[],
   capture: (placement: ResolvedRoutedScenePlacement) => string,
@@ -7958,9 +8004,12 @@ function emitRoutedPlacementStackCapture(
   outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
-  viewportCoordinates?: { x: string; y: string; index: string },
+  viewportCoordinates?: RoutedViewportCoordinates,
 ): string {
-  const viewportCoverage = viewportCoordinates
+  // Coverage-directed branches address shared 2D zone coordinates, so the 1D
+  // downgrade stays on the opacity-mask path: the same mask expression with
+  // the frame's centre-line y (see emitRoutedPlacementCapture).
+  const viewportCoverage = viewportCoordinates && outputDimension === 2
     ? analyzeViewportCoverageStack(placements, outputDimension, propertyTracks)
     : null
   if (viewportCoverage?.plan?.kind === 'disjoint-frames') {
@@ -8136,7 +8185,7 @@ function emitDisjointViewportCoverageStack(
   target: string,
   propertyTracks: ShowPropertyAnimationTrack[] | undefined,
   localTimeExpression: string | undefined,
-  viewportCoordinates: { x: string; y: string; index: string },
+  viewportCoordinates: RoutedViewportCoordinates,
 ): string {
   const lines = [
     `var ${target}_r = 0`,
@@ -8196,7 +8245,7 @@ function emitTwoLayerContentKeyStack(
   target: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
-  viewportCoordinates?: { x: string; y: string; index: string },
+  viewportCoordinates?: RoutedViewportCoordinates,
 ): string {
   const lower = placements[0]
   const top = placements[1]
@@ -8384,7 +8433,7 @@ function emitViewportCoverageStack(
   target: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
-  viewportCoordinates?: { x: string; y: string; index: string },
+  viewportCoordinates?: RoutedViewportCoordinates,
 ): string {
   const [lower, top] = placements
   const frameExpressions = localTimeExpression
@@ -8481,7 +8530,7 @@ function emitCoverageDirectedPlacementStack(
   target: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
-  viewportCoordinates?: { x: string; y: string; index: string },
+  viewportCoordinates?: RoutedViewportCoordinates,
 ): string {
   const remaining = `${target}_remaining`
   const layers = [...placements].reverse().map((placement, index) => {
@@ -8634,7 +8683,7 @@ function emitRoutedPlacementCapture(
   capture: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
-  viewportCoordinates?: { x: string; y: string; index: string },
+  viewportCoordinates?: RoutedViewportCoordinates,
 ): { lines: string[]; opacity: string } {
   const placementTracks = (propertyTracks ?? []).filter((track) => (
     'placementId' in track.target && track.target.placementId === placement.placementId
@@ -8643,18 +8692,25 @@ function emitRoutedPlacementCapture(
   const baseOpacity = opacityTrack && localTimeExpression
     ? emitShowPropertyTrackExpression(opacityTrack, localTimeExpression)
     : String(clampNumber(placement.opacity ?? 1, 0, 1))
+  const framePropertyExpressions = localTimeExpression
+    ? Object.fromEntries(placementTracks.flatMap((track) => (
+        track.target.kind === 'placement-viewport'
+          ? [[track.target.property, emitShowPropertyTrackExpression(track, localTimeExpression)]]
+          : []
+      )))
+    : {}
+  // #1080: the 1D downgrade keeps the mask expression but evaluates it along
+  // the frame's centre line: x is the zone-normalized index while y is the
+  // frame centre (animated frames reuse the same track values as the 2D path).
   const viewportMask = viewportCoordinates
     ? showClipViewportMaskExpression(
         placement.viewport,
         viewportCoordinates.x,
-        viewportCoordinates.y,
-        localTimeExpression
-          ? Object.fromEntries(placementTracks.flatMap((track) => (
-              track.target.kind === 'placement-viewport'
-                ? [[track.target.property, emitShowPropertyTrackExpression(track, localTimeExpression)]]
-                : []
-            )))
-          : {},
+        viewportCoordinates.downgrade1D
+          ? showClipViewportCentreLineExpression(placement.viewport, framePropertyExpressions)
+            ?? viewportCoordinates.y
+          : viewportCoordinates.y,
+        framePropertyExpressions,
         { indexExpression: viewportCoordinates.index },
       )
     : null
