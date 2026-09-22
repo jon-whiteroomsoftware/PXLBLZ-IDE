@@ -3670,4 +3670,27 @@ describe('v2 Zone Layouts lane split cell (#1066 slice 9a)', () => {
     expect(cells.every((cell) => cell.style.background.startsWith('linear-gradient('))).toBe(true)
     expect(admission.calls).toEqual([])
   })
+
+  it('colours the split cell from the two split Zones, not the fallback colours', async () => {
+    // The stock Show's Zone colours equal the lane's fallbacks, so this record
+    // recolours both split Zones to tell the v2 Zone read from the constants.
+    const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
+    const record = structuredClone(stockShowV2ById('stock-show-reference-property-animation')!)
+    record.id = 'tracer-lane-split-colours'
+    const split = record.zoneLayouts.find((layout) => layout.logical?.kind === 'split')!
+    const [first, second] = split.logical!.zoneIds
+    record.zones = record.zones.map((zone) => (
+      zone.id === first ? { ...zone, color: '#123456' } : zone.id === second ? { ...zone, color: '#abcdef' } : zone
+    ))
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await act(async () => {})
+    const lane = screen.getByRole('group', { name: 'Zone Layouts lane' })
+    const [cell] = within(lane).getAllByRole('button', { name: 'Edit Moving split X Zone Layout' })
+    const background = cell.style.background
+    expect(background).toMatch(/#123456|rgb\(18, 52, 86\)/)
+    expect(background).toMatch(/#abcdef|rgb\(171, 205, 239\)/)
+    expect(background).not.toMatch(/#38bdf8|rgb\(56, 189, 248\)/)
+    expect(background).not.toMatch(/#f97316|rgb\(249, 115, 22\)/)
+  })
 })
