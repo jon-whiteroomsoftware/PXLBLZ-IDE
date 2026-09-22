@@ -24,6 +24,27 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.16.0 adoption (#1084)
+
+This adoption updates the executable package from 0.15.0. Source release is
+WRSP 0.16.0; see its `docs/reference/process-release-0.16.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.16.0, tag `v0.16.0` |
+| Source | `318ab024452a39e60368655dc720ac84a8facd10` |
+| Tarball | `vendor/whiteroom-software-process-0.16.0.tgz` |
+| SHA256 | `1ae9fb6375956a65b3e02a1ac4c07e937fb69a877ef420ceaa06defe343a9756` |
+
+An approved review now stands whatever model made it (WRSP #121). Receipts,
+outcomes, and pending-proof stages are checked for shape and internal
+consistency on load, never against the current reviewer catalog or family
+registry, so worktrees on 0.16.0 accept receipts recorded by reviewers their
+package does not know. Registry-derived coverage claims are checked when a
+receipt is written. Reviewer selection, the ranked tier, and the review policy
+fingerprint are unchanged from 0.15.0. The pre-push gate peels annotated tags
+before the test-evidence check (WRSP #119).
+
 ## WRSP 0.15.0 adoption (#1081)
 
 This adoption updates the executable package from 0.14.0. Source release is
