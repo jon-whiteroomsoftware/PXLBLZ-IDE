@@ -289,6 +289,7 @@ import {
   admitShowV2PilotTransitionEdit,
   admitShowV2PilotClipEntryPolicy,
   admitShowV2PilotClipReplacementEdit,
+  admitShowV2PilotClipSharingEdit,
   admitShowV2PilotClipTemporal,
   admitShowV2PilotInstanceProperties,
   admitShowV2PilotPropertyEdit,
@@ -298,6 +299,7 @@ import {
   admitShowV2PilotZoneEdit,
   admitShowV2PilotLayoutDefinitionEdit,
   type ShowV2PilotClipDeleteIntent,
+  type ShowV2PilotClipSharingIntent,
   type ShowV2PilotTransitionEditIntent,
   type ShowV2PilotClipEntryPolicyIntent,
   type ShowV2PilotPreparedCapture,
@@ -311,6 +313,7 @@ import {
   type ShowV2ClipReplacementIntent,
 } from '@/engine/showV2ClipReplacementModel'
 import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
+import { planShowTimelineGestureV2 } from '@/engine/showTimelineGesturesV2'
 import {
   planShowV2ClipMove,
   planShowV2ClipResize,
@@ -759,6 +762,18 @@ type ShowClipMovePreview = {
   snapped: boolean
 }
 
+/**
+ * One v2 Clip drop the pointer planned: a temporal move through the
+ * clip-temporal or transition-resize door, or a linked duplicate through the
+ * clip-sharing door. The engine's `ShowV2ClipTemporalPlan` is unchanged; the
+ * sharing variant lives here because only the drag path carries it.
+ */
+type ShowV2ClipDropPlan = ShowV2ClipTemporalPlan | {
+  kind: 'clip-sharing'
+  intent: ShowV2PilotClipSharingIntent
+  selectClipId: string
+}
+
 type ShowClipMovePlan = {
   preview: ShowClipMovePreview
   mode: 'move' | 'duplicate'
@@ -772,7 +787,7 @@ type ShowClipMovePlan = {
   recordVersion: 2
   clipId: string
   startMs: number
-  plan: ShowV2ClipTemporalPlan
+  plan: ShowV2ClipDropPlan
 })
 
 type ShowClipResizePreview = {
@@ -1617,6 +1632,23 @@ export function ShowEditor({
     intent: ShowClipTemporalIntentV2
   }) => {
     const outcome = await admitShowV2PilotClipTemporal({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome.status === 'applied'
+  }, [showId])
+  const commitV2ClipSharing = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotClipSharingIntent
+  }) => {
+    const outcome = await admitShowV2PilotClipSharingEdit({
       showId,
       baseRevision: input.baseRevision,
       capture: input.capture,
@@ -3420,6 +3452,7 @@ export function ShowEditor({
                 captureV2Move={captureV2Move}
                 captureV2ClipEdit={captureV2Move}
                 onCommitV2ClipTemporal={commitV2ClipTemporal}
+                onCommitV2ClipSharing={commitV2ClipSharing}
                 onCommitV2TransitionResize={commitV2TransitionResize}
                 timelineComposition={timelineComposition}
                 readOnly={readOnly}
@@ -5045,6 +5078,7 @@ function ShowTimelineWorkspace({
   captureV2Move,
   captureV2ClipEdit,
   onCommitV2ClipTemporal,
+  onCommitV2ClipSharing,
   onCommitV2TransitionResize,
 }: {
   show: ShowRecord | null
@@ -5142,6 +5176,11 @@ function ShowTimelineWorkspace({
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
     intent: ShowClipTemporalIntentV2
+  }) => Promise<boolean>
+  onCommitV2ClipSharing?: (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotClipSharingIntent
   }) => Promise<boolean>
   onCommitV2TransitionResize?: (input: {
     capture: ShowV2PilotPreparedCapture
@@ -5588,6 +5627,51 @@ function ShowTimelineWorkspace({
         : undefined,
     })
     if (recordVersion === 2) {
+      // An Alt-drag duplicates through the gesture adapter: the plan names the
+      // clip-sharing door and the preview paints the copy. The resolved time
+      // is rounded to the whole milliseconds the sharing owner requires, as
+      // the move planner does for its own intents.
+      if (draggedClip.mode === 'duplicate' && !clip.groupOccurrenceId) {
+        const v2Duplicate = draggedClip.v2Move
+        const duplicatePlan = v2Duplicate
+          ? planShowTimelineGestureV2(v2Duplicate.capture, {
+              kind: 'duplicate',
+              clipId: clip.id,
+              startMs: Math.round(resolved.startMs),
+              zoneId: input.zoneId,
+              layerId: input.layer.id,
+            }, newPersonalContentId)
+          : null
+        if (!duplicatePlan || duplicatePlan.status !== 'ready' || duplicatePlan.submission.owner !== 'clip-sharing') {
+          if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
+          movePlanRef.current = null
+          setMovePreview(null)
+          return
+        }
+        const duplicateStartMs = Math.round(resolved.startMs)
+        const nextDuplicatePreview: ShowClipMovePreview = {
+          clipId: clip.id,
+          mode: 'duplicate',
+          targetKey: input.targetKey,
+          startMs: duplicateStartMs,
+          durationMs: clip.durationMs,
+          snapped: resolved.magnetized,
+        }
+        movePlanRef.current = {
+          recordVersion: 2,
+          preview: nextDuplicatePreview,
+          mode: 'duplicate',
+          clipId: clip.id,
+          startMs: duplicateStartMs,
+          plan: {
+            kind: 'clip-sharing',
+            intent: duplicatePlan.submission.intent,
+            selectClipId: duplicatePlan.selectAfterId ?? duplicatePlan.submission.intent.identities.clipId,
+          },
+        }
+        setMovePreview(nextDuplicatePreview)
+        return
+      }
       if (draggedClip.mode !== 'move' || clip.groupOccurrenceId) {
         if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
         movePlanRef.current = null
@@ -5697,13 +5781,16 @@ function ShowTimelineWorkspace({
     onDirectManipulationChange(false)
     refreshMoveActivity()
   }
-  // One switch for every v2 Clip temporal commit: the planner's door decides
+  // One switch for every v2 Clip drop commit: the planner's door decides
   // which admission runs. A refused plan or a lost capture commits nothing.
   const commitV2ClipPlan = (
     capture: { capture: ShowV2PilotPreparedCapture; baseRevision: number } | undefined,
-    plan: ShowV2ClipTemporalPlan,
+    plan: ShowV2ClipDropPlan,
   ): Promise<boolean> => {
     if (!capture || plan.kind === 'refuse') return Promise.resolve(false)
+    if (plan.kind === 'clip-sharing') {
+      return onCommitV2ClipSharing?.({ ...capture, intent: plan.intent }) ?? Promise.resolve(false)
+    }
     return plan.kind === 'transition-resize'
       ? onCommitV2TransitionResize?.({ ...capture, intent: plan.intent }) ?? Promise.resolve(false)
       : onCommitV2ClipTemporal?.({ ...capture, intent: plan.intent }) ?? Promise.resolve(false)
@@ -5736,9 +5823,13 @@ function ShowTimelineWorkspace({
           })
     void commit.then((changed) => {
       if (!changed || draggingCompositionClipRef.current !== draggedClip) return
-      const clipId = activePlan.mode === 'duplicate'
-        ? draggedClip.duplicatePlacementId!
-        : draggedClip.clipId
+      // A v2 duplicate selects the planner's fresh Clip; v1 keeps selecting
+      // its minted placement id.
+      const clipId = activePlan.recordVersion === 2 && activePlan.plan.kind === 'clip-sharing'
+        ? activePlan.plan.selectClipId
+        : activePlan.mode === 'duplicate'
+          ? draggedClip.duplicatePlacementId!
+          : draggedClip.clipId
       if (activePlan.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
       onReanchorDetails({ kind: 'clip', clipId })
     }).catch(() => {}).finally(() => {
@@ -7356,9 +7447,11 @@ function ShowTimelineWorkspace({
                       })
                     : null
                   draggedClip.settling = true
+                  // A v2 duplicate selects the planner's fresh Clip on success.
+                  let collapsedDuplicateSelectClipId: string | null = null
                   const commit = recordVersion === 2
                     ? (() => {
-                        if (!clip || clip.groupOccurrenceId || draggedClip.mode !== 'move') return Promise.resolve(false)
+                        if (!clip || clip.groupOccurrenceId) return Promise.resolve(false)
                         // A collapsed Zone drop lands on its bottom Layer; the
                         // planner re-places the Clip there with the detach
                         // permission, joined or free, exactly as on the open
@@ -7369,6 +7462,29 @@ function ShowTimelineWorkspace({
                             !bottom || candidate.rank < bottom.rank ? candidate : bottom
                           ), null)
                         if (!targetLayer) return Promise.resolve(false)
+                        if (draggedClip.mode === 'duplicate') {
+                          const v2Duplicate = draggedClip.v2Move
+                          const duplicatePlan = v2Duplicate
+                            ? planShowTimelineGestureV2(v2Duplicate.capture, {
+                                kind: 'duplicate',
+                                clipId: clip.id,
+                                startMs: Math.round(globalStartMs),
+                                zoneId: row.zoneId,
+                                layerId: targetLayer.id,
+                              }, newPersonalContentId)
+                            : null
+                          if (!duplicatePlan || duplicatePlan.status !== 'ready' || duplicatePlan.submission.owner !== 'clip-sharing') {
+                            return Promise.resolve(false)
+                          }
+                          collapsedDuplicateSelectClipId = duplicatePlan.selectAfterId
+                            ?? duplicatePlan.submission.intent.identities.clipId
+                          return commitV2ClipPlan(v2Duplicate, {
+                            kind: 'clip-sharing',
+                            intent: duplicatePlan.submission.intent,
+                            selectClipId: collapsedDuplicateSelectClipId,
+                          })
+                        }
+                        if (draggedClip.mode !== 'move') return Promise.resolve(false)
                         return commitV2ClipPlan(draggedClip.v2Move, planShowV2ClipMove(timelineView, {
                           clipId: clip.id,
                           zoneId: row.zoneId,
@@ -7387,7 +7503,7 @@ function ShowTimelineWorkspace({
                   void commit.then((changed) => {
                     if (!changed || draggingCompositionClipRef.current !== draggedClip) return
                     const clipId = draggedClip.mode === 'duplicate'
-                      ? draggedClip.duplicatePlacementId!
+                      ? (recordVersion === 2 ? collapsedDuplicateSelectClipId! : draggedClip.duplicatePlacementId!)
                       : draggedClip.clipId
                     if (draggedClip.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
                     onReanchorDetails({ kind: 'clip', clipId })

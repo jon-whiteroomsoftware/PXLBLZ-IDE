@@ -453,25 +453,114 @@ describe('v2 tracer settlement routing (#1065)', () => {
     expect(after.legacyHistories).toEqual({})
   })
 
-  it('refuses an Alt duplicate drag instead of settling it as a move', async () => {
+  it('duplicates a Clip on an Alt drag as a linked copy', async () => {
     const editor = openV2Editor('tracer-alt-duplicate')
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
+    const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-a').layerId)!.id
+    const sourceInstanceId = authoredClip(before.record, 'resize-a').instanceId
     const surface = dragSurface('resize-a')
 
     surface.fire(surface.clip, 'dragstart', 0, true)
+    surface.fire(surface.lane('overlay'), 'dragover', DROP_X, true)
+    // The copy affordance is visible in the drag itself, before any owner runs.
+    expect(surface.dataTransfer.dropEffect).toBe('copy')
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveAttribute('data-drag-mode', 'duplicate')
+    surface.fire(surface.lane('overlay'), 'drop', DROP_X, true)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipSharingEdit'])
+    const request = admission.calls[0].request as { intent: Record<string, unknown>; baseRevision: number }
+    expect(request.intent).toMatchObject({
+      kind: 'duplicate', clipId: 'resize-a', zoneId: 'z1', layerId: overlayLayerId, startMs: SETTLED_START_MS,
+    })
+    expect(request.baseRevision).toBe(0)
+    // One more Clip; the source Clip unchanged in place and instance.
+    expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length + 1)
+    expect(authoredClip(after.record, 'resize-a').startMs).toBe(0)
+    expect(authoredClip(after.record, 'resize-a').layerId)
+      .toBe(authoredClip(before.record, 'resize-a').layerId)
+    expect(authoredClip(after.record, 'resize-a').instanceId).toBe(sourceInstanceId)
+    const beforeIds = new Set(before.record.composition.clips.map((clip) => clip.id))
+    const copies = after.record.composition.clips.filter((clip) => !beforeIds.has(clip.id))
+    expect(copies).toHaveLength(1)
+    // Linked by contract: the copy consumes the source's Pattern instance and
+    // mints no runtime of its own.
+    expect(copies[0].layerId).toBe(overlayLayerId)
+    expect(copies[0].startMs).toBe(SETTLED_START_MS)
+    expect(copies[0].instanceId).toBe(sourceInstanceId)
+    expect(after.record.composition.patternInstances).toHaveLength(before.record.composition.patternInstances.length)
+    expectOneEdit(before, after)
+    // The copy is selected after the drop.
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: copies[0].id })
+    // Undo restores the preimage composition exactly - including the original
+    // Clip count - and Redo restores the edit.
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('refuses an Alt duplicate drag of a Group occurrence Clip', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-alt-duplicate'
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('clip')
+    const groupClip = document.querySelector<HTMLElement>('[data-show-group-occurrence="occ-0"]')
+    if (!groupClip) throw new Error('No rendered Group occurrence Clip to drag.')
+
+    surface.fire(groupClip, 'dragstart', 0, true)
     surface.fire(surface.lane('main'), 'dragover', DROP_X, true)
     surface.fire(surface.lane('main'), 'drop', DROP_X, true)
     await act(async () => {})
 
     const after = editor.state()
-    // The refusal is visible in the drag itself, before any owner is reached.
+    // A Group Clip use is inert to drags: the gesture starts nothing, so the
+    // drop target reads `none` and no owner is reached.
     expect(surface.dataTransfer.dropEffect).toBe('none')
     expectNoWrite(before, after)
-    // Neither half of the duplicate leaks: the source Clip has not moved and no
-    // copy was authored.
-    expect(authoredClip(after.record, 'resize-a').startMs).toBe(0)
     expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length)
+  })
+
+  it('duplicates a Clip onto a collapsed Zone as a linked copy', async () => {
+    const editor = openV2EditorForRecord(twoZoneV2Record('tracer-alt-collapsed-duplicate'))
+    useShowEditorSessionStore.getState().setZoneCollapsed(editor.showId, 'z2', true)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const sourceInstanceId = authoredClip(before.record, 'overlay-a').instanceId
+    const surface = zoneDropSurface('overlay-a')
+    const collapsed = surface.collapsedZone('z2')
+    vi.spyOn(collapsed, 'getBoundingClientRect').mockReturnValue({
+      left: 0, right: 200, top: 0, bottom: 28, width: 200, height: 28, x: 0, y: 0, toJSON() {},
+    })
+
+    // x=110 asks for 11000 ms on the collapsed Zone, which lands on its
+    // bottom main Layer.
+    surface.fire(surface.clip, 'dragstart', 0, true)
+    surface.fire(collapsed, 'dragover', 110, true)
+    surface.fire(collapsed, 'drop', 110, true)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipSharingEdit'])
+    const request = admission.calls[0].request as { intent: Record<string, unknown>; baseRevision: number }
+    expect(request.intent).toMatchObject({
+      kind: 'duplicate', clipId: 'overlay-a', zoneId: 'z2', layerId: 'layer:z2:main', startMs: 11_000,
+    })
+    expect(request.baseRevision).toBe(0)
+    expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length + 1)
+    expect(authoredClip(after.record, 'overlay-a').startMs).toBe(12_000)
+    const beforeIds = new Set(before.record.composition.clips.map((clip) => clip.id))
+    const copies = after.record.composition.clips.filter((clip) => !beforeIds.has(clip.id))
+    expect(copies).toHaveLength(1)
+    expect(copies[0].zoneId).toBe('z2')
+    expect(copies[0].layerId).toBe('layer:z2:main')
+    expect(copies[0].startMs).toBe(11_000)
+    expect(copies[0].instanceId).toBe(sourceInstanceId)
+    expect(after.record.composition.patternInstances).toHaveLength(before.record.composition.patternInstances.length)
+    expectOneEdit(before, after)
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: copies[0].id })
   })
 
   it('settles a cross-Layer drag of a free Clip as a placement replacement', async () => {

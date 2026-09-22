@@ -186,8 +186,9 @@ declares version 1, so its commands match it. After it has run, the same URL
 opens the same editor on the v2 record and `read_show` answers v2.
 
 Until #1066 connects the remaining edits, a v2 Show in the existing editor has
-only the ordinary Clip move connected; every other command is fenced to an
-internal no-change result rather than reaching a legacy owner.
+the ordinary Clip move and the Alt-drag linked duplicate connected; every other
+command is fenced to an internal no-change result rather than reaching a legacy
+owner.
 
 `?show-v2-editor=1` remains as what it always was in substance: a
 development-only preview of an unconverted row on the v2 *backing*. It converts
@@ -265,6 +266,11 @@ wrapper, producing one candidate and one history entry.
 | split at a time | `split` with one fresh Clip identity | the same |
 | Alt-drag or `D` | `duplicate` | `editShowClipV2` / `admitShowV2PilotClipSharingEdit` |
 | `Delete` | `delete-clip` | `editShowTransitionV2` / `admitShowV2PilotClipDelete` |
+
+The Alt-drag row is connected on the timeline itself: the existing editor's
+open lanes and collapsed Zones plan the same `duplicate` through
+`planShowTimelineGestureV2`, paint the copy preview, commit through the
+clip-sharing admission, and select the copy after the drop.
 
 Rules the adapter holds to:
 
