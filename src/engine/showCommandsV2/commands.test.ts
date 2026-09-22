@@ -352,6 +352,44 @@ describe('v2 Transition commands', () => {
     expect(forged.issues[0].message).toContain('conversion provenance')
   })
 
+  it('refuses a duration change through update_transition parameters', () => {
+    const record = commandFixtureV2()
+    const inserted = changed(applyShowCommandV2(record, 'insert_transition', {
+      from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 500, kind: 'crossfade', easing: 'ease-in-out',
+    }))
+    const transitionId = inserted.changes[0].targetId!
+    const showEndMs = inserted.record.composition.showEndMs
+    const refused = applyShowCommandV2(inserted.record, 'update_transition', {
+      transition_id: transitionId, parameters: { durationMs: 400 },
+    })
+    expect(refused.status).toBe('refused')
+    if (refused.status !== 'refused') return
+    expect(refused.record).toBe(inserted.record)
+    expect(refused.issues[0].code).toBe('invalid-argument')
+    expect(`${refused.issues[0].message} ${refused.issues[0].remedy ?? ''}`).toContain('resize_transition')
+    expect(refused.record.composition.transitions[0].durationMs).toBe(500)
+    expect(refused.record.composition.showEndMs).toBe(showEndMs)
+  })
+
+  it('refuses even the current duration value through update_transition parameters', () => {
+    const record = commandFixtureV2()
+    const inserted = changed(applyShowCommandV2(record, 'insert_transition', {
+      from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 500, kind: 'crossfade', easing: 'ease-in-out',
+    }))
+    const transitionId = inserted.changes[0].targetId!
+    const showEndMs = inserted.record.composition.showEndMs
+    const refused = applyShowCommandV2(inserted.record, 'update_transition', {
+      transition_id: transitionId, parameters: { durationMs: 500 },
+    })
+    expect(refused.status).toBe('refused')
+    if (refused.status !== 'refused') return
+    expect(refused.record).toBe(inserted.record)
+    expect(refused.issues[0].code).toBe('invalid-argument')
+    expect(`${refused.issues[0].message} ${refused.issues[0].remedy ?? ''}`).toContain('resize_transition')
+    expect(refused.record.composition.transitions[0].durationMs).toBe(500)
+    expect(refused.record.composition.showEndMs).toBe(showEndMs)
+  })
+
   it('inserts at a junction, updates, resizes and removes back to a Cut', () => {
     const record = commandFixtureV2()
     const inserted = changed(applyShowCommandV2(record, 'insert_transition', {

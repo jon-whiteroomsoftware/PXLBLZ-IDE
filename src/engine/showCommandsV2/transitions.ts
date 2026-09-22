@@ -109,6 +109,13 @@ const updateTransition: ShowCommandV2Descriptor = {
     const source = record.composition.transitions.find(transition => transition.id === transitionId)
     if (!source) return unknownIdentity(record, 'update_transition', 'Transition', transitionId, transitionIds(record))
     const parameters = (input.parameters as Record<string, unknown> | undefined) ?? {}
+    if (Object.prototype.hasOwnProperty.call(parameters, 'durationMs')) {
+      return refuseShowCommandV2(record, {
+        code: 'invalid-argument',
+        message: 'update_transition: duration is not a parameter; it stays fixed here.',
+        remedy: 'Use resize_transition to change a Transition\'s duration.',
+      })
+    }
     const transition = {
       ...structuredClone(source),
       ...(input.kind !== undefined ? { kind: input.kind as Exclude<ShowTransitionKind, 'cut'> } : {}),
