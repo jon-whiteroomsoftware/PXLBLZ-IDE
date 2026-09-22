@@ -4363,3 +4363,143 @@ describe('v2 marquee selection and Make Group (#1066 L2583)', () => {
     expect(document.querySelector('[data-show-timeline-marquee]')).toBeNull()
   })
 })
+
+// ── v2 Group occurrence Duplicate, Make unique and Ungroup (#1066) ───────────
+// The Group inspector's three connected writes submit through the
+// group-occurrence admission door on the v2 backing. The duplicate source is
+// the earlier occurrence; its duplicate lands immediately after itself. The
+// packed `propertyEditGroupRecord` cannot host that duplicate without
+// overlapping its sibling (the owner refuses `invalid-result`), so the success
+// case spaces the sibling to the next adjacent slot while keeping two linked
+// occurrences of one definition.
+describe('v2 Group occurrence inspector writes (#1066)', () => {
+  async function selectGroupOccurrence(index: number): Promise<void> {
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[index]!)
+    await act(async () => {})
+  }
+
+  it('duplicates the earlier occurrence immediately after itself', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const { groupOccurrenceDuration } = await import('@/engine/showGroupsV2')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-duplicate'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.showEndMs = 2_000
+    record.composition.layoutOccurrences[0]!.durationMs = 2_000
+    record.composition.groupOccurrences[1]!.startMs = 1_000
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(0)
+    expect(screen.getByText('2 linked occurrences')).toBeInTheDocument()
+    const before = editor.state()
+    const source = before.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')!
+    const definition = before.record.composition.groupDefinitions.find((candidate) => candidate.id === source.definitionId)!
+    const expectedStartMs = source.startMs + groupOccurrenceDuration(definition, source)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate Group occurrence' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(after.record.composition.groupOccurrences).toHaveLength(3)
+    const created = after.record.composition.groupOccurrences.find((occurrence) => occurrence.id !== 'occ-0' && occurrence.id !== 'occ-1')!
+    expect(created.definitionId).toBe(source.definitionId)
+    expect(created.startMs).toBe(expectedStartMs)
+    expect(after.history.past).toHaveLength(1)
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group', occurrenceId: created.id })
+    expect(screen.getByText('3 linked occurrences')).toBeInTheDocument()
+    expect(after.v2Writes).toBe(before.v2Writes + 1)
+    expect(after.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
+    expectOneEdit(before, after)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await act(async () => {})
+    expect(editor.state().record.composition.groupOccurrences).toHaveLength(2)
+  })
+
+  it('makes the selected occurrence unique', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-make-unique'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(0)
+    const before = editor.state()
+    const previousDefinitionId = before.record.composition.groupDefinitions[0]!.id
+
+    fireEvent.click(screen.getByRole('button', { name: 'Make Group unique' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(after.record.composition.groupDefinitions).toHaveLength(2)
+    const selected = after.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')!
+    const sibling = after.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-1')!
+    expect(selected.definitionId).not.toBe(previousDefinitionId)
+    expect(sibling.definitionId).toBe(previousDefinitionId)
+    expect(after.history.past).toHaveLength(1)
+    expectOneEdit(before, after)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await act(async () => {})
+    const undone = editor.state()
+    expect(undone.record.composition.groupDefinitions).toHaveLength(1)
+    expect(undone.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')!.definitionId).toBe(previousDefinitionId)
+  })
+
+  it('ungroups the selected occurrence into top-level Clips and closes the panel', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-ungroup'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(0)
+    const before = editor.state()
+    const definitionClipCount = before.record.composition.groupDefinitions[0]!.clips.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ungroup occurrence' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(after.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')).toBeUndefined()
+    expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length + definitionClipCount)
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    expect(after.history.past).toHaveLength(1)
+    expectOneEdit(before, after)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await act(async () => {})
+    const undone = editor.state()
+    expect(undone.record.composition.groupOccurrences).toHaveLength(2)
+    expect(undone.record.composition.clips).toHaveLength(before.record.composition.clips.length)
+  })
+
+  it('refuses a duplicate whose start lies outside every Layout occurrence', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const { groupOccurrenceDuration } = await import('@/engine/showGroupsV2')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-duplicate-refused'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const cloned = structuredClone(record)
+    const lastLayout = cloned.composition.layoutOccurrences.reduce((latest, candidate) => (
+      candidate.startMs + candidate.durationMs > latest.startMs + latest.durationMs ? candidate : latest
+    ))
+    const lastLayoutEndMs = lastLayout.startMs + lastLayout.durationMs
+    const source = cloned.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-1')!
+    const definition = cloned.composition.groupDefinitions.find((candidate) => candidate.id === source.definitionId)!
+    source.startMs = lastLayoutEndMs - groupOccurrenceDuration(definition, source)
+    const editor = openV2EditorForRecord(cloned)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(1)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate Group occurrence' }))
+    await act(async () => {})
+
+    expectNoWrite(before, editor.state())
+  })
+})

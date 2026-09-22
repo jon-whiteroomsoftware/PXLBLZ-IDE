@@ -190,7 +190,9 @@ connected, the timeline marquee produces a completed `multi` selection
 (`completeShowGroupSelectionV2`), and Make Group submits it through
 `admitShowV2PilotCreateGroup` named `"Group"`. Every other #1066 command is
 still fenced to an internal no-change result rather than reaching a legacy
-owner.
+owner. The Group inspector's Duplicate, Make Group unique and Ungroup submit
+through `admitShowV2PilotGroupOccurrenceEdit` on the v2 backing; Move/Translate,
+Delete and Group Clip edits remain unconnected.
 
 `?show-v2-editor=1` remains as what it always was in substance: a
 development-only preview of an unconverted row on the v2 *backing*. It converts

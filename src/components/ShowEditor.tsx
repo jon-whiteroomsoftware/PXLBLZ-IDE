@@ -287,6 +287,7 @@ import {
   admitShowV2PilotAppearanceEdit,
   admitShowV2PilotClipDelete,
   admitShowV2PilotCreateGroup,
+  admitShowV2PilotGroupOccurrenceEdit,
   admitShowV2PilotTransitionEdit,
   admitShowV2PilotClipEntryPolicy,
   admitShowV2PilotClipReplacementEdit,
@@ -301,6 +302,7 @@ import {
   admitShowV2PilotLayoutDefinitionEdit,
   type ShowV2PilotClipDeleteIntent,
   type ShowV2PilotClipSharingIntent,
+  type ShowV2PilotGroupOccurrenceEditIntent,
   type ShowV2PilotTransitionEditIntent,
   type ShowV2PilotClipEntryPolicyIntent,
   type ShowV2PilotPreparedCapture,
@@ -317,6 +319,7 @@ import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
 import { checkShowTimelineDuplicateGestureV2, planShowTimelineGestureV2, type ShowTimelineGestureV2 } from '@/engine/showTimelineGesturesV2'
 import type { CreateShowGroupFromSelectionIntentV2 } from '@/engine/showGroupCreationV2'
 import { planShowV2GroupCreation } from '@/engine/showV2GroupCreationEditorModel'
+import { planShowV2GroupOccurrenceEdit, type ShowV2GroupOccurrenceRequest } from '@/engine/showV2GroupOccurrenceEditorModel'
 import {
   planShowV2ClipMove,
   planShowV2ClipResize,
@@ -412,7 +415,7 @@ import { FieldActivityContext, createFieldActivityScope, useFieldActivity } from
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
 import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
-import { materializeShowGroupsV2 } from '@/engine/showGroupsV2'
+import { groupOccurrenceDuration, materializeShowGroupsV2 } from '@/engine/showGroupsV2'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import {
   completeShowGroupSelectionV2,
@@ -1684,6 +1687,23 @@ export function ShowEditor({
     })
     return outcome.status === 'applied'
   }, [showId])
+  const commitV2GroupOccurrenceEdit = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotGroupOccurrenceEditIntent
+  }) => {
+    const outcome = await admitShowV2PilotGroupOccurrenceEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome.status === 'applied'
+  }, [showId])
   const commitV2TransitionResize = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
@@ -2095,6 +2115,24 @@ export function ShowEditor({
     }).catch(() => {})
     return true
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2ClipDelete, recordVersion, readOnly, reportBlockedDelete, savedShowV2, showId])
+  const requestV2GroupOccurrenceEdit = useCallback((request: ShowV2GroupOccurrenceRequest): void => {
+    if (readOnly) return
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return
+    const plan = planShowV2GroupOccurrenceEdit(capture.record, request, newPersonalContentId)
+    if (plan.status !== 'ready') return
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    const intent = plan.intent
+    void commitV2GroupOccurrenceEdit({ capture, baseRevision, intent }).then((applied) => {
+      if (!applied) return
+      if (intent.kind === 'duplicate-occurrence') {
+        selectTimeline({ kind: 'group', occurrenceId: intent.newOccurrenceId })
+      } else if (intent.kind === 'ungroup-occurrence') {
+        closeDetailPanel()
+        closePinnedDetailForSelection({ kind: 'group', occurrenceId: intent.occurrenceId })
+      }
+    }).catch(() => {})
+  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2GroupOccurrenceEdit, readOnly, selectTimeline, showId])
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
     : activeShow?.targetControllerProfileId
@@ -4073,6 +4111,7 @@ export function ShowEditor({
                     closePinnedDetailForSelection({ kind: 'group', occurrenceId })
                     updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
                   }}
+                  onV2GroupOccurrenceRequest={requestV2GroupOccurrenceEdit}
                   onUpdateControlTarget={(cell, exportName, value) => {
                     if (!legacyShow) return
                     void updateCellControlTarget(legacyShow.id, cell.id, exportName, value)
@@ -9979,6 +10018,7 @@ function ContextualInspector({
   onUpdateGroupPlacement,
   onDeleteGroup,
   onUngroup,
+  onV2GroupOccurrenceRequest,
   onUpdateControlTarget,
   onUpdateRestartOnEntry,
   onSpanZones,
@@ -10036,6 +10076,7 @@ function ContextualInspector({
   onRejoinCompositionPattern: (owner: ShowClipInspectorOwner, targetInstanceId: string) => void
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
   onRemoveClipV2?: (clipId: string) => void
+  onV2GroupOccurrenceRequest?: (request: ShowV2GroupOccurrenceRequest) => void
   onDuplicateGroup: (occurrenceId: string) => void
   onMakeGroupUnique: (occurrenceId: string) => void
   onTranslateGroup: (occurrenceId: string, translationX: number, translationY: number) => void
@@ -10239,15 +10280,31 @@ function ContextualInspector({
             translationY: group.translationY,
           }}
           linkedOccurrenceCount={group.linkedOccurrenceCount}
-          // Group writes are not connected for the v2 backing in this tracer:
+          // Move/Translate, Place and Delete stay unconnected for the v2 backing:
           // each stops here with no record, history entry or save, and never
           // reaches a legacy owner. The controls keep v1's markup and state.
-          onDuplicate={() => {}}
-          onMakeUnique={() => {}}
+          onDuplicate={() => {
+            if (!onV2GroupOccurrenceRequest) return
+            const occurrence = recordV2?.composition.groupOccurrences.find((candidate) => candidate.id === selection.occurrenceId)
+            const definition = recordV2?.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)
+            if (!occurrence || !definition) return
+            onV2GroupOccurrenceRequest({
+              kind: 'duplicate-occurrence',
+              occurrenceId: occurrence.id,
+              placement: {
+                startMs: occurrence.startMs + groupOccurrenceDuration(definition, occurrence),
+                zoneId: occurrence.zoneId,
+                layerBindings: structuredClone(occurrence.layerBindings),
+                translationX: occurrence.translationX,
+                translationY: occurrence.translationY,
+              },
+            })
+          }}
+          onMakeUnique={() => onV2GroupOccurrenceRequest?.({ kind: 'make-unique', occurrenceId: selection.occurrenceId })}
           onTranslate={() => {}}
           onPlace={() => {}}
           onDelete={() => {}}
-          onUngroup={() => {}}
+          onUngroup={() => onV2GroupOccurrenceRequest?.({ kind: 'ungroup-occurrence', occurrenceId: selection.occurrenceId })}
         />
       )
     }
