@@ -3888,3 +3888,173 @@ describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
     expect(v2).toBeNull()
   })
 })
+
+// ── v2 fixes A (#1066) ───────────────────────────────────────────────────────
+// Three small editor gaps the v2 browser suite found: the Show End drag never
+// previewed the time grid, the boundary panel's Duration field committed into
+// a planner that refuses it, and the Installation coverage banner never read
+// the v2 verdict. Each case drives the real gesture and asserts the surface
+// the user sees, plus the admission door it reaches.
+describe('v2 fixes A (#1066)', () => {
+  function gridFrs(): number[] {
+    const style = screen.getByTestId('show-timeline-grid').getAttribute('style') ?? ''
+    return [...style.matchAll(/([\d.]+)fr/g)].map((match) => Number(match[1]))
+  }
+
+  function showEndPreviewMs(): number {
+    const label = screen.getByRole('button', { name: /^Show End at / }).getAttribute('aria-label') ?? ''
+    const seconds = Number(label.match(/Show End at ([\d.]+) seconds/)?.[1])
+    if (!Number.isFinite(seconds)) throw new Error(`Unparseable Show End label ${label}.`)
+    return Math.round(seconds * 1000)
+  }
+
+  it('previews a Show End drag in the time grid without writing before release', async () => {
+    const source = corpusSource('fresh')
+    source.id = 'fixa-show-end-preview'
+    const record = convertCorpus(source)
+    const savedEndMs = record.composition.showEndMs
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const styleBefore = screen.getByTestId('show-timeline-grid').getAttribute('style') ?? ''
+    expect(styleBefore).toContain('grid-template-columns:')
+    const frsBefore = gridFrs()
+    expect(frsBefore.length).toBeGreaterThan(0)
+
+    const surface = screen.getByLabelText('Timeline Markers and Show End')
+    vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 620, bottom: 100, width: 620, height: 100, toJSON: () => ({}),
+    })
+    const showEnd = screen.getByRole('button', { name: /^Show End at / })
+    fireEvent.pointerDown(showEnd, { pointerId: 41, clientX: 720 })
+    fireEvent.pointerMove(showEnd, { pointerId: 41, clientX: 783.7 })
+
+    const dragging = screen.getByRole('button', { name: /^Show End at / })
+    expect(dragging.getAttribute('data-show-end-dragging')).toBe('true')
+    const previewMs = showEndPreviewMs()
+    expect(previewMs).not.toBe(savedEndMs)
+    const styleMid = screen.getByTestId('show-timeline-grid').getAttribute('style') ?? ''
+    expect(styleMid).not.toBe(styleBefore)
+    const frsMid = gridFrs()
+    expect(frsMid.slice(0, -1)).toEqual(frsBefore.slice(0, -1))
+    expect(frsMid[frsMid.length - 1]).toBe(
+      Math.max(1, Math.round(frsBefore[frsBefore.length - 1] + (previewMs - savedEndMs))),
+    )
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+
+    fireEvent.pointerUp(showEnd, { pointerId: 41, clientX: 783.7 })
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotSetShowEnd'])
+    const request = admission.calls[0].request as { intent: { kind: string; showEndMs: number } }
+    expect(request.intent).toEqual({ kind: 'set-show-end', showEndMs: previewMs })
+    expect(editor.state().record.composition.showEndMs).toBe(previewMs)
+  })
+
+  it('commits a changed boundary Duration through the transition-resize door', async () => {
+    const { record } = convertedFreshBoundary('fixa-boundary-duration')
+    const transition = record.composition.transitions[0]
+    expect(transition.durationMs).toBe(2000)
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await act(async () => {})
+    const panel = boundaryPanel()
+    const duration = within(panel).getByRole('textbox', { name: /^Duration/ })
+    expect(duration).toHaveValue('2')
+    fireEvent.change(duration, { target: { value: '3.4' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    const request = admission.calls[0].request as { intent: Record<string, unknown>; baseRevision: number }
+    expect(request.intent).toEqual({ kind: 'resize-transition', transitionId: transition.id, durationMs: 3400 })
+    expect(request.baseRevision).toBe(0)
+    const after = editor.state()
+    expect(after.record.composition.transitions[0].durationMs).toBe(3400)
+    expectOneEdit(before, after)
+  })
+
+  it('commits nothing for an unchanged boundary Duration', async () => {
+    const { record } = convertedFreshBoundary('fixa-boundary-duration-unchanged')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await act(async () => {})
+    const duration = within(boundaryPanel()).getByRole('textbox', { name: /^Duration/ })
+    fireEvent.change(duration, { target: { value: '2' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+
+    expectNoWrite(before, editor.state())
+  })
+
+  it('still sends a boundary settings change through the transition-edit door', async () => {
+    const { record } = convertedAdvancedBoundary('fixa-boundary-settings')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between CometLoom and CometLoom',
+    }))
+    await act(async () => {})
+    const panel = boundaryPanel()
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Crossfade source' }), {
+      target: { value: 'live-live' },
+    })
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const request = admission.calls[0].request as {
+      intent: { kind: string; transition: { crossfadePolicy?: string } }
+      baseRevision: number
+    }
+    expect(request.intent.kind).toBe('update-transition')
+    expect(request.intent.transition.crossfadePolicy).toBe('live-live')
+    expect(request.baseRevision).toBe(0)
+    expectOneEdit(before, editor.state())
+  })
+
+  it('surfaces invalid Installation coverage in the tray banner until repaired', async () => {
+    const source = corpusSource('installation-layouts')
+    source.id = 'fixa-coverage-banner'
+    const record = convertCorpus(source)
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await act(async () => {})
+    expect(editor.state()).toBeDefined()
+    const tray = () => within(screen.getByTestId('show-compile-bar'))
+    expect(tray().queryAllByText(/assigns \d+ of \d+ pixels/)).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Show' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
+    fireEvent.click(screen.getByRole('button', { name: "Open this interval's Zone Layout" }))
+    await act(async () => {})
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const ranges = within(panel).getByRole('textbox', { name: 'Full Surface Weave pixel ranges' })
+    expect(ranges).toHaveValue('0-63')
+    fireEvent.change(ranges, { target: { value: '0-47' } })
+    fireEvent.keyDown(ranges, { key: 'Enter' })
+    await act(async () => {})
+
+    expect(tray().getAllByText(/Full Surface assigns 48 of 64 pixels \(16 missing\)/i).length).toBeGreaterThan(0)
+
+    const repaired = within(screen.getByRole('dialog', { name: 'Entity Detail Panel' }))
+      .getByRole('textbox', { name: 'Full Surface Weave pixel ranges' })
+    fireEvent.change(repaired, { target: { value: '0-63' } })
+    fireEvent.keyDown(repaired, { key: 'Enter' })
+    await act(async () => {})
+
+    expect(tray().queryAllByText(/assigns \d+ of \d+ pixels/)).toEqual([])
+  })
+})

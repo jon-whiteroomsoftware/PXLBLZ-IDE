@@ -92,7 +92,8 @@ import {
   projectGlobalShowScenePropertyLanes,
   type ShowPropertyLaneProjection,
 } from '@/engine/showPropertyLaneProjection'
-import { resolveShowZonePixelCount, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
+import { installationCoverageBlockingMessage, resolveShowZonePixelCount, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
+import { validateInstallationCoverageV2 } from '@/engine/showInstallationCoverageV2'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { declaredPatternSliderNames, bundledPatternSliderNames, resolveBundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
@@ -1898,11 +1899,24 @@ export function ShowEditor({
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return
-    const plan = planShowV2BoundaryTransitionChanges(capture.record, transitionId, changes)
+    const { durationMs, ...settingsChanges } = changes
+    if (durationMs !== undefined) {
+      // Duration belongs to the resize owner, which the settings planner
+      // refuses by design: a changed value commits through the same resize
+      // door the Layer Transition popover uses, and an unchanged one commits
+      // nothing (#1066).
+      const current = capture.record.composition.transitions.find((candidate) => candidate.id === transitionId)
+      if (current && durationMs !== current.durationMs) {
+        const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+        void commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } })
+      }
+    }
+    if (Object.keys(settingsChanges).length === 0) return
+    const plan = planShowV2BoundaryTransitionChanges(capture.record, transitionId, settingsChanges)
     if (plan.status !== 'ready') return
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
-  }, [commitV2TransitionEdit, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2TransitionEdit, commitV2TransitionResize, readOnly, recordVersion, savedShowV2, showId])
   // Slice 5d connects the boundary Transition Remove through the same door:
   // v1 turns the boundary into a Cut, which on this backing is the owner's
   // reset-to-cut, and closes the panel once it is gone (#1066).
@@ -2237,8 +2251,14 @@ export function ShowEditor({
   const compiled = useMemo<CompiledShowState>(() => {
     if (recordVersion === 2) {
       const prepared = preparedV2Capture?.prepared
-      if (prepared?.status === 'ready') return { artifact: prepared.bundle.artifact, error: null }
-      return { artifact: null, error: prepared?.status === 'refused' ? prepared.message : null }
+      // The tray banner and its View code/Download gating read artifactBlocker
+      // exactly as on v1, so the v2 Installation coverage verdict surfaces
+      // there while artifact and error stay as prepared (#1066).
+      const artifactBlocker = savedShowV2
+        ? installationCoverageBlockingMessage(validateInstallationCoverageV2(savedShowV2)) ?? undefined
+        : undefined
+      if (prepared?.status === 'ready') return { artifact: prepared.bundle.artifact, error: null, artifactBlocker }
+      return { artifact: null, error: prepared?.status === 'refused' ? prepared.message : null, artifactBlocker }
     }
     return effectiveArtifactCompilationInput
       ? compileShowForArtifact(
@@ -2252,7 +2272,7 @@ export function ShowEditor({
           },
         )
       : { artifact: null, error: null }
-  }, [effectiveArtifactCompilationInput, preparedV2Capture, recordVersion])
+  }, [effectiveArtifactCompilationInput, preparedV2Capture, recordVersion, savedShowV2])
   const patternControlsByCellId = useMemo(() => Object.fromEntries((activeShow?.cells ?? []).map((cell) => {
     const saved = cell.pattern.kind === 'user'
       ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}
@@ -4949,6 +4969,28 @@ function useShowExportAction(
   return { exporting, error, exportShow }
 }
 
+/**
+ * Stretch the last section column by a previewed Show End delta (#1066). v1
+ * previews the drag by resizing the final Scene through setShowEndMs, so its
+ * per-Scene columns move; a v2 backing has no v1 record, so the previewed end
+ * extends the last section column instead. The floor is the one editShowEndMs
+ * enforces on the final Scene: a positive duration
+ * (src/engine/showTimelineAuthoring.ts refuses `nextFinalDurationMs <= 0`).
+ * The input array is never mutated.
+ */
+function previewShowEndTimeColumns(
+  columns: ShowEditorTimeColumnV2[],
+  deltaMs: number,
+): ShowEditorTimeColumnV2[] {
+  const lastSectionIndex = columns.map((column) => column.kind).lastIndexOf('section')
+  if (lastSectionIndex < 0) return columns
+  return columns.map((column, index) => (
+    index === lastSectionIndex
+      ? { ...column, durationMs: Math.max(1, Math.round(column.durationMs + deltaMs)) }
+      : column
+  ))
+}
+
 function ShowTimelineWorkspace({
   show,
   timelineViewOverride,
@@ -5924,7 +5966,9 @@ function ShowTimelineWorkspace({
             }]
           : [section]
       })
-    : timeColumnsOverride ?? [{ kind: 'section', startMs: 0, durationMs: timelineView.showEndMs }]
+    : showEndPreviewMs !== null && timeColumnsOverride
+      ? previewShowEndTimeColumns(timeColumnsOverride, showEndPreviewMs - baseTimelineView.showEndMs)
+      : timeColumnsOverride ?? [{ kind: 'section', startMs: 0, durationMs: timelineView.showEndMs }]
   const timeSections = timeColumns.filter((column) => column.kind === 'section')
   const columns = [
     zonesOpen ? `${ZONE_RAIL_OPEN_PX}px` : hasMultipleZones ? `${ZONE_RAIL_MICRO_PX}px` : '0px',
