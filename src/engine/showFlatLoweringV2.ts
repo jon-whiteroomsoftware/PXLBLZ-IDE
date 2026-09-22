@@ -53,6 +53,23 @@ export function canLowerShowV2ToFlat(record: ShowRecordV2, allowEqualAppearanceS
     && composition.clips.every(clip => clip.zoneSampleMode === 'independent')
 }
 
+/** Drop retained instance animation with no Clip users, exactly as the lowering does before it asks its route questions. */
+export function withoutUnusedInstanceTracksV2(record: ShowRecordV2): ShowRecordV2 {
+  // Retained instance animation can outlive its final Clip user. Such tracks
+  // remain authored for future edits, but cannot create an executing member.
+  // Every effective Clip counts, including invisible and later contributions.
+  const usedInstanceIds = new Set(record.composition.clips.map(clip => clip.instanceId))
+  const propertyTracks = record.composition.propertyTracks.filter(track => {
+    // Promotion asks before validation refuses, so a malformed candidate still
+    // reaches this filter: only a well-formed unused-instance target can drop.
+    const kind = track.target?.kind
+    if (kind !== 'instance-control' && kind !== 'instance-time-scale') return true
+    return usedInstanceIds.has((track.target as { instanceId: string }).instanceId)
+  })
+  if (propertyTracks.length === record.composition.propertyTracks.length) return record
+  return { ...record, composition: { ...record.composition, propertyTracks } }
+}
+
 /** Complete exact JSON structure comparison; neither floats nor fields are approximated. */
 export function structurallyEqualAppearanceV2(left: unknown, right: unknown): boolean {
   if (left === right) return true

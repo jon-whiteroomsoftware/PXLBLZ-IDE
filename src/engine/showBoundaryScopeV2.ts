@@ -1,4 +1,4 @@
-import { showV2FlatLoweringEligible } from './showFlatLoweringV2'
+import { showV2FlatLoweringEligible, withoutUnusedInstanceTracksV2 } from './showFlatLoweringV2'
 import type { ShowRecordV2 } from './showCompositionV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 
@@ -86,14 +86,15 @@ export function layoutOccurrencesBlockedV2(record: ShowRecordV2): boolean {
  * refused by the participant-window rule or by the multiple-Layout-occurrence rule, and then every participant-scope
  * Transition or none: mixed whole-output/participant records have no lowering.
  * A boundary a Clip spans, a Transition with ramps, and every Layer Transition
- * are never eligible. Never demotes. Both triggers and the window scan read the Group-materialized record, as the lowering does; a Group child at the window has no authored name, so its boundary is not promoted.
+ * are never eligible. Never demotes. Both triggers and the window scan read the Group-materialized record with unused-instance tracks removed, as the lowering does; a Group child at the window has no authored name, so its boundary is not promoted.
  */
 export function promoteConvertedBoundariesToWholeOutputV2(record: ShowRecordV2): { record: ShowRecordV2; promotedTransitionIds: string[] } {
-  // The lowering asks both refusal questions of the Group-materialized record,
-  // so promotion asks them there too: a Group child can make a record
-  // unflattenable, or touch a boundary window, while staying invisible in the
-  // authored clips (#1068).
-  const effective = record.composition.groupDefinitions.length > 0 ? materializeShowGroupsV2(record) : record
+  // The lowering asks both refusal questions of the Group-materialized record
+  // with unused-instance tracks removed, so promotion asks them there too: a
+  // Group child can make a record unflattenable, or touch a boundary window,
+  // while staying invisible in the authored clips (#1068).
+  const materialized = record.composition.groupDefinitions.length > 0 ? materializeShowGroupsV2(record) : record
+  const effective = withoutUnusedInstanceTracksV2(materialized)
   if (!participantWindowBlockedV2(effective) && !layoutOccurrencesBlockedV2(effective)) return { record, promotedTransitionIds: [] }
   const authoredClipIds = new Set(record.composition.clips.map(clip => clip.id))
   const clipById = new Map(effective.composition.clips.map(clip => [clip.id, clip]))

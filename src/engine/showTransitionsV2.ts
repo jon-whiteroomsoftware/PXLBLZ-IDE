@@ -320,17 +320,24 @@ export function editShowTransitionV2(
  * the single Layout coverage exact by shortening the occurrence that owns
  * the reclaimed window and moving later occurrences earlier by the same duration.
  *
- * The repair fires only for Transitions carrying
+ * The repair fires for Transitions carrying
  * `origin: 'converted-boundary-transition'` with exactly one outgoing and one
- * incoming Clip, at single-participant or whole-output scope. Provenance is the
+ * incoming Clip, at single-participant or whole-output scope. The Transition
+ * edits (`resize-transition`, `reset-to-cut`, the palette retime) additionally
+ * opt in to multi-contributor whole-output boundaries (`{ multiContributor:
+ * true }`, #1066 slice 5e2a1): one Clip per Zone and Layer on each side, every
+ * outgoing Clip ending at the window start and every incoming one starting at
+ * the window end, with no ramps, repairs as one Scene edge. Provenance is the
  * only reliable family signal: a converted boundary at participant scope is
  * structurally identical to a native Layer junction, so structure alone must
  * never select this path, and scope is a lowering concern the #1068 promotion
  * may change without changing what the boundary is. Native Transitions,
- * converted Layer Transitions, multi-contributor boundaries and whole-output
- * boundaries still carrying ramps keep the existing grow/shift behaviour, and
- * Clip deletion keeps survivor times and Show End exactly (v1 preserves its
- * loop on delete; only the unrepresentable orphan record is dropped).
+ * converted Layer Transitions, multi-contributor boundaries outside the
+ * Transition edits' opt-in (the Clip-edge and temporal gestures stay
+ * single-contributor) and whole-output boundaries still carrying ramps keep the
+ * existing grow/shift behaviour, and Clip deletion keeps survivor times and
+ * Show End exactly (v1 preserves its loop on delete; only the unrepresentable
+ * orphan record is dropped).
  *
  * One repair never invents room: content spanning the reclaimed window end,
  * a tail occurrence that cannot absorb the reclaim, stranded Property

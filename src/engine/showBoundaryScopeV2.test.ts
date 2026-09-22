@@ -7,6 +7,7 @@ import { validateShowRecordV2, type ShowRecordV2, type ShowPropertyTrackV2 } fro
 import { addShowZone, createDefaultShow } from './showModel'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { createShowGroupFromSelectionV2 } from './showGroupCreationV2'
+import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
 
 function buildTwoSceneV1(withTrack: boolean) {
   const show = transitionV1Show('crossfade')
@@ -59,6 +60,48 @@ function sectionTrack(clipId: string, activeStartMs = 0, activeDurationMs = 3200
       { id: 'section-k1', timeMs: endKeyTimeMs, value: 0.5, easing: { curve: 'linear' } },
     ],
   }
+}
+
+const UNUSED_INSTANCE_ID = 'unused-instance'
+
+function convertedDefaultShow(): ShowRecordV2 {
+  const source = createDefaultShow('promotion-filter', 'Promotion filter', 1)
+  const converted = convertShowRecordV1ToV2(source, { byCellId: Object.fromEntries(source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.status === 'refused' ? converted.issues : []))
+  const record = converted.record
+  expect(record.composition.clips.map(clip => [clip.startMs, clip.durationMs])).toEqual([[0, 30000], [32000, 30000]])
+  expect(record.composition.showEndMs).toBe(62000)
+  expect(record.composition.layoutOccurrences).toHaveLength(1)
+  expect(record.composition.transitions).toHaveLength(1)
+  expect(record.composition.transitions[0].origin).toBe('converted-boundary-transition')
+  expect(record.composition.transitions[0].participants).toHaveLength(1)
+  expect(record.composition.transitions[0].wholeOutput).toBeUndefined()
+  return record
+}
+
+function stockLookup(record: ShowRecordV2) {
+  return {
+    byCellId: {},
+    byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])),
+    stageDimension: 2 as const,
+  }
+}
+
+function withUnusedInstanceTrack(record: ShowRecordV2, activeStartMs = 31000): ShowRecordV2 {
+  const template = record.composition.patternInstances[0]
+  record.composition.patternInstances.push({ ...structuredClone(template), id: UNUSED_INSTANCE_ID })
+  record.composition.propertyTracks.push({
+    id: 'unused-control',
+    target: { kind: 'instance-control', instanceId: UNUSED_INSTANCE_ID, exportName: 'sliderLevel' },
+    activeStartMs,
+    activeDurationMs: 1000,
+    keyframes: [
+      { id: 'unused-control-k0', timeMs: activeStartMs, value: 0.2, easing: { curve: 'linear' } },
+      { id: 'unused-control-k1', timeMs: activeStartMs + 1000, value: 0.8, easing: { curve: 'linear' } },
+    ],
+  })
+  expect(validateShowRecordV2(record)).toEqual([])
+  return record
 }
 
 describe('showBoundaryScopeV2', () => {
@@ -169,5 +212,45 @@ describe('showBoundaryScopeV2', () => {
     const promotion = promoteConvertedBoundariesToWholeOutputV2(grouped.record)
     expect(promotion.promotedTransitionIds).toEqual([])
     expect(promotion.record).toBe(grouped.record)
+  })
+
+  it('ignores a retained unused-instance track when asking promotion (over-promotion, #1068)', () => {
+    const record = withUnusedInstanceTrack(convertedDefaultShow())
+    const promotion = promoteConvertedBoundariesToWholeOutputV2(record)
+    expect(promotion.promotedTransitionIds).toEqual([])
+    expect(promotion.record).toBe(record)
+    const before = prepareShowV2ForCompile(record, stockLookup(record))
+    expect(before.status).toBe('ready')
+    if (before.status !== 'ready') throw new Error(JSON.stringify(before.issues))
+    expect(before.provenance.route).toBe('continuous-flat')
+    const edited = editShowLayoutIntervalsV2(record, { kind: 'set-show-end', showEndMs: 64000 })
+    expect(edited.status).toBe('changed')
+    if (edited.status !== 'changed') throw new Error(JSON.stringify(edited))
+    expect(edited.record.composition.transitions[0].wholeOutput).toBeUndefined()
+    expect(edited.record.composition.transitions[0].participants).toHaveLength(1)
+    const after = prepareShowV2ForCompile(edited.record, stockLookup(edited.record))
+    expect(after.status, JSON.stringify(after.status === 'refused' ? after.issues : '')).toBe('ready')
+    if (after.status !== 'ready') throw new Error(JSON.stringify(after.issues))
+    expect(after.provenance.route).toBe(before.provenance.route)
+  })
+
+  it('promotes through a Layout duplicate when only an unused-instance track blocks flat eligibility (missed promotion, #1068)', () => {
+    // The track sits outside the boundary window [30000, 32000), so the window
+    // rule stays silent and only the multiple-occurrence rule can promote here.
+    // It is the same unused instance-control construction as the over-promotion
+    // test: on the default window a track at 31000 would promote through the
+    // window rule instead, hiding the missed occurrence rule.
+    const record = withUnusedInstanceTrack(convertedDefaultShow(), 40000)
+    expect(promoteConvertedBoundariesToWholeOutputV2(record).promotedTransitionIds).toEqual([])
+    const boundaryId = record.composition.transitions[0].id
+    const occurrenceId = record.composition.layoutOccurrences[0].id
+    const duplicated = editShowLayoutIntervalsV2(record, { kind: 'duplicate', occurrenceId, newOccurrenceId: 'dup-empty' })
+    expect(duplicated.status).toBe('changed')
+    if (duplicated.status !== 'changed') throw new Error(JSON.stringify(duplicated))
+    expect(duplicated.record.composition.transitions[0].wholeOutput).toBeDefined()
+    expect(duplicated.record.composition.transitions[0].participants).toEqual([])
+    expect(duplicated.affectedTransitionIds).toContain(boundaryId)
+    const prepared = prepareShowV2ForCompile(duplicated.record, stockLookup(duplicated.record))
+    expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : '')).toBe('ready')
   })
 })

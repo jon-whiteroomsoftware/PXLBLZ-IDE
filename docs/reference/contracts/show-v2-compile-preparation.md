@@ -177,10 +177,13 @@ shape should pin it.
 The Property owner and the Layout occurrence owner promote participant-scope
 converted Scene-boundary Transitions only when the edited Show would otherwise
 be refused by the participant-window rule or by the multiple-Layout-occurrence
-rule (more than one occurrence with a participant Transition), the state the
+rule (more than one Layout occurrence, a participant Transition, and a Show
+otherwise eligible for flat lowering), the state the
 converter itself never produces: every participant-scope Transition promotes
 together
-or none does, so a Show never holds mixed scopes. A boundary a Clip spans, a
+or none does, so a Show never holds mixed scopes. Both triggers read the
+Group-materialized record with unused-instance tracks removed, exactly as the
+lowering does. A boundary a Clip spans, a
 Transition carrying ramps, and every Layer Transition are never eligible; any
 of those leaves the edit unpromoted and refused exactly as before, a named
 limitation rather than a regression. Nothing ever demotes. A promoted boundary

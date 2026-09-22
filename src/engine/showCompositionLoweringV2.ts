@@ -24,7 +24,7 @@ import {
   type ShowRecordV2,
 } from './showCompositionV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
-import { showV2FlatLoweringEligible, showV2UnsupportedRoutedSampling, structurallyEqualAppearanceV2 } from './showFlatLoweringV2'
+import { showV2FlatLoweringEligible, showV2UnsupportedRoutedSampling, structurallyEqualAppearanceV2, withoutUnusedInstanceTracksV2 } from './showFlatLoweringV2'
 import { hasSectionScopedTrackActivationV2, participantSectionBoundaries, participantTransitionWindows, participantWindowBlockedV2 } from './showBoundaryScopeV2'
 import { lowerShowScalarPropertyTracksV2 } from './showScalarPropertyTrackLoweringV2'
 
@@ -279,17 +279,7 @@ function resolveAndLowerShowV2(
   const expanded = record.composition.groupDefinitions.length > 0 ? materializeShowGroupsV2(record) : record
   const invalidExpanded = validateShowRecordV2(expanded)[0]
   if (invalidExpanded) return refuse('invalid-record', invalidExpanded.path, invalidExpanded.message)
-  // Retained instance animation can outlive its final Clip user. Such tracks
-  // remain authored for future edits, but cannot create an executing member.
-  // Every effective Clip counts, including invisible and later contributions.
-  const usedInstanceIds = new Set(expanded.composition.clips.map(clip => clip.instanceId))
-  const compileRecord: ShowRecordV2 = {
-    ...expanded,
-    composition: { ...expanded.composition, propertyTracks: expanded.composition.propertyTracks.filter(track => (
-      (track.target.kind !== 'instance-control' && track.target.kind !== 'instance-time-scale')
-      || usedInstanceIds.has(track.target.instanceId)
-    )) },
-  }
+  const compileRecord: ShowRecordV2 = withoutUnusedInstanceTracksV2(expanded)
   const sources = { ...lookup.byPatternInstanceId }
   for (const binding of groupRuntimeBindings(record)) {
     const sameLocalId = [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap(definition => definition.patternInstances)].filter(instance => instance.id === binding.instance.id)
