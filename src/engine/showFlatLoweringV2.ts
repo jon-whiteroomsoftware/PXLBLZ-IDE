@@ -21,14 +21,14 @@ export function showV2FlatLoweringEligible(record: ShowRecordV2): boolean {
   const composition = record.composition
   return composition.executionModel === 'continuous'
     && !composition.clips.some(clip => clip.entryPolicy === 'restart')
-    // Exact redundant keys may recover the existing flat sampling route only
-    // where routed sampling previously refused. Existing routed admissions keep
-    // their representation and generated source bytes.
-    && (canLowerShowV2ToFlat(record) || (showV2UnsupportedRoutedSampling(record) && canLowerShowV2ToFlat(record, true)))
+    // Exact redundant keys and whole-output boundaries may recover the existing
+    // flat sampling route only where routed sampling previously refused.
+    // Existing routed admissions keep their representation and generated
+    // source bytes: only the unsupported-sampling disjunct passes both flags.
+    && (canLowerShowV2ToFlat(record) || (showV2UnsupportedRoutedSampling(record) && canLowerShowV2ToFlat(record, true, true)))
 }
 
-export function canLowerShowV2ToFlat(record: ShowRecordV2, allowEqualAppearanceSegments = false): boolean {
-  if (record.composition.transitions.some(transition => transition.wholeOutput)) return false
+export function canLowerShowV2ToFlat(record: ShowRecordV2, allowEqualAppearanceSegments = false, allowWholeOutputBoundaries = false): boolean {
   const composition = record.composition
   // A flat Scene boundary blends the whole output, so it represents a
   // participant Transition exactly only when the two participants are the only
@@ -40,7 +40,32 @@ export function canLowerShowV2ToFlat(record: ShowRecordV2, allowEqualAppearanceS
   // blend would fade it in or out - refuses here (#1063). The Show's Zone count
   // does not enter this test: with more than one Zone the flat lowering emits
   // the same v1 record v1's own `addShowZone` produces, down to the bytes.
+  // A whole-output boundary blends the same whole output, so it is admitted
+  // only with `allowWholeOutputBoundaries` and only when every named
+  // contributor abuts its window edge and every other Clip sits strictly
+  // outside the window: the flat sections split at every Clip edge, so an
+  // unrelated Clip that overlaps the window, or merely touches either edge,
+  // would be faded in or out by the blend and refuses either way (#1082). An
+  // empty contributor side stays on the global-sections route, which owns the
+  // compiler Empty hold.
   const wholeBoundary = composition.transitions.every(transition => {
+    if (transition.wholeOutput) {
+      if (!allowWholeOutputBoundaries) return false
+      const windowStart = transition.wholeOutput.startMs
+      const windowEnd = windowStart + transition.durationMs
+      const fromIds = new Set(transition.wholeOutput.fromClipIds)
+      const toIds = new Set(transition.wholeOutput.toClipIds)
+      if (fromIds.size === 0 || toIds.size === 0) return false
+      for (const id of fromIds) {
+        const clip = composition.clips.find(candidate => candidate.id === id)
+        if (!clip || clip.startMs + clip.durationMs !== windowStart) return false
+      }
+      for (const id of toIds) {
+        const clip = composition.clips.find(candidate => candidate.id === id)
+        if (!clip || clip.startMs !== windowEnd) return false
+      }
+      return !composition.clips.some(clip => !fromIds.has(clip.id) && !toIds.has(clip.id) && clip.startMs <= windowEnd && clip.startMs + clip.durationMs >= windowStart)
+    }
     const participant = transition.participants[0]
     const from = composition.clips.find(clip => clip.id === participant.fromClipId)!
     const to = composition.clips.find(clip => clip.id === participant.toClipId)!

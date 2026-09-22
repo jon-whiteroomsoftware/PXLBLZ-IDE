@@ -2,14 +2,59 @@ import { describe, expect, it } from 'vitest'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
-import { createDefaultShow } from './showModel'
-import { withoutUnusedInstanceTracksV2 } from './showFlatLoweringV2'
+import { addShowZone, createDefaultShow, createShowWithOutputContract, updateShowBoundaryTransition, updateShowRoutingLayout } from './showModel'
+import { createInstallationShowOutputContract } from './showOutputContract'
+import { canLowerShowV2ToFlat, withoutUnusedInstanceTracksV2 } from './showFlatLoweringV2'
 
 function convertedDefaultShow(): ShowRecordV2 {
   const source = createDefaultShow('flat-filter', 'Flat filter', 1)
   const converted = convertShowRecordV1ToV2(source, { byCellId: Object.fromEntries(source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.status === 'refused' ? converted.issues : []))
   return converted.record
+}
+
+function wholeOutputRecord(): ShowRecordV2 {
+  let show = createShowWithOutputContract('fresh-id', 'Fresh Show', createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 256 }))
+  show = addShowZone(show)
+  show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+    logical: { kind: 'split', zoneIds: [show.zones[0].id, show.zones[1].id] as [string, string], axis: 'x' },
+  })
+  show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+    propertyTransitions: { routing: { splitPosition: { from: 0.5, durationMs: 2000, easing: { curve: 'linear' } } } },
+  })
+  const converted = convertShowRecordV1ToV2(show, { byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.status === 'refused' ? converted.issues : []))
+  return converted.record
+}
+
+function participantRecord(): ShowRecordV2 {
+  let show = createShowWithOutputContract('fresh-id', 'Fresh Show', createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 256 }))
+  show = addShowZone(show)
+  show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+    logical: { kind: 'split', zoneIds: [show.zones[0].id, show.zones[1].id] as [string, string], axis: 'x' },
+  })
+  const converted = convertShowRecordV1ToV2(show, { byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.status === 'refused' ? converted.issues : []))
+  return converted.record
+}
+
+function withUnrelatedClip(record: ShowRecordV2, startMs: number, durationMs: number): ShowRecordV2 {
+  const next = structuredClone(record)
+  const zone2Main = next.composition.layers.find(layer => layer.zoneId === next.zones[1].id && layer.rank === 0)!
+  const template = next.composition.patternInstances[0]
+  next.composition.patternInstances.push({ ...structuredClone(template), id: 'unrelated-instance' })
+  next.composition.clips.push({
+    id: 'unrelated-clip',
+    instanceId: 'unrelated-instance',
+    zoneId: next.zones[1].id,
+    layerId: zone2Main.id,
+    startMs,
+    durationMs,
+    entryPolicy: 'continue',
+    zoneSampleMode: 'independent',
+    appearance: { keys: [{ id: 'unrelated-clip:appearance:1', timeMs: startMs, value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] } }] },
+  })
+  return next
 }
 
 function keyframes(startMs: number, endMs: number, prefix: string) {
@@ -47,5 +92,43 @@ describe('withoutUnusedInstanceTracksV2', () => {
     )
     expect(validateShowRecordV2(record)).toEqual([])
     expect(withoutUnusedInstanceTracksV2(record)).toBe(record)
+  })
+})
+
+describe('whole-output boundary admission on the flat route (#1082)', () => {
+  it('admits contributors abutting the window with the flag and refuses without it', () => {
+    const record = wholeOutputRecord()
+    expect(validateShowRecordV2(record)).toEqual([])
+    expect(record.composition.transitions).toHaveLength(1)
+    expect(record.composition.transitions[0].wholeOutput).toBeDefined()
+    expect(canLowerShowV2ToFlat(record)).toBe(false)
+    expect(canLowerShowV2ToFlat(record, true, false)).toBe(false)
+    expect(canLowerShowV2ToFlat(record, false, true)).toBe(true)
+    expect(canLowerShowV2ToFlat(record, true, true)).toBe(true)
+  })
+
+  it.each([
+    ['touching at the window start', 0, 30000],
+    ['touching at the window end', 32000, 30000],
+    ['overlapping the window', 20000, 20000],
+  ])('refuses an unrelated Clip %s either way', (_name, startMs, durationMs) => {
+    const record = withUnrelatedClip(wholeOutputRecord(), startMs, durationMs)
+    expect(canLowerShowV2ToFlat(record)).toBe(false)
+    expect(canLowerShowV2ToFlat(record, false, true)).toBe(false)
+    expect(canLowerShowV2ToFlat(record, true, true)).toBe(false)
+  })
+
+  it('leaves participant admission unchanged', () => {
+    const record = participantRecord()
+    expect(record.composition.transitions[0].wholeOutput).toBeUndefined()
+    expect(canLowerShowV2ToFlat(record)).toBe(true)
+    expect(canLowerShowV2ToFlat(record, false, true)).toBe(true)
+    expect(canLowerShowV2ToFlat(record, true, true)).toBe(true)
+  })
+
+  it('still refuses a touching Clip on the participant route either way', () => {
+    const record = withUnrelatedClip(participantRecord(), 0, 30000)
+    expect(canLowerShowV2ToFlat(record)).toBe(false)
+    expect(canLowerShowV2ToFlat(record, false, true)).toBe(false)
   })
 })

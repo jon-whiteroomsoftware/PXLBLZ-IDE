@@ -965,6 +965,10 @@ function lowerContinuousToFlat(
     ...composition.clips.flatMap(clip => [clip.startMs, clip.startMs + clip.durationMs]),
   ])].sort((left, right) => left - right)
   const windows = composition.transitions.map(transition => {
+    if (transition.wholeOutput) {
+      const startMs = transition.wholeOutput.startMs
+      return { transition, startMs, endMs: startMs + transition.durationMs }
+    }
     const from = composition.clips.find(clip => clip.id === transition.participants[0].fromClipId)!
     const startMs = from.startMs + from.durationMs
     return { transition, startMs, endMs: startMs + transition.durationMs }
@@ -1035,6 +1039,7 @@ function lowerContinuousToFlat(
     ...stripV2TransitionFields(window.transition),
     id: window.transition.id, kind: window.transition.kind,
     afterSceneId: scenes[sections.findIndex(section => section.endMs === window.startMs)].id,
+    ...(window.transition.propertyRamps.length > 0 ? { propertyTransitions: scalarBoundaryRamps(window.transition) } : {}),
   })))
   return {
     show,
