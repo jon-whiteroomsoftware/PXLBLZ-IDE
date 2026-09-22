@@ -59,6 +59,7 @@ function withoutConversionMetadata(record: ShowRecordV2): ShowRecordV2 {
   for (const transition of stripped.composition.transitions) delete transition.origin
   for (const occurrence of stripped.composition.layoutOccurrences) delete occurrence.incomingSwitch
   for (const marker of stripped.composition.markers) delete marker.origin
+  delete stripped.composition.sampleRemap.origin
   return stripped
 }
 
@@ -174,6 +175,18 @@ describe('conversion metadata is inert', () => {
       expect(compiledSource(converted)).toBe(compiledSource(withoutConversionMetadata(converted)))
     })
   }
+
+  it('compiles a Show that authors a repeat scale to the identical program with and without the metadata (#1066)', async () => {
+    // No oracle corpus case authors sampleTargets.repeatScale, so the stock
+    // Show that does carries the fourth provenance field through this oracle.
+    const { STOCK_SHOWS } = await import('../pixelblaze/stock/shows')
+    const source = structuredClone(STOCK_SHOWS.find(candidate => candidate.id === 'stock-show-reference-property-animation')!.show) as ShowRecord
+    const converted = convert(source)
+    expect(converted.composition.sampleRemap.origin).toBe('converted-authored-repeat-scale')
+    const stripped = withoutConversionMetadata(converted)
+    expect(stripped.composition.sampleRemap.origin).toBeUndefined()
+    expect(compiledSource(converted)).toBe(compiledSource(stripped))
+  })
 
   it('compiles the routing-switch case to the identical program on both record versions', () => {
     // The Installation case is the one the converter change touches and the one

@@ -207,14 +207,14 @@
       "features": [
         "animation"
       ],
-      "recordSha256": "17eb36b869743864e6ffd689ac32639d96e77a0d74bf871c12af0a1903b6beea",
+      "recordSha256": "24707ef42a23dd0425594cb18cd64d4ad4dfcd89bd3a54fa9ab3cacf86733aaa",
       "loopDurationMs": 48600,
       "clipCount": 19,
       "before": {
         "pxlshow": {
           "filename": "property-animation.pxlshow",
-          "bytes": 2209,
-          "contentSha256": "1cf2dbb1372108b145d7bf3a5fba5aaa51200c88134031ce2a8bb372d8b19bcb"
+          "bytes": 2220,
+          "contentSha256": "4f40933428dfaa39cd62e3e10393319219706474678f14c485964bae3b79fc9b"
         },
         "epe": {
           "filename": "property-animation.epe",
@@ -320,16 +320,16 @@
       "after": {
         "pxlshow": {
           "filename": "baseline-long-timeline.pxlshow",
-          "bytes": 1459,
-          "contentSha256": "73318fe7e2d9d52154fbf81ad35f1b1a81b5e77f4ff4d11872892dd561c23643"
+          "bytes": 1428,
+          "contentSha256": "24a528f7c61481edffb240751f57389e55f7cfeab58dd56ed852044ca1f782c1"
         },
         "epe": {
           "filename": "baseline-long-timeline.epe",
-          "bytes": 21969,
-          "sourceSha256": "357b47b6e407b26b8ccfabd5a9ae608d51c28e2a73449e8e4304242e04689955",
+          "bytes": 21148,
+          "sourceSha256": "c4097bc09c978fc427eb66aecaf27133c828bc67f1df4c10e7c9d1d25adcab74",
           "stampKind": "show"
         },
-        "recordSha256": "8c907d12dddd0b34868086ed7fcddf9a1abdd1e9260d5a86d3931aee3b85e36d",
+        "recordSha256": "90871bde32c1b8ecc857ba522ba00a28db4026116c1ed16ca3eb93cbb96970af",
         "clipCount": 12,
         "firstClipDurationMs": 12000
       }
