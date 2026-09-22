@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice5b-capture2?show-v2-editor",
+  "operation": "Stored a converted default Show as version 2 as the synthetic local user, opened the crossfade boundary between TestPattern1D and CometLoom, chose Change, and clicked Use Block Transition. The stored record changed from crossfade to dither/block (2000 ms, converted-boundary-transition origin kept); after reload the boundary panel reads Block with its dither settings.",
+  "captures": [".wrsp/ui-proof/1066-slice5b-palette-apply.png"],
+  "capturedAtCommit": "eb053a65b6940c790d98bd4d1210847d4a2c356d"
+}
