@@ -159,11 +159,23 @@ holds no `propertyRamps`; and the junction is exact
 (`from.end + durationMs == to.start`). Scope does not select the path: the #1068
 promotion rewrites a participant boundary to whole-output when the lowering needs
 it, and the repair must survive that. Native Transitions, converted Layer
-Transitions, multi-contributor boundaries and whole-output boundaries still
-carrying ramps keep the existing grow/shift behaviour on every entry point; a
+Transitions, multi-contributor boundaries on the Clip-edge and temporal
+gestures, and whole-output boundaries still carrying ramps keep the existing
+grow/shift behaviour; a
 participant-scope carrier that still holds ramps reports `ramp-carrier` and
 every resize or plan-less reset refuses `unsupported-property-carrier` until an
 explicit projection plan clears it.
+
+The Transition edits (`resize-transition`, `reset-to-cut` and the palette's
+retime inside `update-transition`) opt in to multi-contributor boundaries
+(`{ multiContributor: true }`, #1066 slice 5e2a1): a converted whole-output
+boundary naming one Clip per Zone and Layer on each side, every outgoing Clip
+ending at `wholeOutput.startMs` and every incoming one starting at the window
+end, with no ramps, repairs as one Scene edge. The downstream closure starts
+from every incoming Clip and the outgoing-track retime follows every outgoing
+Clip, which equals v1 then convert for resize and Reset on the stock
+property-animation Show's two Crossfade boundaries. The Clip-edge and temporal
+gestures move one Clip of such a boundary and stay single-contributor.
 
 A Trim/Extend that moves the meeting edge always commits the repair: the Clip is
 retimed in preimage coordinates first, then `commitConvertedBoundaryRepairsV2`
