@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/10ccbc61-ba68-40da-9cb8-79a195c90135",
+  "operation": "On the v2 backing at the code tip, a fresh Installation Show (Default Layout, 0-62 s): Add to Show > Zone Layout > duration 5 > Append. One edit added a Layout definition named by kind ('Physical ranges', as v1 names it) and a 5000 ms occurrence of it at the old Show End (62000 ms), with Show End now 67000 ms (stored v2 readback; capture).",
+  "captures": [".wrsp/ui-proof/1066-slice8b1-append.png"],
+  "capturedAtCommit": "799e47ddd92a72530b173996f1a17809ac1d8f21"
+}
