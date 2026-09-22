@@ -1660,17 +1660,13 @@ test.describe('authenticated Show authoring', () => {
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     await expect(dialog).not.toBeVisible()
     await expect(page.getByRole('button', { name: 'Restore Untitled Show' })).toBeVisible()
-    const afterCancel = await page.context().request.get('/api/shows')
-    expect(((await afterCancel.json()) as { shows: PersistedShow[] }).shows).toHaveLength(1)
+    expect(await listShows(page)).toHaveLength(1)
 
     // Confirm permanently deletes the record and closes the drawer.
     await page.getByRole('button', { name: 'Empty Trash' }).click()
     await dialog.getByRole('button', { name: 'Empty Trash' }).click()
     await expect(page.getByRole('button', { name: /Open Trash/ })).not.toBeVisible()
-    await expect.poll(async () => {
-      const response = await page.context().request.get('/api/shows')
-      return ((await response.json()) as { shows: PersistedShow[] }).shows.length
-    }).toBe(0)
+    await expect.poll(async () => (await listShows(page)).length).toBe(0)
   })
 
   test.describe('offline Show saves (#792)', () => {
@@ -1764,16 +1760,14 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Duplicate' }).click()
     await expect(page.getByRole('treeitem', { name: /Untitled Show copy/ })).toBeVisible()
     await expect.poll(() => new URL(page.url()).pathname.split('/').at(-1)).not.toBe(sourceId)
-    const shows = ((await (await page.context().request.get('/api/shows')).json()) as { shows: PersistedShow[] }).shows
+    const shows = await listShows(page)
     expect(shows).toHaveLength(2)
     expect(shows.map((show) => show.name).sort()).toEqual(['Untitled Show', 'Untitled Show copy'])
 
     // A built-in forks through Clone, keeping the work as personal.
     await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
     await (await getShowAction(page, 'Clone')).click()
-    await expect.poll(async () => (
-      ((await (await page.context().request.get('/api/shows')).json()) as { shows: PersistedShow[] }).shows.length
-    )).toBe(3)
+    await expect.poll(async () => (await listShows(page)).length).toBe(3)
     await expect.poll(() => new URL(page.url()).pathname.split('/').at(-1)).not.toContain('stock-')
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
   })
