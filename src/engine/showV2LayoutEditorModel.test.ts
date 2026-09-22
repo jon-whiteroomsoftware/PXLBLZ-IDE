@@ -1,8 +1,13 @@
 import { expect, it } from 'vitest'
 import { showV2LayoutEditorFixture } from '../test/showV2LayoutEditorFixture'
-import { buildShowV2LayoutEditorModel, planShowV2LayoutEdit } from './showV2LayoutEditorModel'
+import { buildShowV2LayoutEditorModel, planShowV2LayoutEdit, showV2MakeUniqueLayoutName } from './showV2LayoutEditorModel'
 import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
-import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2 } from './showCompositionV2'
+import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
+import { commandFixtureV2 } from './showCommandsV2/fixtures'
+import { createDefaultShow } from './showModel'
+import { appendShowLayoutInterval, duplicateShowLayoutInterval, projectShowLayoutIntervals } from './showLayoutIntervals'
+import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
 it('orders exact persisted occurrence coverage and definition sharing without editing children', () => {
  const { record } = showV2LayoutEditorFixture(), model = buildShowV2LayoutEditorModel(record)
  expect(model.occurrences.map(x => [x.id,x.startMs,x.endMs,x.isInitial,x.shared])).toEqual([[record.composition.layoutOccurrences[0].id,0,5000,true,true],['later-layout',5000,31000,false,true]])
@@ -49,4 +54,93 @@ it('qualifies the actual thirty-second stock-plane browser fixture before seedin
  const capture=captureShowStageEditV2(record,{patterns:browserFixture.patterns,maps:[],libraries:[],profiles:[],stageMap:null})
  expect(capture.inputCapture.status).toBe('qualified');expect(capture.prepared.status,capture.prepared.status==='refused'?capture.prepared.message:'').toBe('ready')
  expect(record.composition.groupOccurrences[0].holds).toEqual([{id:'initial-hold',localTimeMs:2500,durationMs:1000}])
+})
+it('names a Make Unique copy after its source definition with v1 uniqueness (#1066 slice 8a)', () => {
+ const record = commandFixtureV2()
+ expect(showV2MakeUniqueLayoutName(record, 'interval-2')).toBe('Both copy')
+ const taken = structuredClone(record)
+ taken.zoneLayouts.push({ ...taken.zoneLayouts[0], id: 'both-copy', name: 'Both copy' })
+ expect(showV2MakeUniqueLayoutName(taken, 'interval-2')).toBe('Both copy 2')
+ expect(showV2MakeUniqueLayoutName(record, 'missing')).toBeNull()
+})
+function twoSceneDuplicateV1Show(): ShowRecord {
+ const show = createDefaultShow('show-layout-duplicate-timing', 'Layout duplicate timing', 1)
+ const sourceCell = show.cells[0]
+ const composition: ShowCompositionV1 = {
+  version: 1,
+  patternInstances: [{
+   id: 'instance-1',
+   pattern: { ...sourceCell.pattern },
+   patternName: sourceCell.patternName,
+   time: { timeScale: 1, timeOffsetMs: 0 },
+  }],
+  scenes: [{
+   sceneId: show.scenes[0].id,
+   zones: [{
+    zoneId: show.zones[0].id,
+    main: [{
+     id: 'placement-1',
+     instanceId: 'instance-1',
+     startMs: 0,
+     durationMs: show.scenes[0].durationMs,
+     view: { brightness: 1, phase: 0, mirror: false },
+    }],
+    overlays: [],
+   }],
+  }],
+ }
+ const base = {
+  ...show,
+  scenes: [{ ...show.scenes[0], durationMs: 30_000 }],
+  cells: [{ ...sourceCell, sceneId: show.scenes[0].id, sceneSpan: 1 }],
+  transitions: [],
+  composition,
+ }
+ return appendShowLayoutInterval(base, { durationMs: 5_000, layoutId: 'layout-1' })
+}
+function duplicateTiming(record: ShowRecordV2): { showEndMs: number; occurrences: unknown[]; clips: unknown[] } {
+ return {
+  showEndMs: record.composition.showEndMs,
+  occurrences: record.composition.layoutOccurrences.map(occurrence => [occurrence.startMs, occurrence.durationMs]).sort(),
+  clips: record.composition.clips.map(clip => [clip.zoneId, clip.startMs, clip.durationMs]).sort(),
+ }
+}
+it.each([false, true])('duplicates withContent=%s with v1 timing after conversion (#1066 slice 8a)', (withContent) => {
+ const base = twoSceneDuplicateV1Show()
+ const intervalId = projectShowLayoutIntervals(base)[0].id
+ const v1Next = duplicateShowLayoutInterval(base, intervalId, { withContent })
+ expect(v1Next).not.toBe(base)
+ // v1 duplicate-with-content leaves an explicit `propertyTracks: undefined` key that JSON persistence erases; convert the stored shape.
+ const convertedNext = convertShowRecordV1ToV2(JSON.parse(JSON.stringify(v1Next)))
+ if (convertedNext.status !== 'converted') throw new Error(JSON.stringify(convertedNext.issues))
+ const convertedBase = convertShowRecordV1ToV2(base)
+ if (convertedBase.status !== 'converted') throw new Error(JSON.stringify(convertedBase.issues))
+ const occurrence = convertedBase.record.composition.layoutOccurrences.find(candidate => candidate.startMs === 0)
+ if (!occurrence) throw new Error('converted base has no first Layout occurrence')
+ let counter = 0
+ const plan = planShowV2LayoutEdit(convertedBase.record, { kind: 'duplicate', occurrenceId: occurrence.id, content: withContent ? 'copy' : 'empty' }, () => `fresh-${counter += 1}`)
+ if (plan.status !== 'ready') throw new Error(plan.message)
+ const applied = editShowLayoutIntervalsV2(structuredClone(convertedBase.record), plan.intent)
+ if (applied.status !== 'changed') throw new Error(applied.status === 'refused' ? applied.message : applied.status)
+ const v1First = duplicateTiming(convertedNext.record), v2First = duplicateTiming(applied.record)
+ if (JSON.stringify(v1First) !== JSON.stringify(v2First)) throw new Error(`BRIEF GAP: Duplicate withContent=${withContent} timing differs v1-then-convert ${JSON.stringify(v1First)} vs convert-then-v2 ${JSON.stringify(v2First)}`)
+ expect(v2First).toEqual(v1First)
+})
+it('makes one reused occurrence unique by cloning only its Layout definition (#1066 slice 8a)', () => {
+ const record = commandFixtureV2()
+ const name = showV2MakeUniqueLayoutName(record, 'interval-2')
+ expect(name).toBe('Both copy')
+ if (name === null) throw new Error('expected a Make Unique name')
+ let counter = 0
+ const plan = planShowV2LayoutEdit(record, { kind: 'make-unique', occurrenceId: 'interval-2', name }, () => `fresh-${counter += 1}`)
+ if (plan.status !== 'ready') throw new Error(plan.message)
+ const result = editShowLayoutIntervalsV2(record, plan.intent)
+ if (result.status !== 'changed') throw new Error(result.status === 'refused' ? result.message : result.status)
+ const both = record.zoneLayouts.find(layout => layout.id === 'both')
+ const copy = result.record.zoneLayouts.find(layout => layout.id !== 'both' && layout.id !== 'left-only')
+ expect(copy?.name).toBe('Both copy')
+ expect({ ...copy, id: 'layout', name: 'Layout' }).toEqual({ ...both, id: 'layout', name: 'Layout' })
+ expect(result.record.composition.layoutOccurrences.find(occurrence => occurrence.id === 'interval-2')?.layoutId).toBe(copy?.id)
+ expect(result.record.composition.layoutOccurrences.find(occurrence => occurrence.id === 'interval-1')?.layoutId).toBe('both')
+ expect(result.record.zones).toEqual(record.zones)
 })

@@ -300,6 +300,7 @@ import {
   admitShowV2PilotTransitionResize,
   admitShowV2PilotZoneEdit,
   admitShowV2PilotLayoutDefinitionEdit,
+  admitShowV2PilotLayoutOccurrenceEdit,
   type ShowV2PilotClipDeleteIntent,
   type ShowV2PilotClipSharingIntent,
   type ShowV2PilotGroupOccurrenceEditIntent,
@@ -309,6 +310,7 @@ import {
   type ShowV2PilotSetShowEndRequest,
   type ShowV2PilotShowMetadataRequest,
   type ShowV2PilotTransitionResizeIntent,
+  type ShowV2PilotLayoutOccurrenceIntent,
 } from '@/store/showV2PreparedEditAdmission'
 import {
   createShowV2ClipReplacementIntent,
@@ -359,6 +361,10 @@ import type {
   ShowPropertyEditIntentV2,
   ShowPropertyTrackOwnerV2,
 } from '@/engine/showPropertyEditsV2'
+import {
+  planShowV2LayoutEdit,
+  showV2MakeUniqueLayoutName,
+} from '@/engine/showV2LayoutEditorModel'
 import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
 import type { ShowZoneEditIntentV2 } from '@/engine/showZonesV2'
 import type { ShowZoneLayoutDefinitionIntentV2 } from '@/engine/showZoneLayoutDefinitionsV2'
@@ -1721,6 +1727,32 @@ export function ShowEditor({
     })
     return outcome.status === 'applied'
   }, [showId])
+  const commitV2LayoutOccurrenceEdit = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2PilotLayoutOccurrenceIntent
+  }) => {
+    const outcome = await admitShowV2PilotLayoutOccurrenceEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome.status === 'applied'
+  }, [showId])
+  const commitV2LayoutPlan = useCallback((build: (record: ShowRecordV2) => ReturnType<typeof planShowV2LayoutEdit> | null): Promise<boolean> => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return Promise.resolve(false)
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return Promise.resolve(false)
+    const plan = build(capture.record)
+    if (!plan || plan.status === 'refused') return Promise.resolve(false)
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    return commitV2LayoutOccurrenceEdit({ capture, baseRevision, intent: plan.intent })
+  }, [commitV2LayoutOccurrenceEdit, readOnly, recordVersion, savedShowV2, showId])
   const commitV2ClipDelete = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
@@ -3780,6 +3812,7 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, next)
                 }}
                 onDuplicateLayoutInterval={async (intervalId, withContent) => {
+                  if (recordVersion === 2) return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'duplicate', occurrenceId: intervalId, content: withContent ? 'copy' : 'empty' }, newPersonalContentId))
                   if (!legacyShow || !timelineComposition) return false
                   const basis = { ...legacyShow, composition: timelineComposition }
                   const next = duplicateShowLayoutInterval(basis, intervalId, { withContent })
@@ -3787,6 +3820,7 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, next)
                 }}
                 onMakeLayoutIntervalUnique={async (intervalId) => {
+                  if (recordVersion === 2) return commitV2LayoutPlan((record) => { const name = showV2MakeUniqueLayoutName(record, intervalId); return name === null ? null : planShowV2LayoutEdit(record, { kind: 'make-unique', occurrenceId: intervalId, name }, newPersonalContentId) })
                   if (!legacyShow || !timelineComposition) return false
                   const basis = { ...legacyShow, composition: timelineComposition }
                   const next = makeShowLayoutIntervalUnique(basis, intervalId)
@@ -4198,6 +4232,21 @@ export function ShowEditor({
                     void removeRoutingLayout(legacyShow.id, layoutId)
                   }}
                   onMakeLayoutIntervalUnique={(intervalId) => {
+                    if (recordVersion === 2) {
+                      if (!savedShowV2 || readOnly) return
+                      const capture = preparedV2CaptureRef.current
+                      if (!capture || capture.prepared.status === 'refused') return
+                      const name = showV2MakeUniqueLayoutName(capture.record, intervalId)
+                      if (name === null) return
+                      const plan = planShowV2LayoutEdit(capture.record, { kind: 'make-unique', occurrenceId: intervalId, name }, newPersonalContentId)
+                      if (plan.status !== 'ready' || plan.intent.kind !== 'make-unique') return
+                      const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+                      const layoutId = plan.intent.layoutId
+                      void commitV2LayoutOccurrenceEdit({ capture, baseRevision, intent: plan.intent }).then((applied) => {
+                        if (applied) selectTimeline({ kind: 'zone-layout', layoutId, intervalId })
+                      }).catch(() => {})
+                      return
+                    }
                     if (!legacyShow || !timelineComposition) return
                     const basis = { ...legacyShow, composition: timelineComposition }
                     const next = makeShowLayoutIntervalUnique(basis, intervalId)
@@ -10504,11 +10553,11 @@ function ContextualInspector({
             endMs: entry.occurrence.startMs + entry.occurrence.durationMs,
           }))}
           selectedIntervalId={selection.intervalId}
-          // Zone Layout definition writes reach the v2 backing through the definition owner (#1066 slice 7).
+          // Zone Layout occurrence writes reach the v2 backing through the occurrence owner (#1066 slice 8a).
           onAddRoutingLayout={onAddRoutingLayout}
           onUpdateRoutingLayout={onUpdateRoutingLayout}
           onRemoveRoutingLayout={onRemoveRoutingLayout}
-          onMakeIntervalUnique={() => {}}
+          onMakeIntervalUnique={onMakeLayoutIntervalUnique}
         />
       )
     }

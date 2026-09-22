@@ -125,6 +125,22 @@ export function planShowV2LayoutEdit(
   return { status: 'ready', intent: structuredClone(request) }
 }
 
+/** The Make Unique definition name: the source definition name plus ' copy', unique against every Layout name. */
+export function showV2MakeUniqueLayoutName(record: ShowRecordV2, occurrenceId: string): string | null {
+  const occurrence = record.composition.layoutOccurrences.find(candidate => candidate.id === occurrenceId)
+  if (!occurrence) return null
+  const definition = record.zoneLayouts.find(layout => layout.id === occurrence.layoutId)
+  if (!definition) return null
+  return uniqueName(`${definition.name} copy`, record.zoneLayouts.map(layout => layout.name))
+}
+
+function uniqueName(preferred: string, names: string[]): string {
+  if (!names.includes(preferred)) return preferred
+  let suffix = 2
+  while (names.includes(`${preferred} ${suffix}`)) suffix += 1
+  return `${preferred} ${suffix}`
+}
+
 /** Refuse a blank, duplicate or already-owned identity before an owner sees it. */
 function fresh(record: ShowRecordV2, identities: string[], subject: string): { status: 'refused'; message: string } | null {
   const owned = ownedShowIdsV2(record)
