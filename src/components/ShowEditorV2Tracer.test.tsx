@@ -4669,13 +4669,15 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
     const before = editor.state()
     const durationField = screen.getByRole('textbox', { name: 'Duration seconds exact time' })
-    fireEvent.change(durationField, { target: { value: '0.3' } })
+    // Fixture hold at local 200 ms for 100 ms must stay strictly inside the Clip, so local must exceed 200: smallest round Show time above 300 ms is 400 ms (0.4 s), storing local 400 - 100 = 300.
+    fireEvent.change(durationField, { target: { value: '0.4' } })
     fireEvent.keyDown(durationField, { key: 'Enter' })
     await act(async () => {})
     const after = editor.state()
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
     expect(admission.calls).toHaveLength(1)
     expect(after.record.composition.groupDefinitions[0]!.clips.find((clip) => clip.id === 'child')!.durationMs).toBe(300)
+    expect(screen.getByRole('textbox', { name: 'Duration seconds exact time' })).toHaveValue('0.4')
     expectOneEdit(before, after)
   })
 

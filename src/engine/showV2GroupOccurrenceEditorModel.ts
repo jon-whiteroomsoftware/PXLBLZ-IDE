@@ -1,6 +1,6 @@
 import type { ShowRecordV2 } from './showCompositionV2'
 import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, EditShowGroupDefinitionClipAppearanceIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, SetShowGroupDefinitionClipTimingIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2, WriteShowGroupDefinitionInstancePropertiesIntentV2 } from './showGroupEditsV2'
-import { groupDefinitionAsRecord, groupOccurrenceDuration, groupOccurrenceLocalTimeAtV2 } from './showGroupsV2'
+import { groupDefinitionAsRecord, groupOccurrenceDuration, groupOccurrenceLocalTimeAtV2, occurrenceBoundaryAfter } from './showGroupsV2'
 import { planShowV2ClipInspectorPatch } from './showV2ClipAppearancePlanning'
 import type { ShowClipInspectorPatch } from './showClipInspectorModel'
 
@@ -56,12 +56,23 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
       if (hasDuration && (typeof request.durationMs !== 'number' || !Number.isFinite(request.durationMs))) {
         return { status: 'refused', message: 'Give a finite Duration for one Group Clip.' }
       }
+      // The panel shows Show time, which is converted back the way Start is (#1075 G2a review).
+      const localStart = hasStart ? Math.round(groupOccurrenceLocalTimeAtV2(occurrence, Math.round(request.startMs!))) : child.startMs
+      let localDuration: number | undefined
+      if (hasDuration) {
+        const showStart = occurrenceBoundaryAfter(occurrence, localStart)
+        const localEnd = groupOccurrenceLocalTimeAtV2(occurrence, showStart + Math.round(request.durationMs!))
+        localDuration = localEnd - localStart
+        if (!Number.isSafeInteger(localDuration) || localDuration <= 0) {
+          return { status: 'refused', message: "Duration must end after the Clip's start outside a hold." }
+        }
+      }
       const intent: SetShowGroupDefinitionClipTimingIntentV2 = {
         kind: 'set-definition-clip-timing',
         definitionId: definition.id,
         clipId: child.id,
-        ...(hasStart ? { startMs: Math.round(groupOccurrenceLocalTimeAtV2(occurrence, Math.round(request.startMs!))) } : {}),
-        ...(hasDuration ? { durationMs: Math.round(request.durationMs!) } : {}),
+        ...(hasStart ? { startMs: localStart } : {}),
+        ...(hasDuration ? { durationMs: localDuration! } : {}),
       }
       return { status: 'ready', intent }
     }
