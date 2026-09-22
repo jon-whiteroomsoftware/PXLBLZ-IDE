@@ -514,6 +514,7 @@ describe('planShowV2BoundaryPaletteApply (#1066 slice 5b)', () => {
             transitions: canonicalize(edited.record.composition.transitions),
             occurrences: edited.record.composition.layoutOccurrences.map(occurrence => [occurrence.startMs, occurrence.durationMs]),
             markers: edited.record.composition.markers.map(marker => marker.timeMs),
+            tracks: canonicalize(edited.record.composition.propertyTracks),
           }
           const expected = {
             clips: v1Converted.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs]),
@@ -521,13 +522,47 @@ describe('planShowV2BoundaryPaletteApply (#1066 slice 5b)', () => {
             transitions: canonicalize(v1Converted.composition.transitions),
             occurrences: v1Converted.composition.layoutOccurrences.map(occurrence => [occurrence.startMs, occurrence.durationMs]),
             markers: v1Converted.composition.markers.map(marker => marker.timeMs),
+            tracks: canonicalize(v1Converted.composition.propertyTracks),
           }
           expect(actual).toEqual(expected)
           compared += 1
         }
       }
     }
+    // Four fixtures times the nine compatible non-Cut 1D choices that convert.
     expect(compared).toBe(36)
+  })
+
+  it('refuses a duration-changing Fade choice that would pass over an unrelated Clip (RL08)', () => {
+    const source = updateShowBoundaryTransition(createDefaultShow('b', 'B', 1), 'transition-scene-1', { durationMs: 3000 })
+    const record = convertWithStock(source)
+    const boundary = record.composition.transitions.find(transition => transition.id === 'transition-scene-1')!
+    expect(boundary.wholeOutput).toBeUndefined()
+    const outgoing = record.composition.clips.find(clip => clip.id === boundary.participants[0].fromClipId)!
+    const windowStartMs = outgoing.startMs + outgoing.durationMs
+    const zoneId = boundary.participants[0].zoneId
+    const instance = record.composition.patternInstances.find(candidate => candidate.id === outgoing.instanceId)!
+    record.composition.patternInstances.push({ ...structuredClone(instance), id: 'overlay-instance' })
+    record.composition.layers.push({ id: 'overlay-layer', zoneId, name: 'Overlay', rank: Math.max(...record.composition.layers.map(layer => layer.rank)) + 1 })
+    record.composition.clips.push({
+      ...structuredClone(outgoing), id: 'overlay-span', instanceId: 'overlay-instance', layerId: 'overlay-layer',
+      // Ending exactly at the 3000 ms window's end passes the repair's
+      // straddle rule; after the 2000 ms retime it spans the new window.
+      startMs: windowStartMs - 1000, durationMs: 1000 + boundary.durationMs,
+      appearance: { keys: [{ ...structuredClone(outgoing.appearance.keys[0]), id: 'overlay-span-key', timeMs: windowStartMs - 1000 }] },
+    })
+    expect(validateShowRecordV2(record)).toEqual([])
+    const fade = buildShowToolkitPresentationCatalogue({ stageDimensions: 1 })
+      .find(item => item.kind === 'transition' && item.familyId === 'fade' && item.compatible)!
+    const changes = showTransitionChangesForPresentation(fade)
+    expect(changes.durationMs).not.toBe(boundary.durationMs)
+    const plan = planShowV2BoundaryPaletteApply(record, 'transition-scene-1', changes, () => 'unused')
+    if (plan.status !== 'ready') throw new Error(JSON.stringify(plan))
+    expect(editShowTransitionV2(record, plan.intent)).toMatchObject({ status: 'refused', code: 'compiler-ineligible' })
+    // The same Fade at the unchanged duration is refused the same way.
+    const unchanged = planShowV2BoundaryPaletteApply(record, 'transition-scene-1', { ...changes, durationMs: boundary.durationMs }, () => 'unused')
+    if (unchanged.status !== 'ready') throw new Error(JSON.stringify(unchanged))
+    expect(editShowTransitionV2(record, unchanged.intent)).toMatchObject({ status: 'refused', code: 'compiler-ineligible' })
   })
 
   it('plans a Cut choice as Reset to Cut', () => {

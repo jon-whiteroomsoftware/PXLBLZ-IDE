@@ -190,6 +190,11 @@ export function editShowTransitionV2(
       ))
       const settledIssue = validateShowRecordV2(settled)[0]
       if (settledIssue) return refusedResult(record, 'invalid-result', `${settledIssue.path}: ${settledIssue.message}`)
+      // The nested resize checked placement under the old kind; the settings
+      // may change the kind (RL08 keys on Fade and Motion), so the settled
+      // record faces the same compiler check as every sibling path.
+      const settledRestriction = firstShowTransitionPlacementRestrictionV2(settled)
+      if (settledRestriction) return refusedResult(record, 'compiler-ineligible', settledRestriction.message)
       return { ...retimed, record: settled }
     }
     if (JSON.stringify(current) === JSON.stringify(intent.transition)) return { status: 'unchanged', record, ...empty() }
