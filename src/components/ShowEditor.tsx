@@ -286,6 +286,7 @@ import { useShowStore } from '@/store/showStore'
 import {
   admitShowV2PilotAppearanceEdit,
   admitShowV2PilotClipDelete,
+  admitShowV2PilotCreateGroup,
   admitShowV2PilotTransitionEdit,
   admitShowV2PilotClipEntryPolicy,
   admitShowV2PilotClipReplacementEdit,
@@ -314,6 +315,8 @@ import {
 } from '@/engine/showV2ClipReplacementModel'
 import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
 import { checkShowTimelineDuplicateGestureV2, planShowTimelineGestureV2, type ShowTimelineGestureV2 } from '@/engine/showTimelineGesturesV2'
+import type { CreateShowGroupFromSelectionIntentV2 } from '@/engine/showGroupCreationV2'
+import { planShowV2GroupCreation } from '@/engine/showV2GroupCreationEditorModel'
 import {
   planShowV2ClipMove,
   planShowV2ClipResize,
@@ -412,6 +415,7 @@ import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { materializeShowGroupsV2 } from '@/engine/showGroupsV2'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import {
+  completeShowGroupSelectionV2,
   projectShowEditorPropertyLanesV2,
   projectShowEditorTimeColumnsV2,
   projectShowEditorTimelineCommandsV2,
@@ -1652,6 +1656,23 @@ export function ShowEditor({
     intent: ShowV2PilotClipSharingIntent
   }) => {
     const outcome = await admitShowV2PilotClipSharingEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome.status === 'applied'
+  }, [showId])
+  const commitV2CreateGroup = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: CreateShowGroupFromSelectionIntentV2
+  }) => {
+    const outcome = await admitShowV2PilotCreateGroup({
       showId,
       baseRevision: input.baseRevision,
       capture: input.capture,
@@ -3478,6 +3499,24 @@ export function ShowEditor({
                 }}
                 onSelectGroupCandidates={selectGroupCandidates}
                 onCreateGroup={async (groupSelection) => {
+                  if (recordVersion === 2) {
+                    const capture = preparedV2CaptureRef.current
+                    if (!capture || capture.prepared.status === 'refused') return null
+                    const plan = planShowV2GroupCreation(capture.record, {
+                      clipIds: groupSelection.placementIds,
+                      transitionIds: groupSelection.transitionIds,
+                      name: 'Group',
+                    }, newPersonalContentId)
+                    if (plan.status !== 'ready') return null
+                    const applied = await commitV2CreateGroup({
+                      capture,
+                      baseRevision: useShowStore.getState().showRevisions[showId] ?? 0,
+                      intent: plan.intent,
+                    })
+                    if (!applied) return null
+                    selectTimeline({ kind: 'group', occurrenceId: plan.intent.occurrenceId })
+                    return plan.intent.occurrenceId
+                  }
                   if (!legacyShow || !timelineComposition) return null
                   const definitionId = newPersonalContentId()
                   const occurrenceId = newPersonalContentId()
@@ -4824,8 +4863,12 @@ function ShowTimelineCommands({
           }}
           onBlur={() => setGroupReasonOpen(false)}
           onClick={() => {
-            // Make Group is unconnected on the v2 backing; only the v1 plan
-            // carries the owner identities the legacy command needs.
+            // Both backings submit through onCreateGroup.
+            if (commandsV2) {
+              if (groupPlan.enabled && selection.kind === 'multi') void onCreateGroup(selection.groupSelection)
+              else if (!groupPlan.enabled) setGroupReasonOpen(true)
+              return
+            }
             if (groupPlan.enabled && show && 'placementIds' in groupPlan) void onCreateGroup(groupPlan)
             else if (!groupPlan.enabled) setGroupReasonOpen(true)
           }}
@@ -5396,7 +5439,7 @@ function ShowTimelineWorkspace({
     : 'Transition'
 
   const beginGroupMarquee = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (readOnly || !timelineComposition || isolatedGroupOccurrenceId || event.button !== 0) return
+    if (readOnly || isolatedGroupOccurrenceId || event.button !== 0 || (recordVersion !== 2 && !timelineComposition)) return
     const target = event.target
     if (target instanceof Element && target.closest('button, input, select, textarea, [role="slider"], [data-show-layer-junction]')) return
     const grid = event.currentTarget
@@ -5440,7 +5483,11 @@ function ShowTimelineWorkspace({
       setMarquee(null)
       onDirectManipulationChange(false)
       if (placementIds.length > 0) {
-        onSelectGroupCandidates(completeShowGroupSelection(timelineComposition, placementIds))
+        if (recordVersion === 2) {
+          onSelectGroupCandidates(completeShowGroupSelectionV2(timelineView, placementIds))
+        } else if (timelineComposition) {
+          onSelectGroupCandidates(completeShowGroupSelection(timelineComposition, placementIds))
+        }
       }
     }
     const cancel = () => {

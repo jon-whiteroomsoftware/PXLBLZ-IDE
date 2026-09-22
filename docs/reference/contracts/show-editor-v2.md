@@ -185,9 +185,11 @@ row `v1` while it is selected, and the agent binding that editor registers
 declares version 1, so its commands match it. After it has run, the same URL
 opens the same editor on the v2 record and `read_show` answers v2.
 
-Until #1066 connects the remaining edits, a v2 Show in the existing editor has
-the ordinary Clip move and the Alt-drag linked duplicate connected; every other
-command is fenced to an internal no-change result rather than reaching a legacy
+On the v2 backing the ordinary Clip move and the Alt-drag linked duplicate are
+connected, the timeline marquee produces a completed `multi` selection
+(`completeShowGroupSelectionV2`), and Make Group submits it through
+`admitShowV2PilotCreateGroup` named `"Group"`. Every other #1066 command is
+still fenced to an internal no-change result rather than reaching a legacy
 owner.
 
 `?show-v2-editor=1` remains as what it always was in substance: a

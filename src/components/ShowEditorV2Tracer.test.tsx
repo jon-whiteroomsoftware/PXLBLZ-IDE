@@ -4218,3 +4218,148 @@ describe('v2 fixes A (#1066)', () => {
     expect(tray().queryAllByText(/assigns \d+ of \d+ pixels/)).toEqual([])
   })
 })
+
+describe('v2 marquee selection and Make Group (#1066 L2583)', () => {
+  const box = (left: number, top: number, right: number, bottom: number): DOMRect => ({
+    left, top, right, bottom, width: right - left, height: bottom - top, x: left, y: top, toJSON() {},
+  })
+
+  /** Two Clips on different Layers of one Zone, with no Transition between them. */
+  function groupMarqueeRecord(id: string): ShowRecordV2 {
+    return {
+      version: 2,
+      id,
+      name: 'Group marquee',
+      zones: [{ id: 'zone', name: 'Main', nominalPixelCount: 60, color: '#38bdf8' }],
+      zoneLayouts: [{ id: 'layout', name: 'Full', zones: [], logical: { kind: 'single', zoneIds: ['zone'] } }],
+      stageMapId: null,
+      outputContract: {
+        version: 1,
+        kind: 'portable-2d',
+        referenceMapId: 'plane',
+        referencePixelCount: 60,
+        compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
+      },
+      composition: {
+        version: 2,
+        executionModel: 'continuous',
+        showEndMs: 10_000,
+        sampleRemap: { repeatScale: 1 },
+        patternInstances: [
+          { id: 'instance-main', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'Main pulse', time: { timeScale: 1, timeOffsetMs: 0 } },
+          { id: 'instance-overlay', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Overlay pulse', time: { timeScale: 1, timeOffsetMs: 0 } },
+        ],
+        layers: [
+          { id: 'layer-main', zoneId: 'zone', name: 'Main', rank: 0 },
+          { id: 'layer-overlay', zoneId: 'zone', name: 'Overlay', rank: 1 },
+        ],
+        clips: [
+          { id: 'clip-main', instanceId: 'instance-main', zoneId: 'zone', layerId: 'layer-main', startMs: 0, durationMs: 5_000, entryPolicy: 'continue', zoneSampleMode: 'independent', appearance: { keys: [{ id: 'appearance-main', timeMs: 0, value: { opacity: 1, view: { brightness: 1, phase: 0, mirror: false }, effects: [] } }] } },
+          { id: 'clip-overlay', instanceId: 'instance-overlay', zoneId: 'zone', layerId: 'layer-overlay', startMs: 0, durationMs: 5_000, entryPolicy: 'continue', zoneSampleMode: 'independent', appearance: { keys: [{ id: 'appearance-overlay', timeMs: 0, value: { opacity: 1, view: { brightness: 1, phase: 0, mirror: false }, effects: [] } }] } },
+        ],
+        transitions: [],
+        layoutOccurrences: [{ id: 'layout-use', layoutId: 'layout', startMs: 0, durationMs: 10_000, parameters: {} }],
+        propertyTracks: [],
+        markers: [],
+        groupDefinitions: [],
+        groupOccurrences: [],
+      },
+      updatedAt: 1,
+    }
+  }
+
+  function openGroupMarqueeEditor(id: string): OpenV2Editor {
+    return openV2EditorForRecord(groupMarqueeRecord(id))
+  }
+
+  /** Drags a marquee rectangle covering both Clips, as the browser test does. */
+  function marqueeOverBothClips(): void {
+    const grid = screen.getByTestId('show-timeline-grid')
+    vi.spyOn(grid, 'getBoundingClientRect').mockReturnValue(box(0, 0, 400, 200))
+    const clips = Array.from(document.querySelectorAll<HTMLElement>('[data-show-composition-clip="true"]'))
+    expect(clips).toHaveLength(2)
+    const clipBoxes = [box(20, 30, 120, 70), box(20, 100, 120, 140)]
+    clips.forEach((clip, index) => {
+      vi.spyOn(clip, 'getBoundingClientRect').mockReturnValue(clipBoxes[index]!)
+    })
+    fireEvent.pointerDown(grid, { button: 0, clientX: 350, clientY: 10 })
+    act(() => {
+      for (const [type, clientX, clientY] of [
+        ['pointermove', 200, 100],
+        ['pointermove', 10, 190],
+        ['pointerup', 10, 190],
+      ] as const) {
+        const event = new Event(type, { bubbles: true, cancelable: true })
+        Object.defineProperties(event, { clientX: { value: clientX }, clientY: { value: clientY } })
+        fireEvent(window, event)
+      }
+    })
+  }
+
+  function groupCommand(): HTMLElement {
+    return screen.getByRole('button', { name: 'Make Group from selection' })
+  }
+
+  async function marqueeAndMakeGroup(id: string): Promise<OpenV2Editor> {
+    const editor = openGroupMarqueeEditor(id)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    marqueeOverBothClips()
+    await act(async () => {})
+    fireEvent.click(groupCommand())
+    await act(async () => {})
+    return editor
+  }
+
+  it('selects both Clips with the marquee and enables Make Group', async () => {
+    const editor = openGroupMarqueeEditor('v2-marquee-selects')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+
+    marqueeOverBothClips()
+    await act(async () => {})
+
+    expect(document.querySelector('[data-show-timeline-marquee]')).toBeNull()
+    expect(groupCommand()).not.toHaveAttribute('aria-disabled')
+    const selection = useShowEditorViewStore.getState().selection
+    expect(selection.kind).toBe('multi')
+    if (selection.kind !== 'multi') throw new Error('Marquee did not produce a multi selection.')
+    expect([...selection.groupSelection.placementIds].sort())
+      .toEqual(['clip-main', 'clip-overlay'])
+    expect(selection.groupSelection.transitionIds).toEqual([])
+  })
+
+  it('creates one Group, selects it, and undoes it', async () => {
+    const editor = await marqueeAndMakeGroup('v2-make-group')
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotCreateGroup'])
+    expect(after.record.composition.groupDefinitions).toHaveLength(1)
+    expect(after.record.composition.groupDefinitions[0]!.name).toBe('Group')
+    expect(after.record.composition.groupOccurrences).toHaveLength(1)
+    expect(after.history.past).toHaveLength(1)
+    const occurrenceId = after.record.composition.groupOccurrences[0]!.id
+    expect(useShowEditorViewStore.getState().selection)
+      .toEqual({ kind: 'group', occurrenceId })
+    expect(after.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await act(async () => {})
+
+    const undone = editor.state()
+    expect(undone.record.composition.groupDefinitions).toHaveLength(0)
+    expect(undone.record.composition.groupOccurrences).toHaveLength(0)
+  })
+
+  it('starts no marquee while a Group occurrence is isolated', async () => {
+    await marqueeAndMakeGroup('v2-marquee-isolated')
+
+    fireEvent.doubleClick(screen.getAllByRole('button', { name: 'Select Group Group' })[0]!)
+    await act(async () => {})
+    expect(screen.getByRole('status', { name: 'Group isolation: Group' })).toBeVisible()
+
+    fireEvent.pointerDown(screen.getByTestId('show-timeline-grid'), { button: 0, clientX: 350, clientY: 10 })
+    await act(async () => {})
+
+    expect(document.querySelector('[data-show-timeline-marquee]')).toBeNull()
+  })
+})

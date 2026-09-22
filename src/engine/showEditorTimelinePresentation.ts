@@ -7,6 +7,7 @@ import type {
   ShowRecordV2,
   ShowTransitionV2,
 } from './showCompositionV2'
+import type { ShowGroupSelection } from './showGroupModel'
 import {
   defaultGroupRuntimeIdV2,
   groupOccurrenceDuration,
@@ -572,8 +573,8 @@ function layerOf(view: ShowTimelineViewModel, layerId: string): ShowTimelineLaye
  * Availability of the existing Split, Clone and Group toolbar commands for one
  * authored-v2 Show. The answers read the same presented timeline the surface
  * draws, so a Show stored either way reports the same state and the same
- * refusal text. Availability is a read: the tracer connects none of these
- * writes, and an enabled command still returns an internal no-change result.
+ * refusal text. Availability is a read: Split and Group submit through their
+ * v2 owners, while an enabled Clone still returns an internal no-change result.
  */
 export function projectShowEditorTimelineCommandsV2(input: {
   view: ShowTimelineViewModel
@@ -644,6 +645,33 @@ function projectGroupCapabilityV2(
     return { enabled: false, reason: 'Select both Clips and the complete non-Cut Transition chain.' }
   }
   return { enabled: true, reason: 'Keep the selected choreography together and make it reusable' }
+}
+
+/**
+ * Completed Group-candidate selection for one authored-v2 Show, read off the
+ * same presented timeline the surface draws. Placement ids are the unique input
+ * ids in input order; Transition ids are the non-Cut junctions both of whose
+ * ends are selected, unique in first-seen order. This is the complement of the
+ * `broken` chain test in `projectGroupCapabilityV2`, so a completed selection
+ * of joined Clips is never refused for a broken chain.
+ */
+export function completeShowGroupSelectionV2(
+  view: ShowTimelineViewModel,
+  placementIds: readonly string[],
+): ShowGroupSelection {
+  const uniqueIds = [...new Set(placementIds)]
+  const selected = new Set(uniqueIds)
+  const transitionIds: string[] = []
+  for (const row of view.rows) {
+    for (const layer of row.layers) {
+      for (const junction of layer.junctions) {
+        if (junction.scope === 'derived-cut' || !junction.transitionId) continue
+        if (!selected.has(junction.leftItemId) || !selected.has(junction.rightItemId)) continue
+        if (!transitionIds.includes(junction.transitionId)) transitionIds.push(junction.transitionId)
+      }
+    }
+  }
+  return { placementIds: uniqueIds, transitionIds }
 }
 
 /**

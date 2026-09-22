@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ShowRecordV2 } from './showCompositionV2'
 import {
+  completeShowGroupSelectionV2,
   projectShowEditorPropertyLanesV2,
   projectShowEditorTimeColumnsV2,
   projectShowEditorTimelineCommandsV2,
@@ -538,5 +539,54 @@ describe('projectShowEditorTimeColumnsV2 (#1065)', () => {
     expect(projectShowEditorTimeColumnsV2(source)).toEqual([
       { kind: 'section', startMs: 0, durationMs: 12_000 },
     ])
+  })
+})
+
+describe('completeShowGroupSelectionV2 (#1066 L2583)', () => {
+  const view = () => projectShowEditorTimelineV2(record())
+  const group = (selection: { kind: 'multi'; placementIds: string[]; transitionIds: string[] }) =>
+    projectShowEditorTimelineCommandsV2({
+      view: view(),
+      selection,
+      playheadMs: 0,
+      isolatedGroupOccurrenceId: null,
+    }).group
+
+  it('collects the joining Transition when both Clips are selected, enabling Group', () => {
+    const selection = completeShowGroupSelectionV2(view(), ['clip-a', 'clip-b'])
+
+    expect(selection).toEqual({ placementIds: ['clip-a', 'clip-b'], transitionIds: ['transition'] })
+    expect(group({
+      kind: 'multi',
+      placementIds: selection.placementIds,
+      transitionIds: selection.transitionIds,
+    })).toEqual({
+      enabled: true,
+      reason: 'Keep the selected choreography together and make it reusable',
+    })
+  })
+
+  it('excludes the Transition when only one side is selected', () => {
+    expect(completeShowGroupSelectionV2(view(), ['clip-a']))
+      .toEqual({ placementIds: ['clip-a'], transitionIds: [] })
+  })
+
+  it('never includes a derived-cut junction', () => {
+    const source = record()
+    source.composition.clips.find((clip) => clip.id === 'clip-b')!.startMs = 5_000
+    source.composition.transitions = []
+    const adjacent = projectShowEditorTimelineV2(source)
+    const junction = adjacent.rows
+      .flatMap((row) => row.layers.flatMap((layer) => layer.junctions))
+      .find((candidate) => candidate.leftItemId === 'clip-a')
+    expect(junction?.scope).toBe('derived-cut')
+
+    expect(completeShowGroupSelectionV2(adjacent, ['clip-a', 'clip-b']))
+      .toEqual({ placementIds: ['clip-a', 'clip-b'], transitionIds: [] })
+  })
+
+  it('collapses duplicate placement ids', () => {
+    expect(completeShowGroupSelectionV2(view(), ['clip-b', 'clip-a', 'clip-b', 'clip-a']))
+      .toEqual({ placementIds: ['clip-b', 'clip-a'], transitionIds: ['transition'] })
   })
 })
