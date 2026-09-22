@@ -709,6 +709,7 @@ type ShowLayerTransitionTarget = {
   toName: string
   anchor: HTMLElement
   groupOccurrenceId?: string
+  transitionId?: string
   legacy?: ShowUnifiedTimelineJunctionProjection
 }
 
@@ -4176,6 +4177,24 @@ export function ShowEditor({
               toName={layerTransitionTarget.toName}
               anchor={layerTransitionTarget.anchor}
               onDurationChange={(durationMs) => {
+                if (recordVersion === 2) {
+                  if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+                  const capture = preparedV2CaptureRef.current
+                  if (!capture || capture.prepared.status === 'refused') return
+                  const transitionId = layerTransitionTarget.transitionId
+                  if (!transitionId) return
+                  const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+                  if (durationMs === 0) {
+                    const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
+                    if (plan.status === 'refused') return
+                    void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
+                    setLayerTransitionTarget(null)
+                    return
+                  }
+                  void commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } })
+                  setLayerTransitionTarget(null)
+                  return
+                }
                 // Layer Transition resize is not connected for the v2 backing
                 // in this tracer; it resolves here before any legacy owner.
                 if (!legacyShow || !timelineComposition || !layerTransitionTarget.legacy) return
@@ -4200,6 +4219,19 @@ export function ShowEditor({
                 })
               }}
               onResetToCut={() => {
+                if (recordVersion === 2) {
+                  if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+                  const capture = preparedV2CaptureRef.current
+                  if (!capture || capture.prepared.status === 'refused') return
+                  const transitionId = layerTransitionTarget.transitionId
+                  if (!transitionId) return
+                  const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
+                  if (plan.status === 'refused') return
+                  const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+                  void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
+                  setLayerTransitionTarget(null)
+                  return
+                }
                 // Reset to Cut is unconnected for the v2 backing, exactly as
                 // resize is: the control stays offered and changes nothing.
                 if (!legacyShow || !timelineComposition || !layerTransitionTarget.legacy) return
@@ -7854,6 +7886,7 @@ function ShowTimelineWorkspace({
                         // and its definition child, which the presented
                         // junction already carries; nothing new is minted.
                         ...(internalGroup ? { groupOccurrenceId: internalGroup.id } : {}),
+                        ...(!internalGroup && junction.transitionId ? { transitionId: junction.transitionId } : {}),
                       })
                     }
                   }

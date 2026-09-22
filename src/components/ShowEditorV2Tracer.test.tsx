@@ -1198,7 +1198,6 @@ describe('v2 Layer Transition popover (#1065)', () => {
     const record = convertedLayerTransitions('tracer-layer-popover')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
-    const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
       name: 'Edit wipe Transition between EventHorizon and SignalMandala',
@@ -1212,19 +1211,58 @@ describe('v2 Layer Transition popover (#1065)', () => {
     expect(within(popover).getByText('EventHorizon to SignalMandala')).toBeInTheDocument()
     expect(within(popover).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' }))
       .toHaveValue('1.5')
-    // Reset to Cut is unconnected here, and stays offered rather than disabled.
     expect(within(popover).getByRole('button', { name: 'Reset to Cut' })).toBeEnabled()
     expect(screen.queryByRole('region', { name: 'Transition properties' })).not.toBeInTheDocument()
+  })
 
-    fireEvent.change(
-      within(popover).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' }),
-      { target: { value: '0.5' } },
-    )
-    fireEvent.blur(within(popover).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' }))
+  it('retimes a converted Layer Transition through the existing popover', async () => {
+    const record = convertedLayerTransitions('tracer-layer-resize')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit wipe Transition between EventHorizon and SignalMandala',
+    }))
+    await act(async () => {})
+    const popover = screen.getByRole('dialog', { name: 'Layer Transition Details' })
+    const duration = within(popover).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' })
+    fireEvent.change(duration, { target: { value: '0.5' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-transition', transitionId: 'transition-horizon-mandala', durationMs: 500 },
+    ])
+    expectOneEdit(before, after)
+    expect(screen.queryByRole('dialog', { name: 'Layer Transition Details' })).not.toBeInTheDocument()
+    expect(after.record.composition.transitions.find((transition) => transition.id === 'transition-horizon-mandala')?.durationMs).toBe(500)
+  })
+
+  it('resets a converted Layer Transition to Cut through the existing popover', async () => {
+    const record = convertedLayerTransitions('tracer-layer-reset')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit wipe Transition between EventHorizon and SignalMandala',
+    }))
+    await act(async () => {})
+    const popover = screen.getByRole('dialog', { name: 'Layer Transition Details' })
     fireEvent.click(within(popover).getByRole('button', { name: 'Reset to Cut' }))
     await act(async () => {})
 
-    expectNoWrite(before, editor.state())
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'reset-to-cut', transitionId: 'transition-horizon-mandala' },
+    ])
+    expectOneEdit(before, after)
+    expect(screen.queryByRole('dialog', { name: 'Layer Transition Details' })).not.toBeInTheDocument()
+    expect(after.record.composition.transitions.some((transition) => transition.id === 'transition-horizon-mandala')).toBe(false)
   })
 
   it('reads a Group-local Transition through the same popover inside Group isolation', async () => {
