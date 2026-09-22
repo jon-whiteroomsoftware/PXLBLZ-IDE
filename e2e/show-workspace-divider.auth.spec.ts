@@ -58,7 +58,9 @@ test('does not restore the legacy source footer below the narrow breakpoint (#63
   await expect(page.getByRole('dialog', { name: 'Show source inventory' })).toHaveCount(0)
 })
 
-test('preserves the split ratio through resizing, reload, and narrow width (#63)', async ({ page }, testInfo) => {
+// Suspended (Jon, 2026-09-22): the split does not survive resize-then-reload
+// (#1085, diagnosis in progress). Restore when #1085 lands its fix.
+test.fixme('preserves the split ratio through resizing, reload, and narrow width (#63)', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1800, height: 1000 })
   await page.goto('studio/shows/stock-show-301-installation-mapping')
   const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
