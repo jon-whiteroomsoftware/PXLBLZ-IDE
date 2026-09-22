@@ -232,8 +232,7 @@ survivors keep exact times and Show End keeps its value; only the orphan boundar
 record leaves, with deleted-anchored projections dropped per the transition-route
 contract. One accepted edit is one history entry and one save with exact Undo and
 Redo. Direct duration edits (`resize-transition`) with a nonzero duration on a
-ready boundary keep the generic shift semantics; they are outside the #1068 gaps
-and do not reclaim. Setting the duration to 0 routes through `reset-to-cut` and
+ready boundary retime through the same repair, as described above. Setting the duration to 0 routes through `reset-to-cut` and
 commits the same cut-and-reclaim as a detach-away resize (a carrier that still
 holds Property ramps refuses without an explicit projection plan first). Both
 routes report every occurrence the repair touched: shortened plus shifted Layout

@@ -461,13 +461,20 @@ export function commitConvertedBoundaryRepairsV2(
     const movedTrackIds = applyShowTransitionClipShiftV2(record, next, [...shiftIds], -durationMs, [repair.transitionId], repair.windowEndMs)
     for (const id of shiftIds) shiftedClipIds.add(id)
     for (const id of movedTrackIds) shiftedTrackIds.add(id)
-    // A Clip-owned track that did not move but reaches the boundary window -
-    // the outgoing Scene's, whose converted activation ends at Scene end plus
-    // the outgoing Transition - retimes its end with the window, as v1 does.
+    // The outgoing Clip's own track - the outgoing Scene's, whose converted
+    // activation ends at Scene end plus the outgoing Transition - retimes its
+    // end with the window, as v1 does. Only that Clip's tracks follow (by Clip,
+    // or by an instance only it uses); a relocated outgoing Clip already sits
+    // at post-repair coordinates, so its tracks rode the relocation instead.
     const movedTrackSet = new Set(movedTrackIds)
-    for (const track of next.composition.propertyTracks) {
+    const outgoingInstanceId = record.composition.clips.find(clip => clip.id === repair.fromClipId)?.instanceId
+    const soleOutgoingInstanceId = outgoingInstanceId && effectiveShowInstanceUseCountV2(record, outgoingInstanceId) === 1 ? outgoingInstanceId : undefined
+    for (const track of relocated.has(repair.fromClipId) ? [] : next.composition.propertyTracks) {
       if (movedTrackSet.has(track.id)) continue
-      if (!('clipId' in track.target) && !('instanceId' in track.target)) continue
+      const followsOutgoing = 'clipId' in track.target
+        ? track.target.clipId === repair.fromClipId
+        : 'instanceId' in track.target && soleOutgoingInstanceId !== undefined && track.target.instanceId === soleOutgoingInstanceId
+      if (!followsOutgoing) continue
       const activation = reclaimActivationV2(track.activeStartMs, track.activeDurationMs, repair.windowEndMs, durationMs)
       if (!activation || (activation.activeStartMs === track.activeStartMs && activation.activeDurationMs === track.activeDurationMs)) continue
       if (activation.activeStartMs !== track.activeStartMs) continue

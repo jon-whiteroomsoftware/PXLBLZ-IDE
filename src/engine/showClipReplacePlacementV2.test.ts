@@ -906,3 +906,27 @@ it('reaches the same result through editShowClipV2', () => {
   expect(viaClipEdit.affectedClipIds).toEqual(viaOwner.affectedClipIds)
   expect(viaClipEdit.affectedTrackIds).toEqual(viaOwner.affectedTrackIds)
 })
+
+it('leaves an already-relocated Clip\'s own track at the relocation it rode (#1068)', () => {
+  const source = convertedJoin()
+  source.composition.propertyTracks = [{ id: 'selected-span', target: { kind: 'clip-view', clipId: 'selected', property: 'brightness' }, activeStartMs: 500, activeDurationMs: 500, keyframes: [{ id: 'selected-span-k0', timeMs: 600, value: 1, easing: { curve: 'linear' } }, { id: 'selected-span-k1', timeMs: 1_000, value: 0.5, easing: { curve: 'linear' } }] }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 550, detachParticipantTransitions: true })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  // The re-placement moved the track rigidly by -50 ms; the repair does not retime it again.
+  expect(result.record.composition.propertyTracks[0]).toMatchObject({ activeStartMs: 450, activeDurationMs: 500 })
+  expect(result.record.composition.propertyTracks[0].keyframes.map(key => key.timeMs)).toEqual([550, 950])
+})
+
+it('retimes only the outgoing Clip\'s track end, not an unrelated upstream track reaching past the window (#1068)', () => {
+  const source = convertedJoin()
+  source.composition.clips.push(clip('upstream', 'over', 0, 550))
+  source.composition.propertyTracks = [{ id: 'upstream-span', target: { kind: 'clip-view', clipId: 'upstream', property: 'brightness' }, activeStartMs: 0, activeDurationMs: 700, keyframes: [{ id: 'upstream-span-k0', timeMs: 0, value: 1, easing: { curve: 'linear' } }, { id: 'upstream-span-k1', timeMs: 680, value: 0.5, easing: { curve: 'linear' } }] }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const prior = structuredClone(source.composition.propertyTracks[0])
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'right-base', zoneId: 'right', detachParticipantTransitions: true })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.propertyTracks[0]).toEqual(prior)
+})
