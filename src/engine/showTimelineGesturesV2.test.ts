@@ -8,6 +8,7 @@ import { editShowTransitionV2 } from './showTransitionsV2'
 import { projectShowTimelineV2 } from './showTimelineViewModelV2'
 import type { ShowPreparedStageDependenciesV2 } from './showPreparedStageV2'
 import {
+  checkShowTimelineDuplicateGestureV2,
   planShowTimelineGestureV2,
   resolveShowTimelineClipDropV2,
   resolveShowTimelineEdgeDropV2,
@@ -237,6 +238,22 @@ describe('v2 timeline gesture adapters', () => {
     }, 'copy')
     expect(refused.result).toMatchObject({ status: 'refused' })
     expect(refused.allocate.calls()).toBe(0)
+  })
+
+  it('refuses a duplicate gesture for a missing Clip with the planner message', () => {
+    const record = detached()
+    const clip = record.composition.clips[0]
+    const gesture = {
+      kind: 'duplicate', clipId: 'missing', startMs: 2_000, zoneId: clip.zoneId, layerId: clip.layerId,
+    } as const
+    const allocate = vi.fn(() => 'unused')
+    const planned = planShowTimelineGestureV2(capture(record), gesture, allocate)
+    expect(planned.status).toBe('refused')
+    if (planned.status !== 'refused') throw new Error('Missing duplicate refusal')
+    expect(allocate).not.toHaveBeenCalled()
+    expect(checkShowTimelineDuplicateGestureV2(capture(record), gesture)).toEqual({
+      status: 'refused', message: planned.message,
+    })
   })
 
   it('maps delete onto the Clip delete intent, projecting each removed carrier', () => {

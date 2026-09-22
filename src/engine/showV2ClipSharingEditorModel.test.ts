@@ -4,7 +4,7 @@ import { captureShowStageEditV2 } from './showPreparedStageV2'
 import { editShowClipV2 } from './showClipsV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { validateShowRecordV2 } from './showCompositionV2'
-import { buildShowV2ClipSharingEditorModel, createShowV2LinkedDuplicateIntent, createShowV2IndependentIntent, createShowV2RejoinIntent } from './showV2ClipSharingEditorModel'
+import { buildShowV2ClipSharingEditorModel, checkShowV2LinkedDuplicateDraft, createShowV2LinkedDuplicateIntent, createShowV2IndependentIntent, createShowV2RejoinIntent } from './showV2ClipSharingEditorModel'
 function capture(group=false) {
  const record=group?propertyEditGroupRecord():propertyEditRecord()
  const clip=record.composition.clips[0];clip.durationMs=200;clip.appearance.keys[0].id='source-appearance'
@@ -84,4 +84,19 @@ it('never retries colliding, blank or unavailable identity allocation and sole-u
  const allocate=vi.fn(()=>'new-runtime');expect(createShowV2IndependentIntent(c,'clip',allocate)).toEqual({status:'unchanged'});expect(allocate).not.toHaveBeenCalled()
  const rejoin=createShowV2RejoinIntent(c,'clip','instance');if(rejoin.status!=='ready')throw Error('Missing explicit current target')
  expect(editShowClipV2(c.record,rejoin.intent)).toMatchObject({status:'unchanged',record:c.record,affectedClipIds:[],affectedTrackIds:[],affectedInstanceIds:[],affectedKeyframeIds:[],removedIds:[]})
+})
+it('checks a linked duplicate draft without allocating and matches the intent refusal message',()=>{
+ const c=capture(),clip=c.record.composition.clips[0]
+ const valid={zoneId:clip.zoneId,layerId:clip.layerId,startMs:'200'}
+ expect(checkShowV2LinkedDuplicateDraft(c,'clip',valid)).toEqual({status:'ready'})
+ const fresh=vi.fn(()=>`draft-${fresh.mock.calls.length}`)
+ expect(createShowV2LinkedDuplicateIntent(c,'clip',valid,fresh).status).toBe('ready')
+ for(const draft of [{zoneId:clip.zoneId,layerId:clip.layerId,startMs:'-1'},{zoneId:clip.zoneId,layerId:clip.layerId,startMs:'1000'},{zoneId:clip.zoneId,layerId:'foreign',startMs:'200'}]){
+  const checked=checkShowV2LinkedDuplicateDraft(c,'clip',draft)
+  const allocate=vi.fn(()=>'unused')
+  const planned=createShowV2LinkedDuplicateIntent(c,'clip',draft,allocate)
+  expect(checked.status).toBe('refused');expect(planned.status).toBe('refused')
+  if(checked.status!=='refused'||planned.status!=='refused')throw Error('Missing draft refusal')
+  expect(checked.message).toBe(planned.message);expect(allocate).not.toHaveBeenCalled()
+ }
 })

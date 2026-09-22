@@ -36,12 +36,20 @@ function identityAllocator(record:ShowRecordV2,effective:ShowRecordV2,allocate:(
  return ()=>{const id=allocate();if(typeof id!=='string'||!id.trim()||used.has(id))throw Error('Fresh sharing identities conflict. Try the edit again.');used.add(id);return id}
 }
 const refusal=(message:string):ShowV2ClipSharingPlan=>({status:'refused',message})
+export function checkShowV2LinkedDuplicateDraft(capture:ShowV2ClipSharingCapture,clipId:string,draft:{zoneId:string;layerId:string;startMs:string}):{status:'ready'}|{status:'refused';message:string} {
+ const context=selected(capture,clipId)
+ if(!context)return {status:'refused',message:'Select an available ordinary Clip.'}
+ const {record,clip}=context,startMs=draft.startMs.trim()?Number(draft.startMs):NaN,endMs=startMs+clip.durationMs
+ if(!Number.isSafeInteger(startMs)||startMs<0||!Number.isSafeInteger(endMs)||endMs>record.composition.showEndMs
+  ||!record.zones.some(zone=>zone.id===draft.zoneId)||!record.composition.layers.some(layer=>layer.id===draft.layerId&&layer.zoneId===draft.zoneId))return {status:'refused',message:'Choose a destination Zone, Layer and integer start within Show End.'}
+ return {status:'ready'}
+}
 export function createShowV2LinkedDuplicateIntent(capture:ShowV2ClipSharingCapture,clipId:string,draft:{zoneId:string;layerId:string;startMs:string},allocate:()=>string):ShowV2ClipSharingPlan {
+ const checked=checkShowV2LinkedDuplicateDraft(capture,clipId,draft)
+ if(checked.status==='refused')return checked
  const context=selected(capture,clipId)
  if(!context)return refusal('Select an available ordinary Clip.')
- const {record,clip,effective}=context,startMs=draft.startMs.trim()?Number(draft.startMs):NaN,endMs=startMs+clip.durationMs
- if(!Number.isSafeInteger(startMs)||startMs<0||!Number.isSafeInteger(endMs)||endMs>record.composition.showEndMs
-  ||!record.zones.some(zone=>zone.id===draft.zoneId)||!record.composition.layers.some(layer=>layer.id===draft.layerId&&layer.zoneId===draft.zoneId))return refusal('Choose a destination Zone, Layer and integer start within Show End.')
+ const {record,clip,effective}=context,startMs=draft.startMs.trim()?Number(draft.startMs):NaN
  try{
   const mint=identityAllocator(record,effective,allocate),newClipId=mint()
   const appearanceKeyIdsBySourceId=Object.fromEntries(clip.appearance.keys.map(key=>[key.id,mint()]))

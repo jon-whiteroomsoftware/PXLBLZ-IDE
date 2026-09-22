@@ -9,6 +9,7 @@ import {
 } from './showTimelineViewport'
 import { transitionEndpoints, type ShowTransitionEditIntentV2 } from './showTransitionsV2'
 import {
+  checkShowV2LinkedDuplicateDraft,
   createShowV2LinkedDuplicateIntent,
   type ShowV2ClipSharingCapture,
 } from './showV2ClipSharingEditorModel'
@@ -145,6 +146,23 @@ export function planShowTimelineGestureV2(
       clipId: clip.id,
       ...(plans.plans.length > 0 ? { propertyRampProjections: plans.plans } : {}),
     },
+  })
+}
+
+/**
+ * Check one duplicate gesture without allocating an identity. The preview
+ * calls this per pointer sample and the commit plans once, on drop.
+ */
+export function checkShowTimelineDuplicateGestureV2(
+  capture: ShowV2ClipSharingCapture,
+  gesture: Extract<ShowTimelineGestureV2, { kind: 'duplicate' }>,
+): { status: 'ready' } | { status: 'refused'; message: string } {
+  const clip = capture.record.composition.clips.find(candidate => candidate.id === gesture.clipId)
+  if (!clip) {
+    return { status: 'refused', message: 'Choose one ordinary Clip. A Group Clip use is edited through its Group occurrence.' }
+  }
+  return checkShowV2LinkedDuplicateDraft(capture, gesture.clipId, {
+    zoneId: gesture.zoneId, layerId: gesture.layerId, startMs: String(gesture.startMs),
   })
 }
 

@@ -11,6 +11,7 @@ import { showBoundaryClipIdentity } from '@/engine/showClipIdentity'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { duplicateShowClipAfter } from '@/engine/showTimelineClipAuthoring'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { convertibleV1Show } from '@/test/showV2TracerFixture'
 import { commandFixtureV2 } from '@/engine/showCommandsV2/fixtures'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
@@ -69,6 +70,16 @@ vi.mock('@/store/showV2PreparedEditAdmission', async (importOriginal) => {
     }
   }
   return observed
+})
+
+/**
+ * Identity allocation is observable so the duplicate preview can prove it
+ * allocates once, on drop. The real implementation still runs; the wrapper
+ * only counts calls.
+ */
+vi.mock('@/engine/personalContentMetadata', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/engine/personalContentMetadata')>()
+  return { ...actual, newPersonalContentId: vi.fn(actual.newPersonalContentId) }
 })
 
 /**
@@ -498,6 +509,27 @@ describe('v2 tracer settlement routing (#1065)', () => {
     // Undo restores the preimage composition exactly - including the original
     // Clip count - and Redo restores the edit.
     await expectUndoRedoExact(editor, before)
+  })
+
+  it('allocates duplicate identities once, on drop, across repeated previews', async () => {
+    const editor = openV2Editor('tracer-alt-duplicate-identity')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+    const identities = vi.mocked(newPersonalContentId)
+
+    surface.fire(surface.clip, 'dragstart', 0, true)
+    identities.mockClear()
+    for (const x of [20, 30, 40, 50, 60]) surface.fire(surface.lane('overlay'), 'dragover', x, true)
+    expect(identities).toHaveBeenCalledTimes(0)
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveAttribute('data-drag-mode', 'duplicate')
+    surface.fire(surface.lane('overlay'), 'drop', 60, true)
+    await act(async () => {})
+
+    expect(identities.mock.calls.length).toBeGreaterThan(0)
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipSharingEdit'])
+    const after = editor.state()
+    expectOneEdit(before, after)
   })
 
   it('refuses an Alt duplicate drag of a Group occurrence Clip', async () => {

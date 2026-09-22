@@ -313,7 +313,7 @@ import {
   type ShowV2ClipReplacementIntent,
 } from '@/engine/showV2ClipReplacementModel'
 import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
-import { planShowTimelineGestureV2 } from '@/engine/showTimelineGesturesV2'
+import { checkShowTimelineDuplicateGestureV2, planShowTimelineGestureV2, type ShowTimelineGestureV2 } from '@/engine/showTimelineGesturesV2'
 import {
   planShowV2ClipMove,
   planShowV2ClipResize,
@@ -772,6 +772,9 @@ type ShowV2ClipDropPlan = ShowV2ClipTemporalPlan | {
   kind: 'clip-sharing'
   intent: ShowV2PilotClipSharingIntent
   selectClipId: string
+} | {
+  kind: 'clip-sharing-pending'
+  gesture: Extract<ShowTimelineGestureV2, { kind: 'duplicate' }>
 }
 
 type ShowClipMovePlan = {
@@ -5633,22 +5636,25 @@ function ShowTimelineWorkspace({
       // the move planner does for its own intents.
       if (draggedClip.mode === 'duplicate' && !clip.groupOccurrenceId) {
         const v2Duplicate = draggedClip.v2Move
-        const duplicatePlan = v2Duplicate
-          ? planShowTimelineGestureV2(v2Duplicate.capture, {
-              kind: 'duplicate',
-              clipId: clip.id,
-              startMs: Math.round(resolved.startMs),
-              zoneId: input.zoneId,
-              layerId: input.layer.id,
-            }, newPersonalContentId)
+        const duplicateStartMs = Math.round(resolved.startMs)
+        const duplicateGesture = {
+          kind: 'duplicate' as const,
+          clipId: clip.id,
+          startMs: duplicateStartMs,
+          zoneId: input.zoneId,
+          layerId: input.layer.id,
+        }
+        // The preview checks without allocating: identities are minted once,
+        // on drop, when the commit plans the stored gesture.
+        const duplicateCheck = v2Duplicate
+          ? checkShowTimelineDuplicateGestureV2(v2Duplicate.capture, duplicateGesture)
           : null
-        if (!duplicatePlan || duplicatePlan.status !== 'ready' || duplicatePlan.submission.owner !== 'clip-sharing') {
+        if (!duplicateCheck || duplicateCheck.status !== 'ready') {
           if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
           movePlanRef.current = null
           setMovePreview(null)
           return
         }
-        const duplicateStartMs = Math.round(resolved.startMs)
         const nextDuplicatePreview: ShowClipMovePreview = {
           clipId: clip.id,
           mode: 'duplicate',
@@ -5664,9 +5670,8 @@ function ShowTimelineWorkspace({
           clipId: clip.id,
           startMs: duplicateStartMs,
           plan: {
-            kind: 'clip-sharing',
-            intent: duplicatePlan.submission.intent,
-            selectClipId: duplicatePlan.selectAfterId ?? duplicatePlan.submission.intent.identities.clipId,
+            kind: 'clip-sharing-pending',
+            gesture: duplicateGesture,
           },
         }
         setMovePreview(nextDuplicatePreview)
@@ -5787,7 +5792,7 @@ function ShowTimelineWorkspace({
     capture: { capture: ShowV2PilotPreparedCapture; baseRevision: number } | undefined,
     plan: ShowV2ClipDropPlan,
   ): Promise<boolean> => {
-    if (!capture || plan.kind === 'refuse') return Promise.resolve(false)
+    if (!capture || plan.kind === 'refuse' || plan.kind === 'clip-sharing-pending') return Promise.resolve(false)
     if (plan.kind === 'clip-sharing') {
       return onCommitV2ClipSharing?.({ ...capture, intent: plan.intent }) ?? Promise.resolve(false)
     }
@@ -5808,8 +5813,25 @@ function ShowTimelineWorkspace({
     draggedClip.settling = true
     // The painted plan names its own door, so the commit submits the exact
     // intent the preview showed; a refused owner settles as no change.
+    // A pending duplicate preview stored its gesture unchecked for identity:
+    // the commit plans it once, on drop, and a refused plan settles as no
+    // change exactly as a refused commit does.
+    let pendingSelectClipId: string | null = null
     const commit = activePlan.recordVersion === 2
-      ? commitV2ClipPlan(draggedClip.v2Move, activePlan.plan)
+      ? (() => {
+          if (activePlan.plan.kind !== 'clip-sharing-pending') return commitV2ClipPlan(draggedClip.v2Move, activePlan.plan)
+          const resolved = draggedClip.v2Move
+            ? planShowTimelineGestureV2(draggedClip.v2Move.capture, activePlan.plan.gesture, newPersonalContentId)
+            : null
+          if (!resolved || resolved.status !== 'ready' || resolved.submission.owner !== 'clip-sharing') return Promise.resolve(false)
+          const selectClipId = resolved.selectAfterId ?? resolved.submission.intent.identities.clipId
+          pendingSelectClipId = selectClipId
+          return commitV2ClipPlan(draggedClip.v2Move, {
+            kind: 'clip-sharing',
+            intent: resolved.submission.intent,
+            selectClipId,
+          })
+        })()
       : activePlan.mode === 'duplicate'
         ? onDuplicateCompositionClipAtTarget({
             sourceComposition: activePlan.sourceComposition,
@@ -5827,9 +5849,11 @@ function ShowTimelineWorkspace({
       // its minted placement id.
       const clipId = activePlan.recordVersion === 2 && activePlan.plan.kind === 'clip-sharing'
         ? activePlan.plan.selectClipId
-        : activePlan.mode === 'duplicate'
-          ? draggedClip.duplicatePlacementId!
-          : draggedClip.clipId
+        : activePlan.recordVersion === 2 && activePlan.plan.kind === 'clip-sharing-pending' && pendingSelectClipId
+          ? pendingSelectClipId
+          : activePlan.mode === 'duplicate'
+            ? draggedClip.duplicatePlacementId!
+            : draggedClip.clipId
       if (activePlan.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
       onReanchorDetails({ kind: 'clip', clipId })
     }).catch(() => {}).finally(() => {
