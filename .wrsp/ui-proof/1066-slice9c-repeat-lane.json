@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice9c-lane-capture5?show-v2-editor",
+  "operation": "Stored a version-2 copy of the stock property-animation Show as the synthetic local user and opened it on the v2 editor route. The Sample repeat lane reads 1x for eight sections and 4x for the last, with boundary buttons '—' at 36.8 and '1x→4x' at 43.6, as v1 draws them. The buttons sit in zero-width boundary columns, as on v1, so the 43.6 button was focused and activated with Enter, which opened that boundary's Transition properties panel.",
+  "captures": [".wrsp/ui-proof/1066-slice9c-repeat-lane.png"],
+  "capturedAtCommit": "e917f64ce92eb09efbc1c58a7d3efb8cc636df6a"
+}
