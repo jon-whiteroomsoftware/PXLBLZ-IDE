@@ -1,5 +1,6 @@
 import { showV2FlatLoweringEligible } from './showFlatLoweringV2'
 import type { ShowRecordV2 } from './showCompositionV2'
+import { materializeShowGroupsV2 } from './showGroupsV2'
 
 /**
  * A Clip- or instance-targeted track whose activation is not exactly the whole
@@ -85,12 +86,18 @@ export function layoutOccurrencesBlockedV2(record: ShowRecordV2): boolean {
  * refused by the participant-window rule or by the multiple-Layout-occurrence rule, and then every participant-scope
  * Transition or none: mixed whole-output/participant records have no lowering.
  * A boundary a Clip spans, a Transition with ramps, and every Layer Transition
- * are never eligible. Never demotes.
+ * are never eligible. Never demotes. Both triggers and the window scan read the Group-materialized record, as the lowering does; a Group child at the window has no authored name, so its boundary is not promoted.
  */
 export function promoteConvertedBoundariesToWholeOutputV2(record: ShowRecordV2): { record: ShowRecordV2; promotedTransitionIds: string[] } {
-  if (!participantWindowBlockedV2(record) && !layoutOccurrencesBlockedV2(record)) return { record, promotedTransitionIds: [] }
-  const clipById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
-  const eligible = record.composition.transitions.every(transition => {
+  // The lowering asks both refusal questions of the Group-materialized record,
+  // so promotion asks them there too: a Group child can make a record
+  // unflattenable, or touch a boundary window, while staying invisible in the
+  // authored clips (#1068).
+  const effective = record.composition.groupDefinitions.length > 0 ? materializeShowGroupsV2(record) : record
+  if (!participantWindowBlockedV2(effective) && !layoutOccurrencesBlockedV2(effective)) return { record, promotedTransitionIds: [] }
+  const authoredClipIds = new Set(record.composition.clips.map(clip => clip.id))
+  const clipById = new Map(effective.composition.clips.map(clip => [clip.id, clip]))
+  const eligible = effective.composition.transitions.every(transition => {
     if (transition.origin !== 'converted-boundary-transition') return false
     if (transition.wholeOutput !== undefined) return false
     if (transition.participants.length !== 1) return false
@@ -101,9 +108,12 @@ export function promoteConvertedBoundariesToWholeOutputV2(record: ShowRecordV2):
     const startMs = from.startMs + from.durationMs
     const endMs = to.startMs
     if (endMs - startMs !== transition.durationMs) return false
-    const fromIds = new Set(record.composition.clips.filter(clip => clip.startMs + clip.durationMs === startMs).map(clip => clip.id))
-    const toIds = new Set(record.composition.clips.filter(clip => clip.startMs === endMs).map(clip => clip.id))
-    return !record.composition.clips.some(clip => (
+    const fromIds = new Set(effective.composition.clips.filter(clip => clip.startMs + clip.durationMs === startMs).map(clip => clip.id))
+    const toIds = new Set(effective.composition.clips.filter(clip => clip.startMs === endMs).map(clip => clip.id))
+    // Whole-output contributor sets name authored Clips only; a Group child at
+    // the window has no authored name, so the boundary cannot be promoted.
+    if ([...fromIds, ...toIds].some(id => !authoredClipIds.has(id))) return false
+    return !effective.composition.clips.some(clip => (
       !fromIds.has(clip.id)
       && !toIds.has(clip.id)
       && clip.startMs < endMs

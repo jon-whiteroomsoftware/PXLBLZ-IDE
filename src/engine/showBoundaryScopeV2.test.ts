@@ -3,7 +3,10 @@ import { transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { hasSectionScopedTrackActivationV2, participantWindowBlockedV2, promoteConvertedBoundariesToWholeOutputV2 } from './showBoundaryScopeV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
-import type { ShowRecordV2, ShowPropertyTrackV2 } from './showCompositionV2'
+import { validateShowRecordV2, type ShowRecordV2, type ShowPropertyTrackV2 } from './showCompositionV2'
+import { addShowZone, createDefaultShow } from './showModel'
+import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
+import { createShowGroupFromSelectionV2 } from './showGroupCreationV2'
 
 function buildTwoSceneV1(withTrack: boolean) {
   const show = transitionV1Show('crossfade')
@@ -143,5 +146,28 @@ describe('showBoundaryScopeV2', () => {
     expect(participantWindowBlockedV2(transitionFree)).toBe(false)
     const preparedTransitionFree = prepareShowV2ForCompile(transitionFree, boundaryLookup)
     expect(preparedTransitionFree.status, JSON.stringify(preparedTransitionFree.status === 'refused' ? preparedTransitionFree.issues[0] : '')).toBe('ready')
+  })
+
+  it('does not promote a boundary a Group child touches (materialized record, #1068)', () => {
+    const source = addShowZone(createDefaultShow('grouped-boundary', 'Grouped boundary', 1))
+    const byCellId = Object.fromEntries(
+      source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]]),
+    )
+    const convertedResult = convertShowRecordV1ToV2(source, { byCellId })
+    expect(convertedResult.status).toBe('converted')
+    if (convertedResult.status !== 'converted') throw new Error(JSON.stringify(convertedResult.status === 'refused' ? convertedResult.issues : []))
+    const record = convertedResult.record
+    const zone2 = record.zones[1].id
+    const layer2 = record.composition.layers.find(layer => layer.zoneId === zone2)!
+    const base = record.composition.clips[0]
+    record.composition.clips.push({ ...structuredClone(base), id: 'grouped-edge', zoneId: zone2, layerId: layer2.id, startMs: 25000, durationMs: 5000, appearance: { keys: [{ ...structuredClone(base.appearance.keys[0]), id: 'grouped-edge-key', timeMs: 25000 }] } })
+    const grouped = createShowGroupFromSelectionV2(record, { kind: 'create-group', selectedClipIds: ['grouped-edge'], transitionIds: [], definitionId: 'edge-definition', occurrenceId: 'edge-occurrence', name: 'Edge', originMs: 25000, identities: { patternInstanceIds: { [base.instanceId]: 'slot' }, layerIds: { [layer2.id]: 'local-layer' }, clipIds: { 'grouped-edge': 'child' }, transitionIds: {}, propertyTrackIds: {}, appearanceKeyIdsByClipId: { 'grouped-edge': { 'grouped-edge-key': 'local-appearance' } }, propertyKeyIdsByTrackId: {} } })
+    expect(grouped.status).toBe('changed')
+    if (grouped.status !== 'changed') throw new Error(JSON.stringify({ code: grouped.code, message: grouped.message }))
+    grouped.record.composition.propertyTracks.push({ id: 'outgoing-brightness', target: { kind: 'clip-view', clipId: base.id, property: 'brightness' }, activeStartMs: 0, activeDurationMs: 32000, keyframes: [{ id: 'ob-k0', timeMs: 0, value: 1, easing: { curve: 'linear' } }, { id: 'ob-k1', timeMs: 30000, value: 0.4, easing: { curve: 'linear' } }] })
+    expect(validateShowRecordV2(grouped.record)).toEqual([])
+    const promotion = promoteConvertedBoundariesToWholeOutputV2(grouped.record)
+    expect(promotion.promotedTransitionIds).toEqual([])
+    expect(promotion.record).toBe(grouped.record)
   })
 })
