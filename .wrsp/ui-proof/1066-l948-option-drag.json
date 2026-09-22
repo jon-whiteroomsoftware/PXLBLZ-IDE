@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-l948-option-drag?show-v2-editor",
+  "operation": "Opened the converted installation-layouts corpus Show stored as version 2 (5 Clips) and Option-dragged the first RibbonLoom Clip onto the empty start of the second lane. Mid-drag the preview reads data-drag-mode=duplicate with the source in place; after the drop the stored record has 6 Clips, the copy at 0 ms on that lane shares the source's Pattern instance (linked, 'Shared by 4 Clips'), and it is selected.",
+  "captures": [".wrsp/ui-proof/1066-l948-option-drag-preview.png", ".wrsp/ui-proof/1066-l948-option-drag-result.png"],
+  "capturedAtCommit": "076c41237fae629693ad26476293408eb47ecb89"
+}
