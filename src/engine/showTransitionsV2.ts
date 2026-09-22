@@ -463,11 +463,21 @@ export function commitConvertedBoundaryRepairsV2(
       if (track.keyframes.some(key => key.timeMs > repair.windowStartMs && key.timeMs < repair.windowEndMs)) {
         return { status: 'refused', message: `Property track "${track.id}" holds a key inside the reclaimed boundary window; move it out of the window first.` }
       }
-      Object.assign(live, reclaimActivationV2(track.activeStartMs, track.activeDurationMs, repair.windowEndMs, durationMs))
+      // Repairs apply latest-window-first, so the live activation below an
+      // earlier window still reads preimage coordinates and stacked reclaims
+      // compose additively.
+      const activation = reclaimActivationV2(live.activeStartMs, live.activeDurationMs, repair.windowEndMs, durationMs)
+      if (!activation) {
+        return { status: 'refused', message: `Property track "${track.id}" ends inside the reclaimed boundary window; move it out of the window first.` }
+      }
+      let changed = activation.activeStartMs !== live.activeStartMs || activation.activeDurationMs !== live.activeDurationMs
+      Object.assign(live, activation)
       track.keyframes.forEach((key, index) => {
-        if (key.timeMs >= repair.windowEndMs) live.keyframes[index].timeMs -= durationMs
+        if (key.timeMs < repair.windowEndMs) return
+        live.keyframes[index].timeMs -= durationMs
+        changed = true
       })
-      shiftedTrackIds.add(track.id)
+      if (changed) shiftedTrackIds.add(track.id)
     }
     // Converted Scene labels materialize v1 Scene starts, which move with the
     // reclaim; authored guides are absolute Show times v1 leaves on the same
@@ -962,12 +972,19 @@ export function applyShowTransitionClipShiftV2(source: ShowRecordV2, next: ShowR
  * after the reclaimed window moves earlier with its Scene, and one starting
  * before the window end but reaching past it keeps its start and shortens,
  * because the converter derives it from a Scene start minus an incoming
- * Transition that the reclaim removes.
+ * Transition that the reclaim removes. An activation that starts inside the
+ * reclaimed window starts at the window start after the reclaim; one that
+ * ends inside it has no v1 position and returns null, which the Show-scoped
+ * caller refuses.
  */
-function reclaimActivationV2(activeStartMs: number, activeDurationMs: number, windowEndMs: number, durationMs: number): { activeStartMs: number; activeDurationMs: number } {
+function reclaimActivationV2(activeStartMs: number, activeDurationMs: number, windowEndMs: number, durationMs: number): { activeStartMs: number; activeDurationMs: number } | null {
+  const windowStartMs = windowEndMs - durationMs
+  const activeEndMs = activeStartMs + activeDurationMs
   if (activeStartMs >= windowEndMs) return { activeStartMs: activeStartMs - durationMs, activeDurationMs }
-  if (activeStartMs + activeDurationMs >= windowEndMs) return { activeStartMs, activeDurationMs: activeDurationMs - durationMs }
-  return { activeStartMs, activeDurationMs }
+  if (activeEndMs <= windowStartMs) return { activeStartMs, activeDurationMs }
+  if (activeEndMs < windowEndMs) return null
+  const startMs = Math.min(activeStartMs, windowStartMs)
+  return { activeStartMs: startMs, activeDurationMs: activeEndMs - durationMs - startMs }
 }
 /**
  * A Clip's contribution window in `record`: its own span widened by every
@@ -1020,7 +1037,8 @@ function shiftOwnedTracks(
       : [...moved].find(clipId => source.composition.clips.find(clip => clip.id === clipId)?.instanceId === (track.target as { instanceId: string }).instanceId)!
     const window = contributionWindow(source, ownerClipId)
     if (reclaimWindowEndMs !== undefined) {
-      Object.assign(track, reclaimActivationV2(track.activeStartMs, track.activeDurationMs, reclaimWindowEndMs, -deltaMs))
+      const activation = reclaimActivationV2(track.activeStartMs, track.activeDurationMs, reclaimWindowEndMs, -deltaMs)
+      if (activation) Object.assign(track, activation)
     } else if (track.activeStartMs >= window.startMs && track.activeStartMs + track.activeDurationMs <= window.endMs) {
       track.activeStartMs += deltaMs
     }

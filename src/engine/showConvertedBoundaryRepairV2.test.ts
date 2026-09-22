@@ -1022,6 +1022,47 @@ describe('the repair retimes a Show-scoped repeat-scale track (#1068)', () => {
     if (result.status !== 'refused') return
     expect(result.message).toContain('holds a key inside the reclaimed boundary window')
   })
+
+  it.each([
+    [31000, [40000, 50000], [30000, 18000, [38000, 48000]]],
+    [31000, [32000, 40000], [30000, 8000, [30000, 38000]]],
+  ] as Array<[number, number[], [number, number, number[]]]>)(
+    'clamps an activation starting inside the window to the window start (start %i, keys %j)',
+    (start, keys, expected) => {
+      const record = convertStock(repeatScaleSource())
+      const track = record.composition.propertyTracks.find(t => t.target.kind === 'show-repeat-scale')!
+      track.activeStartMs = start
+      track.activeDurationMs = keys[1] - start
+      track.keyframes = keys.map((timeMs, index) => ({
+        id: `clamp-k${index}`,
+        timeMs,
+        value: 1 + index,
+        easing: { curve: 'linear' as const },
+      }))
+      expect(validateShowRecordV2(record)).toEqual([])
+      const result = editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: BOUNDARY })
+      expect(result.status).toBe('changed')
+      if (result.status !== 'changed') throw new Error(JSON.stringify(result))
+      const retimed = result.record.composition.propertyTracks.find(t => t.target.kind === 'show-repeat-scale')!
+      expect([retimed.activeStartMs, retimed.activeDurationMs, retimed.keyframes.map(k => k.timeMs)]).toEqual(expected)
+    },
+  )
+
+  it('does not report an untouched repeat-scale track as shifted', () => {
+    const record = convertStock(repeatScaleSource())
+    const track = record.composition.propertyTracks.find(t => t.target.kind === 'show-repeat-scale')!
+    track.activeStartMs = 0
+    track.activeDurationMs = 20000
+    track.keyframes = [
+      { id: 'untouched-k0', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+      { id: 'untouched-k1', timeMs: 20000, value: 2, easing: { curve: 'linear' } },
+    ]
+    expect(validateShowRecordV2(record)).toEqual([])
+    const result = editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: BOUNDARY })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') throw new Error(JSON.stringify(result))
+    expect(result.affectedTrackIds).toEqual([])
+  })
 })
 
 describe('a Scene Property track retimes through the repair as v1 Remove does (#1068)', () => {

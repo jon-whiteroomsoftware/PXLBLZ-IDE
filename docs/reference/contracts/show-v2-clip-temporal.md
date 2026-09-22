@@ -205,13 +205,13 @@ occurrences keep coverage exact (the owner absorbs with a fixed start, later
 ones move rigidly); `incomingTransfer` rides its occurrence start and
 `incomingSwitch` provenance is inert. Layout-owned Property tracks of shifted
 occurrences move with their occurrence; tracks of the absorbing owner stay, and
-a window that no longer fits refuses at validation. Global envelopes
-(`show-repeat-scale`, shared-instance tracks), Pattern instances, Layers,
-definitions and routing stay: no Show-time anchor moved. A Group occurrence
-starting exactly at the window end is unrepresentable while the boundary lives
-(RL09 forbids unrelated content starting at or inside a Layer Transition
-window), so the boundary-inclusive shift rule mirrors the Clip rule while its
-equality arm stays uninhabited.
+a window that no longer fits refuses at validation. Shared-instance tracks,
+Pattern instances, Layers, definitions and routing stay: no Show-time anchor
+moved. Show-scoped `show-repeat-scale` tracks are retimed with the loop as
+described above. A Group occurrence starting exactly at the window end is
+unrepresentable while the boundary lives (RL09 forbids unrelated content
+starting at or inside a Layer Transition window), so the boundary-inclusive
+shift rule mirrors the Clip rule while its equality arm stays uninhabited.
 
 One repair never invents room: a Clip or Group occurrence spanning the reclaimed
 window end, a tail
