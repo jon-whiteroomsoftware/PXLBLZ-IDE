@@ -12,6 +12,7 @@ import {
   projectShowTransitionPropertyRampsV2,
   type ShowTransitionRampProjectionV2,
 } from './showPropertyAnimationV2'
+import { promoteConvertedBoundariesToWholeOutputV2 } from './showBoundaryScopeV2'
 import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
 
 export interface ShowDerivedCutJunctionV2 {
@@ -206,12 +207,16 @@ export function editShowTransitionV2(
     next.composition.transitions = next.composition.transitions.map(transition => (
       transition.id === current.id ? structuredClone(intent.transition) : transition
     ))
-    const issue = validateShowRecordV2(next)[0]
+    // A Show-scalar ramp needs whole-output scope, so a converted participant boundary takes the converter's
+    // whole-output shape (v1-then-convert, #1066 L2411), through the same promotion the Layout and Show-track owners use.
+    const promotion = promoteConvertedBoundariesToWholeOutputV2(next)
+    const issue = validateShowRecordV2(promotion.record)[0]
     if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
-    const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+    const compilerRestriction = firstShowTransitionPlacementRestrictionV2(promotion.record)
     if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction.message)
     return {
-      status: 'changed', record: next, affectedClipIds: [], affectedTransitionIds: [current.id],
+      status: 'changed', record: promotion.record, affectedClipIds: [],
+      affectedTransitionIds: [...new Set([current.id, ...promotion.promotedTransitionIds])].sort(),
       affectedTrackIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
     }
   }

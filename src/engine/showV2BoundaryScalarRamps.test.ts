@@ -3,9 +3,10 @@ import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import type { ShowRecord } from './personalContentRecords'
 import type { ShowTransitionChanges } from './showTransitionAuthoring'
-import { updateShowBoundaryTransition } from './showModel'
+import { addShowZone, createShowWithOutputContract, updateShowBoundaryTransition, updateShowRoutingLayout } from './showModel'
+import { createInstallationShowOutputContract } from './showOutputContract'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import type { ShowRecordV2 } from './showCompositionV2'
+import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { planShowV2BoundaryTransitionChanges } from './showV2TransitionEditorModel'
 import { cloneValidShowRecordV2 } from './showDocument'
@@ -146,5 +147,85 @@ describe('boundary scalar ramp edits on v2 equal v1 then convert (#1066 slice 9c
     const v1 = stockV1()
     const changes = sectionChanges(v1, 'transition-split-position', 'repeat', 'on')
     expect(planShowV2BoundaryTransitionChanges(convert(v1), 'transition-split-position', changes)).toEqual({ status: 'no-op' })
+  })
+})
+
+describe('participant-scope converted boundary (#1066 L2411)', () => {
+  function freshV1(): ShowRecord {
+    return createShowWithOutputContract('fresh-id', 'Fresh Show', createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 256 }))
+  }
+
+  function convertedBoundaryId(record: ShowRecordV2): string {
+    expect(record.composition.transitions).toHaveLength(1)
+    const boundary = record.composition.transitions[0]
+    expect(boundary.participants).toHaveLength(1)
+    expect(boundary.wholeOutput).toBeUndefined()
+    return boundary.id
+  }
+
+  function expectOracleEquality(actual: ShowRecordV2, expected: ShowRecordV2): void {
+    expect(actual.composition.transitions).toEqual(expected.composition.transitions)
+    expect(actual.composition.propertyTracks).toEqual(expected.composition.propertyTracks)
+    expect(actual.composition.layoutOccurrences).toEqual(expected.composition.layoutOccurrences)
+    expect(actual.composition.showEndMs).toBe(expected.composition.showEndMs)
+  }
+
+  it('oracle, repeat scale: matches v1 then convert', () => {
+    const changes = {
+      propertyTransitions: { sample: { repeatScale: { from: 1, durationMs: 2000, easing: { curve: 'linear' as const } } } },
+    } as ShowTransitionChanges
+    const expected = convert(updateShowBoundaryTransition(freshV1(), 'transition-scene-1', changes))
+    const before = convert(freshV1())
+    const boundaryId = convertedBoundaryId(before)
+    const plan = planShowV2BoundaryTransitionChanges(before, boundaryId, changes)
+    expect(plan.status, JSON.stringify(plan)).toBe('ready')
+    if (plan.status !== 'ready') return
+    const result = editShowTransitionV2(before, plan.intent)
+    expect(result.status, JSON.stringify(result)).toBe('changed')
+    if (result.status !== 'changed') return
+    expectOracleEquality(result.record, expected)
+    expect(result.affectedTransitionIds).toEqual([boundaryId])
+  })
+
+  it('oracle, split position: matches v1 then convert', () => {
+    let splitV1 = addShowZone(freshV1())
+    splitV1 = updateShowRoutingLayout(splitV1, splitV1.routingLayouts[0].id, {
+      logical: { kind: 'split', zoneIds: [splitV1.zones[0].id, splitV1.zones[1].id] as [string, string], axis: 'x' },
+    })
+    const changes = {
+      propertyTransitions: { routing: { splitPosition: { from: 0.5, durationMs: 2000, easing: { curve: 'linear' as const } } } },
+    } as ShowTransitionChanges
+    const expected = convert(updateShowBoundaryTransition(splitV1, 'transition-scene-1', changes))
+    const before = convert(splitV1)
+    const boundaryId = convertedBoundaryId(before)
+    const plan = planShowV2BoundaryTransitionChanges(before, boundaryId, changes)
+    expect(plan.status, JSON.stringify(plan)).toBe('ready')
+    if (plan.status !== 'ready') return
+    const result = editShowTransitionV2(before, plan.intent)
+    expect(result.status, JSON.stringify(result)).toBe('changed')
+    if (result.status !== 'changed') return
+    expectOracleEquality(result.record, expected)
+  })
+
+  it('still refuses when not every boundary is eligible', () => {
+    const changes = {
+      propertyTransitions: { sample: { repeatScale: { from: 1, durationMs: 2000, easing: { curve: 'linear' as const } } } },
+    } as ShowTransitionChanges
+    const before = convert(freshV1())
+    const boundaryId = convertedBoundaryId(before)
+    const native = structuredClone(before.composition.transitions[0])
+    native.id = 'native-transition'
+    native.origin = undefined
+    before.composition.transitions.push(native)
+    expect(validateShowRecordV2(before)).toEqual([])
+    const plan = planShowV2BoundaryTransitionChanges(before, boundaryId, changes)
+    expect(plan.status).toBe('ready')
+    if (plan.status !== 'ready') return
+    const result = editShowTransitionV2(before, plan.intent)
+    expect(result.status).toBe('refused')
+    if (result.status !== 'refused') return
+    expect(result.code).toBe('invalid-result')
+    expect(result.message).toContain('Global scalar ramps require whole-output scope')
+    expect(result.record.composition.transitions.every(transition => transition.wholeOutput === undefined)).toBe(true)
   })
 })

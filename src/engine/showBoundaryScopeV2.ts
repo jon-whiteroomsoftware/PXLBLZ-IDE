@@ -81,12 +81,25 @@ export function layoutOccurrencesBlockedV2(record: ShowRecordV2): boolean {
 }
 
 /**
+ * Exactly the record rule "Global scalar ramps require whole-output scope" (showCompositionV2.ts:~517): a participant-scope Transition carrying a Show-scalar ramp.
+ */
+export function scalarRampScopeBlockedV2(record: ShowRecordV2): boolean {
+  return record.composition.transitions.some(transition => (
+    transition.wholeOutput === undefined
+    && transition.propertyRamps.some(ramp => (
+      ramp.target.kind === 'show-repeat-scale' || ramp.target.kind === 'layout-occurrence-split-position'
+    ))
+  ))
+}
+
+/**
  * Promote participant-scope converted Scene-boundary Transitions to the
  * converter's whole-output shape, but only when the record would otherwise be
- * refused by the participant-window rule or by the multiple-Layout-occurrence rule, and then every participant-scope
+ * refused by the participant-window rule, by the multiple-Layout-occurrence rule, or by the scalar-ramp scope rule,
+ * and then every participant-scope
  * Transition or none: mixed whole-output/participant records have no lowering.
- * A boundary a Clip spans, a Transition with ramps, and every Layer Transition
- * are never eligible. Never demotes. Both triggers and the window scan read the Group-materialized record with unused-instance tracks removed, as the lowering does; a Group child at the window has no authored name, so its boundary is not promoted.
+ * A boundary a Clip spans, a Transition with any ramp other than a Show-scalar ramp, and every Layer Transition
+ * are never eligible. Never demotes. All three triggers and the window scan read the Group-materialized record with unused-instance tracks removed, as the lowering does; a Group child at the window has no authored name, so its boundary is not promoted.
  */
 export function promoteConvertedBoundariesToWholeOutputV2(record: ShowRecordV2): { record: ShowRecordV2; promotedTransitionIds: string[] } {
   // The lowering asks both refusal questions of the Group-materialized record
@@ -95,14 +108,17 @@ export function promoteConvertedBoundariesToWholeOutputV2(record: ShowRecordV2):
   // while staying invisible in the authored clips (#1068).
   const materialized = record.composition.groupDefinitions.length > 0 ? materializeShowGroupsV2(record) : record
   const effective = withoutUnusedInstanceTracksV2(materialized)
-  if (!participantWindowBlockedV2(effective) && !layoutOccurrencesBlockedV2(effective)) return { record, promotedTransitionIds: [] }
+  if (!participantWindowBlockedV2(effective) && !layoutOccurrencesBlockedV2(effective) && !scalarRampScopeBlockedV2(effective)) return { record, promotedTransitionIds: [] }
   const authoredClipIds = new Set(record.composition.clips.map(clip => clip.id))
   const clipById = new Map(effective.composition.clips.map(clip => [clip.id, clip]))
   const eligible = effective.composition.transitions.every(transition => {
     if (transition.origin !== 'converted-boundary-transition') return false
     if (transition.wholeOutput !== undefined) return false
     if (transition.participants.length !== 1) return false
-    if (transition.propertyRamps.length !== 0) return false
+    if (!transition.propertyRamps.every(ramp => (
+      (ramp.target.kind === 'show-repeat-scale' || ramp.target.kind === 'layout-occurrence-split-position')
+      && ramp.participantId === undefined
+    ))) return false
     const from = clipById.get(transition.participants[0].fromClipId)
     const to = clipById.get(transition.participants[0].toClipId)
     if (!from || !to) return false

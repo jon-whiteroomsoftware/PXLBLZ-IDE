@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { hasSectionScopedTrackActivationV2, participantWindowBlockedV2, promoteConvertedBoundariesToWholeOutputV2 } from './showBoundaryScopeV2'
+import { hasSectionScopedTrackActivationV2, participantWindowBlockedV2, promoteConvertedBoundariesToWholeOutputV2, scalarRampScopeBlockedV2 } from './showBoundaryScopeV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { validateShowRecordV2, type ShowRecordV2, type ShowPropertyTrackV2 } from './showCompositionV2'
 import { addShowZone, createDefaultShow } from './showModel'
@@ -252,5 +252,56 @@ describe('showBoundaryScopeV2', () => {
     expect(duplicated.affectedTransitionIds).toContain(boundaryId)
     const prepared = prepareShowV2ForCompile(duplicated.record, stockLookup(duplicated.record))
     expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : '')).toBe('ready')
+  })
+})
+
+describe('scalar-ramp scope promotion (#1066 L2411)', () => {
+  it('reports the scalar-ramp scope block only at participant scope', () => {
+    const record = convertedDefaultShow()
+    record.composition.transitions[0].propertyRamps = [{ target: { kind: 'show-repeat-scale' }, from: 1 }]
+    expect(scalarRampScopeBlockedV2(record)).toBe(true)
+    const removed = structuredClone(record)
+    removed.composition.transitions[0].propertyRamps = []
+    expect(scalarRampScopeBlockedV2(removed)).toBe(false)
+    const widened = structuredClone(record)
+    const boundary = widened.composition.transitions[0]
+    const startMs = widened.composition.clips.find(clip => clip.id === boundary.participants[0].fromClipId)!.startMs
+      + widened.composition.clips.find(clip => clip.id === boundary.participants[0].fromClipId)!.durationMs
+    const endMs = widened.composition.clips.find(clip => clip.id === boundary.participants[0].toClipId)!.startMs
+    boundary.participants = []
+    boundary.wholeOutput = {
+      startMs,
+      fromClipIds: widened.composition.clips.filter(clip => clip.startMs + clip.durationMs === startMs).map(clip => clip.id),
+      toClipIds: widened.composition.clips.filter(clip => clip.startMs === endMs).map(clip => clip.id),
+    }
+    expect(scalarRampScopeBlockedV2(widened)).toBe(false)
+  })
+
+  it('promotes a converted boundary carrying only a Show-scalar ramp, keeping the ramp', () => {
+    const record = convertedDefaultShow()
+    const ramp = { target: { kind: 'show-repeat-scale' as const }, from: 1 }
+    record.composition.transitions[0].propertyRamps = [ramp]
+    expect(scalarRampScopeBlockedV2(record)).toBe(true)
+    const promotion = promoteConvertedBoundariesToWholeOutputV2(record)
+    expect(promotion.promotedTransitionIds).toEqual([record.composition.transitions[0].id])
+    const transition = promotion.record.composition.transitions[0]
+    expect(transition.participants).toEqual([])
+    expect(transition.wholeOutput).toBeDefined()
+    expect(transition.propertyRamps).toEqual([ramp])
+  })
+
+  it('does not promote a converted boundary carrying a non-scalar ramp', () => {
+    const record = convertedDefaultShow()
+    const boundary = record.composition.transitions[0]
+    record.composition.propertyTracks.push(sectionTrack(record.composition.clips[0].id))
+    boundary.propertyRamps = [{
+      participantId: boundary.participants[0].id,
+      target: { kind: 'clip-opacity', clipId: record.composition.clips[0].id },
+      from: 0,
+    }]
+    expect(scalarRampScopeBlockedV2(record)).toBe(false)
+    const promotion = promoteConvertedBoundariesToWholeOutputV2(record)
+    expect(promotion.promotedTransitionIds).toEqual([])
+    expect(promotion.record).toBe(record)
   })
 })
