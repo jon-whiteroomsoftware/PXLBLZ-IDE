@@ -124,6 +124,22 @@ export function buildShowV2TransitionEditorModel(
   return { junctions: junctions.sort((left, right) => left.atMs - right.atMs || left.key.localeCompare(right.key)), transitions, kinds }
 }
 
+/** Remove a boundary or reset a Transition to Cut, projecting any carrier ramps first. */
+export function planShowV2TransitionReset(
+  record: ShowRecordV2,
+  transitionId: string,
+  allocate: () => string,
+): ShowV2TransitionEditorPlan {
+  const transition = record.composition.transitions.find(candidate => candidate.id === transitionId)
+  if (!transition) return { status: 'refused', message: 'Select an existing Transition.' }
+  if (transition.propertyRamps.length === 0) {
+    return { status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id } }
+  }
+  const projections = planShowV2TransitionRampProjections(record, transition, allocate)
+  if (projections.status === 'refused') return projections
+  return { status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id, propertyRampProjections: projections.projections } }
+}
+
 /**
  * Translate one explicit editor request into a typed Transition intent. Identity
  * is allocated here by the caller's generator, never inside the pure owner.
@@ -134,16 +150,7 @@ export function planShowV2TransitionEdit(
   allocate: () => string,
   stageDimensions: 1 | 2 | 3,
 ): ShowV2TransitionEditorPlan {
-  if (request.kind === 'reset') {
-    const transition = record.composition.transitions.find(candidate => candidate.id === request.transitionId)
-    if (!transition) return { status: 'refused', message: 'Select an existing Transition.' }
-    if (transition.propertyRamps.length === 0) {
-      return { status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id } }
-    }
-    const projections = planShowV2TransitionRampProjections(record, transition, allocate)
-    if (projections.status === 'refused') return projections
-    return { status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id, propertyRampProjections: projections.projections } }
-  }
+  if (request.kind === 'reset') return planShowV2TransitionReset(record, request.transitionId, allocate)
 
   if (request.kind === 'parameter') {
     const current = record.composition.transitions.find(candidate => candidate.id === request.transitionId)

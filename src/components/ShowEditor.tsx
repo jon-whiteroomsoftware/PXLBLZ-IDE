@@ -249,7 +249,7 @@ import {
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
 import { exportedDims } from '@/engine/exportedDims'
-import { planShowV2BoundaryTransitionChanges } from '@/engine/showV2TransitionEditorModel'
+import { planShowV2BoundaryTransitionChanges, planShowV2TransitionReset } from '@/engine/showV2TransitionEditorModel'
 import {
   replaceShowBoundaryTransition,
   showBoundaryTransitionParameterChanges,
@@ -1869,6 +1869,22 @@ export function ShowEditor({
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
   }, [commitV2TransitionEdit, readOnly, recordVersion, savedShowV2, showId])
+  // Slice 5d connects the boundary Transition Remove through the same door:
+  // v1 turns the boundary into a Cut, which on this backing is the owner's
+  // reset-to-cut, and closes the panel once it is gone (#1066).
+  const commitV2BoundaryTransitionRemove = useCallback((transitionId: string): void => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return
+    const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
+    if (plan.status !== 'ready') return
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then((outcome) => {
+      if (outcome.status !== 'applied') return
+      closeDetailPanel()
+      closePinnedDetailForSelection({ kind: 'transition', transitionId })
+    }).catch(() => {})
+  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2TransitionEdit, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 chokepoints: a refused or no-op Show-level edit resolves
   // synchronously (or as a resolved false) so the committing surface reverts
   // instead of showing a value that was never stored. The plan reads the
@@ -3760,6 +3776,7 @@ export function ShowEditor({
                   onUpdateClipInspector={commitClipInspectorPatch}
                   onUpdateClipInspectorV2={commitV2ClipInspectorPatch}
                   onUpdateBoundaryTransitionV2={commitV2BoundaryTransitionChanges}
+                  onRemoveBoundaryTransitionV2={commitV2BoundaryTransitionRemove}
                   onPropertyAnimationChange={(owner, change) => {
                     if (!legacyShow || !inspectorShow?.composition) return false
                     const composition = inspectorShow.composition
@@ -9547,6 +9564,7 @@ function ContextualInspector({
   onUpdateClipInspector,
   onUpdateClipInspectorV2,
   onUpdateBoundaryTransitionV2,
+  onRemoveBoundaryTransitionV2,
   onPropertyAnimationChange,
   onUpdateGroupClipInspector,
   onPreviewClipInspector,
@@ -9608,6 +9626,7 @@ function ContextualInspector({
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onUpdateClipInspectorV2?: (clipId: string, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onUpdateBoundaryTransitionV2?: (transitionId: string, changes: ShowTransitionChanges) => void
+  onRemoveBoundaryTransitionV2?: (transitionId: string) => void
   onPropertyAnimationChange: (owner: ShowPropertyAnimationStorageOwner, change: ShowPropertyAnimationChange) => boolean | void
   onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
@@ -10061,15 +10080,15 @@ function ContextualInspector({
           // A v2 side names its Pattern instance, which is what automatable
           // control metadata is keyed by on this backing.
           patternControlsBySourceId={patternControlsByInstanceId}
-          // Boundary Transition settings writes are connected (#1066 slice
-          // 5a); preview, Remove and the destination rows are not. Every
-          // unconnected control stays enabled and reachable; each one resolves
-          // as an internal no-change result before any owner.
+          // Boundary Transition settings writes (#1066 slice 5a) and Remove
+          // (slice 5d) are connected; preview and the destination rows are
+          // not. Every unconnected control stays enabled and reachable; each
+          // one resolves as an internal no-change result before any owner.
           onUpdate={(transitionId, changes) => onUpdateBoundaryTransitionV2?.(transitionId, changes)}
           onPreviewSettings={() => {}}
           onPreviewEnd={() => {}}
           onOpenPalette={() => onOpenTransitions(selection.transitionId)}
-          onRemove={() => {}}
+          onRemove={(transitionId) => onRemoveBoundaryTransitionV2?.(transitionId)}
           onUpdateDestinationAdaptations={() => {}}
           onUpdateDestinationControlTarget={() => {}}
         />

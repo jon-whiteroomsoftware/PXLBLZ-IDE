@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
 import type { ShowRecord } from './personalContentRecords'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { updateShowBoundaryTransition } from './showModel'
+import { createDefaultShow, removeShowBoundaryTransition, updateShowBoundaryTransition } from './showModel'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import {
   buildShowV2TransitionEditorModel,
   planShowV2TransitionEdit,
   planShowV2BoundaryTransitionChanges,
+  planShowV2TransitionReset,
 } from './showV2TransitionEditorModel'
 import {
   showBoundaryTransitionParameterChanges,
@@ -16,6 +17,7 @@ import {
   type ShowTransitionChanges,
 } from './showTransitionAuthoring'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
+import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 
 function converted(kind: Parameters<typeof transitionV1Show>[0] = 'crossfade'): ShowRecordV2 {
@@ -395,5 +397,52 @@ describe('v2 boundary Transition settings planner (#1066 slice 5a)', () => {
     for (const applied of [firstApplied, secondApplied, thirdApplied]) {
       expect(prepareShowV2ForCompile(applied.record, COMPILE_LOOKUP).status).toBe('ready')
     }
+  })
+})
+
+describe('planShowV2TransitionReset (#1066 slice 5d)', () => {
+  const LEFT = 'placement-cell-1-scene-1'
+  const RIGHT = 'placement-cell-2-scene-2'
+
+  function convertedDefaultShow(): ShowRecordV2 {
+    const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
+    const byCellId = Object.fromEntries(
+      source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]]),
+    )
+    const converted = convertShowRecordV1ToV2(source, { byCellId })
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    expect(converted.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+      [LEFT, 0, 30000],
+      [RIGHT, 32000, 30000],
+    ])
+    expect(converted.record.composition.showEndMs).toBe(62000)
+    return converted.record
+  }
+
+  it('plans Reset to Cut for the converted default boundary and matches v1 Remove then convert', () => {
+    const record = convertedDefaultShow()
+    const plan = planShowV2TransitionReset(record, 'transition-scene-1', () => 'unused')
+    expect(plan).toEqual({ status: 'ready', intent: { kind: 'reset-to-cut', transitionId: 'transition-scene-1' } })
+    if (plan.status !== 'ready') throw new Error('reset plan not ready')
+    const edited = editShowTransitionV2(record, plan.intent)
+    expect(edited.status).toBe('changed')
+    if (edited.status !== 'changed') throw new Error('reset owner refused')
+    const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
+    const byCellId = Object.fromEntries(
+      source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]]),
+    )
+    const v1Converted = convertShowRecordV1ToV2(removeShowBoundaryTransition(source, 'transition-scene-1'), { byCellId })
+    expect(v1Converted.status).toBe('converted')
+    if (v1Converted.status !== 'converted') throw new Error(JSON.stringify(v1Converted))
+    expect(edited.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual(
+      v1Converted.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs]),
+    )
+    expect(edited.record.composition.showEndMs).toEqual(v1Converted.record.composition.showEndMs)
+    expect(edited.record.composition.transitions).toEqual([])
+    expect(v1Converted.record.composition.transitions).toEqual([])
+    expect(edited.record.composition.markers.map(marker => [marker.id, marker.timeMs])).toEqual(
+      v1Converted.record.composition.markers.map(marker => [marker.id, marker.timeMs]),
+    )
+    expect(planShowV2TransitionReset(record, 'absent', () => 'x')).toEqual({ status: 'refused', message: 'Select an existing Transition.' })
   })
 })

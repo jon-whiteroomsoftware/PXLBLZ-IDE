@@ -978,10 +978,9 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     expect(within(advanced).getByRole('checkbox', { name: 'Animate Speed for main' })).toBeEnabled()
 
     // The settings write is connected (#1066 slice 5a); the repeat-scale
-    // descriptor and Reset rows stay unconnected and resolve as internal
-    // no-change results.
+    // descriptor row stays unconnected and resolves as an internal
+    // no-change result.
     fireEvent.click(within(advanced).getByRole('checkbox', { name: 'Animate speed for main' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Reset transition to cut' }))
     await act(async () => {})
 
     expectNoWrite(before, editor.state())
@@ -1021,6 +1020,32 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     expectOneEdit(before, after)
     expect(within(boundaryPanel()).getByRole('combobox', { name: 'Crossfade source' }))
       .toHaveValue('live-live')
+  })
+
+  it('removes a boundary Transition to a Cut through the transition-edit door', async () => {
+    const { record } = convertedFreshBoundary('tracer-boundary-remove')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await act(async () => {})
+
+    fireEvent.click(within(boundaryPanel()).getByRole('button', { name: 'Reset transition to cut' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const request = admission.calls[0].request as {
+      intent: { kind: string; transitionId: string }
+      baseRevision: number
+    }
+    expect(request.intent).toEqual({ kind: 'reset-to-cut', transitionId: record.composition.transitions[0].id })
+    expect(request.baseRevision).toBe(0)
+    expectOneEdit(before, editor.state())
+    expect(editor.state().record.composition.transitions).toEqual([])
+    expect(screen.queryByRole('region', { name: 'Transition properties' })).not.toBeInTheDocument()
   })
 
   it('reads a native whole-output Transition through the same boundary panel', async () => {
