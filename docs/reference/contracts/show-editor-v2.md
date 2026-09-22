@@ -803,11 +803,13 @@ still stored as v1, and has no counterpart here:
 
 | Surface | What the v1 editor offers | Why it is still absent |
 | --- | --- | --- |
-| Zone LED ranges on the Stage | dragging across the Stage map to select an Installation Zone's LEDs (`ShowZoneSpatialSelector`) | the component takes a v1 `ShowRecord`, and its draft coverage runs through `updateShowPhysicalZoneSelection`, which returns one; the ranges themselves are authorable in Zone Layouts |
 | Clip Zone sampling | choosing a Clip's `independent`, `span` or `repeat` Zone sampling | no editor route offers it; only the `update_clips` command writes `zone_sample_mode` |
 
-Adding or removing a Zone and writing a Layout definition's routing were the
-other two rows here until #1039's Zone slice landed their owners. A fresh Show
+Adding or removing a Zone and writing a Layout definition's routing were rows
+here until #1039's Zone slice landed their owners, and dragging an Installation
+Zone's LED ranges on the Stage was one until #1066 slice 7 narrowed
+`ShowZoneSpatialSelector` to the fields both backings share and routed the v2
+write through `planShowV2PhysicalZoneSelection`. A fresh Show
 could not use them at first - its two Clips sample their Zone `independent`ly,
 which the lowerer admitted only at one Zone - and #1063 closed that by carrying
 a participant Transition on the continuous-flat route in a multi-Zone Show. Add
@@ -819,8 +821,8 @@ occurrence over a participant Transition, and only `update_clips` writes it.
 checked assertions: the MCP catalogue writes no Show structure, by Jon's #943
 scope principle; the two owners route a new Zone and write a definition's mode;
 and the exact ranges `compactSpatialIndexes` produces are what the
-physical-ranges intent accepts, so the Stage selector's later port stays a
-projection rather than becoming a second writer.
+physical-ranges intent accepts, so the ported Stage selector stays a projection
+rather than becoming a second writer.
 
 `e2e/shows.auth.spec.ts` keeps seeding version-1 rows explicitly for the tests
 that cover the v1 surfaces: those tests describe live behavior for unconverted

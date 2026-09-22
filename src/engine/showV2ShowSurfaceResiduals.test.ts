@@ -82,17 +82,13 @@ describe('the owners #1039 landed for those surfaces', () => {
   })
 })
 
-describe('the Show-level surface the v2 route still has no counterpart for', () => {
+describe('the Stage LED selector stays a projection onto the Zone Layout owner', () => {
   /**
    * `ShowZoneSpatialSelector` - dragging across the Stage map to select an
-   * Installation Zone's LEDs - still takes a v1 `ShowRecord`, and its draft
-   * coverage preview goes through `updateShowPhysicalZoneSelection`, which
-   * returns one. Porting it means narrowing that shared component's props,
-   * which is a v1-editor change #1039's Zone slice was not scoped to make.
-   *
-   * The data it writes is fully authorable here: the selector is a projection
-   * onto this owner, and this test pins that seam so the port stays a
-   * projection rather than becoming a second writer.
+   * Installation Zone's LEDs - reads only the fields both backings share, and
+   * on the v2 route its commit goes through `planShowV2PhysicalZoneSelection`
+   * to this owner (#1066 slice 7). This test pins that seam so the selector
+   * stays a projection rather than becoming a second writer.
    */
   it('accepts the exact ranges the Stage selector would commit', () => {
     const record = preparedFixture()
