@@ -12,6 +12,8 @@ import { projectFlatShowToCompositionV1 } from './showCompositionModel'
 import { resizeShowConnectedClipInShowAtGlobalTime } from './showLayerTransitionAuthoring'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { duplicateShowLayoutInterval, projectShowLayoutIntervals } from './showLayoutIntervals'
+import { planShowV2LayoutEdit } from './showV2LayoutEditorModel'
 import { createShowGroupFromSelectionV2 } from './showGroupCreationV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
@@ -1259,5 +1261,63 @@ describe('the outgoing Scene track retimes its end through the repair (#1068)', 
     if (resized.status !== 'changed') throw new Error(JSON.stringify(resized))
     expect(trackSummary(resized.record)).toEqual([[0, 31000, [0, 30000]]])
     expect(stockPrepare(resized.record)).toBe('ready')
+  })
+})
+
+describe('Layout occurrence edits promote a converted boundary (#1068)', () => {
+  function stockLookup(record: ShowRecordV2) {
+    return {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])),
+      stageDimension: 2 as const,
+    }
+  }
+
+  function compiledCode(record: ShowRecordV2): string {
+    const prepared = prepareShowV2ForCompile(reopen(record), stockLookup(record), { libraries: LIBRARIES })
+    expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
+    if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared))
+    return compileShow(prepared.recipe, LIBRARIES).code
+  }
+
+  it('duplicates an empty Layout span on the converted default Show and still prepares, byte-identical to v1', () => {
+    const record = convertedDefaultShow()
+    const occurrenceId = record.composition.layoutOccurrences[0].id
+    const duplicated = editShowLayoutIntervalsV2(record, { kind: 'duplicate', occurrenceId, newOccurrenceId: 'dup-empty' })
+    expect(duplicated.status).toBe('changed')
+    if (duplicated.status !== 'changed') throw new Error(JSON.stringify(duplicated))
+    expect(duplicated.record.composition.layoutOccurrences.map(o => [o.id, o.startMs, o.durationMs])).toEqual([[occurrenceId, 0, 62000], ['dup-empty', 62000, 62000]])
+    expect(duplicated.record.composition.transitions.map(t => [t.id, t.participants, t.wholeOutput])).toEqual([[BOUNDARY, [], { startMs: 30000, fromClipIds: [LEFT], toClipIds: [RIGHT] }]])
+    expect(duplicated.affectedTransitionIds).toContain(BOUNDARY)
+    const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
+    const v1 = duplicateShowLayoutInterval(source, projectShowLayoutIntervals(source)[0].id, { withContent: false })
+    const converted = convertShowRecordV1ToV2(v1, { byCellId: Object.fromEntries(v1.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted))
+    expect(compiledCode(duplicated.record)).toBe(compiledCode(converted.record))
+  })
+
+  it('duplicates a Layout span with its Clips and still prepares', () => {
+    const record = convertedDefaultShow()
+    const occurrenceId = record.composition.layoutOccurrences[0].id
+    const allocate = (() => { let n = 0; return () => `dup-copy-${++n}` })()
+    const plan = planShowV2LayoutEdit(record, { kind: 'duplicate', occurrenceId, content: 'copy' }, allocate)
+    expect(plan.status).toBe('ready')
+    if (plan.status !== 'ready') throw new Error(JSON.stringify(plan))
+    const duplicated = editShowLayoutIntervalsV2(record, plan.intent)
+    expect(duplicated.status).toBe('changed')
+    if (duplicated.status !== 'changed') throw new Error(JSON.stringify(duplicated))
+    expect(duplicated.record.composition.transitions.every(t => t.wholeOutput !== undefined && t.participants.length === 0)).toBe(true)
+    expect(duplicated.record.composition.patternInstances).toHaveLength(record.composition.patternInstances.length)
+    compiledCode(duplicated.record)
+  })
+
+  it('leaves a single-occurrence Layout edit unpromoted', () => {
+    const record = convertedDefaultShow()
+    const result = editShowLayoutIntervalsV2(record, { kind: 'set-show-end', showEndMs: 64000 })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') throw new Error(JSON.stringify(result))
+    expect(result.record.composition.transitions[0].participants).toHaveLength(1)
+    expect(result.record.composition.transitions[0].wholeOutput).toBeUndefined()
   })
 })

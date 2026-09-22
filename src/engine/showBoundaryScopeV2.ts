@@ -65,15 +65,26 @@ export function participantWindowBlockedV2(record: ShowRecordV2): boolean {
 }
 
 /**
+ * Exactly the lowering's multiple-occurrence participant refusal input that the
+ * converter avoids by construction (`needsWholeOutput`'s first disjunct): more
+ * than one Layout occurrence, at least one Transition, none whole-output.
+ */
+export function layoutOccurrencesBlockedV2(record: ShowRecordV2): boolean {
+  return record.composition.layoutOccurrences.length > 1
+    && record.composition.transitions.length > 0
+    && !record.composition.transitions.some(transition => transition.wholeOutput !== undefined)
+}
+
+/**
  * Promote participant-scope converted Scene-boundary Transitions to the
  * converter's whole-output shape, but only when the record would otherwise be
- * refused by the participant-window rule, and then every participant-scope
+ * refused by the participant-window rule or by the multiple-Layout-occurrence rule, and then every participant-scope
  * Transition or none: mixed whole-output/participant records have no lowering.
  * A boundary a Clip spans, a Transition with ramps, and every Layer Transition
  * are never eligible. Never demotes.
  */
 export function promoteConvertedBoundariesToWholeOutputV2(record: ShowRecordV2): { record: ShowRecordV2; promotedTransitionIds: string[] } {
-  if (!participantWindowBlockedV2(record)) return { record, promotedTransitionIds: [] }
+  if (!participantWindowBlockedV2(record) && !layoutOccurrencesBlockedV2(record)) return { record, promotedTransitionIds: [] }
   const clipById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
   const eligible = record.composition.transitions.every(transition => {
     if (transition.origin !== 'converted-boundary-transition') return false

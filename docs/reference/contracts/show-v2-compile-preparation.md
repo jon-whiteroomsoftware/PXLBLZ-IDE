@@ -172,19 +172,24 @@ currently known to exercise the net. It is a backstop against a future
 lowering path, not a tested route, and the next slice that finds a reachable
 shape should pin it.
 
-### Converted boundaries promote only under the participant-window refusal
+### Converted boundaries promote only when the lowering would refuse them
 
-The Property owner promotes participant-scope converted Scene-boundary
-Transitions only when the edited Show would otherwise be refused by the
-participant-window rule: every participant-scope Transition promotes together
+The Property owner and the Layout occurrence owner promote participant-scope
+converted Scene-boundary Transitions only when the edited Show would otherwise
+be refused by the participant-window rule or by the multiple-Layout-occurrence
+rule (more than one occurrence with a participant Transition), the state the
+converter itself never produces: every participant-scope Transition promotes
+together
 or none does, so a Show never holds mixed scopes. A boundary a Clip spans, a
 Transition carrying ramps, and every Layer Transition are never eligible; any
 of those leaves the edit unpromoted and refused exactly as before, a named
 limitation rather than a regression. Nothing ever demotes. A promoted boundary
-behaves as the converter's whole-output boundaries do, which includes Clip
-edits no longer applying the converted-boundary repair to it. See P1-P9 in
+behaves as the converter's whole-output boundaries do, and since #1068's
+provenance keying both keep the converted-boundary repair on Clip edits. See
+P1-P9 in
 `src/engine/showPropertyEditsV2.test.ts` and P11 in
-`src/engine/showBoundaryScopeV2.test.ts`.
+`src/engine/showBoundaryScopeV2.test.ts`, and the promoted Layout Duplicate
+cases in `src/engine/showConvertedBoundaryRepairV2.test.ts`.
 
 ## Global Layout switches with participant Transitions
 

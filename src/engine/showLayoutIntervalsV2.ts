@@ -1,3 +1,4 @@
+import { promoteConvertedBoundariesToWholeOutputV2 } from './showBoundaryScopeV2'
 import { groupOccurrenceDuration, materializeShowGroupsV2 } from './showGroupsV2'
 import { ownedShowIdsV2 } from './showIdentityV2'
 import {
@@ -399,15 +400,17 @@ export function editShowLayoutIntervalsV2(
       `${availability.entityKind} "${availability.entityId}" uses Zone "${availability.zoneId}" while Layout occurrence "${availability.layoutOccurrenceId}" does not provide it.`,
     )
   }
-  const resultIssue = validateShowRecordV2(next)[0]
+  const promotion = promoteConvertedBoundariesToWholeOutputV2(next)
+  const resultIssue = validateShowRecordV2(promotion.record)[0]
   if (resultIssue) return refuse('invalid-result', `${resultIssue.path}: ${resultIssue.message}`)
   const affectedLayoutDefinitionIds = intent.kind === 'make-unique' ? [intent.layoutId] : []
   if (intent.kind === 'remove') removedLayoutOccurrenceIds = [intent.occurrenceId]
   return {
     status: 'changed',
-    record: next,
+    record: promotion.record,
     ...empty(),
     ...duplicated,
+    affectedTransitionIds: [...new Set([...duplicated.affectedTransitionIds, ...promotion.promotedTransitionIds])].sort(),
     affectedLayoutOccurrenceIds,
     affectedLayoutDefinitionIds,
     affectedGroupOccurrenceIds: [...new Set([...duplicated.affectedGroupOccurrenceIds, ...affectedGroupOccurrenceIds])].sort(),
