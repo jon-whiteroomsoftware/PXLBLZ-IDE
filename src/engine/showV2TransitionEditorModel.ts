@@ -314,8 +314,15 @@ export function planShowV2BoundaryTransitionChanges(
     if (unsupported.length > 0) {
       return { status: 'refused', code: 'unsupported-field', message: `"propertyTransitions.${unsupported[0]}" is not edited through the boundary settings surface.` }
     }
-    const repeatScale = propertyTransitions?.sample?.repeatScale
-    const splitPosition = propertyTransitions?.routing?.splitPosition
+    // v1 stores each descriptor through its boundary normalizer (rounded
+    // durations with a 100 ms floor capped at the Transition, clamped origins,
+    // normalized easing), so the ramps are written from the same result.
+    const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, origin: _origin, ...currentSettings } = current
+    const normalized = propertyTransitions
+      ? normalizeShowBoundaryTransition({ ...currentSettings, id: current.id, afterSceneId: 'boundary', propertyTransitions } as ShowBoundaryTransition).propertyTransitions
+      : undefined
+    const repeatScale = normalized?.sample?.repeatScale
+    const splitPosition = normalized?.routing?.splitPosition
     const boundaryEndMs = (current.wholeOutput?.startMs ?? transitionStartMs(record, current) ?? 0) + current.durationMs
     const incoming = record.composition.layoutOccurrences.find(occurrence => (
       occurrence.startMs <= boundaryEndMs && occurrence.startMs + occurrence.durationMs > boundaryEndMs

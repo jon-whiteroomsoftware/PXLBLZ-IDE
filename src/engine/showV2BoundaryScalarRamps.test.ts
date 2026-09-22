@@ -8,6 +8,7 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import type { ShowRecordV2 } from './showCompositionV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { planShowV2BoundaryTransitionChanges } from './showV2TransitionEditorModel'
+import { cloneValidShowRecordV2 } from './showDocument'
 
 /**
  * #1066 slice 9c2a: the boundary panel's Animate repeat scale and Animate split
@@ -111,6 +112,34 @@ describe('boundary scalar ramp edits on v2 equal v1 then convert (#1066 slice 9c
       propertyTransitions: { sample: { repeatScale: { from: 1 }, other: { from: 1 } } },
     } as unknown as ShowTransitionChanges)
     expect(plan).toMatchObject({ status: 'refused', code: 'unsupported-field' })
+  })
+
+  it.each([
+    { name: 'a zero duration', durationMs: 0 },
+    { name: 'a fractional duration', durationMs: 123.4 },
+  ])('normalizes $name exactly as v1 does, leaving a record storage accepts', ({ durationMs }) => {
+    const v1 = stockV1()
+    const changes = sectionChanges(v1, 'transition-split-position', 'repeat', 'duration')
+    changes.propertyTransitions!.sample!.repeatScale!.durationMs = durationMs
+    const expected = convert(updateShowBoundaryTransition(v1, 'transition-split-position', changes))
+    const before = convert(v1)
+    const plan = planShowV2BoundaryTransitionChanges(before, 'transition-split-position', changes)
+    if (plan.status !== 'ready') throw new Error(JSON.stringify(plan))
+    const result = editShowTransitionV2(before, plan.intent)
+    if (result.status !== 'changed') throw new Error(JSON.stringify(result))
+    expect(result.record.composition.transitions).toEqual(expected.composition.transitions)
+    const ramp = result.record.composition.transitions.find(transition => transition.id === 'transition-split-position')!.propertyRamps[0]
+    expect(Number.isSafeInteger(ramp.durationMs) && ramp.durationMs! >= 1).toBe(true)
+    expect(() => cloneValidShowRecordV2(result.record)).not.toThrow()
+  })
+
+  it('caps a duration past the Transition at the Transition, as v1 does, so rewriting the held ramp is a no-op', () => {
+    const v1 = stockV1()
+    const changes = sectionChanges(v1, 'transition-split-position', 'repeat', 'duration')
+    changes.propertyTransitions!.sample!.repeatScale!.durationMs = 9000
+    const before = convert(v1)
+    expect(convert(updateShowBoundaryTransition(v1, 'transition-split-position', changes)).composition.transitions).toEqual(before.composition.transitions)
+    expect(planShowV2BoundaryTransitionChanges(before, 'transition-split-position', changes)).toEqual({ status: 'no-op' })
   })
 
   it('is a no-op when the section writes the ramp it already holds', () => {
