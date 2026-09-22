@@ -24,6 +24,29 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.15.0 adoption (#1081)
+
+This adoption updates the executable package from 0.14.0. Source release is
+WRSP 0.15.0; see its `docs/reference/process-release-0.15.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.15.0, tag `v0.15.0` |
+| Source | `919a2670198c1574041dac09d7ed2ae59a6ffb2c` |
+| Tarball | `vendor/whiteroom-software-process-0.15.0.tgz` |
+| SHA256 | `d68c1413ac8fe663d9a94d8d120147f32c4726d34e8567154f05c72ddf74152c` |
+
+GPT-6 Sol replaces Sol 5.6 in reviewer routing. The ranked tier is Opus 5.5
+High, Sol 6 High (`gpt-6-sol`/high), Astra Low, then Fable 5.1 Medium, matching
+the WRSP `eng-lead` execution tier, and `gpt-5.6-sol` is no longer accepted.
+Approvals recorded by Sol 5.6 Extra High or Sol 5.6 High keep their provenance
+and still count toward coverage. `gpt-6-sol` and `gpt-6-luna` authorship
+trailers classify as openai. A host that launches Codex reviewers needs a
+Codex CLI that recognizes the GPT-6 models (0.155.1 does; 0.153.4 does not);
+on an older CLI the Sol 6 reviewer reports unavailable and routing moves on.
+The same-family review exception and the operator-authorization procedures in
+the 0.12.0 section are unchanged.
+
 ## WRSP 0.14.0 adoption (#1079)
 
 This adoption updates the executable package from 0.13.0. Source release is
@@ -267,8 +290,8 @@ construction finishes a size and completeness preflight before launching a
 reviewer. Missing, incomplete, or oversized input remains a non-approval; the
 packet is never truncated to fit the transport.
 
-The reviewer tier is Opus 5.5 High, Sol 5.6 Extra High, Astra Low, then
-Fable Medium (WRSP 0.14.0). A single-family candidate tries only the opposite
+The reviewer tier is Opus 5.5 High, Sol 6 High, Astra Low, then
+Fable Medium (WRSP 0.15.0). A single-family candidate tries only the opposite
 family's reviewers in that order: GPT authorship tries Opus then Fable; Claude
 authorship tries Sol then Astra. A valid review with findings stops the route for repair. Unavailable
 or unusable reviewers advance to the next eligible model; exhaustion fails.
