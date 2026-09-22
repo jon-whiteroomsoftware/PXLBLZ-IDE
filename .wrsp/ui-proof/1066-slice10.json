@@ -1,8 +1,10 @@
 {
   "version": 1,
   "issue": "1066",
-  "route": "/PXLBLZ-IDE/studio/shows/1066-slice10-capture-final-21?show-v2-editor",
-  "operation": "Driven by repository Playwright (Chromium) against this worktree's managed runtime (issue 1066, port 5178, shared API) as github:local-agent-23. A default two-Scene Show was seeded through POST /api/shows, converted with convertShowRecordV1ToV2 and stored as version 2 (PUT ...?show-version=2); its Scene boundary transition-scene-1 is participant-scope and the record has no Property tracks. On the v2 editor the run selected TestPattern1D, clicked 'Animate Brightness', typed 42 into 'Brightness animation to exact percentage' and pressed Enter. One version-2 PUT stored a clip-view brightness track on placement-cell-1-scene-1 with activation 0-32000 and keys 0:1, 30000:0.42; after a reload the stored record was unchanged and the inspector read 'Brightness 42-100%' with the animation popover showing 100% at 0 s to 42% at 30 s, captured as 1066-slice10.png; the Source Code panel shows the Show compiled. The same scripted gesture occasionally produces no save on both backings (v2 2 of 12 runs; v1 1 of 4 runs on a v1-stored default Show), so the miss is shared and not v2-specific.",
-  "captures": [".wrsp/ui-proof/1066-slice10.png"],
-  "capturedAtCommit": "24690480d560d57b89b8c7102d489dd32ba37d03"
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice10-capture-final-31?show-v2-editor",
+  "operation": "Re-driven after rebasing onto main a48dbe56 (5d and the #1068 repair changes landed). Driven by repository Playwright (Chromium) against this worktree's managed runtime (issue 1066, port 5178, shared API) as github:local-agent-23. A default two-Scene Show was seeded through POST /api/shows, converted with convertShowRecordV1ToV2 and stored as version 2 (PUT ...?show-version=2); its Scene boundary transition-scene-1 is participant-scope and the record has no Property tracks. On the v2 editor the run selected TestPattern1D, clicked 'Animate Brightness', typed 42 into 'Brightness animation to exact percentage' and pressed Enter. One version-2 PUT stored a clip-view brightness track on placement-cell-1-scene-1 with activation 0-32000 and keys 0:1, 30000:0.42; after a reload the stored record was unchanged and the inspector read 'Brightness 42-100%' with the animation popover showing 100% at 0 s to 42% at 30 s, captured as 1066-slice10.png; the Source Code panel shows the Show compiled. The same scripted gesture occasionally produces no save on both backings (v2 2 of 12 runs; v1 1 of 4 runs on a v1-stored default Show), so the miss is shared and not v2-specific.",
+  "captures": [
+    ".wrsp/ui-proof/1066-slice10.png"
+  ],
+  "capturedAtCommit": "f094cad5f798d49469f725650f7e263d79449271"
 }
