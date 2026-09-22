@@ -5807,7 +5807,7 @@ function ShowTimelineWorkspace({
         })),
       }
     : zoneMapOverride ?? null
-  const movingSplitLayout = show?.routingLayouts.find((layout) => (
+  const movingSplitLayout = (show?.routingLayouts ?? zoneLayoutsOverride ?? []).find((layout) => (
     layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
   ))
   const hasSampleRemap = Boolean(show && (show.scenes.some((scene) => scene.sampleTargets?.repeatScale !== undefined)
@@ -6834,10 +6834,15 @@ function ShowTimelineWorkspace({
         />
         {layoutLaneVisible && (() => {
           const splitLogical = movingSplitLayout?.logical
-          const splitColors = show && splitLogical && (splitLogical.kind === 'split' || splitLogical.kind === 'soft-split')
+          // Both backings name the split's two Zones; v2 reads their colours from
+          // the timeline rows the lane is already built from (#1066 slice 9a).
+          const splitZoneColor = (zoneId: string | undefined) => (show
+            ? show.zones.find((zone) => zone.id === zoneId)?.color
+            : timelineView.rows.find((row) => row.zoneId === zoneId)?.color)
+          const splitColors = splitLogical && (splitLogical.kind === 'split' || splitLogical.kind === 'soft-split')
             ? [
-                show.zones.find((zone) => zone.id === splitLogical.zoneIds[0])?.color ?? '#38bdf8',
-                show.zones.find((zone) => zone.id === splitLogical.zoneIds[1])?.color ?? '#f97316',
+                splitZoneColor(splitLogical.zoneIds[0]) ?? '#38bdf8',
+                splitZoneColor(splitLogical.zoneIds[1]) ?? '#f97316',
               ]
             : null
           // One lane, one markup, one grid placement. v1's time columns are its
@@ -6868,7 +6873,7 @@ function ShowTimelineWorkspace({
                   intervalId: interval?.id ?? null,
                   zoneIds: interval?.zoneIds ?? [],
                   firstOfInterval: Boolean(interval && interval.startMs === section.startMs),
-                  splitPosition: 0.5,
+                  splitPosition: interval?.parameters.splitPosition ?? 0.5,
                 }
               })
           const laneIntervalCount = show ? legacyLayoutIntervals.length : layoutIntervals.length

@@ -3652,3 +3652,22 @@ describe('v2 property animation (#1066 slice 10)', () => {
     expectNoWrite(before, editor.state())
   })
 })
+
+// ── v2 Zone Layouts lane split cell (#1066 slice 9a) ─────────────────────────
+// On v2 the lane reads the split cell off the v2 backing: each moving-split
+// occurrence shows its own split share with a two-colour gradient.
+describe('v2 Zone Layouts lane split cell (#1066 slice 9a)', () => {
+  it('shows each occurrence split share on the moving-split Layout', async () => {
+    const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
+    const record = structuredClone(stockShowV2ById('stock-show-reference-property-animation')!)
+    record.id = 'tracer-lane-split-cell'
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await act(async () => {})
+    const lane = screen.getByRole('group', { name: 'Zone Layouts lane' })
+    const cells = within(lane).getAllByRole('button', { name: 'Edit Moving split X Zone Layout' })
+    expect(cells.map((cell) => cell.textContent)).toEqual(['Moving split X50%', '50%', '50%', '50%', '50%', '50%', 'Moving split X25%', 'Moving split X75%', 'Moving split X50%'])
+    expect(cells.every((cell) => cell.style.background.startsWith('linear-gradient('))).toBe(true)
+    expect(admission.calls).toEqual([])
+  })
+})
