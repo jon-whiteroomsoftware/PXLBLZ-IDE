@@ -695,7 +695,7 @@ export async function admitShowV2PilotClipDelete(request: ShowV2PilotClipDeleteR
   return presentOwnerOutcome(outcome, effects)
 }
 export type ShowV2PilotLayoutOccurrenceIntent = Extract<ShowLayoutEditIntentV2,
-  { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' }>
+  { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' | 'append' }>
 type LayoutOccurrenceEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedMarkerIds' | 'affectedTrackIds' | 'affectedTransitionIds' | 'removedLayoutOccurrenceIds'>
 export type ShowV2PilotLayoutOccurrenceRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotLayoutOccurrenceIntent }
 export type ShowV2PilotLayoutOccurrenceOutcome = PilotOwnerOutcome<ShowLayoutEditResultV2, LayoutOccurrenceEffects>
@@ -712,6 +712,22 @@ function validLayoutOccurrenceIntent(intent: unknown): intent is ShowV2PilotLayo
   if (value.kind === 'remove') return exactIntentFields(value, ['kind', 'occurrenceId'])
   if (value.kind === 'select-layout') return exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId']) && text(value.layoutId)
   if (value.kind === 'make-unique') return exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId', 'name']) && text(value.layoutId) && text(value.name)
+  if (value.kind === 'append') {
+    const withDefinition = exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId', 'durationMs', 'definition'])
+    if (!exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId', 'durationMs']) && !withDefinition) return false
+    if (!text(value.layoutId) || typeof value.durationMs !== 'number' || !Number.isSafeInteger(value.durationMs)) return false
+    if (!withDefinition) return true
+    const definition = value.definition as Record<string, unknown>
+    if (!definition || typeof definition !== 'object' || Array.isArray(definition)) return false
+    if (definition.kind === 'add') {
+      return exactIntentFields(definition, ['kind', 'layoutId', 'name']) && text(definition.layoutId) && text(definition.name)
+    }
+    if (definition.kind === 'duplicate') {
+      return exactIntentFields(definition, ['kind', 'layoutId', 'name', 'sourceLayoutId'])
+        && text(definition.layoutId) && text(definition.name) && text(definition.sourceLayoutId)
+    }
+    return false
+  }
   if (value.kind === 'set-parameters') {
     if (!exactIntentFields(value, ['kind', 'occurrenceId', 'parameters']) || !value.parameters || typeof value.parameters !== 'object' || Array.isArray(value.parameters)) return false
     const parameters = value.parameters as Record<string, unknown>

@@ -207,7 +207,7 @@ export function editShowZoneLayoutDefinitionV2(
  * the Show's Zones, plus - for a Portable contract - the first definition's
  * operator, or Full Surface on the first Zone when there is none.
  */
-function defaultDefinitionBody(record: ShowRecordV2): Pick<ShowRoutingLayout, 'zones' | 'logical'> {
+export function defaultDefinitionBody(record: ShowRecordV2): Pick<ShowRoutingLayout, 'zones' | 'logical'> {
   let offset = 0
   const zones: ShowRoutingLayoutZone[] = record.zones.map(zone => {
     const pixelCount = Math.max(1, Math.round(zone.nominalPixelCount))

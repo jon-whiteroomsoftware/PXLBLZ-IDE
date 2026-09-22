@@ -3819,6 +3819,7 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, next)
                 }}
                 onAppendLayoutInterval={async (sourceLayoutId, durationMs) => {
+                  if (recordVersion === 2) return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'append', durationMs, sourceLayoutId }, newPersonalContentId))
                   if (!legacyShow || !timelineComposition) return false
                   // Copy the layout and place its interval as one Show edit:
                   // a rejected placement persists nothing, and one Undo

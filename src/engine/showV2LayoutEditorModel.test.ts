@@ -1,10 +1,11 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { showV2LayoutEditorFixture } from '../test/showV2LayoutEditorFixture'
 import { buildShowV2LayoutEditorModel, planShowV2LayoutEdit, showV2MakeUniqueLayoutName } from './showV2LayoutEditorModel'
 import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { commandFixtureV2 } from './showCommandsV2/fixtures'
-import { createDefaultShow } from './showModel'
+import { addShowRoutingLayout, createDefaultShow } from './showModel'
+import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { appendShowLayoutInterval, duplicateShowLayoutInterval, projectShowLayoutIntervals } from './showLayoutIntervals'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
@@ -144,3 +145,77 @@ it('makes one reused occurrence unique by cloning only its Layout definition (#1
  expect(result.record.composition.layoutOccurrences.find(occurrence => occurrence.id === 'interval-1')?.layoutId).toBe('both')
  expect(result.record.zones).toEqual(record.zones)
 })
+
+const APPEND_ORACLE_NOW = 1_750_000_000_000
+
+function installationV1(): ShowRecord {
+ return createDefaultShow('show-append-oracle', 'Append oracle', APPEND_ORACLE_NOW)
+}
+
+function convertCells(show: ShowRecord): ShowRecordV2 {
+ const result = convertShowRecordV1ToV2(show, {
+  byCellId: Object.fromEntries(show.cells.map(cell => {
+   if (cell.pattern.kind !== 'stock') throw new Error('non-stock cell')
+   return [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]]
+  })),
+ })
+ if (result.status !== 'converted') throw new Error(JSON.stringify(result.issues))
+ return result.record
+}
+
+function appendOracle(sourceLayoutId: string | undefined): void {
+ const clock = vi.spyOn(Date, 'now').mockReturnValue(APPEND_ORACLE_NOW)
+ try {
+  const base = installationV1()
+  const before = convertCells(base)
+  const withLayout = addShowRoutingLayout(base, undefined, sourceLayoutId)
+  const layoutId = withLayout.routingLayouts[withLayout.routingLayouts.length - 1].id
+  const appended = appendShowLayoutInterval(withLayout, { layoutId, durationMs: 5000 })
+  expect(appended).not.toBe(withLayout)
+  const expected = convertCells(appended)
+  const convertedSourceId = sourceLayoutId === undefined
+   ? undefined
+   : before.zoneLayouts.find(layout => layout.name === 'Default')?.id
+  if (sourceLayoutId !== undefined && convertedSourceId === undefined) throw new Error('converted base lost v1 layout-1')
+  const newLayout = expected.zoneLayouts.find(layout => !before.zoneLayouts.some(entry => entry.id === layout.id))
+  const newOccurrence = expected.composition.layoutOccurrences.find(occurrence => !before.composition.layoutOccurrences.some(entry => entry.id === occurrence.id))
+  if (!newLayout || !newOccurrence) throw new Error('v1 append converted without one new definition and occurrence')
+  const identities = [newOccurrence.id, newLayout.id]
+  let allocated = 0
+  const allocate = (): string => {
+   const id = identities[allocated]
+   allocated += 1
+   if (id === undefined) throw new Error('planner allocated more identities than the oracle provides')
+   return id
+  }
+  const plan = planShowV2LayoutEdit(before, convertedSourceId === undefined
+   ? { kind: 'append', durationMs: 5000 }
+   : { kind: 'append', durationMs: 5000, sourceLayoutId: convertedSourceId }, allocate)
+  if (plan.status !== 'ready') throw new Error(plan.message)
+  expect(allocated).toBe(2)
+  const applied = editShowLayoutIntervalsV2(structuredClone(before), plan.intent)
+  if (applied.status !== 'changed') throw new Error(applied.status === 'refused' ? applied.message : applied.status)
+  expect(applied.affectedLayoutDefinitionIds).toEqual([newLayout.id])
+  expect(applied.affectedLayoutOccurrenceIds).toEqual([newOccurrence.id])
+  expect(expected.updatedAt).toBe(APPEND_ORACLE_NOW + 1)
+  expect(applied.record.updatedAt).toBe(APPEND_ORACLE_NOW)
+  // v1-then-convert alone carries the converter's inert provenance for the
+  // inserted scene, which no v2 command mints (#1066 slice 8a precedent
+  // compares subsets for the same reason). The only allowed differences are
+  // that provenance and the wall-clock stamp pinned above.
+  const wanted = structuredClone(expected)
+  const wantedOccurrence = wanted.composition.layoutOccurrences.find(occurrence => occurrence.id === newOccurrence.id)!
+  const previousLast = before.composition.layoutOccurrences.reduce((latest, occurrence) => occurrence.startMs > latest.startMs ? occurrence : latest)
+  expect(wantedOccurrence.incomingSwitch).toMatchObject({ origin: 'converted-routing-cut', fromOccurrenceId: previousLast.id })
+  delete wantedOccurrence.incomingSwitch
+  const convertedMarkers = wanted.composition.markers.filter(marker => !before.composition.markers.some(entry => entry.id === marker.id))
+  expect(convertedMarkers).toHaveLength(1)
+  expect(convertedMarkers[0]).toMatchObject({ origin: 'converted-scene-label', timeMs: newOccurrence.startMs })
+  wanted.composition.markers = wanted.composition.markers.filter(marker => before.composition.markers.some(entry => entry.id === marker.id))
+  expect(applied.record).toEqual({ ...wanted, updatedAt: applied.record.updatedAt })
+ } finally {
+  clock.mockRestore()
+ }
+}
+it('appends a copied Zone Layout interval exactly as v1 then converts (#1066 slice 8b-1)', () => appendOracle('layout-1'))
+it('appends a default Zone Layout interval exactly as v1 then converts (#1066 slice 8b-1)', () => appendOracle(undefined))

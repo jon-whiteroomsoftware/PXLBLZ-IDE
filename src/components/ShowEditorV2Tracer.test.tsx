@@ -4992,3 +4992,58 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
     expect(admission.calls).toEqual([])
   })
 })
+
+describe('v2 Layout occurrence Append (#1066 slice 8b-1)', () => {
+  function layoutOccurrenceDoors() {
+    return admission.calls.filter((call) => call.door === 'admitShowV2PilotLayoutOccurrenceEdit')
+  }
+
+  async function openLayoutActionsAt(showId: string, timeMs: number) {
+    act(() => useShowTransportStore.getState().setPosition(showId, timeMs))
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Show' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
+    await act(async () => {})
+    return screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
+  }
+
+  it('appends a copied Zone Layout interval through the layout-occurrence door', async () => {
+    const base = commandFixtureV2()
+    base.id = 'slice8b1-append'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const dialog = await openLayoutActionsAt(base.id, 5_001)
+    const before = editor.state()
+    const showEndMs = before.record.composition.showEndMs
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Append' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutOccurrenceEdit'])
+    expect(layoutOccurrenceDoors()[0].request.intent).toEqual({
+      kind: 'append',
+      occurrenceId: expect.any(String),
+      durationMs: 5_000,
+      layoutId: expect.any(String),
+      definition: {
+        kind: 'duplicate',
+        layoutId: expect.any(String),
+        name: 'Moving split X',
+        sourceLayoutId: 'both',
+      },
+    })
+    const intent = layoutOccurrenceDoors()[0].request.intent as { layoutId: string; occurrenceId: string; definition: { layoutId: string } }
+    expect(intent.layoutId).toBe(intent.definition.layoutId)
+    const both = before.record.zoneLayouts.find((layout) => layout.id === 'both')!
+    const copy = after.record.zoneLayouts.find((layout) => layout.id === intent.layoutId)!
+    expect(copy.name).toBe('Moving split X')
+    expect({ ...copy, id: 'layout', name: 'Layout' }).toEqual({ ...both, id: 'layout', name: 'Layout' })
+    expect(after.record.composition.layoutOccurrences).toHaveLength(3)
+    const created = after.record.composition.layoutOccurrences[after.record.composition.layoutOccurrences.length - 1]!
+    expect(created.id).toBe(intent.occurrenceId)
+    expect(created).toMatchObject({ layoutId: copy.id, startMs: showEndMs, durationMs: 5_000 })
+    expect(after.record.composition.showEndMs).toBe(showEndMs + 5_000)
+    expectOneEdit(before, after)
+    expect(screen.queryByRole('dialog', { name: 'Zone Layout at playhead' })).toBeNull()
+  })
+})

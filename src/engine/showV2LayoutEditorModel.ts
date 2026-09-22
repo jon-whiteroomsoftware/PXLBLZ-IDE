@@ -1,9 +1,11 @@
 import type { ShowLayoutTransferV2, ShowRecordV2 } from './showCompositionV2'
 import { showLayoutDuplicateSourceIdsV2, type ShowLayoutEditIntentV2 } from './showLayoutIntervalsV2'
 import { ownedShowIdsV2 } from './showIdentityV2'
+import { showRoutingLayoutKindLabel, uniqueRoutingLayoutName } from './showModel'
+import { defaultDefinitionBody } from './showZoneLayoutDefinitionsV2'
 
 export type ShowV2LayoutEditorIntent = Extract<ShowLayoutEditIntentV2,
-  { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' }>
+  { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' | 'append' }>
 
 /**
  * One explicit lane request. Identity is never allocated inside a pure owner,
@@ -14,6 +16,7 @@ export type ShowV2LayoutEditorRequest =
   | Extract<ShowV2LayoutEditorIntent, { kind: 'select-layout' | 'move' | 'remove' | 'set-parameters' }>
   | { kind: 'make-unique'; occurrenceId: string; name: string }
   | { kind: 'duplicate'; occurrenceId: string; content: 'copy' | 'empty' }
+  | { kind: 'append'; durationMs: number; sourceLayoutId?: string }
   | {
     kind: 'set-transfer'
     occurrenceId: string
@@ -79,6 +82,32 @@ export function planShowV2LayoutEdit(
   request: ShowV2LayoutEditorRequest,
   allocate: () => string,
 ): Plan {
+  if (request.kind === 'append') {
+    const occurrenceId = allocate()
+    const layoutId = allocate()
+    const conflict = fresh(record, [occurrenceId, layoutId], 'Layout occurrence')
+    if (conflict) return conflict
+    const source = request.sourceLayoutId === undefined
+      ? undefined
+      : record.zoneLayouts.find(layout => layout.id === request.sourceLayoutId)
+    if (request.sourceLayoutId !== undefined && !source) {
+      return { status: 'refused', message: 'Select an existing Zone Layout to copy.' }
+    }
+    const logical = source ? source.logical : defaultDefinitionBody(record).logical
+    const name = uniqueRoutingLayoutName(showRoutingLayoutKindLabel({ logical }), record.zoneLayouts)
+    return {
+      status: 'ready',
+      intent: {
+        kind: 'append',
+        occurrenceId,
+        durationMs: request.durationMs,
+        layoutId,
+        definition: source
+          ? { kind: 'duplicate', layoutId, name, sourceLayoutId: source.id }
+          : { kind: 'add', layoutId, name },
+      },
+    }
+  }
   if (!record.composition.layoutOccurrences.some(occurrence => occurrence.id === request.occurrenceId)) {
     return { status: 'refused', message: 'Select an existing Layout occurrence.' }
   }

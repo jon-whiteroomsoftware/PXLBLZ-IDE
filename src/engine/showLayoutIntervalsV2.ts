@@ -2,6 +2,11 @@ import { promoteConvertedBoundariesToWholeOutputV2 } from './showBoundaryScopeV2
 import { groupOccurrenceDuration, materializeShowGroupsV2 } from './showGroupsV2'
 import { ownedShowIdsV2 } from './showIdentityV2'
 import {
+  editShowZoneLayoutDefinitionV2,
+  type ShowZoneLayoutDefinitionIntentV2,
+  type ShowZoneLayoutDefinitionRefusalV2,
+} from './showZoneLayoutDefinitionsV2'
+import {
   validateShowRecordV2,
   type ShowClipV2,
   type ShowLayoutOccurrenceV2,
@@ -22,7 +27,7 @@ export interface ShowLayoutDuplicateContentPlanV2 {
 
 export type ShowLayoutEditIntentV2 =
   | { kind: 'insert'; occurrenceId: string; atMs: number; layoutId: string }
-  | { kind: 'append'; occurrenceId: string; durationMs: number; layoutId: string }
+  | { kind: 'append'; occurrenceId: string; durationMs: number; layoutId: string; definition?: Extract<ShowZoneLayoutDefinitionIntentV2, { kind: 'add' | 'duplicate' }> }
   | { kind: 'set-show-end'; showEndMs: number }
   | { kind: 'move'; occurrenceId: string; startMs: number }
   | { kind: 'select-layout'; occurrenceId: string; layoutId: string }
@@ -149,6 +154,22 @@ export function validateShowLayoutAvailabilityV2(record: ShowRecordV2): ShowLayo
   return [...clipIssues, ...deduplicateAvailabilityIssues(groupIssues)]
 }
 
+/** Map a definition-owner refusal onto the nearest Layout occurrence code. Add/duplicate can only fail on identity, naming or a missing source. */
+function mapDefinitionRefusal(code: ShowZoneLayoutDefinitionRefusalV2): ShowLayoutEditRefusalV2 {
+  switch (code) {
+    case 'invalid-record':
+      return 'invalid-record'
+    case 'missing-target':
+      return 'missing-layout'
+    case 'zone-unavailable':
+      return 'zone-unavailable'
+    case 'invalid-result':
+      return 'invalid-result'
+    default:
+      return 'invalid-intent'
+  }
+}
+
 /** Additive pure v2 owner. Store adoption, history and persistence remain caller-owned. */
 export function editShowLayoutIntervalsV2(
   record: ShowRecordV2,
@@ -176,7 +197,7 @@ export function editShowLayoutIntervalsV2(
       `${unavailablePreimage.entityKind} "${unavailablePreimage.entityId}" uses an unavailable Zone in Layout occurrence "${unavailablePreimage.layoutOccurrenceId}".`,
     )
   }
-  const next = structuredClone(record)
+  let next = structuredClone(record)
   let affectedLayoutOccurrenceIds: string[] = []
   let removedLayoutOccurrenceIds: string[] = []
   const duplicated: Pick<
@@ -222,12 +243,23 @@ export function editShowLayoutIntervalsV2(
     })
     affectedLayoutOccurrenceIds = [owner.id, intent.occurrenceId]
   } else if (intent.kind === 'append') {
-    if (!record.zoneLayouts.some(layout => layout.id === intent.layoutId)) {
+    let base = record
+    if (intent.definition) {
+      if (intent.definition.layoutId !== intent.layoutId) {
+        return refuse('invalid-intent', 'An appended Zone Layout definition must carry the appended occurrence Layout identity.')
+      }
+      const defined = editShowZoneLayoutDefinitionV2(record, intent.definition)
+      if (defined.status === 'refused') return refuse(mapDefinitionRefusal(defined.code), defined.message)
+      if (defined.status === 'unchanged') return refuse('invalid-intent', 'The appended Zone Layout definition was not applied.')
+      base = defined.record
+      next = structuredClone(base)
+    }
+    if (!base.zoneLayouts.some(layout => layout.id === intent.layoutId)) {
       return refuse('missing-layout', `Zone Layout "${intent.layoutId}" does not exist.`)
     }
-    const newEndMs = record.composition.showEndMs + intent.durationMs
+    const newEndMs = base.composition.showEndMs + intent.durationMs
     if (!intent.occurrenceId.trim()
-      || record.composition.layoutOccurrences.some(occurrence => occurrence.id === intent.occurrenceId)
+      || base.composition.layoutOccurrences.some(occurrence => occurrence.id === intent.occurrenceId)
       || !Number.isSafeInteger(intent.durationMs)
       || intent.durationMs <= 0
       || !Number.isSafeInteger(newEndMs)) {
@@ -236,7 +268,7 @@ export function editShowLayoutIntervalsV2(
     next.composition.layoutOccurrences.push({
       id: intent.occurrenceId,
       layoutId: intent.layoutId,
-      startMs: record.composition.showEndMs,
+      startMs: base.composition.showEndMs,
       durationMs: intent.durationMs,
       parameters: {},
     })
@@ -405,7 +437,9 @@ export function editShowLayoutIntervalsV2(
   }
   const resultIssue = validateShowRecordV2(promotion.record)[0]
   if (resultIssue) return refuse('invalid-result', `${resultIssue.path}: ${resultIssue.message}`)
-  const affectedLayoutDefinitionIds = intent.kind === 'make-unique' ? [intent.layoutId] : []
+  const affectedLayoutDefinitionIds = intent.kind === 'make-unique' || (intent.kind === 'append' && intent.definition)
+    ? [intent.layoutId]
+    : []
   if (intent.kind === 'remove') removedLayoutOccurrenceIds = [intent.occurrenceId]
   return {
     status: 'changed',

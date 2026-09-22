@@ -394,6 +394,30 @@ describe('first-class Layout occurrence edits', () => {
     }
   })
 
+  it('refuses an appended Zone Layout definition the definition owner refuses, writing nothing', () => {
+    const record = layoutRecord()
+    const before = structuredClone(record)
+    const mismatched = editShowLayoutIntervalsV2(record, {
+      kind: 'append', occurrenceId: 'second', durationMs: 500, layoutId: 'fresh-layout',
+      definition: { kind: 'add', layoutId: 'other-layout', name: 'Fresh' },
+    })
+    expect(mismatched).toMatchObject({ status: 'refused', code: 'invalid-intent' })
+    expect(mismatched.record).toBe(record)
+    const collidingId = editShowLayoutIntervalsV2(record, {
+      kind: 'append', occurrenceId: 'second', durationMs: 500, layoutId: 'both',
+      definition: { kind: 'add', layoutId: 'both', name: 'Fresh' },
+    })
+    expect(collidingId).toMatchObject({ status: 'refused', code: 'invalid-intent' })
+    expect(collidingId.record).toBe(record)
+    const collidingName = editShowLayoutIntervalsV2(record, {
+      kind: 'append', occurrenceId: 'second', durationMs: 500, layoutId: 'fresh-layout',
+      definition: { kind: 'add', layoutId: 'fresh-layout', name: 'Both' },
+    })
+    expect(collidingName).toMatchObject({ status: 'refused', code: 'invalid-intent' })
+    expect(collidingName.record).toBe(record)
+    expect(record).toEqual(before)
+  })
+
   it('refuses Show End shortening across content, track activation, or a timed transfer', () => {
     const record = layoutRecord()
     expect(editShowLayoutIntervalsV2(record, {
