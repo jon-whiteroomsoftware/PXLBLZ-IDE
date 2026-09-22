@@ -4187,12 +4187,16 @@ export function ShowEditor({
                   if (durationMs === 0) {
                     const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
                     if (plan.status === 'refused') return
-                    void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
-                    setLayerTransitionTarget(null)
+                    // Close only once the door applied the edit, as v1 keeps
+                    // its popover open when the owner changed nothing (#1066).
+                    void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then((outcome) => {
+                      if (outcome.status === 'applied') setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
+                    }).catch(() => {})
                     return
                   }
-                  void commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } })
-                  setLayerTransitionTarget(null)
+                  void commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } }).then((applied) => {
+                    if (applied) setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
+                  }).catch(() => {})
                   return
                 }
                 // Layer Transition resize is not connected for the v2 backing
@@ -4228,8 +4232,9 @@ export function ShowEditor({
                   const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
                   if (plan.status === 'refused') return
                   const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
-                  void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
-                  setLayerTransitionTarget(null)
+                  void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then((outcome) => {
+                    if (outcome.status === 'applied') setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
+                  }).catch(() => {})
                   return
                 }
                 // Reset to Cut is unconnected for the v2 backing, exactly as

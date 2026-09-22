@@ -1241,6 +1241,33 @@ describe('v2 Layer Transition popover (#1065)', () => {
     expect(after.record.composition.transitions.find((transition) => transition.id === 'transition-horizon-mandala')?.durationMs).toBe(500)
   })
 
+  it('keeps the popover open when the door refuses a retime, as v1 does', async () => {
+    const record = convertedLayerTransitions('tracer-layer-resize-refused')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit wipe Transition between EventHorizon and SignalMandala',
+    }))
+    await act(async () => {})
+    const popover = screen.getByRole('dialog', { name: 'Layer Transition Details' })
+    const duration = within(popover).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' })
+    // SignalMandala ends under a second before Show End, so a 3 s wipe would
+    // push it past Show End and the owner refuses.
+    fireEvent.change(duration, { target: { value: '3' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+
+    // The door is reached and refuses; nothing is adopted or saved.
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    const after = editor.state()
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(screen.getByRole('dialog', { name: 'Layer Transition Details' })).toBeInTheDocument()
+  })
+
   it('resets a converted Layer Transition to Cut through the existing popover', async () => {
     const record = convertedLayerTransitions('tracer-layer-reset')
     const editor = openV2EditorForRecord(record)
