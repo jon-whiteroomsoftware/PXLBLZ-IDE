@@ -218,6 +218,12 @@ describe('Show authoring mutation qualification (#597)', () => {
     ]))
   })
 
+  it('ignores the tracked agent-skills symlink in the sandbox copy', () => {
+    expect(buildStrykerConfig(process.cwd()).ignorePatterns).toEqual(
+      expect.arrayContaining(['.claude', '.agents']),
+    )
+  })
+
   it('requires concrete, unique survivor classifications', () => {
     expect(() => parseMutationClassificationsJson(JSON.stringify([
       {

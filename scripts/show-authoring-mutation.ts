@@ -357,6 +357,7 @@ export function buildStrykerConfig(repoRoot: string) {
   return {
     testRunner: 'vitest',
     plugins: ['@stryker-mutator/vitest-runner'],
+    ignorePatterns: ['.claude', '.agents'],
     mutate: buildShowAuthoringMutationScope(repoRoot).map(({ mutationRange }) => mutationRange),
     testFiles: [
       'src/engine/showAuthoringMatrix.test.ts',
