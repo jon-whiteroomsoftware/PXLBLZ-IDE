@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/b11cbe89-bbb8-44b1-b343-277968303f31",
+  "operation": "Ran the e2e/shows.auth.spec.ts L2332 setup on the v2 backing at the code tip: a converted Installation Show, Add Zone, Default Layout set to split-x. The Zone Layouts lane now shows one 'Edit split position at 32.0: CometLoom' button at the boundary; clicking it selects that boundary Transition and opens its Transition properties.",
+  "captures": [".wrsp/ui-proof/1066-split-lane-buttons.png", ".wrsp/ui-proof/1066-split-lane-selected.png"],
+  "capturedAtCommit": "f81baed6903f904ef7e1e8fdfd206f08f0cd41ad"
+}
