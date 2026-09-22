@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-1790102277336",
+  "operation": "Ran the e2e/shows.auth.spec.ts L2583 body on the v2 backing at the code tip: marquee-selected the two Clips, Make Group, then Duplicate Group occurrence; the Group inspector reads '2 linked occurrences' with the copy at 5 s. Then Make Group unique on the copy: the inspector reads 'one occurrence' and the stored v2 record holds 2 Group definitions, one per occurrence.",
+  "captures": [".wrsp/ui-proof/1066-group-occurrence-duplicate.png", ".wrsp/ui-proof/1066-group-occurrence-unique.png"],
+  "capturedAtCommit": "14e45124081d090d262bae3c6646746bd3a23ed6"
+}
