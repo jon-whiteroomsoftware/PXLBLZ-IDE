@@ -7,7 +7,7 @@ import { buildShowEpeExport } from './showEpeExport'
 import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { deleteShowClipInShow } from './showClipDeletion'
-import { createDefaultShow, projectShowTimeline, showLoopDurationMs, showRecordToCompileRecipe } from './showModel'
+import { createDefaultShow, projectShowTimeline, removeShowBoundaryTransition, showLoopDurationMs, showRecordToCompileRecipe } from './showModel'
 import { projectFlatShowToCompositionV1 } from './showCompositionModel'
 import { resizeShowConnectedClipInShowAtGlobalTime } from './showLayerTransitionAuthoring'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
@@ -955,5 +955,71 @@ describe('converted Scene-boundary repair after whole-output promotion (#1068)',
     expect(shape(plain.record)).toEqual(expected)
     expect(promoted.record.composition.propertyTracks.map(t => [t.activeStartMs, t.activeDurationMs, t.keyframes.map(k => k.timeMs)])).toEqual(expectedTracks)
     expect(prepareStatus(promoted.record)).toBe('ready')
+  })
+})
+
+describe('the repair retimes a Show-scoped repeat-scale track (#1068)', () => {
+  function repeatScaleSource() {
+    const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
+    source.scenes[0].sampleTargets = { repeatScale: 1 }
+    source.scenes[1].sampleTargets = { repeatScale: 2 }
+    return source
+  }
+
+  function convertStock(source: ReturnType<typeof repeatScaleSource>): ShowRecordV2 {
+    const converted = convertShowRecordV1ToV2(source, { byCellId: Object.fromEntries(source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted))
+    return converted.record
+  }
+
+  function repeatTrack(record: ShowRecordV2) {
+    const track = record.composition.propertyTracks.find(t => t.target.kind === 'show-repeat-scale')!
+    return [track.activeStartMs, track.activeDurationMs, track.keyframes.map(k => [k.timeMs, k.value])]
+  }
+
+  function stockPrepare(record: ShowRecordV2) {
+    return prepareShowV2ForCompile(reopen(record), { byCellId: {}, byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])), stageDimension: 2 }, { libraries: LIBRARIES }).status
+  }
+
+  it('Reset to Cut matches v1 Remove then convert', () => {
+    const record = convertStock(repeatScaleSource())
+    expect(repeatTrack(record)).toEqual([0, 62000, [[0, 1], [32000, 2]]])
+    expect(record.composition.transitions[0].wholeOutput).toEqual({ startMs: 30000, fromClipIds: [LEFT], toClipIds: [RIGHT] })
+    const reset = editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: BOUNDARY })
+    expect(reset.status).toBe('changed')
+    if (reset.status !== 'changed') throw new Error(JSON.stringify(reset))
+    const source = repeatScaleSource()
+    const v1 = convertStock(removeShowBoundaryTransition(source, BOUNDARY))
+    expect(repeatTrack(reset.record)).toEqual([0, 60000, [[0, 1], [30000, 2]]])
+    expect(repeatTrack(reset.record)).toEqual(repeatTrack(v1))
+    expect(reset.record.composition.clips.map(c => [c.id, c.startMs, c.durationMs])).toEqual(v1.composition.clips.map(c => [c.id, c.startMs, c.durationMs]))
+    expect(reset.record.composition.showEndMs).toBe(v1.composition.showEndMs)
+    expect(stockPrepare(reset.record)).toBe('ready')
+  })
+
+  type BoundaryEditResult = ReturnType<typeof editShowTransitionV2> | ReturnType<typeof editShowClipTemporalV2>
+  const rows: Array<[string, (record: ShowRecordV2) => BoundaryEditResult]> = [
+    ['a leading edge resize', r => editShowTransitionV2(r, { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 })],
+    ['a trailing edge resize', r => editShowTransitionV2(r, { kind: 'resize-trailing', clipId: LEFT, endMs: 26000 })],
+    ['a leading Trim', r => editShowClipTemporalV2(r, { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 })],
+  ]
+  it.each(rows)('accepts %s and retimes the repeat-scale track', (_name, edit) => {
+    const result = edit(convertStock(repeatScaleSource()))
+    expect(result.status, JSON.stringify(result)).toBe('changed')
+    if (result.status !== 'changed') throw new Error(JSON.stringify(result))
+    expect(result.record.composition.showEndMs).toBe(60000)
+    expect(repeatTrack(result.record)).toEqual([0, 60000, [[0, 1], [30000, 2]]])
+    expect(stockPrepare(result.record)).toBe('ready')
+  })
+
+  it('refuses when a repeat-scale key sits inside the reclaimed window', () => {
+    const record = convertStock(repeatScaleSource())
+    record.composition.propertyTracks.find(t => t.target.kind === 'show-repeat-scale')!.keyframes[1].timeMs = 31000
+    expect(validateShowRecordV2(record)).toEqual([])
+    const result = editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: BOUNDARY })
+    expect(result.status).toBe('refused')
+    if (result.status !== 'refused') return
+    expect(result.message).toContain('holds a key inside the reclaimed boundary window')
   })
 })

@@ -451,6 +451,26 @@ export function commitConvertedBoundaryRepairsV2(
     next.composition.showEndMs -= durationMs
     reclaimedMs += durationMs
     removedTransitionIds.push(repair.transitionId)
+    // Show-scoped repeat-scale tracks are global Show time that no Clip owns,
+    // so the Clip shift above never moves them. v1 holds the same value per
+    // Scene, and the reclaim shortens the loop, so keys after the window move
+    // earlier and an activation reaching past the window shortens by the same
+    // duration. A key inside the reclaimed window has no v1 position; refuse.
+    for (const track of record.composition.propertyTracks) {
+      if (track.target?.kind !== 'show-repeat-scale') continue
+      const live = next.composition.propertyTracks.find(candidate => candidate.id === track.id)
+      if (!live) continue
+      if (track.keyframes.some(key => key.timeMs > repair.windowStartMs && key.timeMs < repair.windowEndMs)) {
+        return { status: 'refused', message: `Property track "${track.id}" holds a key inside the reclaimed boundary window; move it out of the window first.` }
+      }
+      const activeEndMs = track.activeStartMs + track.activeDurationMs
+      if (track.activeStartMs >= repair.windowEndMs) live.activeStartMs -= durationMs
+      else if (activeEndMs >= repair.windowEndMs) live.activeDurationMs -= durationMs
+      track.keyframes.forEach((key, index) => {
+        if (key.timeMs >= repair.windowEndMs) live.keyframes[index].timeMs -= durationMs
+      })
+      shiftedTrackIds.add(track.id)
+    }
     // Converted Scene labels materialize v1 Scene starts, which move with the
     // reclaim; authored guides are absolute Show times v1 leaves on the same
     // edit, so they stay. Membership reads the pre-edit record so stacked

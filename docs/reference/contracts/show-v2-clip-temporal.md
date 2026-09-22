@@ -171,7 +171,11 @@ duration, shortens the Layout occurrence that owns the reclaimed window, moves
 every later occurrence earlier by the same duration to keep coverage exact,
 shifts converted Scene labels and Group occurrences at or after the window end
 earlier by the same duration, and carries Layout-owned tracks of shifted
-occurrences along. A window that is not inside one occurrence, or an owning
+occurrences along. A Show-scoped `show-repeat-scale` track, which no Clip owns,
+is retimed with the loop: its keys after the window move earlier by the boundary
+duration, an activation reaching past the window shortens by the same duration,
+and a key inside the reclaimed window refuses the edit. A window that is not
+inside one occurrence, or an owning
 occurrence that cannot cover the reclaim, refuses the whole edit atomically.
 Extending into the boundary refuses `invalid-topology` on all four entry points
 (temporal Trim/Extend, `resize-leading`, `resize-trailing`); reset the Transition
