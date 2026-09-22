@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-1790108177705",
+  "operation": "On the v2 backing at the code tip, the e2e/shows.auth.spec.ts #587 setup (seeded Show, marquee over both Clips, Make Group). In the Group properties card: X offset 0.25 wrote translationX 0.25 (first capture, both Group Clips badge .25,0); Start seconds 1 moved the occurrence to 1000 ms; Delete Group removed the occurrence and kept its definition dormant (stored v2 readback: 0 occurrences, 1 definition; second capture).",
+  "captures": [".wrsp/ui-proof/1075-g1-translate.png", ".wrsp/ui-proof/1075-g1-delete.png"],
+  "capturedAtCommit": "cd59bb412f830ed264022ff342fd182906a9b03d"
+}
