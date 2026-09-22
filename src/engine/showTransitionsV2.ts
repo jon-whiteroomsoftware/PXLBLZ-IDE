@@ -461,6 +461,19 @@ export function commitConvertedBoundaryRepairsV2(
     const movedTrackIds = applyShowTransitionClipShiftV2(record, next, [...shiftIds], -durationMs, [repair.transitionId], repair.windowEndMs)
     for (const id of shiftIds) shiftedClipIds.add(id)
     for (const id of movedTrackIds) shiftedTrackIds.add(id)
+    // A Clip-owned track that did not move but reaches the boundary window -
+    // the outgoing Scene's, whose converted activation ends at Scene end plus
+    // the outgoing Transition - retimes its end with the window, as v1 does.
+    const movedTrackSet = new Set(movedTrackIds)
+    for (const track of next.composition.propertyTracks) {
+      if (movedTrackSet.has(track.id)) continue
+      if (!('clipId' in track.target) && !('instanceId' in track.target)) continue
+      const activation = reclaimActivationV2(track.activeStartMs, track.activeDurationMs, repair.windowEndMs, durationMs)
+      if (!activation || (activation.activeStartMs === track.activeStartMs && activation.activeDurationMs === track.activeDurationMs)) continue
+      if (activation.activeStartMs !== track.activeStartMs) continue
+      track.activeDurationMs = activation.activeDurationMs
+      shiftedTrackIds.add(track.id)
+    }
     next.composition.showEndMs -= durationMs
     reclaimedMs += durationMs
     if (repair.retainDurationMs === undefined) removedTransitionIds.push(repair.transitionId)

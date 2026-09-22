@@ -937,11 +937,11 @@ describe('converted Scene-boundary repair after whole-output promotion (#1068)',
     occurrences: [[0, 60000]],
   }
   const rows: Array<[string, (record: ShowRecordV2) => BoundaryEditResult, unknown, unknown]> = [
-    ['a leading edge resize', r => editShowTransitionV2(r, { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 }), CUT_LEADING, [[0, 32000, [0, 30000]]]],
+    ['a leading edge resize', r => editShowTransitionV2(r, { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 }), CUT_LEADING, [[0, 30000, [0, 30000]]]],
     ['a trailing edge resize', r => editShowTransitionV2(r, { kind: 'resize-trailing', clipId: LEFT, endMs: 26000 }), CUT_TRAILING, [[0, 26000, [0, 26000]]]],
-    ['Reset to Cut', r => editShowTransitionV2(r, { kind: 'reset-to-cut', transitionId: BOUNDARY }), { clips: [[LEFT, 0, 30000], [RIGHT, 30000, 30000]], showEndMs: 60000, transitionIds: [], occurrences: [[0, 60000]] }, [[0, 32000, [0, 30000]]]],
+    ['Reset to Cut', r => editShowTransitionV2(r, { kind: 'reset-to-cut', transitionId: BOUNDARY }), { clips: [[LEFT, 0, 30000], [RIGHT, 30000, 30000]], showEndMs: 60000, transitionIds: [], occurrences: [[0, 60000]] }, [[0, 30000, [0, 30000]]]],
     ['a boundary Clip delete', r => editShowTransitionV2(r, { kind: 'delete-clip', clipId: RIGHT }), { clips: [[LEFT, 0, 30000]], showEndMs: 62000, transitionIds: [], occurrences: [[0, 62000]] }, [[0, 32000, [0, 30000]]]],
-    ['a leading Trim', r => editShowClipTemporalV2(r, { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 }), CUT_LEADING, [[0, 32000, [0, 30000]]]],
+    ['a leading Trim', r => editShowClipTemporalV2(r, { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 }), CUT_LEADING, [[0, 30000, [0, 30000]]]],
     ['a trailing Trim', r => editShowClipTemporalV2(r, { kind: 'trim', clipId: LEFT, startMs: 0, endMs: 26000 }), CUT_TRAILING, [[0, 26000, [0, 26000]]]],
   ]
   it.each(rows)('repairs %s on the promoted Show exactly as on the participant-scope Show', (_name, edit, expected, expectedTracks) => {
@@ -1183,5 +1183,81 @@ describe('changing a converted boundary duration retimes the loop as v1 does (#1
     if (long.status !== 'changed') throw new Error(JSON.stringify(long))
     expect(summary(long.record).clips[1][1]).toBe(35000)
     expect(summary(long.record).showEndMs).toBe(65000)
+  })
+})
+
+describe('the outgoing Scene track retimes its end through the repair (#1068)', () => {
+  function outgoingTrackSource() {
+    const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
+    source.composition = projectFlatShowToCompositionV1(source, {
+      byCellId: Object.fromEntries(source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
+      stageDimension: 1,
+    })
+    const scenes = source.composition.scenes
+    scenes[0].propertyTracks = [{
+      id: 'scene-1-brightness',
+      target: { kind: 'placement-view', placementId: scenes[0].zones[0].main[0].id, property: 'brightness' },
+      keyframes: [
+        { id: 'scene-1-k0', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+        { id: 'scene-1-k1', timeMs: 30000, value: 0.4, easing: { curve: 'linear' } },
+      ],
+    }]
+    return source
+  }
+
+  function convertStock(source: ReturnType<typeof outgoingTrackSource>): ShowRecordV2 {
+    const converted = convertShowRecordV1ToV2(source, { byCellId: Object.fromEntries(source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted))
+    return converted.record
+  }
+
+  function stockPrepare(record: ShowRecordV2) {
+    return prepareShowV2ForCompile(reopen(record), { byCellId: {}, byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])), stageDimension: 2 }, { libraries: LIBRARIES }).status
+  }
+
+  function trackSummary(record: ShowRecordV2) {
+    return record.composition.propertyTracks.map(t => [t.activeStartMs, t.activeDurationMs, t.keyframes.map(k => k.timeMs)])
+  }
+
+  const rows: Array<[string, (record: ShowRecordV2) => ReturnType<typeof editShowTransitionV2>, (source: ReturnType<typeof outgoingTrackSource>) => ReturnType<typeof updateShowBoundaryTransition>, Array<[number, number, number[]]>]> = [
+    ['resize to 1000', r => editShowTransitionV2(r, { kind: 'resize-transition', transitionId: BOUNDARY, durationMs: 1000 }), s => updateShowBoundaryTransition(s, BOUNDARY, { durationMs: 1000 }), [[0, 31000, [0, 30000]]]],
+    ['resize to 5000', r => editShowTransitionV2(r, { kind: 'resize-transition', transitionId: BOUNDARY, durationMs: 5000 }), s => updateShowBoundaryTransition(s, BOUNDARY, { durationMs: 5000 }), [[0, 35000, [0, 30000]]]],
+    ['Reset to Cut', r => editShowTransitionV2(r, { kind: 'reset-to-cut', transitionId: BOUNDARY }), s => removeShowBoundaryTransition(s, BOUNDARY), [[0, 30000, [0, 30000]]]],
+  ]
+  it.each(rows)('%s retimes the outgoing track as v1 then convert', (_name, edit, v1Edit, expected) => {
+    const record = convertStock(outgoingTrackSource())
+    expect(trackSummary(record)).toEqual([[0, 32000, [0, 30000]]])
+    const edited = edit(record)
+    expect(edited.status).toBe('changed')
+    if (edited.status !== 'changed') throw new Error(JSON.stringify(edited))
+    const v1 = convertStock(v1Edit(outgoingTrackSource()))
+    expect(trackSummary(edited.record)).toEqual(trackSummary(v1))
+    expect(trackSummary(edited.record)).toEqual(expected)
+    expect(stockPrepare(edited.record)).toBe('ready')
+  })
+
+  it('prepares after animating the outgoing Clip and resizing the promoted crossfade', () => {
+    const record = convertedDefaultShow()
+    const promoted = editShowPropertyV2(record, { kind: 'show' }, {
+      kind: 'add-track',
+      track: {
+        id: 'promotion-outgoing',
+        target: { kind: 'clip-view', clipId: LEFT, property: 'brightness' },
+        activeStartMs: 0,
+        activeDurationMs: 32000,
+        keyframes: [
+          { id: 'po-k0', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+          { id: 'po-k1', timeMs: 30000, value: 0.4, easing: { curve: 'linear' } },
+        ],
+      },
+    })
+    expect(promoted.status).toBe('changed')
+    if (promoted.status !== 'changed') throw new Error(JSON.stringify(promoted))
+    const resized = editShowTransitionV2(promoted.record, { kind: 'resize-transition', transitionId: BOUNDARY, durationMs: 1000 })
+    expect(resized.status).toBe('changed')
+    if (resized.status !== 'changed') throw new Error(JSON.stringify(resized))
+    expect(trackSummary(resized.record)).toEqual([[0, 31000, [0, 30000]]])
+    expect(stockPrepare(resized.record)).toBe('ready')
   })
 })
