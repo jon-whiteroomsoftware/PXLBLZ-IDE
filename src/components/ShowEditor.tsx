@@ -7307,6 +7307,29 @@ function ShowTimelineWorkspace({
                   </button>
                 ) : null
               })}
+              {/* The v2 counterpart of the v1 split buttons above: one per boundary Transition, selecting it as v1 does (#1066 L2332). */}
+              {!show && movingSplitLayout && Object.values(boundaryTransitionsOverride ?? {}).flatMap((boundary) => {
+                const sectionIndex = timeSections.findIndex((section) => section.startMs === boundary.destinationStartMs)
+                if (sectionIndex < 1) return []
+                const descriptor = boundary.settings.propertyTransitions?.routing?.splitPosition
+                return [(
+                  <button
+                    key={`split-boundary-${boundary.id}`}
+                    type="button"
+                    aria-label={`Edit split position at ${boundary.boundaryIdentity}`}
+                    data-show-timeline-focus
+                    data-show-selection-key={`transition:${boundary.id}`}
+                    className={descriptor ? 'border-t border-zinc-900/80 bg-live/[0.07] font-mono text-[9px] text-live' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-live'}
+                    style={{ gridColumn: 1 + sectionIndex * 2, gridRow: contentStartRow }}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onSelect({ kind: 'transition', transitionId: boundary.id }, event.currentTarget)
+                    }}
+                  >
+                    {descriptor ? `${Math.round(descriptor.from * 100)}→${Math.round((boundary.split?.to ?? 0.5) * 100)}` : '—'}
+                  </button>
+                )]
+              })}
             </div>
           )
         })()}

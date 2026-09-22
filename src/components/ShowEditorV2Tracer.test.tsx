@@ -4503,3 +4503,80 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     expectNoWrite(before, editor.state())
   })
 })
+
+// ── v2 split-position lane buttons (#1066 L2332) ────────────────────────────
+// The Zone Layouts lane's per-boundary split buttons existed only on the v1
+// backing; on v2 the lane rendered with zero split edit buttons. These cases
+// drive the real lane markup through the existing v2 harness. The split-x
+// record starts from the `fresh` corpus (two scenes joined by one converted
+// boundary, as the seeded Installation Show the e2e covers) with a second
+// Zone and a split-x logical Layout: the corpus `installation-layouts` row
+// converts with zero boundary Transitions, so it cannot exercise the
+// per-boundary lane on either backing.
+describe('v2 split-position lane buttons (#1066 L2332)', () => {
+  function splitFreshRecord(id: string): ShowRecordV2 {
+    const source = corpusSource('fresh')
+    source.id = id
+    const base = convertCorpus(source)
+    const zoned = editShowZoneV2(base, {
+      kind: 'add', zone: { id: 'z2', name: 'Second', nominalPixelCount: 64 },
+    })
+    if (zoned.status !== 'changed') throw new Error(`add zone refused: ${zoned.status}`)
+    const layered = editShowLayerV2(zoned.record, {
+      kind: 'add', layer: { id: 'layer:z2:main', zoneId: 'z2', name: 'Main', rank: 0 },
+    })
+    if (layered.status !== 'changed') throw new Error(`add layer refused: ${layered.status}`)
+    const layout = layered.record.zoneLayouts[0]
+    const record = {
+      ...layered.record,
+      zoneLayouts: [{
+        ...layout,
+        logical: { kind: 'split', zoneIds: [layered.record.zones[0].id, 'z2'], axis: 'x' },
+      }],
+    } as ShowRecordV2
+    expect(validateShowRecordV2(record)).toEqual([])
+    return record
+  }
+
+  function splitButtons(): HTMLElement[] {
+    return Array.from(
+      screen.getByRole('group', { name: 'Zone Layouts lane' }).querySelectorAll('button'),
+    ).filter((button) => (
+      (button as HTMLElement).getAttribute('aria-label')?.startsWith('Edit split position at ')
+    )) as HTMLElement[]
+  }
+
+  it('renders one split button per boundary whose destination section follows the first', async () => {
+    const record = splitFreshRecord('split-lane-buttons')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await act(async () => {})
+    const buttons = splitButtons()
+    expect(buttons).toHaveLength(1)
+    const transitionId = record.composition.transitions[0].id
+    expect(buttons[0].getAttribute('data-show-selection-key')).toBe(`transition:${transitionId}`)
+    expect(buttons[0].textContent).toBe('—')
+  })
+
+  it('selects the boundary Transition when its split button is clicked', async () => {
+    const record = splitFreshRecord('split-lane-select')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await act(async () => {})
+    const transitionId = record.composition.transitions[0].id
+    fireEvent.click(screen.getByRole('button', { name: /^Edit split position at / }))
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'transition', transitionId })
+  })
+
+  it('renders no split button when no Layout is a moving split', async () => {
+    const source = corpusSource('installation-layouts')
+    source.id = 'split-lane-no-split'
+    const record = convertCorpus(source)
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await act(async () => {})
+    expect(screen.getByRole('group', { name: 'Zone Layouts lane' })).toBeInTheDocument()
+    expect(splitButtons()).toHaveLength(0)
+  })
+})
