@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/96a32f4d-5ab7-41a4-83f8-1c0089d9f9fe",
+  "operation": "On the v2 backing at the code tip: a fresh Installation Show, Show actions > View code. The generated view opens with the heading 'Generated pattern - Untitled Show', the .epe download button and the generated source from the v2 export owner, which begins with the '// Built with PXLBLZ-IDE' / 'pxlblz:1 kind=show' header (capture). Back to show returns to the timeline. On v2, e2e/shows.auth.spec.ts 'shared moving-split property' (2332) now passes end to end.",
+  "captures": [".wrsp/ui-proof/1066-viewcode.png"],
+  "capturedAtCommit": "b7e6744552d8e9b4dd28f265df91c5e1e1bbb12c"
+}
