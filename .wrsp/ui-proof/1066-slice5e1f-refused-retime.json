@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice5e1f-capture?show-v2-editor",
+  "operation": "Stored the converted stock-lesson corpus Show as version 2 as the synthetic local user, opened the Wipe Layer Transition between EventHorizon and SignalMandala, typed 3 s and pressed Enter. The door refused (SignalMandala would pass Show End): the stored Transition stays 1500 ms and the popover stays open with the typed draft, whose preview the timeline still draws.",
+  "captures": [".wrsp/ui-proof/1066-slice5e1f-refused-retime.png"],
+  "capturedAtCommit": "8656a9111df473822fa0d293b0f81c7e9fa5e901"
+}
