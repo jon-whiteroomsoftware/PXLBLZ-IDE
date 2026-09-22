@@ -1,0 +1,8 @@
+interface:
+  display_name: "Build Efficient PXLBLZ Patterns"
+  short_description: "Build expressive Patterns within hardware budgets"
+  default_prompt: "Use $build-efficient-pxlblz-patterns to turn this visual and performance plan into a verified Pixelblaze Pattern."
+
+policy:
+  allow_implicit_invocation: true
+

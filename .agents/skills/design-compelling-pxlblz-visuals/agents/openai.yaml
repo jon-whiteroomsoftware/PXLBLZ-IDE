@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Compelling PXLBLZ Visuals"
+  short_description: "Build strong visual language for Patterns and Shows"
+  default_prompt: "Use $design-compelling-pxlblz-visuals to define a distinctive visual language and score for this Pattern or Show."

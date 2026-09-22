@@ -1,0 +1,7 @@
+interface:
+  display_name: "Compose PXLBLZ Installation Shows"
+  short_description: "Compose performance-aware installation Shows"
+  default_prompt: "Use $compose-pxlblz-installation-shows to turn this Visual Direction Packet, Visual Performance Plan, and Stage topology into a production Installation Show."
+
+policy:
+  allow_implicit_invocation: true

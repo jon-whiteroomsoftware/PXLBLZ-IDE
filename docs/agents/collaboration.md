@@ -20,9 +20,10 @@ repository rather than in this consumer.
 
 ## Pixelblaze design skills
 
-Four Pixelblaze-specific design skills live in `~/.agents/skills/`. That
-directory is not loaded into the agent skill list, so read the `SKILL.md` files
-directly:
+Four Pixelblaze-specific design skills live in this repository at
+`.agents/skills/` (canonical; `.claude/skills` is a symlink to it), so agents
+working here load them as project skills. Their `SKILL.md` files can also be
+read directly:
 
 | Skill | Covers |
 | --- | --- |

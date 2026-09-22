@@ -1,0 +1,8 @@
+interface:
+  display_name: "Co-design PXLBLZ Visual Performance"
+  short_description: "Match visual impact to Pixelblaze resource costs"
+  default_prompt: "Use $co-design-pxlblz-visual-performance to turn this visual direction into a high-impact, hardware-aware implementation plan."
+
+policy:
+  allow_implicit_invocation: true
+
