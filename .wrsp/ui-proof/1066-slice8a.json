@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/5ec0e395-5178-43ac-b873-79d82a0c2af3",
+  "operation": "On the v2 backing at the code tip, a fresh Installation Show (one Layout occurrence, 0-62 s, layout-1): Add to Show > Zone Layout > Duplicate Layout appended a second occurrence at 62 s sharing layout-1 (Show end 1:02 -> 2:04, first capture); then, with the playhead at 0, Make this Layout unique gave occurrence layout-occurrence:1 a new Layout definition while the copy kept layout-1 (stored v2 readback; second capture).",
+  "captures": [".wrsp/ui-proof/1066-slice8a-duplicate.png", ".wrsp/ui-proof/1066-slice8a-unique.png"],
+  "capturedAtCommit": "99604e9bc530544cce5306ba2506efccfdebcdce"
+}
