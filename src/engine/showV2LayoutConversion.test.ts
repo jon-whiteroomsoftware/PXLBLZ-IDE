@@ -81,3 +81,26 @@ it('preserves a two-Zone spatial transfer in Fast and Precise through the second
   const after = compileShow(prepared.recipe, LIBRARIES)
   for (const fidelity of ['fast', 'fidelity'] as const) expect(runtimeParity(before, after, source, converted.record, fidelity, []).matched).toBe(true)
 })
+
+it('keeps a split gapped Clip byte-identical through compile and replay in Fast and Precise (#1080)', async () => {
+  const { runtimeParity } = await import('../../scripts/show-v2-parity')
+  const source = continuingV1Show()
+  source.composition!.durationMs = 1200
+  source.transitions = [{
+    id: 'fade', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 200,
+    easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+  }]
+  const converted = convertShowRecordV1ToV2(source)
+  expect(converted.status, JSON.stringify(converted.status === 'refused' ? converted.issues : [])).toBe('converted')
+  if (converted.status !== 'converted') throw new Error('fixture conversion failed')
+  const lookup = { byCellId: {}, byPatternInstanceId: {
+    instance: 'export var calls=0; export function beforeRender(delta) { calls++ } export function render2D(index,x,y) { rgb(1,0,0) }',
+  }, stageDimension: 2 as const }
+  const prepared = prepareShowV2ForCompile(converted.record, lookup)
+  expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+  if (prepared.status !== 'ready') throw new Error('preparation refused')
+  const before = compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES)
+  const after = compileShow(prepared.recipe, LIBRARIES)
+  expect(after.code).toBe(before.code)
+  for (const fidelity of ['fast', 'fidelity'] as const) expect(runtimeParity(before, after, source, converted.record, fidelity, []).matched).toBe(true)
+})

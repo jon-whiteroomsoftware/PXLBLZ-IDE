@@ -686,6 +686,8 @@ Conversion may therefore admit a record preparation still refuses,
 notably a one-sided boundary beside a Layer Transition under the pre-existing
 mixed-scope gate; that gate keeps its own separate preservation proof.
 
+#1080 admits a v1 logical Clip whose source segments leave a gap (Jon, 2026-09-22). It converts to one v2 Clip per continuous run, `<logical id>--run-<n>`, all on the logical Clip's one Pattern instance with `entryPolicy: 'continue'`. The conversion report names each split in `splitLogicalClips`, with every emitted Clip id and gap. This is an accepted divergence: selecting, deleting or animating acts on one run on v2 where v1 acted on the whole logical Clip. Playback is unchanged, and the runtime parity oracle holds. Overlapping segments still refuse.
+
 The explicit exception is a v1 placement fully unrouted because its Zone is absent
 for the entire placement interval. Account every such source leaf as
 `retired-silent-runtime-use`; include its placement/instance/Zone/interval provenance;

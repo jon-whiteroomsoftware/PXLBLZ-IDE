@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { convertibleV1Show, flatV1Show } from '../test/showV2TracerFixture'
+import { continuingV1Show, convertibleV1Show, flatV1Show } from '../test/showV2TracerFixture'
 import { showRemoveClipFixture } from '../test/showRemoveClipFixture'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
@@ -783,5 +783,145 @@ describe('authored repeat scale provenance (#1066 slice 9b)', () => {
       return compileShow(prepared.recipe, LIBRARIES).code
     }
     expect(compile(convertedDefaultShowWithRepeatScale(1))).toBe(compile(convertedDefaultShowWithRepeatScale(undefined)))
+  })
+})
+
+describe('gapped logical Clip split (#1080 class 1)', () => {
+  function gappedContinuingShow() {
+    const source = continuingV1Show()
+    source.composition!.durationMs = 1200
+    source.transitions = [{
+      id: 'fade', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 200,
+      easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+    }]
+    return source
+  }
+
+  it('splits a gapped logical Clip into linked runs sharing one Pattern instance', () => {
+    const source = gappedContinuingShow()
+    const before = JSON.stringify(source)
+
+    const result = convertShowRecordV1ToV2(source)
+
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') return
+    expect(JSON.stringify(source)).toBe(before)
+    const clips = result.record.composition.clips
+    expect(clips.map(clip => clip.id)).toEqual(['clip--run-1', 'clip--run-2'])
+    const [first, second] = clips
+    expect(first.startMs).toBe(0)
+    expect(first.startMs + first.durationMs).toBe(500)
+    expect(second.startMs).toBe(700)
+    expect(second.startMs + second.durationMs).toBe(1200)
+    expect(second.instanceId).toBe(first.instanceId)
+    expect(second.zoneId).toBe(first.zoneId)
+    expect(second.layerId).toBe(first.layerId)
+    expect(first.entryPolicy).toBe('continue')
+    expect(second.entryPolicy).toBe('continue')
+    expect(result.record.composition.patternInstances).toHaveLength(1)
+    expect(result.report.splitLogicalClips).toEqual([{
+      logicalClipId: 'clip',
+      clipIds: ['clip--run-1', 'clip--run-2'],
+      gaps: [{ startMs: 500, endMs: 700 }],
+      outcome: 'split-discontinuous-logical-clip',
+    }])
+    expect(result.report.clipMappings).toEqual([
+      { sourcePlacementIds: ['clip'], clipId: 'clip--run-1' },
+      { sourcePlacementIds: ['clip--span-scene-b'], clipId: 'clip--run-2' },
+    ])
+    expect(result.report.unaccountedSourcePaths).toEqual([])
+    expect(validateShowRecordV2(result.record)).toEqual([])
+  })
+
+  it('names the split runs as the boundary Transition contributors', () => {
+    const source = gappedContinuingShow()
+
+    const result = convertShowRecordV1ToV2(source)
+
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') return
+    const transition = result.record.composition.transitions.find(candidate => candidate.id === 'fade')
+    expect(transition).toBeTruthy()
+    if (!transition) return
+    if (transition.participants.length > 0) {
+      expect(transition.participants).toHaveLength(1)
+      expect(transition.participants[0]).toMatchObject({ fromClipId: 'clip--run-1', toClipId: 'clip--run-2' })
+    } else {
+      expect(transition.wholeOutput?.fromClipIds).toEqual(['clip--run-1'])
+      expect(transition.wholeOutput?.toClipIds).toEqual(['clip--run-2'])
+    }
+  })
+
+  it('distributes Clip-targeted property tracks to their split run', () => {
+    const source = gappedContinuingShow()
+    source.composition!.scenes[0].propertyTracks = [{
+      id: 'head-track',
+      target: { kind: 'placement-view', placementId: 'clip', property: 'brightness' },
+      keyframes: [
+        { id: 'head-first', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+        { id: 'head-last', timeMs: 500, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+    source.composition!.scenes[1].propertyTracks = [{
+      id: 'tail-track',
+      target: { kind: 'placement-view', placementId: 'clip--span-scene-b', property: 'brightness' },
+      keyframes: [
+        { id: 'tail-first', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+        { id: 'tail-last', timeMs: 500, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const result = convertShowRecordV1ToV2(source)
+
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') return
+    const byId = new Map(result.record.composition.propertyTracks.map(track => [track.id, track]))
+    expect(byId.get('head-track')?.target).toEqual({ kind: 'clip-view', clipId: 'clip--run-1', property: 'brightness' })
+    expect(byId.get('tail-track')?.target).toEqual({ kind: 'clip-view', clipId: 'clip--run-2', property: 'brightness' })
+    expect(result.report.unaccountedSourcePaths).toEqual([])
+  })
+
+  it('still refuses overlapping source segments as a discontinuous logical Clip', () => {
+    const source = convertibleV1Show()
+    source.scenes = [{ id: 'scene-a', name: 'Opening', durationMs: 500 }]
+    source.composition!.durationMs = 500
+    source.composition!.scenes = [{
+      sceneId: 'scene-a',
+      zones: [{
+        zoneId: 'zone',
+        main: [{
+          id: 'clip', instanceId: 'instance', startMs: 0, durationMs: 500,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+        overlays: [{
+          id: 'overlay', name: 'Atmosphere', placements: [{
+            id: 'clip-overlap', logicalClipId: 'clip', instanceId: 'instance', startMs: 400, durationMs: 100,
+            opacity: 1, view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+        }],
+      }],
+    }]
+
+    const result = convertShowRecordV1ToV2(source)
+
+    expect(result.status).toBe('refused')
+    if (result.status !== 'refused') return
+    expect(result.issues).toContainEqual({
+      path: 'composition.scenes[0].zones[0].overlays[0].placements[0]',
+      code: 'discontinuous-logical-clip',
+      message: 'Logical Clip "clip" has overlapping source segments.',
+    })
+  })
+
+  it('keeps an abutting logical Clip on its single Clip id', () => {
+    const source = continuingV1Show()
+
+    const result = convertShowRecordV1ToV2(source)
+
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') return
+    expect(result.record.composition.clips.map(clip => clip.id)).toEqual(['clip'])
+    expect(result.report.splitLogicalClips).toEqual([])
+    expect(result.report.unaccountedSourcePaths).toEqual([])
   })
 })

@@ -56,6 +56,12 @@ export interface ShowV1ToV2Report {
   sceneOffsets: Array<{ sceneId: string; startMs: number; endMs: number }>
   layerMappings: Array<{ sceneId: string; zoneId: string; sourceLayerId: string | 'main'; layerId: string }>
   clipMappings: Array<{ sourcePlacementIds: string[]; clipId: string }>
+  splitLogicalClips: Array<{
+    logicalClipId: string
+    clipIds: string[]
+    gaps: Array<{ startMs: number; endMs: number }>
+    outcome: 'split-discontinuous-logical-clip'
+  }>
   markerMappings: Array<{ sourceSceneId: string; markerId: string; timeMs: number }>
   flatProjectionMappings: Array<{ cellId: string; placementIds: string[]; patternInstanceIds: string[] }>
   retiredFlatCellShadows: Array<{
@@ -743,24 +749,10 @@ function convertClips(
   }
   const clips: ShowClipV2[] = []
   const pendingLayoutGapPlacements = new Map<string, string[]>()
-  for (const [clipId, sources] of byLogicalId) {
-    sources.sort((left, right) => left.globalStartMs - right.globalStartMs || left.placement.id.localeCompare(right.placement.id))
-    const first = sources[0]
-    for (const source of sources.slice(1)) {
-      for (const field of ['instanceId', 'zoneId', 'layerId', 'zoneSampleMode'] as const) {
-        const firstValue = field === 'instanceId' ? first.placement.instanceId : first[field]
-        const value = field === 'instanceId' ? source.placement.instanceId : source[field]
-        if (JSON.stringify(value) !== JSON.stringify(firstValue)) {
-          issues.push({ path: `${source.placementPath}.${field}`, code: 'divergent-clip-field', message: `Logical Clip "${clipId}" has divergent ${field}.` })
-        }
-      }
-      const previous = sources[sources.indexOf(source) - 1]
-      if (previous.globalStartMs + previous.placement.durationMs !== source.globalStartMs) {
-        issues.push({ path: source.placementPath, code: 'discontinuous-logical-clip', message: `Logical Clip "${clipId}" has a gap or overlap between source segments.` })
-      }
-    }
-    const endMs = sources[sources.length - 1].globalStartMs + sources[sources.length - 1].placement.durationMs
-    const appearanceValues = sources.map(source => ({
+  const emitSourceRun = (baseId: string, runSources: PlacementSource[]): string[] => {
+    const first = runSources[0]
+    const endMs = runSources[runSources.length - 1].globalStartMs + runSources[runSources.length - 1].placement.durationMs
+    const appearanceValues = runSources.map(source => ({
       timeMs: source.globalStartMs,
       value: clipAppearance(source.placement),
     })).filter((entry, index, entries) => (
@@ -778,9 +770,9 @@ function convertClips(
     if (runs.length === 0) {
       pendingLayoutGapPlacements.set(continuityKey, [
         ...(pendingLayoutGapPlacements.get(continuityKey) ?? []),
-        ...sources.map(source => source.placement.id),
+        ...runSources.map(source => source.placement.id),
       ])
-      continue
+      return []
     }
     const pendingPlacementIds = pendingLayoutGapPlacements.get(continuityKey) ?? []
     pendingLayoutGapPlacements.delete(continuityKey)
@@ -788,8 +780,9 @@ function convertClips(
       || runs.length !== 1
       || runs[0]?.startMs !== first.globalStartMs
       || runs[0]?.endMs !== endMs
+    const emittedClipIds: string[] = []
     for (const [runIndex, run] of runs.entries()) {
-      const runId = segmentedByLayout ? `${clipId}--layout-${runIndex + 1}` : clipId
+      const runId = segmentedByLayout ? `${baseId}--layout-${runIndex + 1}` : baseId
       const held = [...appearanceValues].reverse().find(entry => entry.timeMs <= run.startMs)
       if (!held) continue
       const keys = [
@@ -818,11 +811,60 @@ function convertClips(
       report.clipMappings.push({
         sourcePlacementIds: [
           ...(runIndex === 0 ? pendingPlacementIds : []),
-          ...sources
+          ...runSources
             .filter(source => source.globalStartMs >= run.startMs && source.globalStartMs + source.placement.durationMs <= run.endMs)
             .map(source => source.placement.id),
         ],
         clipId: runId,
+      })
+      emittedClipIds.push(runId)
+    }
+    return emittedClipIds
+  }
+  for (const [clipId, sources] of byLogicalId) {
+    sources.sort((left, right) => left.globalStartMs - right.globalStartMs || left.placement.id.localeCompare(right.placement.id))
+    const first = sources[0]
+    for (const source of sources.slice(1)) {
+      for (const field of ['instanceId', 'zoneId', 'layerId', 'zoneSampleMode'] as const) {
+        const firstValue = field === 'instanceId' ? first.placement.instanceId : first[field]
+        const value = field === 'instanceId' ? source.placement.instanceId : source[field]
+        if (JSON.stringify(value) !== JSON.stringify(firstValue)) {
+          issues.push({ path: `${source.placementPath}.${field}`, code: 'divergent-clip-field', message: `Logical Clip "${clipId}" has divergent ${field}.` })
+        }
+      }
+    }
+    const sourceRuns: PlacementSource[][] = [[first]]
+    let overlapRefused = false
+    for (const source of sources.slice(1)) {
+      const current = sourceRuns[sourceRuns.length - 1]
+      const previous = current[current.length - 1]
+      const previousEndMs = previous.globalStartMs + previous.placement.durationMs
+      if (previousEndMs === source.globalStartMs) current.push(source)
+      else if (previousEndMs < source.globalStartMs) sourceRuns.push([source])
+      else {
+        issues.push({ path: source.placementPath, code: 'discontinuous-logical-clip', message: `Logical Clip "${clipId}" has overlapping source segments.` })
+        overlapRefused = true
+      }
+    }
+    if (overlapRefused) continue
+    const emittedClipIds: string[] = []
+    sourceRuns.forEach((runSources, runIndex) => {
+      const baseId = sourceRuns.length === 1 ? clipId : `${clipId}--run-${runIndex + 1}`
+      emittedClipIds.push(...emitSourceRun(baseId, runSources))
+    })
+    if (sourceRuns.length > 1) {
+      report.splitLogicalClips.push({
+        logicalClipId: clipId,
+        clipIds: emittedClipIds,
+        gaps: sourceRuns.slice(1).map((runSources, runIndex) => {
+          const previousRun = sourceRuns[runIndex]
+          const previousEnd = previousRun[previousRun.length - 1]
+          return {
+            startMs: previousEnd.globalStartMs + previousEnd.placement.durationMs,
+            endMs: runSources[0].globalStartMs,
+          }
+        }),
+        outcome: 'split-discontinuous-logical-clip',
       })
     }
   }
@@ -884,6 +926,7 @@ function emptyReport(show: ShowRecord): ShowV1ToV2Report {
     sceneOffsets: [],
     layerMappings: [],
     clipMappings: [],
+    splitLogicalClips: [],
     markerMappings: [],
     flatProjectionMappings: [],
     retiredFlatCellShadows: [],
@@ -1334,7 +1377,7 @@ function auditPlacement(
   }
   const logicalId = placement.logicalClipId ?? placement.id
   const intervalCovered = clip.startMs <= timeMs && clip.startMs + clip.durationMs >= endMs
-  const mappedLogicalId = mapping?.clipId === logicalId || mapping?.clipId.startsWith(`${logicalId}--layout-`)
+  const mappedLogicalId = mapping?.clipId === logicalId || mapping?.clipId.startsWith(`${logicalId}--layout-`) || mapping?.clipId.startsWith(`${logicalId}--run-`)
   if (mapping && mappedLogicalId && clip.instanceId === placement.instanceId && intervalCovered && JSON.stringify(key?.value) === JSON.stringify(expectedAppearance)) {
     addAccountingLeaves(accounting, sourcePath, placement, 'mapped', `composition.clips.${clipIndex}`)
   }
