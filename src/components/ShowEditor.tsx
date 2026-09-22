@@ -2083,7 +2083,8 @@ export function ShowEditor({
     const current = Object.values(transfers).find((entry) => entry.occurrenceId === occurrenceId)
     if (!current) return
     const buildTiming = (record: ShowRecordV2): ReturnType<typeof planShowV2LayoutEdit> | null => {
-      const durationMs = changes.durationMs ?? current.durationMs
+      const rawMs = changes.durationMs ?? current.durationMs
+      const durationMs = Math.max(0, Math.round(rawMs))
       const easing = changes.easing ?? current.easing
       const direction = changes.routingDirection ?? (current.directionAuthored ? current.direction : undefined)
       if (durationMs > 0) {
@@ -2103,7 +2104,9 @@ export function ShowEditor({
         if (!timingPlan || timingPlan.status !== 'ready' || timingPlan.intent.kind !== 'set-transfer') return
         const intent = timingPlan.intent
         void commitV2LayoutPlan(() => timingPlan).then((timingApplied) => {
-          if (timingApplied && intent.transfer !== null) selectTimeline({ kind: 'transition', transitionId: intent.transfer.id })
+          if (!timingApplied) return
+          if (intent.transfer !== null) selectTimeline({ kind: 'transition', transitionId: intent.transfer.id })
+          else selectTimeline({ kind: 'transition', transitionId: `layout-cut:${occurrenceId}` })
         }).catch(() => {})
       }).catch(() => {})
       return
@@ -2117,13 +2120,17 @@ export function ShowEditor({
     if (!timingPlan || timingPlan.status !== 'ready' || timingPlan.intent.kind !== 'set-transfer') return
     const intent = timingPlan.intent
     void commitV2LayoutPlan(() => timingPlan).then((applied) => {
-      if (applied && intent.transfer !== null) selectTimeline({ kind: 'transition', transitionId: intent.transfer.id })
+      if (!applied) return
+      if (intent.transfer !== null) selectTimeline({ kind: 'transition', transitionId: intent.transfer.id })
+      else selectTimeline({ kind: 'transition', transitionId: `layout-cut:${occurrenceId}` })
     }).catch(() => {})
   }, [commitV2LayoutPlan, readOnly, recordVersion, savedShowV2, selectTimeline, showId])
   const commitV2RoutingTransferRemove = useCallback((occurrenceId: string): void => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return
-    void commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'set-transfer', occurrenceId, transfer: null }, newPersonalContentId))
-  }, [commitV2LayoutPlan, readOnly, recordVersion, savedShowV2])
+    void commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'remove-switch', occurrenceId }, newPersonalContentId)).then((applied) => {
+      if (applied) selectTimeline({ kind: 'show' })
+    }).catch(() => {})
+  }, [commitV2LayoutPlan, readOnly, recordVersion, savedShowV2, selectTimeline])
   // Slice 10 connects ordinary-Clip Property animation through the property
   // door, line for line on the inspector chokepoint above: refused and no-op
   // plans return false synchronously so the popover reverts its draft, and an

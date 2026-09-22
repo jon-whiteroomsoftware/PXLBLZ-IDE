@@ -695,7 +695,7 @@ export async function admitShowV2PilotClipDelete(request: ShowV2PilotClipDeleteR
   return presentOwnerOutcome(outcome, effects)
 }
 export type ShowV2PilotLayoutOccurrenceIntent = Extract<ShowLayoutEditIntentV2,
-  { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' | 'append' }>
+  { kind: 'select-layout' | 'move' | 'remove' | 'remove-switch' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' | 'append' }>
 type LayoutOccurrenceEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedMarkerIds' | 'affectedTrackIds' | 'affectedTransitionIds' | 'removedLayoutOccurrenceIds'>
 export type ShowV2PilotLayoutOccurrenceRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotLayoutOccurrenceIntent }
 export type ShowV2PilotLayoutOccurrenceOutcome = PilotOwnerOutcome<ShowLayoutEditResultV2, LayoutOccurrenceEffects>
@@ -709,7 +709,7 @@ function validLayoutOccurrenceIntent(intent: unknown): intent is ShowV2PilotLayo
   const text = (input: unknown): input is string => typeof input === 'string' && input.trim().length > 0
   if (!text(value.occurrenceId)) return false
   if (value.kind === 'move') return exactIntentFields(value, ['kind', 'occurrenceId', 'startMs']) && typeof value.startMs === 'number' && Number.isSafeInteger(value.startMs)
-  if (value.kind === 'remove') return exactIntentFields(value, ['kind', 'occurrenceId'])
+  if (value.kind === 'remove' || value.kind === 'remove-switch') return exactIntentFields(value, ['kind', 'occurrenceId'])
   if (value.kind === 'select-layout') return exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId']) && text(value.layoutId)
   if (value.kind === 'make-unique') return exactIntentFields(value, ['kind', 'occurrenceId', 'layoutId', 'name']) && text(value.layoutId) && text(value.name)
   if (value.kind === 'append') {

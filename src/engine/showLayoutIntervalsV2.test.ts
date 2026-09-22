@@ -562,3 +562,110 @@ describe('first-class Layout occurrence edits', () => {
     })).toMatchObject({ status: 'refused', code: 'zone-unavailable' })
   })
 })
+
+describe('remove-switch routing marker removal (#1066 rt-corrective)', () => {
+  function threeOccurrences(): ShowRecordV2 {
+    const first = editShowLayoutIntervalsV2(layoutRecord(), {
+      kind: 'insert', occurrenceId: 'second', atMs: 400, layoutId: 'both',
+    })
+    if (first.status !== 'changed') throw new Error('setup insert second failed')
+    const second = editShowLayoutIntervalsV2(first.record, {
+      kind: 'insert', occurrenceId: 'third', atMs: 700, layoutId: 'both',
+    })
+    if (second.status !== 'changed') throw new Error('setup insert third failed')
+    return second.record
+  }
+  it('removes a timed transfer, merging into the predecessor and re-pointing the successor', () => {
+    const base = threeOccurrences()
+    const ordered = [...base.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
+    const [first, second, third] = ordered
+    const withTransfers = structuredClone(base)
+    withTransfers.composition.layoutOccurrences.find(entry => entry.id === second.id)!.incomingTransfer = {
+      id: 'transfer-2', fromOccurrenceId: first.id, durationMs: 100, direction: 'forward',
+    }
+    withTransfers.composition.layoutOccurrences.find(entry => entry.id === third.id)!.incomingTransfer = {
+      id: 'transfer-3', fromOccurrenceId: second.id, durationMs: 100, direction: 'forward',
+    }
+    const result = editShowLayoutIntervalsV2(withTransfers, { kind: 'remove-switch', occurrenceId: second.id } as never)
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.removedLayoutOccurrenceIds).toEqual([second.id])
+    expect(result.record.composition.layoutOccurrences.map(entry => entry.id)).toEqual([first.id, third.id])
+    const keptFirst = result.record.composition.layoutOccurrences.find(entry => entry.id === first.id)!
+    expect(keptFirst.durationMs).toBe(first.durationMs + second.durationMs)
+    const keptThird = result.record.composition.layoutOccurrences.find(entry => entry.id === third.id)!
+    expect(keptThird.incomingTransfer?.fromOccurrenceId).toBe(first.id)
+    expect(keptThird.incomingTransfer?.id).toBe('transfer-3')
+    expect(result.record.composition.layoutOccurrences.some(entry => entry.id === second.id)).toBe(false)
+    expect(validateShowRecordV2(result.record)).toEqual([])
+  })
+  it('removes a native Cut, merging into the predecessor and re-pointing the successor', () => {
+    const base = threeOccurrences()
+    const ordered = [...base.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
+    const [first, second, third] = ordered
+    const withCut = structuredClone(base)
+    withCut.composition.layoutOccurrences.find(entry => entry.id === third.id)!.incomingTransfer = {
+      id: 'transfer-3', fromOccurrenceId: second.id, durationMs: 100, direction: 'forward',
+    }
+    const result = editShowLayoutIntervalsV2(withCut, { kind: 'remove-switch', occurrenceId: second.id } as never)
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.removedLayoutOccurrenceIds).toEqual([second.id])
+    expect(result.record.composition.layoutOccurrences.map(entry => entry.id)).toEqual([first.id, third.id])
+    expect(result.record.composition.layoutOccurrences.find(entry => entry.id === first.id)!.durationMs)
+      .toBe(first.durationMs + second.durationMs)
+    expect(result.record.composition.layoutOccurrences.find(entry => entry.id === third.id)?.incomingTransfer?.fromOccurrenceId)
+      .toBe(first.id)
+    expect(validateShowRecordV2(result.record)).toEqual([])
+  })
+  it('removes a converted switch, dropping stale successor provenance', () => {
+    const base = threeOccurrences()
+    const ordered = [...base.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
+    const [first, second, third] = ordered
+    const withSwitch = structuredClone(base)
+    withSwitch.composition.layoutOccurrences.find(entry => entry.id === second.id)!.incomingSwitch = {
+      origin: 'converted-routing-cut', id: 'switch-2', fromOccurrenceId: first.id, easing: { curve: 'linear' },
+    } as never
+    withSwitch.composition.layoutOccurrences.find(entry => entry.id === third.id)!.incomingTransfer = {
+      id: 'transfer-3', fromOccurrenceId: second.id, durationMs: 100, direction: 'forward',
+    }
+    const result = editShowLayoutIntervalsV2(withSwitch, { kind: 'remove-switch', occurrenceId: second.id } as never)
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.layoutOccurrences.map(entry => entry.id)).toEqual([first.id, third.id])
+    expect(result.record.composition.layoutOccurrences.find(entry => entry.id === third.id)?.incomingTransfer?.fromOccurrenceId)
+      .toBe(first.id)
+    expect(result.record.composition.layoutOccurrences.some(entry => entry.incomingSwitch)).toBe(false)
+    const stale = structuredClone(base)
+    stale.composition.layoutOccurrences.find(entry => entry.id === second.id)!.incomingSwitch = {
+      origin: 'converted-routing-cut', id: 'switch-2', fromOccurrenceId: first.id, easing: { curve: 'linear' },
+    } as never
+    stale.composition.layoutOccurrences.find(entry => entry.id === third.id)!.incomingSwitch = {
+      origin: 'converted-routing-cut', id: 'switch-3', fromOccurrenceId: second.id, easing: { curve: 'linear' },
+    } as never
+    const dropped = editShowLayoutIntervalsV2(stale, { kind: 'remove-switch', occurrenceId: second.id } as never)
+    expect(dropped.status).toBe('changed')
+    if (dropped.status !== 'changed') return
+    expect(dropped.record.composition.layoutOccurrences.find(entry => entry.id === third.id)?.incomingSwitch).toBeUndefined()
+  })
+  it('refuses when the occurrence owns a split-position track', () => {
+    const base = threeOccurrences()
+    const ordered = [...base.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
+    const tracked = structuredClone(base)
+    tracked.composition.propertyTracks.push({
+      id: 'owned', target: { kind: 'layout-occurrence-split-position', layoutOccurrenceId: ordered[1].id },
+      activeStartMs: ordered[1].startMs, activeDurationMs: 100,
+      keyframes: [
+        { id: 'owned-a', timeMs: ordered[1].startMs, value: 0.2, easing: { curve: 'linear' } },
+        { id: 'owned-b', timeMs: ordered[1].startMs + 100, value: 0.8, easing: { curve: 'linear' } },
+      ],
+    })
+    expect(editShowLayoutIntervalsV2(tracked, { kind: 'remove-switch', occurrenceId: ordered[1].id } as never))
+      .toMatchObject({ status: 'refused', code: 'meaningful-occurrence-data' })
+  })
+  it('refuses the first occurrence', () => {
+    const base = threeOccurrences()
+    const ordered = [...base.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
+    expect(editShowLayoutIntervalsV2(base, { kind: 'remove-switch', occurrenceId: ordered[0].id } as never).status).toBe('refused')
+  })
+})

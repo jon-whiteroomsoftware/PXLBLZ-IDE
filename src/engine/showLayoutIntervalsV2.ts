@@ -34,6 +34,7 @@ export type ShowLayoutEditIntentV2 =
   | { kind: 'set-parameters'; occurrenceId: string; parameters: { splitPosition?: number } }
   | { kind: 'make-unique'; occurrenceId: string; layoutId: string; name: string }
   | { kind: 'remove'; occurrenceId: string }
+  | { kind: 'remove-switch'; occurrenceId: string }
   | {
     kind: 'duplicate'
     occurrenceId: string
@@ -381,6 +382,29 @@ export function editShowLayoutIntervalsV2(
       }
       next.zoneLayouts.push({ ...structuredClone(source), id: intent.layoutId, name: intent.name })
       occurrence.layoutId = intent.layoutId
+    } else if (intent.kind === 'remove-switch') {
+      if (ordered.length === 1) return refuse('invalid-intent', 'A Show must retain one Layout occurrence.')
+      if (index === 0) return refuse('invalid-intent', 'Only a noninitial switch can be removed.')
+      const ownsTrack = next.composition.propertyTracks.some(track => (
+        track.target.kind === 'layout-occurrence-split-position'
+        && track.target.layoutOccurrenceId === occurrence.id
+      ))
+      if (ownsTrack) {
+        return refuse('meaningful-occurrence-data', 'Resolve occurrence-owned tracks and transfers before removing the Layout occurrence.')
+      }
+      delete occurrence.incomingTransfer
+      delete occurrence.incomingSwitch
+      const previous = next.composition.layoutOccurrences.find(candidate => candidate.id === ordered[index - 1].id)!
+      previous.durationMs += occurrence.durationMs
+      affectedLayoutOccurrenceIds = [previous.id]
+      const successor = ordered[index + 1]
+        ? next.composition.layoutOccurrences.find(candidate => candidate.id === ordered[index + 1].id)
+        : undefined
+      if (successor?.incomingTransfer?.fromOccurrenceId === occurrence.id) {
+        successor.incomingTransfer.fromOccurrenceId = previous.id
+        affectedLayoutOccurrenceIds = [previous.id, successor.id]
+      }
+      next.composition.layoutOccurrences = next.composition.layoutOccurrences.filter(candidate => candidate.id !== occurrence.id)
     } else {
       if (ordered.length === 1) return refuse('invalid-intent', 'A Show must retain one Layout occurrence.')
       const ownsTrack = next.composition.propertyTracks.some(track => (
@@ -408,7 +432,7 @@ export function editShowLayoutIntervalsV2(
       }
       next.composition.layoutOccurrences = next.composition.layoutOccurrences.filter(candidate => candidate.id !== occurrence.id)
     }
-    if (intent.kind !== 'remove') affectedLayoutOccurrenceIds = [occurrence.id]
+    if (intent.kind !== 'remove' && intent.kind !== 'remove-switch') affectedLayoutOccurrenceIds = [occurrence.id]
   }
   const affectedGroupOccurrenceIds = rebindGroupLayoutAssociations(next)
   affectedLayoutOccurrenceIds = [...new Set([
@@ -440,7 +464,7 @@ export function editShowLayoutIntervalsV2(
   const affectedLayoutDefinitionIds = intent.kind === 'make-unique' || (intent.kind === 'append' && intent.definition)
     ? [intent.layoutId]
     : []
-  if (intent.kind === 'remove') removedLayoutOccurrenceIds = [intent.occurrenceId]
+  if (intent.kind === 'remove' || intent.kind === 'remove-switch') removedLayoutOccurrenceIds = [intent.occurrenceId]
   return {
     status: 'changed',
     record: promotion.record,

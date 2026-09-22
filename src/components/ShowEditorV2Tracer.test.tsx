@@ -5031,10 +5031,14 @@ describe('v2 Layout occurrence Append (#1066 slice 8b-1)', () => {
       kind: 'append',
       occurrenceId: expect.any(String),
       durationMs: 5_000,
-      layoutId: expect.any(String),
+      // v1 allocates the appended Layout as nextEntityId('layout-', layouts):
+      // two definitions in this fixture, so the fresh copy is layout-3
+      // (a fresh Installation with layout-1 alone yields layout-2, as the
+      // 8b-1 oracle and e2e case 2271 prove).
+      layoutId: 'layout-3',
       definition: {
         kind: 'duplicate',
-        layoutId: expect.any(String),
+        layoutId: 'layout-3',
         name: 'Moving split X',
         sourceLayoutId: 'both',
       },
@@ -5195,12 +5199,11 @@ describe('v2 Zone Layout routing transfers (#1066)', () => {
     const afterRemove = editor.state()
     expect(layoutTransferDoors()).toHaveLength(3)
     expect(layoutTransferDoors()[2].request.intent).toEqual({
-      kind: 'set-transfer',
+      kind: 'remove-switch',
       occurrenceId: 'interval-2',
-      transfer: null,
     })
-    expect(afterRemove.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-2')?.incomingTransfer).toBeUndefined()
-    expect(afterRemove.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-2')?.incomingSwitch).toBeUndefined()
+    expect(afterRemove.record.composition.layoutOccurrences.some((occurrence) => occurrence.id === 'interval-2')).toBe(false)
+    expect(afterRemove.record.composition.layoutOccurrences).toHaveLength(1)
     expect(afterRemove.history.past).toHaveLength(3)
     expect(afterRemove.history.past[2]).toEqual(afterEasing.record)
     expect(afterRemove.revision).toBe(afterEasing.revision + 1)
@@ -5225,6 +5228,63 @@ describe('v2 Zone Layout routing transfers (#1066)', () => {
     await act(async () => {})
     expect(admission.calls).toEqual([])
     expectNoWrite(before, editor.state())
+  })
+  it('rounds a fractional-second entry to a safe-integer transfer (#1066 rt-corrective)', async () => {
+    const base = commandFixtureV2()
+    base.id = 'routing-transfer-round'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Select Moving split X routing interval 1' }))
+    await act(async () => {})
+    const duration = within(routingPanel()).getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })
+    fireEvent.change(duration, { target: { value: '1.005' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+    expect(layoutTransferDoors()).toHaveLength(1)
+    expect(layoutTransferDoors()[0].request.intent).toEqual({
+      kind: 'set-transfer',
+      occurrenceId: 'interval-2',
+      transfer: expect.objectContaining({ durationMs: 1005 }),
+    })
+    expect(editor.state().record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-2')?.incomingTransfer?.durationMs).toBe(1005)
+  })
+  it('removes a native Cut handle in one edit and drops the second occurrence (#1066 rt-corrective)', async () => {
+    const base = commandFixtureV2()
+    base.id = 'routing-transfer-remove-cut'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    expect(before.record.composition.layoutOccurrences).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Select Moving split X routing interval 1' }))
+    await act(async () => {})
+    fireEvent.click(within(routingPanel()).getByRole('button', { name: 'Remove routing marker' }))
+    await act(async () => {})
+    const after = editor.state()
+    expect(layoutTransferDoors()).toHaveLength(1)
+    expect(layoutTransferDoors()[0].request.intent).toEqual({ kind: 'remove-switch', occurrenceId: 'interval-2' })
+    expect(after.record.composition.layoutOccurrences).toHaveLength(1)
+    expect(after.record.composition.layoutOccurrences.some((occurrence) => occurrence.id === 'interval-2')).toBe(false)
+    expectOneEdit(before, after)
+  })
+  it('keeps the routing panel open after a duration-0 edit (#1066 rt-corrective)', async () => {
+    const base = commandFixtureV2()
+    base.id = 'routing-transfer-duration-zero'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Select Moving split X routing interval 1' }))
+    await act(async () => {})
+    const duration = within(routingPanel()).getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })
+    fireEvent.change(duration, { target: { value: '2' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+    expect(layoutTransferDoors()).toHaveLength(1)
+    const zero = within(routingPanel()).getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })
+    fireEvent.change(zero, { target: { value: '0' } })
+    fireEvent.keyDown(zero, { key: 'Enter' })
+    await act(async () => {})
+    expect(layoutTransferDoors()).toHaveLength(2)
+    expect(layoutTransferDoors()[1].request.intent).toEqual({ kind: 'set-transfer', occurrenceId: 'interval-2', transfer: null })
+    expect(within(routingPanel()).getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })).toBeInTheDocument()
   })
 })
 

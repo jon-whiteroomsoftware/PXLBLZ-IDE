@@ -1,11 +1,11 @@
 import type { ShowLayoutTransferV2, ShowRecordV2 } from './showCompositionV2'
 import { showLayoutDuplicateSourceIdsV2, type ShowLayoutEditIntentV2 } from './showLayoutIntervalsV2'
 import { ownedShowIdsV2 } from './showIdentityV2'
-import { showRoutingLayoutKindLabel, uniqueRoutingLayoutName } from './showModel'
+import { nextEntityId, showRoutingLayoutKindLabel, uniqueRoutingLayoutName } from './showModel'
 import { defaultDefinitionBody } from './showZoneLayoutDefinitionsV2'
 
 export type ShowV2LayoutEditorIntent = Extract<ShowLayoutEditIntentV2,
-  { kind: 'select-layout' | 'move' | 'remove' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' | 'append' }>
+  { kind: 'select-layout' | 'move' | 'remove' | 'remove-switch' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' | 'append' }>
 
 /**
  * One explicit lane request. Identity is never allocated inside a pure owner,
@@ -13,7 +13,7 @@ export type ShowV2LayoutEditorIntent = Extract<ShowLayoutEditIntentV2,
  * exactly the identities the owner requires.
  */
 export type ShowV2LayoutEditorRequest =
-  | Extract<ShowV2LayoutEditorIntent, { kind: 'select-layout' | 'move' | 'remove' | 'set-parameters' }>
+  | Extract<ShowV2LayoutEditorIntent, { kind: 'select-layout' | 'move' | 'remove' | 'remove-switch' | 'set-parameters' }>
   | { kind: 'make-unique'; occurrenceId: string; name: string }
   | { kind: 'duplicate'; occurrenceId: string; content: 'copy' | 'empty' }
   | { kind: 'append'; durationMs: number; sourceLayoutId?: string }
@@ -84,7 +84,11 @@ export function planShowV2LayoutEdit(
 ): Plan {
   if (request.kind === 'append') {
     const occurrenceId = allocate()
-    const layoutId = allocate()
+    // v1 allocates the appended Layout as nextEntityId('layout-', layouts)
+    // inside addShowRoutingLayout (src/engine/showModel.ts); the planner owns
+    // the same deterministic identity so v2 Append reuses layout-2 on a fresh
+    // Installation instead of minting a UUID.
+    const layoutId = nextEntityId('layout-', record.zoneLayouts)
     const conflict = fresh(record, [occurrenceId, layoutId], 'Layout occurrence')
     if (conflict) return conflict
     const source = request.sourceLayoutId === undefined

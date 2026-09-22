@@ -1,10 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { expect, it, vi } from 'vitest'
 import { showV2LayoutEditorFixture } from '../test/showV2LayoutEditorFixture'
 import { buildShowV2LayoutEditorModel, planShowV2LayoutEdit, showV2MakeUniqueLayoutName } from './showV2LayoutEditorModel'
 import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { commandFixtureV2 } from './showCommandsV2/fixtures'
-import { addShowRoutingLayout, createDefaultShow, updateShowBoundaryTransition } from './showModel'
+import { addShowRoutingLayout, createDefaultShow, removeShowBoundaryTransition, updateShowBoundaryTransition } from './showModel'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { appendShowLayoutInterval, duplicateShowLayoutInterval, projectShowLayoutIntervals } from './showLayoutIntervals'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
@@ -180,19 +181,20 @@ function appendOracle(sourceLayoutId: string | undefined): void {
   const newLayout = expected.zoneLayouts.find(layout => !before.zoneLayouts.some(entry => entry.id === layout.id))
   const newOccurrence = expected.composition.layoutOccurrences.find(occurrence => !before.composition.layoutOccurrences.some(entry => entry.id === occurrence.id))
   if (!newLayout || !newOccurrence) throw new Error('v1 append converted without one new definition and occurrence')
-  const identities = [newOccurrence.id, newLayout.id]
+  expect(newLayout.id).toBe('layout-2')
   let allocated = 0
   const allocate = (): string => {
-   const id = identities[allocated]
    allocated += 1
-   if (id === undefined) throw new Error('planner allocated more identities than the oracle provides')
-   return id
+   if (allocated > 1) throw new Error('planner allocated more identities than the oracle provides')
+   return newOccurrence.id
   }
   const plan = planShowV2LayoutEdit(before, convertedSourceId === undefined
    ? { kind: 'append', durationMs: 5000 }
    : { kind: 'append', durationMs: 5000, sourceLayoutId: convertedSourceId }, allocate)
   if (plan.status !== 'ready') throw new Error(plan.message)
-  expect(allocated).toBe(2)
+  expect(allocated).toBe(1)
+  if (plan.intent.kind !== 'append') throw new Error('append planner missed its kind')
+  expect(plan.intent.layoutId).toBe(newLayout.id)
   const applied = editShowLayoutIntervalsV2(structuredClone(before), plan.intent)
   if (applied.status !== 'changed') throw new Error(applied.status === 'refused' ? applied.message : applied.status)
   expect(applied.affectedLayoutDefinitionIds).toEqual([newLayout.id])
@@ -252,4 +254,23 @@ it('oracles a timed routing duration plus easing edit: v1 owner then convert equ
  expect(v2Transfer.durationMs).toBe(2_000)
  expect(v2Transfer.easing).toEqual({ curve: 'quadratic', direction: 'in-out' })
  expect(v2Transfer.fromOccurrenceId).toBe(afterTransfer.fromOccurrenceId)
+})
+
+it('oracles routing marker removal: v1 remove then convert equals v2 remove-switch (#1066 rt-corrective)', () => {
+ const manifest = JSON.parse(readFileSync(new URL('../../e2e/fixtures/showEditorEquivalence.json', import.meta.url), 'utf8')) as { version: 1; corpus: Array<{ key: string; source: ShowRecord }> }
+ const source = manifest.corpus.find(entry => entry.key === 'installation-layouts')!.source
+ const routing = source.transitions?.find(candidate => candidate.id === 'routing-split-rings')
+ if (!routing) throw new Error('v1 base has no routing-split-rings switch')
+ const v1After = removeShowBoundaryTransition(source, routing.id)
+ const convertedBefore = convertShowRecordV1ToV2(source)
+ if (convertedBefore.status !== 'converted') throw new Error(JSON.stringify(convertedBefore.issues))
+ const convertedAfter = convertShowRecordV1ToV2(v1After)
+ if (convertedAfter.status !== 'converted') throw new Error(JSON.stringify(convertedAfter.issues))
+ const ordered = [...convertedBefore.record.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
+ const target = ordered[2]
+ if (!target?.incomingSwitch) throw new Error('converted before has no third-occurrence switch')
+ const applied = editShowLayoutIntervalsV2(structuredClone(convertedBefore.record), { kind: 'remove-switch', occurrenceId: target.id })
+ if (applied.status !== 'changed') throw new Error(applied.status === 'refused' ? applied.message : applied.status)
+ expect(applied.removedLayoutOccurrenceIds).toEqual([target.id])
+ expect({ ...applied.record, updatedAt: 0 }).toEqual({ ...convertedAfter.record, updatedAt: 0 })
 })

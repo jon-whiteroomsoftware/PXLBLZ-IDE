@@ -369,9 +369,14 @@ describe('a native v2 record without conversion metadata keeps its normal behavi
   it('leaves Transitions and Layout occurrences exactly as authored', () => {
     const native = withoutConversionMetadata(convert(corpusCase('installation-layouts')))
     expect(validateShowRecordV2(native)).toEqual([])
+    const ordered = [...native.composition.layoutOccurrences].sort((left, right) => left.startMs - right.startMs)
+    const cutId = `layout-cut:${ordered[2].id}`
     const view = projectShowEditorTimelineV2(native)
     expect(view.layoutIntervals.map(interval => interval.incomingTransfer?.id ?? null))
-      .toEqual([null, 'routing-full-split', null])
-    expect(Object.keys(projectShowEditorRoutingTransfersV2(native))).toEqual(['routing-full-split'])
+      .toEqual([null, 'routing-full-split', cutId])
+    expect(Object.keys(projectShowEditorRoutingTransfersV2(native))).toEqual(['routing-full-split', cutId])
+    // No converted switch provenance appears on a native record: the third
+    // boundary is a plain display Cut, not a minted incomingSwitch.
+    expect(native.composition.layoutOccurrences.some(occurrence => occurrence.incomingSwitch)).toBe(false)
   })
 })
