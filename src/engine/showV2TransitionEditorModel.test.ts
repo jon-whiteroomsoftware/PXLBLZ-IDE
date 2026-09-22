@@ -22,6 +22,7 @@ import {
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
 import { getShowToolkitFamily } from './showVisualToolkit'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
+import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 
 function converted(kind: Parameters<typeof transitionV1Show>[0] = 'crossfade'): ShowRecordV2 {
@@ -572,5 +573,85 @@ describe('planShowV2BoundaryPaletteApply (#1066 slice 5b)', () => {
     expect(planShowV2BoundaryPaletteApply(record, 'transition-scene-1', { kind: 'cut' }, () => 'x')).toEqual(
       planShowV2TransitionReset(record, 'transition-scene-1', () => 'x'),
     )
+  })
+})
+
+describe('planShowV2BoundaryPaletteApply on native Transitions (#1066 slice 5b-2)', () => {
+  function nativeDissolve(): ShowRecordV2 {
+    const record = stockShowV2ById('stock-show-reference-dissolve-transitions')
+    if (!record) throw new Error('missing stock-show-reference-dissolve-transitions')
+    expect(validateShowRecordV2(record)).toEqual([])
+    return structuredClone(record)
+  }
+
+  it('applies every non-Cut palette choice to a native Transition as one accepted edit (35 of 35)', () => {
+    const items = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+      .filter(item => item.kind === 'transition' && item.compatible)
+    expect(items).toHaveLength(36)
+    const nonCut = items.filter(item => item.key !== 'transition:blend:cut')
+    expect(nonCut).toHaveLength(35)
+    let changed = 0
+    for (const item of nonCut) {
+      const record = nativeDissolve()
+      const plan = planShowV2BoundaryPaletteApply(record, 'transition-reference-1', showTransitionChangesForPresentation(item, undefined), () => 'unused')
+      expect(plan.status, item.key).toBe('ready')
+      if (plan.status !== 'ready') continue
+      const edited = editShowTransitionV2(record, plan.intent)
+      expect(edited.status, item.key).toBe('changed')
+      if (edited.status === 'changed') changed += 1
+    }
+    expect(changed).toBe(nonCut.length)
+  })
+
+  it.each([
+    ['transition:blend:crossfade'],
+    ['transition:fade:through-color'],
+    ['transition:dissolve:block'],
+  ])('retimes native Transition %s with Show End fixed and downstream shifted 500 ms earlier', (key) => {
+    const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 }).find(candidate => candidate.key === key)
+    if (!item) throw new Error(`missing palette item ${key}`)
+    const record = nativeDissolve()
+    const durationsBefore = record.composition.clips.map(clip => clip.durationMs)
+    const plan = planShowV2BoundaryPaletteApply(record, 'transition-reference-1', showTransitionChangesForPresentation(item, undefined), () => 'unused')
+    expect(plan.status).toBe('ready')
+    if (plan.status !== 'ready' || plan.intent.kind !== 'update-transition') throw new Error(JSON.stringify(plan))
+    const candidate = plan.intent.transition
+    const edited = editShowTransitionV2(record, plan.intent)
+    expect(edited.status).toBe('changed')
+    if (edited.status !== 'changed') throw new Error(JSON.stringify(edited))
+    expect(edited.record.composition.showEndMs).toBe(19000)
+    expect(edited.record.composition.transitions.find(transition => transition.id === 'transition-reference-1')!.durationMs).toBe(2000)
+    expect(edited.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+      ['placement-reference-content-1', 0, 3000],
+      ['placement-reference-content-2', 5000, 3000],
+      ['placement-reference-content-3', 9500, 2000],
+      ['placement-reference-content-4', 13000, 2000],
+      ['placement-reference-content-5', 16500, 2000],
+    ])
+    expect(edited.record.composition.clips.map(clip => clip.durationMs)).toEqual(durationsBefore)
+    const resized = editShowTransitionV2(nativeDissolve(), { kind: 'resize-transition', transitionId: 'transition-reference-1', durationMs: 2000 })
+    expect(resized.status).toBe('changed')
+    if (resized.status !== 'changed') throw new Error(JSON.stringify(resized))
+    const retimedTransition = resized.record.composition.transitions.find(transition => transition.id === 'transition-reference-1')!
+    expect(edited.record.composition.transitions.find(transition => transition.id === 'transition-reference-1')).toEqual({
+      ...candidate, participants: retimedTransition.participants, wholeOutput: retimedTransition.wholeOutput,
+    })
+  })
+
+  it('still refuses an update-transition that changes participants or origin, with or without a duration change', () => {
+    const record = nativeDissolve()
+    const current = record.composition.transitions.find(transition => transition.id === 'transition-reference-1')!
+    const changedParticipants = structuredClone(current)
+    changedParticipants.participants = [{ ...changedParticipants.participants[0], toClipId: 'placement-reference-content-3' }]
+    for (const transition of [
+      changedParticipants,
+      { ...structuredClone(current), durationMs: 2000, participants: changedParticipants.participants },
+      { ...structuredClone(current), origin: 'converted-boundary-transition' as const },
+      { ...structuredClone(current), durationMs: 2000, origin: 'converted-boundary-transition' as const },
+    ]) {
+      const result = editShowTransitionV2(record, { kind: 'update-transition', transition })
+      expect(result).toMatchObject({ status: 'refused', code: 'invalid-intent' })
+      expect(result.record).toBe(record)
+    }
   })
 })

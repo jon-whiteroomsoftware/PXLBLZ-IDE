@@ -174,8 +174,13 @@ ending at `wholeOutput.startMs` and every incoming one starting at the window
 end, with no ramps, repairs as one Scene edge. The downstream closure starts
 from every incoming Clip and the outgoing-track retime follows every outgoing
 Clip, which equals v1 then convert for resize and Reset on the stock
-property-animation Show's two Crossfade boundaries. The Clip-edge and temporal
-gestures move one Clip of such a boundary and stay single-contributor.
+property-animation Show's two Crossfade boundaries. A palette or settings edit
+that changes a Transition's Duration retimes it by the same rule as
+`resize-transition`: on a native Transition that means downstream content
+shifts and Show End stays fixed, a recorded divergence from v1's loop shrink
+(Jon, 2026-09-22). The change remains one edit and one history entry. The
+Clip-edge and temporal gestures move one Clip of such a boundary and stay
+single-contributor.
 
 A Trim/Extend that moves the meeting edge always commits the repair: the Clip is
 retimed in preimage coordinates first, then `commitConvertedBoundaryRepairsV2`

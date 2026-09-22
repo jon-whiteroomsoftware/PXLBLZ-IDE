@@ -4,6 +4,7 @@ import { ShowEditor } from './ShowEditor'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { validateShowRecordV2 } from '@/engine/showCompositionV2'
+import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import { editShowZoneV2 } from '@/engine/showZonesV2'
 import { editShowLayerV2 } from '@/engine/showLayersV2'
 import { showBoundaryClipIdentity } from '@/engine/showClipIdentity'
@@ -1184,6 +1185,44 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('applies a palette choice through the transition-edit door', async () => {
     const { record } = convertedFreshBoundary('tracer-boundary-palette-apply')
     const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await act(async () => {})
+    fireEvent.click(within(boundaryPanel()).getByRole('button', { name: /Change$/ }))
+    await act(async () => {})
+
+    const palette = screen.getByRole('dialog', { name: 'Choose Transition' })
+    fireEvent.click(within(palette).getByRole('button', { name: 'Use Block Transition' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const request = admission.calls[0].request as {
+      intent: { kind: string; transition: { kind?: string; dissolveVariant?: string } }
+      baseRevision: number
+    }
+    expect(request.intent.kind).toBe('update-transition')
+    expect(request.intent.transition.kind).toBe('dither')
+    expect(request.intent.transition.dissolveVariant).toBe('block')
+    expectOneEdit(before, editor.state())
+    expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
+  })
+
+  it('applies a palette choice to a native whole-output Transition in one history entry (#1066 slice 5b-2)', async () => {
+    const { record } = nativeWholeOutputBoundary('tracer-boundary-palette-apply-native')
+    // The fixture's Transition already holds the palette Duration (2000 ms),
+    // so shrink it first: the Block choice below then carries a new Duration,
+    // which is the refused-then-accepted path this slice owns.
+    expect(record.composition.transitions).toHaveLength(1)
+    const transitionId = record.composition.transitions[0].id
+    expect(record.composition.transitions[0].durationMs).toBe(2_000)
+    const resized = editShowTransitionV2(record, { kind: 'resize-transition', transitionId, durationMs: 1_000 })
+    expect(resized.status).toBe('changed')
+    if (resized.status !== 'changed') throw new Error(JSON.stringify(resized))
+    const editor = openV2EditorForRecord(resized.record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
 

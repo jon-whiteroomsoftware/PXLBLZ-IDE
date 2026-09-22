@@ -174,13 +174,13 @@ export function editShowTransitionV2(
       origin: transition.origin,
     })
     if (JSON.stringify(ownership(current)) !== JSON.stringify(ownership(intent.transition))) {
-      // A palette choice may carry a new duration for a converted Scene
-      // boundary: v1 applies it in the same edit, retiming the loop. Retime
-      // through the boundary repair first, then apply the settings to that
-      // result, so the whole choice stays one accepted edit (#1066 5b).
+      // A settings edit that also carries a new Duration (the palette's)
+      // retimes through resize-transition first, under whichever rule that
+      // edit applies to this Transition: the converted-boundary repair, or
+      // the native shift that keeps Show End fixed. The settings then apply
+      // to the retimed record, as one accepted edit (#1066 5b, 5b-2).
       const retimed = JSON.stringify(ownership(current)) === JSON.stringify({ ...ownership(intent.transition), durationMs: current.durationMs })
         && intent.transition.durationMs > 0
-        && convertedBoundaryRepairSpecV2(record, current.id, { multiContributor: true }).status === 'ready'
         ? editShowTransitionV2(record, { kind: 'resize-transition', transitionId: current.id, durationMs: intent.transition.durationMs })
         : null
       if (!retimed) {
