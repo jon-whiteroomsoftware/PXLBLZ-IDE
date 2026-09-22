@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-1790115629980",
+  "operation": "On the v2 backing at the code tip, the case 2583 flow: marquee two Clips, Make Group, Duplicate the occurrence (2 linked), isolate the second occurrence, select Group Clip Main pulse and set Duration to 4. The saved Show's one Group definition holds the 4000 ms placement, with 2 occurrences (stored readback; capture shows the inspector at Start 5 s, Duration 4 s).",
+  "captures": [".wrsp/ui-proof/1075-g2a-group-clip-duration.png"],
+  "capturedAtCommit": "b8cfd83868d403a4f8a837e66b5543a279365a8a"
+}
