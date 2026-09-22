@@ -42,8 +42,10 @@ consistency on load, never against the current reviewer catalog or family
 registry, so worktrees on 0.16.0 accept receipts recorded by reviewers their
 package does not know. Registry-derived coverage claims are checked when a
 receipt is written. Reviewer selection, the ranked tier, and the review policy
-fingerprint are unchanged from 0.15.0. The pre-push gate peels annotated tags
-before the test-evidence check (WRSP #119).
+fingerprint are unchanged from 0.15.0. WRSP #119 peels annotated tags in the
+package's own pre-push evidence check, but this repository's `.husky/pre-push`
+keeps its own tip check, which compares the raw tag object with `HEAD`, so
+annotated-tag pushes from this repository are still refused there.
 
 ## WRSP 0.15.0 adoption (#1081)
 
