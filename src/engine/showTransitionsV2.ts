@@ -290,14 +290,16 @@ export function editShowTransitionV2(
  * the reclaimed window and moving later occurrences earlier by the same duration.
  *
  * The repair fires only for Transitions carrying
- * `origin: 'converted-boundary-transition'` at single-participant scope.
- * Provenance is the only reliable family signal: a converted boundary at
- * participant scope is structurally identical to a native Layer junction, so
- * structure alone must never select this path. Native Transitions,
- * converted Layer Transitions and whole-output boundaries keep the existing
- * grow/shift behaviour, and Clip deletion keeps survivor times and Show End
- * exactly (v1 preserves its loop on delete; only the unrepresentable orphan
- * record is dropped).
+ * `origin: 'converted-boundary-transition'` with exactly one outgoing and one
+ * incoming Clip, at single-participant or whole-output scope. Provenance is the
+ * only reliable family signal: a converted boundary at participant scope is
+ * structurally identical to a native Layer junction, so structure alone must
+ * never select this path, and scope is a lowering concern the #1068 promotion
+ * may change without changing what the boundary is. Native Transitions,
+ * converted Layer Transitions, multi-contributor boundaries and whole-output
+ * boundaries still carrying ramps keep the existing grow/shift behaviour, and
+ * Clip deletion keeps survivor times and Show End exactly (v1 preserves its
+ * loop on delete; only the unrepresentable orphan record is dropped).
  *
  * One repair never invents room: content spanning the reclaimed window end,
  * a tail occurrence that cannot absorb the reclaim, stranded Property
@@ -330,14 +332,20 @@ export function convertedBoundaryRepairSpecV2(
 ): ConvertedBoundaryRepairEligibilityV2 {
   const transition = record.composition.transitions.find(candidate => candidate.id === transitionId)
   if (!transition || !isConvertedBoundaryTransitionV2(transition)) return { status: 'ignore' }
-  if (transition.wholeOutput || transition.participants.length !== 1) return { status: 'ignore' }
-  if (transition.propertyRamps.length > 0) return { status: 'ramp-carrier', transitionId: transition.id }
-  const participant = transition.participants[0]
-  const from = record.composition.clips.find(clip => clip.id === participant.fromClipId)
-  const to = record.composition.clips.find(clip => clip.id === participant.toClipId)
+  const endpoints = transitionEndpoints(transition)
+  if (endpoints.from.length !== 1 || endpoints.to.length !== 1) return { status: 'ignore' }
+  if (!transition.wholeOutput && transition.participants.length !== 1) return { status: 'ignore' }
+  if (transition.propertyRamps.length > 0) return transition.wholeOutput ? { status: 'ignore' } : { status: 'ramp-carrier', transitionId: transition.id }
+  const from = record.composition.clips.find(clip => clip.id === endpoints.from[0])
+  const to = record.composition.clips.find(clip => clip.id === endpoints.to[0])
   if (!from || !to) return { status: 'ignore' }
-  if (from.zoneId !== participant.zoneId || to.zoneId !== participant.zoneId
-    || from.layerId !== participant.layerId || to.layerId !== participant.layerId) return { status: 'ignore' }
+  if (transition.wholeOutput) {
+    if (transition.wholeOutput.startMs !== from.startMs + from.durationMs) return { status: 'ignore' }
+  } else {
+    const participant = transition.participants[0]
+    if (from.zoneId !== participant.zoneId || to.zoneId !== participant.zoneId
+      || from.layerId !== participant.layerId || to.layerId !== participant.layerId) return { status: 'ignore' }
+  }
   const windowStartMs = from.startMs + from.durationMs
   const windowEndMs = to.startMs
   if (windowStartMs + transition.durationMs !== windowEndMs) return { status: 'ignore' }

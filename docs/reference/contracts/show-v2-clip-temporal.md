@@ -66,7 +66,7 @@ the former join partners stay, matching the v1 drag. The agent command
 withholds that permission, so the same Zone or Layer change through
 `update_clips` refuses `invalid-topology` with no write, matching v1's command
 path: reset those Transitions explicitly first. A Transition in that set carrying
-`origin: 'converted-boundary-transition'` at single-participant scope is timeline
+`origin: 'converted-boundary-transition'` with one outgoing and one incoming Clip is timeline
 structure rather than a gap between placements, so the same transaction also
 commits its cut-and-reclaim repair: the boundary record leaves, the downstream
 side moves earlier by the boundary duration, Show End shrinks by the same
@@ -149,12 +149,16 @@ participant-scope junction shape. Growing it like a native crossfade invents
 choreography v1 never had, so a meeting-edge edit repairs it inside the same
 accepted edit instead. `convertedBoundaryRepairSpecV2` fires only on provenance
 plus exact structure: the Transition carries
-`origin: 'converted-boundary-transition'`, has no whole-output window and exactly
-one participant, holds no `propertyRamps`, names two existing Clips on the
-participant's Zone and Layer, and the junction is exact
-(`from.end + durationMs == to.start`). Native Transitions, converted Layer
-Transitions and whole-output boundaries keep the existing grow/shift behaviour on
-every entry point; a carrier that still holds ramps reports `ramp-carrier` and
+`origin: 'converted-boundary-transition'` and names exactly one outgoing and one
+incoming existing Clip, either as its one participant (on that participant's Zone
+and Layer) or as a whole-output window starting at the outgoing Clip's end; it
+holds no `propertyRamps`; and the junction is exact
+(`from.end + durationMs == to.start`). Scope does not select the path: the #1068
+promotion rewrites a participant boundary to whole-output when the lowering needs
+it, and the repair must survive that. Native Transitions, converted Layer
+Transitions, multi-contributor boundaries and whole-output boundaries still
+carrying ramps keep the existing grow/shift behaviour on every entry point; a
+participant-scope carrier that still holds ramps reports `ramp-carrier` and
 every resize or plan-less reset refuses `unsupported-property-carrier` until an
 explicit projection plan clears it.
 

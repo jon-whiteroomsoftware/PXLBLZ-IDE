@@ -162,7 +162,7 @@ export function planShowV2ClipMove(
  * that cannot cover the reclaim - refuses as `boundary-repair-blocked` for the
  * same reason: the owner would refuse the same gesture at commit.
  * A Layer-Transition join (`origin: 'converted-layer-transition'`), a natively
- * authored join (no origin), a whole-output boundary, or an inexact junction
+ * authored join (no origin), a multi-contributor boundary, or an inexact junction
  * keeps the connected form exactly as now, as does every resize that leaves the
  * junction intact. Provenance plus the exact junction on both sides selects the
  * repair path, never a name or id heuristic; the owner stays the authority at
@@ -179,8 +179,9 @@ interface ConvertedBoundaryEdgeV2 {
 
 /**
  * The converted Scene-boundary repair shape (#1068) behind one joined edge: a
- * single-participant converted-boundary Transition whose window meets the Clip
- * edge exactly, with the far side of the window meeting its own Clip exactly.
+ * converted-boundary Transition with one outgoing and one incoming Clip, at
+ * participant or whole-output scope, whose window meets the Clip edge exactly,
+ * with the far side of the window meeting its own Clip exactly.
  * This mirrors `convertedBoundaryRepairSpecV2`'s structural key - provenance
  * plus exact structure - minus the ramp-carrier classification, which the
  * presented timeline does not carry and the owner keeps.
@@ -196,13 +197,15 @@ function convertedBoundaryRepairShape(
   if (onEdge.length !== 1) return null
   const joined = onEdge.filter(
     (transition) => transition.origin === 'converted-boundary-transition'
-      && transition.scope.kind === 'participants'
-      && transition.scope.participants.length === 1,
+      && (transition.scope.kind === 'participants'
+        ? transition.scope.participants.length === 1
+        : transition.scope.fromItemIds.length === 1 && transition.scope.toItemIds.length === 1),
   )
   if (joined.length !== 1) return null
   const transition = joined[0]
-  if (transition.scope.kind !== 'participants') return null
-  const participant = transition.scope.participants[0]
+  const participant = transition.scope.kind === 'participants'
+    ? transition.scope.participants[0]
+    : { fromItemId: transition.scope.fromItemIds[0], toItemId: transition.scope.toItemIds[0] }
   if (transition.startMs + transition.durationMs !== transition.endMs) return null
   const endMs = item.startMs + item.durationMs
   if (edge === 'leading') {

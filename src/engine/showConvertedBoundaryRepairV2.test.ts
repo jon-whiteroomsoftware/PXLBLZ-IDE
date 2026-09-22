@@ -17,7 +17,8 @@ import { materializeShowGroupsV2 } from './showGroupsV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { editShowClipTemporalV2 } from './showClipTemporalV2'
 import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
-import { editShowTransitionV2 } from './showTransitionsV2'
+import { editShowPropertyV2 } from './showPropertyEditsV2'
+import { convertedBoundaryRepairSpecV2, editShowTransitionV2 } from './showTransitionsV2'
 import {
   parseProvisionalShowRecordV2,
   serializeProvisionalShowRecordV2,
@@ -853,5 +854,106 @@ describe('converted Scene-boundary repair moves every Show-time anchor (#1068 P1
     const refused = editShowClipTemporalV2(source, { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 })
     expect(refused.status).toBe('refused')
     expect(source).toEqual(before)
+  })
+})
+
+describe('converted Scene-boundary repair after whole-output promotion (#1068)', () => {
+  function promotedDefaultShow(): ShowRecordV2 {
+    const promoted = editShowPropertyV2(convertedDefaultShow(), { kind: 'show' }, {
+      kind: 'add-track',
+      track: {
+        id: 'promotion-track',
+        target: { kind: 'clip-view', clipId: LEFT, property: 'brightness' },
+        activeStartMs: 0,
+        activeDurationMs: 32000,
+        keyframes: [
+          { id: 'promotion-k0', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+          { id: 'promotion-k1', timeMs: 30000, value: 0.4, easing: { curve: 'linear' } },
+        ],
+      },
+    })
+    expect(promoted.status).toBe('changed')
+    if (promoted.status !== 'changed') throw new Error('promotion-track add did not change the record')
+    expect(promoted.record.composition.transitions.map(t => [t.id, t.participants, t.wholeOutput])).toEqual([
+      [BOUNDARY, [], { startMs: 30000, fromClipIds: [LEFT], toClipIds: [RIGHT] }],
+    ])
+    return promoted.record
+  }
+
+  function shape(record: ShowRecordV2) {
+    return {
+      clips: record.composition.clips.map(c => [c.id, c.startMs, c.durationMs]),
+      showEndMs: record.composition.showEndMs,
+      transitionIds: record.composition.transitions.map(t => t.id),
+      occurrences: record.composition.layoutOccurrences.map(o => [o.startMs, o.durationMs]),
+    }
+  }
+
+  function prepareStatus(record: ShowRecordV2) {
+    return prepareShowV2ForCompile(reopen(record), {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(
+        record.composition.patternInstances.map(instance => [instance.id, probeSource]),
+      ),
+      stageDimension: 2,
+    }, { libraries: LIBRARIES }).status
+  }
+
+  it('classifies the promoted boundary as ready for repair', () => {
+    expect(convertedBoundaryRepairSpecV2(promotedDefaultShow(), BOUNDARY)).toEqual({
+      status: 'ready',
+      repair: {
+        transitionId: BOUNDARY,
+        fromClipId: LEFT,
+        toClipId: RIGHT,
+        windowStartMs: 30000,
+        windowEndMs: 32000,
+        durationMs: 2000,
+      },
+    })
+  })
+
+  it('keeps grow/shift for a whole-output boundary still carrying ramps', () => {
+    const record = promotedDefaultShow()
+    record.composition.transitions[0].propertyRamps = [{
+      target: { kind: 'show-repeat-scale' },
+      from: 2,
+      easing: { curve: 'quadratic', direction: 'in' },
+    }]
+    expect(convertedBoundaryRepairSpecV2(record, BOUNDARY)).toEqual({ status: 'ignore' })
+  })
+
+  type BoundaryEditResult = ReturnType<typeof editShowTransitionV2> | ReturnType<typeof editShowClipTemporalV2>
+  const CUT_LEADING = {
+    clips: [[LEFT, 0, 30000], [RIGHT, 34000, 26000]],
+    showEndMs: 60000,
+    transitionIds: [],
+    occurrences: [[0, 60000]],
+  }
+  const CUT_TRAILING = {
+    clips: [[LEFT, 0, 26000], [RIGHT, 30000, 30000]],
+    showEndMs: 60000,
+    transitionIds: [],
+    occurrences: [[0, 60000]],
+  }
+  const rows: Array<[string, (record: ShowRecordV2) => BoundaryEditResult, unknown, unknown]> = [
+    ['a leading edge resize', r => editShowTransitionV2(r, { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 }), CUT_LEADING, [[0, 32000, [0, 30000]]]],
+    ['a trailing edge resize', r => editShowTransitionV2(r, { kind: 'resize-trailing', clipId: LEFT, endMs: 26000 }), CUT_TRAILING, [[0, 26000, [0, 26000]]]],
+    ['Reset to Cut', r => editShowTransitionV2(r, { kind: 'reset-to-cut', transitionId: BOUNDARY }), { clips: [[LEFT, 0, 30000], [RIGHT, 30000, 30000]], showEndMs: 60000, transitionIds: [], occurrences: [[0, 60000]] }, [[0, 32000, [0, 30000]]]],
+    ['a boundary Clip delete', r => editShowTransitionV2(r, { kind: 'delete-clip', clipId: RIGHT }), { clips: [[LEFT, 0, 30000]], showEndMs: 62000, transitionIds: [], occurrences: [[0, 62000]] }, [[0, 32000, [0, 30000]]]],
+    ['a leading Trim', r => editShowClipTemporalV2(r, { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 }), CUT_LEADING, [[0, 32000, [0, 30000]]]],
+    ['a trailing Trim', r => editShowClipTemporalV2(r, { kind: 'trim', clipId: LEFT, startMs: 0, endMs: 26000 }), CUT_TRAILING, [[0, 26000, [0, 26000]]]],
+  ]
+  it.each(rows)('repairs %s on the promoted Show exactly as on the participant-scope Show', (_name, edit, expected, expectedTracks) => {
+    const plain = edit(convertedDefaultShow())
+    const promoted = edit(promotedDefaultShow())
+    expect(plain.status).toBe('changed')
+    expect(promoted.status).toBe('changed')
+    if (plain.status !== 'changed') throw new Error('participant-scope edit did not change the record')
+    if (promoted.status !== 'changed') throw new Error('promoted edit did not change the record')
+    expect(shape(promoted.record)).toEqual(expected)
+    expect(shape(plain.record)).toEqual(expected)
+    expect(promoted.record.composition.propertyTracks.map(t => [t.activeStartMs, t.activeDurationMs, t.keyframes.map(k => k.timeMs)])).toEqual(expectedTracks)
+    expect(prepareStatus(promoted.record)).toBe('ready')
   })
 })

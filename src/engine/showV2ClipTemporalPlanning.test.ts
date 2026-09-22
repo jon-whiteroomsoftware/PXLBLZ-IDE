@@ -309,11 +309,18 @@ describe('planShowV2ClipResize across conversion provenance (#1068)', () => {
       .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-trailing', clipId: 'e', endMs: 15500 } })
   })
 
-  it('keeps the connected grow form on a whole-output boundary edge in both directions', () => {
+  it('routes a pull-away from a whole-output converted boundary edge through the connected repair door', () => {
     expect(planShowV2ClipResize(fixture(), { clipId: 'j', edge: 'trailing', startMs: 4000, endMs: 5500 }))
       .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-trailing', clipId: 'j', endMs: 5500 } })
     expect(planShowV2ClipResize(fixture(), { clipId: 'k', edge: 'leading', startMs: 9500, endMs: 11000 }))
       .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-leading', clipId: 'k', startMs: 9500 } })
+  })
+
+  it('refuses a resize that grows a Clip into a whole-output converted boundary', () => {
+    expect(planShowV2ClipResize(fixture(), { clipId: 'j', edge: 'trailing', startMs: 4000, endMs: 6500 }))
+      .toEqual({ kind: 'refuse', reason: 'boundary-extend-unsupported' })
+    expect(planShowV2ClipResize(fixture(), { clipId: 'k', edge: 'leading', startMs: 8500, endMs: 11000 }))
+      .toEqual({ kind: 'refuse', reason: 'boundary-extend-unsupported' })
   })
 
   it('refuses a resize that grows a converted-boundary Clip into the boundary', () => {
