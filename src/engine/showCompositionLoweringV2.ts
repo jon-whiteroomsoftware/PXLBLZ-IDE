@@ -386,10 +386,10 @@ function resolveShowV2CompileContext(
   const issue = validateShowRecordV2(record)[0]
   if (issue) return refuse('invalid-record', issue.path, issue.message)
   const composition = record.composition
+  // Mixed whole-output and Layer scopes lower together through the
+  // global-sections route: each Layer Transition rides in the global section
+  // that fully contains its window (#1080 class 3).
   const wholeOutput = composition.transitions.some(transition => transition.wholeOutput !== undefined)
-  if (wholeOutput && composition.transitions.some(transition => !transition.wholeOutput)) {
-    return refuse('unsupported-transition-participants', 'composition.transitions', 'Mixed whole-output and Layer scopes require separate preservation proof.')
-  }
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
     return refuse('unsupported-groups', 'composition.groupDefinitions', 'lowering requires Group materialization evidence before compilation.')
   }
@@ -781,19 +781,39 @@ function lowerGlobalClipsToSections(
   })
   // A participant Transition stays inside the one section that owns its whole
   // window; `resolveShowV2CompileContext` refused any boundary at or inside it.
-  const participantTransitions: ShowLayerTransition[] = context.route !== 'transition' ? [] : composition.transitions.map(transition => {
-    const participant = transition.participants[0]
-    const incoming = composition.clips.find(clip => clip.id === participant.toClipId)!
-    const section = sections.find(candidate => candidate.startMs <= incoming.startMs && candidate.endMs > incoming.startMs)
-    if (!section) throw new Error(`Participant Transition "${transition.id}" has no derived section.`)
-    return {
-      ...stripV2TransitionFields(transition),
-      id: transition.id,
-      fromPlacementId: globalPlacementIdentity(placementIdentities, participant.fromClipId, section.id).id,
-      toPlacementId: globalPlacementIdentity(placementIdentities, incoming.id, section.id).id,
-      kind: transition.kind,
-    }
-  })
+  // On the global-sections route a mixed record's Layer Transitions ride in
+  // the global section that fully contains their window [from end, to start]
+  // (#1080 class 3). A window no section fully owns, or an endpoint with no
+  // lowered placement there, has no representation and refuses rather than
+  // guessing.
+  const participantTransitions: ShowLayerTransition[] = composition.transitions
+    .filter(transition => transition.wholeOutput === undefined)
+    .map(transition => {
+      if (context.route === 'transition') {
+        const participant = transition.participants[0]
+        const incoming = composition.clips.find(clip => clip.id === participant.toClipId)!
+        const section = sections.find(candidate => candidate.startMs <= incoming.startMs && candidate.endMs > incoming.startMs)
+        if (!section) throw new Error(`Participant Transition "${transition.id}" has no derived section.`)
+        return layerTransitionInSection(placementIdentities, transition, section)
+      }
+      const participant = transition.participants[0]
+      const from = composition.clips.find(clip => clip.id === participant.fromClipId)
+      const incoming = composition.clips.find(clip => clip.id === participant.toClipId)
+      const window = from && incoming
+        ? { startMs: from.startMs + from.durationMs, endMs: incoming.startMs }
+        : undefined
+      const section = window
+        ? sections.find(candidate => candidate.startMs <= window.startMs && candidate.endMs >= window.endMs)
+        : undefined
+      if (!section) {
+        throw new Error('A Layer Transition must sit inside one section of a Show with whole-output boundaries.')
+      }
+      try {
+        return layerTransitionInSection(placementIdentities, transition, section)
+      } catch {
+        throw new Error('A Layer Transition must sit inside one section of a Show with whole-output boundaries.')
+      }
+    })
   const v1Composition: ShowCompositionV1 = {
     version: 1,
     ...(composition.executionModel === 'deterministic-loop'
@@ -815,7 +835,7 @@ function lowerGlobalClipsToSections(
   const scenes = [...(needsEmptyHold ? [buildDerivedScene(context, emptyHoldId, 'Empty hold', 0, 0)] : []), ...derivedScenes]
   const lowered = buildLoweredShow(context, scenes, [], v1Composition)
   if (context.route !== 'transition') {
-    for (const transition of composition.transitions) {
+    for (const transition of composition.transitions.filter(candidate => candidate.wholeOutput !== undefined)) {
       const sectionIndex = sections.findIndex(section => section.endMs === transition.wholeOutput!.startMs)
       if (sectionIndex < 0) {
         // At time zero the predecessor is the emitted Empty hold: attach the
@@ -888,6 +908,21 @@ function globalPlacementIdentity(identities: GlobalPlacementIdentities, clipId: 
   const identity = identities.get(clipId)?.get(sectionId)
   if (!identity) throw new Error(`No derived placement identity for Clip "${clipId}" in section "${sectionId}".`)
   return identity
+}
+
+function layerTransitionInSection(
+  placementIdentities: GlobalPlacementIdentities,
+  transition: ShowRecordV2['composition']['transitions'][number],
+  section: DerivedSection,
+): ShowLayerTransition {
+  const participant = transition.participants[0]
+  return {
+    ...stripV2TransitionFields(transition),
+    id: transition.id,
+    fromPlacementId: globalPlacementIdentity(placementIdentities, participant.fromClipId, section.id).id,
+    toPlacementId: globalPlacementIdentity(placementIdentities, participant.toClipId, section.id).id,
+    kind: transition.kind,
+  }
 }
 
 function overlaps(clip: ShowClipV2, section: DerivedSection): boolean {

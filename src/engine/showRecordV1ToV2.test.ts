@@ -677,11 +677,11 @@ it('converts a divergent overlay name when the earlier placement never routes', 
   expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(result.record))).toEqual({ status: 'opened', record: result.record })
 })
 
-// A one-sided boundary converts to whole-output scope, so pairing it with a
-// Layer Transition still refuses the pre-existing mixed-scope preparation gate
-// ("Mixed whole-output and Layer scopes require separate preservation proof").
-// That gate is outside the converter: conversion itself stays faithful.
-it('reports the pre-existing mixed-scope preparation refusal on a one-sided boundary beside a Layer Transition', () => {
+// A one-sided boundary converts to whole-output scope; pairing it with a
+// Layer Transition now prepares through the global-sections route, with the
+// Layer Transition riding in the global section that owns its window
+// (#1080 class 3). Conversion itself stays faithful.
+it('prepares a one-sided boundary beside a Layer Transition through global-sections', () => {
   const source = convertibleV1Show()
   source.stageMapId = 'plane'
   source.composition!.durationMs = 11000
@@ -722,10 +722,8 @@ it('reports the pre-existing mixed-scope preparation refusal on a one-sided boun
     byPatternInstanceId: { instance: tinySource },
     stageDimension: 2 as const,
   }
-  expect(prepareShowV2ForCompile(result.record, lookup)).toMatchObject({
-    status: 'refused',
-    issues: expect.arrayContaining([expect.objectContaining({ code: 'unsupported-transition-participants' })]),
-  })
+  const prepared = prepareShowV2ForCompile(result.record, lookup)
+  expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
 })
 
 describe('authored repeat scale provenance (#1066 slice 9b)', () => {

@@ -97,7 +97,7 @@ export function scalarRampScopeBlockedV2(record: ShowRecordV2): boolean {
  * converter's whole-output shape, but only when the record would otherwise be
  * refused by the participant-window rule, by the multiple-Layout-occurrence rule, or by the scalar-ramp scope rule,
  * and then every participant-scope
- * Transition or none: mixed whole-output/participant records have no lowering.
+ * Transition or none: mixed whole-output/participant records keep their scopes and lower through global-sections (#1080 class 3).
  * A boundary a Clip spans, a Transition with any ramp other than a Show-scalar ramp, and every Layer Transition
  * are never eligible. Never demotes. All three triggers and the window scan read the Group-materialized record with unused-instance tracks removed, as the lowering does; a Group child at the window has no authored name, so its boundary is not promoted.
  */
