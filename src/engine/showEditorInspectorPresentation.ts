@@ -808,10 +808,13 @@ export function projectShowEditorRoutingTransfersV2(
   record: ShowRecordV2,
 ): Record<string, ShowEditorRoutingTransferPresentationV2> {
   const layoutOptions = record.zoneLayouts.map(layout => ({ id: layout.id, name: layout.name }))
-  return Object.fromEntries(record.composition.layoutOccurrences.flatMap(occurrence => {
+  const ordered = [...record.composition.layoutOccurrences]
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+  return Object.fromEntries(ordered.flatMap((occurrence, index) => {
     // A converted zero-duration switch is the same routing event v1 selects at
     // that boundary; it simply owns no timed transfer object (#1065). v1 stores
     // no direction for one, and its panel reports `directionAuthored: false`.
+    // A native Cut owns neither, so it gets a display identity too (#1066).
     const routing = occurrence.incomingTransfer
       ? {
           id: occurrence.incomingTransfer.id,
@@ -826,7 +829,14 @@ export function projectShowEditorRoutingTransfersV2(
             easing: occurrence.incomingSwitch.easing,
             direction: occurrence.incomingSwitch.direction,
           }
-        : undefined
+        : index === 0
+          ? undefined
+          : {
+              id: `layout-cut:${occurrence.id}`,
+              durationMs: 0,
+              easing: undefined,
+              direction: undefined,
+            }
     if (!routing) return []
     return [[routing.id, {
       id: routing.id,

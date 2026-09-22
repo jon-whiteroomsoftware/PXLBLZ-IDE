@@ -387,9 +387,10 @@ export function projectShowEditorTimelineV2(record: ShowRecordV2): ShowTimelineV
 
   const transitionViews = transitions.map(transition => projectTransition(transition, itemById))
     .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
-  const layoutIntervals = [...record.composition.layoutOccurrences]
+  const orderedLayoutOccurrences = [...record.composition.layoutOccurrences]
     .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
-    .map(occurrence => {
+  const layoutIntervals = orderedLayoutOccurrences
+    .map((occurrence, index) => {
       const definition = record.zoneLayouts.find(layout => layout.id === occurrence.layoutId)
       return {
         id: occurrence.id,
@@ -407,7 +408,8 @@ export function projectShowEditorTimelineV2(record: ShowRecordV2): ShowTimelineV
         // The lane draws one switch handle per authored routing event, which is
         // what v1's `showRoutingTransitionAfter` finds at any duration. A
         // converted zero-duration switch owns no timed transfer, so it fills
-        // this display view with its own identity and duration 0 (#1065).
+        // this display view with its own identity and duration 0 (#1065). A
+        // native Cut owns neither, so it gets a display identity too (#1066).
         ...(occurrence.incomingTransfer ? { incomingTransfer: {
           id: occurrence.incomingTransfer.id,
           fromOccurrenceId: occurrence.incomingTransfer.fromOccurrenceId,
@@ -416,7 +418,11 @@ export function projectShowEditorTimelineV2(record: ShowRecordV2): ShowTimelineV
           id: occurrence.incomingSwitch.id,
           fromOccurrenceId: occurrence.incomingSwitch.fromOccurrenceId,
           durationMs: 0,
-        } } : {}),
+        } } : index === 0 ? {} : { incomingTransfer: {
+          id: `layout-cut:${occurrence.id}`,
+          fromOccurrenceId: orderedLayoutOccurrences[index - 1]!.id,
+          durationMs: 0,
+        } }),
         selection: { kind: 'layout-occurrence' as const, occurrenceId: occurrence.id },
       }
     })

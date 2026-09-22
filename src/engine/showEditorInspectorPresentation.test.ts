@@ -889,3 +889,64 @@ describe('projectShowEditorBoundaryTransitionsV2', () => {
     expect(record).toEqual(before)
   })
 })
+
+describe('native v2 routing transfer Cut identity (#1066)', () => {
+  it('emits a synthetic Cut for a native boundary and none for the first occurrence', () => {
+    const source = record()
+    source.composition.layoutOccurrences = [
+      { id: 'layout-use', layoutId: 'layout', startMs: 0, durationMs: 3_000, parameters: {} },
+      { id: 'layout-use-b', layoutId: 'layout', startMs: 3_000, durationMs: 4_000, parameters: {} },
+    ]
+    const before = structuredClone(source)
+    const transfers = projectShowEditorRoutingTransfersV2(source)
+    expect(source).toEqual(before)
+    expect(Object.keys(transfers)).toEqual(['layout-cut:layout-use-b'])
+    const entry = transfers['layout-cut:layout-use-b']!
+    expect(entry.occurrenceId).toBe('layout-use-b')
+    expect(entry.durationMs).toBe(0)
+    expect(entry.easing).toEqual({ curve: 'linear' })
+    expect(entry.direction).toBe('forward')
+    expect(entry.directionAuthored).toBe(false)
+    expect(entry.layoutId).toBe('layout')
+    expect(entry.maxDurationMs).toBe(4_000)
+    expect(entry.layoutOptions.map(option => option.id)).toEqual(['layout'])
+    expect(typeof entry.boundaryIdentity).toBe('string')
+  })
+  it('keeps a timed transfer identity unchanged', () => {
+    const source = record()
+    source.composition.layoutOccurrences = [
+      { id: 'layout-use', layoutId: 'layout', startMs: 0, durationMs: 3_000, parameters: {} },
+      {
+        id: 'layout-use-b', layoutId: 'layout', startMs: 3_000, durationMs: 4_000, parameters: {},
+        incomingTransfer: { id: 'timed-1', fromOccurrenceId: 'layout-use', durationMs: 1_500, direction: 'reverse', easing: { curve: 'sine', direction: 'in-out' } },
+      },
+    ]
+    const transfers = projectShowEditorRoutingTransfersV2(source)
+    expect(Object.keys(transfers)).toEqual(['timed-1'])
+    expect(transfers['timed-1']).toMatchObject({
+      occurrenceId: 'layout-use-b',
+      durationMs: 1_500,
+      direction: 'reverse',
+      directionAuthored: true,
+    })
+  })
+  it('keeps a converted switch identity unchanged', () => {
+    const source = record()
+    source.composition.layoutOccurrences = [
+      { id: 'layout-use', layoutId: 'layout', startMs: 0, durationMs: 3_000, parameters: {} },
+      {
+        id: 'layout-use-b', layoutId: 'layout', startMs: 3_000, durationMs: 4_000, parameters: {},
+        incomingSwitch: { origin: 'converted-routing-cut', id: 'switch-1', fromOccurrenceId: 'layout-use' },
+      },
+    ]
+    const transfers = projectShowEditorRoutingTransfersV2(source)
+    expect(Object.keys(transfers)).toEqual(['switch-1'])
+    expect(transfers['switch-1']).toMatchObject({
+      occurrenceId: 'layout-use-b',
+      durationMs: 0,
+      direction: 'forward',
+      directionAuthored: false,
+      easing: { curve: 'linear' },
+    })
+  })
+})

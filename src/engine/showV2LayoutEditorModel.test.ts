@@ -4,7 +4,7 @@ import { buildShowV2LayoutEditorModel, planShowV2LayoutEdit, showV2MakeUniqueLay
 import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { commandFixtureV2 } from './showCommandsV2/fixtures'
-import { addShowRoutingLayout, createDefaultShow } from './showModel'
+import { addShowRoutingLayout, createDefaultShow, updateShowBoundaryTransition } from './showModel'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { appendShowLayoutInterval, duplicateShowLayoutInterval, projectShowLayoutIntervals } from './showLayoutIntervals'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
@@ -219,3 +219,37 @@ function appendOracle(sourceLayoutId: string | undefined): void {
 }
 it('appends a copied Zone Layout interval exactly as v1 then converts (#1066 slice 8b-1)', () => appendOracle('layout-1'))
 it('appends a default Zone Layout interval exactly as v1 then converts (#1066 slice 8b-1)', () => appendOracle(undefined))
+
+it('oracles a timed routing duration plus easing edit: v1 owner then convert equals v2 set-transfer (#1066)', () => {
+ const base = twoSceneDuplicateV1Show()
+ const routing = base.transitions?.find(candidate => candidate.kind === 'routing')
+ if (!routing) throw new Error('v1 base has no routing Transition')
+ // v1 duration plus easing edit through its own owner.
+ const edited = updateShowBoundaryTransition(base, routing.id, { durationMs: 2_000, easing: { curve: 'quadratic', direction: 'in-out' } })
+ const convertedBefore = convertShowRecordV1ToV2(base)
+ if (convertedBefore.status !== 'converted') throw new Error(JSON.stringify(convertedBefore.issues))
+ const convertedAfter = convertShowRecordV1ToV2(edited)
+ if (convertedAfter.status !== 'converted') throw new Error(JSON.stringify(convertedAfter.issues))
+ const beforeOccurrence = convertedBefore.record.composition.layoutOccurrences.find(candidate => candidate.startMs !== 0)
+ const afterTransfer = convertedAfter.record.composition.layoutOccurrences.find(candidate => candidate.id === beforeOccurrence!.id)?.incomingTransfer
+ if (!beforeOccurrence) throw new Error('converted before has no second Layout occurrence')
+ if (!afterTransfer) throw new Error('converted after has no timed incomingTransfer')
+ expect(beforeOccurrence.incomingSwitch?.id).toBe(routing.id)
+ // v2 set-transfer plus the owner on the converted before-record, with a pinned identity.
+ const plan = planShowV2LayoutEdit(convertedBefore.record, {
+   kind: 'set-transfer',
+   occurrenceId: beforeOccurrence.id,
+   transfer: { durationMs: 2_000, easing: { curve: 'quadratic', direction: 'in-out' }, direction: 'forward' },
+ }, () => 'pinned-transfer')
+ if (plan.status !== 'ready') throw new Error(plan.message)
+ const applied = editShowLayoutIntervalsV2(structuredClone(convertedBefore.record), plan.intent)
+ if (applied.status !== 'changed') throw new Error(applied.status === 'refused' ? applied.message : applied.status)
+ const v2Transfer = applied.record.composition.layoutOccurrences.find(candidate => candidate.id === beforeOccurrence.id)?.incomingTransfer
+ if (!v2Transfer) throw new Error('v2 edit produced no timed incomingTransfer')
+ expect(applied.record.composition.layoutOccurrences.find(candidate => candidate.id === beforeOccurrence.id)?.incomingSwitch).toBeUndefined()
+ // Apart from the planner-allocated identity, the two paths agree.
+ expect({ ...v2Transfer, id: 'transfer' }).toEqual({ ...afterTransfer, id: 'transfer' })
+ expect(v2Transfer.durationMs).toBe(2_000)
+ expect(v2Transfer.easing).toEqual({ curve: 'quadratic', direction: 'in-out' })
+ expect(v2Transfer.fromOccurrenceId).toBe(afterTransfer.fromOccurrenceId)
+})

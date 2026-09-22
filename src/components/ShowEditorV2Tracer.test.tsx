@@ -5141,3 +5141,90 @@ describe('v2 View code and Download .epe (#1066)', () => {
     }
   })
 })
+
+describe('v2 Zone Layout routing transfers (#1066)', () => {
+  function layoutTransferDoors() {
+    return admission.calls.filter((call) => call.door === 'admitShowV2PilotLayoutOccurrenceEdit')
+  }
+  function routingPanel(): HTMLElement {
+    return screen.getByRole('region', { name: 'Transition properties' })
+  }
+  it('writes duration, easing and remove through the layout-occurrence door', async () => {
+    const base = commandFixtureV2()
+    base.id = 'routing-transfer-flow'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const handle = screen.getByRole('button', { name: 'Select Moving split X routing interval 1' })
+    expect(handle).toBeInTheDocument()
+    const before = editor.state()
+    fireEvent.click(handle)
+    await act(async () => {})
+    const panel = routingPanel()
+    expect(within(panel).getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })).toBeInTheDocument()
+    const duration = within(panel).getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })
+    fireEvent.change(duration, { target: { value: '2' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+    const afterDuration = editor.state()
+    expect(layoutTransferDoors()).toHaveLength(1)
+    expect(layoutTransferDoors()[0].request.intent).toEqual({
+      kind: 'set-transfer',
+      occurrenceId: 'interval-2',
+      transfer: expect.objectContaining({ durationMs: 2000 }),
+    })
+    expectOneEdit(before, afterDuration)
+    expect(afterDuration.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-2')?.incomingTransfer?.durationMs).toBe(2000)
+    const easing = within(routingPanel()).getByRole('combobox', { name: 'Routing transfer easing' })
+    fireEvent.change(easing, { target: { value: 'ease-in-out' } })
+    await act(async () => {})
+    const afterEasing = editor.state()
+    expect(layoutTransferDoors()).toHaveLength(2)
+    const second = layoutTransferDoors()[1].request.intent as { kind: string; occurrenceId: string; transfer: { durationMs: number; easing: unknown } }
+    expect(second.kind).toBe('set-transfer')
+    expect(second.occurrenceId).toBe('interval-2')
+    expect(second.transfer.durationMs).toBe(2000)
+    expect(second.transfer.easing).toEqual({ curve: 'quadratic', direction: 'in-out' })
+    expect(afterEasing.history.past).toHaveLength(2)
+    expect(afterEasing.history.past[1]).toEqual(afterDuration.record)
+    expect(afterEasing.history.future).toEqual([])
+    expect(afterEasing.revision).toBe(afterDuration.revision + 1)
+    expect(afterEasing.v2Writes).toBe(afterDuration.v2Writes + 1)
+    expect(afterEasing.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
+    fireEvent.click(within(routingPanel()).getByRole('button', { name: 'Remove routing marker' }))
+    await act(async () => {})
+    const afterRemove = editor.state()
+    expect(layoutTransferDoors()).toHaveLength(3)
+    expect(layoutTransferDoors()[2].request.intent).toEqual({
+      kind: 'set-transfer',
+      occurrenceId: 'interval-2',
+      transfer: null,
+    })
+    expect(afterRemove.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-2')?.incomingTransfer).toBeUndefined()
+    expect(afterRemove.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-2')?.incomingSwitch).toBeUndefined()
+    expect(afterRemove.history.past).toHaveLength(3)
+    expect(afterRemove.history.past[2]).toEqual(afterEasing.record)
+    expect(afterRemove.revision).toBe(afterEasing.revision + 1)
+    expect(afterRemove.v2Writes).toBe(afterEasing.v2Writes + 1)
+  })
+  it('makes zero door calls when read-only', async () => {
+    const base = commandFixtureV2()
+    base.id = 'routing-transfer-readonly'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    fireEvent.click(screen.getByRole('button', { name: 'Select Moving split X routing interval 1' }))
+    await act(async () => {})
+    const before = editor.state()
+    const panel = routingPanel()
+    const duration = within(panel).getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })
+    fireEvent.change(duration, { target: { value: '2' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Routing transfer easing' }), { target: { value: 'ease-in-out' } })
+    await act(async () => {})
+    fireEvent.click(within(panel).getByRole('button', { name: 'Remove routing marker' }))
+    await act(async () => {})
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, editor.state())
+  })
+})

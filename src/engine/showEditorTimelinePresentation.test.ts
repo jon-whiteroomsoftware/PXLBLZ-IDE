@@ -590,3 +590,55 @@ describe('completeShowGroupSelectionV2 (#1066 L2583)', () => {
       .toEqual({ placementIds: ['clip-b', 'clip-a'], transitionIds: ['transition'] })
   })
 })
+
+describe('native v2 Layout boundary Cut identity (#1066)', () => {
+  it('gives a native boundary a layout-cut handle and none to the first occurrence', () => {
+    const source = record()
+    source.composition.layoutOccurrences = [
+      { id: 'layout-use', layoutId: 'layout', startMs: 0, durationMs: 6_000, parameters: {} },
+      { id: 'layout-use-b', layoutId: 'layout', startMs: 6_000, durationMs: 6_000, parameters: {} },
+    ]
+    const before = structuredClone(source)
+    const view = projectShowEditorTimelineV2(source)
+    expect(source).toEqual(before)
+    expect(view.layoutIntervals).toHaveLength(2)
+    expect(view.layoutIntervals[0]?.incomingTransfer).toBeUndefined()
+    expect(view.layoutIntervals[1]?.incomingTransfer).toEqual({
+      id: 'layout-cut:layout-use-b',
+      fromOccurrenceId: 'layout-use',
+      durationMs: 0,
+    })
+  })
+  it('keeps a timed transfer identity unchanged', () => {
+    const source = record()
+    source.composition.layoutOccurrences = [
+      { id: 'layout-use', layoutId: 'layout', startMs: 0, durationMs: 6_000, parameters: {} },
+      {
+        id: 'layout-use-b', layoutId: 'layout', startMs: 6_000, durationMs: 6_000, parameters: {},
+        incomingTransfer: { id: 'timed-1', fromOccurrenceId: 'layout-use', durationMs: 1_500, direction: 'forward', easing: { curve: 'linear' } },
+      },
+    ]
+    const view = projectShowEditorTimelineV2(source)
+    expect(view.layoutIntervals[1]?.incomingTransfer).toEqual({
+      id: 'timed-1',
+      fromOccurrenceId: 'layout-use',
+      durationMs: 1_500,
+    })
+  })
+  it('keeps a converted switch identity unchanged', () => {
+    const source = record()
+    source.composition.layoutOccurrences = [
+      { id: 'layout-use', layoutId: 'layout', startMs: 0, durationMs: 6_000, parameters: {} },
+      {
+        id: 'layout-use-b', layoutId: 'layout', startMs: 6_000, durationMs: 6_000, parameters: {},
+        incomingSwitch: { origin: 'converted-routing-cut', id: 'switch-1', fromOccurrenceId: 'layout-use' },
+      },
+    ]
+    const view = projectShowEditorTimelineV2(source)
+    expect(view.layoutIntervals[1]?.incomingTransfer).toEqual({
+      id: 'switch-1',
+      fromOccurrenceId: 'layout-use',
+      durationMs: 0,
+    })
+  })
+})

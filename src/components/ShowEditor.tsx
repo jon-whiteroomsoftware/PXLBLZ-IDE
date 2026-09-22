@@ -2042,6 +2042,60 @@ export function ShowEditor({
       closePinnedDetailForSelection({ kind: 'transition', transitionId })
     }).catch(() => {})
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2TransitionEdit, readOnly, recordVersion, savedShowV2, showId])
+  const commitV2RoutingTransferUpdate = useCallback((occurrenceId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>): void => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return
+    const occurrence = capture.record.composition.layoutOccurrences.find((candidate) => candidate.id === occurrenceId)
+    if (!occurrence) return
+    const wantsLayout = changes.layoutId !== undefined && changes.layoutId !== occurrence.layoutId
+    const wantsTiming = changes.durationMs !== undefined || changes.easing !== undefined || changes.routingDirection !== undefined
+    if (!wantsLayout && !wantsTiming) return
+    const transfers = projectShowEditorRoutingTransfersV2(capture.record)
+    const current = Object.values(transfers).find((entry) => entry.occurrenceId === occurrenceId)
+    if (!current) return
+    const buildTiming = (record: ShowRecordV2): ReturnType<typeof planShowV2LayoutEdit> | null => {
+      const durationMs = changes.durationMs ?? current.durationMs
+      const easing = changes.easing ?? current.easing
+      const direction = changes.routingDirection ?? (current.directionAuthored ? current.direction : undefined)
+      if (durationMs > 0) {
+        return planShowV2LayoutEdit(record, {
+          kind: 'set-transfer',
+          occurrenceId,
+          transfer: { durationMs, easing, ...(direction ? { direction } : {}) } as unknown as Omit<import('@/engine/showCompositionV2').ShowLayoutTransferV2, 'id' | 'fromOccurrenceId'>,
+        }, newPersonalContentId)
+      }
+      return planShowV2LayoutEdit(record, { kind: 'set-transfer', occurrenceId, transfer: null }, newPersonalContentId)
+    }
+    if (wantsLayout && wantsTiming) {
+      const layoutId = changes.layoutId as string
+      void commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'select-layout', occurrenceId, layoutId }, newPersonalContentId)).then((applied) => {
+        if (!applied) return
+        const timingPlan = buildTiming(useShowStore.getState().showV2Pilots[showId] ?? capture.record)
+        if (!timingPlan || timingPlan.status !== 'ready' || timingPlan.intent.kind !== 'set-transfer') return
+        const intent = timingPlan.intent
+        void commitV2LayoutPlan(() => timingPlan).then((timingApplied) => {
+          if (timingApplied && intent.transfer !== null) selectTimeline({ kind: 'transition', transitionId: intent.transfer.id })
+        }).catch(() => {})
+      }).catch(() => {})
+      return
+    }
+    if (wantsLayout) {
+      const layoutId = changes.layoutId as string
+      void commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'select-layout', occurrenceId, layoutId }, newPersonalContentId))
+      return
+    }
+    const timingPlan = buildTiming(capture.record)
+    if (!timingPlan || timingPlan.status !== 'ready' || timingPlan.intent.kind !== 'set-transfer') return
+    const intent = timingPlan.intent
+    void commitV2LayoutPlan(() => timingPlan).then((applied) => {
+      if (applied && intent.transfer !== null) selectTimeline({ kind: 'transition', transitionId: intent.transfer.id })
+    }).catch(() => {})
+  }, [commitV2LayoutPlan, readOnly, recordVersion, savedShowV2, selectTimeline, showId])
+  const commitV2RoutingTransferRemove = useCallback((occurrenceId: string): void => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+    void commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'set-transfer', occurrenceId, transfer: null }, newPersonalContentId))
+  }, [commitV2LayoutPlan, readOnly, recordVersion, savedShowV2])
   // Slice 10 connects ordinary-Clip Property animation through the property
   // door, line for line on the inspector chokepoint above: refused and no-op
   // plans return false synchronously so the popover reverts its draft, and an
@@ -4079,6 +4133,8 @@ export function ShowEditor({
                   onUpdateClipInspectorV2={commitV2ClipInspectorPatch}
                   onUpdateBoundaryTransitionV2={commitV2BoundaryTransitionChanges}
                   onRemoveBoundaryTransitionV2={commitV2BoundaryTransitionRemove}
+                  onUpdateRoutingTransferV2={commitV2RoutingTransferUpdate}
+                  onRemoveRoutingTransferV2={commitV2RoutingTransferRemove}
                   onPropertyAnimationChangeV2={commitV2PropertyAnimationChange}
                   onPropertyAnimationChange={(owner, change) => {
                     if (!legacyShow || !inspectorShow?.composition) return false
@@ -10139,6 +10195,8 @@ function ContextualInspector({
   onUpdateClipInspectorV2,
   onUpdateBoundaryTransitionV2,
   onRemoveBoundaryTransitionV2,
+  onUpdateRoutingTransferV2,
+  onRemoveRoutingTransferV2,
   onPropertyAnimationChangeV2,
   onPropertyAnimationChange,
   onUpdateGroupClipInspector,
@@ -10203,6 +10261,8 @@ function ContextualInspector({
   onUpdateClipInspectorV2?: (clipId: string, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onUpdateBoundaryTransitionV2?: (transitionId: string, changes: ShowTransitionChanges) => void
   onRemoveBoundaryTransitionV2?: (transitionId: string) => void
+  onUpdateRoutingTransferV2?: (occurrenceId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
+  onRemoveRoutingTransferV2?: (occurrenceId: string) => void
   onPropertyAnimationChangeV2?: (clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange) => boolean
   onPropertyAnimationChange: (owner: ShowPropertyAnimationStorageOwner, change: ShowPropertyAnimationChange) => boolean | void
   onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
@@ -10710,9 +10770,8 @@ function ContextualInspector({
             maxDurationMs: transfer.maxDurationMs,
             layoutOptions: transfer.layoutOptions,
           }}
-          // Routing writes are not connected for the v2 backing in this tracer.
-          onUpdate={() => {}}
-          onRemove={() => {}}
+          onUpdate={(changes) => onUpdateRoutingTransferV2?.(transfer.occurrenceId, changes)}
+          onRemove={() => onRemoveRoutingTransferV2?.(transfer.occurrenceId)}
         />
       )
     }
