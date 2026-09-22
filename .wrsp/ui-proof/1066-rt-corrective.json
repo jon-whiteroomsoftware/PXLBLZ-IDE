@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/be7ac675-2df9-4136-b460-b06e41d664ef",
+  "operation": "On the v2 backing at the code tip: a fresh Installation Show, then Append a 5 s Zone Layout interval. The appended Layout is stored as layout-2. Selecting its switch handle and entering 1.005 s stored a 1005 ms incomingTransfer. Entering 0 kept the routing transfer panel open on the Cut and stored no transfer (first capture). Remove on the panel deleted the switch: the stored record has one Layout occurrence and the lane handle is gone (second capture).",
+  "captures": [".wrsp/ui-proof/1066-rt-corrective-zero.png", ".wrsp/ui-proof/1066-rt-corrective-removed.png"],
+  "capturedAtCommit": "cb7026c2fb741393daec499c1ead81a4939ce0ce"
+}
