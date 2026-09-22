@@ -4925,3 +4925,70 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
     expect(screen.queryByRole('dialog', { name: 'Zone Layout at playhead' })).toBeNull()
   })
 })
+
+describe('v2 lesson Live strip (#1066 11c2a)', () => {
+  async function renderLessonV2(id: string, withNote = true) {
+    const { stockShowById } = await import('@/pixelblaze/stock/shows')
+    const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
+    const stock = stockShowById(id)!
+    const record = structuredClone(stockShowV2ById(id)!)
+    const editor = openV2EditorForRecord(record)
+    const builtInContext = withNote
+      ? {
+          track: stock.track,
+          lesson: stock.lesson,
+          description: stock.description,
+          note: stock.note,
+          patternSlots: stock.patternSlots,
+          reference: stock.reference,
+        }
+      : undefined
+    if (withNote) useShowEditorSessionStore.getState().setShowNoteOpen(editor.showId, true)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} builtInContext={builtInContext} />)
+    await act(async () => {})
+    return { stock, record, editor }
+  }
+
+  it('renders LIVE Heart 1/9 with the authored Kishimisu on aperture icons', async () => {
+    const { stock } = await renderLessonV2('stock-show-reference-aperture-icons')
+    const title = stock.note.number ? `${stock.note.number} ${stock.note.title}` : stock.note.title
+    const strip = screen.getByRole('region', { name: `${title} live strip` })
+    expect(within(strip).getByText('LIVE')).toBeInTheDocument()
+    expect(within(strip).getByText('Heart')).toBeInTheDocument()
+    expect(within(strip).getByText('1/9')).toBeInTheDocument()
+    expect(within(strip).getByRole('combobox', { name: 'Try with Pattern' })).toHaveValue('Kishimisu')
+    expect(admission.calls).toEqual([])
+  })
+
+  it('renders CLIP with the v1 first-clip label and count on 101', async () => {
+    const { stock } = await renderLessonV2('stock-show-101-clips-cuts-blank-time')
+    const { currentShowClip } = await import('@/engine/showReferenceShow')
+    const clip = currentShowClip(stock.show, 0)!
+    const title = stock.note.number ? `${stock.note.number} ${stock.note.title}` : stock.note.title
+    const strip = screen.getByRole('region', { name: `${title} live strip` })
+    expect(within(strip).getByText('CLIP')).toBeInTheDocument()
+    expect(within(strip).getByText(clip.patternName)).toBeInTheDocument()
+    expect(within(strip).getByText(`${clip.index + 1}/${clip.count}`)).toBeInTheDocument()
+    expect(admission.calls).toEqual([])
+  })
+
+  it('renders INTERVAL on a multi-chapter non-reference lesson', async () => {
+    const { stock } = await renderLessonV2('stock-show-105-portable-zones')
+    expect(stock.reference).toBeUndefined()
+    expect(stock.show.scenes.length).toBeGreaterThan(1)
+    const { currentShowScene } = await import('@/engine/showReferenceShow')
+    const scene = currentShowScene(stock.show, 0)!
+    const title = stock.note.number ? `${stock.note.number} ${stock.note.title}` : stock.note.title
+    const strip = screen.getByRole('region', { name: `${title} live strip` })
+    expect(within(strip).getByText('INTERVAL')).toBeInTheDocument()
+    expect(within(strip).getByText(scene.scene.name)).toBeInTheDocument()
+    expect(within(strip).getByText(`${scene.index + 1}/${stock.show.scenes.length}`)).toBeInTheDocument()
+    expect(admission.calls).toEqual([])
+  })
+
+  it('renders no live strip without a note', async () => {
+    await renderLessonV2('stock-show-reference-aperture-icons', false)
+    expect(screen.queryByRole('region', { name: /live strip/ })).not.toBeInTheDocument()
+    expect(admission.calls).toEqual([])
+  })
+})

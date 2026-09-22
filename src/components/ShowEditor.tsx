@@ -242,14 +242,18 @@ import { showKeyboardSeekStepMs } from '@/engine/showKeyboardSeek'
 import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
 import {
   applyShowPatternSlotSelections,
-  currentShowReferenceExample,
-  currentShowScene,
-  currentShowClip,
   restoreShowReferencePatternSlots,
   showPatternSlotRemovedControlNames,
   type ShowPatternSlotGroup,
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
+import {
+  showLessonAuthoredSlotPatternV1,
+  showLessonAuthoredSlotPatternV2,
+  showLessonNarrationV1,
+  showLessonNarrationV2,
+  type ShowLessonNarration,
+} from '@/engine/showLessonNarration'
 import { exportedDims } from '@/engine/exportedDims'
 import { planShowV2BoundaryPaletteApply, planShowV2BoundaryTransitionChanges, planShowV2TransitionReset } from '@/engine/showV2TransitionEditorModel'
 import {
@@ -950,14 +954,14 @@ function ShowNoteTrigger({ note, open, onToggle }: {
 // A single group keeps the classic "Try with Pattern" label; multiple groups
 // read "Pattern 1..n" and the picked names mirror the Clips on the timeline.
 function ShowPatternSlotPicker({
-  show,
+  authoredPatternFor,
   slotGroups,
   patternOptions,
   selections,
   onSelectPattern,
   inline = false,
 }: {
-  show: ShowRecord
+  authoredPatternFor: (group: ShowPatternSlotGroup) => ShowPatternRef | undefined
   slotGroups: readonly ShowPatternSlotGroup[]
   patternOptions: ShowPatternOption[]
   selections?: Readonly<Record<number, ShowCell['pattern']>>
@@ -967,8 +971,7 @@ function ShowPatternSlotPicker({
   return (
     <div className={inline ? 'flex items-center gap-2' : 'flex flex-col gap-3'}>
       {slotGroups.map((group, index) => {
-        const authoredPattern = show.cells.find((cell) => group.cellIds.includes(cell.id))?.pattern
-          ?? show.composition?.patternInstances.find((instance) => group.instanceIds.includes(instance.id))?.pattern
+        const authoredPattern = authoredPatternFor(group)
         const activePattern = selections?.[index] ?? authoredPattern
         const label = `Pattern ${index + 1}`
         const pickerLabel = slotGroups.length === 1 ? 'Try with Pattern' : label
@@ -1017,8 +1020,9 @@ interface PendingPatternSlotSelection {
 
 function ShowLiveStrip({
   note,
-  show,
-  reference,
+  showId,
+  narrationAt,
+  authoredPatternFor,
   patternSlots,
   patternOptions,
   selections,
@@ -1028,8 +1032,9 @@ function ShowLiveStrip({
   canReset,
 }: {
   note: StockShowNote
-  show: ShowRecord
-  reference?: ShowReferenceGuide
+  showId: string
+  narrationAt: (positionMs: number) => ShowLessonNarration
+  authoredPatternFor: (group: ShowPatternSlotGroup) => ShowPatternRef | undefined
   patternSlots?: readonly ShowPatternSlotGroup[]
   patternOptions: ShowPatternOption[]
   selections?: Readonly<Record<number, ShowCell['pattern']>>
@@ -1042,16 +1047,14 @@ function ShowLiveStrip({
   const title = note.number ? `${note.number} ${note.title}` : note.title
   const groups = patternSlots ?? []
   const names = groups.slice(0, 2).map((group, index) => {
-    const pattern = selections?.[index]
-      ?? show.cells.find((cell) => group.cellIds.includes(cell.id))?.pattern
-      ?? show.composition?.patternInstances.find((instance) => group.instanceIds.includes(instance.id))?.pattern
+    const pattern = selections?.[index] ?? authoredPatternFor(group)
     return patternOptions.find((option) => option.ref.kind === pattern?.kind && option.ref.id === pattern?.id)?.label ?? pattern?.id ?? ''
   })
   const [chipAnchor, setChipAnchor] = useState<HTMLButtonElement | null>(null)
   return (
     <section role="region" aria-label={`${title} live strip`} className="show-live-strip flex h-8 shrink-0 select-none items-center gap-3 border-b border-cyan-200/20 bg-[#0d171b] px-3 text-[10px]">
-      <ShowLiveNarration show={show} reference={reference} />
-      {groups.length === 1 && <div className="shrink-0"><ShowPatternSlotPicker show={show} slotGroups={groups} patternOptions={patternOptions} selections={selections} onSelectPattern={onSelectPattern} inline /></div>}
+      <ShowLiveNarration showId={showId} narrationAt={narrationAt} />
+      {groups.length === 1 && <div className="shrink-0"><ShowPatternSlotPicker authoredPatternFor={authoredPatternFor} slotGroups={groups} patternOptions={patternOptions} selections={selections} onSelectPattern={onSelectPattern} inline /></div>}
       {groups.length > 1 && (
         <>
           <button ref={setChipAnchor} type="button" aria-label={`Patterns (${groups.length})`} aria-haspopup="dialog" aria-expanded={chooserOpen}
@@ -1068,7 +1071,7 @@ function ShowLiveStrip({
             className="w-80 max-w-[calc(100vw-40px)] rounded border border-zinc-700 bg-[#10191e] p-3 font-mono text-[10px] shadow-xl"
             onDismiss={() => setChooserOpen(false)}>
             <div className="mb-3 flex items-center gap-2 border-b border-zinc-800 pb-2"><Layers3 size={12} aria-hidden /><strong className="font-medium text-zinc-200">Try with Pattern</strong></div>
-            <ShowPatternSlotPicker show={show} slotGroups={groups} patternOptions={patternOptions} selections={selections}
+            <ShowPatternSlotPicker authoredPatternFor={authoredPatternFor} slotGroups={groups} patternOptions={patternOptions} selections={selections}
               onSelectPattern={(index, pattern) => { onSelectPattern(index, pattern); setChooserOpen(false) }} />
             <div className="mt-3 flex justify-end border-t border-zinc-800 pt-2">
               <button type="button" disabled={!canReset} onClick={() => { onReset(); setChooserOpen(false) }} className="rounded border border-zinc-700 px-2 py-1 text-zinc-300 disabled:opacity-40">Reset</button>
@@ -1082,27 +1085,20 @@ function ShowLiveStrip({
   )
 }
 
-function ShowLiveNarration({ show, reference }: { show: ShowRecord; reference?: ShowReferenceGuide }) {
-  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
-  const current = reference ? currentShowReferenceExample(show, reference, positionMs) : null
-  const scene = reference ? null : currentShowScene(show, positionMs)
-  const clipNarration = !reference && show.scenes.length === 1
-  const clip = clipNarration ? currentShowClip(show, positionMs) : null
-  const index = reference ? (current ? reference.examples.findIndex((example) => example.id === current.id) : -1) : clipNarration ? clip?.index ?? -1 : scene?.index ?? -1
-  const count = reference ? reference.examples.length : clipNarration ? clip?.count ?? 0 : show.scenes.length
-  const durationMs = showLoopDurationMs(show)
-  const progress = durationMs > 0 ? Math.max(0, Math.min(1, positionMs / durationMs)) : 0
-  const easingOption = current?.easing ? SHOW_EASING_OPTIONS.find((option) => option.id === showEasingOptionId(current.easing!)) : undefined
+function ShowLiveNarration({ showId, narrationAt }: { showId: string; narrationAt: (positionMs: number) => ShowLessonNarration }) {
+  const positionMs = useShowTransportStore((state) => state.showId === showId ? state.positionMs : 0)
+  const narration = narrationAt(positionMs)
+  const easingOption = narration.easing ? SHOW_EASING_OPTIONS.find((option) => option.id === showEasingOptionId(narration.easing!)) : undefined
   return (
     <div role="group" aria-label="Live narration" className="relative flex h-6 min-w-0 flex-1 items-center gap-2 whitespace-nowrap">
-      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-cyan-200/75">{reference ? 'LIVE' : clipNarration ? 'CLIP' : 'INTERVAL'}</span>
-      <strong className="min-w-0 truncate font-medium text-zinc-100">{reference ? current?.label ?? 'Reference frame' : clipNarration ? clip?.patternName ?? 'No Clip' : scene?.scene.name ?? 'No Scene'}</strong>
-      {reference && <span className="show-note-detail min-w-0 flex-1 truncate text-zinc-500">{current?.detail ?? 'The fixed comparison source before the first example.'}</span>}
-      <span className="shrink-0 tabular-nums text-zinc-500">{index + 1}/{count}</span>
+      <span className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-cyan-200/75">{narration.kind}</span>
+      <strong className="min-w-0 truncate font-medium text-zinc-100">{narration.label}</strong>
+      {narration.kind === 'LIVE' && <span className="show-note-detail min-w-0 flex-1 truncate text-zinc-500">{narration.detail ?? 'The fixed comparison source before the first example.'}</span>}
+      <span className="shrink-0 tabular-nums text-zinc-500">{narration.index + 1}/{narration.count}</span>
       {easingOption && <svg role="img" aria-label={`${easingOption.label} easing curve`} viewBox="0 0 48 20" className="show-note-detail h-4 w-9 shrink-0 text-cyan-200/80">
         <polyline fill="none" stroke="currentColor" strokeWidth="1.5" points={easingOption.samples.map((sample) => `${sample.progress * 48},${18 - sample.value * 16}`).join(' ')} />
       </svg>}
-      {reference && <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-white/[0.08]"><i data-testid="show-live-progress" className="block h-full bg-cyan-200/70" style={{ width: `${progress * 100}%` }} /></span>}
+      {narration.kind === 'LIVE' && <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-white/[0.08]"><i data-testid="show-live-progress" className="block h-full bg-cyan-200/70" style={{ width: `${(narration.progress ?? 0) * 100}%` }} /></span>}
     </div>
   )
 }
@@ -1507,6 +1503,9 @@ export function ShowEditor({
     builtInContext?.patternSlots
       ?? (builtInContext?.reference?.patternSlots ? [builtInContext.reference.patternSlots] : undefined)
   ), [builtInContext?.reference?.patternSlots, builtInContext?.patternSlots])
+  const afterSceneIdByTransitionId = useMemo<Readonly<Record<string, string>>>(() => (
+    Object.fromEntries((stockShowById(showId)?.show.transitions ?? []).map((transition) => [transition.id, transition.afterSceneId]))
+  ), [showId])
   const slotPatternNameFor = useCallback((ref: ShowCell['pattern']) => (
     ref.kind === 'stock' ? resolveStockPatternId(ref.id) : userPatterns.find((pattern) => pattern.id === ref.id)?.name
   ), [userPatterns])
@@ -3500,25 +3499,46 @@ export function ShowEditor({
       )}
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
-        {legacyShow && builtInContext?.note && showNoteOpen && (
-          <ShowLiveStrip
-            key={showId}
-            note={builtInContext.note}
-            show={legacyShow}
-            reference={builtInContext.reference}
-            patternSlots={builtInSlotGroups}
-            patternOptions={referencePatternOptions}
-            selections={selectedReferencePatterns}
-            onSelectPattern={requestPatternSlotSelection}
-            onCollapse={() => setShowNoteOpen(showId, false)}
-            canReset={Boolean(builtInSlotGroups?.some((group, index) => {
-              const selected = selectedReferencePatterns?.[index]
-              const authored = editableShow?.cells.find((cell) => group.cellIds.includes(cell.id))?.pattern
-                ?? editableShow?.composition?.patternInstances.find((instance) => group.instanceIds.includes(instance.id))?.pattern
-              return selected && authored && (selected.kind !== authored.kind || selected.id !== authored.id)
-            }))}
-            onReset={() => clearReferencePatterns(showId)}
-          />
+        {(legacyShow || (recordVersion === 2 && savedShowV2)) && builtInContext?.note && showNoteOpen && (
+          recordVersion === 2 && savedShowV2 ? (
+            <ShowLiveStrip
+              key={showId}
+              note={builtInContext.note}
+              showId={showId}
+              narrationAt={(positionMs) => showLessonNarrationV2(savedShowV2, builtInContext.reference, positionMs, afterSceneIdByTransitionId)}
+              authoredPatternFor={(group) => showLessonAuthoredSlotPatternV2(savedShowV2, group)}
+              patternSlots={builtInSlotGroups}
+              patternOptions={referencePatternOptions}
+              selections={selectedReferencePatterns}
+              onSelectPattern={requestPatternSlotSelection}
+              onCollapse={() => setShowNoteOpen(showId, false)}
+              canReset={Boolean(builtInSlotGroups?.some((group, index) => {
+                const selected = selectedReferencePatterns?.[index]
+                const authored = showLessonAuthoredSlotPatternV2(savedShowV2, group)
+                return selected && authored && (selected.kind !== authored.kind || selected.id !== authored.id)
+              }))}
+              onReset={() => clearReferencePatterns(showId)}
+            />
+          ) : legacyShow ? (
+            <ShowLiveStrip
+              key={showId}
+              note={builtInContext.note}
+              showId={showId}
+              narrationAt={(positionMs) => showLessonNarrationV1(legacyShow, builtInContext.reference, positionMs)}
+              authoredPatternFor={(group) => showLessonAuthoredSlotPatternV1(legacyShow, group)}
+              patternSlots={builtInSlotGroups}
+              patternOptions={referencePatternOptions}
+              selections={selectedReferencePatterns}
+              onSelectPattern={requestPatternSlotSelection}
+              onCollapse={() => setShowNoteOpen(showId, false)}
+              canReset={Boolean(builtInSlotGroups?.some((group, index) => {
+                const selected = selectedReferencePatterns?.[index]
+                const authored = editableShow ? showLessonAuthoredSlotPatternV1(editableShow, group) : undefined
+                return selected && authored && (selected.kind !== authored.kind || selected.id !== authored.id)
+              }))}
+              onReset={() => clearReferencePatterns(showId)}
+            />
+          ) : null
         )}
         <div className="min-w-0 p-3">
           <section
