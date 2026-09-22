@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice5a-capture?show-v2-editor",
+  "operation": "Driven by repository Playwright (Chromium) against this worktree's managed runtime (issue 1066, port 5178, shared API) as github:local-agent-23. A default Show was seeded through POST /api/shows, converted with convertShowRecordV1ToV2 and stored as version 2 (PUT ...?show-version=2); its Scene-boundary crossfade transition-scene-1 read crossfadePolicy snapshot-live. On the v2 editor the run clicked the junction 'Edit crossfade Transition between …', and in the 'Transition properties' panel set 'Crossfade source' to live-live. The stored version-2 record then read crossfadePolicy live-live; after a reload it still did and the control read live-live, captured as 1066-slice5a.png ('Keep both Patterns live').",
+  "captures": [".wrsp/ui-proof/1066-slice5a.png"],
+  "capturedAtCommit": "cd65d4373e964d4759a048f7d29974c30bb66493"
+}
