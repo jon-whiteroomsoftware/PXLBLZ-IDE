@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-slice5d-capture?show-v2-editor",
+  "operation": "Driven by repository Playwright (Chromium) against this worktree's managed runtime (issue 1066, port 5178, shared API) as github:local-agent-23. A default two-Scene Show was seeded through POST /api/shows, converted with convertShowRecordV1ToV2 and stored as version 2 (PUT ...?show-version=2): Clips placement-cell-1-scene-1 [0,30000] and placement-cell-2-scene-2 [32000,30000], Scene boundary crossfade transition-scene-1, Show End 62000. On the v2 editor the run clicked the junction 'Edit crossfade Transition between TestPattern1D and CometLoom' and, in the 'Transition properties' panel, the 'Reset transition to cut' button. The panel closed; the stored version-2 record then held no Transition, the second Clip at 30000 and Show End 60000, exactly v1 Remove then convert. After a reload the record was unchanged and the timeline showed the two Clips meeting at a Cut at 30 s with the Show reading 01:00.0, captured as 1066-slice5d.png.",
+  "captures": [".wrsp/ui-proof/1066-slice5d.png"],
+  "capturedAtCommit": "9470883b79b07f1a855c04b2c76d47c771973d31"
+}
