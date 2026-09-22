@@ -692,6 +692,44 @@ function convertedLayerJoin(): ShowRecordV2 {
   return source
 }
 
+/** The same converted boundary at whole-output scope, as the converter or #1068 promotion writes it. */
+function convertedWholeOutputJoin(): ShowRecordV2 {
+  const source = convertedJoin()
+  source.composition.transitions = [{
+    ...source.composition.transitions[0],
+    participants: [],
+    wholeOutput: { startMs: 500, fromClipIds: ['outgoing'], toClipIds: ['selected'] },
+  }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  return source
+}
+
+it.each([['selected'], ['outgoing']])('repairs a whole-output converted boundary exactly as the participant form when %s is dragged', (clipId) => {
+  const shape = (result: ReturnType<typeof editShowClipTemporalV2>) => result.status === 'changed' ? { clips: reopen(result.record).composition.clips.map(c => [c.id, c.zoneId, c.layerId, c.startMs, c.durationMs]), showEndMs: result.record.composition.showEndMs, transitionIds: result.record.composition.transitions.map(t => t.id), occurrences: result.record.composition.layoutOccurrences.map(o => [o.startMs, o.durationMs]), affectedTransitionIds: result.affectedTransitionIds } : { status: result.status }
+  const wholeOutput = editShowClipTemporalV2(convertedWholeOutputJoin(), { kind: 'replace-placement', clipId, layerId: 'over', detachParticipantTransitions: true })
+  const participant = editShowClipTemporalV2(convertedJoin(), { kind: 'replace-placement', clipId, layerId: 'over', detachParticipantTransitions: true })
+  expect(wholeOutput.status).toBe('changed')
+  expect(shape(wholeOutput)).toEqual(shape(participant))
+  if (wholeOutput.status !== 'changed') return
+  expect(wholeOutput.record.composition.showEndMs).toBe(1_900)
+  expect(wholeOutput.record.composition.transitions).toEqual([])
+})
+
+it('refuses to detach a whole-output converted boundary without the caller-granted permission', () => {
+  const source = convertedWholeOutputJoin()
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over' })
+  expect(result.status).toBe('refused')
+  if (result.status !== 'refused') return
+  expect(result.code).toBe('invalid-topology')
+  expect(result.message).toContain('incoming')
+  expect(result.record).toBe(source)
+  expect(result.affectedClipIds).toEqual([])
+  expect(result.removedIds).toEqual([])
+  expect(result.record.composition.transitions).toHaveLength(1)
+  expect(source).toEqual(prior)
+})
+
 it('refuses to detach a participant Transition that carries Property ramps', () => {
   const source = gappedJoin()
   // Participant scope cannot carry global scalar ramps (those require whole-output

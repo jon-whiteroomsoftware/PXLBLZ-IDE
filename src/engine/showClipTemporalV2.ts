@@ -95,8 +95,8 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   // passes nothing gets the refusal. Without it an attached participant
   // refuses invalid-topology, matching v1's command path; with it a plain
   // participant Transition detaches, a Transition carrying Property ramps is
-  // never silently deleted, and a converted Scene boundary at participant
-  // scope reclaims its window through the same cut-and-reclaim commit the
+  // never silently deleted, and a converted Scene boundary (participant or whole-output scope, #1068)
+  // reclaims its window through the same cut-and-reclaim commit the
   // resize path uses, or refuses the whole edit when that reclaim is blocked.
   let detachedTransitionIds: string[] = []
   const pendingBoundaryRepairs: ConvertedBoundaryRepairV2[] = []
@@ -106,6 +106,9 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     if (!layer || layer.zoneId !== destination.zoneId) return refuse('missing-target', `Layer "${destination.layerId}" is not a Layer of Zone "${destination.zoneId}".`)
     const attached = record.composition.transitions.filter(transition => (
       transition.participants.some(participant => participant.fromClipId === clip.id || participant.toClipId === clip.id)
+      || (transition.wholeOutput !== undefined
+        && transitionEndpoints(transition).all.includes(clip.id)
+        && convertedBoundaryRepairSpecV2(record, transition.id).status === 'ready')
     ))
     const mayDetach = intent.kind === 'replace-placement' && intent.detachParticipantTransitions === true
     if (attached.length > 0 && !mayDetach) return refuse('invalid-topology', `Clip "${clip.id}" is a participant endpoint of Transition ${attached.map(transition => `"${transition.id}"`).join(', ')}; re-placement never detaches or retargets a Transition unless the caller grants it. Reset those Transitions explicitly first.`)
