@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/3729a892-99e4-48db-8eda-5da6787b2e3d",
+  "operation": "On the v2 backing at the code tip: a fresh Installation Show, then Append a 5 s Zone Layout interval, which creates a native Cut boundary with no stored transfer. The lane now draws 'Select Physical ranges routing interval 1' for it. Clicking selects it. Routing transfer duration 2 and easing ease-in-out wrote a timed incomingTransfer on the second occurrence: 2000 ms, quadratic in-out (stored v2 readback; capture).",
+  "captures": [".wrsp/ui-proof/1066-routing-transfer.png"],
+  "capturedAtCommit": "fabdd1ff16c90eab9632399fd3e36bbba98d4862"
+}
