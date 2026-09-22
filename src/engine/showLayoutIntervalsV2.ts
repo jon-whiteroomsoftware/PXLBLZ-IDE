@@ -393,14 +393,16 @@ export function editShowLayoutIntervalsV2(
       `Layout track "${ownedTrack.trackId}" must remain inside occurrence "${ownedTrack.occurrenceId}".`,
     )
   }
-  const availability = validateShowLayoutAvailabilityV2(next)[0]
+  // Promotion widens whole-output contributor sets, so Zone availability is
+  // checked on the promoted record the owner will persist.
+  const promotion = promoteConvertedBoundariesToWholeOutputV2(next)
+  const availability = validateShowLayoutAvailabilityV2(promotion.record)[0]
   if (availability) {
     return refuse(
       'zone-unavailable',
       `${availability.entityKind} "${availability.entityId}" uses Zone "${availability.zoneId}" while Layout occurrence "${availability.layoutOccurrenceId}" does not provide it.`,
     )
   }
-  const promotion = promoteConvertedBoundariesToWholeOutputV2(next)
   const resultIssue = validateShowRecordV2(promotion.record)[0]
   if (resultIssue) return refuse('invalid-result', `${resultIssue.path}: ${resultIssue.message}`)
   const affectedLayoutDefinitionIds = intent.kind === 'make-unique' ? [intent.layoutId] : []

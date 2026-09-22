@@ -24,6 +24,7 @@ import {
   type ShowRecordV2,
 } from './showCompositionV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
+import { showV2FlatLoweringEligible, showV2UnsupportedRoutedSampling, structurallyEqualAppearanceV2 } from './showFlatLoweringV2'
 import { hasSectionScopedTrackActivationV2, participantSectionBoundaries, participantTransitionWindows, participantWindowBlockedV2 } from './showBoundaryScopeV2'
 import { lowerShowScalarPropertyTracksV2 } from './showScalarPropertyTrackLoweringV2'
 
@@ -399,7 +400,7 @@ function resolveShowV2CompileContext(
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
     return refuse('unsupported-groups', 'composition.groupDefinitions', 'lowering requires Group materialization evidence before compilation.')
   }
-  const divergentClips = composition.clips.filter(clip => clip.appearance.keys.some(key => !structurallyEqualAppearance(key.value, clip.appearance.keys[0].value)))
+  const divergentClips = composition.clips.filter(clip => clip.appearance.keys.some(key => !structurallyEqualAppearanceV2(key.value, clip.appearance.keys[0].value)))
   if (composition.transitions.length > 0 && divergentClips.length > 0 && composition.propertyTracks.some(track => {
     const target = track.target
     if ('clipId' in target) return divergentClips.some(clip => clip.id === target.clipId)
@@ -462,18 +463,8 @@ function resolveShowV2CompileContext(
   // otherwise flat-compatible already has an equivalent global-section
   // lowering, so select it only for the Restart-bearing case; ordinary flat
   // records retain their existing representation and bytes.
-  const unsupportedRoutedSampling = composition.clips.some(clip => (
-    clip.zoneSampleMode !== 'span'
-    // With one Zone, independent and span address the same complete domain;
-    // the existing global-section emitter therefore preserves the flat result.
-    && !(record.zones.length === 1 && clip.zoneSampleMode === 'independent')
-  ))
-  const flatEligible = composition.executionModel === 'continuous'
-    && !composition.clips.some(clip => clip.entryPolicy === 'restart')
-    // Exact redundant keys may recover the existing flat sampling route only
-    // where routed sampling previously refused. Existing routed admissions keep
-    // their representation and generated source bytes.
-    && (canLowerToFlat(record) || (unsupportedRoutedSampling && canLowerToFlat(record, true)))
+  const unsupportedRoutedSampling = showV2UnsupportedRoutedSampling(record)
+  const flatEligible = showV2FlatLoweringEligible(record)
   if (flatEligible && !wholeOutput && composition.transitions.length > 0 && composition.layoutOccurrences.length > 1) {
     return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Independent Clip sampling with Layer Transitions and multiple Layout occurrences requires lossless routing preparation proof.')
   }
@@ -620,7 +611,7 @@ function emitResolvedShowV2(context: ResolvedShowV2CompileContext): LoweredShowC
       || ('instanceId' in track.target && track.target.instanceId === clip.instanceId)
     ))
     return animated && clip.appearance.keys.length > 1
-      && clip.appearance.keys.every(key => structurallyEqualAppearance(key.value, clip.appearance.keys[0].value))
+      && clip.appearance.keys.every(key => structurallyEqualAppearanceV2(key.value, clip.appearance.keys[0].value))
       ? { ...clip, appearance: { keys: [clip.appearance.keys[0]] } }
       : clip
   })
@@ -971,31 +962,6 @@ function lowerPropertyTargetForSection(
   }
 }
 
-function canLowerToFlat(record: ShowRecordV2, allowEqualAppearanceSegments = false): boolean {
-  if (record.composition.transitions.some(transition => transition.wholeOutput)) return false
-  const composition = record.composition
-  // A flat Scene boundary blends the whole output, so it represents a
-  // participant Transition exactly only when the two participants are the only
-  // Clips the blend can see. Every other Clip must end strictly before the
-  // outgoing Clip or start strictly after the incoming one: flat sections split
-  // at every Clip edge, so such a Clip is absent from the outgoing hold, the
-  // window and the incoming hold alike, and the blend leaves it untouched. A
-  // Clip that overlaps the window, or merely touches either edge - where the
-  // blend would fade it in or out - refuses here (#1063). The Show's Zone count
-  // does not enter this test: with more than one Zone the flat lowering emits
-  // the same v1 record v1's own `addShowZone` produces, down to the bytes.
-  const wholeBoundary = composition.transitions.every(transition => {
-    const participant = transition.participants[0]
-    const from = composition.clips.find(clip => clip.id === participant.fromClipId)!
-    const to = composition.clips.find(clip => clip.id === participant.toClipId)!
-    return !composition.clips.some(clip => clip !== from && clip !== to && clip.startMs <= to.startMs && clip.startMs + clip.durationMs >= from.startMs + from.durationMs)
-  })
-  return wholeBoundary
-    && composition.propertyTracks.every(track => track.target.kind === 'layout-occurrence-split-position')
-    && composition.layers.every(layer => layer.rank === 0)
-    && composition.clips.every(clip => (clip.appearance.keys.length === 1 || (allowEqualAppearanceSegments && clip.appearance.keys.every(key => structurallyEqualAppearance(key.value, clip.appearance.keys[0].value)))) && clip.appearance.keys[0].value.opacity === 1)
-    && composition.clips.every(clip => clip.zoneSampleMode === 'independent')
-}
 
 function lowerContinuousToFlat(
   context: ResolvedShowV2CompileContext,
@@ -1172,21 +1138,6 @@ function runtimeInstanceId(context: ResolvedShowV2CompileContext, clip: ShowClip
   const instanceId = context.runtimeInstanceIdByClipId[clip.id]
   if (!instanceId) throw new Error(`Resolved Show composition v2 Clip "${clip.id}" has no runtime identity.`)
   return instanceId
-}
-
-/** Complete exact JSON structure comparison; neither floats nor fields are approximated. */
-function structurallyEqualAppearance(left: unknown, right: unknown): boolean {
-  if (left === right) return true
-  if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return false
-  if (Array.isArray(left) || Array.isArray(right)) {
-    return Array.isArray(left) && Array.isArray(right) && left.length === right.length
-      && left.every((value, index) => structurallyEqualAppearance(value, right[index]))
-  }
-  const leftObject = left as Record<string, unknown>
-  const rightObject = right as Record<string, unknown>
-  const keys = Object.keys(leftObject)
-  return keys.length === Object.keys(rightObject).length
-    && keys.every(key => Object.prototype.hasOwnProperty.call(rightObject, key) && structurallyEqualAppearance(leftObject[key], rightObject[key]))
 }
 
 function finalAppearanceSegmentId(clip: ShowClipV2): string {

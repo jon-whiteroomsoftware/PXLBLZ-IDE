@@ -7,6 +7,7 @@ import { buildShowEpeExport } from './showEpeExport'
 import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { deleteShowClipInShow } from './showClipDeletion'
+import { layoutOccurrencesBlockedV2 } from './showBoundaryScopeV2'
 import { createDefaultShow, projectShowTimeline, removeShowBoundaryTransition, showLoopDurationMs, showRecordToCompileRecipe, updateShowBoundaryTransition } from './showModel'
 import { projectFlatShowToCompositionV1 } from './showCompositionModel'
 import { resizeShowConnectedClipInShowAtGlobalTime } from './showLayerTransitionAuthoring'
@@ -1319,5 +1320,31 @@ describe('Layout occurrence edits promote a converted boundary (#1068)', () => {
     if (result.status !== 'changed') throw new Error(JSON.stringify(result))
     expect(result.record.composition.transitions[0].participants).toHaveLength(1)
     expect(result.record.composition.transitions[0].wholeOutput).toBeUndefined()
+  })
+
+  it('leaves a Show the lowering admits on the participant route unpromoted (overlay Layer)', () => {
+    const record = convertedDefaultShow()
+    record.composition.layers.push({ ...record.composition.layers[0], id: 'overlay-layer', name: 'Overlay', rank: 1 })
+    expect(validateShowRecordV2(record)).toEqual([])
+    const duplicated = editShowLayoutIntervalsV2(record, { kind: 'duplicate', occurrenceId: record.composition.layoutOccurrences[0].id, newOccurrenceId: 'dup-overlay' })
+    expect(duplicated.status).toBe('changed')
+    if (duplicated.status !== 'changed') throw new Error(JSON.stringify(duplicated))
+    expect(duplicated.record.composition.transitions[0].wholeOutput).toBeUndefined()
+    expect(duplicated.record.composition.transitions[0].participants).toHaveLength(1)
+    const prepared = prepareShowV2ForCompile(reopen(duplicated.record), stockLookup(duplicated.record), { libraries: LIBRARIES })
+    expect(prepared.status).toBe('ready')
+    if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared))
+    expect(prepared.provenance.route).toBe('transition')
+  })
+
+  it.each([[false], [true]])('layoutOccurrencesBlockedV2 agrees with the lowering refusal (overlay %s)', (overlay) => {
+    const record = convertedDefaultShow()
+    if (overlay) record.composition.layers.push({ ...record.composition.layers[0], id: 'overlay-layer', name: 'Overlay', rank: 1 })
+    const first = record.composition.layoutOccurrences[0]
+    record.composition.layoutOccurrences = [{ ...first, durationMs: 31000 }, { ...first, id: 'agree-second', startMs: 31000, durationMs: 31000 }]
+    const prepared = prepareShowV2ForCompile(reopen(record), stockLookup(record), { libraries: LIBRARIES })
+    const refusedByRule = prepared.status === 'refused' && prepared.issues.some(issue => issue.code === 'unsupported-layout-occurrences')
+    expect(layoutOccurrencesBlockedV2(record)).toBe(refusedByRule)
+    expect(refusedByRule).toBe(!overlay)
   })
 })

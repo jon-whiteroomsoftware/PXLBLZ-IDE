@@ -1,0 +1,69 @@
+import type { ShowRecordV2 } from './showCompositionV2'
+
+/**
+ * The flat-lowering eligibility the v2 lowering selects its route by
+ * (showCompositionLoweringV2.ts), shared so an owner can ask the same question
+ * the lowering asks without importing the lowering.
+ */
+
+/** Routed sampling the global-section emitter cannot represent (#1063). */
+export function showV2UnsupportedRoutedSampling(record: ShowRecordV2): boolean {
+  return record.composition.clips.some(clip => (
+    clip.zoneSampleMode !== 'span'
+    // With one Zone, independent and span address the same complete domain;
+    // the existing global-section emitter therefore preserves the flat result.
+    && !(record.zones.length === 1 && clip.zoneSampleMode === 'independent')
+  ))
+}
+
+/** Exactly the lowering's `flatEligible`. */
+export function showV2FlatLoweringEligible(record: ShowRecordV2): boolean {
+  const composition = record.composition
+  return composition.executionModel === 'continuous'
+    && !composition.clips.some(clip => clip.entryPolicy === 'restart')
+    // Exact redundant keys may recover the existing flat sampling route only
+    // where routed sampling previously refused. Existing routed admissions keep
+    // their representation and generated source bytes.
+    && (canLowerShowV2ToFlat(record) || (showV2UnsupportedRoutedSampling(record) && canLowerShowV2ToFlat(record, true)))
+}
+
+export function canLowerShowV2ToFlat(record: ShowRecordV2, allowEqualAppearanceSegments = false): boolean {
+  if (record.composition.transitions.some(transition => transition.wholeOutput)) return false
+  const composition = record.composition
+  // A flat Scene boundary blends the whole output, so it represents a
+  // participant Transition exactly only when the two participants are the only
+  // Clips the blend can see. Every other Clip must end strictly before the
+  // outgoing Clip or start strictly after the incoming one: flat sections split
+  // at every Clip edge, so such a Clip is absent from the outgoing hold, the
+  // window and the incoming hold alike, and the blend leaves it untouched. A
+  // Clip that overlaps the window, or merely touches either edge - where the
+  // blend would fade it in or out - refuses here (#1063). The Show's Zone count
+  // does not enter this test: with more than one Zone the flat lowering emits
+  // the same v1 record v1's own `addShowZone` produces, down to the bytes.
+  const wholeBoundary = composition.transitions.every(transition => {
+    const participant = transition.participants[0]
+    const from = composition.clips.find(clip => clip.id === participant.fromClipId)!
+    const to = composition.clips.find(clip => clip.id === participant.toClipId)!
+    return !composition.clips.some(clip => clip !== from && clip !== to && clip.startMs <= to.startMs && clip.startMs + clip.durationMs >= from.startMs + from.durationMs)
+  })
+  return wholeBoundary
+    && composition.propertyTracks.every(track => track.target.kind === 'layout-occurrence-split-position')
+    && composition.layers.every(layer => layer.rank === 0)
+    && composition.clips.every(clip => (clip.appearance.keys.length === 1 || (allowEqualAppearanceSegments && clip.appearance.keys.every(key => structurallyEqualAppearanceV2(key.value, clip.appearance.keys[0].value)))) && clip.appearance.keys[0].value.opacity === 1)
+    && composition.clips.every(clip => clip.zoneSampleMode === 'independent')
+}
+
+/** Complete exact JSON structure comparison; neither floats nor fields are approximated. */
+export function structurallyEqualAppearanceV2(left: unknown, right: unknown): boolean {
+  if (left === right) return true
+  if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return false
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length
+      && left.every((value, index) => structurallyEqualAppearanceV2(value, right[index]))
+  }
+  const leftObject = left as Record<string, unknown>
+  const rightObject = right as Record<string, unknown>
+  const keys = Object.keys(leftObject)
+  return keys.length === Object.keys(rightObject).length
+    && keys.every(key => Object.prototype.hasOwnProperty.call(rightObject, key) && structurallyEqualAppearanceV2(leftObject[key], rightObject[key]))
+}

@@ -1,3 +1,4 @@
+import { showV2FlatLoweringEligible } from './showFlatLoweringV2'
 import type { ShowRecordV2 } from './showCompositionV2'
 
 /**
@@ -65,14 +66,17 @@ export function participantWindowBlockedV2(record: ShowRecordV2): boolean {
 }
 
 /**
- * Exactly the lowering's multiple-occurrence participant refusal input that the
- * converter avoids by construction (`needsWholeOutput`'s first disjunct): more
- * than one Layout occurrence, at least one Transition, none whole-output.
+ * Exactly the lowering's multiple-occurrence participant refusal
+ * (showCompositionLoweringV2.ts, `unsupported-layout-occurrences`): a
+ * flat-eligible Show with more than one Layout occurrence, at least one
+ * Transition, none whole-output. A Show the lowering already admits on the
+ * participant route is never promoted by this rule.
  */
 export function layoutOccurrencesBlockedV2(record: ShowRecordV2): boolean {
   return record.composition.layoutOccurrences.length > 1
     && record.composition.transitions.length > 0
     && !record.composition.transitions.some(transition => transition.wholeOutput !== undefined)
+    && showV2FlatLoweringEligible(record)
 }
 
 /**
