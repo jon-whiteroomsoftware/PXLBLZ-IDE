@@ -57,6 +57,14 @@ export interface DeleteShowGroupOccurrenceIntentV2 {
   occurrenceId: string
 }
 
+export interface SetShowGroupDefinitionClipTimingIntentV2 {
+  kind: 'set-definition-clip-timing'
+  definitionId: string
+  clipId: string
+  startMs?: number
+  durationMs?: number
+}
+
 export type ShowGroupEditRefusalV2 =
   | 'invalid-record'
   | 'missing-occurrence'
@@ -303,6 +311,62 @@ export function deleteShowGroupOccurrenceV2(
   const restriction = firstShowTransitionPlacementRestrictionV2(next)
   if (restriction) return refuseGroupEdit(record, 'compiler-ineligible', restriction.message)
   return { status: 'changed', record: next, ...emptyGroupEditAffected(), affectedGroupOccurrenceIds: [occurrence.id], removedIds: [occurrence.id] }
+}
+
+/** Write one definition Clip's Start and/or Duration without shifting siblings (v1 parity). */
+export function setShowGroupDefinitionClipTimingV2(
+  record: ShowRecordV2,
+  intent: SetShowGroupDefinitionClipTimingIntentV2,
+): ShowGroupEditResultV2 {
+  const preimage = validateGroupEditPreimage(record)
+  if (preimage) return preimage
+  const keys = intent && typeof intent === 'object' && !Array.isArray(intent) ? Object.keys(intent).sort() : []
+  const hasStart = intent && typeof intent === 'object' && 'startMs' in intent
+  const hasDuration = intent && typeof intent === 'object' && 'durationMs' in intent
+  const expected = ['clipId', 'definitionId', 'kind', ...(hasStart ? ['startMs'] : []), ...(hasDuration ? ['durationMs'] : [])].sort()
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent) || intent.kind !== 'set-definition-clip-timing'
+    || JSON.stringify(keys) !== JSON.stringify(expected)
+    || typeof intent.definitionId !== 'string' || !intent.definitionId.trim()
+    || typeof intent.clipId !== 'string' || !intent.clipId.trim()
+    || (!hasStart && !hasDuration)) {
+    return refuseGroupEdit(record, 'invalid-placement', 'Give one Group definition Clip with a Start and/or Duration.')
+  }
+  if (hasStart && (typeof intent.startMs !== 'number' || !Number.isSafeInteger(intent.startMs) || intent.startMs < 0)) {
+    return refuseGroupEdit(record, 'invalid-placement', 'Group definition Clip Start must be a nonnegative safe integer.')
+  }
+  if (hasDuration && (typeof intent.durationMs !== 'number' || !Number.isSafeInteger(intent.durationMs) || intent.durationMs <= 0)) {
+    return refuseGroupEdit(record, 'invalid-placement', 'Group definition Clip Duration must be a positive safe integer.')
+  }
+  const definition = record.composition.groupDefinitions.find(value => value.id === intent.definitionId)
+  if (!definition) return refuseGroupEdit(record, 'invalid-placement', `Group definition "${intent.definitionId}" does not exist.`)
+  const clip = definition.clips.find(value => value.id === intent.clipId)
+  if (!clip) return refuseGroupEdit(record, 'invalid-placement', `Group definition Clip "${intent.clipId}" does not exist.`)
+  const nextStartMs = hasStart ? intent.startMs! : clip.startMs
+  const nextDurationMs = hasDuration ? intent.durationMs! : clip.durationMs
+  if (nextStartMs === clip.startMs && nextDurationMs === clip.durationMs) {
+    return { status: 'unchanged', record, ...emptyGroupEditAffected() }
+  }
+  const next = structuredClone(record)
+  const edited = next.composition.groupDefinitions.find(value => value.id === definition.id)!.clips.find(value => value.id === clip.id)!
+  if (hasStart) {
+    const deltaMs = intent.startMs! - edited.startMs
+    edited.startMs = intent.startMs!
+    if (deltaMs !== 0) {
+      for (const key of edited.appearance.keys) key.timeMs += deltaMs
+    }
+  }
+  if (hasDuration) edited.durationMs = intent.durationMs!
+  const resultIssue = validateGroupEditResult(next)
+  if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  const restriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (restriction) return refuseGroupEdit(record, 'compiler-ineligible', restriction.message)
+  return {
+    status: 'changed',
+    record: next,
+    ...emptyGroupEditAffected(),
+    affectedGroupDefinitionIds: [definition.id],
+    affectedGroupOccurrenceIds: record.composition.groupOccurrences.filter(value => value.definitionId === definition.id).map(value => value.id),
+  }
 }
 
 /** Persist one occurrence's existing materialized projection without cloning its runtimes. */

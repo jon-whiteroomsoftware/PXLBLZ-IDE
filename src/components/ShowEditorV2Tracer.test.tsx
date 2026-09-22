@@ -4657,6 +4657,34 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     expectOneEdit(before, after)
   })
 
+  it('writes a Group Clip Duration through the group-occurrence door (#1075 G2a)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-duration'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    const before = editor.state()
+    const durationField = screen.getByRole('textbox', { name: 'Duration seconds exact time' })
+    fireEvent.change(durationField, { target: { value: '0.3' } })
+    fireEvent.keyDown(durationField, { key: 'Enter' })
+    await act(async () => {})
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(admission.calls).toHaveLength(1)
+    expect(after.record.composition.groupDefinitions[0]!.clips.find((clip) => clip.id === 'child')!.durationMs).toBe(300)
+    expectOneEdit(before, after)
+    admission.calls.length = 0
+    const mid = editor.state()
+    typeAndCommit('Brightness exact percentage', '50')
+    await act(async () => {})
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(mid.record)
+  })
+
   it('makes no Group occurrence door call when read-only', async () => {
     const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
     const record = propertyEditGroupRecord()

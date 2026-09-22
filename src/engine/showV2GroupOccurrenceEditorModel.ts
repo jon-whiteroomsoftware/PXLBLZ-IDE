@@ -1,11 +1,12 @@
 import type { ShowRecordV2 } from './showCompositionV2'
-import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2 } from './showGroupEditsV2'
-import { groupOccurrenceDuration } from './showGroupsV2'
+import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, SetShowGroupDefinitionClipTimingIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2 } from './showGroupEditsV2'
+import { groupOccurrenceDuration, groupOccurrenceLocalTimeAtV2 } from './showGroupsV2'
 
-export type ShowV2GroupOccurrenceIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2
+export type ShowV2GroupOccurrenceIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2
 export type ShowV2GroupOccurrenceRequest =
   | { kind: 'move-occurrence' | 'duplicate-occurrence'; occurrenceId: string; placement: Omit<ShowGroupOccurrencePlacementV2, 'layoutOccurrenceId'> }
   | { kind: 'make-unique' | 'ungroup-occurrence' | 'delete-occurrence'; occurrenceId: string }
+  | { kind: 'set-child-timing'; occurrenceId: string; clipId: string; startMs?: number; durationMs?: number }
 export function buildShowV2GroupOccurrenceEditorModel(record: ShowRecordV2) {
   return {
     occurrences: record.composition.groupOccurrences.map(occurrence => {
@@ -39,6 +40,27 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
       return { status: 'ready', intent: request.kind === 'move-occurrence'
         ? { kind: 'move-occurrence', ...common }
         : { kind: 'duplicate-occurrence', ...common, newOccurrenceId: fresh(new Set(record.composition.groupOccurrences.map(value => value.id))) } }
+    }
+    if (request.kind === 'set-child-timing') {
+      const child = definition.clips.find(value => value.id === request.clipId)
+      if (!child) return { status: 'refused', message: 'Select an existing Group Clip.' }
+      const hasStart = request.startMs !== undefined
+      const hasDuration = request.durationMs !== undefined
+      if (!hasStart && !hasDuration) return { status: 'refused', message: 'Give a Start and/or Duration for one Group Clip.' }
+      if (hasStart && (typeof request.startMs !== 'number' || !Number.isFinite(request.startMs))) {
+        return { status: 'refused', message: 'Give a finite Show-time Start for one Group Clip.' }
+      }
+      if (hasDuration && (typeof request.durationMs !== 'number' || !Number.isFinite(request.durationMs))) {
+        return { status: 'refused', message: 'Give a finite Duration for one Group Clip.' }
+      }
+      const intent: SetShowGroupDefinitionClipTimingIntentV2 = {
+        kind: 'set-definition-clip-timing',
+        definitionId: definition.id,
+        clipId: child.id,
+        ...(hasStart ? { startMs: Math.round(groupOccurrenceLocalTimeAtV2(occurrence, Math.round(request.startMs!))) } : {}),
+        ...(hasDuration ? { durationMs: Math.round(request.durationMs!) } : {}),
+      }
+      return { status: 'ready', intent }
     }
     if (request.kind !== 'make-unique') return { status: 'ready', intent: { kind: request.kind, occurrenceId: occurrence.id } }
     const definitions = record.composition.groupDefinitions

@@ -75,3 +75,32 @@ it('derives the repeated destination Layout at its exact switch instead of retai
   expect(plan.intent.layoutOccurrenceId).toBe('later-layout')
   expect(duplicateShowGroupOccurrenceV2(record, plan.intent).status).toBe('changed')
 })
+
+it('plans set-child-timing by converting Show time to definition-local time', () => {
+  const { record } = showV2GroupOccurrenceEditorFixture(true)
+  const occurrence = record.composition.groupOccurrences[0]
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const child = definition.clips[0]
+  const showStartMs = occurrence.startMs + child.startMs + 40
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'set-child-timing', occurrenceId: occurrence.id, clipId: child.id, startMs: showStartMs, durationMs: child.durationMs + 0.6,
+  } as unknown as Parameters<typeof planShowV2GroupOccurrenceEdit>[1], () => { throw new Error('no allocate') })
+  expect(plan.status).toBe('ready')
+  if (plan.status !== 'ready') return
+  expect(plan.intent).toMatchObject({ kind: 'set-definition-clip-timing', definitionId: definition.id, clipId: child.id })
+})
+
+it('refuses set-child-timing for a missing Clip or an empty patch', () => {
+  const { record } = showV2GroupOccurrenceEditorFixture()
+  const occurrence = record.composition.groupOccurrences[0]
+  const before = structuredClone(record)
+  const missing = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'set-child-timing', occurrenceId: occurrence.id, clipId: 'missing', durationMs: 100,
+  } as unknown as Parameters<typeof planShowV2GroupOccurrenceEdit>[1], () => 'unused')
+  expect(missing.status).toBe('refused')
+  const empty = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'set-child-timing', occurrenceId: occurrence.id, clipId: record.composition.groupDefinitions[0].clips[0].id,
+  } as unknown as Parameters<typeof planShowV2GroupOccurrenceEdit>[1], () => 'unused')
+  expect(empty.status).toBe('refused')
+  expect(record).toEqual(before)
+})

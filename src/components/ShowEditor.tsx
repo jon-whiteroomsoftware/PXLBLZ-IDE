@@ -10480,10 +10480,33 @@ function ContextualInspector({
           // through the v2 inspector commit, one patch to at most one intent
           // (#1066 slices 3-4), and Property animation writes reach the
           // property admission through the v2 animation commit (slice 10).
-          // A Group Clip use below keeps the unconnected no-change result.
+          // A Group Clip Start/Duration write reaches the definition-timing
+          // owner through the group-occurrence door (#1075 G2a); every other
+          // Group Clip patch stays unconnected. The v2 selection carries the
+          // occurrence plus the definition-local Clip id (group-clip
+          // occurrenceId/placementId, the same encoding onEnterGroupIsolation
+          // selects), and the presented Start is Show time (globalStartMs via
+          // occurrenceBoundaryAfter), so the planner inverts it back to local.
           onPatch={selection.kind === 'clip'
             ? (patch) => onUpdateClipInspectorV2?.(selection.clipId, patch) ?? false
-            : () => false}
+            : (patch) => {
+              if (selection.kind !== 'group-clip') return false
+              if (Object.keys(patch).length !== 1 || !patch.local) return false
+              const localKeys = Object.keys(patch.local)
+              const hasStart = patch.local.startMs !== undefined
+              const hasDuration = patch.local.durationMs !== undefined
+              if (!hasStart && !hasDuration) return false
+              if (!localKeys.every(key => key === 'startMs' || key === 'durationMs')) return false
+              if (!onV2GroupOccurrenceRequest) return false
+              onV2GroupOccurrenceRequest({
+                kind: 'set-child-timing',
+                occurrenceId: selection.occurrenceId,
+                clipId: selection.placementId,
+                ...(hasStart ? { startMs: patch.local.startMs! } : {}),
+                ...(hasDuration ? { durationMs: patch.local.durationMs! } : {}),
+              })
+              return true
+            }}
           onPropertyAnimationChange={selection.kind === 'clip'
             ? (change) => onPropertyAnimationChangeV2?.(
               selection.clipId,

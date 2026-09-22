@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { showV2GroupOccurrenceEditorFixture } from '../test/showV2GroupOccurrenceEditorFixture'
 import { planShowV2GroupOccurrenceEdit, type ShowV2GroupOccurrenceIntent } from '../engine/showV2GroupOccurrenceEditorModel'
-import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2 } from '../engine/showGroupEditsV2'
+import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, setShowGroupDefinitionClipTimingV2 } from '../engine/showGroupEditsV2'
 import * as stage from '../engine/showPreparedStageV2'
 import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '../engine/personalContentProvider'
 import { showInitialState, useShowStore } from './showStore'
@@ -20,7 +20,7 @@ function setup(linked = true, onlyGroup = false) {
   expect(capture.inputCapture.status).toBe('qualified'); expect(capture.prepared.status, capture.prepared.status === 'refused' ? capture.prepared.message : '').toBe('ready')
   return { record, dependencies, write, saved: () => saved, context: { showId: record.id, baseRevision: 0, capture, isCurrent: () => true, onAdopted: vi.fn() } }
 }
-function intentFor(record: ShowRecordV2, kind: ShowV2GroupOccurrenceIntent['kind']) {
+function intentFor(record: ShowRecordV2, kind: Exclude<ShowV2GroupOccurrenceIntent['kind'], 'set-definition-clip-timing'>) {
   const occurrence = record.composition.groupOccurrences[0]; let id = 0
   const request = kind === 'move-occurrence' || kind === 'duplicate-occurrence'
     ? { kind, occurrenceId: occurrence.id, placement: { startMs: 18000, zoneId: occurrence.zoneId, layerBindings: occurrence.layerBindings, translationX: 0, translationY: 0 } }
@@ -36,6 +36,7 @@ function owner(record: ShowRecordV2, intent: ShowV2GroupOccurrenceIntent) {
     case 'make-unique': return makeShowGroupUniqueV2(record, intent)
     case 'ungroup-occurrence': return ungroupShowGroupOccurrenceV2(record, intent)
     case 'delete-occurrence': return deleteShowGroupOccurrenceV2(record, intent)
+    case 'set-definition-clip-timing': return setShowGroupDefinitionClipTimingV2(record, intent)
   }
 }
 function effects(value: object) { return Object.entries(value).filter(([key]) => key.startsWith('affected') || ['hoistedInstanceIds', 'removedIds', 'discardedControlTargets'].includes(key)) }

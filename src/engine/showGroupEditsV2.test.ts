@@ -17,11 +17,23 @@ import {
   duplicateShowGroupOccurrenceV2,
   makeShowGroupUniqueV2,
   moveShowGroupOccurrenceV2,
+  setShowGroupDefinitionClipTimingV2,
   ungroupShowGroupOccurrenceV2,
   type ShowGroupEditResultV2,
   type ShowGroupOccurrencePlacementV2,
   type ShowGroupUniqueIdentityPlanV2,
 } from './showGroupEditsV2'
+import { planShowV2GroupOccurrenceEdit } from './showV2GroupOccurrenceEditorModel'
+import {
+  completeShowGroupSelection,
+  createShowGroupFromSelection,
+  duplicateShowGroupOccurrence,
+  validateShowGroupSelection,
+} from './showGroupModel'
+import { updateShowGroupClipInspector } from './showGroupClipInspectorModel'
+import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
+import { propertyEditGroupRecord } from '../test/showV2PropertyEditsFixture'
+import type { ShowRecord } from './personalContentRecords'
 import { effectiveShowInstanceUseCountV2, groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
 import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { buildShowEpeExport } from './showEpeExport'
@@ -1326,4 +1338,134 @@ it.each(['fast', 'fidelity'] as const)('keeps compiled runtime sharing, held tim
       } else expect(actualValue, `${fidelity} ${name} at ${atMs}`).toEqual(value)
     }
   }
+})
+
+describe('set-definition-clip-timing (#1075 G2a)', () => {
+  it('writes only that Clip while the linked occurrence shares the definition', () => {
+    const record = linkedRecord()
+    const before = structuredClone(record)
+    const result = setShowGroupDefinitionClipTimingV2(record, {
+      kind: 'set-definition-clip-timing', definitionId: 'group', clipId: 'answer', durationMs: 120,
+    })
+    expect(result.status, result.status === 'refused' ? result.message : '').toBe('changed')
+    if (result.status !== 'changed') return
+    const definition = result.record.composition.groupDefinitions.find(value => value.id === 'group')!
+    expect(definition.clips.find(clip => clip.id === 'answer')).toMatchObject({ startMs: 200, durationMs: 120 })
+    expect(definition.clips.find(clip => clip.id === 'pulse')).toMatchObject({ startMs: 0, durationMs: 100 })
+    expect(result.affectedGroupDefinitionIds).toEqual(['group'])
+    expect([...result.affectedGroupOccurrenceIds].sort()).toEqual(['occ-0', 'occ-1'])
+    expect(result.record.composition.groupOccurrences.map(occurrence => occurrence.definitionId)).toEqual(['group', 'group'])
+    expect(record).toEqual(before)
+  })
+
+  it('refuses an overlapping duration as invalid-result without writing', () => {
+    const record = linkedRecord()
+    const result = setShowGroupDefinitionClipTimingV2(record, {
+      kind: 'set-definition-clip-timing', definitionId: 'group', clipId: 'pulse', durationMs: 250,
+    })
+    expect(result.status).toBe('refused')
+    if (result.status !== 'refused') return
+    expect(result.code).toBe('invalid-result')
+    expect(result.record).toBe(record)
+  })
+
+  it('returns unchanged when the value already matches', () => {
+    const record = linkedRecord()
+    const result = setShowGroupDefinitionClipTimingV2(record, {
+      kind: 'set-definition-clip-timing', definitionId: 'group', clipId: 'pulse', durationMs: 100,
+    })
+    expect(result.status).toBe('unchanged')
+    expect(result.record).toBe(record)
+  })
+
+  it('refuses a missing Clip or definition', () => {
+    const record = linkedRecord()
+    const missingClip = setShowGroupDefinitionClipTimingV2(record, {
+      kind: 'set-definition-clip-timing', definitionId: 'group', clipId: 'missing', durationMs: 80,
+    })
+    expect(missingClip.status).toBe('refused')
+    const missingDefinition = setShowGroupDefinitionClipTimingV2(record, {
+      kind: 'set-definition-clip-timing', definitionId: 'missing', clipId: 'pulse', durationMs: 80,
+    })
+    expect(missingDefinition.status).toBe('refused')
+    expect(record.composition.groupDefinitions[0].clips.find(clip => clip.id === 'pulse')!.durationMs).toBe(100)
+  })
+})
+
+function q6BaseShow(id: string): ShowRecord {
+  const source = resizeBoundaryShow(id)
+  const view = { mirror: false, phase: 0, brightness: 1 }
+  source.composition!.patternInstances.push(
+    { id: 'instance-overlay', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Overlay pulse', time: { timeScale: 1, timeOffsetMs: 0 } },
+  )
+  const zone = source.composition!.scenes[0].zones[0]
+  zone.main = [{ id: 'clip-main', instanceId: 'resize-instance', startMs: 0, durationMs: 5_000, view }]
+  zone.overlays = [{ id: 'overlay-1', name: 'Overlay 1', placements: [{ id: 'clip-overlay', instanceId: 'instance-overlay', startMs: 0, durationMs: 5_000, opacity: 1, view }] }]
+  return source
+}
+
+function q6GroupedBefore(): ShowRecord {
+  const show = q6BaseShow('g2dur-oracle')
+  const selection = completeShowGroupSelection(show.composition!, ['clip-main', 'clip-overlay'])
+  const plan = validateShowGroupSelection(show.composition!, selection)
+  if (!plan.enabled) throw new Error('selection not enabled')
+  let composition = createShowGroupFromSelection(show.composition!, { selection, definitionId: 'def-1', occurrenceId: 'occ-1', name: 'Group' })
+  composition = duplicateShowGroupOccurrence(composition, { occurrenceId: 'occ-1', newOccurrenceId: 'occ-2', startMs: 5_000 })
+  return { ...show, composition }
+}
+
+it('matches the v1-then-convert oracle for a 4000 ms Group Clip duration (#1075 G2a)', () => {
+  const before = q6GroupedBefore()
+  const edited = updateShowGroupClipInspector(before, { occurrenceId: 'occ-1', placementId: 'clip-main' }, { local: { durationMs: 4_000 } })
+  expect(edited).not.toBe(before)
+  const convertedEdited = convertShowRecordV1ToV2(edited)
+  expect(convertedEdited.status).toBe('converted')
+  if (convertedEdited.status !== 'converted') return
+  expect(convertedEdited.record.composition.groupDefinitions[0].clips.find(clip => clip.id === 'clip-main')!.durationMs).toBe(4_000)
+  expect(validateShowRecordV2(convertedEdited.record)).toEqual([])
+  const convertedBefore = convertShowRecordV1ToV2(before)
+  expect(convertedBefore.status).toBe('converted')
+  if (convertedBefore.status !== 'converted') return
+  const planned = planShowV2GroupOccurrenceEdit(convertedBefore.record, {
+    kind: 'set-child-timing', occurrenceId: 'occ-1', clipId: 'clip-main', durationMs: 4_000,
+  } as unknown as Parameters<typeof planShowV2GroupOccurrenceEdit>[1], () => { throw new Error('no allocate') })
+  expect(planned.status).toBe('ready')
+  if (planned.status !== 'ready') return
+  const applied = setShowGroupDefinitionClipTimingV2(convertedBefore.record, planned.intent as unknown as Parameters<typeof setShowGroupDefinitionClipTimingV2>[1])
+  expect(applied.status).toBe('changed')
+  if (applied.status !== 'changed') return
+  expect(applied.record.composition.groupDefinitions[0].clips).toEqual(convertedEdited.record.composition.groupDefinitions[0].clips)
+})
+
+it('stores a Show-time Start as definition-local time for an occurrence at 5000 ms (#1075 G2a)', () => {
+  const converted = convertShowRecordV1ToV2(q6GroupedBefore())
+  expect(converted.status).toBe('converted')
+  if (converted.status !== 'converted') return
+  const planned = planShowV2GroupOccurrenceEdit(converted.record, {
+    kind: 'set-child-timing', occurrenceId: 'occ-2', clipId: 'clip-main', startMs: 5_200,
+  } as unknown as Parameters<typeof planShowV2GroupOccurrenceEdit>[1], () => { throw new Error('no allocate') })
+  expect(planned.status).toBe('ready')
+  if (planned.status !== 'ready') return
+  expect(planned.intent).toMatchObject({ kind: 'set-definition-clip-timing', definitionId: 'def-1', clipId: 'clip-main', startMs: 200 })
+  const applied = setShowGroupDefinitionClipTimingV2(converted.record, planned.intent as unknown as Parameters<typeof setShowGroupDefinitionClipTimingV2>[1])
+  expect(applied.status, applied.status === 'refused' ? applied.message : '').toBe('changed')
+  if (applied.status !== 'changed') return
+  expect(applied.record.composition.groupDefinitions[0].clips.find(clip => clip.id === 'clip-main')!.startMs).toBe(200)
+})
+
+it('stores a Start inside a hold as the hold local time (#1075 G2a)', () => {
+  const record = propertyEditGroupRecord()
+  record.composition.showEndMs = 2_000
+  record.composition.layoutOccurrences[0]!.durationMs = 2_000
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === 'occ-0')!
+  const planned = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'set-child-timing', occurrenceId: occurrence.id, clipId: 'child', startMs: occurrence.startMs + 250,
+  } as unknown as Parameters<typeof planShowV2GroupOccurrenceEdit>[1], () => { throw new Error('no allocate') })
+  expect(planned.status).toBe('ready')
+  if (planned.status !== 'ready') return
+  expect(planned.intent).toMatchObject({ kind: 'set-definition-clip-timing', clipId: 'child', startMs: 200 })
+  const applied = setShowGroupDefinitionClipTimingV2(record, planned.intent as unknown as Parameters<typeof setShowGroupDefinitionClipTimingV2>[1])
+  expect(applied.status, applied.status === 'refused' ? applied.message : '').toBe('changed')
+  if (applied.status !== 'changed') return
+  expect(applied.record.composition.groupDefinitions[0].clips.find(clip => clip.id === 'child')!.startMs).toBe(200)
 })

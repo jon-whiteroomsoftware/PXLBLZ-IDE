@@ -17,7 +17,7 @@ import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2, type Sho
 import { editShowPropertyV2, type ShowPropertyTrackOwnerV2, type ShowPropertyEditIntentV2, type ShowPropertyEditResultV2 } from '@/engine/showPropertyEditsV2'
 import { createShowGroupFromSelectionV2, type CreateShowGroupFromSelectionIntentV2, type ShowGroupCreateResultV2 } from '@/engine/showGroupCreationV2'
 import type { ShowGroupEditAffectedV2 } from '@/engine/showGroupEditsV2'
-import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
+import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, setShowGroupDefinitionClipTimingV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type SetShowGroupDefinitionClipTimingIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
 import { resolveCapturedShowPatternReplacementV2, type ShowV2ClipReplacementIntent } from '@/engine/showV2ClipReplacementModel'
 import { writeShowInstancePropertiesV2, type ShowInstancePropertiesResultV2, type ShowInstancePropertyDependenciesV2 } from '@/engine/showInstancePropertiesV2'
 import type { ShowClipEvaluationPolicy } from '@/engine/personalContentRecords'
@@ -624,7 +624,7 @@ export async function admitShowV2PilotInstanceProperties(request: ShowV2PilotIns
   }
   return { status: 'applied', settlement: outcome.settlement, ...effects }
 }
-export type ShowV2PilotGroupOccurrenceEditIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2
+export type ShowV2PilotGroupOccurrenceEditIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2
 export type ShowV2PilotGroupOccurrenceEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotGroupOccurrenceEditIntent }
 export type ShowV2PilotGroupOccurrenceEditOutcome = PilotOwnerOutcome<ShowGroupEditResultV2, ShowGroupEditAffectedV2>
 function groupOccurrenceOwnerResult(record: ShowRecordV2, intent: ShowV2PilotGroupOccurrenceEditIntent): ShowGroupEditResultV2 {
@@ -634,6 +634,7 @@ function groupOccurrenceOwnerResult(record: ShowRecordV2, intent: ShowV2PilotGro
     case 'make-unique': return makeShowGroupUniqueV2(record, intent)
     case 'ungroup-occurrence': return ungroupShowGroupOccurrenceV2(record, intent)
     case 'delete-occurrence': return deleteShowGroupOccurrenceV2(record, intent)
+    case 'set-definition-clip-timing': return setShowGroupDefinitionClipTimingV2(record, intent)
   }
 }
 function validGroupOccurrenceIntent(intent: unknown): intent is ShowV2PilotGroupOccurrenceEditIntent {
@@ -641,6 +642,17 @@ function validGroupOccurrenceIntent(intent: unknown): intent is ShowV2PilotGroup
   const value = intent as Record<string, unknown>
   const text = (item: unknown): item is string => typeof item === 'string' && item.length > 0
   const mapping = (item: unknown): boolean => !!item && typeof item === 'object' && !Array.isArray(item) && Object.values(item).every(text)
+  if (value.kind === 'set-definition-clip-timing') {
+    const hasStart = 'startMs' in value
+    const hasDuration = 'durationMs' in value
+    if (!hasStart && !hasDuration) return false
+    const expected = ['clipId', 'definitionId', 'kind', ...(hasStart ? ['startMs'] : []), ...(hasDuration ? ['durationMs'] : [])].sort()
+    if (JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(expected)) return false
+    if (!text(value.definitionId) || !text(value.clipId)) return false
+    if (hasStart && (typeof value.startMs !== 'number' || !Number.isSafeInteger(value.startMs) || (value.startMs as number) < 0)) return false
+    if (hasDuration && (typeof value.durationMs !== 'number' || !Number.isSafeInteger(value.durationMs) || (value.durationMs as number) <= 0)) return false
+    return true
+  }
   if (!text(value.occurrenceId)) return false
   if (value.kind === 'ungroup-occurrence' || value.kind === 'delete-occurrence') return exactIntentFields(value, ['kind', 'occurrenceId'])
   if (value.kind === 'make-unique') {
