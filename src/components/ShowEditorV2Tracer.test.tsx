@@ -35,8 +35,16 @@ import type { ShowRecord } from '@/engine/personalContentRecords'
 import * as download from '@/engine/browserDownload'
 import { buildShowFileBundle, parseShowFileBundle } from '@/engine/showFileBundle'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
+import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
+import { resolveShowV2StageMap } from '@/store/showV2StageMap'
+import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
 import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
 import type { ShowV2ClipInspectorInstanceIntent } from '@/engine/showV2ClipAppearancePlanning'
+
+vi.mock('@/components/PixelblazeCodeEditor', () => ({
+  PixelblazeCodeEditor: ({ value }: { value: string }) => <pre data-testid="v2-viewcode-source">{value}</pre>,
+}))
 
 /**
  * #1065: v2 tracer command routing through the existing Show editor.
@@ -5045,5 +5053,91 @@ describe('v2 Layout occurrence Append (#1066 slice 8b-1)', () => {
     expect(after.record.composition.showEndMs).toBe(showEndMs + 5_000)
     expectOneEdit(before, after)
     expect(screen.queryByRole('dialog', { name: 'Zone Layout at playhead' })).toBeNull()
+  })
+})
+
+describe('v2 View code and Download .epe (#1066)', () => {
+  function freshV2Record(id: string): ShowRecordV2 {
+    const source = corpusSource('fresh')
+    source.id = id
+    return convertCorpus(source)
+  }
+
+  function expectedV2Source(stored: ShowRecordV2): string {
+    const maps = useMapStore.getState().userMaps
+    const capture = captureShowStageEditV2(stored, {
+      patterns: usePatternStore.getState().userPatterns,
+      libraries: useLibraryStore.getState().userLibraries,
+      maps,
+      profiles: useControllerProfileStore.getState().profiles,
+      stageMap: resolveShowV2StageMap(stored.stageMapId, maps),
+    })
+    if (capture.prepared.status !== 'ready') throw new Error(`v2 fixture not ready: ${capture.prepared.status}`)
+    const artifact = capture.prepared.bundle.artifact
+    const expected = buildShowEpeExportV2(stored, artifact.code, {
+      stampedAt: new Date(stored.updatedAt),
+      userMaps: maps,
+      attribution: artifact.attribution,
+    })
+    if (expected.status !== 'exported') throw new Error(`v2 fixture refused export: ${expected.status}`)
+    return expected.source
+  }
+
+  it('shows the v2 generated pattern and returns to the Show', async () => {
+    const record = freshV2Record('v2-viewcode-show')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await act(async () => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
+    const viewCode = screen.getByRole('menuitem', { name: 'View code' })
+    expect(viewCode).toBeEnabled()
+    fireEvent.click(viewCode)
+
+    const stored = useShowStore.getState().showV2Pilots[editor.showId]
+    expect(screen.getByText(`Generated pattern - ${stored.name}`)).toBeInTheDocument()
+    expect(screen.getByTestId('v2-viewcode-source').textContent).toBe(expectedV2Source(stored))
+    expect(admission.calls).toEqual([])
+    expect(legacy.calls).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to show' }))
+    expect(screen.queryByText(`Generated pattern - ${stored.name}`)).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
+  })
+
+  it('downloads the v2 .epe from the header with the generated source', async () => {
+    const record = freshV2Record('v2-download-epe')
+    const editor = openV2EditorForRecord(record)
+    const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockResolvedValue(new Uint8Array([1, 2, 3]))
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:v2-epe')
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+      await act(async () => {})
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
+      const downloadItem = screen.getByRole('menuitem', { name: 'Download .epe' })
+      expect(downloadItem).toBeEnabled()
+      fireEvent.click(downloadItem)
+
+      await waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1))
+      const blob = createObjectURL.mock.calls[0][0]
+      if (!(blob instanceof Blob)) throw new TypeError('Expected Show export to create a Blob URL')
+      const exportedText = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.addEventListener('load', () => resolve(String(reader.result)))
+        reader.addEventListener('error', () => reject(reader.error))
+        reader.readAsText(blob)
+      })
+      const exported = JSON.parse(exportedText) as { sources: { main: string } }
+      const stored = useShowStore.getState().showV2Pilots[editor.showId]
+      expect(exported.sources.main).toBe(expectedV2Source(stored))
+    } finally {
+      previewJpeg.mockRestore()
+      anchorClick.mockRestore()
+      revokeObjectURL.mockRestore()
+      createObjectURL.mockRestore()
+    }
   })
 })

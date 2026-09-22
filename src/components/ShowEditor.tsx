@@ -224,7 +224,7 @@ import {
   setShowEndMs,
   showTimelineContentEndMs,
 } from '@/engine/showTimelineAuthoring'
-import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
+import { buildShowEpeExport, type ShowEpeExport, type ShowEpeExportOptions } from '@/engine/showEpeExport'
 import { buildShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
 import {
   buildDeliveredShowSourceInventory,
@@ -1112,10 +1112,12 @@ interface ShowDeliverySnapshot {
 }
 
 interface ShowCompilationSnapshot {
-  show: ShowRecord
-  userMaps: MapRecord[]
+  showId: string
+  name: string
+  stampedAt: number
   artifact: NonNullable<CompiledShowState['artifact']>
   canonicalExport: ShowEpeExport
+  exportWith: (options: ShowEpeExportOptions) => ShowEpeExport | null
 }
 
 export function ShowEditor({
@@ -2940,6 +2942,30 @@ export function ShowEditor({
       : null
 
   const buildCurrentCompilationSnapshot = (): ShowCompilationSnapshot | null => {
+    if (recordVersion === 2) {
+      const record = savedShowV2
+      const v2Artifact = compiled.artifact
+      if (!record || !v2Artifact || compiled.artifactBlocker) return null
+      const v2Maps = useMapStore.getState().userMaps
+      const exportWith = (options: ShowEpeExportOptions): ShowEpeExport | null => {
+        const result = buildShowEpeExportV2(record, v2Artifact.code, {
+          userMaps: v2Maps,
+          attribution: v2Artifact.attribution,
+          ...options,
+        })
+        return result.status === 'exported' ? result : null
+      }
+      const canonicalExport = exportWith({ stampedAt: new Date(record.updatedAt) })
+      if (!canonicalExport) return null
+      return {
+        showId: record.id,
+        name: record.name,
+        stampedAt: record.updatedAt,
+        artifact: v2Artifact,
+        canonicalExport,
+        exportWith,
+      }
+    }
     const showState = useShowStore.getState()
     const resolvedShow = showState.resolveEditableShow(showId)
     const currentPatterns = usePatternStore.getState().userPatterns
@@ -2982,18 +3008,27 @@ export function ShowEditor({
       },
     )
     if (!currentCompiled.artifact || currentCompiled.artifactBlocker) return null
-    const canonicalExport = buildShowEpeExport(currentShow, currentCompiled.artifact.code, {
-      stampedAt: new Date(currentShow.updatedAt),
+    const show = currentShow
+    const artifact = currentCompiled.artifact
+    const canonicalExport = buildShowEpeExport(show, artifact.code, {
+      stampedAt: new Date(show.updatedAt),
       userMaps: currentMaps,
-      attribution: currentCompiled.artifact.attribution,
+      attribution: artifact.attribution,
+    })
+    const exportWith = (options: ShowEpeExportOptions): ShowEpeExport | null => buildShowEpeExport(show, artifact.code, {
+      userMaps: currentMaps,
+      attribution: artifact.attribution,
+      ...options,
     })
     // No pressure gate here: blocked output must stay previewable and
     // inspectable (View code). Export and delivery paths gate themselves.
     return {
-      show: currentShow,
-      userMaps: currentMaps,
-      artifact: currentCompiled.artifact,
+      showId: show.id,
+      name: show.name,
+      stampedAt: show.updatedAt,
+      artifact,
       canonicalExport,
+      exportWith,
     }
   }
 
@@ -3007,12 +3042,10 @@ export function ShowEditor({
     if (!compilation) return null
     const preview = await buildPreviewJpeg(compilation.artifact)
     if (!preview) throw new Error('Could not render the EPE preview image')
-    return buildShowEpeExport(compilation.show, compilation.artifact.code, {
+    return compilation.exportWith({
       id: makeProgramId(),
       preview: bytesToBase64(preview),
-      stampedAt: new Date(compilation.show.updatedAt),
-      userMaps: compilation.userMaps,
-      attribution: compilation.artifact.attribution,
+      stampedAt: new Date(compilation.stampedAt),
     })
   }
 
@@ -3267,7 +3300,7 @@ export function ShowEditor({
     }
   }
 
-  if (generatedSnapshot?.show.id === showId) {
+  if (generatedSnapshot?.showId === showId) {
     const generatedExport = generatedSnapshot.canonicalExport
     // The generated-code view exists so a blocked Show stays inspectable; its
     // export affordance stays gated by the same delivered-pressure rule as
@@ -3280,19 +3313,19 @@ export function ShowEditor({
     const buildGeneratedDownloadExport = async (): Promise<ShowEpeExport> => {
       const preview = await buildPreviewJpeg(generatedSnapshot.artifact)
       if (!preview) throw new Error('Could not render the EPE preview image')
-      return buildShowEpeExport(generatedSnapshot.show, generatedSnapshot.artifact.code, {
+      const exported = generatedSnapshot.exportWith({
         id: makeProgramId(),
         preview: bytesToBase64(preview),
-        stampedAt: new Date(generatedSnapshot.show.updatedAt),
-        userMaps: generatedSnapshot.userMaps,
-        attribution: generatedSnapshot.artifact.attribution,
+        stampedAt: new Date(generatedSnapshot.stampedAt),
       })
+      if (!exported) throw new Error('Could not render the EPE preview image')
+      return exported
     }
     return (
       <div className="flex h-full min-h-0 flex-col bg-zinc-950">
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-seam px-3 font-mono text-xs text-zinc-400">
           <Code2 size={14} aria-hidden />
-          <span className="flex-1 truncate text-zinc-200">Generated pattern - {generatedSnapshot.show.name}</span>
+          <span className="flex-1 truncate text-zinc-200">Generated pattern - {generatedSnapshot.name}</span>
           <ExportShowButton exported={generatedPressure.status === 'blocked' ? null : generatedExport} buildExport={buildGeneratedDownloadExport} />
           <Button
             size="xs"
