@@ -296,7 +296,9 @@ describe('v2 boundary Transition settings planner (#1066 slice 5a)', () => {
   it.each([
     [{ kind: 'crossfade' } as ShowTransitionChanges, 'kind'],
     [{ durationMs: 200 } as ShowTransitionChanges, 'durationMs'],
-    [{ propertyTransitions: { sample: {} } } as ShowTransitionChanges, 'propertyTransitions'],
+    // Scalar propertyTransitions are planned here since #1066 slice 9c2a
+    // (showV2BoundaryScalarRamps.test.ts); Layout fields still belong elsewhere.
+    [{ layoutId: 'layout' } as ShowTransitionChanges, 'layoutId'],
   ])('refuses a %s write owned by another surface', (changes, key) => {
     const record = convertedBoundaryRecord('crossfade')
     const current = record.composition.transitions[0]

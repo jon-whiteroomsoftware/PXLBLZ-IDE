@@ -3788,3 +3788,35 @@ describe('v2 Zone Layouts lane split cell (#1066 slice 9a)', () => {
     expect(background).not.toMatch(/#f97316|rgb\(249, 115, 22\)/)
   })
 })
+
+describe('v2 boundary scalar ramp edits (#1066 slice 9c2a)', () => {
+  it('turns Animate split position on through the transition-edit door', async () => {
+    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const record = convertCorpus(structuredClone(stock.show) as ShowRecord)
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    const junctions = screen.getAllByRole('button', { name: 'Edit crossfade Transition between LineDancer2D and LineDancer2D' })
+    fireEvent.click(junctions[junctions.length - 1])
+    await act(async () => {})
+    const panel = boundaryPanel()
+    expect(within(panel).getByRole('checkbox', { name: 'Animate repeat scale' })).toBeChecked()
+    expect(within(panel).getByRole('checkbox', { name: 'Animate split position' })).not.toBeChecked()
+
+    fireEvent.click(within(panel).getByRole('checkbox', { name: 'Animate split position' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const request = admission.calls[0].request as { intent: { kind: string; transition: ShowRecordV2['composition']['transitions'][number] } }
+    expect(request.intent.kind).toBe('update-transition')
+    expect(request.intent.transition.id).toBe('transition-split-position')
+    expect(request.intent.transition.propertyRamps).toEqual([
+      { target: { kind: 'show-repeat-scale' }, from: 1, durationMs: 1800, easing: { curve: 'linear' } },
+      { target: { kind: 'layout-occurrence-split-position', layoutOccurrenceId: 'layout-occurrence:4' }, from: 0.75, durationMs: 1800, easing: { curve: 'linear' } },
+    ])
+    expectOneEdit(before, editor.state())
+    expect(within(boundaryPanel()).getByRole('checkbox', { name: 'Animate split position' })).toBeChecked()
+  })
+})

@@ -59,7 +59,17 @@ private closed dispatch. Its `transition-edit` command accepts exactly `insert`,
 `update-transition` and `reset-to-cut`; a caller candidate, a `delete-clip`
 smuggled through this wrapper, a stored Cut kind, a nonpositive duration or a
 caller-authored `propertyRamps` array on an Insert refuses before any owner call,
-preparation, history or save. Unknown Transition fields stay with the record
+preparation, history or save.
+`update-transition` keeps Clip- and instance-owned ramps owner-protected but
+accepts adding, changing or removing the two Show-scalar ramps
+(`show-repeat-scale`, `layout-occurrence-split-position`), which no Clip owns;
+record validation keeps them whole-output, one per kind, on the incoming Layout
+occurrence and in bounds. The boundary panel's Animate repeat scale and Animate
+split position sections plan them from v1-shaped `propertyTransitions` exactly
+as the converter maps them, so an edit equals v1 then convert (#1066 slice
+9c2a). A participant-scope boundary refuses a new scalar ramp at validation
+(v1 then convert would make it whole-output), and removing the last scalar ramp
+never demotes a whole-output boundary. Unknown Transition fields stay with the record
 validator, which the pure owner already runs on its complete candidate.
 
 `showV2TransitionEditorModel.ts` is the pure route model. It projects selectable

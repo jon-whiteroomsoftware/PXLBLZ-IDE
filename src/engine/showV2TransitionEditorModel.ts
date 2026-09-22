@@ -6,7 +6,7 @@ import type { ShowToolkitParameterValue } from './showVisualToolkit'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
 import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
 import type { ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
-import { projectShowTransitionJunctionsV2, transitionEndpoints, type ShowTransitionCarrierRampProjectionPlanV2, type ShowTransitionEditIntentV2 } from './showTransitionsV2'
+import { isShowScalarRampTargetV2, projectShowTransitionJunctionsV2, transitionEndpoints, type ShowTransitionCarrierRampProjectionPlanV2, type ShowTransitionEditIntentV2 } from './showTransitionsV2'
 
 export type ShowV2TransitionEditorIntent = Extract<ShowTransitionEditIntentV2, { kind: 'insert' | 'update-transition' | 'reset-to-cut' }>
 
@@ -271,17 +271,23 @@ export function planShowV2TransitionEdit(
 /**
  * Plan one boundary Transition settings edit from v1-shaped changes (#1066
  * slice 5a). The settings surface owns everything the `update-transition`
- * owner accepts except identity, timing, endpoints, ramps and provenance, so
- * the palette (`kind`), resize (`durationMs`), repeat-scale descriptors
- * (`propertyTransitions`) and Layout surfaces (`layoutId`,
- * `routingDirection`) refuse here before any owner.
+ * owner accepts except identity, timing, endpoints, Clip-owned ramps and
+ * provenance, so the palette (`kind`), resize (`durationMs`) and Layout
+ * surfaces (`layoutId`, `routingDirection`) refuse here before any owner.
+ *
+ * `propertyTransitions` (the Animate repeat scale and Animate split position
+ * sections) maps onto the Show-scalar ramps exactly as the v1 converter maps
+ * them (#1066 slice 9c2a): `sample.repeatScale` to a `show-repeat-scale` ramp
+ * and `routing.splitPosition` to a `layout-occurrence-split-position` ramp on
+ * the occurrence covering the boundary end, descriptor fields verbatim, repeat
+ * before split, after every other ramp. `undefined` removes both.
  */
 export type ShowV2BoundaryChangesPlan =
   | { status: 'ready'; intent: Extract<ShowTransitionEditIntentV2, { kind: 'update-transition' }> }
   | { status: 'no-op' }
   | { status: 'refused'; code: 'missing-transition' | 'unsupported-field'; message: string }
 
-const BOUNDARY_SETTINGS_REFUSED_FIELDS = ['kind', 'durationMs', 'propertyTransitions', 'layoutId', 'routingDirection'] as const
+const BOUNDARY_SETTINGS_REFUSED_FIELDS = ['kind', 'durationMs', 'layoutId', 'routingDirection'] as const
 
 export function planShowV2BoundaryTransitionChanges(
   record: ShowRecordV2,
@@ -295,10 +301,33 @@ export function planShowV2BoundaryTransitionChanges(
       return { status: 'refused', code: 'unsupported-field', message: `"${key}" is not edited through the boundary settings surface.` }
     }
   }
+  const { propertyTransitions, ...settings } = changes
   const next = structuredClone(current) as unknown as Record<string, unknown>
-  for (const [key, value] of Object.entries(changes)) {
+  for (const [key, value] of Object.entries(settings)) {
     if (value === undefined) delete next[key]
     else next[key] = structuredClone(value)
+  }
+  if (Object.prototype.hasOwnProperty.call(changes, 'propertyTransitions')) {
+    const unsupported = Object.keys(propertyTransitions ?? {}).filter(key => key !== 'sample' && key !== 'routing')
+      .concat(Object.keys(propertyTransitions?.sample ?? {}).filter(key => key !== 'repeatScale').map(key => `sample.${key}`))
+      .concat(Object.keys(propertyTransitions?.routing ?? {}).filter(key => key !== 'splitPosition').map(key => `routing.${key}`))
+    if (unsupported.length > 0) {
+      return { status: 'refused', code: 'unsupported-field', message: `"propertyTransitions.${unsupported[0]}" is not edited through the boundary settings surface.` }
+    }
+    const repeatScale = propertyTransitions?.sample?.repeatScale
+    const splitPosition = propertyTransitions?.routing?.splitPosition
+    const boundaryEndMs = (current.wholeOutput?.startMs ?? transitionStartMs(record, current) ?? 0) + current.durationMs
+    const incoming = record.composition.layoutOccurrences.find(occurrence => (
+      occurrence.startMs <= boundaryEndMs && occurrence.startMs + occurrence.durationMs > boundaryEndMs
+    ))
+    if (splitPosition && !incoming) {
+      return { status: 'refused', code: 'unsupported-field', message: 'No Layout occurrence covers the end of this boundary, so its split position cannot animate.' }
+    }
+    next.propertyRamps = [
+      ...current.propertyRamps.filter(ramp => !isShowScalarRampTargetV2(ramp.target)).map(ramp => structuredClone(ramp)),
+      ...(repeatScale ? [{ target: { kind: 'show-repeat-scale' as const }, ...structuredClone(repeatScale) }] : []),
+      ...(splitPosition ? [{ target: { kind: 'layout-occurrence-split-position' as const, layoutOccurrenceId: incoming!.id }, ...structuredClone(splitPosition) }] : []),
+    ]
   }
   if (JSON.stringify(next) === JSON.stringify(current)) return { status: 'no-op' }
   return { status: 'ready', intent: { kind: 'update-transition', transition: next as unknown as ShowTransitionV2 } }

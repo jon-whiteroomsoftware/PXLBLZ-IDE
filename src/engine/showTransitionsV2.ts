@@ -164,7 +164,11 @@ export function editShowTransitionV2(
       durationMs: transition.durationMs,
       participants: transition.participants,
       wholeOutput: transition.wholeOutput,
-      propertyRamps: transition.propertyRamps,
+      // The Show-scalar ramps (repeat scale, split position) belong to no Clip
+      // or instance, so a settings edit may add, change or remove them; record
+      // validation owns their scope, uniqueness, occurrence and bounds (#1066
+      // slice 9c2a). Every other ramp stays owner-protected.
+      propertyRamps: transition.propertyRamps.filter(ramp => !isShowScalarRampTargetV2(ramp.target)),
       // Conversion provenance is written by the v1 converter alone (#1065), so
       // a settings edit can neither change nor clear it.
       origin: transition.origin,
@@ -180,7 +184,7 @@ export function editShowTransitionV2(
         ? editShowTransitionV2(record, { kind: 'resize-transition', transitionId: current.id, durationMs: intent.transition.durationMs })
         : null
       if (!retimed) {
-        return refuse('invalid-intent', 'A settings edit cannot change Transition identity, timing, participants, property ramps or conversion provenance.')
+        return refuse('invalid-intent', 'A settings edit cannot change Transition identity, timing, participants, Clip-owned property ramps or conversion provenance.')
       }
       if (retimed.status !== 'changed') return retimed
       const retimedTransition = retimed.record.composition.transitions.find(candidate => candidate.id === current.id)!
@@ -334,6 +338,11 @@ export function editShowTransitionV2(
  * whole edit atomically. A boundary carrier that still holds Property ramps
  * refuses here; Reset it explicitly with a projection plan first.
  */
+/** The two Show-scalar ramp targets: global Show time, owned by no Clip or instance. */
+export function isShowScalarRampTargetV2(target: ShowTransitionV2['propertyRamps'][number]['target']): boolean {
+  return target.kind === 'show-repeat-scale' || target.kind === 'layout-occurrence-split-position'
+}
+
 export interface ConvertedBoundaryRepairV2 {
   transitionId: string
   fromClipId: string
