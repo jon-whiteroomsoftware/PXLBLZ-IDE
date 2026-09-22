@@ -24,6 +24,29 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.14.0 adoption (#1079)
+
+This adoption updates the executable package from 0.13.0. Source release is
+WRSP 0.14.0; see its `docs/reference/process-release-0.14.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.14.0, tag `v0.14.0` |
+| Source | `2be6f9794437b112a31c8f8772aba7dce0b5469b` |
+| Tarball | `vendor/whiteroom-software-process-0.14.0.tgz` |
+| SHA256 | `0cf316358aafb9cb532b323f2c568043ca9cb6e1eeb10c3a7dab4875ce8cbe37` |
+
+Claude Opus 5.5 replaces Opus 5 in reviewer routing. The ranked tier is Opus
+5.5 High (`claude-opus-5-5`/high), Sol 5.6 Extra High, Astra Low, then Fable
+5.1 Medium. `claude-opus-5-5`/xhigh remains an explicit selection, and
+`claude-opus-5` is no longer accepted. Approvals recorded by Opus 5 Extra High
+or Opus 5 High keep their provenance and still count toward coverage. A host
+that launches Claude reviewers needs a Claude Code CLI that recognizes
+`claude-opus-5-5` (2.1.280 does; 2.1.257 does not). The gate now peels
+annotated tags to their commit (WRSP #111), which lifts the 0.13.0 caveat
+below. The same-family review exception and the operator-authorization
+procedures in the 0.12.0 section are unchanged.
+
 ## WRSP 0.13.0 adoption (#1076)
 
 This adoption updates the executable package from 0.12.0. Source release is
@@ -244,8 +267,8 @@ construction finishes a size and completeness preflight before launching a
 reviewer. Missing, incomplete, or oversized input remains a non-approval; the
 packet is never truncated to fit the transport.
 
-The reviewer tier is Opus 5 Extra High, Sol 5.6 Extra High, Astra Low, then
-Fable Medium (WRSP 0.12.0). A single-family candidate tries only the opposite
+The reviewer tier is Opus 5.5 High, Sol 5.6 Extra High, Astra Low, then
+Fable Medium (WRSP 0.14.0). A single-family candidate tries only the opposite
 family's reviewers in that order: GPT authorship tries Opus then Fable; Claude
 authorship tries Sol then Astra. A valid review with findings stops the route for repair. Unavailable
 or unusable reviewers advance to the next eligible model; exhaustion fails.
@@ -255,7 +278,7 @@ An explicit choice applies to one invocation:
 
 ```bash
 npm run review:candidate -- <base> <tip> \
-  --reviewer-model claude-opus-5 --reviewer-effort xhigh
+  --reviewer-model claude-opus-5-5 --reviewer-effort xhigh
 ```
 
 An explicit choice has no fallback unless both fallback model and effort flags

@@ -264,8 +264,8 @@ naming the exact model id (for example `X-Authored-Model: claude-fable-5-1` or
 `X-Authored-Model: gpt-5.6-sol`), after any other trailers. Candidate review
 routes to the opposite model family based on this trailer (#637): commits
 without it are unsignalled and cannot claim verified cross-family coverage.
-By default, WRSP ranks reviewers Opus 5 Extra High, Sol 5.6 Extra High, Astra Low,
-then Fable Medium, selecting only the opposite family for single-family authored work.
+By default, WRSP ranks reviewers Opus 5.5 High, Sol 5.6 Extra High, Astra Low,
+then Fable Medium (WRSP 0.14.0), selecting only the opposite family for single-family authored work.
 For Jon-authorized same-family review, follow the explicit scoped exception in
 `docs/agents/verification.md` (WRSP 0.12.0 adoption).
 GPT-authored ranges try Opus then Fable; Claude-authored ranges try Sol then
