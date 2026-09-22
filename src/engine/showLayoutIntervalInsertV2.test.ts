@@ -67,8 +67,26 @@ function convertedBefore(): ShowRecordV2 {
   return converted.record
 }
 
+// The default single-Zone Layout carries a split position structurally: the
+// converter copies scene routingTargets into occurrence parameters without
+// regard to Layout kind, as continuingCutShow in showRecordV1ToV2.test.ts
+// proves for a single-layout show. So scene-1 can carry splitPosition 0.3
+// on layout-1 with no split Layout fixture.
+function researchBaseWithSplit(): ShowRecord {
+  const show = researchBase()
+  show.scenes[0].routingTargets = { splitPosition: 0.3 }
+  return show
+}
+
 function withSpanningGroup(record: ShowRecordV2): ShowRecordV2 {
   const next = structuredClone(record)
+  // The Group child needs its own Zone layer: materialized onto Main it would
+  // overlap clip-a, and validate-first now refuses that invalid record before
+  // the Group-span check the fixture targets.
+  next.composition.layers = [
+    ...next.composition.layers,
+    { id: 'layer:zone-1:overlay', zoneId: 'zone-1', name: 'Overlay', rank: 1 },
+  ]
   next.composition.groupDefinitions = [{
     id: 'g-def',
     name: 'G',
@@ -104,7 +122,7 @@ function withSpanningGroup(record: ShowRecordV2): ShowRecordV2 {
     startMs: 1000,
     translationX: 0,
     translationY: 0,
-    layerBindings: [{ definitionLayerId: 'g-layer', layerId: 'layer:zone-1:main' }],
+    layerBindings: [{ definitionLayerId: 'g-layer', layerId: 'layer:zone-1:overlay' }],
     holds: [],
   }]
   return next
@@ -185,7 +203,7 @@ async function expectInsertRuntimeParity(v1After: ShowRecord, v2After: ShowRecor
 
 describe('Zone Layout Insert here v2 owner (#1066 slice 8b-2a)', () => {
   it('oracle t=3000 5s matches v1 Insert apart from accepted representation and marker ripple', async () => {
-    const base = researchBase()
+    const base = researchBaseWithSplit()
     const withCopy = addShowRoutingLayout(base, undefined, 'layout-1')
     const copyId = withCopy.routingLayouts[1].id
     const copyName = withCopy.routingLayouts[1].name
@@ -198,8 +216,16 @@ describe('Zone Layout Insert here v2 owner (#1066 slice 8b-2a)', () => {
     if (convBefore.status !== 'converted') return
     const layoutId = convAfter.record.zoneLayouts.find(layout => layout.id !== 'layout-1')!.id
     expect(layoutId).toBe(copyId)
-    const intervalId = convAfter.record.composition.layoutOccurrences[1].id
-    const resumeId = convAfter.record.composition.layoutOccurrences[2].id
+    // Converted occurrence identities collide with convBefore's (both mint
+    // layout-occurrence:N), so the v2 intent uses fresh identities. The v1
+    // path also renumbers every occurrence, while v2 keeps pre-existing
+    // identities, so the structural comparison maps actual identities onto
+    // expected ones positionally in one pass.
+    const expectedIds = convAfter.record.composition.layoutOccurrences.map(occurrence => occurrence.id)
+    const expectedIntervalId = expectedIds[1]
+    const expectedResumeId = expectedIds[2]
+    const intervalId = 'occ-split-interval'
+    const resumeId = 'occ-split-resume'
     const rightId = convAfter.record.composition.clips.find(clip => clip.id !== 'clip-a' && clip.id !== 'clip-b')!.id
     const result = insertShowLayoutIntervalV2(convBefore.record, {
       kind: 'insert-interval',
@@ -212,6 +238,10 @@ describe('Zone Layout Insert here v2 owner (#1066 slice 8b-2a)', () => {
     })
     expect(result.status).toBe('changed')
     if (result.status !== 'changed') return
+    expect(convAfter.record.composition.layoutOccurrences.find(occurrence => occurrence.id === expectedIntervalId)?.parameters).toEqual({})
+    expect(convAfter.record.composition.layoutOccurrences.find(occurrence => occurrence.id === expectedResumeId)?.parameters).toEqual({ splitPosition: 0.3 })
+    expect(result.record.composition.layoutOccurrences.find(occurrence => occurrence.id === intervalId)?.parameters).toEqual({})
+    expect(result.record.composition.layoutOccurrences.find(occurrence => occurrence.id === resumeId)?.parameters).toEqual({ splitPosition: 0.3 })
     expect(convAfter.record.composition.markers.find(marker => marker.id === 'm-late')?.timeMs).toBe(15000)
     expect(result.record.composition.markers.find(marker => marker.id === 'm-late')?.timeMs).toBe(20000)
     const expected = structuredClone(convAfter.record)
@@ -219,7 +249,17 @@ describe('Zone Layout Insert here v2 owner (#1066 slice 8b-2a)', () => {
     expected.updatedAt = 0
     actual.updatedAt = 0
     actual.composition.markers.find(marker => marker.id === 'm-late')!.timeMs = 15000
-    expect(structuralInsertOracle(actual)).toEqual(structuralInsertOracle(expected))
+    const actualIds = actual.composition.layoutOccurrences.map(occurrence => occurrence.id)
+    expect(actualIds).toHaveLength(expectedIds.length)
+    const idMap = new Map(actualIds.map((id, index) => [id, expectedIds[index]]))
+    const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const renamedActual = JSON.parse(
+      JSON.stringify(actual).replace(
+        new RegExp([...idMap.keys()].map(escapeRegExp).join('|'), 'g'),
+        match => idMap.get(match)!,
+      ),
+    )
+    expect(structuralInsertOracle(renamedActual)).toEqual(structuralInsertOracle(expected))
     await expectInsertRuntimeParity(v1After, result.record)
   })
 
@@ -287,6 +327,53 @@ describe('Zone Layout Insert here v2 owner (#1066 slice 8b-2a)', () => {
     expect(result.record.composition.layoutOccurrences[1]).toMatchObject({ startMs: 5000, layoutId: firstLayout })
     expect(result.record.composition.clips.map(clip => clip.id).sort()).toEqual(before.composition.clips.map(clip => clip.id).sort())
     expect(result.record.composition.clips).toHaveLength(clipCount)
+  })
+
+  it('t=0 keeps the original split position on the resumed occurrence', () => {
+    const converted = convertShowRecordV1ToV2(researchBaseWithSplit())
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const before = converted.record
+    const firstLayout = before.composition.layoutOccurrences[0].layoutId
+    const result = insertShowLayoutIntervalV2(before, {
+      kind: 'insert-interval',
+      atMs: 0,
+      durationMs: 5000,
+      layoutId: 'layout-2',
+      definition: { kind: 'duplicate', layoutId: 'layout-2', name: 'Physical ranges', sourceLayoutId: 'layout-1' },
+      occurrenceIds: { interval: 'occ-zero-i', resume: 'occ-zero-r' },
+      rightClipIds: {},
+    })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.layoutOccurrences).toHaveLength(3)
+    expect(result.record.composition.layoutOccurrences[0]).toMatchObject({ startMs: 0, durationMs: 5000, layoutId: 'layout-2' })
+    expect(result.record.composition.layoutOccurrences[0].parameters).toEqual({})
+    expect(result.record.composition.layoutOccurrences[1]).toMatchObject({ startMs: 5000, layoutId: firstLayout })
+    expect(result.record.composition.layoutOccurrences[1].parameters).toEqual({ splitPosition: 0.3 })
+  })
+
+  it('refuses a malformed record without throwing', () => {
+    const source = convertedBefore()
+    source.composition.transitions[0].participants[0].fromClipId = 'missing-clip'
+    const before = structuredClone(source)
+    let result: ReturnType<typeof insertShowLayoutIntervalV2> | undefined
+    expect(() => {
+      result = insertShowLayoutIntervalV2(source, {
+        kind: 'insert-interval',
+        atMs: 3000,
+        durationMs: 5000,
+        layoutId: 'layout-2',
+        definition: { kind: 'duplicate', layoutId: 'layout-2', name: 'Physical ranges', sourceLayoutId: 'layout-1' },
+        occurrenceIds: { interval: 'occ-bad-i', resume: 'occ-bad-r' },
+        rightClipIds: { 'clip-a': 'clip-a-bad-right' },
+      })
+    }).not.toThrow()
+    expect(result?.status).toBe('refused')
+    if (!result || result.status !== 'refused') return
+    expect(result.code).toBe('invalid-record')
+    expect(result.record).toBe(source)
+    expect(source).toEqual(before)
   })
 
   it('refuses inside and at the edge of the crossfade window with the record unchanged', () => {

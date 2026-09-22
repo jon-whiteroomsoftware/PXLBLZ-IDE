@@ -68,6 +68,14 @@ export function insertShowLayoutIntervalV2(
   if (!intent || intent.kind !== 'insert-interval') {
     return refuse('invalid-intent', 'Insert here requires an insert-interval intent.')
   }
+  const preimageIssue = validateShowRecordV2(record)[0]
+  if (preimageIssue) {
+    return refuse('invalid-record', `${preimageIssue.path}: ${preimageIssue.message}`)
+  }
+  const preimageUnavailable = validateShowLayoutAvailabilityV2(record)[0]
+  if (preimageUnavailable) {
+    return refuse('invalid-record', `Zone is unavailable for ${preimageUnavailable.entityId}.`)
+  }
   const { atMs, durationMs, layoutId, definition, occurrenceIds, rightClipIds } = intent
   const showEndMs = record.composition?.showEndMs
   if (!Number.isSafeInteger(atMs) || !Number.isSafeInteger(showEndMs) || atMs < 0 || atMs >= showEndMs || !Number.isSafeInteger(durationMs) || durationMs <= 0) {
@@ -128,6 +136,8 @@ export function insertShowLayoutIntervalV2(
     take('affectedTransitionIds')
     take('removedLayoutOccurrenceIds')
   }
+  const preimageOwner = showLayoutOccurrenceAtTimeV2(record, atMs)
+  const preimageParameters = structuredClone(preimageOwner?.parameters ?? {})
   const defined = editShowZoneLayoutDefinitionV2(record, definition)
   if (defined.status === 'refused') {
     return refuse(mapDefinitionRefusal(defined.code), defined.message)
@@ -196,6 +206,8 @@ export function insertShowLayoutIntervalV2(
       }
       current = second.record
       absorb(second)
+      const resumed = current.composition.layoutOccurrences.find(occurrence => occurrence.id === occurrenceIds.resume)
+      if (resumed) resumed.parameters = structuredClone(preimageParameters)
     }
   } else {
     const firstOccurrence = showLayoutOccurrenceAtTimeV2(current, 0)
@@ -231,6 +243,10 @@ export function insertShowLayoutIntervalV2(
     }
     current = selected.record
     absorb(selected)
+    const resumedAtZero = current.composition.layoutOccurrences.find(occurrence => occurrence.id === occurrenceIds.resume)
+    if (resumedAtZero) resumedAtZero.parameters = structuredClone(preimageParameters)
+    const freshAtZero = current.composition.layoutOccurrences.find(occurrence => occurrence.id === firstId)
+    if (freshAtZero) freshAtZero.parameters = {}
   }
   // Same final validation editShowLayoutIntervalsV2 runs before it returns
   // (showLayoutIntervalsV2.ts: promotion, Zone availability, validateShowRecordV2).
