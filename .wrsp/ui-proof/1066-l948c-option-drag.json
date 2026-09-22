@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-option-drag-1790100781848",
+  "operation": "Ran the e2e/shows.auth.spec.ts:948 Option-drag body on the v2 backing (a v1-seeded row stored as its converted v2 document) at the code tip: Alt-dragged the 'Option Copy Rings' Clip from the main lane onto the overlay lane. Mid-drag the preview reads data-drag-mode=duplicate with the source in place; after the drop the stored v2 record has 2 Clips, the copy at 13000 ms on layer:zone-1:overlay:1 with a freshly minted id, selected, and its inspector reads 'Shared by 2 Clips' (linked copy).",
+  "captures": [".wrsp/ui-proof/1066-l948c-option-drag-preview.png", ".wrsp/ui-proof/1066-l948c-option-drag-result.png"],
+  "capturedAtCommit": "ace2e7c450732ae1d71ec48907cab722ec810d2f"
+}
