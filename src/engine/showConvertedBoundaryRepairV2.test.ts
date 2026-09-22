@@ -7,7 +7,7 @@ import { buildShowEpeExport } from './showEpeExport'
 import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { deleteShowClipInShow } from './showClipDeletion'
-import { createDefaultShow, projectShowTimeline, removeShowBoundaryTransition, showLoopDurationMs, showRecordToCompileRecipe } from './showModel'
+import { createDefaultShow, projectShowTimeline, removeShowBoundaryTransition, showLoopDurationMs, showRecordToCompileRecipe, updateShowBoundaryTransition } from './showModel'
 import { projectFlatShowToCompositionV1 } from './showCompositionModel'
 import { resizeShowConnectedClipInShowAtGlobalTime } from './showLayerTransitionAuthoring'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
@@ -1109,5 +1109,79 @@ describe('a Scene Property track retimes through the repair as v1 Remove does (#
     expect(trackSummary(reset.record)).toEqual(trackSummary(v1))
     expect(stockPrepare(reset.record)).toBe('ready')
     expect(trackSummary(reset.record)).toEqual(expected)
+  })
+})
+
+describe('changing a converted boundary duration retimes the loop as v1 does (#1068)', () => {
+  function source(kind: 'plain' | 'track' | 'repeat') {
+    const show = createDefaultShow('boundary-repair', 'Boundary repair', 1)
+    if (kind === 'repeat') {
+      show.scenes[0].sampleTargets = { repeatScale: 1 }
+      show.scenes[1].sampleTargets = { repeatScale: 2 }
+    }
+    if (kind === 'track') {
+      show.composition = projectFlatShowToCompositionV1(show, {
+        byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
+        stageDimension: 1,
+      })
+      const scene = show.composition.scenes[1]
+      scene.propertyTracks = [{
+        id: 'scene-2-brightness',
+        target: { kind: 'placement-view', placementId: scene.zones[0].main[0].id, property: 'brightness' },
+        keyframes: [5000, 25000].map((timeMs, index) => ({ id: `scene-2-k${index}`, timeMs, value: 1 - index * 0.25, easing: { curve: 'linear' } })),
+      }]
+    }
+    return show
+  }
+
+  function convertStock(show: ReturnType<typeof source>): ShowRecordV2 {
+    const converted = convertShowRecordV1ToV2(show, { byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted))
+    return converted.record
+  }
+
+  function stockPrepare(record: ShowRecordV2) {
+    return prepareShowV2ForCompile(reopen(record), { byCellId: {}, byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])), stageDimension: 2 }, { libraries: LIBRARIES }).status
+  }
+
+  function summary(record: ShowRecordV2) {
+    return {
+      clips: record.composition.clips.map(c => [c.id, c.startMs, c.durationMs]),
+      showEndMs: record.composition.showEndMs,
+      transitions: record.composition.transitions.map(t => [t.id, t.durationMs]),
+      occurrences: record.composition.layoutOccurrences.map(o => [o.startMs, o.durationMs]),
+      markers: record.composition.markers.map(m => m.timeMs),
+      tracks: record.composition.propertyTracks.map(t => [t.target.kind, t.activeStartMs, t.activeDurationMs, t.keyframes.map(k => k.timeMs)]),
+    }
+  }
+
+  it.each([
+    ['plain', 500],
+    ['plain', 5000],
+    ['track', 500],
+    ['track', 5000],
+    ['repeat', 500],
+    ['repeat', 5000],
+  ] as Array<['plain' | 'track' | 'repeat', number]>)('%s boundary resized to %i ms equals v1 then convert', (kind, durationMs) => {
+    const edited = editShowTransitionV2(convertStock(source(kind)), { kind: 'resize-transition', transitionId: BOUNDARY, durationMs })
+    expect(edited.status, JSON.stringify(edited)).toBe('changed')
+    if (edited.status !== 'changed') throw new Error(JSON.stringify(edited))
+    const v1 = convertStock(updateShowBoundaryTransition(source(kind), BOUNDARY, { durationMs }))
+    expect(summary(edited.record)).toEqual(summary(v1))
+    expect(stockPrepare(edited.record)).toBe('ready')
+  })
+
+  it('pins the measured plain values', () => {
+    const short = editShowTransitionV2(convertStock(source('plain')), { kind: 'resize-transition', transitionId: BOUNDARY, durationMs: 500 })
+    expect(short.status, JSON.stringify(short)).toBe('changed')
+    if (short.status !== 'changed') throw new Error(JSON.stringify(short))
+    expect(summary(short.record).clips).toEqual([['placement-cell-1-scene-1', 0, 30000], ['placement-cell-2-scene-2', 30500, 30000]])
+    expect(summary(short.record).showEndMs).toBe(60500)
+    const long = editShowTransitionV2(convertStock(source('plain')), { kind: 'resize-transition', transitionId: BOUNDARY, durationMs: 5000 })
+    expect(long.status, JSON.stringify(long)).toBe('changed')
+    if (long.status !== 'changed') throw new Error(JSON.stringify(long))
+    expect(summary(long.record).clips[1][1]).toBe(35000)
+    expect(summary(long.record).showEndMs).toBe(65000)
   })
 })

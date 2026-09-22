@@ -180,6 +180,12 @@ duration, an activation reaching past the window shortens by the same duration,
 and a key inside the reclaimed window refuses the edit. A window that is not
 inside one occurrence, or an owning
 occurrence that cannot cover the reclaim, refuses the whole edit atomically.
+Changing a converted boundary's duration (`resize-transition` to a positive
+duration) uses the same commit with the Transition kept at its new duration:
+the downstream side, converted Scene labels, Group occurrences, later Layout
+occurrences and Show-scoped repeat-scale keys move by the signed difference,
+the owning Layout occurrence shortens or lengthens by it, and Show End changes
+by it, exactly as v1 retimes the next Scene. Resizing to zero is Reset to Cut.
 Extending into the boundary refuses `invalid-topology` on all four entry points
 (temporal Trim/Extend, `resize-leading`, `resize-trailing`); reset the Transition
 explicitly first. An edge with no meeting boundary never consults the repair, so

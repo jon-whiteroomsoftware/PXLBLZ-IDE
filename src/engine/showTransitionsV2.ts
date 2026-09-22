@@ -254,9 +254,11 @@ export function editShowTransitionV2(
   if (intent.kind === 'resize-transition' && intent.durationMs === 0) {
     return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })
   }
-  if (intent.kind === 'reset-to-cut') {
+  if (intent.kind === 'reset-to-cut' || intent.kind === 'resize-transition') {
     const spec = convertedBoundaryRepairSpecV2(record, transition.id)
-    if (spec.status === 'ready') return resetConvertedBoundaryToCut(record, spec.repair)
+    if (spec.status === 'ready') {
+      return resetConvertedBoundaryToCut(record, intent.kind === 'resize-transition' ? { ...spec.repair, retainDurationMs: intent.durationMs } : spec.repair)
+    }
   }
   const endpoints = transitionEndpoints(transition)
   const affectedClipIds = downstreamClosure(record, endpoints.to)
@@ -314,6 +316,11 @@ export interface ConvertedBoundaryRepairV2 {
   windowStartMs: number
   windowEndMs: number
   durationMs: number
+  /**
+   * When set, the boundary is retimed to this duration instead of cut: the
+   * downstream side moves by the signed difference and the Transition stays.
+   */
+  retainDurationMs?: number
 }
 
 export type ConvertedBoundaryRepairEligibilityV2 =
@@ -421,7 +428,9 @@ export function commitConvertedBoundaryRepairsV2(
     if (!next.composition.transitions.some(candidate => candidate.id === repair.transitionId)) {
       return { status: 'refused', message: `Transition "${repair.transitionId}" is no longer present.` }
     }
-    const durationMs = repair.durationMs
+    // The signed Show-time change: positive reclaims (cut or shorten), negative
+    // inserts (lengthen). A cut reclaims the whole boundary duration.
+    const durationMs = repair.durationMs - (repair.retainDurationMs ?? 0)
     const relocated = new Set(options?.alreadyRelocatedClipIds ?? [])
     const shiftIds = new Set(downstreamClosure(record, [repair.toClipId]))
     for (const id of relocated) shiftIds.delete(id)
@@ -444,13 +453,17 @@ export function commitConvertedBoundaryRepairsV2(
         return { status: 'refused', message: `Group occurrence "${group.id}" spans the reclaimed boundary window ending at ${repair.windowEndMs} ms; move it away from the boundary first.` }
       }
     }
-    next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== repair.transitionId)
+    if (repair.retainDurationMs === undefined) {
+      next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== repair.transitionId)
+    } else {
+      next.composition.transitions.find(candidate => candidate.id === repair.transitionId)!.durationMs = repair.retainDurationMs
+    }
     const movedTrackIds = applyShowTransitionClipShiftV2(record, next, [...shiftIds], -durationMs, [repair.transitionId], repair.windowEndMs)
     for (const id of shiftIds) shiftedClipIds.add(id)
     for (const id of movedTrackIds) shiftedTrackIds.add(id)
     next.composition.showEndMs -= durationMs
     reclaimedMs += durationMs
-    removedTransitionIds.push(repair.transitionId)
+    if (repair.retainDurationMs === undefined) removedTransitionIds.push(repair.transitionId)
     // Show-scoped repeat-scale tracks are global Show time that no Clip owns,
     // so the Clip shift above never moves them. v1 holds the same value per
     // Scene, and the reclaim shortens the loop, so keys after the window move
@@ -517,7 +530,7 @@ export function commitConvertedBoundaryRepairsV2(
       return { status: 'refused', message: `The reclaimed boundary window ending at ${repair.windowEndMs} ms is not inside one Layout occurrence; consolidate Layouts first.` }
     }
     const live = next.composition.layoutOccurrences.find(candidate => candidate.id === owner.id)!
-    if (live.durationMs <= durationMs) {
+    if (durationMs > 0 && live.durationMs <= durationMs) {
       return { status: 'refused', message: `Layout occurrence "${owner.id}" cannot absorb the reclaimed ${durationMs} ms boundary window; consolidate Layouts first.` }
     }
     live.durationMs -= durationMs
@@ -584,7 +597,7 @@ function resetConvertedBoundaryToCut(record: ShowRecordV2, repair: ConvertedBoun
     affectedLayoutOccurrenceIds: [...new Set([...committed.applied.shortenedLayoutOccurrenceIds, ...committed.applied.shiftedLayoutOccurrenceIds])].sort(),
     affectedMarkerIds: committed.applied.shiftedMarkerIds,
     affectedGroupOccurrenceIds: committed.applied.shiftedGroupOccurrenceIds,
-    removedIds: [repair.transitionId],
+    removedIds: repair.retainDurationMs === undefined ? [repair.transitionId] : [],
   }
 }
 
@@ -981,6 +994,9 @@ function reclaimActivationV2(activeStartMs: number, activeDurationMs: number, wi
   const windowStartMs = windowEndMs - durationMs
   const activeEndMs = activeStartMs + activeDurationMs
   if (activeStartMs >= windowEndMs) return { activeStartMs: activeStartMs - durationMs, activeDurationMs }
+  // A lengthened boundary inserts time at the window end: an activation
+  // reaching it extends by the same amount.
+  if (durationMs < 0) return activeEndMs >= windowEndMs ? { activeStartMs, activeDurationMs: activeDurationMs - durationMs } : { activeStartMs, activeDurationMs }
   if (activeEndMs <= windowStartMs) return { activeStartMs, activeDurationMs }
   if (activeEndMs < windowEndMs) return null
   const startMs = Math.min(activeStartMs, windowStartMs)
