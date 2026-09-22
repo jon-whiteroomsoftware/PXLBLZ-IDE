@@ -4644,4 +4644,99 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
     expect(after.record.zones).toEqual(before.record.zones)
     expectOneEdit(before, after)
   })
+
+  it('makes the selected occurrence unique from the inspector through the layout-occurrence door', async () => {
+    const base = commandFixtureV2()
+    base.id = 'slice8a-inspector-make-unique'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone-layout', layoutId: 'both', intervalId: 'interval-1' })
+    const inspector = screen.getByRole('region', { name: 'Zone Layout properties' })
+    expect(within(inspector).getByText('2 linked uses')).toBeInTheDocument()
+    const before = editor.state()
+
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Make this Layout unique' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutOccurrenceEdit'])
+    expect(layoutOccurrenceDoors()[0].request.intent).toEqual({
+      kind: 'make-unique',
+      occurrenceId: 'interval-1',
+      layoutId: expect.any(String),
+      name: 'Both copy',
+    })
+    const copy = after.record.zoneLayouts.find((layout) => layout.id !== 'both' && layout.id !== 'left-only')
+    expect(copy?.name).toBe('Both copy')
+    expect(after.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-1')?.layoutId).toBe(copy?.id)
+    expect(after.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-2')?.layoutId).toBe('both')
+    expectOneEdit(before, after)
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone-layout', layoutId: copy?.id, intervalId: 'interval-1' })
+    expect(screen.getByRole('button', { name: 'Duplicate Zone Layout Both copy' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Make this Layout unique' })).toBeNull()
+  })
+
+  it('hides the inspector Make Unique control for an unshared Layout, with no write', async () => {
+    const base = commandFixtureV2()
+    base.id = 'slice8a-inspector-make-unique-refused'
+    // Moving the second occurrence onto the other Layout leaves interval-1's
+    // Layout with a single use, so the inspector hides Make Unique.
+    base.composition.layoutOccurrences[1]!.layoutId = 'left-only'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone-layout', layoutId: 'both', intervalId: 'interval-1' })
+    const before = editor.state()
+
+    const inspector = screen.getByRole('region', { name: 'Zone Layout properties' })
+    expect(within(inspector).queryByRole('button', { name: 'Make this Layout unique' })).toBeNull()
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone-layout', layoutId: 'both', intervalId: 'interval-1' })
+  })
+
+  it('duplicates a Layout occurrence with its Clips through the layout-occurrence door', async () => {
+    const base = commandFixtureV2()
+    base.id = 'slice8a-duplicate-clips'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const dialog = await openLayoutActionsAt(base.id, 5_001)
+    const before = editor.state()
+    const source = before.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-2')!
+    const insideClips = before.record.composition.clips.filter((clip) => (
+      clip.startMs >= source.startMs && clip.startMs < source.startMs + source.durationMs
+    ))
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Duplicate + Clips' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutOccurrenceEdit'])
+    expect(layoutOccurrenceDoors()[0].request.intent).toEqual({
+      kind: 'duplicate',
+      occurrenceId: 'interval-2',
+      newOccurrenceId: expect.any(String),
+      content: { idsBySourceId: {} },
+    })
+    expect(after.record.composition.layoutOccurrences).toHaveLength(3)
+    const created = after.record.composition.layoutOccurrences.find((occurrence) => (
+      occurrence.id !== 'interval-1' && occurrence.id !== 'interval-2'
+    ))!
+    expect(created.layoutId).toBe(source.layoutId)
+    expect(created.startMs).toBe(source.startMs + source.durationMs)
+    expect(created.durationMs).toBe(source.durationMs)
+    expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length + insideClips.length)
+    expectOneEdit(before, after)
+    expect(screen.queryByRole('dialog', { name: 'Zone Layout at playhead' })).toBeNull()
+  })
 })
