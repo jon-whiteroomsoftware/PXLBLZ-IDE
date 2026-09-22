@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/1066-fixes-a-coverage?show-v2-editor",
+  "operation": "Opened the converted installation-layouts corpus Show stored as version 2 at full coverage (64/64, no blocker), then set the Full Surface Weave pixel ranges to 0-47 in the Zone Layout properties panel; the tray shows the Installation coverage blocker 'Full Surface assigns 48 of 64 pixels (16 missing)', as on v1.",
+  "captures": [".wrsp/ui-proof/1066-fixes-a-coverage.png"],
+  "capturedAtCommit": "6840df6c47e8b99003dd3b958bbc019741aa396b"
+}
