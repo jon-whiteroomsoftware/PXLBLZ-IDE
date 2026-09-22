@@ -1023,3 +1023,50 @@ describe('the repair retimes a Show-scoped repeat-scale track (#1068)', () => {
     expect(result.message).toContain('holds a key inside the reclaimed boundary window')
   })
 })
+
+describe('a Scene Property track retimes through the repair as v1 Remove does (#1068)', () => {
+  function sceneTrackSource(keys: number[]) {
+    const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
+    source.composition = projectFlatShowToCompositionV1(source, {
+      byCellId: Object.fromEntries(source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
+      stageDimension: 1,
+    })
+    const scene = source.composition.scenes[1]
+    scene.propertyTracks = [{
+      id: 'scene-2-brightness',
+      target: { kind: 'placement-view', placementId: scene.zones[0].main[0].id, property: 'brightness' },
+      keyframes: keys.map((timeMs, index) => ({ id: `scene-2-k${index}`, timeMs, value: 1 - index * 0.25, easing: { curve: 'linear' } })),
+    }]
+    return source
+  }
+
+  function convertStock(source: ReturnType<typeof sceneTrackSource>): ShowRecordV2 {
+    const converted = convertShowRecordV1ToV2(source, { byCellId: Object.fromEntries(source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted))
+    return converted.record
+  }
+
+  function stockPrepare(record: ShowRecordV2) {
+    return prepareShowV2ForCompile(reopen(record), { byCellId: {}, byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])), stageDimension: 2 }, { libraries: LIBRARIES }).status
+  }
+
+  function trackSummary(record: ShowRecordV2) {
+    return record.composition.propertyTracks.map(t => [t.activeStartMs, t.activeDurationMs, t.keyframes.map(k => k.timeMs)])
+  }
+
+  const rows: Array<[number[], Array<[number, number, number[]]>]> = [
+    [[0, 20000], [[30000, 30000, [30000, 50000]]]],
+    [[5000, 30000], [[30000, 30000, [35000, 60000]]]],
+  ]
+  it.each(rows)('Reset to Cut matches v1 Remove then convert for Scene keys %j', (keys, expected) => {
+    const record = convertStock(sceneTrackSource(keys))
+    const reset = editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: BOUNDARY })
+    expect(reset.status).toBe('changed')
+    if (reset.status !== 'changed') throw new Error(JSON.stringify(reset))
+    const v1 = convertStock(removeShowBoundaryTransition(sceneTrackSource(keys), BOUNDARY))
+    expect(trackSummary(reset.record)).toEqual(trackSummary(v1))
+    expect(stockPrepare(reset.record)).toBe('ready')
+    expect(trackSummary(reset.record)).toEqual(expected)
+  })
+})

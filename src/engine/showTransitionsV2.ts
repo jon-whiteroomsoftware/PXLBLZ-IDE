@@ -445,7 +445,7 @@ export function commitConvertedBoundaryRepairsV2(
       }
     }
     next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== repair.transitionId)
-    const movedTrackIds = applyShowTransitionClipShiftV2(record, next, [...shiftIds], -durationMs, [repair.transitionId])
+    const movedTrackIds = applyShowTransitionClipShiftV2(record, next, [...shiftIds], -durationMs, [repair.transitionId], repair.windowEndMs)
     for (const id of shiftIds) shiftedClipIds.add(id)
     for (const id of movedTrackIds) shiftedTrackIds.add(id)
     next.composition.showEndMs -= durationMs
@@ -463,9 +463,7 @@ export function commitConvertedBoundaryRepairsV2(
       if (track.keyframes.some(key => key.timeMs > repair.windowStartMs && key.timeMs < repair.windowEndMs)) {
         return { status: 'refused', message: `Property track "${track.id}" holds a key inside the reclaimed boundary window; move it out of the window first.` }
       }
-      const activeEndMs = track.activeStartMs + track.activeDurationMs
-      if (track.activeStartMs >= repair.windowEndMs) live.activeStartMs -= durationMs
-      else if (activeEndMs >= repair.windowEndMs) live.activeDurationMs -= durationMs
+      Object.assign(live, reclaimActivationV2(track.activeStartMs, track.activeDurationMs, repair.windowEndMs, durationMs))
       track.keyframes.forEach((key, index) => {
         if (key.timeMs >= repair.windowEndMs) live.keyframes[index].timeMs -= durationMs
       })
@@ -950,14 +948,27 @@ export function downstreamClosure(record: ShowRecordV2, seeds: readonly string[]
   return [...downstream].sort()
 }
 
-export function applyShowTransitionClipShiftV2(source: ShowRecordV2, next: ShowRecordV2, clipIds: readonly string[], deltaMs: number, excludedTransitionIds: readonly string[] = []): string[] {
+export function applyShowTransitionClipShiftV2(source: ShowRecordV2, next: ShowRecordV2, clipIds: readonly string[], deltaMs: number, excludedTransitionIds: readonly string[] = [], reclaimWindowEndMs?: number): string[] {
   const moved = new Set(clipIds)
   shiftClips(next, clipIds, deltaMs)
-  const affectedTrackIds = shiftOwnedTracks(source, next.composition.propertyTracks, moved, deltaMs)
+  const affectedTrackIds = shiftOwnedTracks(source, next.composition.propertyTracks, moved, deltaMs, reclaimWindowEndMs)
   shiftWholeOutputWindows(source, next, moved, deltaMs, new Set(excludedTransitionIds))
   return affectedTrackIds
 }
 
+/**
+ * Retime one activation through a converted-boundary reclaim (#1068). v1
+ * shortens the loop by the boundary duration: an activation starting at or
+ * after the reclaimed window moves earlier with its Scene, and one starting
+ * before the window end but reaching past it keeps its start and shortens,
+ * because the converter derives it from a Scene start minus an incoming
+ * Transition that the reclaim removes.
+ */
+function reclaimActivationV2(activeStartMs: number, activeDurationMs: number, windowEndMs: number, durationMs: number): { activeStartMs: number; activeDurationMs: number } {
+  if (activeStartMs >= windowEndMs) return { activeStartMs: activeStartMs - durationMs, activeDurationMs }
+  if (activeStartMs + activeDurationMs >= windowEndMs) return { activeStartMs, activeDurationMs: activeDurationMs - durationMs }
+  return { activeStartMs, activeDurationMs }
+}
 /**
  * A Clip's contribution window in `record`: its own span widened by every
  * Transition it enters (earlier by that Transition's duration) or leaves (later
@@ -981,13 +992,16 @@ function contributionWindow(record: ShowRecordV2, clipId: string): { startMs: nu
  * owning Clip's contribution window in `source`; a wider activation - a
  * converted Scene-span track, which v1 held as a Scene-local track with no
  * activation - stays in place, matching v1 then convert. A shifted key that
- * leaves its activation is refused by record validation.
+ * leaves its activation is refused by record validation. Inside the
+ * converted-boundary repair the caller passes the reclaimed window end, and the
+ * activation follows the shared reclaim rule instead (`reclaimActivationV2`).
  */
 function shiftOwnedTracks(
   source: ShowRecordV2,
   tracks: ShowPropertyTrackV2[],
   moved: Set<string>,
   deltaMs: number,
+  reclaimWindowEndMs?: number,
 ): string[] {
   const soleMovedInstanceIds = new Set([...moved].flatMap(clipId => {
     const instanceId = source.composition.clips.find(clip => clip.id === clipId)?.instanceId
@@ -1005,7 +1019,9 @@ function shiftOwnedTracks(
       ? track.target.clipId
       : [...moved].find(clipId => source.composition.clips.find(clip => clip.id === clipId)?.instanceId === (track.target as { instanceId: string }).instanceId)!
     const window = contributionWindow(source, ownerClipId)
-    if (track.activeStartMs >= window.startMs && track.activeStartMs + track.activeDurationMs <= window.endMs) {
+    if (reclaimWindowEndMs !== undefined) {
+      Object.assign(track, reclaimActivationV2(track.activeStartMs, track.activeDurationMs, reclaimWindowEndMs, -deltaMs))
+    } else if (track.activeStartMs >= window.startMs && track.activeStartMs + track.activeDurationMs <= window.endMs) {
       track.activeStartMs += deltaMs
     }
     track.keyframes.forEach(key => { key.timeMs += deltaMs })

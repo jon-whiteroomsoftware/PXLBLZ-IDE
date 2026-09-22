@@ -529,6 +529,19 @@ it('lands an explicit start exactly on a converted-boundary drop while downstrea
   expect(source).toEqual(prior)
 })
 
+it('keeps the Scene-span start through an explicit-start converted-boundary drop', () => {
+  const source = convertedJoin()
+  source.composition.clips.push(clip('tail', 'base', 1_000, 400))
+  source.composition.propertyTracks = [{ id: 'scene-span', target: { kind: 'clip-view', clipId: 'tail', property: 'brightness' }, activeStartMs: 500, activeDurationMs: 1_500, keyframes: [{ id: 'scene-span-k0', timeMs: 1_000, value: 1, easing: { curve: 'linear' } }, { id: 'scene-span-k1', timeMs: 1_400, value: 0.5, easing: { curve: 'linear' } }] }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', startMs: 1_200, detachParticipantTransitions: true })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') return
+  const track = result.record.composition.propertyTracks.find(candidate => candidate.id === 'scene-span')!
+  expect([track.activeStartMs, track.activeDurationMs, track.keyframes.map(key => key.timeMs)]).toEqual([500, 1_400, [900, 1_300]])
+  expect(result.record.composition.showEndMs).toBe(1_900)
+})
+
 it('accepts an explicit start smaller than the boundary duration instead of refusing it', () => {
   const source = convertedJoin()
   const prior = structuredClone(source)
