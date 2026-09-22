@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-reference-aperture-icons",
+  "operation": "At the code tip, lessons still open on v1 (routing unchanged in 11c2a), so the proof is that the v1 Live strip renders unchanged through the new version-neutral model: Aperture reads 'LIVE Heart ... 1/9' (first capture) and 101 Clips, Cuts and Blank Time reads 'CLIP RibbonLoom 1/3' (second capture), matching the v1 behaviour e2e/shows.auth.spec.ts asserts. The v2 rendering is covered by the tracer and the 250 ms v1/v2 parity test.",
+  "captures": [".wrsp/ui-proof/1066-lesson-strip-aperture.png", ".wrsp/ui-proof/1066-lesson-strip-clips101.png"],
+  "capturedAtCommit": "9aa666e888f1fdd87edab44c1406afb4101b6633"
+}
