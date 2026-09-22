@@ -45,7 +45,7 @@ function insertAppearance(clip: ShowClipV2, atMs: number, durationMs: number): v
   clip.appearance.keys.sort((a, b) => a.timeMs - b.timeMs || a.id.localeCompare(b.id))
 }
 
-function visualWindows(record: ShowRecordV2): Array<{ id: string; startMs: number; endMs: number }> {
+export function visualWindows(record: ShowRecordV2): Array<{ id: string; startMs: number; endMs: number }> {
   return record.composition.transitions.flatMap(transition => {
     const starts = transition.wholeOutput ? [transition.wholeOutput.startMs] : transition.participants.map(participant => {
       const from = record.composition.clips.find(clip => clip.id === participant.fromClipId)!
