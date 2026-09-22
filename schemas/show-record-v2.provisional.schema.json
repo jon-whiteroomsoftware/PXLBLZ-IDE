@@ -141,7 +141,8 @@
     "ShowSampleRemap": {
       "type": "object",
       "properties": {
-        "repeatScale": { "type": "number" }
+        "repeatScale": { "type": "number" },
+        "origin": { "const": "converted-authored-repeat-scale", "description": "Conversion provenance (#1066): the v1 Show explicitly authored sampleTargets.repeatScale on at least one Scene. Written by the v1 converter alone; inert." }
       },
       "required": ["repeatScale"],
       "additionalProperties": false,

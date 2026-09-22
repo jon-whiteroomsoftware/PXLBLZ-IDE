@@ -398,7 +398,14 @@ export function convertShowRecordV1ToV2(
       version: 2,
       executionModel: composition.executionModel === 'deterministic-loop' ? 'deterministic-loop' : 'continuous',
       showEndMs,
-      sampleRemap: { repeatScale: show.scenes[0]?.sampleTargets?.repeatScale ?? 1 },
+      sampleRemap: {
+        repeatScale: show.scenes[0]?.sampleTargets?.repeatScale ?? 1,
+        // Conversion provenance (#1066): an explicitly authored repeat scale,
+        // including an explicit 1, is otherwise indistinguishable from none.
+        ...(show.scenes.some(scene => scene.sampleTargets?.repeatScale !== undefined)
+          ? { origin: 'converted-authored-repeat-scale' as const }
+          : {}),
+      },
       patternInstances: structuredClone(composition.patternInstances),
       layers,
       clips,

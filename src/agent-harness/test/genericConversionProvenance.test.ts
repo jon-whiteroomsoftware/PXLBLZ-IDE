@@ -170,6 +170,40 @@ describe('generic operations and v1 conversion provenance (#1065)', () => {
     expect(removed.document.show.composition.markers).toEqual([])
   })
 
+  describe('authored repeat scale provenance (#1066 slice 9b)', () => {
+    function convertedSampleRemapDocument(): ShowGrammarDocument {
+      const document = baseDocument()
+      const show = structuredClone(document.show)
+      show.composition.sampleRemap = { repeatScale: 1, origin: 'converted-authored-repeat-scale' }
+      expect(validateShowRecordV2(show)).toEqual([])
+      return { ...document, show }
+    }
+
+    it('refuses a set_field that forges a sampleRemap origin on a native Show', () => {
+      const document = baseDocument()
+      expect(document.show.composition.sampleRemap.origin).toBeUndefined()
+      applyRefused(document, 'set_field', {
+        pointer: '/composition/sampleRemap/origin',
+        value: 'converted-authored-repeat-scale',
+      }, 'invalid-argument')
+    })
+
+    it('refuses forging sampleRemap provenance through an ancestor write', () => {
+      const document = baseDocument()
+      applyRefused(document, 'set_field', {
+        pointer: '/composition/sampleRemap',
+        value: { repeatScale: 1, origin: 'converted-authored-repeat-scale' },
+      }, 'invalid-argument')
+    })
+
+    it('carries sampleRemap provenance through an ordinary repeatScale edit unchanged', () => {
+      const document = convertedSampleRemapDocument()
+      const edited = applyOk(document, 'set_field', { pointer: '/composition/sampleRemap/repeatScale', value: 2 })
+      expect(edited.document.show.composition.sampleRemap.repeatScale).toBe(2)
+      expect(edited.document.show.composition.sampleRemap.origin).toBe('converted-authored-repeat-scale')
+    })
+  })
+
   describe('a malformed generic edit refuses before the provenance comparison (#1064)', () => {
     it('refuses a set_field that deletes the whole composition', () => {
       const document = convertedDocument()

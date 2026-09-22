@@ -35,6 +35,7 @@ export const COVERAGE_ALLOWLIST: Array<{ pattern: string; reason: string }> = [
   { pattern: '/composition/markers/*/origin', reason: 'v1 conversion provenance (#1065); written by convertShowRecordV1ToV2 alone, never edited.' },
   { pattern: '/composition/transitions/*/origin', reason: 'v1 conversion provenance (#1065); written by convertShowRecordV1ToV2 alone, never edited.' },
   { pattern: '/composition/layoutOccurrences/*/incomingSwitch', reason: 'v1 conversion provenance (#1065), with its leaves; written by convertShowRecordV1ToV2 alone, never edited.' },
+  { pattern: '/composition/sampleRemap/origin', reason: 'v1 conversion provenance (#1066); written by convertShowRecordV1ToV2 alone, never edited.' },
   {
     pattern: '/composition/groupOccurrences/*/layoutOccurrenceId',
     reason: 'Derived start-time association, not an enclosing owner; the explicit edit owners recompute it from global start (specification section 3).',

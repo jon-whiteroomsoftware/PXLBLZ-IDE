@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { convertibleV1Show, flatV1Show } from '../test/showV2TracerFixture'
 import { showRemoveClipFixture } from '../test/showRemoveClipFixture'
-import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2 } from './showCompositionV2'
+import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
-import { showRecordToCompileRecipe } from './showModel'
+import { createDefaultShow, showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { stockShowById } from '../pixelblaze/stock/shows'
+import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { auditShowV1ToV2Accounting, convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 
 describe('convertShowRecordV1ToV2', () => {
@@ -724,5 +725,63 @@ it('reports the pre-existing mixed-scope preparation refusal on a one-sided boun
   expect(prepareShowV2ForCompile(result.record, lookup)).toMatchObject({
     status: 'refused',
     issues: expect.arrayContaining([expect.objectContaining({ code: 'unsupported-transition-participants' })]),
+  })
+})
+
+describe('authored repeat scale provenance (#1066 slice 9b)', () => {
+  function convertedDefaultShowWithRepeatScale(value: number | undefined) {
+    const source = createDefaultShow('b', 'B', 1)
+    if (value !== undefined) source.scenes[0].sampleTargets = { repeatScale: value }
+    const byCellId = Object.fromEntries(
+      source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]]),
+    )
+    const result = convertShowRecordV1ToV2(source, { byCellId })
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') throw new Error('conversion refused')
+    return result.record
+  }
+
+  it.each([
+    ['absent', undefined, undefined],
+    ['explicit 1', 1, 'converted-authored-repeat-scale'],
+    ['explicit 2', 2, 'converted-authored-repeat-scale'],
+  ] as const)('records an %s repeat scale as %s', (_name, value, expected) => {
+    const record = convertedDefaultShowWithRepeatScale(value)
+    expect(record.composition.sampleRemap.origin).toBe(expected)
+    expect(validateShowRecordV2(record)).toEqual([])
+  })
+
+  it('refuses an unknown sampleRemap origin at the structural boundary', () => {
+    const record = convertedDefaultShowWithRepeatScale(1)
+    expect(parseProvisionalShowRecordV2(JSON.stringify({
+      ...record,
+      composition: {
+        ...record.composition,
+        sampleRemap: { repeatScale: 1, origin: 'something-else' },
+      },
+    }))).toEqual(expect.objectContaining({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({ path: '/composition/sampleRemap/origin', code: 'schema' })]),
+    }))
+  })
+
+  it('compiles byte-identical code with and without an explicit 1', () => {
+    const compile = (record: ShowRecordV2) => {
+      const prepared = prepareShowV2ForCompile(
+        record,
+        {
+          byCellId: {},
+          byPatternInstanceId: Object.fromEntries(
+            record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]]),
+          ),
+          stageDimension: 2 as const,
+        },
+        { libraries: LIBRARIES },
+      )
+      expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+      if (prepared.status !== 'ready') throw new Error('preparation refused')
+      return compileShow(prepared.recipe, LIBRARIES).code
+    }
+    expect(compile(convertedDefaultShowWithRepeatScale(1))).toBe(compile(convertedDefaultShowWithRepeatScale(undefined)))
   })
 })

@@ -35,6 +35,7 @@ Unreachable paths: none.
 - `/composition/markers/*/origin` — v1 conversion provenance (#1065); written by convertShowRecordV1ToV2 alone, never edited.
 - `/composition/transitions/*/origin` — v1 conversion provenance (#1065); written by convertShowRecordV1ToV2 alone, never edited.
 - `/composition/layoutOccurrences/*/incomingSwitch` — v1 conversion provenance (#1065), with its leaves; written by convertShowRecordV1ToV2 alone, never edited.
+- `/composition/sampleRemap/origin` — v1 conversion provenance (#1066); written by convertShowRecordV1ToV2 alone, never edited.
 - `/composition/groupOccurrences/*/layoutOccurrenceId` — Derived start-time association, not an enclosing owner; the explicit edit owners recompute it from global start (specification section 3).
 
 ## Generic-only paths (the gap list)

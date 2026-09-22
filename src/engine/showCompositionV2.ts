@@ -246,7 +246,7 @@ export interface ShowCompositionV2 {
   version: 2
   executionModel: 'continuous' | 'deterministic-loop'
   showEndMs: number
-  sampleRemap: { repeatScale: number }
+  sampleRemap: { repeatScale: number; origin?: 'converted-authored-repeat-scale' }
   patternInstances: ShowPatternInstance[]
   layers: ShowLayerV2[]
   clips: ShowClipV2[]

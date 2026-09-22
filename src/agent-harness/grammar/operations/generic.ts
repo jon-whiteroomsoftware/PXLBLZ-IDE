@@ -55,6 +55,10 @@ export const PROTECTED_POINTERS: Array<{ pattern: string; reason: string }> = [
     pattern: '/composition/layoutOccurrences/*/incomingSwitch',
     reason: 'v1 conversion provenance, written by the converter alone (#1065)',
   },
+  {
+    pattern: '/composition/sampleRemap/origin',
+    reason: 'v1 conversion provenance, written by the converter alone (#1066)',
+  },
 ]
 
 export const PROTECTED_POINTER_PATTERNS: string[] = PROTECTED_POINTERS.map(({ pattern }) => pattern)
@@ -108,6 +112,7 @@ function conversionProvenanceByElement(record: ShowRecordV2): Map<string, string
   for (const occurrence of elementsOf(composition?.layoutOccurrences)) {
     note('layoutOccurrences', occurrence.id, occurrence.incomingSwitch)
   }
+  note('sampleRemap', 'composition', composition?.sampleRemap?.origin)
   return entries
 }
 

@@ -3,10 +3,10 @@
 Canonical authority is [the Scene-retirement specification](../../plans/scene-retirement-specification.md)
 §§5, 8 and 10, and the [editor tracer plan](../../plans/show-editor-v2-tracer-plan.md).
 
-v1 and v2 describe the same choreography with different objects. In three cases
+v1 and v2 describe the same choreography with different objects. In four cases
 the v2 object is strictly less specific than the v1 object the editor drew, so
 the original editor cannot reproduce its own surface from the converted record
-alone. Jon approved three narrow, explicit provenance fields for #1065 so the
+alone. Jon approved three narrow, explicit provenance fields for #1065 and a fourth for #1066 so the
 existing editor stays unchanged for a converted Show. Each one is written by
 `convertShowRecordV1ToV2` and nothing else, and each is inert: it carries no
 timing, ownership, compilation or playback meaning.
@@ -16,6 +16,7 @@ timing, ownership, compilation or playback meaning.
 | `ShowMarkerV2.origin` | `composition.markers` | A chapter Marker this conversion created from a former Scene label. See [Markers](show-v2-markers.md). |
 | `ShowTransitionV2.origin` | `composition.transitions` | Which of v1's two Transition families this Transition came from. |
 | `ShowLayoutOccurrenceV2.incomingSwitch` | `composition.layoutOccurrences` | The identity and authored settings of a v1 zero-duration routing switch. See [Layout edits](show-v2-layout-edits.md). |
+| `ShowSampleRemapV2.origin` | `composition.sampleRemap` | That the v1 Show explicitly authored `sampleTargets.repeatScale` on at least one Scene (#1066). |
 
 ## Transition family
 
@@ -46,6 +47,10 @@ absent and is never defaulted to `forward`, because the editor's routing panel
 reports whether the direction was authored. `incomingSwitch` and
 `incomingTransfer` are mutually exclusive, and the two share one routing
 identity space so the timeline can select either by the same identity.
+
+## Authored repeat scale
+
+`sampleRemap.origin` is `converted-authored-repeat-scale` when any v1 Scene authors `sampleTargets.repeatScale`, including an explicit 1, and is absent otherwise. An explicit 1 and an absent value convert to the same `repeatScale` and tracks, so without it the editor could not tell whether the Show's author reached for sample repeat; the editor shows the sample-repeat lane when this field is present or the record's values decide it (Jon, 2026-09-18). Lowering reads only `repeatScale`, so the field is inert.
 
 ## Inertness
 
@@ -84,7 +89,7 @@ compares `origin` as ownership, so a plan that rebuilt the Transition without it
 would refuse rather than edit. A kind-changed converted Transition keeps exactly
 the origin it had.
 
-The agent harness's bounded generic backstop is barred as well. All three paths
+The agent harness's bounded generic backstop is barred as well. All four paths
 are in `COVERAGE_ALLOWLIST`, so the grammar coverage report counts them as
 converter-only rather than editable grammar, and in `PROTECTED_POINTERS`, so
 `set_field` and `apply_patch` refuse a pointer that names or descends into one.
