@@ -2162,9 +2162,13 @@ export function ShowEditor({
       } else if (intent.kind === 'ungroup-occurrence') {
         closeDetailPanel()
         closePinnedDetailForSelection({ kind: 'group', occurrenceId: intent.occurrenceId })
+      } else if (intent.kind === 'delete-occurrence') {
+        closeDetailPanel()
+        closePinnedDetailForSelection({ kind: 'group', occurrenceId: intent.occurrenceId })
+        setSelection({ kind: 'show' })
       }
     }).catch(() => {})
-  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2GroupOccurrenceEdit, readOnly, selectTimeline, showId])
+  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2GroupOccurrenceEdit, readOnly, selectTimeline, setSelection, showId])
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
     : activeShow?.targetControllerProfileId
@@ -2218,6 +2222,13 @@ export function ShowEditor({
   ): boolean => {
     if (recordVersion === 2) {
       if (readOnly) return false
+      if (targetSelection.kind === 'group') {
+        const occurrenceId = targetSelection.occurrenceId
+        const record = preparedV2CaptureRef.current?.record
+        if (!record?.composition.groupOccurrences.some((occurrence) => occurrence.id === occurrenceId)) return false
+        requestV2GroupOccurrenceEdit({ kind: 'delete-occurrence', occurrenceId })
+        return true
+      }
       if (targetSelection.kind !== 'clip') return false
       return requestDeleteClipV2(targetSelection.clipId, false)
     }
@@ -2266,7 +2277,7 @@ export function ShowEditor({
       return true
     }
     return false
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, removeBoundaryTransition, removeZone, requestDeleteClip, requestDeleteClipV2, setSelection, updateShowInBackground])
+  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, removeBoundaryTransition, removeZone, requestDeleteClip, requestDeleteClipV2, requestV2GroupOccurrenceEdit, setSelection, updateShowInBackground])
   useEffect(() => {
     if (!blockedDeleteFeedback) return
     const timeout = window.setTimeout(() => setBlockedDeleteFeedback(null), 1100)
@@ -10352,9 +10363,7 @@ function ContextualInspector({
             translationY: group.translationY,
           }}
           linkedOccurrenceCount={group.linkedOccurrenceCount}
-          // Move/Translate, Place and Delete stay unconnected for the v2 backing:
-          // each stops here with no record, history entry or save, and never
-          // reaches a legacy owner. The controls keep v1's markup and state.
+          // Translate, Place and Delete reach the v2 occurrence owners through the same door as Duplicate (#1075 G1).
           onDuplicate={() => {
             if (!onV2GroupOccurrenceRequest) return
             const occurrence = recordV2?.composition.groupOccurrences.find((candidate) => candidate.id === selection.occurrenceId)
@@ -10373,9 +10382,54 @@ function ContextualInspector({
             })
           }}
           onMakeUnique={() => onV2GroupOccurrenceRequest?.({ kind: 'make-unique', occurrenceId: selection.occurrenceId })}
-          onTranslate={() => {}}
-          onPlace={() => {}}
-          onDelete={() => {}}
+          onTranslate={(translationX, translationY) => {
+            if (!onV2GroupOccurrenceRequest) return
+            const occurrence = recordV2?.composition.groupOccurrences.find((candidate) => candidate.id === selection.occurrenceId)
+            const definition = recordV2?.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)
+            if (!occurrence || !definition) return
+            onV2GroupOccurrenceRequest({
+              kind: 'move-occurrence',
+              occurrenceId: occurrence.id,
+              placement: {
+                startMs: occurrence.startMs,
+                zoneId: occurrence.zoneId,
+                layerBindings: structuredClone(occurrence.layerBindings),
+                translationX,
+                translationY,
+              },
+            })
+          }}
+          onPlace={(patch) => {
+            if (!onV2GroupOccurrenceRequest) return
+            const occurrence = recordV2?.composition.groupOccurrences.find((candidate) => candidate.id === selection.occurrenceId)
+            const definition = recordV2?.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)
+            if (!occurrence || !definition || !recordV2) return
+            let startMs = occurrence.startMs
+            let layerBindings = structuredClone(occurrence.layerBindings)
+            if (patch.startMs !== undefined) startMs = patch.startMs
+            if (patch.baseLayer !== undefined) {
+              const baseLayer = patch.baseLayer
+              const rebound: typeof layerBindings = []
+              for (const layer of definition.layers) {
+                const target = recordV2.composition.layers.find((candidate) => candidate.zoneId === occurrence.zoneId && candidate.rank === baseLayer + layer.rank)
+                if (!target) return
+                rebound.push({ definitionLayerId: layer.id, layerId: target.id })
+              }
+              layerBindings = rebound
+            }
+            onV2GroupOccurrenceRequest({
+              kind: 'move-occurrence',
+              occurrenceId: occurrence.id,
+              placement: {
+                startMs,
+                zoneId: occurrence.zoneId,
+                layerBindings,
+                translationX: occurrence.translationX,
+                translationY: occurrence.translationY,
+              },
+            })
+          }}
+          onDelete={() => onDeleteGroup(selection.occurrenceId)}
           onUngroup={() => onV2GroupOccurrenceRequest?.({ kind: 'ungroup-occurrence', occurrenceId: selection.occurrenceId })}
         />
       )

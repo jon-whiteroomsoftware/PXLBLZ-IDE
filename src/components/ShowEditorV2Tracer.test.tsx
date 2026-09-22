@@ -4502,6 +4502,191 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
 
     expectNoWrite(before, editor.state())
   })
+
+  it('translates the selected occurrence through the Group occurrence door', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-translate'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.showEndMs = 2_000
+    record.composition.layoutOccurrences[0]!.durationMs = 2_000
+    record.composition.groupOccurrences[1]!.startMs = 1_000
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(0)
+    const before = editor.state()
+    const source = before.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')!
+
+    typeAndCommit('X offset', '0.9')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    const moved = after.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')!
+    expect(moved.translationX).toBe(0.9)
+    expect(moved.translationY).toBe(source.translationY)
+    expect(moved.startMs).toBe(source.startMs)
+    expect(moved.layerBindings).toEqual(source.layerBindings)
+    expect(after.history.past).toHaveLength(1)
+    expectOneEdit(before, after)
+  })
+
+  it('places the selected occurrence at a new start through the Group occurrence door', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-place-start'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.showEndMs = 2_000
+    record.composition.layoutOccurrences[0]!.durationMs = 2_000
+    record.composition.groupOccurrences[1]!.startMs = 1_000
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(0)
+    const before = editor.state()
+
+    typeAndCommit('Start seconds exact time', '0.3')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    const moved = after.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')!
+    expect(moved.startMs).toBe(300)
+    expectOneEdit(before, after)
+  })
+
+  it('rebinds definition layers when the base layer has an owner at every rank', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-place-base'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.showEndMs = 2_000
+    record.composition.layoutOccurrences[0]!.durationMs = 2_000
+    record.composition.groupOccurrences[1]!.startMs = 1_000
+    record.composition.layers.push({ id: 'layer:zone:overlay:2', zoneId: 'zone', name: 'Extra', rank: 2 })
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(0)
+    const before = editor.state()
+    const occurrence = before.record.composition.groupOccurrences.find((candidate) => candidate.id === 'occ-0')!
+
+    typeAndCommit('Base Layer', '2')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    const moved = after.record.composition.groupOccurrences.find((candidate) => candidate.id === 'occ-0')!
+    const expectedLayerId = after.record.composition.layers.find((layer) => layer.zoneId === occurrence.zoneId && layer.rank === 2)!.id
+    expect(moved.layerBindings).toEqual([{ definitionLayerId: 'local-layer', layerId: expectedLayerId }])
+    expect(moved.startMs).toBe(occurrence.startMs)
+    expectOneEdit(before, after)
+  })
+
+  it('sends nothing when the base layer has no owner at a needed rank', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-place-base-missing'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.showEndMs = 2_000
+    record.composition.layoutOccurrences[0]!.durationMs = 2_000
+    record.composition.groupOccurrences[1]!.startMs = 1_000
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(0)
+    const before = editor.state()
+
+    typeAndCommit('Base Layer', '9')
+    await act(async () => {})
+
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, editor.state())
+  })
+
+  it('deletes the selected occurrence through the card and retains its dormant definition', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-delete-card'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.groupOccurrences = record.composition.groupOccurrences.filter((occurrence) => occurrence.id === 'occ-0')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(0)
+    const before = editor.state()
+    expect(before.record.composition.groupOccurrences).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Group Definition' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(after.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')).toBeUndefined()
+    expect(after.record.composition.groupOccurrences).toHaveLength(0)
+    expect(after.record.composition.groupDefinitions.some((definition) => definition.id === 'definition')).toBe(true)
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'show' })
+    expectOneEdit(before, after)
+  })
+
+  it('deletes the selected occurrence through keyboard Delete and returns to the Show', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-delete-keyboard'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.groupOccurrences = record.composition.groupOccurrences.filter((occurrence) => occurrence.id === 'occ-0')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectGroupOccurrence(0)
+    const before = editor.state()
+    expect(before.record.composition.groupOccurrences).toHaveLength(1)
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(after.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')).toBeUndefined()
+    expect(after.record.composition.groupOccurrences).toHaveLength(0)
+    expect(after.record.composition.groupDefinitions.some((definition) => definition.id === 'definition')).toBe(true)
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'show' })
+    expectOneEdit(before, after)
+  })
+
+  it('makes no Group occurrence door call when read-only', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-readonly'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.showEndMs = 2_000
+    record.composition.layoutOccurrences[0]!.durationMs = 2_000
+    record.composition.groupOccurrences[1]!.startMs = 1_000
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    await selectGroupOccurrence(0)
+    const before = editor.state()
+
+    const xField = screen.getByRole('textbox', { name: 'X offset' })
+    fireEvent.change(xField, { target: { value: '0.9' } })
+    fireEvent.keyDown(xField, { key: 'Enter' })
+    await act(async () => {})
+
+    const startField = screen.getByRole('textbox', { name: 'Start seconds exact time' })
+    fireEvent.change(startField, { target: { value: '0.3' } })
+    fireEvent.keyDown(startField, { key: 'Enter' })
+    await act(async () => {})
+
+    const baseField = screen.getByRole('textbox', { name: 'Base Layer' })
+    fireEvent.change(baseField, { target: { value: '0' } })
+    fireEvent.keyDown(baseField, { key: 'Enter' })
+    await act(async () => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Group Definition' }))
+    await act(async () => {})
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await act(async () => {})
+
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, editor.state())
+  })
+
 })
 
 // ── v2 split-position lane buttons (#1066 L2332) ────────────────────────────
