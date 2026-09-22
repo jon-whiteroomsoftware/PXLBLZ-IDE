@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
@@ -7,6 +8,9 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from './showTransitionsV2'
+import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
+import { resizeShowLayerTransition, resetShowLayerTransitionToCut } from './showLayerTransitionAuthoring'
+import type { ShowRecord } from './personalContentRecords'
 import {
   parseProvisionalShowRecordV2,
   serializeProvisionalShowRecordV2,
@@ -778,5 +782,82 @@ describe('v2 Transition ownership', () => {
     // The incoming side is named, so the reset reclaims it to time zero.
     expect(reset.record.composition.clips.map(clip => [clip.id, clip.startMs])).toEqual([['in', 0]])
     expect(validateShowRecordV2(reset.record)).toEqual([])
+  })
+})
+
+describe('owned-track shift across a converted Scene-span activation (#1068)', () => {
+  const lessonManifest = JSON.parse(readFileSync(
+    new URL('../../e2e/fixtures/showEditorEquivalence.json', import.meta.url),
+    'utf8',
+  )) as { corpus: Array<{ key: string; source: ShowRecord }> }
+
+  function stockLesson(): ShowRecord {
+    return structuredClone(lessonManifest.corpus.find(entry => entry.key === 'stock-lesson')!.source)
+  }
+
+  function convertLesson(source: ShowRecord): ShowRecordV2 {
+    const result = convertShowRecordV1ToV2(source, {
+      byCellId: Object.fromEntries(source.cells.map(cell => {
+        if (cell.pattern.kind !== 'stock') throw new Error(`${source.id}: non-stock flat dependency`)
+        const patternSource = DEMOS[resolveStockPatternId(cell.pattern.id)]
+        if (!patternSource) throw new Error(`${source.id}: missing stock source ${cell.pattern.id}`)
+        return [cell.id, patternSource]
+      })),
+    })
+    if (result.status !== 'converted') throw new Error(`${source.id} refused: ${JSON.stringify(result.issues)}`)
+    return result.record
+  }
+
+  function lessonPrepareStatus(record: ShowRecordV2) {
+    return prepareShowV2ForCompile(record, { byCellId: {}, byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])), stageDimension: 2 }, { libraries: LIBRARIES }).status
+  }
+
+  function trackSummary(record: ShowRecordV2, trackId: string) {
+    const track = record.composition.propertyTracks.find(candidate => candidate.id === trackId)!
+    return [track.activeStartMs, track.activeDurationMs, track.keyframes.map(key => [key.timeMs, key.value])]
+  }
+
+  it.each([
+    ['resize', { kind: 'resize-transition', transitionId: 'transition-horizon-mandala', durationMs: 500 } as const, 11500],
+    ['reset', { kind: 'reset-to-cut', transitionId: 'transition-horizon-mandala' } as const, 11000],
+  ])('keeps the Scene-span activation and moves the keys on %s, as v1 then convert does', (mode, intent, expectedMandalaStartMs) => {
+    const source = stockLesson()
+    const v1 = mode === 'resize'
+      ? resizeShowLayerTransition(source, source.composition!, 'transition-horizon-mandala', 500)
+      : resetShowLayerTransitionToCut(source, source.composition!, 'transition-horizon-mandala')
+    const reference = convertLesson({ ...source, composition: structuredClone(v1) })
+    const edited = editShowTransitionV2(convertLesson(stockLesson()), intent)
+    expect(edited.status).toBe('changed')
+    if (edited.status !== 'changed') return
+    expect(edited.record.composition.clips.find(clip => clip.id === 'clip-mandala')!.startMs).toBe(expectedMandalaStartMs)
+    expect(reference.composition.clips.find(clip => clip.id === 'clip-mandala')!.startMs).toBe(expectedMandalaStartMs)
+    expect(trackSummary(edited.record, 'track-mandala-brightness')).toEqual(trackSummary(reference, 'track-mandala-brightness'))
+    expect(trackSummary(edited.record, 'track-mandala-brightness')).toEqual(mode === 'resize'
+      ? [0, 16500, [[11500, 1], [13500, 1], [15500, 0.45]]]
+      : [0, 16500, [[11000, 1], [13000, 1], [15000, 0.45]]])
+    expect(lessonPrepareStatus(edited.record)).toBe('ready')
+  })
+
+  it('moves a track sized to its Clip contribution window rigidly', () => {
+    const record = convertLesson(stockLesson())
+    expect(record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+      ['clip-iris', 0, 5000], ['clip-horizon', 7000, 4000], ['clip-mandala', 12500, 4000],
+    ])
+    record.composition.propertyTracks.push({
+      id: 'horizon-contribution',
+      target: { kind: 'clip-view', clipId: 'clip-horizon', property: 'brightness' },
+      activeStartMs: 5000,
+      activeDurationMs: 7500,
+      keyframes: [
+        { id: 'hc-0', timeMs: 5000, value: 1, easing: { curve: 'linear' } },
+        { id: 'hc-1', timeMs: 12500, value: 0.5, easing: { curve: 'linear' } },
+      ],
+    })
+    expect(validateShowRecordV2(record)).toEqual([])
+    const edited = editShowTransitionV2(record, { kind: 'resize-transition', transitionId: 'transition-iris-horizon', durationMs: 1000 })
+    expect(edited.status).toBe('changed')
+    if (edited.status !== 'changed') return
+    expect(trackSummary(edited.record, 'horizon-contribution')).toEqual([4000, 7500, [[4000, 1], [11500, 0.5]]])
+    expect(trackSummary(edited.record, 'track-mandala-brightness')).toEqual([0, 16500, [[11500, 1], [13500, 1], [15500, 0.45]]])
   })
 })

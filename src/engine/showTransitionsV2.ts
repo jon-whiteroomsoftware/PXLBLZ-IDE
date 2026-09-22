@@ -958,6 +958,31 @@ export function applyShowTransitionClipShiftV2(source: ShowRecordV2, next: ShowR
   return affectedTrackIds
 }
 
+/**
+ * A Clip's contribution window in `record`: its own span widened by every
+ * Transition it enters (earlier by that Transition's duration) or leaves (later
+ * by that Transition's duration).
+ */
+function contributionWindow(record: ShowRecordV2, clipId: string): { startMs: number; endMs: number } {
+  const clip = record.composition.clips.find(candidate => candidate.id === clipId)!
+  let startMs = clip.startMs
+  let endMs = clip.startMs + clip.durationMs
+  for (const transition of record.composition.transitions) {
+    const endpoints = transitionEndpoints(transition)
+    if (endpoints.to.includes(clipId)) startMs = Math.min(startMs, clip.startMs - transition.durationMs)
+    if (endpoints.from.includes(clipId)) endMs = Math.max(endMs, clip.startMs + clip.durationMs + transition.durationMs)
+  }
+  return { startMs, endMs }
+}
+
+/**
+ * Move a moved Clip's owned Property tracks with it (#1068). Keys always move
+ * by `deltaMs`. The activation moves with them only when it lies inside the
+ * owning Clip's contribution window in `source`; a wider activation - a
+ * converted Scene-span track, which v1 held as a Scene-local track with no
+ * activation - stays in place, matching v1 then convert. A shifted key that
+ * leaves its activation is refused by record validation.
+ */
 function shiftOwnedTracks(
   source: ShowRecordV2,
   tracks: ShowPropertyTrackV2[],
@@ -976,7 +1001,13 @@ function shiftOwnedTracks(
         ? soleMovedInstanceIds.has(track.target.instanceId)
         : false
     if (!follows) continue
-    track.activeStartMs += deltaMs
+    const ownerClipId = 'clipId' in track.target
+      ? track.target.clipId
+      : [...moved].find(clipId => source.composition.clips.find(clip => clip.id === clipId)?.instanceId === (track.target as { instanceId: string }).instanceId)!
+    const window = contributionWindow(source, ownerClipId)
+    if (track.activeStartMs >= window.startMs && track.activeStartMs + track.activeDurationMs <= window.endMs) {
+      track.activeStartMs += deltaMs
+    }
     track.keyframes.forEach(key => { key.timeMs += deltaMs })
     affected.push(track.id)
   }
