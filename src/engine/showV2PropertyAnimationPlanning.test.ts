@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
+import { LIBRARIES } from '../pixelblaze/libs'
+import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
+import { createDefaultShow } from './showModel'
 import { addShowPropertyTrack } from './showPropertyAnimation'
 import { projectShowEditorInspectorPresentationV2 } from './showEditorInspectorPresentation'
 import {
@@ -504,5 +508,53 @@ describe('matches v1 then convert', () => {
       target: { kind: 'instance-control', instanceId: 'in-instance', exportName: 'gain' },
       initialValue: 0.5,
     })
+  })
+})
+
+function convertedDefaultShow(): ShowRecordV2 {
+  const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
+  const byCellId = Object.fromEntries(
+    source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]]),
+  )
+  const converted = convertShowRecordV1ToV2(source, { byCellId })
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  expect(converted.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+    ['placement-cell-1-scene-1', 0, 30000],
+    ['placement-cell-2-scene-2', 32000, 30000],
+  ])
+  expect(converted.record.composition.showEndMs).toBe(62000)
+  return converted.record
+}
+
+const probeSource = 'export function render2D(index, x, y) { rgb(x, y, 0) }'
+
+function defaultShowLookup(record: ShowRecordV2) {
+  return {
+    byCellId: {},
+    byPatternInstanceId: Object.fromEntries(
+      record.composition.patternInstances.map(instance => [instance.id, probeSource]),
+    ),
+    stageDimension: 2 as const,
+  }
+}
+
+describe('converted default Show preparation (#1066 slice 10, #1068)', () => {
+  it.each([
+    ['placement-cell-1-scene-1', 0, 30000, 0, 32000],
+    ['placement-cell-2-scene-2', 32000, 30000, 30000, 32000],
+  ])('adds a Brightness track on %s and the Show still prepares ready', (clipId, showTimeOffsetMs, storageDurationMs, expectedActiveStartMs, expectedActiveDurationMs) => {
+    const record = convertedDefaultShow()
+    expect(prepareShowV2ForCompile(record, defaultShowLookup(record), { libraries: LIBRARIES }).status).toBe('ready')
+    expect(record.composition.transitions.map(t => [t.id, t.participants.length, t.wholeOutput])).toEqual([['transition-scene-1', 1, undefined]])
+    const plan = planShowV2PropertyAnimationChange(record, clipId, { showTimeOffsetMs, storageDurationMs }, { kind: 'add-track', target: { kind: 'placement-view', placementId: clipId, property: 'brightness' }, initialValue: 0.8 }, newIds())
+    if (plan.kind !== 'edit') throw new Error(JSON.stringify(plan))
+    expect(plan.propertyOwner).toEqual({ kind: 'show' })
+    expect(plan.intent).toMatchObject({ kind: 'add-track', track: { target: { kind: 'clip-view', clipId, property: 'brightness' }, activeStartMs: expectedActiveStartMs, activeDurationMs: expectedActiveDurationMs } })
+    const edited = editShowPropertyV2(record, plan.propertyOwner, plan.intent)
+    expect(edited.status).toBe('changed')
+    if (edited.status !== 'changed') return
+    expect(edited.record.composition.transitions.map(t => [t.id, t.participants, t.wholeOutput])).toEqual([['transition-scene-1', [], { startMs: 30000, fromClipIds: ['placement-cell-1-scene-1'], toClipIds: ['placement-cell-2-scene-2'] }]])
+    const prepared = prepareShowV2ForCompile(edited.record, defaultShowLookup(edited.record), { libraries: LIBRARIES })
+    expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   })
 })
