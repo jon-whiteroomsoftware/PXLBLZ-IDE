@@ -31,8 +31,8 @@ export const GENERIC_OPERATION_NAMES = ['set_field', 'apply_patch']
 
 /**
  * Pointers the generic operations refuse to touch, with reasons: the record's
- * own identity, engine bookkeeping, and the three converter-only conversion
- * provenance fields (#1065). Element identity inside the declared Show
+ * own identity, engine bookkeeping, and the four converter-only conversion
+ * provenance fields (#1065, #1066). Element identity inside the declared Show
  * structure is the tracker's concern.
  *
  * A pattern matches a pointer that names it or descends into it, with '*' for

@@ -3,7 +3,7 @@ import { classify, compareValues } from './show-v2-native-parity'
 
 // The native/converted harness is only as honest as this classifier: anything it
 // admits stops failing the report, so each accepted shape is pinned exactly.
-// Three #1065 conversion-metadata kinds are admitted and nothing else. Each is
+// Four conversion-metadata kinds (#1065, #1066) are admitted and nothing else. Each is
 // admitted only as a native *absence* against a recognized converted value, at
 // its own exact path; every other difference stays unclassified and fails.
 const markerOrigin = { path: '/composition/markers/3/origin', native: undefined, converted: 'converted-scene-label' }
@@ -245,5 +245,34 @@ describe('paths the comparator actually produces', () => {
       '/composition/markers/0/origin',
       '/composition/transitions/0/origin',
     ])
+  })
+})
+
+describe('the authored repeat-scale provenance (#1066)', () => {
+  const sampleRemapOrigin = { path: '/composition/sampleRemap/origin', native: undefined, converted: 'converted-authored-repeat-scale' }
+
+  it('admits exactly a native absence against the one converted value at the one path, with its own rationale', () => {
+    const [classified] = classify([sampleRemapOrigin])
+    expect(classified.classification).toBe('conversion-provenance')
+    expect(classified.rationale).toMatch(/repeat scale/)
+    expect(classified.rationale).not.toMatch(/Marker/)
+    const [marker] = classify([markerOrigin])
+    expect(classified.rationale).not.toBe(marker.rationale)
+  })
+
+  it('refuses every neighbouring form', () => {
+    const differences = [
+      { ...sampleRemapOrigin, native: 'converted-authored-repeat-scale', converted: undefined },
+      { ...sampleRemapOrigin, native: 'converted-authored-repeat-scale' },
+      { ...sampleRemapOrigin, converted: 'converted-scene-label' },
+      { ...sampleRemapOrigin, converted: true },
+      { ...sampleRemapOrigin, path: '/composition/sampleRemap/origin/0' },
+      { ...sampleRemapOrigin, path: '/composition/sampleRemap/originLabel' },
+      { ...sampleRemapOrigin, path: '/composition/sampleRemap' },
+      { ...sampleRemapOrigin, path: '/composition/groupDefinitions/0/sampleRemap/origin' },
+      { path: '/composition/sampleRemap/repeatScale', native: 1, converted: 4 },
+      { path: '/composition/markers/0/origin', native: undefined, converted: 'converted-authored-repeat-scale' },
+    ]
+    expect(classifications(differences)).toEqual(differences.map(() => 'unclassified'))
   })
 })

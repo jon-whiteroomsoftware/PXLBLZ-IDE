@@ -5,7 +5,7 @@
     "specification": "docs/plans/scene-retirement-specification.md",
     "nativeBuilder": "src/pixelblaze/stock/showsV2.ts",
     "pinnedLegacyBuilder": "src/pixelblaze/stock/shows.ts",
-    "provisionalSchemaSha256": "e34d700921ec8c8fbab4dd703e887f39acd4d4e1c10614eb0b522401ae539779",
+    "provisionalSchemaSha256": "52218315f07fd6e4fa3f6d597c3f80ff00f3b85f71957372b7e0a204481f5e0a",
     "recordIdentity": {
       "algorithm": "sha256",
       "excludedVolatileFields": [
@@ -38,7 +38,7 @@
       "classified-difference": 40
     },
     "byClassification": {
-      "conversion-provenance": 286,
+      "conversion-provenance": 287,
       "volatile-record-stamp": 8
     },
     "exactRuntime": 40,
@@ -10787,7 +10787,7 @@
       "showId": "stock-show-reference-property-animation",
       "showName": "Property Animation",
       "nativeSemanticSha256": "32e57601b7018867eb950b94f84e1a784fbe0121d0f505185fa8b9fba2bb5e37",
-      "convertedSemanticSha256": "7ed048ea17729a045bd96477a5fb8e111faccc2d894c7aab9b24cf66ee1cd25a",
+      "convertedSemanticSha256": "3cbbf6642d879168e32e8f1c4b3bf24308d73e43e1ee131c7b8c69f28fa12d18",
       "representation": "classified-difference",
       "representationDifferences": [
         {
@@ -10843,6 +10843,12 @@
           "classification": "conversion-provenance",
           "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
           "converted": "converted-scene-label"
+        },
+        {
+          "path": "/composition/sampleRemap/origin",
+          "classification": "conversion-provenance",
+          "rationale": "The v1 converter records that the source Show authored `sampleTargets.repeatScale` on at least one Scene (#1066), because v1 draws its Sample repeat lane from that presence and a converted repeat scale of 1 is otherwise indistinguishable from none. The native builder authors no such record. Provenance carries no compilation or playback meaning; lowering never reads it. Only a native absence against exactly \"converted-authored-repeat-scale\" at the one sample remap path is admitted; any other value, an origin the native builder authored, and every other field difference stay unclassified.",
+          "converted": "converted-authored-repeat-scale"
         },
         {
           "path": "/composition/transitions/0/origin",

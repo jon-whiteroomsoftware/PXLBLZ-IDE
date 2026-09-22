@@ -63,7 +63,7 @@ oracle case compiles identically with and without the metadata.
 
 ## Persistence and fail-closed decoding
 
-All three fields live in the v2 record schema, so one definition serves the
+All four fields live in the v2 record schema, so one definition serves the
 client decoder, `.pxlshow` import and Worker admission. `origin` values are
 enumerated and every v2 object keeps `additionalProperties: false`, so an
 unknown origin value, an unknown switch field, a timed `durationMs` on a switch,
@@ -102,7 +102,7 @@ record that already carries provenance preserves it.
 `createShowGroupFromSelectionV2` drops it. Localization mints a fresh
 definition-local Transition under `ShowGroupDefinitionV2.transitions`, which is
 the v1-shaped `ShowLayerTransition` the schema closes and is not one of the
-three provenance owners above. Copying the value would describe a v1 leaf that
+provenance owners above. Copying the value would describe a v1 leaf that
 this new object is not, and the materialized projection would then carry
 conversion provenance on a synthesized identity. The localized Transition and
 its projection therefore carry none, and behave structurally like any Transition

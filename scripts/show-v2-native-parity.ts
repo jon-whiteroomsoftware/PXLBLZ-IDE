@@ -48,30 +48,33 @@ const VOLATILE_RATIONALE = 'The pinned legacy builder restamps this Show through
 const UNCLASSIFIED_RATIONALE = 'No accepted classification covers this difference; the native builder and the converted pinned legacy record disagree on authored content.'
 
 /**
- * The three #1065 conversion-metadata kinds, each with its own rationale. They
- * are separate concerns and the report says so: a Marker records a retired
- * Scene label, a Transition records which v1 collection it came from, and a
- * Layout occurrence records a v1 zero-duration routing switch.
+ * The four conversion-metadata kinds (#1065, #1066), each with its own
+ * rationale. They are separate concerns and the report says so: a Marker
+ * records a retired Scene label, a Transition records which v1 collection it
+ * came from, a Layout occurrence records a v1 zero-duration routing switch, and
+ * the sample remap records that v1 authored a repeat scale.
  */
-type ConversionProvenanceKind = 'marker-origin' | 'transition-origin' | 'layout-switch'
+type ConversionProvenanceKind = 'marker-origin' | 'transition-origin' | 'layout-switch' | 'sample-remap-origin'
 
 const CONVERSION_PROVENANCE_RATIONALE: Record<ConversionProvenanceKind, string> = {
   'marker-origin': 'The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly "converted-scene-label" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.',
   'transition-origin': 'The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly "converted-boundary-transition" or "converted-layer-transition" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.',
   'layout-switch': 'The v1 converter records the identity and the authored settings of a v1 zero-duration routing switch here, because the native v2 Layout contract keeps zero duration as a switch with no timed transfer object (#1065). The native builder authors no such record, and lowering derives the switch from the Layout change itself and never reads this field, so compiled playback is unchanged. Only a native absence against a complete, closed "converted-routing-cut" record is admitted; a missing or extra property, a non-string identity, an unrecognized direction or easing, a timed incomingTransfer, a difference inside a switch the native builder authored, and every other field difference stay unclassified. The recorded id, direction and easing are reported verbatim rather than redacted.',
+  'sample-remap-origin': 'The v1 converter records that the source Show authored `sampleTargets.repeatScale` on at least one Scene (#1066), because v1 draws its Sample repeat lane from that presence and a converted repeat scale of 1 is otherwise indistinguishable from none. The native builder authors no such record. Provenance carries no compilation or playback meaning; lowering never reads it. Only a native absence against exactly "converted-authored-repeat-scale" at the one sample remap path is admitted; any other value, an origin the native builder authored, and every other field difference stay unclassified.',
 }
 
-/** Exactly the #1065 provenance shapes: nothing wider is admitted. */
+/** Exactly the #1065 and #1066 provenance shapes: nothing wider is admitted. */
 const MARKER_ORIGIN_PATH = /^\/composition\/markers\/\d+\/origin$/
 const TRANSITION_ORIGIN_PATH = /^\/composition\/transitions\/\d+\/origin$/
 const LAYOUT_SWITCH_PATH = /^\/composition\/layoutOccurrences\/\d+\/incomingSwitch$/
+const SAMPLE_REMAP_ORIGIN_PATH = '/composition/sampleRemap/origin'
 const TRANSITION_ORIGINS = new Set(['converted-boundary-transition', 'converted-layer-transition'])
 const ROUTING_DIRECTIONS = new Set(['forward', 'reverse'])
 const EASING_DIRECTIONS = new Set(['in', 'out', 'in-out'])
 
 /**
  * The one admitted asymmetry is a native *absence* against a recognized
- * converted value at one of the three exact paths. A field the native builder
+ * converted value at one of the four exact paths. A field the native builder
  * actually authors, the reverse asymmetry, an unknown value, and every
  * difference inside an authored object all fall through to `unclassified` and
  * still fail the report.
@@ -81,6 +84,7 @@ function conversionProvenanceKind(difference: { path: string; native: unknown; c
   if (MARKER_ORIGIN_PATH.test(difference.path) && difference.converted === 'converted-scene-label') return 'marker-origin'
   if (TRANSITION_ORIGIN_PATH.test(difference.path) && typeof difference.converted === 'string' && TRANSITION_ORIGINS.has(difference.converted)) return 'transition-origin'
   if (LAYOUT_SWITCH_PATH.test(difference.path) && isRecognizedRoutingCut(difference.converted)) return 'layout-switch'
+  if (difference.path === SAMPLE_REMAP_ORIGIN_PATH && difference.converted === 'converted-authored-repeat-scale') return 'sample-remap-origin'
   return undefined
 }
 
