@@ -37,6 +37,7 @@ import { buildShowFileBundle, parseShowFileBundle } from '@/engine/showFileBundl
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
+import { projectShowEditorTimelineV2 } from '@/engine/showEditorTimelinePresentation'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
 import type { ShowClipAppearanceEditIntentV2 } from '@/engine/showClipAppearanceEditsV2'
@@ -5418,5 +5419,154 @@ describe('v2 Clip inspector Start and Duration (#1066)', () => {
     expect(admission.calls).toEqual([])
     expect(after.record).toBe(before.record)
     expectNoWrite(before, after)
+  })
+})
+
+describe('v2 boundary palette live preview (#1066 5c)', () => {
+  const JUNCTION = 'Edit crossfade Transition between TestPattern1D and CometLoom'
+
+  async function openBoundaryPalette(record: ShowRecordV2): Promise<OpenV2Editor> {
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: JUNCTION }))
+    await act(async () => {})
+    useShowTransportStore.getState().openShow(record.id, record.composition.showEndMs)
+    useShowTransportStore.getState().setPosition(record.id, 1_000)
+    fireEvent.click(within(boundaryPanel()).getByRole('button', { name: /Change$/ }))
+    await act(async () => {})
+    return editor
+  }
+
+  function paletteRow(name: string): HTMLElement {
+    return within(screen.getByRole('dialog', { name: 'Choose Transition' }))
+      .getByRole('button', { name })
+  }
+
+  function candidateTransition(candidate: ShowRecordV2, transitionId: string) {
+    const transition = candidate.composition.transitions.find((entry) => entry.id === transitionId)
+    if (!transition) throw new Error(`No candidate Transition ${transitionId}.`)
+    return transition
+  }
+
+  it('hovers a family into showV2 with zero door calls and no history entry', async () => {
+    const { record } = convertedFreshBoundary('tracer-5c-hover')
+    const transitionId = record.composition.transitions[0]!.id
+    const editor = await openBoundaryPalette(record)
+    const before = editor.state()
+
+    fireEvent.pointerEnter(paletteRow('Use Block Transition'))
+    await act(async () => {})
+
+    const candidate = useShowPreviewOverrideStore.getState().showV2
+    expect(candidate).not.toBeNull()
+    expect(candidateTransition(candidate!, transitionId)).toMatchObject({ kind: 'dither' })
+    expectNoWrite(before, editor.state())
+    const window = projectShowEditorTimelineV2(candidate!).transitions
+      .find((entry) => entry.id === transitionId)
+    expect(window).toBeDefined()
+    expect(useShowTransportStore.getState().seekRequest?.targetMs)
+      .toBe(window!.startMs + (window!.endMs - window!.startMs) / 2)
+  })
+
+  it('re-hovers the same family into the identical candidate object', async () => {
+    const { record } = convertedFreshBoundary('tracer-5c-rehover')
+    const editor = await openBoundaryPalette(record)
+    const before = editor.state()
+    const row = paletteRow('Use Block Transition')
+
+    fireEvent.pointerEnter(row)
+    await act(async () => {})
+    const first = useShowPreviewOverrideStore.getState().showV2
+    expect(first).not.toBeNull()
+
+    fireEvent.pointerLeave(row)
+    await act(async () => {})
+    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
+    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(1_000)
+
+    fireEvent.pointerEnter(row)
+    await act(async () => {})
+    expect(useShowPreviewOverrideStore.getState().showV2).toBe(first)
+    expectNoWrite(before, editor.state())
+  })
+
+  it('pointer leave clears the candidate and seeks back', async () => {
+    const { record } = convertedFreshBoundary('tracer-5c-leave')
+    const editor = await openBoundaryPalette(record)
+    const before = editor.state()
+    const row = paletteRow('Use Block Transition')
+
+    fireEvent.pointerEnter(row)
+    await act(async () => {})
+    expect(useShowPreviewOverrideStore.getState().showV2).not.toBeNull()
+
+    fireEvent.pointerLeave(row)
+    await act(async () => {})
+
+    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
+    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(1_000)
+    expectNoWrite(before, editor.state())
+  })
+
+  it('apply after hovering makes one transition door call and leaves showV2 null', async () => {
+    const { record } = convertedFreshBoundary('tracer-5c-apply')
+    const editor = await openBoundaryPalette(record)
+    const before = editor.state()
+    const row = paletteRow('Use Block Transition')
+
+    fireEvent.pointerEnter(row)
+    await act(async () => {})
+    expect(useShowPreviewOverrideStore.getState().showV2).not.toBeNull()
+
+    fireEvent.click(row)
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    expectOneEdit(before, editor.state())
+    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
+  })
+
+  it("a v1 Show's hover still writes show and never showV2", async () => {
+    const source = corpusSource('fresh')
+    source.id = 'tracer-5c-v1-hover'
+    const legacyWrites = vi.fn(async () => {})
+    setPersonalContentProvider({
+      id: 'tracer-5c-v1-provider',
+      listPatterns: async () => [],
+      listMaps: async () => [],
+      listMixins: async () => [],
+      listShows: async () => [source],
+      listControllerProfiles: async () => [],
+      createShow: legacyWrites,
+      updateShow: legacyWrites,
+      deleteShow: legacyWrites,
+      replaceShowV2: vi.fn(async () => {}),
+      getLastActive: async () => undefined,
+      setLastActive: async () => {},
+    } as unknown as PersonalContentProvider)
+    useShowStore.setState({ shows: [source], activeShowId: source.id, showsLoaded: true })
+    useShowTransportStore.getState().openShow(source.id, 62_000)
+    useShowTransportStore.getState().setPosition(source.id, 5_000)
+
+    render(<ShowEditor showId={source.id} />)
+    fireEvent.click(screen.getByRole('button', { name: JUNCTION }))
+    await act(async () => {})
+    fireEvent.click(within(boundaryPanel()).getByRole('button', { name: /Change$/ }))
+    await act(async () => {})
+
+    const star = paletteRow('Use Star Transition')
+    fireEvent.pointerEnter(star)
+    await act(async () => {})
+
+    expect(useShowPreviewOverrideStore.getState().show?.transitions?.[0])
+      .toMatchObject({ kind: 'portal', shape: 'star' })
+    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
+
+    fireEvent.pointerLeave(star)
+    await act(async () => {})
+
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
   })
 })

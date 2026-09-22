@@ -99,8 +99,28 @@ import { sourceForShowPatternRef } from '@/engine/showPreviewArtifact'
 import { bundledPatternSliderNames } from '@/engine/showPatternControls'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
-import { projectShowEditorStagePresentationV2 } from '@/engine/showEditorStagePresentation'
+import { projectShowEditorStagePresentationV2, type ShowEditorStagePresentationV2 } from '@/engine/showEditorStagePresentation'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import { showV2StageRecord, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
+
+// Slice 5c live preview: presentations keyed on candidate record identity, so
+// a re-hover of a cached candidate reuses its presentation instead of
+// recapturing. An entry is valid only for the exact stage dependencies that
+// captured it; a dependency change recaptures. Module scope rather than a
+// memo or ref because the presentation memo below populates the cache, and
+// the hooks lint forbids both mutating a memoized value and touching a ref
+// during render.
+const v2StagePresentationByRecord = new WeakMap<
+  ShowRecordV2,
+  {
+    profiles: unknown
+    libraries: unknown
+    maps: unknown
+    patterns: unknown
+    presentation: ShowEditorStagePresentationV2
+  }
+>()
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
 import { claimStudioPreviewSpace, studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
@@ -874,17 +894,48 @@ function StudioApp() {
   const activeShowV2Pilot = v2EditorShowId ? showV2Pilots[v2EditorShowId] : undefined
   const activeShowV2PilotId = activeShowV2Pilot?.id
   const activeShowRecord = activeShowV2Pilot ?? activeShow
+  const previewShowV2 = useShowPreviewOverrideStore((state) => state.showV2)
+  const stageShowV2 = showV2StageRecord(activeShowV2Pilot, previewShowV2)
   // The Stage slot stays presentational: the workspace receives one projected
   // Stage presentation for whichever record backs the open editor (#1065).
-  const activeShowV2Stage = useMemo(() => activeShowV2Pilot
-    ? projectShowEditorStagePresentationV2(captureShowStageEditV2(activeShowV2Pilot, {
+  // Only this presentation follows the palette preview override; the editor,
+  // planning and every commit keep reading the stored pilot record.
+  const activeShowV2Stage = useMemo(() => {
+    if (!activeShowV2Pilot) return null
+    const present = (record: ShowRecordV2): ShowEditorStagePresentationV2 => {
+      const cached = v2StagePresentationByRecord.get(record)
+      if (
+        cached &&
+        cached.profiles === controllerProfiles &&
+        cached.libraries === userLibraries &&
+        cached.maps === userMaps &&
+        cached.patterns === userPatterns
+      ) return cached.presentation
+      const next = projectShowEditorStagePresentationV2(captureShowStageEditV2(record, {
         patterns: userPatterns,
         libraries: userLibraries,
         maps: userMaps,
         profiles: controllerProfiles,
-        stageMap: resolveShowV2StageMap(activeShowV2Pilot.stageMapId, userMaps),
+        stageMap: resolveShowV2StageMap(record.stageMapId, userMaps),
       }))
-    : null, [activeShowV2Pilot, controllerProfiles, userLibraries, userMaps, userPatterns])
+      v2StagePresentationByRecord.set(record, {
+        profiles: controllerProfiles,
+        libraries: userLibraries,
+        maps: userMaps,
+        patterns: userPatterns,
+        presentation: next,
+      })
+      return next
+    }
+    const stored = present(activeShowV2Pilot)
+    // A refused candidate never blanks the Stage: keep the stored record's
+    // presentation instead.
+    if (stageShowV2 && stageShowV2 !== activeShowV2Pilot) {
+      const candidate = present(stageShowV2)
+      if (candidate.status !== 'refused') return candidate
+    }
+    return stored
+  }, [activeShowV2Pilot, controllerProfiles, stageShowV2, userLibraries, userMaps, userPatterns])
   const activeShowEditor = activeShowRecord ? (
     <ShowEditor
       showId={activeShowRecord.id}

@@ -256,6 +256,7 @@ import {
 } from '@/engine/showLessonNarration'
 import { exportedDims } from '@/engine/exportedDims'
 import { planShowV2BoundaryPaletteApply, planShowV2BoundaryTransitionChanges, planShowV2TransitionReset } from '@/engine/showV2TransitionEditorModel'
+import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import {
   replaceShowBoundaryTransition,
   showBoundaryTransitionParameterChanges,
@@ -1328,6 +1329,31 @@ export function ShowEditor({
     const changed = replaceShowBoundaryTransition(show, transitionId, item, presetId)
     transitionPaletteCandidateRef.current = { key, show: changed }
     return changed
+  }
+  // Slice 5c live preview: the candidate a hovered catalogue item would apply,
+  // planned exactly as commitV2BoundaryPaletteApply plans it. Cached per
+  // transition:item:preset key so a re-hover reuses the record; the cache
+  // resets whenever savedShowV2 changes. A null candidate (refused plan or
+  // edit) is cached too, so re-hover clears without replanning.
+  const transitionPaletteCandidateV2Ref = useRef<{ source: ShowRecordV2; key: string; record: ShowRecordV2 | null } | null>(null)
+  const v2PaletteCandidate = (
+    transitionId: string,
+    item: ShowToolkitPresentationItem,
+    presetId?: string,
+  ): ShowRecordV2 | null => {
+    const base = savedShowV2
+    if (!base) return null
+    const key = `${transitionId}:${item.key}:${presetId ?? ''}`
+    const cached = transitionPaletteCandidateV2Ref.current
+    if (cached && cached.source === base && cached.key === key) return cached.record
+    const plan = planShowV2BoundaryPaletteApply(base, transitionId, showTransitionChangesForPresentation(item, presetId), newPersonalContentId)
+    let record: ShowRecordV2 | null = null
+    if (plan.status === 'ready') {
+      const edited = editShowTransitionV2(base, plan.intent)
+      if (edited.status === 'changed') record = edited.record
+    }
+    transitionPaletteCandidateV2Ref.current = { source: base, key, record }
+    return record
   }
   const [layerTransitionTarget, setLayerTransitionTarget] = useState<ShowLayerTransitionTarget | null>(null)
   // A refused insertion used to return silently, so choosing a Transition did
@@ -4325,6 +4351,7 @@ export function ShowEditor({
                   onOpenTransitions={(transitionId) => {
                     transitionPaletteReturnMsRef.current = useShowTransportStore.getState().positionMs
                     transitionPaletteCandidateRef.current = null
+                    transitionPaletteCandidateV2Ref.current = null
                     setTransitionPaletteId(transitionId)
                   }}
                   onRemoveBoundaryTransition={(transitionId) => {
@@ -4432,29 +4459,56 @@ export function ShowEditor({
               stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
               // v1 keeps every owner the palette used to hold itself: the
               // candidate record, the preview override and the transport seek.
-              // The authored-v2 backing has no legacy owner to reach, so its
-              // preview resolves as a no-change result (#1065); Apply writes
-              // through the transition-edit door (#1066 slice 5b).
+              // The v2 preview builds the same candidate Apply plans and shows
+              // it on the Stage without admission, history or save (#1066
+              // slice 5c); Apply writes through the transition-edit door
+              // (#1066 slice 5b).
               onPreviewItem={(item, presetId) => {
-                if (!legacyShow) return
-                const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId)
-                useShowPreviewOverrideStore.getState().preview(changed)
-                const boundary = projectShowTimeline(changed).boundaryTransitions
+                if (legacyShow) {
+                  const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId)
+                  useShowPreviewOverrideStore.getState().preview(changed)
+                  const boundary = projectShowTimeline(changed).boundaryTransitions
+                    .find((entry) => entry.id === transitionPaletteId)
+                  if (boundary) {
+                    useShowTransportStore.getState().requestSeek(
+                      legacyShow.id,
+                      boundary.startMs + (boundary.endMs - boundary.startMs) / 2,
+                    )
+                  }
+                  return
+                }
+                if (recordVersion !== 2 || !savedShowV2) return
+                const candidate = v2PaletteCandidate(transitionPaletteId, item, presetId)
+                if (!candidate) {
+                  useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
+                  return
+                }
+                useShowPreviewOverrideStore.getState().previewV2(candidate)
+                const window = projectShowEditorTimelineV2(candidate).transitions
                   .find((entry) => entry.id === transitionPaletteId)
-                if (boundary) {
+                if (window) {
                   useShowTransportStore.getState().requestSeek(
-                    legacyShow.id,
-                    boundary.startMs + (boundary.endMs - boundary.startMs) / 2,
+                    savedShowV2.id,
+                    window.startMs + (window.endMs - window.startMs) / 2,
                   )
                 }
               }}
               onRestorePreview={() => {
-                if (!legacyShow) return
-                useShowPreviewOverrideStore.getState().clear(legacyShow.id)
-                useShowTransportStore.getState().requestSeek(legacyShow.id, transitionPaletteReturnMsRef.current)
+                if (legacyShow) {
+                  useShowPreviewOverrideStore.getState().clear(legacyShow.id)
+                  useShowTransportStore.getState().requestSeek(legacyShow.id, transitionPaletteReturnMsRef.current)
+                  return
+                }
+                if (recordVersion !== 2 || !savedShowV2) return
+                useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
+                useShowTransportStore.getState().requestSeek(savedShowV2.id, transitionPaletteReturnMsRef.current)
               }}
               onApplyItem={(item, presetId) => {
-                if (!legacyShow) return commitV2BoundaryPaletteApply(transitionPaletteId, item, presetId)
+                if (!legacyShow) {
+                  const applied = commitV2BoundaryPaletteApply(transitionPaletteId, item, presetId)
+                  if (applied && savedShowV2) useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
+                  return applied
+                }
                 const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId)
                 const transition = changed.transitions?.find((entry) => entry.id === transitionPaletteId)
                 if (!transition) return false
