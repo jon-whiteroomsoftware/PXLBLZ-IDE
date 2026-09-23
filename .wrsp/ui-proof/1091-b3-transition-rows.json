@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1091",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1091b3-flat and /PXLBLZ-IDE/studio/shows/proof-1091b3-layered (existing Show editor on the v2 backing; each Show seeded as a v1 row with a crossfade Scene boundary, then replaced by its converted v2 row through PUT /api/shows/<id>?show-version=2)",
+  "operation": "Flat Show proof-1091b3-flat (no Layers): select the converted crossfade boundary, open the Transition inspector's Advanced controls and enable the Animation speed row for the incoming Clip; the stored v2 Transition gains an instance-time-scale ramp (from 1, 1000 ms, linear) and the rows show no Pattern control or Transform editors (capture 1). Layered Show proof-1091b3-layered (a Layer composition, not flat-eligible): the same section shows the Animation speed and Brightness rows unticked and unavailable; focusing the speed control shows 'This Transition can't animate speed or brightness.'; no Pattern control or Transform rows exist (capture 2). Capture 3 reads both stored v2 rows' Transition propertyRamps back before and after (flat gains the ramp; layered stays empty). Capture 4 is the raw GET /api/shows?show-version=2 listing both rows. Before this change the v2 speed and brightness rows appeared enabled and every edit was refused silently, and the control and Transform rows accepted edits that were dropped.",
+  "captures": [
+    ".wrsp/ui-proof/1091-b3-flat.png",
+    ".wrsp/ui-proof/1091-b3-disabled.png",
+    ".wrsp/ui-proof/1091-b3-readback.png",
+    ".wrsp/ui-proof/1091-b3-raw-api.png"
+  ],
+  "capturedAtCommit": "ef59694c61534bc94d13433b842c68eedc50d0a2"
+}
