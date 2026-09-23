@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "On the v2 backing at the case 54 fix: open built-in lesson 101. First capture: a close-up of Reset built-in Show before any edit, grey and disabled. Select MetaballGarden, set Brightness to 75% and close the panel. Second capture: Reset is amber and enabled. Press it. Third capture: Reset is grey and disabled again. Fourth capture: MetaballGarden's Brightness reads 100, the built-in value. The fifth capture renders the button's disabled attribute and class list, read from the page in the same run: initial disabled with no amber class, after edit enabled with the amber class, after Reset disabled with no amber class. The full e2e case shows.auth.spec.ts:54 passes 2/2 on v2 and 1/1 on v1 at this change.",
+  "captures": [
+    ".wrsp/ui-proof/1066-t54-btn-0-initial.png",
+    ".wrsp/ui-proof/1066-t54-btn-1-edited.png",
+    ".wrsp/ui-proof/1066-t54-btn-2-reset.png",
+    ".wrsp/ui-proof/1066-t54-after-reset.png",
+    ".wrsp/ui-proof/1066-t54-readback.png"
+  ],
+  "capturedAtCommit": "8c2decb64a94bb72c94e3e3db6979203a540905c"
+}
