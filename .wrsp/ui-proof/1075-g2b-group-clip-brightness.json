@@ -1,8 +1,10 @@
 {
   "version": 1,
   "issue": "1075",
-  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-1790118521842",
-  "operation": "On the v2 backing at the code tip, the case 2583 flow: marquee two Clips, Make Group, Duplicate the occurrence (2 linked), isolate the second occurrence, select Group Clip Main pulse, set Duration 4, then set Brightness to 40%. The stored v2 record's one Group definition holds the definition Clip's appearance brightness 0.4, shared by both occurrences (stored readback: 1 definition, 2 occurrences).",
-  "captures": [".wrsp/ui-proof/1075-g2b-group-clip-brightness.png"],
-  "capturedAtCommit": "c23ffbf8e1c531a95bf0ec2d4a442c3eb61e66a8"
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-1790121869457",
+  "operation": "Same run, continuing: set the Group Clip's Brightness to 40%. The stored definition Clip holds durationMs 4000 and appearance brightness 0.4, shared by both linked occurrences (stored readback).",
+  "captures": [
+    ".wrsp/ui-proof/1075-g2b-group-clip-brightness.png"
+  ],
+  "capturedAtCommit": "3f128e8a3b2aa732ebcf516d79b16261601263fc"
 }
