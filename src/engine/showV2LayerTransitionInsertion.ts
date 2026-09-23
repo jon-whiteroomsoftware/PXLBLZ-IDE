@@ -150,6 +150,29 @@ function orderedLayoutOccurrencesFor(record: ShowRecordV2) {
     .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
 }
 
+type FixedTransitionWindowForInsert = { startMs: number; endMs: number; zoneIds: string[]; owned: Set<string> }
+type MovingClipForInsert = { id: string; zoneId: string; startMs: number; endMs: number }
+
+function pushFixedWindowRefusals(
+  candidates: number[],
+  fixedWindows: FixedTransitionWindowForInsert[],
+  movingClips: MovingClipForInsert[],
+): void {
+  for (const window of fixedWindows) {
+    for (const clip of movingClips) {
+      if (window.owned.has(clip.id)) continue
+      const sameZone = window.zoneIds.includes(clip.zoneId)
+      if (sameZone) {
+        if (clip.endMs < window.startMs) candidates.push(window.startMs - clip.endMs)
+        else if (clip.startMs < window.startMs && clip.endMs > window.endMs) candidates.push(window.startMs - clip.startMs)
+      } else {
+        if (clip.endMs <= window.startMs) candidates.push(window.startMs - clip.endMs + 1)
+        else if (clip.startMs <= window.startMs && clip.endMs > window.endMs) candidates.push(window.startMs - clip.startMs + 1)
+      }
+    }
+  }
+}
+
 function firstRefusedTopLevel(
   record: ShowRecordV2,
   fromId: string,
@@ -263,21 +286,11 @@ function firstRefusedTopLevel(
   const movingClips = [...moved]
     .map(id => clipsById.get(id))
     .filter((clip): clip is NonNullable<typeof clip> => !!clip)
-  for (const window of fixedWindows) {
-    for (const clip of movingClips) {
-      if (window.owned.has(clip.id)) continue
-      const startMs = clip.startMs
-      const endMs = clip.startMs + clip.durationMs
-      const sameZone = window.zoneIds.includes(clip.zoneId)
-      if (sameZone) {
-        if (endMs < window.startMs) candidates.push(window.startMs - endMs)
-        else if (startMs < window.startMs && endMs > window.endMs) candidates.push(window.startMs - startMs)
-      } else {
-        if (endMs <= window.startMs) candidates.push(window.startMs - endMs + 1)
-        else if (startMs <= window.startMs && endMs > window.endMs) candidates.push(window.startMs - startMs + 1)
-      }
-    }
-  }
+  pushFixedWindowRefusals(
+    candidates,
+    fixedWindows,
+    movingClips.map(clip => ({ id: clip.id, zoneId: clip.zoneId, startMs: clip.startMs, endMs: clip.startMs + clip.durationMs })),
+  )
   const useCounts = new Map<string, number>()
   for (const clip of matClips) useCounts.set(clip.instanceId, (useCounts.get(clip.instanceId) ?? 0) + 1)
   const soleMovedInstances = new Set<string>()
@@ -340,6 +353,8 @@ function firstRefusedTopLevel(
     if (!transition.wholeOutput) continue
     const window = transitionWindowV2(record, transition)
     if (!window || !(window.startMs > cutMs)) continue
+    const scope = new Set(transitionEndpoints(transition).all)
+    if (scope.size > 0 && [...scope].every(id => moved.has(id))) continue
     candidates.push(window.startMs - cutMs + 1)
   }
   const occurrences = orderedLayoutOccurrencesFor(record)
@@ -790,6 +805,21 @@ function outerFirstRefusedForOccurrence(
       if (best !== Infinity) candidates.push(best)
     }
   }
+  const fixedOuterWindows: FixedTransitionWindowForInsert[] = []
+  for (const transition of record.composition.transitions) {
+    if (transition.wholeOutput) continue
+    const window = transitionWindowV2(record, transition)
+    if (!window) continue
+    const zoneIds = [...new Set(transition.participants.map(participant => participant.zoneId))]
+    fixedOuterWindows.push({ startMs: window.startMs, endMs: window.endMs, zoneIds, owned: new Set(transitionEndpoints(transition).all) })
+  }
+  const movingOuterClips: MovingClipForInsert[] = []
+  for (const clip of matClips) {
+    if (!clip.id.startsWith(`${occurrence.id}:`)) continue
+    if (!movedDef.has(clip.id.slice(occurrence.id.length + 1))) continue
+    movingOuterClips.push({ id: clip.id, zoneId: clip.zoneId, startMs: clip.startMs, endMs: clip.startMs + clip.durationMs })
+  }
+  pushFixedWindowRefusals(candidates, fixedOuterWindows, movingOuterClips)
   for (const transition of record.composition.transitions) {
     if (!transition.wholeOutput) continue
     const window = transitionWindowV2(record, transition)

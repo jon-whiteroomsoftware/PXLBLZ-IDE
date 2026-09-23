@@ -1124,6 +1124,7 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
 describe('v2 Layer Transition insert room (#1089)', () => {
   type TestClipSpec = { id: string; instanceId: string; zoneId: string; layerId: string; startMs: number; durationMs: number }
   type TestTransitionSpec = { id: string; zoneId: string; layerId: string; fromClipId: string; toClipId: string; durationMs: number }
+  type TestWholeOutputSpec = { id: string; durationMs: number; startMs: number; fromClipIds: string[]; toClipIds: string[] }
 
   function testInstance(id: string) {
     return {
@@ -1172,6 +1173,19 @@ describe('v2 Layer Transition insert room (#1089)', () => {
     }
   }
 
+  function testWholeOutputTransition(spec: TestWholeOutputSpec) {
+    return {
+      id: spec.id,
+      kind: 'crossfade' as const,
+      durationMs: spec.durationMs,
+      easing: { curve: 'linear' as const },
+      crossfadePolicy: 'live-live' as const,
+      participants: [],
+      propertyRamps: [],
+      wholeOutput: { startMs: spec.startMs, fromClipIds: [...spec.fromClipIds], toClipIds: [...spec.toClipIds] },
+    }
+  }
+
   function testRecord(options: {
     zones: Array<{ id: string; name: string }>;
     layoutId: string;
@@ -1183,6 +1197,7 @@ describe('v2 Layer Transition insert room (#1089)', () => {
     propertyTracks?: ShowRecordV2['composition']['propertyTracks'];
     groupDefinitions?: ShowRecordV2['composition']['groupDefinitions'];
     groupOccurrences?: ShowRecordV2['composition']['groupOccurrences'];
+    wholeOutputTransitions?: TestWholeOutputSpec[];
   }): ShowRecordV2 {
     const instances: ShowRecordV2['composition']['patternInstances'] = [...new Set(options.clips.map(clip => clip.instanceId))].map(testInstance)
     const definitionInstances = (options.groupDefinitions ?? []).flatMap(definition => definition.patternInstances)
@@ -1210,7 +1225,7 @@ describe('v2 Layer Transition insert room (#1089)', () => {
         patternInstances: instances,
         layers: options.layers.map(layer => ({ id: layer.id, zoneId: layer.zoneId, name: layer.id, rank: layer.rank })),
         clips: options.clips.map(testClip),
-        transitions: options.transitions.map(testTransition),
+        transitions: [...options.transitions.map(testTransition), ...(options.wholeOutputTransitions ?? []).map(testWholeOutputTransition)],
         layoutOccurrences: [{
           id: 'layout-occ', layoutId: options.layoutId, startMs: 0, durationMs: options.showEndMs, parameters: {},
         }],
@@ -1454,6 +1469,69 @@ describe('v2 Layer Transition insert room (#1089)', () => {
     })
   }
 
+  function groupOuterFixedWindowRecord(): ShowRecordV2 {
+    const { definition, layerId } = twoClipDefinition()
+    return testRecord({
+      zones: [{ id: 'z1', name: 'Z1' }, { id: 'z2', name: 'Z2' }],
+      layoutId: 'layout',
+      logical: { kind: 'split', zoneIds: ['z1', 'z2'], axis: 'x' },
+      layers: [{ id: 'z1-main', zoneId: 'z1', rank: 0 }, { id: 'z2-main', zoneId: 'z2', rank: 0 }],
+      clips: [
+        { id: 'e', instanceId: 'inst-e', zoneId: 'z2', layerId: 'z2-main', startMs: 0, durationMs: 1500 },
+        { id: 'f', instanceId: 'inst-f', zoneId: 'z2', layerId: 'z2-main', startMs: 1600, durationMs: 8400 },
+      ],
+      transitions: [{ id: 't-ef', zoneId: 'z2', layerId: 'z2-main', fromClipId: 'e', toClipId: 'f', durationMs: 100 }],
+      showEndMs: 10000,
+      groupDefinitions: [definition],
+      groupOccurrences: [{
+        id: 'occ1',
+        definitionId: 'def',
+        layoutOccurrenceId: 'layout-occ',
+        zoneId: 'z1',
+        startMs: 0,
+        translationX: 0,
+        translationY: 0,
+        layerBindings: [{ definitionLayerId: layerId, layerId: 'z1-main' }],
+        holds: [],
+      }],
+    })
+  }
+
+  function wholeOutputMovingRecord(): ShowRecordV2 {
+    return testRecord({
+      zones: [{ id: 'z', name: 'Z' }],
+      layoutId: 'layout',
+      logical: { kind: 'single', zoneIds: ['z'] },
+      layers: [{ id: 'main', zoneId: 'z', rank: 0 }, { id: 'other', zoneId: 'z', rank: 1 }],
+      clips: [
+        { id: 'a', instanceId: 'inst-a', zoneId: 'z', layerId: 'main', startMs: 0, durationMs: 1000 },
+        { id: 'b', instanceId: 'inst-b', zoneId: 'z', layerId: 'main', startMs: 1000, durationMs: 1000 },
+        { id: 'c', instanceId: 'inst-c', zoneId: 'z', layerId: 'other', startMs: 2100, durationMs: 1000 },
+      ],
+      transitions: [],
+      wholeOutputTransitions: [{ id: 'w-bc', durationMs: 100, startMs: 2000, fromClipIds: ['b'], toClipIds: ['c'] }],
+      showEndMs: 10000,
+    })
+  }
+
+  function wholeOutputFixedRecord(): ShowRecordV2 {
+    return testRecord({
+      zones: [{ id: 'z', name: 'Z' }],
+      layoutId: 'layout',
+      logical: { kind: 'single', zoneIds: ['z'] },
+      layers: [{ id: 'main', zoneId: 'z', rank: 0 }, { id: 'other', zoneId: 'z', rank: 1 }],
+      clips: [
+        { id: 'a', instanceId: 'inst-a', zoneId: 'z', layerId: 'main', startMs: 0, durationMs: 1000 },
+        { id: 'b', instanceId: 'inst-b', zoneId: 'z', layerId: 'main', startMs: 1000, durationMs: 1000 },
+        { id: 'c', instanceId: 'inst-c', zoneId: 'z', layerId: 'other', startMs: 2500, durationMs: 500 },
+        { id: 'd', instanceId: 'inst-d', zoneId: 'z', layerId: 'other', startMs: 3100, durationMs: 500 },
+      ],
+      transitions: [],
+      wholeOutputTransitions: [{ id: 'w-cd', durationMs: 100, startMs: 3000, fromClipIds: ['c'], toClipIds: ['d'] }],
+      showEndMs: 10000,
+    })
+  }
+
   it('stops at the RL09 band (maximum 99)', () => {
     const record = rl09BandRecord()
     const plan = planShowV2LayerTransitionInsertion(record, junctionKey1089(record, 'a', 'b'))
@@ -1504,6 +1582,38 @@ describe('v2 Layer Transition insert room (#1089)', () => {
     expect(probeTopLevelAccepts(record, 'a', 'b', 501), 'owner refuses max + 1').toBe(false)
   })
 
+  it('stops a moving Group Clip at a fixed outer Transition window (maximum 500)', () => {
+    const record = groupOuterFixedWindowRecord()
+    const plan = planShowV2GroupLayerTransitionInsertion(record, 'occ1', 'left', 'right')
+    expect(plan).toEqual({ enabled: true, maxDurationMs: 500 })
+    for (let durationMs = 1; durationMs <= 500; durationMs += 1) {
+      expect(probeGroupAccepts(record, 'def', 'def-layer', 'left', 'right', durationMs), `group owner accepts ${durationMs}`).toBe(true)
+    }
+    expect(probeGroupAccepts(record, 'def', 'def-layer', 'left', 'right', 501), 'group owner refuses max + 1').toBe(false)
+  })
+
+  it('keeps room past a whole-output window that moves with the closure', () => {
+    const record = wholeOutputMovingRecord()
+    const plan = planShowV2LayerTransitionInsertion(record, junctionKey1089(record, 'a', 'b'))
+    expect(plan.enabled, 'moving whole-output enabled').toBe(true)
+    if (!plan.enabled) return
+    expect(plan.maxDurationMs > 1000, `moving whole-output max ${plan.maxDurationMs} exceeds the fixed-window cap`).toBe(true)
+    for (let durationMs = 1; durationMs <= plan.maxDurationMs; durationMs += 1) {
+      expect(probeTopLevelAccepts(record, 'a', 'b', durationMs), `owner accepts ${durationMs}`).toBe(true)
+    }
+    expect(probeTopLevelAccepts(record, 'a', 'b', plan.maxDurationMs + 1), 'owner refuses max + 1').toBe(false)
+  }, 60000)
+
+  it('still caps a whole-output window that stays fixed (maximum 999)', () => {
+    const record = wholeOutputFixedRecord()
+    const plan = planShowV2LayerTransitionInsertion(record, junctionKey1089(record, 'a', 'b'))
+    expect(plan).toEqual({ enabled: true, maxDurationMs: 999 })
+    for (let durationMs = 1; durationMs <= 999; durationMs += 1) {
+      expect(probeTopLevelAccepts(record, 'a', 'b', durationMs), `owner accepts ${durationMs}`).toBe(true)
+    }
+    expect(probeTopLevelAccepts(record, 'a', 'b', 1000), 'owner refuses max + 1').toBe(false)
+  })
+
   it('sweeps every offered duration across small fixtures', () => {
     const topLevelFixtures: Array<{ label: string; record: ShowRecordV2; fromClipId: string; toClipId: string }> = [
       { label: 'rl09-band', record: rl09BandRecord(), fromClipId: 'a', toClipId: 'b' },
@@ -1511,6 +1621,8 @@ describe('v2 Layer Transition insert room (#1089)', () => {
       { label: 'top-level-vs-occurrence', record: topLevelVsOccurrenceRecord(), fromClipId: 'a', toClipId: 'b' },
       { label: 'simple-room', record: simpleRoomRecord(), fromClipId: 'a', toClipId: 'b' },
       { label: 'same-layer-next', record: sameLayerNextRecord(), fromClipId: 'a', toClipId: 'b' },
+      { label: 'whole-output-moving', record: wholeOutputMovingRecord(), fromClipId: 'a', toClipId: 'b' },
+      { label: 'whole-output-fixed', record: wholeOutputFixedRecord(), fromClipId: 'a', toClipId: 'b' },
     ]
     for (const fixture of topLevelFixtures) {
       const plan = planShowV2LayerTransitionInsertion(fixture.record, junctionKey1089(fixture.record, fixture.fromClipId, fixture.toClipId))
@@ -1528,6 +1640,7 @@ describe('v2 Layer Transition insert room (#1089)', () => {
     const groupFixtures: Array<{ label: string; record: ShowRecordV2 }> = [
       { label: 'group-outer-room', record: groupOuterRecord(false) },
       { label: 'group-outer-obstruction', record: groupOuterRecord(true) },
+      { label: 'group-outer-fixed-window', record: groupOuterFixedWindowRecord() },
     ]
     for (const fixture of groupFixtures) {
       const plan = planShowV2GroupLayerTransitionInsertion(fixture.record, 'occ1', 'left', 'right')
