@@ -736,6 +736,7 @@ type ShowLayerTransitionTarget = {
   toName: string
   anchor: HTMLElement
   groupOccurrenceId?: string
+  groupTransitionId?: string
   transitionId?: string
   legacy?: ShowUnifiedTimelineJunctionProjection
 }
@@ -4687,6 +4688,19 @@ export function ShowEditor({
                   if (recordVersion !== 2 || !savedShowV2 || readOnly) return
                   const capture = preparedV2CaptureRef.current
                   if (!capture || capture.prepared.status === 'refused') return
+                  const groupOccurrenceId = layerTransitionTarget.groupOccurrenceId
+                  const groupTransitionId = layerTransitionTarget.groupTransitionId
+                  if (groupOccurrenceId && groupTransitionId) {
+                    const requested = requestV2GroupOccurrenceEdit({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs })
+                    if (requested !== false) {
+                      const settledOccurrenceId = groupOccurrenceId
+                      const settledTransitionId = groupTransitionId
+                      void Promise.resolve(requested).then(() => {
+                        setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
+                      })
+                    }
+                    return
+                  }
                   const transitionId = layerTransitionTarget.transitionId
                   if (!transitionId) return
                   const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
@@ -4733,6 +4747,19 @@ export function ShowEditor({
                   if (recordVersion !== 2 || !savedShowV2 || readOnly) return
                   const capture = preparedV2CaptureRef.current
                   if (!capture || capture.prepared.status === 'refused') return
+                  const groupOccurrenceId = layerTransitionTarget.groupOccurrenceId
+                  const groupTransitionId = layerTransitionTarget.groupTransitionId
+                  if (groupOccurrenceId && groupTransitionId) {
+                    const requested = requestV2GroupOccurrenceEdit({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs: 0 })
+                    if (requested !== false) {
+                      const settledOccurrenceId = groupOccurrenceId
+                      const settledTransitionId = groupTransitionId
+                      void Promise.resolve(requested).then(() => {
+                        setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
+                      })
+                    }
+                    return
+                  }
                   const transitionId = layerTransitionTarget.transitionId
                   if (!transitionId) return
                   const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
@@ -8609,6 +8636,7 @@ function ShowTimelineWorkspace({
                         // and its definition child, which the presented
                         // junction already carries; nothing new is minted.
                         ...(internalGroup ? { groupOccurrenceId: internalGroup.id } : {}),
+                        ...(internalGroup && junction.transitionId ? { groupTransitionId: junction.transitionId.startsWith(`${internalGroup.id}:`) ? junction.transitionId.slice(internalGroup.id.length + 1) : junction.transitionId } : {}),
                         ...(!internalGroup && junction.transitionId ? { transitionId: junction.transitionId } : {}),
                       })
                     }

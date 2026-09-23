@@ -42,7 +42,7 @@ export function ShowV2GroupOccurrenceEditor({ capture, submitGroupOccurrenceEdit
   }, [record, occurrenceId, busy])
   const selected = model.occurrences.find(value => value.id === occurrenceId)
   const available = !busy && (capture.inputCapture?.status === 'qualified' || (!capture.inputCapture && capture.prepared.status === 'ready'))
-  const act = async (kind: Exclude<ShowV2GroupOccurrenceIntent['kind'], 'set-definition-clip-timing' | 'edit-definition-clip-appearance' | 'write-definition-instance-properties'>) => {
+  const act = async (kind: Exclude<ShowV2GroupOccurrenceIntent['kind'], 'set-definition-clip-timing' | 'edit-definition-clip-appearance' | 'write-definition-instance-properties' | 'resize-definition-layer-transition'>) => {
     if (pending.current || !available || !selected) return
     if ((kind === 'move-occurrence' || kind === 'duplicate-occurrence') && (!draft.start.trim() || !draft.x.trim() || !draft.y.trim())) {
       if (isCurrentCapture()) onStatus('Give the complete Group placement.'); return

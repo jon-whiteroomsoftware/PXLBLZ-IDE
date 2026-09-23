@@ -1,15 +1,16 @@
 import type { ShowRecordV2 } from './showCompositionV2'
-import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, EditShowGroupDefinitionClipAppearanceIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, SetShowGroupDefinitionClipTimingIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2, WriteShowGroupDefinitionInstancePropertiesIntentV2 } from './showGroupEditsV2'
+import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, EditShowGroupDefinitionClipAppearanceIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, ResizeShowGroupDefinitionLayerTransitionIntentV2, SetShowGroupDefinitionClipTimingIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2, WriteShowGroupDefinitionInstancePropertiesIntentV2 } from './showGroupEditsV2'
 import { groupDefinitionAsRecord, groupOccurrenceDuration, groupOccurrenceLocalTimeAtV2, occurrenceBoundaryAfter } from './showGroupsV2'
 import { planShowV2ClipInspectorPatch } from './showV2ClipAppearancePlanning'
 import type { ShowClipInspectorPatch } from './showClipInspectorModel'
 
-export type ShowV2GroupOccurrenceIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2 | EditShowGroupDefinitionClipAppearanceIntentV2 | WriteShowGroupDefinitionInstancePropertiesIntentV2
+export type ShowV2GroupOccurrenceIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2 | EditShowGroupDefinitionClipAppearanceIntentV2 | WriteShowGroupDefinitionInstancePropertiesIntentV2 | ResizeShowGroupDefinitionLayerTransitionIntentV2
 export type ShowV2GroupOccurrenceRequest =
   | { kind: 'move-occurrence' | 'duplicate-occurrence'; occurrenceId: string; placement: Omit<ShowGroupOccurrencePlacementV2, 'layoutOccurrenceId'> }
   | { kind: 'make-unique' | 'ungroup-occurrence' | 'delete-occurrence'; occurrenceId: string }
   | { kind: 'set-child-timing'; occurrenceId: string; clipId: string; startMs?: number; durationMs?: number }
   | { kind: 'set-child-inspector-patch'; occurrenceId: string; clipId: string; patch: ShowClipInspectorPatch }
+  | { kind: 'resize-definition-layer-transition'; occurrenceId: string; transitionId: string; durationMs: number }
 export function buildShowV2GroupOccurrenceEditorModel(record: ShowRecordV2) {
   return {
     occurrences: record.composition.groupOccurrences.map(occurrence => {
@@ -101,6 +102,22 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
       if (plan.kind === 'refuse') return { status: 'refused', message: plan.message }
       if (plan.kind === 'entry-policy') return { status: 'refused', message: 'Changing a Group Clip\'s entry policy is not connected yet.' }
       return { status: 'refused', message: 'No change.' }
+    }
+    if (request.kind === 'resize-definition-layer-transition') {
+      const transition = definition.transitions.find(value => value.id === request.transitionId)
+      if (!transition) return { status: 'refused', message: 'Select an existing Group Transition.' }
+      if (typeof request.durationMs !== 'number' || !Number.isFinite(request.durationMs) || request.durationMs < 0) {
+        return { status: 'refused', message: 'Give a finite Duration for one Group Transition.' }
+      }
+      const durationMs = Math.round(request.durationMs)
+      if (durationMs === transition.durationMs) return { status: 'refused', message: 'No change.' }
+      const intent: ResizeShowGroupDefinitionLayerTransitionIntentV2 = {
+        kind: 'resize-definition-layer-transition',
+        definitionId: definition.id,
+        transitionId: transition.id,
+        durationMs,
+      }
+      return { status: 'ready', intent }
     }
     if (request.kind !== 'make-unique') return { status: 'ready', intent: { kind: request.kind, occurrenceId: occurrence.id } }
     const definitions = record.composition.groupDefinitions

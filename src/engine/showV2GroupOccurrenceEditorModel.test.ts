@@ -325,3 +325,68 @@ it('refuses Group Clip Pattern and entry-policy patches without an intent (#1075
   expect(entry.status).toBe('refused')
   expect(record).toEqual(before)
 })
+
+it('plans a Group-local Layer Transition resize through the definition id (#1075 G4b-1)', () => {
+  const { record } = showV2GroupOccurrenceEditorFixture()
+  const before = structuredClone(record)
+  const occurrence = record.composition.groupOccurrences[0]
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const transition = definition.transitions[0]!
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'resize-definition-layer-transition', occurrenceId: occurrence.id, transitionId: transition.id, durationMs: transition.durationMs + 1500.4,
+  }, () => 'unused')
+  expect(plan).toEqual({ status: 'ready', intent: { kind: 'resize-definition-layer-transition', definitionId: definition.id, transitionId: transition.id, durationMs: transition.durationMs + 1500 } })
+  expect(record).toEqual(before)
+})
+
+it('plans a Group-local Layer Transition Reset to Cut as duration zero (#1075 G4b-1)', () => {
+  const { record } = showV2GroupOccurrenceEditorFixture()
+  const before = structuredClone(record)
+  const occurrence = record.composition.groupOccurrences[0]
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const transition = definition.transitions[0]!
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'resize-definition-layer-transition', occurrenceId: occurrence.id, transitionId: transition.id, durationMs: 0,
+  }, () => 'unused')
+  expect(plan).toEqual({ status: 'ready', intent: { kind: 'resize-definition-layer-transition', definitionId: definition.id, transitionId: transition.id, durationMs: 0 } })
+  expect(record).toEqual(before)
+})
+
+it('refuses a Group-local Layer Transition resize for an unknown Transition (#1075 G4b-1)', () => {
+  const { record } = showV2GroupOccurrenceEditorFixture()
+  const before = structuredClone(record)
+  const occurrence = record.composition.groupOccurrences[0]
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'resize-definition-layer-transition', occurrenceId: occurrence.id, transitionId: 'missing', durationMs: 2000,
+  }, () => 'unused')
+  expect(plan.status).toBe('refused')
+  expect(record).toEqual(before)
+})
+
+it('keeps an unchanged Group-local Layer Transition duration a no-op (#1075 G4b-1)', () => {
+  const { record } = showV2GroupOccurrenceEditorFixture()
+  const before = structuredClone(record)
+  const occurrence = record.composition.groupOccurrences[0]
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const transition = definition.transitions[0]!
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'resize-definition-layer-transition', occurrenceId: occurrence.id, transitionId: transition.id, durationMs: transition.durationMs,
+  }, () => 'unused')
+  expect(plan).toEqual({ status: 'refused', message: 'No change.' })
+  expect(record).toEqual(before)
+})
+
+it('refuses a negative or non-finite Group-local Layer Transition duration (#1075 G4b-1)', () => {
+  const { record } = showV2GroupOccurrenceEditorFixture()
+  const before = structuredClone(record)
+  const occurrence = record.composition.groupOccurrences[0]
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const transition = definition.transitions[0]!
+  for (const durationMs of [-5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const plan = planShowV2GroupOccurrenceEdit(record, {
+      kind: 'resize-definition-layer-transition', occurrenceId: occurrence.id, transitionId: transition.id, durationMs,
+    }, () => 'unused')
+    expect(plan.status).toBe('refused')
+  }
+  expect(record).toEqual(before)
+})
