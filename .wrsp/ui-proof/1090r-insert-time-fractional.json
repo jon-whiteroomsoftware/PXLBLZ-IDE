@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1090",
+  "route": "/PXLBLZ-IDE/studio/shows/171082fc-cde9-4ba9-85d3-607b6f231b59",
+  "operation": "On the v2 backing, in a fresh Installation Show, the transport is set to exactly 4023.6 ms: useShowTransportStore.setPosition, called in the page through the dev server's own module, the same way the e2e v2 conversion helper loads source. The value is read back from the store as 4023.6, which a playback pause produces and the playhead slider cannot display. Then Add, then Time, then 2 s.\n- Capture 1: the same flow at the parent commit a10ca51d, without this fix. The dialog reads 'at 4.024s', and Insert is disabled with 'Insert Time requires safe integer milliseconds inside Show time and positive duration.' (store position 4023.6).\n- Capture 2: at this commit, same position. Insert is enabled.\n- Capture 3: the stored v2 record (GET /api/shows); its title prints the store position, 4023.6. After Insert, Show End goes from 62000 to 64000. The first Clip spans 4024, the rounded start, so it grows to 32000. The later Clip and the Scene 2 chapter Marker ripple from 32000 to 34000.\n- Capture 4: the raw response of GET /api/shows?show-version=2, which the authenticated page navigates to after the insert. The fresh test account holds only this Show. It shows showEndMs 64000, the first Clip at durationMs 32000 with an appearance hold key at 4024 (the rounded start), and the later Clip and Scene 2 Marker at 34000.",
+  "captures": [
+    ".wrsp/ui-proof/1090r-insert-time-before-fix.png",
+    ".wrsp/ui-proof/1090r-insert-time-fractional.png",
+    ".wrsp/ui-proof/1090r-insert-time-readback.png",
+    ".wrsp/ui-proof/1090r-insert-time-raw-api.png"
+  ],
+  "capturedAtCommit": "90927de959c994193127b95008e2f0259b35dd69"
+}
