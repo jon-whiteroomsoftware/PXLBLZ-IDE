@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1090",
+  "route": "/PXLBLZ-IDE/studio/shows/b365e296-e29e-481b-936b-5d6385b3576c",
+  "operation": "On the v2 backing: a fresh Installation Show (the flow's defaults). Delete CometLoom so the Layer has empty time from 30 s, then step the playhead to 35 s. The first capture is the Add menu with Clip enabled; before this change it was disabled with 'No empty Layer' on v2. Pick Add, then Clip, then AuroraSphere. The second capture shows the new AuroraSphere Clip at 35 s, selected, with its inspector open. The third renders the stored v2 record (GET /api/shows) read back in the same run, before and after. After the add there is one new Clip at 35000-40000 ms on layer:zone-1:main, the default 5 s. Its instance is a fresh first runtime of AuroraSphere, because none existed.",
+  "captures": [
+    ".wrsp/ui-proof/1090b-add-menu-clip.png",
+    ".wrsp/ui-proof/1090b-clip-added.png",
+    ".wrsp/ui-proof/1090b-add-clip-readback.png"
+  ],
+  "capturedAtCommit": "2eabc3d4aefea853937dda809656dd5f318deb1c"
+}
