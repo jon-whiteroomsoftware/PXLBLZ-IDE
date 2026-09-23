@@ -581,6 +581,21 @@ describe('v2 Marker, Effect and animation commands', () => {
     expect(removedEffect.record.composition.clips[0].appearance.keys[0].value.effects!.map(effect => effect.id)).toEqual([effectId])
   })
 
+  it('passes the appearance owner refusal code through update_clip_effect', () => {
+    const record = commandFixtureV2()
+    const added = changed(applyShowCommandV2(record, 'add_clip_effect', {
+      clip_id: 'clip-a', kind: 'hue', parameters: { turns: 0.25 }, apply: { scope: 'whole-clip' },
+    }))
+    const effectId = added.record.composition.clips[0].appearance.keys[0].value.effects![0].id
+    const refused = applyShowCommandV2(added.record, 'update_clip_effect', {
+      clip_id: 'clip-a', effect_id: effectId, parameters: { nope: 0.5 }, apply: { scope: 'whole-clip' },
+    })
+    expect(refused.status).toBe('refused')
+    if (refused.status !== 'refused') return
+    expect(refused.issues[0].code).toBe('invalid-intent')
+    expect(refused.record).toBe(added.record)
+  })
+
   it('adds Property tracks for each target kind, edits keyframes and removes by identity', () => {
     const record = commandFixtureV2()
     const added = changed(applyShowCommandV2(record, 'add_property_tracks', {

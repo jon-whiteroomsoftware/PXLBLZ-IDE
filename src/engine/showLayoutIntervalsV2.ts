@@ -553,7 +553,7 @@ function duplicateLayoutOccurrence(
       return { code: 'unsupported-content-copy', message: `Transition "${unsupported.id}" carries Property ramps; project them into tracks before duplicating this Layout occurrence with its content.` }
     }
   }
-  const plan = intent.content === undefined ? null : resolveDuplicatePlan(intent.content, inside.sourceIds, used)
+  const plan = intent.content === undefined ? null : resolveDuplicatePlan(intent.content, inside.sourceIds, used, intent.newOccurrenceId)
   if (plan !== null && 'message' in plan) return { code: 'invalid-intent', message: plan.message }
 
   const affectedClipIds: string[] = []
@@ -717,6 +717,7 @@ function resolveDuplicatePlan(
   content: ShowLayoutDuplicateContentPlanV2,
   sourceIds: readonly string[],
   used: ReadonlySet<string>,
+  newOccurrenceId: string,
 ): ShowLayoutDuplicateContentPlanV2 | { message: string } {
   const incomplete = { message: 'Duplicate with content requires one fresh, unique, unowned identity for every copied entity.' }
   const raw: unknown = content
@@ -727,7 +728,7 @@ function resolveDuplicatePlan(
   const entries = Object.entries(map as Record<string, unknown>)
   if (JSON.stringify(entries.map(([key]) => key).sort()) !== JSON.stringify([...sourceIds].sort())) return incomplete
   const values = entries.map(([, value]) => value)
-  if (values.some(value => typeof value !== 'string' || !value.trim() || used.has(value))) return incomplete
+  if (values.some(value => typeof value !== 'string' || !value.trim() || value === newOccurrenceId || used.has(value))) return incomplete
   if (new Set(values as string[]).size !== values.length) return incomplete
   return { idsBySourceId: map as Record<string, string> }
 }

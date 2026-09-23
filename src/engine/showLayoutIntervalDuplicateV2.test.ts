@@ -194,6 +194,26 @@ describe('Layout occurrence duplication (D7)', () => {
     expect(record).toEqual(preimage)
   })
 
+  it('refuses a content plan that reuses the new occurrence identity', () => {
+    const record = duplicateRecord()
+    const preimage = structuredClone(record)
+    const refused = editShowLayoutIntervalsV2(record, {
+      kind: 'duplicate', occurrenceId: 'first', newOccurrenceId: 'first-copy',
+      content: { idsBySourceId: {
+        'inside-clip': 'first-copy',
+        'inside-appearance': 'inside-appearance-copy',
+        'inside-track': 'inside-track-copy',
+        'inside-key-start': 'inside-key-start-copy',
+        'inside-key-end': 'inside-key-end-copy',
+      } },
+    })
+    expect(refused).toMatchObject({ status: 'refused', code: 'invalid-intent' })
+    expect(refused.record).toBe(record)
+    expect(refused.affectedLayoutOccurrenceIds).toEqual([])
+    expect(refused.affectedClipIds).toEqual([])
+    expect(record).toEqual(preimage)
+  })
+
   it('refuses a fresh occurrence identity that is already owned, and an unknown occurrence', () => {
     const record = duplicateRecord()
     expect(editShowLayoutIntervalsV2(record, {

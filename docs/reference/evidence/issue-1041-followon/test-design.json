@@ -80,7 +80,7 @@
     "sameRecordEvidence": "For all three affected fixtures after.recordSha256, after.clipCount, after.firstClipDurationMs, after.epe.bytes and after.epe.sourceSha256 are identical to the pin. recordSha256 is canonical JSON with sorted keys, while the .pxlshow contentSha256 hashes JSON.stringify(bundle) and bytes is the zip container length, so the surviving difference is the bundle's serialization of a semantically identical record, not a changed Show.",
     "notInvestigated": "Which commit in c0ab5995..HEAD changed that serialization was not bisected; nineteen commits in the range touch the v1 command or record-writing path."
   },
-  "residuals": [
+  "residualGaps": [
     "The ordinary Clip timing editor is unchanged: no Zone/Layer selects were added, so this slice records no browser proof and touches no wrsp-ui-proof path.",
     "A Clip with a participant Transition cannot change Zone or Layer at all, matching v1 moveShowClipExactly. Only a whole-output contributor can, so incoming pre-roll is provable only through that partition.",
     "Destination collision surfaces as invalid-result from complete-candidate validation, consistent with the landed duplicate and creation owners rather than a dedicated occupancy code.",

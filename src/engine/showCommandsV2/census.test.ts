@@ -125,6 +125,38 @@ describe('v2 command catalogue census', () => {
     }
   })
 
+  it('every owner refusal code a command can pass through appears in the refusal-code map', () => {
+    // Derived from the owners' result types (#1064 P3 item 1): every `code`
+    // member of the refusal unions that flow into adoptOwnerResult(s).
+    // Sources: ShowClipTemporalRefusalV2 (showClipTemporalV2.ts) plus
+    // ShowClipEditRefusalV2 (showClipsV2.ts, shared by the appearance and
+    // creation owners), ShowLayerEditRefusalCodeV2 (showLayersV2.ts),
+    // ShowTransitionEditRefusalV2 (showTransitionsV2.ts),
+    // ShowLayoutEditRefusalV2 (showLayoutIntervalsV2.ts),
+    // ShowGroupEditRefusalV2 (showGroupEditsV2.ts),
+    // ShowPropertyEditRefusalV2 (showPropertyEditsV2.ts),
+    // ShowTimelineEditRefusalV2 (showTimelineV2.ts, via insert_time) and the
+    // marker refusal union (showMarkersV2.ts).
+    const ownerCodes = [
+      'invalid-record', 'missing-clip', 'missing-target', 'invalid-intent',
+      'invalid-topology', 'unsupported-topology', 'zone-unavailable',
+      'unsupported-property-carrier', 'compiler-ineligible', 'invalid-result',
+      'invalid-request', 'identity-conflict', 'incomplete-reassignment',
+      'incompatible-reassignment', 'missing-transition', 'unsupported-layout',
+      'missing-layout', 'missing-occurrence', 'invalid-transfer',
+      'meaningful-occurrence-data', 'protected-content',
+      'owned-track-out-of-bounds', 'boundary-crossing-content',
+      'unsupported-content-copy', 'time-overflow', 'invalid-identity-plan',
+      'invalid-occurrence-id', 'invalid-placement', 'invalid-owner',
+      'missing-track', 'missing-key', 'duplicate-track', 'duplicate-key',
+      'visual-transition-window', 'layout-transfer-window',
+      'transition-attachment', 'property-mapping', 'shared-track-conflict',
+      'duplicate-marker', 'missing-marker',
+    ]
+    const mapped = new Set(SHOW_COMMAND_V2_REFUSAL_CODES.map(entry => entry.code))
+    expect(ownerCodes.filter(code => !mapped.has(code)).sort(), 'owner codes missing from the refusal-code map').toEqual([])
+  })
+
   it('rule 10: a singular command is the bulk schema fragment of one', () => {
     const bulkByFamily: Record<string, string> = {
       create_clips: 'clips',

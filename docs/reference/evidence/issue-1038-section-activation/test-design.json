@@ -12,7 +12,7 @@
       "ROUTE"
     ]
   },
-  "base": "cbbfddc95ff1b6a4b93e328a3bc22991d51a78f4",
+  "base": "3fb7e307fd24e491a694a046ce1d0a0004cc572e",
   "invariants": [
     "A track has effect only in [activeStartMs, activeStartMs + activeDurationMs); the presence of a participant Transition never widens or narrows that interval.",
     "Per intersected section the activation is clipped to the section, keys and curveSegment descriptors are retained exactly under half-open evaluation, and nothing is emitted for a section the activation does not intersect.",

@@ -5,6 +5,7 @@ import type { ShowClipEffect } from '../personalContentRecords'
 import type { ShowRecordV2 } from '../showCompositionV2'
 import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2 } from '../showClipAppearanceEditsV2'
 import {
+  refuseShowCommandV2,
   type ShowCommandV2Descriptor,
   type ShowCommandV2Field,
   type ShowCommandV2Outcome,
@@ -137,7 +138,10 @@ const updateClipEffect: ShowCommandV2Descriptor = {
       if ('message' in target) return invalidArgument(record, 'update_clip_effect', target.message, '$.apply')
       const result = editShowClipAppearanceV2(current, { ...target, kind: 'update-effect', effectId, effectKind: kind, parameter, value })
       if (result.status === 'refused') {
-        return invalidArgument(record, 'update_clip_effect', `${result.message} (parameter "${parameter}")`)
+        return refuseShowCommandV2(record, {
+          code: result.code,
+          message: `update_clip_effect: ${result.message} (parameter "${parameter}")`,
+        })
       }
       if (result.status === 'unchanged') continue
       current = result.record
