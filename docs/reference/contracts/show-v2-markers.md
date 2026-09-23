@@ -31,9 +31,10 @@ repair the preimage.
 
 The existing editor is to preserve the visible Marker set when a Show converts
 from v1. A chapter Marker newly created from a former Scene label carries
-`origin: 'converted-scene-label'`. An existing authored Marker that absorbs the
-same name/time chapter keeps its identity, color and editor visibility and does
-not acquire that origin. The origin is explicit conversion provenance, never
+`origin: 'converted-scene-label'`. An authored Marker that coincides with a Scene
+label (same name and time) is never absorbed into it: conversion mints the label
+beside it, and the authored Marker keeps its identity, color, role and editor
+visibility unchanged (#1068 ruling 1a). The origin is explicit conversion provenance, never
 inferred from a Marker ID, name, time or chapter role.
 
 The field exists so the existing editor can omit exactly these Markers from its
@@ -55,8 +56,8 @@ origin on an existing Marker. No editor control or text is added for provenance.
 
 This narrow contract extension was approved by Jon for #1065 after paired browser
 inspection showed converted Scene labels that the original editor did not draw.
-Required proof distinguishes newly created chapter Markers, absorbed authored
-Markers, authored IDs resembling conversion IDs, missing provenance, and unknown
+Required proof distinguishes newly created chapter Markers, authored Markers
+that coincide with a Scene label, authored IDs resembling conversion IDs, missing provenance, and unknown
 origin values, as well as unchanged chapter output and compiled playback. The
 timeline omission is proved by the existing-editor connection candidate that
 implements it.
@@ -72,11 +73,12 @@ refusal rather than a silently stripped field. Export and reopen through a v2
 `.pxlshow` bundle preserve the role exactly.
 
 V1 conversion marks every former Scene label as a chapter at its original global
-start. When a pre-existing Marker already has that exact name and time, the
-chapter is absorbed into it: identity, time, name and color stay exactly as
-authored and only the role is promoted, so no duplicate guide appears and the
-source accounting still maps those leaves to that Marker. Every other Marker
-stays general-purpose, including one at the same time with a different name.
+start, always as a newly minted Marker with conversion provenance. A pre-existing
+Marker with that exact name and time is left exactly as authored, role included,
+and its source leaves map to it unchanged. v1 has two things at such a start, a
+derived Scene start that moves under a boundary reclaim and an authored Marker
+that does not, and one v2 Marker cannot be both; the boundary repair moves only
+the minted label (#1068 ruling 1a). Every authored Marker stays general-purpose.
 
 `showChaptersV2(record)` in [`showChaptersV2.ts`](../../../src/engine/showChaptersV2.ts)
 is the Gallery, reading-card, Live and v2 pilot timeline projection. It selects `role: 'chapter'`
@@ -119,12 +121,10 @@ report the selected ID in `affectedMarkerIds`; removal also reports it in
 stay empty. Adoption owns clocks, history, save and revision checks.
 
 [Chapter tests](../../../src/engine/showChaptersV2.test.ts) cover the no-chapter,
-converted Scene label, absorbed same-name/time Marker, general Marker and
+converted Scene label, coinciding authored Marker, general Marker and
 equal-time partitions, the codec refusal, the `.pxlshow` round trip and identical
 compiled output. [Native catalogue tests](../../../src/pixelblaze/stock/showsV2.test.ts)
-assert every stock Show's chapters reproduce its legacy Scene arc, and
-[the pilot route spec](../../../e2e/show-v2-chapters.auth.spec.ts) drives
-absorption, role preservation and the saved-byte round trip in a real browser.
+assert every stock Show's chapters reproduce its legacy Scene arc.
 [Test design](../evidence/issue-1040-native-stock/test-design.json)
 records their partitions and fault-sensitivity checks.
 [Owner tests](../../../src/engine/showMarkersV2.test.ts) serialize/reopen records,
