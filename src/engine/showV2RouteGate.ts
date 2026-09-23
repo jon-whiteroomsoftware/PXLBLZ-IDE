@@ -22,9 +22,9 @@
  *   the Show list reads stored v2 documents beside v1 rows, and `.pxlshow`
  *   import accepts a version-2 bundle.
  * - `opensOnShowV2Route` answers, per routed Show, which record backs it. A
- *   stored v2 document backs the editor with the v2 pilot record; a row still
- *   stored as v1 keeps its v1 record until the operator conversion
- *   (`npm run show:v2-migrate`) rewrites it, because section 10 also forbids
+ *   stored v2 document or a native v2 built-in Show backs the editor with a
+ *   v2 pilot record; a row still stored as v1 keeps its v1 record until the
+ *   operator conversion (`npm run show:v2-migrate`) rewrites it, because section 10 also forbids
  *   migrating a row on read.
  *
  * The command side follows the same per-record answer: the agent binding the
@@ -62,6 +62,8 @@ export interface ShowV2RouteGateInput {
 export interface ShowV2RouteRecordInput extends ShowV2RouteGateInput {
   /** Whether a version-2 document is stored for this Show. */
   storedV2: boolean
+  /** Whether this built-in Show has a native version-2 catalogue record. */
+  stockV2?: boolean
 }
 
 export function isShowV2RouteEnabled(input: ShowV2RouteGateInput = {}): boolean {
@@ -74,7 +76,7 @@ export function isShowV2RouteEnabled(input: ShowV2RouteGateInput = {}): boolean 
 /** Whether this routed Show opens on the v2 editor rather than the v1 one. */
 export function opensOnShowV2Route(input: ShowV2RouteRecordInput): boolean {
   if (!isShowV2RouteEnabled(input)) return false
-  if (input.storedV2) return true
+  if (input.storedV2 || input.stockV2) return true
   return previewRequested(input, input.dev ?? developmentBuild())
 }
 

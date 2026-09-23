@@ -22,6 +22,7 @@ import {
 } from '@/store/controllerProfileStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import {
+  getPersonalContentProvider,
   initializePersonalContentProvider,
   resetPersonalContentProvider,
   setPersonalContentProvider,
@@ -208,6 +209,36 @@ describe('App smoke test', () => {
     expect(screen.getByRole('button', { name: 'Select Outgoing' })).toBeInTheDocument()
     expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
     expect(screen.queryByText('No show selected')).not.toBeInTheDocument()
+  })
+
+  it('opens a built-in Show as a session-only v2 lesson draft without a query flag (#1067)', async () => {
+    const id = 'stock-show-102-transitions-values'
+    const createShow = vi.fn(async () => {})
+    const createShowV2 = vi.fn(async () => {})
+    const replaceShowV2 = vi.fn(async () => {})
+    setPersonalContentProvider({
+      ...getPersonalContentProvider(),
+      id: 'stock-v2-route-test',
+      createShow,
+      createShowV2,
+      replaceShowV2,
+    })
+    setStudioLocation(`/studio/shows/${id}`)
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [], showsLoaded: true, activeShowId: null, showV2Rows: [], showV2Pilots: {} })
+
+    render(<App />)
+
+    expect(await screen.findByTestId('show-editor-scroll')).toBeInTheDocument()
+    await waitFor(() => expect(useShowStore.getState().showV2Pilots[id]?.version).toBe(2))
+    expect(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between ClockworkIris and EventHorizon',
+    })).toBeInTheDocument()
+    expect(useShowStore.getState().isShowV2LessonDraft(id)).toBe(true)
+    expect(useShowStore.getState().showV2Rows).toEqual([])
+    expect(createShow).not.toHaveBeenCalled()
+    expect(createShowV2).not.toHaveBeenCalled()
+    expect(replaceShowV2).not.toHaveBeenCalled()
   })
 
   it('leaves a row still stored as v1 on the v1 editor after the flip (#1039)', () => {

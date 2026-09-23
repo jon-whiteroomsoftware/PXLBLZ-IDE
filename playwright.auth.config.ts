@@ -27,11 +27,9 @@ export default defineConfig({
     baseURL: studioBaseUrl,
     trace: 'on-first-retry',
   },
-  // One project per run. `PXLBLZ_SHOW_BACKING=v2` runs the unmodified Show
-  // spec against v2-stored Shows (#1066, `npm run test:e2e:shows:v2`); the
-  // name separates that diagnostic's results from the ordinary v1 run. That
-  // run is expected red until #1066 connects the remaining editor commands and
-  // is deliberately absent from the required suites in `wrsp.config.mjs`.
+  // One project per run. The required Show suite uses `PXLBLZ_SHOW_BACKING=v2`
+  // against v2-stored Shows (#1067). `PXLBLZ_SHOW_BACKING=v1` runs the
+  // unconverted-row diagnostic; its project name stays `chromium`.
   projects: [
     {
       name: showBacking() === 'v2' ? 'chromium-shows-v2' : 'chromium',

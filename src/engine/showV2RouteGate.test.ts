@@ -16,12 +16,16 @@ describe('which editor a routed Show opens on', () => {
     expect(opensOnShowV2Route({ storedV2: true, dev: true, search: '' })).toBe(true)
   })
 
+  it('opens a built-in v2 Show without a query flag in production', () => {
+    expect(opensOnShowV2Route({ storedV2: false, stockV2: true, dev: false, search: '' })).toBe(true)
+  })
+
   it('leaves an unconverted v1 row on the v1 editor in a production build', () => {
     // Specification section 10: no migration on read. Until the operator
     // conversion rewrites the row, the editor that holds it is the v1 one, and
     // the command catalogue follows that same record version.
-    expect(opensOnShowV2Route({ storedV2: false, dev: false, search: '' })).toBe(false)
-    expect(opensOnShowV2Route({ storedV2: false, dev: false, search: '?show-v2-editor=1' })).toBe(false)
+    expect(opensOnShowV2Route({ storedV2: false, stockV2: false, dev: false, search: '' })).toBe(false)
+    expect(opensOnShowV2Route({ storedV2: false, stockV2: false, dev: false, search: '?show-v2-editor=1' })).toBe(false)
   })
 
   it('answers the development preview of an unconverted row exactly', () => {

@@ -2,18 +2,18 @@
  * Which stored record version backs the Shows the browser suite opens (#1066).
  *
  * `e2e/shows.auth.spec.ts` is the strongest available oracle for putting the
- * existing Show editor on the v2 backend, so it runs twice against one
- * unmodified set of test bodies. The backing is chosen here and reached only
- * through the authenticated fixture and that spec's own seeding and readback
- * helpers; no test body knows which run it is in.
+ * existing Show editor on the v2 backend. The required Show suite runs on v2;
+ * the unconverted-row diagnostic runs the same spec on v1. The backing is
+ * chosen here and reached only through the authenticated fixture and that
+ * spec's own seeding and readback helpers; no test body knows which run it is in.
  *
- * `PXLBLZ_SHOW_BACKING=v2` selects the v2 run (`npm run test:e2e:shows:v2`).
- * Anything else, including an unset variable, leaves the v1 run exactly as it
- * was.
+ * `PXLBLZ_SHOW_BACKING=v2` selects the required v2 run
+ * (`npm run test:e2e:shows`). `PXLBLZ_SHOW_BACKING=v1` selects the
+ * unconverted-row diagnostic (`npm run test:e2e:shows:v1`). An unset
+ * variable remains v1 for other authenticated suites.
  *
- * The v2 run is a diagnostic and is expected to fail until #1066 connects the
- * remaining editor commands. It is deliberately absent from the required
- * runner suites in `wrsp.config.mjs`.
+ * The v1 diagnostic gates nothing; the required v2 Show suite is named by
+ * `wrsp.config.mjs`.
  *
  * This module imports nothing from `src`: `playwright.auth.config.ts` and
  * `e2e/fixtures/authenticated.ts` both load it, and they typecheck in a

@@ -3,6 +3,7 @@ import { mapInitialState, useMapStore } from './mapStore'
 import { STOCK_SHOWS, stockShowById } from '@/pixelblaze/stock/shows'
 import { createDefaultShow, splitShowAtTime } from '@/engine/showModel'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
+import { validateShowRecordV2, type ShowRecordV2 } from '@/engine/showCompositionV2'
 import { validateShowComposition } from '@/engine/showCompositionModel'
 import {
   moveShowClipAtGlobalTime,
@@ -1468,7 +1469,11 @@ describe('showStore (#318)', () => {
   })
 
   it('edits show-local zones and creates a show from controller zones', async () => {
-    setPersonalContentProvider(memoryProvider())
+    const provider = memoryProvider()
+    const createShow = vi.spyOn(provider, 'createShow')
+    const createShowV2 = vi.fn(async (_record: ShowRecordV2) => {})
+    provider.createShowV2 = createShowV2
+    setPersonalContentProvider(provider)
 
     const show = await useShowStore.getState().createNewShow({
       outputContract: createPortableShowOutputContract({ referenceMapId: null, referencePixelCount: 60 }),
@@ -1496,6 +1501,7 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === show.cells[0].id)).toMatchObject({
       zoneSpan: 2,
     })
+    createShow.mockClear()
 
     const seeded = await useShowStore.getState().createShowFromController({
       id: 'controller-1',
@@ -1513,17 +1519,28 @@ describe('showStore (#318)', () => {
     // zone and its Default layout must cover the complete output, so the Show
     // compiles without manual range repair (review P2).
     expect(seeded.targetControllerProfileId).toBe('controller-1')
+    expect(seeded.version).toBe(2)
+    expect(validateShowRecordV2(seeded)).toEqual([])
     expect(seeded.zones.map((zone) => [zone.name, zone.nominalPixelCount])).toEqual([['main', 240]])
     expect(seeded.outputContract).toMatchObject({ kind: 'installation', pixelCount: 240 })
-    expect(seeded.routingLayouts[0].zones).toEqual([
+    expect(seeded.zoneLayouts[0].zones).toEqual([
       { zoneId: seeded.zones[0].id, ranges: [{ start: 0, end: 239 }] },
     ])
-    expect(validateInstallationCoverage(seeded)).toMatchObject({ valid: true, pixelCount: 240 })
+    expect(validateInstallationCoverage({ outputContract: seeded.outputContract, routingLayouts: seeded.zoneLayouts }))
+      .toMatchObject({ valid: true, pixelCount: 240 })
+    expect(createShowV2).toHaveBeenCalledExactlyOnceWith(seeded)
+    expect(createShow).not.toHaveBeenCalled()
+    expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toContain(seeded.id)
+    expect(useShowStore.getState().shows.map((row) => row.id)).toEqual([show.id])
     expect(useShowStore.getState().activeShowId).toBeNull()
   })
 
   it('seeds and persists a show stage map from controller imports', async () => {
-    setPersonalContentProvider(memoryProvider())
+    const provider = memoryProvider()
+    const createShow = vi.spyOn(provider, 'createShow')
+    const createShowV2 = vi.fn(async (_record: ShowRecordV2) => {})
+    provider.createShowV2 = createShowV2
+    setPersonalContentProvider(provider)
     useMapStore.setState({
       userMaps: [
         {
@@ -1577,9 +1594,36 @@ describe('showStore (#318)', () => {
     expect(seeded.stageMapId).toBe('map-new')
     // #775: without a last known pixel count the contract falls back to 60.
     expect(seeded.outputContract).toMatchObject({ kind: 'installation', pixelCount: 60 })
+    expect(createShowV2).toHaveBeenCalledExactlyOnceWith(seeded)
+    expect(createShow).not.toHaveBeenCalled()
+    expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toContain(seeded.id)
+    expect(useShowStore.getState().shows).toEqual([])
+  })
 
-    await useShowStore.getState().updateStageMap(seeded.id, null)
-    expect(useShowStore.getState().shows[0].stageMapId).toBeNull()
+  it('names a controller-seeded Show uniquely across v1 and v2 rows', async () => {
+    const provider = memoryProvider()
+    provider.createShowV2 = vi.fn(async (_record: ShowRecordV2) => {})
+    setPersonalContentProvider(provider)
+    await useShowStore.getState().createNewShow({
+      name: 'North Arch Show',
+      outputContract: createPortableShowOutputContract({ referenceMapId: null, referencePixelCount: 60 }),
+    })
+    await useShowStore.getState().createNewShowV2({
+      name: 'North Arch Show',
+      outputContract: createPortableShowOutputContract({ referenceMapId: null, referencePixelCount: 60 }),
+    })
+
+    const seeded = await useShowStore.getState().createShowFromController({
+      id: 'controller-1',
+      name: 'North Arch',
+      board: { kind: 'pixelblaze-v3-standard' },
+      inputs: [],
+      globalTransforms: [],
+      patternBindings: [],
+      updatedAt: 1,
+    })
+
+    expect(seeded.name).toBe('North Arch Show 2')
   })
 })
 

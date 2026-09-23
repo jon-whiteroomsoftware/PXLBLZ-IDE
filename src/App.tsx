@@ -94,6 +94,7 @@ import { useReferenceNavigationStore } from '@/store/referenceNavigationStore'
 import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { stockShowById } from '@/pixelblaze/stock/shows'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { applyShowPatternSlotSelections } from '@/engine/showReferenceShow'
 import { sourceForShowPatternRef } from '@/engine/showPreviewArtifact'
 import { bundledPatternSliderNames } from '@/engine/showPatternControls'
@@ -435,7 +436,10 @@ function StudioApp() {
   // registers carries the same answer, so a Show's editor and its commands are
   // never different versions.
   const routedShowOpensOnV2 = useCallback(
-    (showId: string) => opensOnShowV2Route({ storedV2: showV2Rows.some((row) => row.id === showId) }),
+    (showId: string) => opensOnShowV2Route({
+      storedV2: showV2Rows.some((row) => row.id === showId),
+      stockV2: stockShowV2ById(showId) !== undefined,
+    }),
     [showV2Rows],
   )
   const renameShow = useShowStore((s) => s.renameShow)

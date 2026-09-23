@@ -173,7 +173,7 @@ record:
 | --- | --- | --- |
 | a stored version-2 document | the v2 pilot record, in `ShowEditor` | the v2 catalogue |
 | a row storage still holds as v1 | the v1 record, in `ShowEditor` | the v1 catalogue |
-| a built-in Show (no stored document) | the v1 record, in `ShowEditor` | the v1 catalogue |
+| a built-in Show (no stored document) | the native v2 catalogue record (`STOCK_SHOWS_V2`), as a session-only lesson draft, in `ShowEditor` | the v2 catalogue |
 
 The second row is the transition state, and it is deliberate: specification
 section 10 forbids migrating a row on read as firmly as it forbids a window

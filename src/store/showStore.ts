@@ -221,7 +221,7 @@ interface ShowState {
   reloadShowV2Pilot: (showId: string) => Promise<ShowRecordV2 | null>
   loadShows: () => Promise<void>
   createNewShow: (input: { name?: string; outputContract: ShowOutputContract }) => Promise<ShowRecord>
-  createShowFromController: (profile: ControllerProfile) => Promise<ShowRecord>
+  createShowFromController: (profile: ControllerProfile) => Promise<ShowRecordV2>
   beginShowCreation: () => void
   cancelShowCreation: () => void
   openShow: (id: string | null) => Promise<void>
@@ -870,21 +870,23 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
 
   createShowFromController: async (profile) => {
     const id = newPersonalContentId()
-    const name = uniquePatternName(`${profile.name} Show`, get().shows.map((show) => show.name))
+    const taken = [...get().shows.map((show) => show.name), ...get().showV2Rows.map((row) => row.name)]
+    const name = uniquePatternName(`${profile.name} Show`, taken)
     const stageMapId = importedStageMapIdForController(profile, useMapStore.getState().userMaps)
     const pixelCount = profile.lastKnownPixelCount ?? 60
     // The single seeded zone and its Default layout must cover the contract's
     // complete output, so the Show compiles without manual range repair (#775
-    // review P2). createShowWithOutputContract sizes both from the contract.
+    // review P2). createShowV2WithOutputContract sizes both from the contract.
     const show = {
-      ...createShowWithOutputContract(
+      ...createShowV2WithOutputContract(
         id,
         name,
         createInstallationShowOutputContract({ outputMapId: stageMapId, pixelCount }),
       ),
       targetControllerProfileId: profile.id,
     }
-    await get().addShow(show)
+    await get().addImportedShowV2(show)
+    trackEntityCreated('show')
     return show
   },
 

@@ -916,9 +916,10 @@ since #1065 a stored version-2 document opens in the same `ShowEditor` every
 other Show opens in, ungated. What follows the Show's stored version is the
 *record* that editor reads, because nothing in the application converts a stored
 row: a version-2 document backs the editor with its converted pilot record, and
-a row still stored as version 1 - like every built-in Show, which has no stored
-document at all - keeps its version-1 record, its command vocabulary and its
-behavior until the operator conversion below rewrites it. Until #1066 connects
+a row still stored as version 1 keeps its version-1 record, its command
+vocabulary and its behavior until the operator conversion below rewrites it.
+A built-in Show opens on its native version-2 catalogue record as a session-only
+lesson draft that writes nothing (#1067). Until #1066 connects
 the remaining edits, a version-2 record in that editor has only the ordinary
 Clip move connected; every other command is fenced to an internal no-change
 result. `?show-v2-editor=1` remains a development-only preview of an
