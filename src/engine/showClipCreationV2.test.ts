@@ -128,6 +128,74 @@ it('creates one exactly placed Clip and explicit first runtime in an empty Show 
   expect(requested).toEqual(beforeIntent)
 })
 
+it('extends Show End for a Clip starting exactly at Show End (#1091)', () => {
+  const record = emptyFixture()
+  const showEndMs = record.composition.showEndMs
+  const requested = intent(record)
+  requested.clip.startMs = showEndMs
+  requested.clip.appearance.keys[0].timeMs = showEndMs
+  Object.assign(requested, { extendShowEnd: true })
+  const before = structuredClone(record)
+  const beforeIntent = structuredClone(requested)
+  const result = createShowClipV2(record, requested)
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  if (result.status !== 'changed') throw new Error('Expected a changed record.')
+  expect(record).toEqual(before)
+  expect(requested).toEqual(beforeIntent)
+  expect(result.record.composition.showEndMs).toBe(showEndMs + requested.clip.durationMs)
+  const orderedBefore = [...before.composition.layoutOccurrences]
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+  const orderedAfter = [...result.record.composition.layoutOccurrences]
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+  expect(orderedAfter.length).toBe(orderedBefore.length)
+  for (const [index, occurrence] of orderedBefore.entries()) {
+    if (index < orderedBefore.length - 1) expect(orderedAfter[index]).toEqual(occurrence)
+  }
+  const lastBefore = orderedBefore[orderedBefore.length - 1]
+  const lastAfter = orderedAfter[orderedAfter.length - 1]
+  expect(lastAfter.id).toBe(lastBefore.id)
+  expect(lastAfter.startMs).toBe(lastBefore.startMs)
+  expect(lastAfter.durationMs).toBe(lastBefore.durationMs + requested.clip.durationMs)
+  const expected = structuredClone(before)
+  expected.composition.showEndMs = showEndMs + requested.clip.durationMs
+  expected.composition.layoutOccurrences.find((occurrence) => occurrence.id === lastBefore.id)!.durationMs += requested.clip.durationMs
+  expected.composition.patternInstances = [beforeIntent.runtime.kind === 'first' ? beforeIntent.runtime.instance : fixture().composition.patternInstances[0]]
+  expected.composition.clips = [{ ...beforeIntent.clip, instanceId: 'new-runtime' }]
+  expected.composition.executionModel = 'continuous'
+  expect(reopen(result.record)).toEqual(expected)
+  expect(result.record.composition.clips).toHaveLength(before.composition.clips.length + 1)
+  expect(record).toEqual(before)
+})
+
+it('refuses extendShowEnd when the Clip starts before Show End (#1091)', () => {
+  const record = emptyFixture()
+  const requested = intent(record)
+  Object.assign(requested, { extendShowEnd: true })
+  const before = structuredClone(record)
+  const result = createShowClipV2(record, requested)
+  expect(result.status).toBe('refused')
+  if (result.status !== 'refused') throw new Error('Expected a refusal.')
+  expect(result.code).toBe('invalid-intent')
+  expect(result.message).toBe('Only a Clip placed exactly at Show End can extend the Show.')
+  expect(result.record).toBe(record)
+  expect(record).toEqual(before)
+  emptyAffected(result)
+})
+
+it.each([false, 0, 1, 'true', null] as const)('refuses non-true extendShowEnd %j as invalid-intent (#1091)', (value) => {
+  const record = emptyFixture()
+  const requested = intent(record)
+  Object.assign(requested, { extendShowEnd: value })
+  const before = structuredClone(record)
+  const result = createShowClipV2(record, requested)
+  expect(result.status).toBe('refused')
+  if (result.status !== 'refused') throw new Error('Expected a refusal.')
+  expect(result.code).toBe('invalid-intent')
+  expect(result.record).toBe(record)
+  expect(record).toEqual(before)
+  emptyAffected(result)
+})
+
 it('reuses a sole matching dormant top-level runtime without changing its values, tracks or lifecycle', () => {
   const record = fixture()
   record.composition.clips = []

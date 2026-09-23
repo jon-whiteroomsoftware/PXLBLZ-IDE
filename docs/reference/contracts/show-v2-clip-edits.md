@@ -323,7 +323,10 @@ setup. Placement includes an explicit Zone, Layer, safe integer start/duration,
 entry policy and sampling, plus exactly one complete appearance key at Clip start.
 The caller supplies fresh Clip/key IDs and, for first setup, a fresh runtime ID and
 authoritative payload matching the requested source reference. The engine never
-infers a destination, clamps time, extends Show End or creates a Layer/Transition.
+infers a destination, clamps time, or creates a Layer/Transition. It extends Show End
+only when the intent carries `extendShowEnd: true` and the Clip starts exactly at the
+current Show End, as v1's Add Clip at Show End does; the last Layout occurrence then
+grows to the Clip's end in the same edit (#1091).
 
 Canonical §4 governs allocation. A sole existing source-identity runtime is reused;
 multiple runtimes require an explicit matching ID; zero matches permits first

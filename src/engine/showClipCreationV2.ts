@@ -2,7 +2,7 @@ import { validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './show
 import type { ShowPatternInstance, ShowPatternRef } from './personalContentRecords'
 import type { ShowClipEditRefusalV2, ShowClipEditResultV2 } from './showClipsV2'
 import { materializeShowGroupsV2, defaultGroupRuntimeIdV2 } from './showGroupsV2'
-import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
+import { editShowLayoutIntervalsV2, validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
 
 export interface CreateShowClipIntentV2 {
@@ -10,6 +10,7 @@ export interface CreateShowClipIntentV2 {
   patternReference: ShowPatternRef
   clip: Omit<ShowClipV2, 'instanceId'>
   runtime: { kind: 'existing'; instanceId?: string } | { kind: 'first'; instance: ShowPatternInstance }
+  extendShowEnd?: true
 }
 
 export type ShowClipCreationResultV2 = ShowClipEditResultV2 & {
@@ -34,7 +35,11 @@ export function createShowClipV2(record: ShowRecordV2, intent: CreateShowClipInt
     && (clipValue as { logicalClipId?: unknown }).logicalClipId !== undefined) {
     return refuse('invalid-intent', 'A created Clip cannot author conversion provenance.')
   }
-  if (!exact(intent, ['kind', 'patternReference', 'clip', 'runtime']) || intent.kind !== 'create-clip'
+  const extendShowEnd: unknown = object(intent) ? (intent as { extendShowEnd?: unknown }).extendShowEnd : undefined
+  if (object(intent) && Object.prototype.hasOwnProperty.call(intent, 'extendShowEnd') && extendShowEnd !== true) {
+    return refuse('invalid-intent', 'extendShowEnd must be true when present.')
+  }
+  if (!exact(intent, extendShowEnd === true ? ['kind', 'patternReference', 'clip', 'runtime', 'extendShowEnd'] : ['kind', 'patternReference', 'clip', 'runtime']) || intent.kind !== 'create-clip'
     || !exact(intent.patternReference, ['kind', 'id']) || !['stock', 'user'].includes(intent.patternReference.kind)
     || typeof intent.patternReference.id !== 'string' || !intent.patternReference.id.trim()
     || !exact(intent.clip, ['id', 'zoneId', 'layerId', 'startMs', 'durationMs', 'entryPolicy', 'zoneSampleMode', 'appearance'])
@@ -44,13 +49,23 @@ export function createShowClipV2(record: ShowRecordV2, intent: CreateShowClipInt
     return refuse('invalid-intent', 'Supply an exact Clip placement and one complete appearance key at its start.')
   }
   const clip = intent.clip
+  // v1's Add Clip at Show End grows the Show first via addShowClipAtGlobalTimeExtendingShow; v2 extends here only on explicit request (#1091).
+  let base = record
+  if (extendShowEnd === true) {
+    if (clip.startMs !== record.composition.showEndMs) {
+      return refuse('invalid-intent', 'Only a Clip placed exactly at Show End can extend the Show.')
+    }
+    const extended = editShowLayoutIntervalsV2(record, { kind: 'set-show-end', showEndMs: clip.startMs + clip.durationMs })
+    if (extended.status === 'refused') return refuse('invalid-result', extended.message)
+    base = extended.record
+  }
   const endMs = clip.startMs + clip.durationMs
   if (!Number.isSafeInteger(clip.startMs) || clip.startMs < 0 || !Number.isSafeInteger(clip.durationMs) || clip.durationMs <= 0
-    || !Number.isSafeInteger(endMs) || endMs > record.composition.showEndMs) return refuse('invalid-intent', 'Clip interval must use safe integer milliseconds within Show End.')
-  const effective = materializeShowGroupsV2(record)
-  const used = ownedIds(record)
+    || !Number.isSafeInteger(endMs) || endMs > base.composition.showEndMs) return refuse('invalid-intent', 'Clip interval must use safe integer milliseconds within Show End.')
+  const effective = materializeShowGroupsV2(base)
+  const used = ownedIds(base)
   ownedIds(effective).forEach(id => used.add(id))
-  record.composition.groupDefinitions.forEach(definition => definition.patternInstances.forEach(slot => used.add(defaultGroupRuntimeIdV2(definition.id, slot.id))))
+  base.composition.groupDefinitions.forEach(definition => definition.patternInstances.forEach(slot => used.add(defaultGroupRuntimeIdV2(definition.id, slot.id))))
   const matches = effective.composition.patternInstances.filter(instance => instance.pattern.kind === intent.patternReference.kind && instance.pattern.id === intent.patternReference.id)
   let instance: ShowPatternInstance
   let firstRuntime = false
@@ -72,7 +87,7 @@ export function createShowClipV2(record: ShowRecordV2, intent: CreateShowClipInt
   } else return refuse('invalid-intent', 'Supply existing-runtime selection or explicit first setup with the requested Pattern source identity.')
   const ids = [clip.id, clip.appearance.keys[0].id, ...(firstRuntime ? [instance.id] : [])]
   if (ids.some(id => typeof id !== 'string' || !id.trim() || used.has(id)) || new Set(ids).size !== ids.length) return refuse('invalid-intent', 'Clip, appearance and first-runtime identities must be fresh and nonblank.')
-  const next = structuredClone(record)
+  const next = structuredClone(base)
   const needsRecord = !next.composition.patternInstances.some(candidate => candidate.id === instance.id)
   if (needsRecord) next.composition.patternInstances.push(structuredClone(instance))
   if (firstRuntime) next.composition.executionModel = 'continuous'

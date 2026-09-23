@@ -15,6 +15,7 @@ export interface ShowV2ClipAddPlanReady {
   layerId: string
   startMs: number
   durationMs: number
+  extendsShowEnd: boolean
 }
 
 export interface ShowV2ClipAddPlanRefused {
@@ -86,6 +87,9 @@ export function planShowV2ClipAtTime(record: ShowRecordV2, input: ShowV2ClipAddL
     return { enabled: false, reason: 'The selected Layer already has a Clip at the playhead.' }
   }
   const defaultDurationMs = Math.max(1, Math.round(input.defaultDurationMs ?? 5_000))
+  if (startMs === showEndMs) {
+    return { enabled: true, zoneId: input.zoneId, layerId: input.layerId, startMs, durationMs: defaultDurationMs, extendsShowEnd: true }
+  }
   const nextClipStartMs = layerClips
     .filter((clip) => clip.startMs > startMs)
     .reduce((nearest, clip) => Math.min(nearest, clip.startMs), Number.POSITIVE_INFINITY)
@@ -96,7 +100,7 @@ export function planShowV2ClipAtTime(record: ShowRecordV2, input: ShowV2ClipAddL
   if (roomMs < 1) {
     return { enabled: false, reason: 'There is no empty time on the selected Layer.' }
   }
-  return { enabled: true, zoneId: input.zoneId, layerId: input.layerId, startMs, durationMs: Math.min(defaultDurationMs, roomMs) }
+  return { enabled: true, zoneId: input.zoneId, layerId: input.layerId, startMs, durationMs: Math.min(defaultDurationMs, roomMs), extendsShowEnd: false }
 }
 
 export function planShowV2ClipAtTopmostAvailableLayer(
@@ -155,6 +159,7 @@ export function createShowV2AddClipIntent(
     clipId: ids.clipId,
     intent: {
       kind: 'create-clip',
+      ...(plan.extendsShowEnd ? { extendShowEnd: true as const } : {}),
       patternReference: { ...entry.reference },
       clip: {
         id: ids.clipId,

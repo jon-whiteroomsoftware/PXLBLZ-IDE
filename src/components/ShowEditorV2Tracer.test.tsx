@@ -7163,6 +7163,36 @@ describe('v2 Add Clip (#1090 slice B)', () => {
     expect(command).toBeDisabled()
     expectNoWrite(before, editor.state())
   })
+
+  it('adds a Clip at Show End and extends the Show on v2 (#1091)', async () => {
+    const user = userEvent.setup()
+    const editor = openV2Editor('add-clip-show-end')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const showEndMs = before.record.composition.showEndMs
+    act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: showEndMs }))
+
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const command = screen.getByRole('menuitem', { name: 'Clip' })
+    expect(command).toBeEnabled()
+    await user.click(command)
+    const dialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
+    await user.click(within(dialog).getByRole('combobox', { name: 'Pattern for new Clip' }))
+    await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
+
+    await waitFor(() => {
+      expect(editor.state().record.composition.clips).toHaveLength(before.record.composition.clips.length + 1)
+    })
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotCreateClip'])
+    const beforeIds = new Set(before.record.composition.clips.map((clip) => clip.id))
+    const added = after.record.composition.clips.filter((clip) => !beforeIds.has(clip.id))
+    expect(added).toHaveLength(1)
+    expect(added[0].startMs).toBe(showEndMs)
+    expect(after.record.composition.showEndMs).toBe(showEndMs + added[0].durationMs)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
 })
 // ── Slice C: Marker editing, Insert Time and Add Layer reach their v2 doors (#1090) ──
 // The ruler Marker source, the Marker lane gestures, Add → Time and Add →
