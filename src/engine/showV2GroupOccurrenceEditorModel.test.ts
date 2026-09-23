@@ -319,6 +319,40 @@ it('matches the v1-then-convert oracle for a Group Clip Viewport enable (#1075 G
   expect({ ...applied.record, updatedAt: 0 }.composition.groupDefinitions).toEqual({ ...convertedEdited.record, updatedAt: 0 }.composition.groupDefinitions)
 })
 
+it('exposes removedControls when a Group child untick removes a laned control (#1069)', () => {
+  const record = g2bConvertedBefore()
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === 'occ-1')!
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const child = definition.clips.find(value => value.id === 'clip-main')!
+  const slot = definition.patternInstances.find(value => value.id === child.instanceId)!
+  slot.controlTargets = { speedTest: 0.5 }
+  definition.propertyTracks.push({ id: 'lane-speed', target: { kind: 'instance-control', instanceId: slot.id, exportName: 'speedTest' },
+    activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'lane-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lane-speed-b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] })
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'set-child-inspector-patch', occurrenceId: occurrence.id, clipId: child.id, patch: { simulation: { controlTargets: {} } },
+  }, () => 'unused')
+  expect(plan.status).toBe('ready')
+  if (plan.status !== 'ready' || plan.intent.kind !== 'write-definition-instance-properties') throw Error('plan')
+  expect(plan.intent.properties).toEqual({ remove_controls: ['speedTest'] })
+  expect(plan.removedControls).toEqual([{ exportName: 'speedTest', label: 'speedTest' }])
+})
+
+it('exposes no removedControls when a Group child untick removes an unlaned control (#1069)', () => {
+  const record = g2bConvertedBefore()
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === 'occ-1')!
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const child = definition.clips.find(value => value.id === 'clip-main')!
+  const slot = definition.patternInstances.find(value => value.id === child.instanceId)!
+  slot.controlTargets = { speedTest: 0.5 }
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'set-child-inspector-patch', occurrenceId: occurrence.id, clipId: child.id, patch: { simulation: { controlTargets: {} } },
+  }, () => 'unused')
+  expect(plan.status).toBe('ready')
+  if (plan.status !== 'ready' || plan.intent.kind !== 'write-definition-instance-properties') throw Error('plan')
+  expect(plan.intent.properties).toEqual({ remove_controls: ['speedTest'] })
+  expect(plan.removedControls).toEqual([])
+})
+
 it('refuses Group Clip Pattern and entry-policy patches without an intent (#1075 G2b)', () => {
   const record = g2bConvertedBefore()
   const before = structuredClone(record)

@@ -459,7 +459,7 @@ import { FieldActivityContext, createFieldActivityScope, useFieldActivity } from
 import { captureShowStageEditV2, showV2ClipRestartAvailabilityV2, type ShowPreparedStageEditCaptureV2 } from '@/engine/showPreparedStageV2'
 import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
-import { groupOccurrenceDuration, materializeShowGroupsV2 } from '@/engine/showGroupsV2'
+import { defaultGroupRuntimeIdV2, groupOccurrenceDuration, materializeShowGroupsV2 } from '@/engine/showGroupsV2'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import {
   completeShowGroupSelectionV2,
@@ -1057,10 +1057,9 @@ type PendingV2Replacement = {
 } & ({ kind: 'clip' } | { kind: 'group-clip'; occurrenceId: string })
 
 type PendingV2ControlRemoval = {
-  clipId: string
   patch: ShowClipInspectorPatch
   lost: Array<{ exportName: string; label: string }>
-}
+} & ({ kind: 'clip'; clipId: string } | { kind: 'group-clip'; occurrenceId: string; clipId: string })
 
 function ShowLiveStrip({
   note,
@@ -2204,14 +2203,22 @@ export function ShowEditor({
     if (!pending || recordVersion !== 2 || !savedShowV2 || readOnly) return
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    if (pending.kind === 'group-clip') {
+      const plan = planShowV2GroupOccurrenceEdit(capture.record,
+        { kind: 'set-child-inspector-patch', occurrenceId: pending.occurrenceId, clipId: pending.clipId, patch: pending.patch },
+        newPersonalContentId)
+      if (plan.status !== 'ready') return
+      void commitV2GroupOccurrenceEdit({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+      return
+    }
     const instanceId = capture.record.composition.clips.find((clip) => clip.id === pending.clipId)?.instanceId
     const controls = instanceId ? patternControlsByInstanceIdRef.current[instanceId] ?? [] : []
     const plan = planShowV2ClipInspectorPatch(capture.record, pending.clipId, pending.patch,
       { controlLabels: Object.fromEntries(controls.map((control) => [control.exportName, control.label])) })
     if (plan.kind !== 'instance-properties') return
-    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     void commitV2InstanceProperties({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
-  }, [commitV2InstanceProperties, pendingV2ControlRemoval, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2GroupOccurrenceEdit, commitV2InstanceProperties, pendingV2ControlRemoval, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 connects Show End through the same plumbing: one accepted write
   // is one history entry and one save. The drag preview never writes and the
   // commit never reads preview state, so a keyboard set with no drag still
@@ -2345,7 +2352,7 @@ export function ShowEditor({
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     if (plan.kind === 'instance-properties' && plan.removedControls.length > 0) {
       const labels = new Map(inspectorControls.map((control) => [control.exportName, control.label]))
-      setPendingV2ControlRemoval({ clipId, patch,
+      setPendingV2ControlRemoval({ kind: 'clip', clipId, patch,
         lost: plan.removedControls.map(({ exportName, label }) => ({ exportName, label: labels.get(exportName) ?? label })) })
       return false
     }
@@ -2608,6 +2615,19 @@ export function ShowEditor({
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2GroupOccurrenceEdit(capture.record, request, newPersonalContentId)
     if (plan.status !== 'ready') return false
+    if (request.kind === 'set-child-inspector-patch' && (plan.removedControls?.length ?? 0) > 0) {
+      const occurrence = capture.record.composition.groupOccurrences.find((candidate) => candidate.id === request.occurrenceId)
+      const definition = capture.record.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)
+      const child = definition?.clips.find((candidate) => candidate.id === request.clipId)
+      const effectiveInstanceId = occurrence && definition && child
+        ? occurrence.instanceBindings?.[child.instanceId] ?? defaultGroupRuntimeIdV2(definition.id, child.instanceId)
+        : undefined
+      const controls = effectiveInstanceId ? patternControlsByInstanceIdRef.current[effectiveInstanceId] ?? [] : []
+      const labels = new Map(controls.map((control) => [control.exportName, control.label]))
+      setPendingV2ControlRemoval({ kind: 'group-clip', occurrenceId: request.occurrenceId, clipId: request.clipId, patch: request.patch,
+        lost: plan.removedControls!.map(({ exportName, label }) => ({ exportName, label: labels.get(exportName) ?? label })) })
+      return false
+    }
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     const intent = plan.intent
     return commitV2GroupOccurrenceEdit({ capture, baseRevision, intent }).then((applied) => {

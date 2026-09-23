@@ -3669,6 +3669,88 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect(editor.state().v2Writes).toBe(before.v2Writes)
   })
 
+  it('a Group child untick of a laned control confirms before removing the definition lane (#1069)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-control-remove-lane'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) {
+      instance.pattern = { kind: 'stock', id: 'CometLoom' }
+      instance.patternName = 'CometLoom'
+      delete instance.controlTargets
+    }
+    const definition = record.composition.groupDefinitions[0]!
+    definition.patternInstances[0]!.controlTargets = { sliderSpeed: 0.5 }
+    const boundInstanceId = record.composition.groupOccurrences[0]!.instanceBindings?.[definition.patternInstances[0]!.id]
+    record.composition.patternInstances.find((instance) => instance.id === boundInstanceId)!.controlTargets = { sliderSpeed: 0.5 }
+    definition.propertyTracks.push({ id: 'lane-speed', target: { kind: 'instance-control', instanceId: definition.patternInstances[0]!.id, exportName: 'sliderSpeed' },
+      activeStartMs: 0, activeDurationMs: 400, keyframes: [{ id: 'lane-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lane-speed-b', timeMs: 400, value: 0.8, easing: { curve: 'linear' } }] })
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    showTab('Pattern')
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Remove Speed control?' })
+    expect(dialog).toHaveTextContent('The Speed animation will be removed.')
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Speed' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(admission.calls).toHaveLength(1)
+    expect(after.record.composition.groupDefinitions[0]!.patternInstances[0]!.controlTargets).toBeUndefined()
+    expect(after.record.composition.groupDefinitions[0]!.propertyTracks.some((track) => track.id === 'lane-speed')).toBe(false)
+    expectOneEdit(before, after)
+    expect(legacy.calls).toEqual([])
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('cancelling a Group child control-target removal writes nothing (#1069)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-control-remove-cancel'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) {
+      instance.pattern = { kind: 'stock', id: 'CometLoom' }
+      instance.patternName = 'CometLoom'
+      delete instance.controlTargets
+    }
+    const definition = record.composition.groupDefinitions[0]!
+    definition.patternInstances[0]!.controlTargets = { sliderSpeed: 0.5 }
+    const boundInstanceId = record.composition.groupOccurrences[0]!.instanceBindings?.[definition.patternInstances[0]!.id]
+    record.composition.patternInstances.find((instance) => instance.id === boundInstanceId)!.controlTargets = { sliderSpeed: 0.5 }
+    definition.propertyTracks.push({ id: 'lane-speed', target: { kind: 'instance-control', instanceId: definition.patternInstances[0]!.id, exportName: 'sliderSpeed' },
+      activeStartMs: 0, activeDurationMs: 400, keyframes: [{ id: 'lane-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lane-speed-b', timeMs: 400, value: 0.8, easing: { curve: 'linear' } }] })
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    showTab('Pattern')
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Remove Speed control?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+    expect(editor.state().history).toEqual(before.history)
+    expect(editor.state().v2Writes).toBe(before.v2Writes)
+  })
+
   it('checks and clears the stutter clock through the instance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-stutter'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)

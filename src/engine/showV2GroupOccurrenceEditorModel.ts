@@ -2,6 +2,7 @@ import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
 import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, EditShowGroupDefinitionClipAppearanceIntentV2, InsertShowGroupDefinitionLayerTransitionIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, ResizeShowGroupDefinitionLayerTransitionIntentV2, SetShowGroupDefinitionClipTimingIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2, WriteShowGroupDefinitionInstancePropertiesIntentV2 } from './showGroupEditsV2'
 import { groupDefinitionAsRecord, groupOccurrenceDuration, groupOccurrenceLocalTimeAtV2, occurrenceBoundaryAfter } from './showGroupsV2'
 import { planShowV2ClipInspectorPatch } from './showV2ClipAppearancePlanning'
+import type { ShowV2RemovedControlTarget } from './showV2ClipAppearancePlanning'
 import type { ShowClipInspectorPatch } from './showClipInspectorModel'
 import { planShowV2GroupLayerTransitionInsertion } from './showV2LayerTransitionInsertion'
 import { showTransitionChangesForPresentation } from './showTransitionAuthoring'
@@ -54,7 +55,7 @@ function groupInsertKindSettings(
 
 /** Plans only explicit placement/identities. Existing pure owners validate choreography. */
 export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: ShowV2GroupOccurrenceRequest, allocate: () => string):
-  { status: 'ready'; intent: ShowV2GroupOccurrenceIntent } | { status: 'refused'; message: string } {
+  { status: 'ready'; intent: ShowV2GroupOccurrenceIntent; removedControls?: ShowV2RemovedControlTarget[] } | { status: 'refused'; message: string } {
   const occurrence = record.composition.groupOccurrences.find(value => value.id === request.occurrenceId)
   if (!occurrence) return { status: 'refused', message: 'Select an existing Group occurrence.' }
   const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
@@ -124,7 +125,7 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
           clipId: plan.intent.clipId,
           properties: plan.intent.properties,
         }
-        return { status: 'ready', intent }
+        return { status: 'ready', intent, removedControls: plan.removedControls }
       }
       if (plan.kind === 'replacement') return { status: 'refused', message: 'Changing a Group Clip\'s Pattern is not connected yet.' }
       if (plan.kind === 'refuse') return { status: 'refused', message: plan.message }
