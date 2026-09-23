@@ -52,7 +52,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
 import { ShowLossConfirmDialog } from '@/components/ShowLossConfirmDialog'
-import { describeConnectedClipMoveLoss, describeControlTargetRemovalLoss, describePatternReplacementCost, describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
+import { describeConnectedClipMoveLoss, describeControlTargetRemovalLoss, describeHeldSegmentOverwrite, describePatternReplacementCost, describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { showRecordClipCount } from '@/engine/showClipInvariant'
 import { isAlreadyPushed, type SendMode } from '@/engine/sendToController'
@@ -1061,6 +1061,12 @@ type PendingV2ControlRemoval = {
   lost: Array<{ exportName: string; label: string }>
 } & ({ kind: 'clip'; clipId: string } | { kind: 'group-clip'; occurrenceId: string; clipId: string })
 
+type PendingV2HeldSegmentOverwrite = {
+  clipId: string
+  patch: ShowClipInspectorPatch
+  segmentCount: number
+}
+
 function ShowLiveStrip({
   note,
   showId,
@@ -1376,6 +1382,7 @@ export function ShowEditor({
   const [pendingPatternSlotSelection, setPendingPatternSlotSelection] = useState<PendingPatternSlotSelection | null>(null)
   const [pendingV2Replacement, setPendingV2Replacement] = useState<PendingV2Replacement | null>(null)
   const [pendingV2ControlRemoval, setPendingV2ControlRemoval] = useState<PendingV2ControlRemoval | null>(null)
+  const [pendingV2HeldSegmentOverwrite, setPendingV2HeldSegmentOverwrite] = useState<PendingV2HeldSegmentOverwrite | null>(null)
   const patternControlsByInstanceIdRef = useRef<Record<string, AutomatablePatternControl[]>>({})
   const [blockedDeleteFeedback, setBlockedDeleteFeedback] = useState<BlockedDeleteFeedback | null>(null)
   const blockedDeleteFeedbackSequenceRef = useRef(0)
@@ -1583,6 +1590,7 @@ export function ShowEditor({
     setPendingPatternSlotSelection(null)
     setPendingV2Replacement(null)
     setPendingV2ControlRemoval(null)
+    setPendingV2HeldSegmentOverwrite(null)
     setBlockedDeleteFeedback(null)
     setIsolatedGroupOccurrenceId(null)
     pendingDeliveryRef.current = null
@@ -2219,6 +2227,17 @@ export function ShowEditor({
     if (plan.kind !== 'instance-properties') return
     void commitV2InstanceProperties({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
   }, [commitV2GroupOccurrenceEdit, commitV2InstanceProperties, pendingV2ControlRemoval, readOnly, recordVersion, savedShowV2, showId])
+  const confirmV2HeldSegmentOverwrite = useCallback(() => {
+    const pending = pendingV2HeldSegmentOverwrite
+    setPendingV2HeldSegmentOverwrite(null)
+    if (!pending || recordVersion !== 2 || !savedShowV2 || readOnly) return
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return
+    const plan = planShowV2ClipInspectorPatch(capture.record, pending.clipId, pending.patch)
+    if (plan.kind !== 'appearance') return
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    void commitV2ClipAppearance({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+  }, [commitV2ClipAppearance, pendingV2HeldSegmentOverwrite, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 connects Show End through the same plumbing: one accepted write
   // is one history entry and one save. The drag preview never writes and the
   // commit never reads preview state, so a keyboard set with no drag still
@@ -2350,6 +2369,10 @@ export function ShowEditor({
       return false
     }
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    if (plan.kind === 'appearance' && plan.overwritesHeldSegments) {
+      setPendingV2HeldSegmentOverwrite({ clipId, patch, segmentCount: plan.overwritesHeldSegments })
+      return false
+    }
     if (plan.kind === 'instance-properties' && plan.removedControls.length > 0) {
       const labels = new Map(inspectorControls.map((control) => [control.exportName, control.label]))
       setPendingV2ControlRemoval({ kind: 'clip', clipId, patch,
@@ -4001,6 +4024,14 @@ export function ShowEditor({
           : { title: '', description: '', actionLabel: '' })}
         onCancel={() => setPendingV2ControlRemoval(null)}
         onConfirm={confirmV2ControlRemoval}
+      />
+      <ShowLossConfirmDialog
+        open={pendingV2HeldSegmentOverwrite !== null}
+        {...(pendingV2HeldSegmentOverwrite
+          ? describeHeldSegmentOverwrite(pendingV2HeldSegmentOverwrite.segmentCount)
+          : { title: '', description: '', actionLabel: '' })}
+        onCancel={() => setPendingV2HeldSegmentOverwrite(null)}
+        onConfirm={confirmV2HeldSegmentOverwrite}
       />
       {readOnly && !builtInContext?.note && (
         <div className="flex shrink-0 items-start gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">

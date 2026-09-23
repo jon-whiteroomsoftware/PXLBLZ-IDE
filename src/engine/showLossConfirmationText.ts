@@ -64,3 +64,11 @@ export function describeControlTargetRemovalLoss(
     actionLabel: 'Remove controls',
   }
 }
+
+export function describeHeldSegmentOverwrite(segmentCount: number): { title: string; description: string; actionLabel: string } {
+  return {
+    title: 'Change every segment?',
+    description: `This Clip has ${segmentCount} held segments. This change applies to all of them.`,
+    actionLabel: 'Change all segments',
+  }
+}

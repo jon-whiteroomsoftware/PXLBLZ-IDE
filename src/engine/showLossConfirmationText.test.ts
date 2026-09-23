@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeConnectedClipMoveLoss, describeControlTargetRemovalLoss, describePatternReplacementCost, describePatternReplacementLoss, formatControlNameList } from './showLossConfirmationText'
+import { describeConnectedClipMoveLoss, describeControlTargetRemovalLoss, describeHeldSegmentOverwrite, describePatternReplacementCost, describePatternReplacementLoss, formatControlNameList } from './showLossConfirmationText'
 
 it('describes the picker cost for animated, value, mixed, and empty losses', () => {
   expect(describePatternReplacementCost([{ animated: true }])).toBe('removes 1 property lane')
@@ -70,5 +70,13 @@ describe('control-target removal confirmation (#1069)', () => {
       description: 'The Speed, Hue, and Gain animations will be removed.',
       actionLabel: 'Remove controls',
     })
+  })
+})
+
+it('names the held segments changed by a whole-Clip write (#1069)', () => {
+  expect(describeHeldSegmentOverwrite(3)).toEqual({
+    title: 'Change every segment?',
+    description: 'This Clip has 3 held segments. This change applies to all of them.',
+    actionLabel: 'Change all segments',
   })
 })

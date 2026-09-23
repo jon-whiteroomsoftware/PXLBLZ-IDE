@@ -3473,6 +3473,18 @@ async function authoredClipValue(showId: string, clipId: string) {
 }
 
 describe('v2 clip appearance (#1066 slice 3)', () => {
+  function multiSegmentAppearanceRecord(id: string): ShowRecordV2 {
+    const record = connectedV2Record(id)
+    const clip = record.composition.clips.find(candidate => candidate.id === 'overlay-a')!
+    const first = clip.appearance.keys[0]
+    clip.appearance.keys = [0, 1, 2].map(index => ({
+      ...structuredClone(first), id: `overlay-appearance-${index}`, timeMs: first.timeMs + index * 500,
+      value: { ...structuredClone(first.value), view: { ...first.value.view, brightness: 1 - index / 5 } },
+    }))
+    expect(validateShowRecordV2(record)).toEqual([])
+    return record
+  }
+
   it('stores header Brightness through the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-brightness'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
@@ -3491,6 +3503,55 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect((await authoredClipValue(editor.showId, 'overlay-a')).view.brightness).toBe(0.63)
     expectOneEdit(before, after)
     await expectUndoRedoExact(editor, before)
+  })
+
+  it('a whole-Clip Brightness write on a multi-segment Clip confirms, then writes every segment (#1069)', async () => {
+    const editor = openV2EditorForRecord(multiSegmentAppearanceRecord('slice5-brightness-confirm'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+    const keysBefore = before.record.composition.clips.find(clip => clip.id === 'overlay-a')!.appearance.keys
+
+    typeAndCommit('Brightness exact percentage', '63')
+    await act(async () => {})
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Change every segment?' })
+    expect(dialog).toHaveTextContent('This Clip has 3 held segments. This change applies to all of them.')
+    expect(appearanceSubmissions()).toEqual([])
+    expectNoWrite(before, editor.state())
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Change all segments' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(appearanceSubmissions()).toEqual([{
+      intent: { kind: 'appearance', clipId: 'overlay-a', scope: 'whole-clip', patch: { view: { brightness: 0.63 } } },
+      baseRevision: 0,
+    }])
+    expect(after.record.composition.clips.find(clip => clip.id === 'overlay-a')!.appearance.keys.map(key => key.value.view.brightness))
+      .toEqual([0.63, 0.63, 0.63])
+    expect(after.record.composition.clips.find(clip => clip.id === 'overlay-a')!.appearance.keys.map(key => key.timeMs))
+      .toEqual(keysBefore.map(key => key.timeMs))
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('cancelling the multi-segment write writes nothing (#1069)', async () => {
+    const editor = openV2EditorForRecord(multiSegmentAppearanceRecord('slice5-brightness-cancel'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+
+    typeAndCommit('Brightness exact percentage', '63')
+    await act(async () => {})
+    const dialog = screen.getByRole('alertdialog', { name: 'Change every segment?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, editor.state())
+    expect(editor.state().record.composition.clips.find(clip => clip.id === 'overlay-a')!.appearance.keys.map(key => key.value.view.brightness))
+      .toEqual([1, 0.8, 0.6])
   })
 
   it('stores header Opacity through the appearance door', async () => {

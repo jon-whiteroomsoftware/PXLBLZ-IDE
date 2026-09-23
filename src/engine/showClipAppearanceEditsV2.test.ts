@@ -92,6 +92,16 @@ it('applies finite whole-Clip fields without flattening held keys or changing sh
   expect(record).toEqual(before)
 })
 
+it('writes brightness to all three held keys without moving their times (#1069)', () => {
+  const record = fixture()
+  const before = record.composition.clips[0].appearance.keys.map(key => ({ id: key.id, timeMs: key.timeMs }))
+  const result = editShowClipAppearanceV2(record, intent('appearance', { patch: { view: { brightness: .63 } } }))
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') throw new Error('Expected a changed record')
+  expect(result.record.composition.clips[0].appearance.keys.map(key => ({ id: key.id, timeMs: key.timeMs }))).toEqual(before)
+  expect(result.record.composition.clips[0].appearance.keys.map(key => key.value.view.brightness)).toEqual([.63, .63, .63])
+})
+
 it('adds an explicit fresh Effect identity across all held stacks without altering other values or animation', () => {
   const record = fixture(), before = structuredClone(record)
   const requested = intent('add-effect', { effect: { id: 'fresh-hue', kind: 'hue', turns: .2 } }), beforeIntent = structuredClone(requested)

@@ -479,7 +479,7 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     })
   })
 
-  it('refuses a whole-Clip appearance write on a multi-key Clip', () => {
+  it('plans whole-Clip brightness, opacity and phase across held segments (#1069)', () => {
     const record = fixture()
     const key = record.composition.clips[0].appearance.keys[0]
     record.composition.clips[0].appearance.keys = [
@@ -487,10 +487,20 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
       { ...structuredClone(key), id: 'appearance-2', timeMs: 500, value: { ...structuredClone(key.value), opacity: 0.5 } },
     ]
     expect(validateShowRecordV2(record)).toEqual([])
-    expect(plan(record, { view: { brightness: 0.5 } })).toEqual({
-      kind: 'refuse',
-      reason: 'multi-key-clip',
-      message: 'A Clip with held appearance variation keeps its segments; whole-Clip appearance writes stay unconnected.',
+    for (const [patch, expected] of [
+      [{ view: { brightness: 0.5 } }, { view: { brightness: 0.5 } }],
+      [{ local: { opacity: 0.4 } }, { opacity: 0.4 }],
+      [{ view: { phase: 0.25 } }, { view: { phase: 0.25 } }],
+    ] as const) {
+      expect(plan(record, patch)).toEqual({
+        kind: 'appearance',
+        intent: { kind: 'appearance', clipId: 'clip', scope: 'whole-clip', patch: expected },
+        overwritesHeldSegments: 2,
+      })
+    }
+    // The first key matching cannot hide an overwrite of a later key.
+    expect(plan(record, { local: { opacity: 1 } })).toMatchObject({
+      kind: 'appearance', overwritesHeldSegments: 2,
     })
     // Instance values are per-runtime, shared by every segment in both
     // backings, so they stay connected on a multi-key Clip.
@@ -499,6 +509,14 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
       intent: { clipId: 'clip', properties: { time_scale: 2 } },
       removedControls: [],
     })
+  })
+
+  it('keeps multi-key Effect stack refusals unchanged (#1069)', () => {
+    const record = fixture()
+    const first = record.composition.clips[0].appearance.keys[0]
+    record.composition.clips[0].appearance.keys.push({ ...structuredClone(first), id: 'appearance-2', timeMs: 500 })
+    const ripple = normalizeShowClipEffects([{ id: 'ripple', kind: 'ripple' } as ShowClipEffect])[0] as ShowClipEffect
+    expect(plan(record, { effects: [ripple] })).toMatchObject({ kind: 'refuse', reason: 'multi-key-clip' })
   })
 
   it('refuses a combined stack rewrite no single intent can carry', () => {

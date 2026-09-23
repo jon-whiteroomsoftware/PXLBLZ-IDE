@@ -85,7 +85,7 @@ export interface ShowV2ClipInspectorEntryPolicyIntent {
 }
 
 export type ShowV2ClipInspectorPlan =
-  | { kind: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
+  | { kind: 'appearance'; intent: ShowClipAppearanceEditIntentV2; overwritesHeldSegments?: number }
   | { kind: 'instance-properties'; intent: ShowV2ClipInspectorInstanceIntent; removedControls: ShowV2RemovedControlTarget[] }
   | { kind: 'entry-policy'; intent: ShowV2ClipInspectorEntryPolicyIntent }
   | { kind: 'replacement'; clipId: string; reference: ShowPatternRef; name: string }
@@ -573,43 +573,44 @@ export function planShowV2ClipInspectorPatch(
   }
 
   if (appearanceFacets === 0) return { kind: 'no-op' }
-  if (clip.appearance.keys.length !== 1) {
-    return refuse('multi-key-clip', 'A Clip with held appearance variation keeps its segments; whole-Clip appearance writes stay unconnected.')
-  }
-  const key = clip.appearance.keys[0]
-  if (appearance.view !== undefined && Object.entries(appearance.view).every(([field, value]) => sameJson(((key.value.view as unknown) as Record<string, unknown>)[field], value))) {
+  const keys = clip.appearance.keys
+  if (appearance.view !== undefined && keys.every((key) => Object.entries(appearance.view!).every(([field, value]) => sameJson(((key.value.view as unknown) as Record<string, unknown>)[field], value)))) {
     delete appearance.view
     appearanceFacets -= 1
   }
   if (appearance.transform !== undefined && appearance.transform !== null) {
-    const current = normalizeShowClipTransform(key.value.transform)
-    const currentFields = (current as unknown) as Record<string, unknown>
-    if (Object.entries(appearance.transform).every(([field, value]) => sameJson(currentFields[field], value))) {
+    if (keys.every((key) => {
+      const current = normalizeShowClipTransform(key.value.transform)
+      const currentFields = (current as unknown) as Record<string, unknown>
+      return Object.entries(appearance.transform!).every(([field, value]) => sameJson(currentFields[field], value))
+    })) {
       delete appearance.transform
       appearanceFacets -= 1
     }
   }
   if (appearance.aperture !== undefined && appearance.aperture !== null) {
-    const current = normalizeShowClipViewport(key.value.aperture)
     const entries = Object.entries(appearance.aperture)
-    const currentFields = (current as unknown) as Record<string, unknown>
-    const settled = entries.every(([field, value]) => (
-      value === null ? currentFields[field] === undefined : sameJson(currentFields[field], value)
-    ))
+    const settled = keys.every((key) => {
+      const current = normalizeShowClipViewport(key.value.aperture)
+      const currentFields = (current as unknown) as Record<string, unknown>
+      return entries.every(([field, value]) => (
+        value === null ? currentFields[field] === undefined : sameJson(currentFields[field], value)
+      ))
+    })
     if (settled) {
       delete appearance.aperture
       appearanceFacets -= 1
     }
   }
-  if (appearance.presentation !== undefined && sameJson(key.value.presentation ?? { mode: 'live' }, appearance.presentation)) {
+  if (appearance.presentation !== undefined && keys.every((key) => sameJson(key.value.presentation ?? { mode: 'live' }, appearance.presentation))) {
     delete appearance.presentation
     appearanceFacets -= 1
   }
-  if (has(appearance, 'blink') && sameJson(key.value.blink ?? null, appearance.blink ?? null)) {
+  if (has(appearance, 'blink') && keys.every((key) => sameJson(key.value.blink ?? null, appearance.blink ?? null))) {
     delete appearance.blink
     appearanceFacets -= 1
   }
-  if (appearance.opacity !== undefined && key.value.opacity === appearance.opacity) {
+  if (appearance.opacity !== undefined && keys.every((key) => key.value.opacity === appearance.opacity)) {
     delete appearance.opacity
     appearanceFacets -= 1
   }
@@ -627,7 +628,8 @@ export function planShowV2ClipInspectorPatch(
     return { kind: 'appearance', intent: outcome }
   }
   if (appearanceFacets === 0) return { kind: 'no-op' }
-  return { kind: 'appearance', intent: { kind: 'appearance', clipId, scope: 'whole-clip', patch: appearance } }
+  return { kind: 'appearance', intent: { kind: 'appearance', clipId, scope: 'whole-clip', patch: appearance },
+    ...(keys.length > 1 ? { overwritesHeldSegments: keys.length } : {}) }
 }
 
 /**
