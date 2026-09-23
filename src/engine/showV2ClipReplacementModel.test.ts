@@ -34,10 +34,28 @@ it.each(['missing','bad','blank','materialized','collision'] as const)('refuses 
 })
 it('reports the incompatible controls one ordinary replacement would drop, before anything is adopted',()=>{
  const {record,capture}=setup(true),before=structuredClone(record)
- expect(previewShowV2ClipReplacement(capture,'clip',{kind:'user',id:'other'})).toEqual({status:'ready',discardedControlTargets:[{kind:'instance-control',instanceId:'instance',exportName:'sliderLost'}]})
+ expect(previewShowV2ClipReplacement(capture,'clip',{kind:'user',id:'other'})).toEqual({status:'ready',discardedControlTargets:[{kind:'instance-control',instanceId:'instance',exportName:'sliderLost'}],lostControls:[{exportName:'sliderLost',animated:true}]})
  // A compatible destination reports no loss, so the adapter never confirms one.
- expect(previewShowV2ClipReplacement(capture,'clip',{kind:'user',id:'equal-text'})).toEqual({status:'ready',discardedControlTargets:[]})
+ expect(previewShowV2ClipReplacement(capture,'clip',{kind:'user',id:'equal-text'})).toEqual({status:'ready',discardedControlTargets:[],lostControls:[]})
  expect(record).toEqual(before)
+})
+it('classifies value-only, animated-only, and mixed losses once per export name in discarded order',()=>{
+ const {record,dependencies}=setup()
+ const instance=record.composition.patternInstances[0]
+ instance.controlTargets={sliderLost:.2,sliderValue:.7}
+ const preview=previewShowV2ClipReplacement(captureShowStageEditV2(record,dependencies),'clip',{kind:'user',id:'other'})
+ expect(preview.status).toBe('ready')
+ if(preview.status!=='ready')return
+ expect(preview.discardedControlTargets.map(target=>target.kind==='instance-control'?target.exportName:target.kind)).toEqual(['sliderLost','sliderValue'])
+ expect(preview.lostControls).toEqual([{exportName:'sliderLost',animated:true},{exportName:'sliderValue',animated:false}])
+ const animatedOnly=structuredClone(record)
+ delete animatedOnly.composition.patternInstances[0].controlTargets
+ const animated=previewShowV2ClipReplacement(captureShowStageEditV2(animatedOnly,dependencies),'clip',{kind:'user',id:'other'})
+ expect(animated.status==='ready'?animated.lostControls:[]).toEqual([{exportName:'sliderLost',animated:true}])
+ const valueOnly=structuredClone(record)
+ valueOnly.composition.propertyTracks=[]
+ const value=previewShowV2ClipReplacement(captureShowStageEditV2(valueOnly,dependencies),'clip',{kind:'user',id:'other'})
+ expect(value.status==='ready'?value.lostControls:[]).toEqual([{exportName:'sliderLost',animated:false},{exportName:'sliderValue',animated:false}])
 })
 it.each(['missing-clip','materialized','unresolvable'] as const)('refuses a %s replacement preview instead of reporting an empty loss',partition=>{
  const {capture}=setup(true)

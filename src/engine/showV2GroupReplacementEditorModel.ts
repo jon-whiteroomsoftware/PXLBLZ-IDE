@@ -1,5 +1,5 @@
 import { defaultGroupRuntimeIdV2, groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
-import { capturedShowV2ReplacementContext, resolveCapturedShowPatternReplacementV2 } from './showV2ClipReplacementModel'
+import { capturedShowV2ReplacementContext, lostShowV2ReplacementControls, resolveCapturedShowPatternReplacementV2, type ShowV2LostControl } from './showV2ClipReplacementModel'
 import type { ShowV2ClipSharingCapture } from './showV2ClipSharingEditorModel'
 import type { ShowPatternInstance, ShowPatternRef } from './personalContentRecords'
 import type { ShowGroupClipV2, ShowGroupDefinitionV2, ShowPropertyTargetV2, ShowPropertyTrackV2, ShowRecordV2 } from './showCompositionV2'
@@ -28,7 +28,7 @@ export interface ShowV2GroupReplacementTarget {
   sharedRuntimeIds: string[]
 }
 export type ShowV2GroupReplacementPreview =
-  | { status: 'ready'; context: 'linked-occurrences' | 'dormant-definition'; requiresSplit: boolean; forkedRuntimeIds: string[]; discardedControlTargets: ShowPropertyTargetV2[] }
+  | { status: 'ready'; context: 'linked-occurrences' | 'dormant-definition'; requiresSplit: boolean; forkedRuntimeIds: string[]; discardedControlTargets: ShowPropertyTargetV2[]; lostControls: ShowV2LostControl[] }
   | { status: 'refused'; message: string }
 export type ShowV2GroupReplacementPlan = { status: 'ready'; intent: ShowV2GroupReplacementIntent } | { status: 'refused'; message: string }
 
@@ -94,11 +94,16 @@ export function previewShowV2GroupReplacement(capture: ShowV2ClipSharingCapture,
   const { record, expanded, definition, clip, slot, occurrenceIds } = target
   const compatible = new Set(resolved.replacement.exportedSliders.map(control => control.exportName))
   const discardedControlTargets: ShowPropertyTargetV2[] = []
+  const animatedNames = new Set<string>()
   const otherLocalUser = definition.clips.some(value => value.id !== clip.id && value.instanceId === slot.id)
   if (occurrenceIds.length === 0) {
-    for (const track of instanceTracks(definition.propertyTracks, slot.id).filter(track => incompatible(track, compatible))) discardedControlTargets.push(structuredClone(track.target))
+    for (const track of instanceTracks(definition.propertyTracks, slot.id).filter(track => incompatible(track, compatible))) {
+      discardedControlTargets.push(structuredClone(track.target))
+      if (track.target.kind === 'instance-control') animatedNames.add(track.target.exportName)
+    }
     staticLosses(slot, compatible, discardedControlTargets, slot.id)
     return { status: 'ready', context: 'dormant-definition', forkedRuntimeIds: [], discardedControlTargets,
+      lostControls: lostShowV2ReplacementControls(discardedControlTargets, animatedNames),
       requiresSplit: otherLocalUser || record.composition.patternInstances.some(value => value.id === defaultGroupRuntimeIdV2(definition.id, slot.id)) }
   }
   const sourceIds = [...new Set(groupRuntimeBindings(record).filter(binding => binding.definitionId === definition.id && binding.slotId === slot.id).map(binding => binding.runtimeId))]
@@ -106,13 +111,17 @@ export function previewShowV2GroupReplacement(capture: ShowV2ClipSharingCapture,
   for (const sourceId of sourceIds) {
     const source = expanded.composition.patternInstances.find(value => value.id === sourceId)!
     const lost = instanceTracks(expanded.composition.propertyTracks, sourceId).filter(track => incompatible(track, compatible))
-    for (const track of lost) discardedControlTargets.push(structuredClone(track.target))
+    for (const track of lost) {
+      discardedControlTargets.push(structuredClone(track.target))
+      if (track.target.kind === 'instance-control') animatedNames.add(track.target.exportName)
+    }
     for (const exportName of Object.keys(source.controlTargets ?? {}).filter(name => !compatible.has(name))) {
       if (!lost.some(track => track.target.kind === 'instance-control' && track.target.exportName === exportName)) discardedControlTargets.push({ kind: 'instance-control', instanceId: sourceId, exportName })
     }
   }
   staticLosses(slot, compatible, discardedControlTargets, slot.id)
   return { status: 'ready', context: 'linked-occurrences', forkedRuntimeIds, discardedControlTargets,
+    lostControls: lostShowV2ReplacementControls(discardedControlTargets, animatedNames),
     requiresSplit: otherLocalUser || (forkedRuntimeIds.length > 0 && instanceTracks(definition.propertyTracks, slot.id).length > 0) }
 }
 

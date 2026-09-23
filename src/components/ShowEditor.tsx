@@ -51,6 +51,8 @@ import { ShowTimelineNavigator } from '@/components/ShowTimelineNavigator'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
+import { ShowLossConfirmDialog } from '@/components/ShowLossConfirmDialog'
+import { describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { showRecordClipCount } from '@/engine/showClipInvariant'
 import { isAlreadyPushed, type SendMode } from '@/engine/sendToController'
@@ -335,7 +337,9 @@ import {
 import {
   createShowV2ClipReplacementIntent,
   previewShowV2ClipReplacement,
+  resolveCapturedShowPatternReplacementV2,
   type ShowV2ClipReplacementIntent,
+  type ShowV2LostControl,
 } from '@/engine/showV2ClipReplacementModel'
 import {
   planShowV2GroupReplacementEdit,
@@ -1038,18 +1042,18 @@ function patternControlDisplayName(exportName: string): string {
   return words ? words[0].toUpperCase() + words.slice(1) : exportName
 }
 
-function formatControlNameList(names: readonly string[], conjunction: 'and' | 'or'): string {
-  if (names.length <= 1) return names[0] ?? ''
-  if (names.length === 2) return `${names[0]} ${conjunction} ${names[1]}`
-  return `${names.slice(0, -1).join(', ')}, ${conjunction} ${names[names.length - 1]}`
-}
-
 interface PendingPatternSlotSelection {
   slotIndex: number
   pattern: ShowPatternRef
   patternName: string
   removedControlNames: string[]
 }
+type PendingV2Replacement = {
+  clipId: string
+  reference: ShowPatternRef
+  patternName: string
+  lost: Array<{ label: string; animated: boolean }>
+} & ({ kind: 'clip' } | { kind: 'group-clip'; occurrenceId: string })
 
 function ShowLiveStrip({
   note,
@@ -1364,6 +1368,8 @@ export function ShowEditor({
   const [compositionClipPendingDelete, setCompositionClipPendingDelete] = useState<ShowTimelineClipOwner | null>(null)
   const [v2ClipPendingDelete, setV2ClipPendingDelete] = useState<string | null>(null)
   const [pendingPatternSlotSelection, setPendingPatternSlotSelection] = useState<PendingPatternSlotSelection | null>(null)
+  const [pendingV2Replacement, setPendingV2Replacement] = useState<PendingV2Replacement | null>(null)
+  const patternControlsByInstanceIdRef = useRef<Record<string, AutomatablePatternControl[]>>({})
   const [blockedDeleteFeedback, setBlockedDeleteFeedback] = useState<BlockedDeleteFeedback | null>(null)
   const blockedDeleteFeedbackSequenceRef = useRef(0)
   const reportBlockedDelete = useCallback((selectionKey: string, copy: BlockedDeleteCopy) => {
@@ -1568,6 +1574,7 @@ export function ShowEditor({
     setCompositionClipPendingDelete(null)
     setV2ClipPendingDelete(null)
     setPendingPatternSlotSelection(null)
+    setPendingV2Replacement(null)
     setBlockedDeleteFeedback(null)
     setIsolatedGroupOccurrenceId(null)
     pendingDeliveryRef.current = null
@@ -2089,14 +2096,9 @@ export function ShowEditor({
     })
     return outcome
   }, [showId])
-  // Slice 4 connects Replace Pattern through the same plumbing. The planner
-  // names the captured reference; trusted resolution and the independence
-  // mint happen here against the prepared capture, so a Clip whose instance
-  // is shared still lands as one history entry and one save. A replacement
-  // that would drop incompatible controls refuses with no write: the owner
-  // reports that loss for an adapter confirmation this patch path has no
-  // surface for, and the legacy inspector applies it silently, so this is a
-  // named divergence rather than an approximation (#1066, #1068 rule).
+  // Replace Pattern resolves the source and independence plan against the
+  // prepared capture. The adapter confirms reported control loss before
+  // submitting one intent; cancellation writes nothing (#1069).
   const commitV2ClipReplacement = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
@@ -2145,9 +2147,8 @@ export function ShowEditor({
     })
     return outcome
   }, [showId])
-  // The v2 Group Clip Pattern commit mirrors the ordinary Clip rule: a
-  // replacement whose preview reports any discarded control target returns
-  // false synchronously so the draft reverts and nothing is written (#1075 G2c).
+  // The v2 Group Clip Pattern adapter confirms previewed control loss before
+  // submitting the definition edit; cancellation writes nothing (#1069).
   const commitV2GroupClipPattern = useCallback((occurrenceId: string, clipId: string, ref: ShowPatternRef): boolean | Promise<void> => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
@@ -2155,12 +2156,39 @@ export function ShowEditor({
     const definitionId = capture.record.composition.groupOccurrences.find((candidate) => candidate.id === occurrenceId)?.definitionId
     if (!definitionId) return false
     const preview = previewShowV2GroupReplacement(capture, definitionId, clipId, ref)
-    if (preview.status === 'refused' || preview.discardedControlTargets.length > 0) return false
+    if (preview.status === 'refused') return false
+    if (preview.lostControls.length > 0) {
+      const resolved = resolveCapturedShowPatternReplacementV2(capture, ref)
+      if (resolved.status === 'refused') return false
+      const instanceId = materializeShowGroupsV2(capture.record).composition.clips.find((clip) => clip.id === `${occurrenceId}:${clipId}`)?.instanceId
+      const controls = instanceId ? patternControlsByInstanceIdRef.current[instanceId] ?? [] : []
+      const labels = new Map(controls.map((control) => [control.exportName, control.label]))
+      setPendingV2Replacement({ kind: 'group-clip', occurrenceId, clipId, reference: { ...ref }, patternName: resolved.replacement.patternName,
+        lost: preview.lostControls.map(({ exportName, animated }: ShowV2LostControl) => ({ label: labels.get(exportName) ?? exportName, animated })) })
+      return false
+    }
     const plan = planShowV2GroupReplacementEdit(capture, definitionId, clipId, ref, newPersonalContentId)
     if (plan.status === 'refused') return false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     return commitV2GroupReplacement({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
   }, [commitV2GroupReplacement, readOnly, recordVersion, savedShowV2, showId])
+  const confirmV2Replacement = useCallback(() => {
+    const pending = pendingV2Replacement
+    setPendingV2Replacement(null)
+    if (!pending || recordVersion !== 2 || !savedShowV2 || readOnly) return
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    if (pending.kind === 'clip') {
+      const plan = createShowV2ClipReplacementIntent(capture, pending.clipId, pending.reference, newPersonalContentId)
+      if (plan.status === 'ready') void commitV2ClipReplacement({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+      return
+    }
+    const definitionId = capture.record.composition.groupOccurrences.find((occurrence) => occurrence.id === pending.occurrenceId)?.definitionId
+    if (!definitionId) return
+    const plan = planShowV2GroupReplacementEdit(capture, definitionId, pending.clipId, pending.reference, newPersonalContentId)
+    if (plan.status === 'ready') void commitV2GroupReplacement({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+  }, [commitV2ClipReplacement, commitV2GroupReplacement, pendingV2Replacement, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 connects Show End through the same plumbing: one accepted write
   // is one history entry and one save. The drag preview never writes and the
   // commit never reads preview state, so a keyboard set with no drag still
@@ -2293,10 +2321,20 @@ export function ShowEditor({
       return commitV2ClipEntryPolicy({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
     }
     if (plan.kind === 'replacement') {
+      const preview = previewShowV2ClipReplacement(capture, clipId, plan.reference)
+      if (preview.status === 'refused') return false
+      if (preview.lostControls.length > 0) {
+        const resolved = resolveCapturedShowPatternReplacementV2(capture, plan.reference)
+        if (resolved.status === 'refused') return false
+        const instanceId = capture.record.composition.clips.find((clip) => clip.id === clipId)?.instanceId
+        const controls = instanceId ? patternControlsByInstanceIdRef.current[instanceId] ?? [] : []
+        const labels = new Map(controls.map((control) => [control.exportName, control.label]))
+        setPendingV2Replacement({ kind: 'clip', clipId, reference: { ...plan.reference }, patternName: resolved.replacement.patternName,
+          lost: preview.lostControls.map(({ exportName, animated }: ShowV2LostControl) => ({ label: labels.get(exportName) ?? exportName, animated })) })
+        return false
+      }
       const replacement = createShowV2ClipReplacementIntent(capture, clipId, plan.reference, newPersonalContentId)
       if (replacement.status === 'refused') return false
-      const preview = previewShowV2ClipReplacement(capture, clipId, plan.reference)
-      if (preview.status === 'refused' || preview.discardedControlTargets.length > 0) return false
       return commitV2ClipReplacement({ capture, baseRevision, intent: replacement.intent }).then(() => {}, () => {})
     }
     const commit = plan.kind === 'appearance'
@@ -3025,6 +3063,7 @@ export function ShowEditor({
       return [instance.id, []]
     }
   })), [controlSourceInstances, userPatterns]) as Record<string, AutomatablePatternControl[]>
+  patternControlsByInstanceIdRef.current = patternControlsByInstanceId
   useEffect(() => {
     const handleDelete = (event: KeyboardEvent) => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
@@ -3881,41 +3920,28 @@ export function ShowEditor({
       {headerActionsTarget
         ? createPortal(headerActions, headerActionsTarget)
         : <div className="mb-2 flex shrink-0 items-center justify-end gap-1.5 px-3 pt-3">{!headerGuideTarget && showNoteTrigger}{headerActions}</div>}
-      <AlertDialogRoot
+      <ShowLossConfirmDialog
         open={pendingPatternSlotSelection !== null}
-        onOpenChange={(open) => { if (!open) setPendingPatternSlotSelection(null) }}
-      >
-        <AlertDialogContent>
-          <AlertDialogTitle>Use {pendingPatternSlotSelection?.patternName}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {pendingPatternSlotSelection && (() => {
-              const names = pendingPatternSlotSelection.removedControlNames
-              const missing = formatControlNameList(names, 'or')
-              const removed = formatControlNameList(names, 'and')
-              return names.length === 1
-                ? `${pendingPatternSlotSelection.patternName} doesn't have the ${missing} control. The ${removed} animation will be removed.`
-                : `${pendingPatternSlotSelection.patternName} doesn't have the ${missing} controls. The ${removed} animations will be removed.`
-            })()}
-          </AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (pendingPatternSlotSelection) {
-                  setReferencePattern(
-                    showId,
-                    pendingPatternSlotSelection.slotIndex,
-                    pendingPatternSlotSelection.pattern,
-                  )
-                }
-                setPendingPatternSlotSelection(null)
-              }}
-            >
-              Use {pendingPatternSlotSelection?.patternName}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialogRoot>
+        {...(pendingPatternSlotSelection
+          ? describePatternReplacementLoss(pendingPatternSlotSelection.patternName,
+            pendingPatternSlotSelection.removedControlNames.map((label) => ({ label, animated: true })))
+          : { title: '', description: '', actionLabel: '' })}
+        onCancel={() => setPendingPatternSlotSelection(null)}
+        onConfirm={() => {
+          if (pendingPatternSlotSelection) {
+            setReferencePattern(showId, pendingPatternSlotSelection.slotIndex, pendingPatternSlotSelection.pattern)
+          }
+          setPendingPatternSlotSelection(null)
+        }}
+      />
+      <ShowLossConfirmDialog
+        open={pendingV2Replacement !== null}
+        {...(pendingV2Replacement
+          ? describePatternReplacementLoss(pendingV2Replacement.patternName, pendingV2Replacement.lost)
+          : { title: '', description: '', actionLabel: '' })}
+        onCancel={() => setPendingV2Replacement(null)}
+        onConfirm={confirmV2Replacement}
+      />
       {readOnly && !builtInContext?.note && (
         <div className="flex shrink-0 items-start gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
           <Lock size={12} aria-hidden className="text-amber-300/70" />

@@ -4002,9 +4002,8 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 // combobox reaches the replacement door, both through the same v2 inspector
 // commit as slice 3. Every accepted edit is one history entry and one save;
 // refusals and no-ops write nothing and keep record identity; no legacy owner
-// runs. A replacement that would drop incompatible controls refuses with no
-// write: the patch path carries no loss-confirmation surface, so the adapter
-// cannot adopt what the owner would report (#1068 rule).
+// runs. The replacement adapter confirms incompatible control loss before
+// submitting one edit (#1069).
 describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
   it('stores Restart on entry through the entry-policy door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice4-entry-restart'))
@@ -4055,33 +4054,51 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
     await expectUndoRedoExact(editor, before)
   })
 
-  it('refuses a lossy Source pattern swap with no write and keeps record identity', async () => {
-    const editor = openV2EditorForRecord(connectedV2Record('slice4-replace-lossy'))
+  it('confirms a lossy Replace Pattern on v2 and applies it once (#1069)', async () => {
+    const record = connectedV2Record('slice4-replace-lossy-confirm')
+    record.composition.patternInstances.find(instance => instance.id === 'resize-instance')!.controlTargets = { sliderSpeed: 0.5 }
+    record.composition.propertyTracks.push({ id: 'lost-speed', target: { kind: 'instance-control', instanceId: 'resize-instance', exportName: 'sliderSpeed' },
+      activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'lost-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lost-speed-b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] })
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
-
-    // The incompatible control target is authored first through the connected
-    // instance door; replacing CometLoom (exports sliderSpeed) with
-    // TestPattern2D (exports nothing) would drop it.
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
-    await act(async () => {})
-    const enabled = editor.state()
-    expect(instanceSubmissions()).toHaveLength(1)
-
+    const before = editor.state()
     pickSourcePattern('TestPattern2D')
     await act(async () => {})
-
-    const after = editor.state()
-    expect(planned.calls).toHaveLength(2)
+    const dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    expect(dialog).toHaveTextContent("TestPattern2D doesn't have the Speed control. The Speed animation will be removed.")
     expect(replacementSubmissions()).toHaveLength(0)
-    expect(after.record).toBe(enabled.record)
-    expect(after.history).toEqual(enabled.history)
-    expect(after.v2Writes).toBe(enabled.v2Writes)
-    expect(legacy.calls).toEqual([])
-    expect((await authoredClipValue(editor.showId, 'resize-a')).patternName).toBe('CometLoom')
-    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.controlTargets)
-      .toEqual({ sliderSpeed: 0.5 })
+    expect(editor.state().record).toBe(before.record)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Use TestPattern2D' }))
+    await act(async () => {})
+    const after = editor.state()
+    expect(admission.calls.map(call => call.door)).toEqual(['admitShowV2PilotClipReplacementEdit'])
+    expect(replacementSubmissions()).toHaveLength(1)
+    expect(after.record.composition.patternInstances.find(instance => instance.id === 'resize-instance')?.controlTargets).toEqual({})
+    expect(after.record.composition.propertyTracks.some(track => track.id === 'lost-speed')).toBe(false)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('cancels a lossy Replace Pattern on v2 with no write (#1069)', async () => {
+    const record = connectedV2Record('slice4-replace-lossy-cancel')
+    record.composition.patternInstances.find(instance => instance.id === 'resize-instance')!.controlTargets = { sliderSpeed: 0.5 }
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+    const before = editor.state()
+    pickSourcePattern('TestPattern2D')
+    const dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    expect(dialog).toHaveTextContent('Speed value will be removed.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+    expect(editor.state().history).toEqual(before.history)
+    expect(editor.state().v2Writes).toBe(before.v2Writes)
   })
 
   it('refuses an unresolvable Source pattern with no write', async () => {
@@ -5745,7 +5762,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     expectOneEdit(before, after)
   })
 
-  it('refuses a lossy Group Clip Pattern change with no write and keeps record identity (#1075 G2c)', async () => {
+  it('confirms a lossy Group Clip Replace Pattern on v2 and applies it once (#1069)', async () => {
     const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
     const record = propertyEditGroupRecord()
     record.id = 'tracer-group-clip-pattern-lossy'
@@ -5764,10 +5781,44 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     const before = editor.state()
     pickSourcePattern('TestPattern2D')
     await act(async () => {})
-    const after = editor.state()
+    const dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    expect(dialog).toHaveTextContent("TestPattern2D doesn't have the Speed control. The Speed value will be removed.")
     expect(admission.calls).toEqual([])
-    expect(after.record).toBe(before.record)
-    expect(after.record.composition.groupDefinitions[0]!.patternInstances[0]!.pattern).toEqual({ kind: 'stock', id: 'CometLoom' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Use TestPattern2D' }))
+    await act(async () => {})
+    const after = editor.state()
+    expect(admission.calls.map(call => call.door)).toEqual(['admitShowV2PilotGroupReplacementEdit'])
+    expect(after.record.composition.groupDefinitions[0]!.patternInstances.some(instance => instance.pattern.id === 'TestPattern2D')).toBe(true)
+    expect(after.record.composition.groupDefinitions[0]!.patternInstances.every(instance => instance.controlTargets?.sliderSpeed === undefined || instance.pattern.id === 'CometLoom')).toBe(true)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('cancels a lossy Group Clip Replace Pattern on v2 with no write (#1069)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-pattern-lossy-cancel'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap(definition => definition.patternInstances)]) {
+      instance.pattern = { kind: 'stock', id: 'CometLoom' }
+      instance.patternName = 'CometLoom'
+      delete instance.controlTargets
+    }
+    record.composition.groupDefinitions[0]!.patternInstances[0]!.controlTargets = { sliderSpeed: 0.5 }
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    showTab('Pattern')
+    const before = editor.state()
+    pickSourcePattern('TestPattern2D')
+    const dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    expect(dialog).toHaveTextContent('Speed value will be removed.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+    expect(editor.state().history).toEqual(before.history)
+    expect(editor.state().v2Writes).toBe(before.v2Writes)
   })
 
   it('makes no Group occurrence door call when read-only', async () => {

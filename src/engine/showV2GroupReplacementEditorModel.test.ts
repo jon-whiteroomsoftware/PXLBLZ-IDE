@@ -88,14 +88,14 @@ it('projects exactly the owner-reported control loss before any identity is allo
   const record = linkedRecord()
   const preview = previewShowV2GroupReplacement(capture(record), 'definition', 'child', { kind: 'user', id: 'other' })
   expect(preview).toEqual({ status: 'ready', context: 'linked-occurrences', requiresSplit: true, forkedRuntimeIds: ['instance'],
-    discardedControlTargets: [{ kind: 'instance-control', instanceId: 'instance', exportName: 'sliderLost' }] })
+    discardedControlTargets: [{ kind: 'instance-control', instanceId: 'instance', exportName: 'sliderLost' }], lostControls: [{ exportName: 'sliderLost', animated: false }] })
   const plan = planShowV2GroupReplacementEdit(capture(record), 'definition', 'child', { kind: 'user', id: 'other' }, allocator())
   if (plan.status !== 'ready') throw new Error(plan.message)
   const result = replaceShowGroupDefinitionClipPatternV2(record, ownerIntent(plan.intent))
   expect(result.status, JSON.stringify(result)).toBe('changed')
   expect(result.discardedControlTargets).toEqual(preview.status === 'ready' ? preview.discardedControlTargets : [])
   const unchanged = previewShowV2GroupReplacement(capture(record), 'definition', 'child', { kind: 'user', id: 'voice' })
-  expect(unchanged).toEqual({ status: 'ready', context: 'linked-occurrences', requiresSplit: true, forkedRuntimeIds: ['instance'], discardedControlTargets: [] })
+  expect(unchanged).toEqual({ status: 'ready', context: 'linked-occurrences', requiresSplit: true, forkedRuntimeIds: ['instance'], discardedControlTargets: [], lostControls: [] })
 
   // A stale local template control with no effective-runtime counterpart keeps its own slot target.
   const stale = linkedRecord()
@@ -103,12 +103,36 @@ it('projects exactly the owner-reported control loss before any identity is allo
   expect(validateShowRecordV2(stale)).toEqual([])
   const staleLoss = previewShowV2GroupReplacement(capture(stale), 'definition', 'child', { kind: 'user', id: 'other' })
   expect(staleLoss).toEqual({ status: 'ready', context: 'linked-occurrences', requiresSplit: true, forkedRuntimeIds: ['instance'],
-    discardedControlTargets: [{ kind: 'instance-control', instanceId: 'slot', exportName: 'sliderLost' }] })
+    discardedControlTargets: [{ kind: 'instance-control', instanceId: 'slot', exportName: 'sliderLost' }], lostControls: [{ exportName: 'sliderLost', animated: false }] })
   const stalePlan = planShowV2GroupReplacementEdit(capture(stale), 'definition', 'child', { kind: 'user', id: 'other' }, allocator())
   if (stalePlan.status !== 'ready') throw new Error(stalePlan.message)
   const staleResult = replaceShowGroupDefinitionClipPatternV2(stale, ownerIntent(stalePlan.intent))
   expect(staleResult.status, JSON.stringify(staleResult)).toBe('changed')
   expect(staleResult.discardedControlTargets).toEqual(staleLoss.status === 'ready' ? staleLoss.discardedControlTargets : [])
+})
+
+it('classifies Group replacement animated, value-only and mixed losses by first discarded target', () => {
+  const animated = dormantRecord()
+  const slot = animated.composition.groupDefinitions[0].patternInstances[0]
+  slot.controlTargets = { sliderGain: 0.4 }
+  animated.composition.groupDefinitions[0].propertyTracks.push({
+    id: 'local-lost', target: { kind: 'instance-control', instanceId: 'slot', exportName: 'sliderLost' },
+    activeStartMs: 0, activeDurationMs: 400,
+    keyframes: [{ id: 'local-lost:a', timeMs: 0, value: 0.2, easing: { curve: 'linear' } }, { id: 'local-lost:b', timeMs: 400, value: 0.3, easing: { curve: 'linear' } }],
+  })
+  const animatedPreview = previewShowV2GroupReplacement(capture(animated), 'definition', 'child', { kind: 'user', id: 'other' })
+  expect(animatedPreview.status === 'ready' ? animatedPreview.lostControls : []).toEqual([{ exportName: 'sliderLost', animated: true }])
+
+  const values = dormantRecord()
+  values.composition.groupDefinitions[0].patternInstances[0].controlTargets = { sliderGain: 0.4, sliderLost: 0.2 }
+  const valuePreview = previewShowV2GroupReplacement(capture(values), 'definition', 'child', { kind: 'user', id: 'other' })
+  expect(valuePreview.status === 'ready' ? valuePreview.lostControls : []).toEqual([{ exportName: 'sliderLost', animated: false }])
+
+  animated.composition.groupDefinitions[0].patternInstances[0].controlTargets = { sliderGain: 0.4, sliderLost: 0.2, sliderValue: 0.7 }
+  const mixedPreview = previewShowV2GroupReplacement(capture(animated), 'definition', 'child', { kind: 'user', id: 'other' })
+  expect(mixedPreview.status === 'ready' ? mixedPreview.lostControls : []).toEqual([
+    { exportName: 'sliderLost', animated: true }, { exportName: 'sliderValue', animated: false },
+  ])
 })
 
 it('plans one fresh destination per distinct shared source over exact retained effective tracks', () => {

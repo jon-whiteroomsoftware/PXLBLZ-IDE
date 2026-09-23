@@ -44,8 +44,17 @@ export function resolveCapturedShowPatternReplacementV2(capture: ShowV2ClipShari
   } catch (error) { return { status: 'refused', message: error instanceof Error ? `The selected Pattern cannot be resolved: ${error.message}` : 'The selected Pattern cannot be resolved.' } }
 }
 export type ShowV2ClipReplacementPreview =
-  | { status: 'ready'; discardedControlTargets: ShowPropertyTargetV2[] }
+  | { status: 'ready'; discardedControlTargets: ShowPropertyTargetV2[]; lostControls: ShowV2LostControl[] }
   | { status: 'refused'; message: string }
+export interface ShowV2LostControl { exportName: string; animated: boolean }
+export function lostShowV2ReplacementControls(discarded: readonly ShowPropertyTargetV2[], animatedNames: ReadonlySet<string>): ShowV2LostControl[] {
+  const seen = new Set<string>()
+  return discarded.flatMap(target => {
+    if (target.kind !== 'instance-control' || seen.has(target.exportName)) return []
+    seen.add(target.exportName)
+    return [{ exportName: target.exportName, animated: animatedNames.has(target.exportName) }]
+  })
+}
 /**
  * What replacing this ordinary Clip's Pattern would drop, before anything is
  * adopted. Section 6 keeps the loss report in the pure planner and the required
@@ -62,15 +71,16 @@ export function previewShowV2ClipReplacement(capture: ShowV2ClipSharingCapture, 
     if (!source) return { status: 'refused', message: 'Select an available ordinary Clip.' }
     const compatible = new Set(resolved.replacement.exportedSliders.map(control => control.exportName))
     const incompatible = (target: ShowPropertyTargetV2): boolean => target.kind === 'instance-control' && !compatible.has(target.exportName)
-    const discardedControlTargets = effective.composition.propertyTracks
+    const lostTracks = effective.composition.propertyTracks
       .filter(track => 'instanceId' in track.target && track.target.instanceId === source.id && incompatible(track.target))
-      .map(track => structuredClone(track.target))
+    const discardedControlTargets = lostTracks.map(track => structuredClone(track.target))
     for (const exportName of Object.keys(source.controlTargets ?? {}).filter(name => !compatible.has(name))) {
       if (!discardedControlTargets.some(target => target.kind === 'instance-control' && target.exportName === exportName)) {
         discardedControlTargets.push({ kind: 'instance-control', instanceId: source.id, exportName })
       }
     }
-    return { status: 'ready', discardedControlTargets }
+    return { status: 'ready', discardedControlTargets, lostControls: lostShowV2ReplacementControls(discardedControlTargets,
+      new Set(lostTracks.flatMap(track => track.target.kind === 'instance-control' ? [track.target.exportName] : []))) }
   } catch (error) { return { status: 'refused', message: error instanceof Error ? error.message : 'Pattern replacement cannot be previewed.' } }
 }
 /** One explicit source; sharing is counted over every effective Clip, regardless visibility. */
