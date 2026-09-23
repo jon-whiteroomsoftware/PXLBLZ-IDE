@@ -994,9 +994,11 @@ test.describe('authenticated Show authoring', () => {
     }
     const response = await page.context().request.post('/api/shows', { data: show })
     expect(response.ok(), await response.text()).toBe(true)
-    await storeSeededShowAsV2(page, show.id)
-
     await page.setViewportSize({ width: 1440, height: 900 })
+    // The v2 run converts the seeded row in the page, which needs an origin to
+    // load the converter from.
+    await page.goto('studio/shows')
+    await storeSeededShowAsV2(page, show.id)
     await page.goto(`studio/shows/${id}`)
     const source = page.getByRole('button', { name: 'Select Clone Sharing Rings' })
     await expect(source).toHaveCount(1)
