@@ -6988,8 +6988,9 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
     const after = editor.state()
     // The fractional playhead rounds exactly as the v1 surface normalises it.
     // The converted baseline already carries its Scene-label chapter Marker,
-    // so the new Marker takes the next number, exactly as v1 counts.
-    const markerName = `Marker ${before.record.composition.markers.length + 1}`
+    // which is not an authored Marker, so the new Marker is Marker 1, as v1 counts.
+    const markerName = `Marker ${before.record.composition.markers.filter(marker => marker.origin !== 'converted-scene-label').length + 1}`
+    expect(markerName).toBe('Marker 1')
     const beforeIds = new Set(before.record.composition.markers.map((marker) => marker.id))
     expect(markerSubmissions()).toEqual([{
       intent: {

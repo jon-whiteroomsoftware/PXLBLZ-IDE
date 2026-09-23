@@ -4275,7 +4275,8 @@ export function ShowEditor({
                     if (readOnly) return false
                     const moved = captureV2Move()
                     if (!moved) return false
-                    const markerNumber = moved.capture.record.composition.markers.length + 1
+                    // Converted Scene labels are not authored Markers, so the number matches v1's (#1090).
+                    const markerNumber = moved.capture.record.composition.markers.filter(marker => marker.origin !== 'converted-scene-label').length + 1
                     const outcome = await commitV2MarkerEdit({
                       ...moved,
                       intent: {
