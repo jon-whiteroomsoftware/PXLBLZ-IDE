@@ -765,7 +765,7 @@ This table is the one list of the places where the v2 editor deliberately behave
 | Boundary speed and brightness ramps convert only on flat Shows; native whole-output window tracks refuse | #1080 class 2 (A); this section |
 | A Transition inserted on a Cut takes room up to the next logical obstruction; chapter Markers and the v1 Scene end do not bound it | #1075 (Jon, 2026-09-22); this section |
 | "Different Zone Layouts" reads Layout occurrences, not Scenes; about 140 stock Cuts now report no free time | #1075 ruling; `showV2LayerTransitionInsertion.test.ts` |
-| Delete acts on each converted run as a Clip; v1 counts and refuses at the logical Clip | #1068 gap 8 (conditional, unlanded) |
+| Select, move and animate act on each `--layout-N` segment of a layout-split logical Clip; delete, the final-Clip count, Zone removal and `remove_clips` act on the logical Clip as v1 does, through the `logicalClipId` provenance field | #1068 gap 8 (ruling 1b); `show-v2-conversion-provenance.md` |
 | Delete permits the Trails-armed and cross-boundary shared-instance cases v1 refuses | #1068 gap 6 (Jon, 2026-09-22) |
 | Layout Make Unique clones only the definition | #1066 comment 2026-09-21; `show-v2-layout-edits.md` |
 | On a native whole-output boundary, Show End stays fixed on insert, resize and Reset, and a Cut does not grow into a Transition | #1066 comment (engine freeze) |
