@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "issue": "1077",
+  "route": "/PXLBLZ-IDE/studio/shows",
+  "operation": "All captures are on the v1 backing, where a 1D Stage exists: the Stage map is the stock 1D map cylinder-strand. The 'saved stage map is gone' notice in the Stage section predates this range: the Stage preview resolves only 2D and 3D maps, and this range does not touch it.\n1. Boundary palette, fresh. A crossfade boundary between Scene 1 and Scene 2; open its '\u00b7 Change' palette, search Linear, and hover it. Capture 1 shows Linear offered, with no direction presets (East buttons offered: 0).\n2. Boundary palette, stored direction. The boundary already stores a linear Wipe with direction 0, which a Show saved before this fix carries. Captures 2 and 3 show the same palette and the applied result.\n3. Capture 4 is the stored v1 rows (GET /api/shows), before and after each Use Linear. The fresh case writes a linear Wipe with no direction; the stored-direction case clears direction 0. Before f8623551 the direction survived; that was measured on the host at 4e05bca8.\n4. Layer palette on a Cut (the Choose Layer Transition palette). Capture 5 shows the palette; capture 6 shows the stored Layer Transition: a linear Wipe with no direction.",
+  "captures": [
+    ".wrsp/ui-proof/1077-boundary-palette-1d.png",
+    ".wrsp/ui-proof/1077-boundary-palette-1d-stored-direction.png",
+    ".wrsp/ui-proof/1077-boundary-applied-1d-stored-direction.png",
+    ".wrsp/ui-proof/1077-boundary-readback-v1.png",
+    ".wrsp/ui-proof/1077-layer-palette-1d-v1.png",
+    ".wrsp/ui-proof/1077-layer-readback-v1.png"
+  ],
+  "capturedAtCommit": "f862355121ec2292ec5901ab897f5c766e4e0470"
+}
