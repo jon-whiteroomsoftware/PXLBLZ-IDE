@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1095",
+  "route": "/PXLBLZ-IDE/studio/shows/b5c2a5eb-56f0-4fc9-9b04-099b0b0608c0",
+  "operation": "Existing Show editor on the v2 backing, a fresh Installation Show created through the Shows rail. The page's PUT /api/shows/<id>?show-version=2 is held by a route handler after the TestPattern1D Clip's Brightness is set to 75 in the Entity Detail Panel. While the save is held, a dispatched cancelable beforeunload event is defaultPrevented (true), and a real reload raises a 'beforeunload' dialog; dismissing it keeps the page on the Show route (capture 1, the Clip detail showing Brightness 75 with the save still pending). After the held PUT is released, the same check returns false, a reload raises no dialog and completes, and the stored v2 record's first main Clip brightness is 0.75 (capture 2). Capture 3 is the readback of these values. Before #1095 the guard covered only Pattern autosave, so a reload with a queued Show save discarded that edit silently.",
+  "captures": [
+    ".wrsp/ui-proof/1095-held.png",
+    ".wrsp/ui-proof/1095-released.png",
+    ".wrsp/ui-proof/1095-readback.png"
+  ],
+  "capturedAtCommit": "e562244b2d963e99cfe4c10cbc6237c485d47f0d"
+}
