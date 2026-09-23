@@ -28,7 +28,7 @@ export function ShowWorkspace({
 }) {
   const workspaceRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ pointerId: number; y: number; height: number; target: HTMLDivElement } | null>(null)
-  const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
+  const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight, referenceHeight: undefined as number | undefined }))
   const [desiredTimelineFraction, setDesiredTimelineFractionState] = useState<number | null>(() => {
     try {
       return parseShowTimelineFraction(window.localStorage.getItem(SHOW_TIMELINE_FRACTION_STORAGE_KEY))
@@ -42,7 +42,8 @@ export function ShowWorkspace({
     const workspace = workspaceRef.current
     if (!workspace) return
     const observer = new ResizeObserver(([entry]) => {
-      setSize({ width: entry.contentRect.width, height: entry.contentRect.height })
+      // The first measured height anchors only the automatic fit's proportion, and it is never stored (#1085).
+      setSize((previous) => ({ width: entry.contentRect.width, height: entry.contentRect.height, referenceHeight: previous.referenceHeight ?? entry.contentRect.height }))
     })
     observer.observe(workspace)
     return () => observer.disconnect()
@@ -70,6 +71,7 @@ export function ShowWorkspace({
   const moveDivider = useCallback((deltaY: number) => {
     const next = resolveShowWorkspaceLayout({
       ...size,
+      referenceHeight: undefined,
       desiredTimelineFraction,
       desiredTimelineHeight: layout.timelineHeight + deltaY,
       previewAspect,
@@ -150,6 +152,7 @@ export function ShowWorkspace({
             // the gesture's last clamped height, not a stale rendered layout.
             const next = resolveShowWorkspaceLayout({
               ...size,
+              referenceHeight: undefined,
               desiredTimelineFraction,
               desiredTimelineHeight: drag.height + event.clientY - drag.y,
               previewAspect,

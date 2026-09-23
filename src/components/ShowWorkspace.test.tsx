@@ -77,7 +77,7 @@ describe('ShowWorkspace (#967)', () => {
     resizeWorkspace(1200, 800)
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '302px' })
     resizeWorkspace(1200, 900)
-    expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '592px' })
+    expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '554px' })
     view.rerender(<ShowWorkspace previewAspect={1} timelineContentHeight={470} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '447px' })
     expect(window.localStorage.getItem(SHOW_TIMELINE_FRACTION_STORAGE_KEY)).toBeNull()

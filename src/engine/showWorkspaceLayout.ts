@@ -21,6 +21,7 @@ export function resolveShowWorkspaceLayout({
   height,
   desiredTimelineFraction,
   desiredTimelineHeight,
+  referenceHeight,
   previewAspect,
   timelineMinimumHeight = SHOW_TIMELINE_MIN_HEIGHT,
   timelineContentHeight = timelineMinimumHeight,
@@ -29,6 +30,7 @@ export function resolveShowWorkspaceLayout({
   height: number
   desiredTimelineFraction: number | null
   desiredTimelineHeight?: number
+  referenceHeight?: number
   previewAspect: number
   timelineMinimumHeight?: number
   timelineContentHeight?: number
@@ -36,10 +38,11 @@ export function resolveShowWorkspaceLayout({
   const workspaceWidth = Math.max(1, Math.floor(width))
   const availableHeight = Math.max(1, Math.floor(height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
   const aspect = Number.isFinite(previewAspect) && previewAspect > 0 ? previewAspect : 1
+  const referenceAvailable = Math.max(1, Math.floor(referenceHeight ?? height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
   const desiredTimeline = desiredTimelineHeight !== undefined
     ? Math.round(desiredTimelineHeight)
     : desiredTimelineFraction === null
-      ? Math.min(Math.ceil(timelineContentHeight + SHOW_TIMELINE_DEFAULT_SLACK), Math.floor(availableHeight / 2))
+      ? Math.round(Math.min(Math.ceil(timelineContentHeight + SHOW_TIMELINE_DEFAULT_SLACK), Math.floor(referenceAvailable / 2)) * availableHeight / referenceAvailable)
       : Math.round(desiredTimelineFraction * availableHeight)
   const desiredStrip = availableHeight - desiredTimeline
   const minimumTimeline = Math.max(1, Math.ceil(timelineMinimumHeight))

@@ -19,7 +19,7 @@ describe('Show workspace sizing (#1006)', () => {
   })
 
   it.each([null, 400 / 794])('preserves intended proportions through resizing and a temporary height clamp (remembered %s)', (desiredTimelineFraction) => {
-    const input = { width: 1600, height: 800, desiredTimelineFraction, timelineContentHeight: 1200, previewAspect: 1 }
+    const input = { width: 1600, height: 800, referenceHeight: 800, desiredTimelineFraction, timelineContentHeight: 1200, previewAspect: 1 }
     const initial = resolveShowWorkspaceLayout(input)
     const fraction = desiredTimelineFraction ?? initial.timelineHeight / 794
     for (const height of [700, 1000, 800]) {
@@ -31,14 +31,14 @@ describe('Show workspace sizing (#1006)', () => {
     expect(resolveShowWorkspaceLayout(input)).toEqual(initial)
   })
 
-  it('keeps the fitted short-content height before any divider movement', () => {
-    const input = { width: 1200, height: 900, desiredTimelineFraction: null, timelineContentHeight: 290, previewAspect: 1 }
+  it('keeps the initial short-content proportion before any divider movement', () => {
+    const input = { width: 1200, height: 900, referenceHeight: 900, desiredTimelineFraction: null, timelineContentHeight: 290, previewAspect: 1 }
     const initial = resolveShowWorkspaceLayout(input)
     expect(initial.timelineHeight).toBe(302)
-    for (const height of [700, 1200, 900]) {
+    for (const height of [500, 1200, 900]) {
       const resized = resolveShowWorkspaceLayout({ ...input, height })
       expect(resized.clamp).toBeNull()
-      expect(resized.timelineHeight).toBe(302)
+      expect(resized.timelineHeight / (height - 6)).toBeCloseTo(initial.timelineHeight / 894, 2)
     }
   })
 
