@@ -6755,20 +6755,15 @@ function ShowTimelineWorkspace({
       // The planner names the door: a same-Layer move of a joined Clip shifts
       // its connected component, and a cross-Layer or cross-Zone drop re-places
       // the Clip with the detach permission, so a joined Clip tears off its
-      // Transitions and moves alone. A refusal plans nothing, so the drop
-      // target reads `none` and the gesture submits no command.
+      // Transitions and moves alone. A no-change refusal keeps the move
+      // preview at the Clip's own start but submits no command; other refusals
+      // clear the preview and make the drop target read `none`.
       const gesturePlan = planShowV2ClipMove(timelineView, {
         clipId: clip.id,
         zoneId: input.zoneId,
         layerId: input.layer.id,
         startMs: resolved.startMs,
       })
-      if (gesturePlan.kind === 'refuse') {
-        if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
-        movePlanRef.current = null
-        setMovePreview(null)
-        return
-      }
       const nextPreview: ShowClipMovePreview = {
         clipId: clip.id,
         mode: 'move',
@@ -6776,6 +6771,18 @@ function ShowTimelineWorkspace({
         startMs: resolved.startMs,
         durationMs: clip.durationMs,
         snapped: resolved.magnetized,
+      }
+      if (gesturePlan.kind === 'refuse') {
+        if (gesturePlan.reason === 'no-change') {
+          if (input.dataTransfer) input.dataTransfer.dropEffect = 'move'
+          movePlanRef.current = null
+          setMovePreview(nextPreview)
+          return
+        }
+        if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
+        movePlanRef.current = null
+        setMovePreview(null)
+        return
       }
       movePlanRef.current = {
         recordVersion: 2,

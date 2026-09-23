@@ -415,6 +415,15 @@ function dragSurface(clipId: string): DragSurface {
   }
 }
 
+function pointPointerAt(node: HTMLElement): () => void {
+  const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => node })
+  return () => {
+    if (original) Object.defineProperty(document, 'elementFromPoint', original)
+    else Reflect.deleteProperty(document, 'elementFromPoint')
+  }
+}
+
 function authoredClip(record: ShowRecordV2, clipId: string) {
   const clip = record.composition.clips.find((candidate) => candidate.id === clipId)
   if (!clip) throw new Error(`No authored Clip ${clipId}.`)
@@ -473,6 +482,53 @@ describe('legacy owner observation (#1065)', () => {
 })
 
 describe('v2 tracer settlement routing (#1065)', () => {
+  it("a v2 Shift pointer-drag that resolves to the Clip's own start keeps the move preview and commits nothing (#1067)", async () => {
+    const editor = openV2Editor('tracer-shift-no-change')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+    const restorePointerTarget = pointPointerAt(surface.lane('main'))
+
+    try {
+      fireEvent.pointerDown(surface.clip, { pointerId: 1067, clientX: 0, clientY: 20, shiftKey: true })
+      fireEvent.pointerMove(window, { pointerId: 1067, clientX: 6, clientY: 20, shiftKey: true })
+      expect(screen.getByTestId('show-clip-move-preview')).toHaveAttribute('data-drag-mode', 'move')
+      expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('0s')
+      fireEvent.pointerUp(window, { pointerId: 1067, clientX: 6, clientY: 20, shiftKey: true })
+      await act(async () => {})
+      expectNoWrite(before, editor.state())
+    } finally {
+      restorePointerTarget()
+    }
+  })
+
+  it('a v2 Shift pointer-drag paints tenths and commits the move (#1067)', async () => {
+    const editor = openV2Editor('tracer-shift-tenths')
+    useShowEditorSessionStore.setState({ snapEnabled: false, markersVisible: false, markerSnapEnabled: false })
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+    const restorePointerTarget = pointPointerAt(surface.lane('main'))
+
+    try {
+      fireEvent.pointerDown(surface.clip, { pointerId: 1068, clientX: 0, clientY: 20, shiftKey: true })
+      fireEvent.pointerMove(window, { pointerId: 1068, clientX: 123.37, clientY: 20, shiftKey: true })
+      expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('12.3s')
+      fireEvent.pointerUp(window, { pointerId: 1068, clientX: 123.37, clientY: 20, shiftKey: true })
+      await waitFor(() => expect(authoredClip(editor.state().record, 'resize-a').startMs).toBe(12_300))
+
+      const after = editor.state()
+      expect(temporalSubmissions()).toEqual([{
+        intent: { kind: 'move', clipId: 'resize-a', startMs: 12_300 },
+        baseRevision: 0,
+      }])
+      expect(after.history.past).toEqual([before.record])
+      expect(after.v2Writes).toBe(1)
+    } finally {
+      restorePointerTarget()
+    }
+  })
+
   it('settles the one qualified same-Layer move through the v2 door only', async () => {
     const editor = openV2Editor('tracer-qualified-move')
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)

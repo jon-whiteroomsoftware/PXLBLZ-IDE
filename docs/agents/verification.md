@@ -659,6 +659,7 @@ it.
 | `npm run test:e2e:auth-full` (every auth spec) | manual |
 
 The required Show suite runs on the v2 backing since #1067 activation.
+`show-boundary-deletion.auth.spec.ts` runs in that same required suite on the v1 backing because it covers the v1 editor, which still serves unconverted rows until #1042.
 `PXLBLZ_SHOW_BACKING=v1` runs the unmodified `e2e/shows.auth.spec.ts` against
 v1-stored rows as a diagnostic of unconverted-row behavior; it gates nothing.
 The v2 Show suite runs two workers because each worker's authenticated account pool
