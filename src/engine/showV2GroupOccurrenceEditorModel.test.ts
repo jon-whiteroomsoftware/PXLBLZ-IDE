@@ -353,6 +353,35 @@ it('exposes no removedControls when a Group child untick removes an unlaned cont
   expect(plan.removedControls).toEqual([])
 })
 
+it('exposes overwritten held segments for a Group child Brightness write (#1069)', () => {
+  const record = g2bConvertedBefore()
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === 'occ-1')!
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const child = definition.clips.find(value => value.id === 'clip-main')!
+  const first = child.appearance.keys[0]!
+  child.appearance.keys = [first, { ...structuredClone(first), id: 'held-appearance', timeMs: Math.floor(child.durationMs / 2),
+    value: { ...structuredClone(first.value), view: { ...first.value.view, brightness: 0.8 } } }]
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'set-child-inspector-patch', occurrenceId: occurrence.id, clipId: child.id, patch: { view: { brightness: 0.5 } },
+  }, () => 'unused')
+  expect(plan.status).toBe('ready')
+  if (plan.status !== 'ready' || plan.intent.kind !== 'edit-definition-clip-appearance') throw Error('plan')
+  expect(plan.overwritesHeldSegments).toBe(2)
+})
+
+it('does not flag a single-key Group child Brightness write as a held-segment overwrite (#1069)', () => {
+  const record = g2bConvertedBefore()
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === 'occ-1')!
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const child = definition.clips.find(value => value.id === 'clip-main')!
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'set-child-inspector-patch', occurrenceId: occurrence.id, clipId: child.id, patch: { view: { brightness: 0.5 } },
+  }, () => 'unused')
+  expect(plan.status).toBe('ready')
+  if (plan.status !== 'ready' || plan.intent.kind !== 'edit-definition-clip-appearance') throw Error('plan')
+  expect(plan.overwritesHeldSegments).toBeUndefined()
+})
+
 it('refuses Group Clip Pattern and entry-policy patches without an intent (#1075 G2b)', () => {
   const record = g2bConvertedBefore()
   const before = structuredClone(record)

@@ -1062,10 +1062,9 @@ type PendingV2ControlRemoval = {
 } & ({ kind: 'clip'; clipId: string } | { kind: 'group-clip'; occurrenceId: string; clipId: string })
 
 type PendingV2HeldSegmentOverwrite = {
-  clipId: string
   patch: ShowClipInspectorPatch
   segmentCount: number
-}
+} & ({ kind: 'clip'; clipId: string } | { kind: 'group-clip'; occurrenceId: string; clipId: string })
 
 function ShowLiveStrip({
   note,
@@ -2233,11 +2232,19 @@ export function ShowEditor({
     if (!pending || recordVersion !== 2 || !savedShowV2 || readOnly) return
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    if (pending.kind === 'group-clip') {
+      const plan = planShowV2GroupOccurrenceEdit(capture.record,
+        { kind: 'set-child-inspector-patch', occurrenceId: pending.occurrenceId, clipId: pending.clipId, patch: pending.patch },
+        newPersonalContentId)
+      if (plan.status !== 'ready' || plan.intent.kind !== 'edit-definition-clip-appearance') return
+      void commitV2GroupOccurrenceEdit({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+      return
+    }
     const plan = planShowV2ClipInspectorPatch(capture.record, pending.clipId, pending.patch)
     if (plan.kind !== 'appearance') return
-    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     void commitV2ClipAppearance({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
-  }, [commitV2ClipAppearance, pendingV2HeldSegmentOverwrite, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2ClipAppearance, commitV2GroupOccurrenceEdit, pendingV2HeldSegmentOverwrite, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 connects Show End through the same plumbing: one accepted write
   // is one history entry and one save. The drag preview never writes and the
   // commit never reads preview state, so a keyboard set with no drag still
@@ -2370,7 +2377,7 @@ export function ShowEditor({
     }
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     if (plan.kind === 'appearance' && plan.overwritesHeldSegments) {
-      setPendingV2HeldSegmentOverwrite({ clipId, patch, segmentCount: plan.overwritesHeldSegments })
+      setPendingV2HeldSegmentOverwrite({ kind: 'clip', clipId, patch, segmentCount: plan.overwritesHeldSegments })
       return false
     }
     if (plan.kind === 'instance-properties' && plan.removedControls.length > 0) {
@@ -2638,6 +2645,11 @@ export function ShowEditor({
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2GroupOccurrenceEdit(capture.record, request, newPersonalContentId)
     if (plan.status !== 'ready') return false
+    if (request.kind === 'set-child-inspector-patch' && (plan.overwritesHeldSegments ?? 0) > 1) {
+      setPendingV2HeldSegmentOverwrite({ kind: 'group-clip', occurrenceId: request.occurrenceId, clipId: request.clipId,
+        patch: request.patch, segmentCount: plan.overwritesHeldSegments! })
+      return false
+    }
     if (request.kind === 'set-child-inspector-patch' && (plan.removedControls?.length ?? 0) > 0) {
       const occurrence = capture.record.composition.groupOccurrences.find((candidate) => candidate.id === request.occurrenceId)
       const definition = capture.record.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)

@@ -55,7 +55,7 @@ function groupInsertKindSettings(
 
 /** Plans only explicit placement/identities. Existing pure owners validate choreography. */
 export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: ShowV2GroupOccurrenceRequest, allocate: () => string):
-  { status: 'ready'; intent: ShowV2GroupOccurrenceIntent; removedControls?: ShowV2RemovedControlTarget[] } | { status: 'refused'; message: string } {
+  { status: 'ready'; intent: ShowV2GroupOccurrenceIntent; removedControls?: ShowV2RemovedControlTarget[]; overwritesHeldSegments?: number } | { status: 'refused'; message: string } {
   const occurrence = record.composition.groupOccurrences.find(value => value.id === request.occurrenceId)
   if (!occurrence) return { status: 'refused', message: 'Select an existing Group occurrence.' }
   const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
@@ -116,7 +116,7 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
           definitionId: definition.id,
           appearance: plan.intent,
         }
-        return { status: 'ready', intent }
+        return { status: 'ready', intent, overwritesHeldSegments: plan.overwritesHeldSegments }
       }
       if (plan.kind === 'instance-properties') {
         const intent: WriteShowGroupDefinitionInstancePropertiesIntentV2 = {

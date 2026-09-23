@@ -3554,6 +3554,74 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
       .toEqual([1, 0.8, 0.6])
   })
 
+  async function multiSegmentGroupAppearanceRecord(id: string): Promise<ShowRecordV2> {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = id
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap(definition => definition.patternInstances)]) delete instance.controlTargets
+    const child = record.composition.groupDefinitions[0]!.clips[0]!
+    const first = child.appearance.keys[0]!
+    child.appearance.keys = [0, 1, 2].map(index => ({
+      ...structuredClone(first), id: `group-appearance-${index}`, timeMs: index * 100,
+      value: { ...structuredClone(first.value), view: { ...first.value.view, brightness: 1 - index / 5 } },
+    }))
+    expect(validateShowRecordV2(record)).toEqual([])
+    return record
+  }
+
+  it('a Group child multi-segment write confirms before overwriting the definition segments (#1069)', async () => {
+    const editor = openV2EditorForRecord(await multiSegmentGroupAppearanceRecord('group-held-brightness-confirm'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    const before = editor.state()
+    const keysBefore = before.record.composition.groupDefinitions[0]!.clips[0]!.appearance.keys
+    expect(keysBefore).toHaveLength(3)
+
+    typeAndCommit('Brightness exact percentage', '63')
+    await act(async () => {})
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Change every segment?' })
+    expect(dialog).toHaveTextContent('This Clip has 3 held segments. This change applies to all of them.')
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, editor.state())
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Change all segments' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(admission.calls).toHaveLength(1)
+    const keysAfter = after.record.composition.groupDefinitions[0]!.clips[0]!.appearance.keys
+    expect(keysAfter.map(key => key.value.view.brightness)).toEqual([0.63, 0.63, 0.63])
+    expect(keysAfter.map(key => key.timeMs)).toEqual(keysBefore.map(key => key.timeMs))
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('cancelling a Group child multi-segment write writes nothing (#1069)', async () => {
+    const editor = openV2EditorForRecord(await multiSegmentGroupAppearanceRecord('group-held-brightness-cancel'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    const before = editor.state()
+
+    typeAndCommit('Brightness exact percentage', '63')
+    await act(async () => {})
+    const dialog = screen.getByRole('alertdialog', { name: 'Change every segment?' })
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, editor.state())
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+
+    expect(admission.calls).toEqual([])
+    expectNoWrite(before, editor.state())
+    expect(editor.state().record.composition.groupDefinitions[0]!.clips[0]!.appearance.keys.map(key => key.value.view.brightness))
+      .toEqual([1, 0.8, 0.6])
+  })
+
   it('stores header Opacity through the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-opacity'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
