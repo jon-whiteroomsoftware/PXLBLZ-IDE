@@ -1,5 +1,5 @@
-import { expect, it } from 'vitest'
-import { describeConnectedClipMoveLoss, describePatternReplacementCost, describePatternReplacementLoss, formatControlNameList } from './showLossConfirmationText'
+import { describe, expect, it } from 'vitest'
+import { describeConnectedClipMoveLoss, describeControlTargetRemovalLoss, describePatternReplacementCost, describePatternReplacementLoss, formatControlNameList } from './showLossConfirmationText'
 
 it('describes the picker cost for animated, value, mixed, and empty losses', () => {
   expect(describePatternReplacementCost([{ animated: true }])).toBe('removes 1 property lane')
@@ -48,4 +48,27 @@ it('formats one, two and three control names for both conjunctions', () => {
   expect(formatControlNameList(['Speed', 'Hue'], 'or')).toBe('Speed or Hue')
   expect(formatControlNameList(['Speed', 'Hue', 'Gain'], 'or')).toBe('Speed, Hue, or Gain')
   expect(formatControlNameList(['Speed', 'Hue', 'Gain'], 'and')).toBe('Speed, Hue, and Gain')
+})
+
+describe('control-target removal confirmation (#1069)', () => {
+  it('names one control in the singular', () => {
+    expect(describeControlTargetRemovalLoss(['Speed'])).toEqual({
+      title: 'Remove Speed control?',
+      description: 'The Speed animation will be removed.',
+      actionLabel: 'Remove Speed',
+    })
+  })
+
+  it('counts and lists two or more controls in the plural', () => {
+    expect(describeControlTargetRemovalLoss(['Speed', 'Hue'])).toEqual({
+      title: 'Remove 2 controls?',
+      description: 'The Speed and Hue animations will be removed.',
+      actionLabel: 'Remove controls',
+    })
+    expect(describeControlTargetRemovalLoss(['Speed', 'Hue', 'Gain'])).toEqual({
+      title: 'Remove 3 controls?',
+      description: 'The Speed, Hue, and Gain animations will be removed.',
+      actionLabel: 'Remove controls',
+    })
+  })
 })

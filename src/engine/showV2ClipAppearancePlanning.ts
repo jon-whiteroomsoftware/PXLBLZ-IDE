@@ -44,11 +44,17 @@ export type ShowV2ClipInspectorRefusal =
   | 'group-child'
   | 'multi-key-clip'
   | 'timing-edit'
-  | 'control-target-removal'
   | 'unsupported-simulation'
   | 'ambiguous-effects'
   | 'mixed-facets'
   | 'invalid-request'
+
+/** A removed control target that held an `instance-control` lane. */
+export interface ShowV2RemovedControlTarget {
+  exportName: string
+  /** The label the Pattern tab row shows, or the export name when unknown. */
+  label: string
+}
 
 /**
  * The instance-properties intent in the admission's own field names. Declared
@@ -59,6 +65,7 @@ export interface ShowV2ClipInspectorInstanceIntent {
   clipId: string
   properties: {
     controls?: Record<string, number>
+    remove_controls?: string[]
     time_scale?: number
     time_offset_ms?: number
     evaluation?: ShowClipEvaluationPolicy
@@ -79,7 +86,7 @@ export interface ShowV2ClipInspectorEntryPolicyIntent {
 
 export type ShowV2ClipInspectorPlan =
   | { kind: 'appearance'; intent: ShowClipAppearanceEditIntentV2 }
-  | { kind: 'instance-properties'; intent: ShowV2ClipInspectorInstanceIntent }
+  | { kind: 'instance-properties'; intent: ShowV2ClipInspectorInstanceIntent; removedControls: ShowV2RemovedControlTarget[] }
   | { kind: 'entry-policy'; intent: ShowV2ClipInspectorEntryPolicyIntent }
   | { kind: 'replacement'; clipId: string; reference: ShowPatternRef; name: string }
   | { kind: 'no-op' }
@@ -331,6 +338,7 @@ export function planShowV2ClipInspectorPatch(
   record: ShowRecordV2,
   clipId: string,
   patch: ShowClipInspectorPatch,
+  options?: { controlLabels?: Readonly<Record<string, string>> },
 ): ShowV2ClipInspectorPlan {
   if (typeof clipId !== 'string' || clipId.trim().length === 0) {
     return refuse('invalid-request', 'Choose one ordinary Clip to edit.')
@@ -461,6 +469,7 @@ export function planShowV2ClipInspectorPatch(
   const properties: ShowV2ClipInspectorInstanceIntent['properties'] = {}
   let instanceFacets = 0
   const noteInstance = (): void => { instanceFacets += 1 }
+  let removedControls: ShowV2RemovedControlTarget[] = []
   if (patch.simulation !== undefined) {
     if (!object(patch.simulation)) return refuse('invalid-request', 'Give Pattern-instance values.')
     if (patch.simulation.lightShutter !== undefined && patch.simulation.lightShutter !== null) {
@@ -506,7 +515,17 @@ export function planShowV2ClipInspectorPatch(
       const next = targets ?? {}
       const removed = Object.keys(current).filter((name) => !has(next, name))
       if (removed.length > 0) {
-        return refuse('control-target-removal', `Removing the ${removed[0]} control target has no instance owner on this surface.`)
+        properties.remove_controls = removed
+        noteInstance()
+        const laneExports = new Set<string>()
+        for (const track of record.composition.propertyTracks) {
+          if (track.target.kind === 'instance-control' && track.target.instanceId === clip.instanceId) {
+            laneExports.add(track.target.exportName)
+          }
+        }
+        removedControls = removed
+          .filter((name) => laneExports.has(name))
+          .map((name) => ({ exportName: name, label: options?.controlLabels?.[name] ?? name }))
       }
       const changed: Record<string, number> = {}
       for (const [name, value] of Object.entries(next)) {
@@ -550,7 +569,7 @@ export function planShowV2ClipInspectorPatch(
       instanceFacets -= 1
     }
     if (instanceFacets === 0) return { kind: 'no-op' }
-    return { kind: 'instance-properties', intent: { clipId, properties } }
+    return { kind: 'instance-properties', intent: { clipId, properties }, removedControls }
   }
 
   if (appearanceFacets === 0) return { kind: 'no-op' }

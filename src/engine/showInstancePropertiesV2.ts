@@ -21,6 +21,8 @@ export interface ShowInstancePropertiesResultV2 {
   message?: string
   affectedInstanceIds?: string[]
   affectedClipIds?: string[]
+  /** Authored `instance-control` tracks a control-target removal pruned. */
+  affectedTrackIds?: string[]
 }
 
 /** An explicit stutter request: one positive step, or `null` to clear it. */
@@ -61,6 +63,30 @@ export function writeShowInstancePropertiesV2(
   if (stepped.status === 'invalid') {
     return { status: 'refused', record, code: 'invalid-argument', message: 'stepped_clock must be null or one positive stepMs.' }
   }
+  const removeControls = properties.remove_controls as string[] | undefined
+  if (removeControls !== undefined) {
+    const wellFormed = Array.isArray(removeControls) && removeControls.length > 0
+      && removeControls.every(name => typeof name === 'string' && name.trim().length > 0)
+    if (!wellFormed) {
+      return { status: 'refused', record, code: 'invalid-argument', message: 'remove_controls must be a non-empty list of control export names.' }
+    }
+    const missing = removeControls.find(name => !Object.prototype.hasOwnProperty.call(source.controlTargets ?? {}, name))
+    if (missing !== undefined) {
+      return { status: 'refused', record, code: 'invalid-intent', message: `Pattern instance "${source.id}" has no control target named "${missing}".` }
+    }
+    const authoredIds = new Set(record.composition.propertyTracks.map(track => track.id))
+    const unowned = materializeShowGroupsV2(record).composition.propertyTracks.find(track =>
+      track.target.kind === 'instance-control' && track.target.instanceId === source.id
+      && removeControls.includes(track.target.exportName) && !authoredIds.has(track.id))
+    if (unowned && unowned.target.kind === 'instance-control') {
+      const occurrence = record.composition.groupOccurrences.find(owner => record.composition.groupDefinitions
+        .find(definition => definition.id === owner.definitionId)!.propertyTracks.some(track => `${owner.id}:${track.id}` === unowned.id))!
+      return {
+        status: 'refused', record, code: 'compiler-ineligible',
+        message: `Cannot remove this control: control "${unowned.target.exportName}" on Pattern instance "${source.id}" is animated by Group "${occurrence.definitionId}", occurrence "${occurrence.id}", track "${unowned.id}". Removing it would alter Group-owned choreography.`,
+      }
+    }
+  }
   const controls = properties.controls as Record<string, number> | undefined
   if (controls && Object.keys(controls).length > 0) {
     const resolver = dependencies?.resolvePattern
@@ -83,6 +109,10 @@ export function writeShowInstancePropertiesV2(
   if (controls) {
     instance.controlTargets = { ...(instance.controlTargets ?? {}), ...controls }
   }
+  if (removeControls) {
+    for (const name of removeControls) delete instance.controlTargets?.[name]
+    if (instance.controlTargets && Object.keys(instance.controlTargets).length === 0) delete instance.controlTargets
+  }
   if (properties.time_scale !== undefined) instance.time.timeScale = properties.time_scale as number
   if (properties.time_offset_ms !== undefined) instance.time.timeOffsetMs = properties.time_offset_ms as number
   if (properties.evaluation !== undefined) instance.evaluationPolicy = properties.evaluation as ShowPatternInstance['evaluationPolicy']
@@ -92,10 +122,18 @@ export function writeShowInstancePropertiesV2(
   const resultIssue = validateShowRecordV2(next)[0]
   if (resultIssue) return { status: 'refused', record, code: 'invalid-result', message: `${resultIssue.path}: ${resultIssue.message}` }
   const effective = materializeShowGroupsV2(next)
+  let affectedTrackIds: string[] = []
+  if (removeControls) {
+    affectedTrackIds = next.composition.propertyTracks
+      .filter(track => track.target.kind === 'instance-control' && track.target.instanceId === source.id && removeControls.includes(track.target.exportName))
+      .map(track => track.id)
+    next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !affectedTrackIds.includes(track.id))
+  }
   return {
     status: 'changed',
     record: next,
     affectedInstanceIds: [source.id],
     affectedClipIds: effective.composition.clips.filter(candidate => candidate.instanceId === source.id).map(candidate => candidate.id).sort(),
+    affectedTrackIds,
   }
 }

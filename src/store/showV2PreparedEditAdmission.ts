@@ -574,6 +574,8 @@ export interface ShowV2PilotInstancePropertiesIntent {
   clipId: string
   properties: {
     controls?: Record<string, number>
+    /** Control export names to un-target, pruning their `instance-control` lanes in the same edit. */
+    remove_controls?: string[]
     time_scale?: number
     time_offset_ms?: number
     evaluation?: ShowClipEvaluationPolicy
@@ -599,8 +601,10 @@ function validInstancePropertiesIntent(intent: unknown): intent is ShowV2PilotIn
   if (typeof intent.clipId !== 'string' || !intent.clipId.trim() || !object(intent.properties)) return false
   const properties = intent.properties
   const names = Object.keys(properties)
-  if (!names.length || names.some(name => !['controls', 'time_scale', 'time_offset_ms', 'evaluation', 'stepped_clock'].includes(name))) return false
+  if (!names.length || names.some(name => !['controls', 'remove_controls', 'time_scale', 'time_offset_ms', 'evaluation', 'stepped_clock'].includes(name))) return false
   if (properties.controls !== undefined && (!object(properties.controls) || !Object.values(properties.controls).every(unit))) return false
+  if (properties.remove_controls !== undefined && (!Array.isArray(properties.remove_controls) || properties.remove_controls.length === 0
+    || !properties.remove_controls.every(name => typeof name === 'string' && name.trim().length > 0))) return false
   if (properties.time_scale !== undefined && (typeof properties.time_scale !== 'number' || !Number.isFinite(properties.time_scale) || properties.time_scale < 0 || properties.time_scale > 8)) return false
   if (properties.time_offset_ms !== undefined && (typeof properties.time_offset_ms !== 'number' || !Number.isSafeInteger(properties.time_offset_ms))) return false
   if (properties.evaluation !== undefined && !['live', 'freeze-at-entry', 'rolling-refresh'].includes(properties.evaluation as string)) return false

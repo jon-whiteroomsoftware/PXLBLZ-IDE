@@ -3577,8 +3577,8 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect(planned.calls).toHaveLength(2)
   })
 
-  it('refuses a Pattern control target removal with no write', async () => {
-    const editor = openV2EditorForRecord(connectedV2Record('slice3-control-remove'))
+  it('unticking a control target with no lane removes it without asking (#1069)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice4-control-remove-plain'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
@@ -3588,19 +3588,85 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     const enabled = editor.state()
     expect(instanceSubmissions()).toHaveLength(1)
 
-    // Unchecking deletes the target, which the merge owner cannot express:
-    // the removal submits nothing and the enabled record stands.
+    // Unchecking the last target commits the removal directly: no lane means
+    // no confirmation, as on v1.
     fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
     await act(async () => {})
 
     const after = editor.state()
-    expect(instanceSubmissions()).toHaveLength(1)
-    expect(planned.calls).toHaveLength(2)
-    expect(after.record).toBe(enabled.record)
-    expect(after.history).toEqual(enabled.history)
-    expect(after.v2Writes).toBe(enabled.v2Writes)
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(instanceSubmissions()).toEqual([
+      { intent: { clipId: 'resize-a', properties: { controls: { sliderSpeed: 0.5 } } }, baseRevision: 0 },
+      { intent: { clipId: 'resize-a', properties: { remove_controls: ['sliderSpeed'] } }, baseRevision: 1 },
+    ])
+    expect(after.record.composition.patternInstances.find(instance => instance.id === 'resize-instance')?.controlTargets).toBeUndefined()
+    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.controlTargets).toBeUndefined()
+    expect(after.history.past).toEqual([...enabled.history.past, enabled.record])
+    expect(after.history.future).toEqual([])
+    expect(after.revision).toBe(enabled.revision + 1)
+    expect(after.v2Writes).toBe(enabled.v2Writes + 1)
+    expect(after.legacyWrites).toBe(0)
     expect(legacy.calls).toEqual([])
-    expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.controlTargets).toEqual({ sliderSpeed: 0.5 })
+    await expectUndoRedoExact(editor, enabled)
+  })
+
+  it('unticking a control target with a lane confirms, then removes both (#1069)', async () => {
+    const record = connectedV2Record('slice4-control-remove-lane')
+    record.composition.patternInstances.find(instance => instance.id === 'resize-instance')!.controlTargets = { sliderSpeed: 0.5 }
+    record.composition.propertyTracks.push({ id: 'lane-speed', target: { kind: 'instance-control', instanceId: 'resize-instance', exportName: 'sliderSpeed' },
+      activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'lane-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lane-speed-b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] })
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Remove Speed control?' })
+    expect(dialog).toHaveTextContent('The Speed animation will be removed.')
+    expect(instanceSubmissions()).toHaveLength(0)
+    expect(editor.state().record).toBe(before.record)
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Speed' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(instanceSubmissions()).toEqual([
+      { intent: { clipId: 'resize-a', properties: { remove_controls: ['sliderSpeed'] } }, baseRevision: 0 },
+    ])
+    expect(after.record.composition.patternInstances.find(instance => instance.id === 'resize-instance')?.controlTargets).toBeUndefined()
+    expect(after.record.composition.propertyTracks.some(track => track.id === 'lane-speed')).toBe(false)
+    expectOneEdit(before, after)
+    expect(legacy.calls).toEqual([])
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('cancelling the control-target removal writes nothing (#1069)', async () => {
+    const record = connectedV2Record('slice4-control-remove-cancel')
+    record.composition.patternInstances.find(instance => instance.id === 'resize-instance')!.controlTargets = { sliderSpeed: 0.5 }
+    record.composition.propertyTracks.push({ id: 'lane-speed', target: { kind: 'instance-control', instanceId: 'resize-instance', exportName: 'sliderSpeed' },
+      activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'lane-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lane-speed-b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] })
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
+    await act(async () => {})
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Remove Speed control?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+
+    expect(admission.calls).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+    expect(editor.state().history).toEqual(before.history)
+    expect(editor.state().v2Writes).toBe(before.v2Writes)
   })
 
   it('checks and clears the stutter clock through the instance door', async () => {

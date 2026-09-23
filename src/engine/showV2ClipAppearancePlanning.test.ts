@@ -138,14 +138,17 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     expect(plan(fixture(), { simulation: { timeScale: 2 } })).toEqual({
       kind: 'instance-properties',
       intent: { clipId: 'clip', properties: { time_scale: 2 } },
+      removedControls: [],
     })
     expect(plan(fixture(), { evaluationPolicy: 'freeze-at-entry' })).toEqual({
       kind: 'instance-properties',
       intent: { clipId: 'clip', properties: { evaluation: 'freeze-at-entry' } },
+      removedControls: [],
     })
     expect(plan(fixture(), { simulation: { steppedClock: { stepMs: 250 } } })).toEqual({
       kind: 'instance-properties',
       intent: { clipId: 'clip', properties: { stepped_clock: { stepMs: 250 } } },
+      removedControls: [],
     })
   })
 
@@ -155,19 +158,22 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     expect(plan(record, { simulation: { steppedClock: undefined } })).toEqual({
       kind: 'instance-properties',
       intent: { clipId: 'clip', properties: { stepped_clock: null } },
+      removedControls: [],
     })
   })
 
-  it('sends only added and changed control targets, never a removal', () => {
+  it('sends added and changed control targets through the merge key', () => {
     const record = fixture()
     record.composition.patternInstances[0].controlTargets = { sliderLevel: 0.2 }
     expect(plan(record, { simulation: { controlTargets: { sliderLevel: 0.75 } } })).toEqual({
       kind: 'instance-properties',
       intent: { clipId: 'clip', properties: { controls: { sliderLevel: 0.75 } } },
+      removedControls: [],
     })
     expect(plan(record, { simulation: { controlTargets: { sliderLevel: 0.2, extra: 0.5 } } })).toEqual({
       kind: 'instance-properties',
       intent: { clipId: 'clip', properties: { controls: { extra: 0.5 } } },
+      removedControls: [],
     })
   })
 
@@ -435,18 +441,33 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     })
   })
 
-  it('refuses a control-target removal the merge owner cannot express', () => {
+  it('plans a control-target removal and lists lanes only for controls that have one (#1069)', () => {
     const record = fixture()
-    record.composition.patternInstances[0].controlTargets = { sliderLevel: 0.2 }
-    expect(plan(record, { simulation: { controlTargets: undefined } })).toEqual({
-      kind: 'refuse',
-      reason: 'control-target-removal',
-      message: 'Removing the sliderLevel control target has no instance owner on this surface.',
+    record.composition.patternInstances[0].controlTargets = { sliderLevel: 0.2, sliderHue: 0.7 }
+    record.composition.propertyTracks = [
+      { id: 'level', target: { kind: 'instance-control', instanceId: 'instance', exportName: 'sliderLevel' }, activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'level-a', timeMs: 0, value: 0.2, easing: { curve: 'linear' } }, { id: 'level-b', timeMs: 1000, value: 0.4, easing: { curve: 'linear' } }] },
+    ]
+    expect(validateShowRecordV2(record)).toEqual([])
+    const labels = { controlLabels: { sliderLevel: 'Level', sliderHue: 'Hue' } }
+    expect(planShowV2ClipInspectorPatch(record, 'clip', { simulation: { controlTargets: { sliderHue: 0.7 } } }, labels)).toEqual({
+      kind: 'instance-properties',
+      intent: { clipId: 'clip', properties: { remove_controls: ['sliderLevel'] } },
+      removedControls: [{ exportName: 'sliderLevel', label: 'Level' }],
     })
-    expect(plan(record, { simulation: { controlTargets: {} } })).toEqual({
-      kind: 'refuse',
-      reason: 'control-target-removal',
-      message: 'Removing the sliderLevel control target has no instance owner on this surface.',
+    expect(planShowV2ClipInspectorPatch(record, 'clip', { simulation: { controlTargets: undefined } }, labels)).toEqual({
+      kind: 'instance-properties',
+      intent: { clipId: 'clip', properties: { remove_controls: ['sliderLevel', 'sliderHue'] } },
+      removedControls: [{ exportName: 'sliderLevel', label: 'Level' }],
+    })
+    expect(planShowV2ClipInspectorPatch(record, 'clip', { simulation: { controlTargets: {} } }, labels)).toEqual({
+      kind: 'instance-properties',
+      intent: { clipId: 'clip', properties: { remove_controls: ['sliderLevel', 'sliderHue'] } },
+      removedControls: [{ exportName: 'sliderLevel', label: 'Level' }],
+    })
+    expect(planShowV2ClipInspectorPatch(record, 'clip', { simulation: { controlTargets: { sliderHue: 0.7 } } })).toEqual({
+      kind: 'instance-properties',
+      intent: { clipId: 'clip', properties: { remove_controls: ['sliderLevel'] } },
+      removedControls: [{ exportName: 'sliderLevel', label: 'sliderLevel' }],
     })
   })
 
@@ -476,6 +497,7 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     expect(plan(record, { simulation: { timeScale: 2 } })).toEqual({
       kind: 'instance-properties',
       intent: { clipId: 'clip', properties: { time_scale: 2 } },
+      removedControls: [],
     })
   })
 

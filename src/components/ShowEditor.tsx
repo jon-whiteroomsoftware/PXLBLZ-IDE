@@ -52,7 +52,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
 import { ShowLossConfirmDialog } from '@/components/ShowLossConfirmDialog'
-import { describeConnectedClipMoveLoss, describePatternReplacementCost, describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
+import { describeConnectedClipMoveLoss, describeControlTargetRemovalLoss, describePatternReplacementCost, describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { showRecordClipCount } from '@/engine/showClipInvariant'
 import { isAlreadyPushed, type SendMode } from '@/engine/sendToController'
@@ -1056,6 +1056,12 @@ type PendingV2Replacement = {
   lost: Array<{ label: string; animated: boolean }>
 } & ({ kind: 'clip' } | { kind: 'group-clip'; occurrenceId: string })
 
+type PendingV2ControlRemoval = {
+  clipId: string
+  patch: ShowClipInspectorPatch
+  lost: Array<{ exportName: string; label: string }>
+}
+
 function ShowLiveStrip({
   note,
   showId,
@@ -1370,6 +1376,7 @@ export function ShowEditor({
   const [v2ClipPendingDelete, setV2ClipPendingDelete] = useState<string | null>(null)
   const [pendingPatternSlotSelection, setPendingPatternSlotSelection] = useState<PendingPatternSlotSelection | null>(null)
   const [pendingV2Replacement, setPendingV2Replacement] = useState<PendingV2Replacement | null>(null)
+  const [pendingV2ControlRemoval, setPendingV2ControlRemoval] = useState<PendingV2ControlRemoval | null>(null)
   const patternControlsByInstanceIdRef = useRef<Record<string, AutomatablePatternControl[]>>({})
   const [blockedDeleteFeedback, setBlockedDeleteFeedback] = useState<BlockedDeleteFeedback | null>(null)
   const blockedDeleteFeedbackSequenceRef = useRef(0)
@@ -1576,6 +1583,7 @@ export function ShowEditor({
     setV2ClipPendingDelete(null)
     setPendingPatternSlotSelection(null)
     setPendingV2Replacement(null)
+    setPendingV2ControlRemoval(null)
     setBlockedDeleteFeedback(null)
     setIsolatedGroupOccurrenceId(null)
     pendingDeliveryRef.current = null
@@ -2190,6 +2198,20 @@ export function ShowEditor({
     const plan = planShowV2GroupReplacementEdit(capture, definitionId, pending.clipId, pending.reference, newPersonalContentId)
     if (plan.status === 'ready') void commitV2GroupReplacement({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
   }, [commitV2ClipReplacement, commitV2GroupReplacement, pendingV2Replacement, readOnly, recordVersion, savedShowV2, showId])
+  const confirmV2ControlRemoval = useCallback(() => {
+    const pending = pendingV2ControlRemoval
+    setPendingV2ControlRemoval(null)
+    if (!pending || recordVersion !== 2 || !savedShowV2 || readOnly) return
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return
+    const instanceId = capture.record.composition.clips.find((clip) => clip.id === pending.clipId)?.instanceId
+    const controls = instanceId ? patternControlsByInstanceIdRef.current[instanceId] ?? [] : []
+    const plan = planShowV2ClipInspectorPatch(capture.record, pending.clipId, pending.patch,
+      { controlLabels: Object.fromEntries(controls.map((control) => [control.exportName, control.label])) })
+    if (plan.kind !== 'instance-properties') return
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    void commitV2InstanceProperties({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+  }, [commitV2InstanceProperties, pendingV2ControlRemoval, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 connects Show End through the same plumbing: one accepted write
   // is one history entry and one save. The drag preview never writes and the
   // commit never reads preview state, so a keyboard set with no drag still
@@ -2296,7 +2318,10 @@ export function ShowEditor({
         }
       }
     }
-    const plan = planShowV2ClipInspectorPatch(capture.record, clipId, patch)
+    const inspectorInstanceId = capture.record.composition.clips.find((candidate) => candidate.id === clipId)?.instanceId
+    const inspectorControls = inspectorInstanceId ? patternControlsByInstanceIdRef.current[inspectorInstanceId] ?? [] : []
+    const plan = planShowV2ClipInspectorPatch(capture.record, clipId, patch,
+      { controlLabels: Object.fromEntries(inspectorControls.map((control) => [control.exportName, control.label])) })
     if (plan.kind === 'refuse') return false
     if (plan.kind === 'no-op') {
       // Re-picking the stored Pattern ends the slot's trial and writes nothing (#1066 L2).
@@ -2318,6 +2343,12 @@ export function ShowEditor({
       return false
     }
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    if (plan.kind === 'instance-properties' && plan.removedControls.length > 0) {
+      const labels = new Map(inspectorControls.map((control) => [control.exportName, control.label]))
+      setPendingV2ControlRemoval({ clipId, patch,
+        lost: plan.removedControls.map(({ exportName, label }) => ({ exportName, label: labels.get(exportName) ?? label })) })
+      return false
+    }
     if (plan.kind === 'entry-policy') {
       return commitV2ClipEntryPolicy({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
     }
@@ -3942,6 +3973,14 @@ export function ShowEditor({
           : { title: '', description: '', actionLabel: '' })}
         onCancel={() => setPendingV2Replacement(null)}
         onConfirm={confirmV2Replacement}
+      />
+      <ShowLossConfirmDialog
+        open={pendingV2ControlRemoval !== null}
+        {...(pendingV2ControlRemoval
+          ? describeControlTargetRemovalLoss(pendingV2ControlRemoval.lost.map((control) => control.label))
+          : { title: '', description: '', actionLabel: '' })}
+        onCancel={() => setPendingV2ControlRemoval(null)}
+        onConfirm={confirmV2ControlRemoval}
       />
       {readOnly && !builtInContext?.note && (
         <div className="flex shrink-0 items-start gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">

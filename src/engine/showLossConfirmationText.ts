@@ -47,3 +47,20 @@ export function describeConnectedClipMoveLoss(transitionCount: number): { title:
     actionLabel: `Move Clip and remove Transition${transitionCount === 1 ? '' : 's'}`,
   }
 }
+
+export function describeControlTargetRemovalLoss(
+  labels: ReadonlyArray<string>,
+): { title: string; description: string; actionLabel: string } {
+  if (labels.length === 1) {
+    return {
+      title: `Remove ${labels[0]} control?`,
+      description: `The ${labels[0]} animation will be removed.`,
+      actionLabel: `Remove ${labels[0]}`,
+    }
+  }
+  return {
+    title: `Remove ${labels.length} controls?`,
+    description: `The ${formatControlNameList(labels, 'and')} animations will be removed.`,
+    actionLabel: 'Remove controls',
+  }
+}

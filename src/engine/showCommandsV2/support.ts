@@ -369,13 +369,21 @@ export const INSTANCE_PROPERTIES_FIELD: ShowCommandV2Field = {
   kind: 'object',
   optional: true,
   description: 'Pattern-instance values; every Clip sharing the runtime is affected.',
-  atLeastOne: ['controls', 'time_scale', 'time_offset_ms', 'evaluation'],
+  atLeastOne: ['controls', 'remove_controls', 'time_scale', 'time_offset_ms', 'evaluation'],
   properties: {
     controls: {
       kind: 'record',
       optional: true,
       description: 'Slider values by export name, 0-1.',
       values: unitField('Control value, 0-1.'),
+    },
+    remove_controls: {
+      kind: 'array',
+      optional: true,
+      minItems: 1,
+      maxItems: 128,
+      description: 'Control export names to un-target, pruning their animation lanes.',
+      items: { kind: 'string', description: 'Control export name.' },
     },
     time_scale: { kind: 'number', optional: true, minimum: 0, maximum: 8, description: 'Time scale, 0-8; zero freezes the clock.' },
     time_offset_ms: { kind: 'integer', optional: true, minimum: -MAX_SAFE_MS, maximum: MAX_SAFE_MS, description: 'Clock offset ms.' },
