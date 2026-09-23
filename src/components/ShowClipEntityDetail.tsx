@@ -133,6 +133,13 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const [placementGrid, setPlacementGrid] = useState(3)
   const [placementPreview, setPlacementPreview] = useState<PlacementPreviewPatch | null>(null)
   const [effectChooserOpen, setEffectChooserOpen] = useState(false)
+  const clipKey = JSON.stringify(value.owner)
+  const [restartOpen, setRestartOpen] = useState(() => 'entryPolicy' in value && value.entryPolicy === 'restart')
+  const [restartOpenClipKey, setRestartOpenClipKey] = useState(clipKey)
+  if (restartOpenClipKey !== clipKey) {
+    setRestartOpenClipKey(clipKey)
+    setRestartOpen('entryPolicy' in value && value.entryPolicy === 'restart')
+  }
   const addEffectButtonRef = useRef<HTMLButtonElement>(null)
   const detailRef = useRef<HTMLElement>(null)
   const placementPreviewVersionRef = useRef(0)
@@ -983,10 +990,11 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                 <details
                   className="min-w-0 border-t border-zinc-800/80"
                   aria-label="Global placement and clock controls"
-                  open={value.entryPolicy === 'restart'}
+                  open={restartOpen}
+                  onToggle={(event) => setRestartOpen(event.currentTarget.open)}
                 >
                   <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Global placement and clock controls</summary>
-                  <section className="mt-1 max-w-2xl border-t border-zinc-800/65 py-1">
+                  <div className="border-t border-zinc-800/70 py-1 text-[9px]">
                     <label className="flex shrink-0 items-center gap-2 text-zinc-200">
                       <input
                         type="checkbox"
@@ -997,7 +1005,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                       />
                       Restart Pattern on entry
                     </label>
-                  </section>
+                  </div>
                 </details>
               )}
             </div>

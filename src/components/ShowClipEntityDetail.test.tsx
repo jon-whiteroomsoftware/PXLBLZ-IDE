@@ -1161,4 +1161,27 @@ describe('Restart Pattern on entry placement (#1091)', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Restart Pattern on entry' }))
     expect(onPatchRestart).toHaveBeenCalledWith({ entryPolicy: 'continue' })
   })
+
+  it('keeps the Restart section open after unticking (#1091)', () => {
+    const onPatch = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    const { rerender } = render(<ShowClipEntityDetail {...props} value={restartValue('continue', 1_000)} />)
+    showTab('Playback')
+
+    const section = () => screen.getByRole('group', { name: 'Global placement and clock controls' })
+    expect(section()).not.toHaveAttribute('open')
+    const details = section() as HTMLDetailsElement
+    details.open = true
+    fireEvent(details, new Event('toggle', { bubbles: true }))
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Restart Pattern on entry' }))
+    expect(onPatch).toHaveBeenCalledWith({ entryPolicy: 'restart' })
+    rerender(<ShowClipEntityDetail {...props} value={restartValue('restart', 1_000)} />)
+    expect(section()).toHaveAttribute('open')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Restart Pattern on entry' }))
+    expect(onPatch).toHaveBeenCalledWith({ entryPolicy: 'continue' })
+    rerender(<ShowClipEntityDetail {...props} value={restartValue('continue', 1_000)} />)
+    expect(section()).toHaveAttribute('open')
+  })
 })
