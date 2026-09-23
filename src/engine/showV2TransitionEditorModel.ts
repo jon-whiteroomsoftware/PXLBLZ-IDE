@@ -319,7 +319,7 @@ export function planShowV2BoundaryTransitionChanges(
     if (editsClipValueRamp && (current.wholeOutput !== undefined || current.participants.length !== 1)) {
       return { status: 'refused', code: 'unsupported-field', message: 'Animation speed and Brightness ramps require one Transition participant.' }
     }
-    // Scalar sections and Clip value rows use the v1 boundary normalizer.
+    // Normalize scalar and Clip value rows with v1; omit inherited Clip value fields.
     const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, origin: _origin, ...currentSettings } = current
     const normalized = propertyTransitions
       ? normalizeShowBoundaryTransition({ ...currentSettings, id: current.id, afterSceneId: 'boundary', propertyTransitions } as ShowBoundaryTransition).propertyTransitions
@@ -332,17 +332,20 @@ export function planShowV2BoundaryTransitionChanges(
       return { status: 'refused', code: 'unsupported-field', message: 'The incoming Clip for this Transition participant is missing.' }
     }
     const clipValueRamp = (property: 'timeScale' | 'brightness') => {
+      const raw = propertyTransitions?.[property]
       const descriptor = normalized?.[property]
       const from = destination && descriptor?.fromByCellId[destination.id]
-      if (from === undefined || !destination) return []
+      if (from === undefined || !destination || !descriptor) return []
       return [{
         participantId: participant.id,
         target: property === 'timeScale'
           ? { kind: 'instance-time-scale' as const, instanceId: destination.instanceId }
           : { kind: 'clip-view' as const, clipId: destination.id, property: 'brightness' as const },
         from,
-        ...(descriptor?.durationMs !== undefined ? { durationMs: descriptor.durationMs } : {}),
-        ...(descriptor?.easing !== undefined ? { easing: structuredClone(descriptor.easing) } : {}),
+        ...(raw?.durationMs !== undefined && descriptor.durationMs !== current.durationMs
+          ? { durationMs: descriptor.durationMs } : {}),
+        ...(raw?.easing !== undefined && JSON.stringify(descriptor.easing) !== JSON.stringify(current.easing)
+          ? { easing: structuredClone(descriptor.easing) } : {}),
       }]
     }
     const boundaryEndMs = (current.wholeOutput?.startMs ?? transitionStartMs(record, current) ?? 0) + current.durationMs

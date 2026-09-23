@@ -50,8 +50,6 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
         ? { kind: targetKind, instanceId: record.composition.clips.find(clip => clip.id === destinationId)!.instanceId }
         : { kind: targetKind, clipId: destinationId, property: 'brightness' },
       from,
-      durationMs: transition.durationMs,
-      easing: transition.easing,
     }])
     expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
   })
@@ -69,9 +67,27 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
     const edited = plan.intent.transition.propertyRamps.find(ramp => ramp.target.kind === (property === 'timeScale' ? 'instance-time-scale' : 'clip-view'))!
     expect(edited).toMatchObject({ from, durationMs: 700, easing: descriptor.easing })
     const otherBefore = before.find(ramp => ramp.target.kind !== edited.target.kind)
-    expect(plan.intent.transition.propertyRamps.find(ramp => ramp !== edited)).toEqual(property === 'timeScale'
-      ? { ...otherBefore, durationMs: record.composition.transitions[0].durationMs, easing: record.composition.transitions[0].easing }
-      : otherBefore)
+    expect(plan.intent.transition.propertyRamps.find(ramp => ramp !== edited)).toEqual(otherBefore)
+    expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
+  })
+
+  it('keeps the speed ramp inheriting duration and easing when only Brightness changes', () => {
+    const record = convertTransitionClipRampProbe()
+    const transition = record.composition.transitions[0]
+    const speed = transition.propertyRamps.find(ramp => ramp.target.kind === 'instance-time-scale')!
+    delete speed.durationMs
+    delete speed.easing
+    const projected = projectShowEditorBoundaryTransitionsV2(record).xfade
+    const destinationId = projected.destinations[0].id
+    const plan = planShowV2BoundaryTransitionChanges(record, transition.id, {
+      propertyTransitions: {
+        ...projected.settings.propertyTransitions,
+        brightness: { fromByCellId: { [destinationId]: 0.4 } },
+      },
+    })
+    expect(plan.status, JSON.stringify(plan)).toBe('ready')
+    if (plan.status !== 'ready') return
+    expect(plan.intent.transition.propertyRamps.find(ramp => ramp.target.kind === 'instance-time-scale')).toEqual(speed)
     expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
   })
 
@@ -79,7 +95,8 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
     for (const { durationMs, expectedMs } of [
       { durationMs: 250.5, expectedMs: 251 },
       { durationMs: 1004.9999999999999, expectedMs: 1005 },
-      { durationMs: 2500, expectedMs: 1500 },
+      { durationMs: 1500, expectedMs: undefined },
+      { durationMs: 2500, expectedMs: undefined },
     ]) {
       const source = transitionClipRampProbeV1()
       source.transitions[0].durationMs = 1500
@@ -89,13 +106,19 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
       const plan = planShowV2BoundaryTransitionChanges(record, 'xfade', {
         propertyTransitions: {
           ...projected.settings.propertyTransitions,
-          [property]: { fromByCellId: { [destinationId]: 5 }, durationMs },
+          [property]: {
+            fromByCellId: { [destinationId]: 5 }, durationMs,
+            ...(durationMs === 1500 ? { easing: { curve: 'linear' as const } } : {}),
+          },
         },
       })
       expect(plan.status, JSON.stringify(plan)).toBe('ready')
       if (plan.status !== 'ready') continue
       const ramp = plan.intent.transition.propertyRamps.find(candidate => candidate.target.kind === targetKind)
-      expect(ramp).toMatchObject({ durationMs: expectedMs, from: property === 'timeScale' ? 4 : 1, easing: { curve: 'linear' } })
+      expect(ramp).toMatchObject({ from: property === 'timeScale' ? 4 : 1 })
+      expect(ramp?.durationMs).toBe(expectedMs)
+      if (expectedMs === undefined) expect(ramp).not.toHaveProperty('durationMs')
+      expect(ramp).not.toHaveProperty('easing')
       const edited = editShowTransitionV2(record, plan.intent)
       expect(edited.status, JSON.stringify(edited)).toBe('changed')
       if (edited.status === 'changed') expect(validateShowRecordV2(edited.record)).toEqual([])
@@ -135,6 +158,10 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
 
   it('plans normalized speed and brightness settings back as a no-op', () => {
     const record = convertTransitionClipRampProbe()
+    for (const ramp of record.composition.transitions[0].propertyRamps) {
+      delete ramp.durationMs
+      delete ramp.easing
+    }
     for (const ramps of [
       record.composition.transitions[0].propertyRamps,
       [...record.composition.transitions[0].propertyRamps].reverse(),
@@ -142,14 +169,7 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
       record.composition.transitions[0].propertyRamps = ramps
       const projected = projectShowEditorBoundaryTransitionsV2(record).xfade
       const first = planShowV2BoundaryTransitionChanges(record, 'xfade', { propertyTransitions: projected.settings.propertyTransitions })
-      expect(first.status, JSON.stringify(first)).toBe('ready')
-      if (first.status !== 'ready') continue
-      const normalized = editShowTransitionV2(record, first.intent)
-      expect(normalized.status, JSON.stringify(normalized)).toBe('changed')
-      if (normalized.status !== 'changed') continue
-      const again = projectShowEditorBoundaryTransitionsV2(normalized.record).xfade
-      expect(planShowV2BoundaryTransitionChanges(normalized.record, 'xfade', { propertyTransitions: again.settings.propertyTransitions }))
-        .toEqual({ status: 'no-op' })
+      expect(first).toEqual({ status: 'no-op' })
     }
   })
 })
