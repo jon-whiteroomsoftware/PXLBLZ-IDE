@@ -1195,16 +1195,44 @@ describe('Restart unavailable reason (#1091)', () => {
     } as ShowClipInspectorValue
   }
 
-  it('disables the checkbox with the reason linked when set', () => {
+  it('keeps the checkbox focusable with aria-disabled and reveals the reason on focus when set', () => {
     const onPatch = vi.fn()
     const props = commonProps('scene-main', onPatch)
     render(<ShowClipEntityDetail {...props} value={restartValueWithReason('continue', 1_000)} restartUnavailableReason="This Pattern's state can't be reset." />)
     showTab('Playback')
 
     const box = screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })
-    expect(box).toBeDisabled()
+    expect(box).toHaveAttribute('aria-disabled', 'true')
+    expect(box).not.toBeDisabled()
     expect(box).toHaveAttribute('aria-describedby', 'clip-restart-unavailable-reason')
-    expect(screen.getByText("This Pattern's state can't be reset.")).toBeInTheDocument()
+    const tip = screen.getByText("This Pattern's state can't be reset.")
+    expect(tip).not.toBeVisible()
+    act(() => { box.focus() })
+    expect(document.activeElement).toBe(box)
+    expect(tip).toBeVisible()
+  })
+
+  it('admits no patch on click or Space when the reason is set', () => {
+    const onPatch = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    render(<ShowClipEntityDetail {...props} value={restartValueWithReason('continue', 1_000)} restartUnavailableReason="This Pattern's state can't be reset." />)
+    showTab('Playback')
+
+    const box = screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })
+    fireEvent.click(box)
+    expect(onPatch).not.toHaveBeenCalled()
+    fireEvent.keyDown(box, { key: ' ' })
+    fireEvent.change(box, { target: { checked: true } })
+    expect(onPatch).not.toHaveBeenCalled()
+  })
+
+  it('stays natively disabled under readOnly', () => {
+    const onPatch = vi.fn()
+    const props = { ...commonProps('scene-main', onPatch), readOnly: true }
+    render(<ShowClipEntityDetail {...props} value={restartValueWithReason('continue', 1_000)} restartUnavailableReason="This Pattern's state can't be reset." />)
+    showTab('Playback')
+
+    expect(screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })).toBeDisabled()
   })
 
   it('keeps the checkbox enabled without a reason', () => {

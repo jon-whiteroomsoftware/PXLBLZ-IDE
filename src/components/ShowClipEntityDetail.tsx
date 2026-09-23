@@ -1001,15 +1001,22 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                 >
                   <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Global placement and clock controls</summary>
                   <div className="border-t border-zinc-800/70 py-1 text-[9px]">
-                    <span className="relative inline-flex items-center">
+                    <span className="relative inline-flex">
                       <label className="flex shrink-0 items-center gap-2 text-zinc-200">
                         <input
                           type="checkbox"
                           aria-label="Restart Pattern on entry"
                           aria-describedby={restartUnavailableReason ? 'clip-restart-unavailable-reason' : undefined}
                           checked={value.entryPolicy === 'restart'}
-                          disabled={readOnly || Boolean(restartUnavailableReason)}
-                          onChange={(event) => onPatch({ entryPolicy: event.target.checked ? 'restart' : 'continue' })}
+                          disabled={readOnly}
+                          aria-disabled={restartUnavailableReason ? true : undefined}
+                          onChange={(event) => {
+                            if (restartUnavailableReason) {
+                              event.preventDefault()
+                              return
+                            }
+                            onPatch({ entryPolicy: event.target.checked ? 'restart' : 'continue' })
+                          }}
                         />
                         Restart Pattern on entry
                       </label>

@@ -7722,7 +7722,8 @@ describe('v2 restart availability (#1091)', () => {
     showTab('Playback')
 
     const box = screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })
-    expect(box).toBeDisabled()
+    expect(box).toHaveAttribute('aria-disabled', 'true')
+    expect(box).not.toBeDisabled()
     expect(box).toHaveAttribute('aria-describedby', 'clip-restart-unavailable-reason')
     expect(screen.getByText("This Pattern's state can't be reset.")).toBeInTheDocument()
 

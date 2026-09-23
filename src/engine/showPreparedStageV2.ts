@@ -115,16 +115,21 @@ export function showV2ClipRestartAvailabilityV2(
   capture: ShowPreparedStageEditCaptureV2,
   clipId: string,
 ): { available: true } | { available: false } {
+  if (capture.prepared.status !== 'ready') return { available: true }
   const clip = capture.record.composition.clips.find(candidate => candidate.id === clipId)
   if (!clip || clip.entryPolicy === 'restart') return { available: true }
-  const edited = editShowClipV2(capture.record, { kind: 'set-entry-policy', clipId, entryPolicy: 'restart' })
-  if (edited.status !== 'changed') return { available: true }
-  if (capture.inputCapture.status !== 'qualified') return { available: true }
-  const compileInputs = capturedStageCompileInputsV2(edited.record, capture.inputCapture.inputs)
-  if (compileInputs.status !== 'ready') return { available: true }
-  const prepared = prepareShowV2ForCompile(edited.record, compileInputs.lookup, { libraries: compileInputs.libraries })
-  if (prepared.status === 'refused' && prepared.issues.some(issue => issue.code === 'unsupported-restart')) return { available: false }
-  return { available: true }
+  try {
+    const edited = editShowClipV2(capture.record, { kind: 'set-entry-policy', clipId, entryPolicy: 'restart' })
+    if (edited.status !== 'changed') return { available: true }
+    if (capture.inputCapture.status !== 'qualified') return { available: true }
+    const compileInputs = capturedStageCompileInputsV2(edited.record, capture.inputCapture.inputs)
+    if (compileInputs.status !== 'ready') return { available: true }
+    const prepared = prepareShowV2ForCompile(edited.record, compileInputs.lookup, { libraries: compileInputs.libraries })
+    if (prepared.status === 'refused' && prepared.issues.some(issue => issue.code === 'unsupported-restart')) return { available: false }
+    return { available: true }
+  } catch {
+    return { available: true }
+  }
 }
 
 function capturedStageCompileInputsV2(snapshot: ShowRecordV2, inputs: ShowPreparedStageInputCaptureV2): { status: 'ready'; lookup: ShowCompileRecipeSourceLookup; libraries: Record<string, string> } | { status: 'refused'; message: string } | { status: 'empty' } {

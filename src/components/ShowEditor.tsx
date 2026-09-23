@@ -11976,10 +11976,6 @@ function CompositionClipInspector({
     return showV2ClipRestartAvailabilityV2(preparedCaptureV2, v2ClipId)
   }, [preparedCaptureV2, v2ClipId])
   const restartUnavailableReason = restartAvailability.available ? undefined : "This Pattern's state can't be reset."
-  const handlePatch = (patch: ShowClipInspectorPatch) => {
-    if (restartUnavailableReason && patch.entryPolicy === 'restart') return false
-    return onPatch(patch)
-  }
   const closeAnimationOverview = (restoreSummaryFocus: boolean) => {
     setAnimationOverviewOpen(false)
     if (restoreSummaryFocus) {
@@ -12048,7 +12044,7 @@ function CompositionClipInspector({
           />
         ) : undefined}
         embedded
-        onPatch={handlePatch}
+        onPatch={onPatch}
         onPreviewPatch={onPreviewPatch}
         onPreviewEnd={onPreviewEnd}
         onPatternCommit={onPatternCommit}

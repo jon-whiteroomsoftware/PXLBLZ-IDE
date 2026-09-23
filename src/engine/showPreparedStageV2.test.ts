@@ -5,6 +5,7 @@ import { validateShowRecordV2, parseProvisionalShowRecordV2, serializeProvisiona
 import { captureShowStageEditV2, prepareShowStageV2, showV2ClipRestartAvailabilityV2, type ShowPreparedStageDependenciesV2 } from './showPreparedStageV2'
 import { createCustomMap } from './maps'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import * as showCompositionLoweringV2 from './showCompositionLoweringV2'
 import { compileShow } from './showCompiler'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { createFastReplayRuntime } from './fastReplay'
@@ -12,6 +13,7 @@ import { parseEpe } from './epeImport'
 import { insertShowTimeV2 } from './showTimelineV2'
 import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
 import { SOURCE_STOCK_MAPS } from '../pixelblaze/stock/maps/stockCatalogue'
+import { wholeOutputTransition } from '../pixelblaze/stock/showsV2Authoring'
 import { editShowClipV2 } from './showClipsV2'
 import * as showPreviewArtifact from './showPreviewArtifact'
 
@@ -238,6 +240,36 @@ describe('clip restart availability (#1091)', () => {
       expect(compile).not.toHaveBeenCalled()
     } finally {
       compile.mockRestore()
+    }
+  })
+
+  it('treats a refused preview as available without running the restart pre-check', () => {
+    const source = stockShowV2ById('stock-show-101-clips-cuts-blank-time')
+    if (!source) throw new Error('Missing stock show 101')
+    const record = structuredClone(source)
+    record.composition.transitions.push(wholeOutputTransition(
+      'transition-portal-gap', 'portal', 10_000, ['clip-garden'], ['clip-reprise'], 2_000,
+      { curve: 'sine', direction: 'in-out' },
+      { shape: 'circle', revealMode: 'grow-incoming', centerX: 0.5, centerY: 0.5, scale: 1, edgePolicy: 'blend', feather: 0.12 },
+    ))
+    record.stageMapId = null
+    record.composition.patternInstances[0].pattern = { kind: 'user', id: 'missing-pattern' }
+    const capture = captureShowStageEditV2(record, { patterns: [], maps: [], libraries: [], profiles: [], stageMap: null })
+    expect(capture.prepared.status).toBe('refused')
+    expect(() => showV2ClipRestartAvailabilityV2(capture, 'clip-garden')).not.toThrow()
+    expect(showV2ClipRestartAvailabilityV2(capture, 'clip-garden')).toEqual({ available: true })
+  })
+
+  it('treats a throwing restart preparation as available without throwing', () => {
+    const capture = stockCapture('stock-show-101-clips-cuts-blank-time')
+    const preparation = vi.spyOn(showCompositionLoweringV2, 'prepareShowV2ForCompile').mockImplementation(() => {
+      throw new Error('synthetic restart preparation failure')
+    })
+    try {
+      expect(() => showV2ClipRestartAvailabilityV2(capture, 'clip-garden')).not.toThrow()
+      expect(showV2ClipRestartAvailabilityV2(capture, 'clip-garden')).toEqual({ available: true })
+    } finally {
+      preparation.mockRestore()
     }
   })
 })
