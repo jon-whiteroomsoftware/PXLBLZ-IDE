@@ -1246,7 +1246,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     expectNoWrite(before, editor.state())
   })
 
-  it('reads every advanced row the v1 panel draws from the authored record; only settings write', async () => {
+  it('reads every advanced row the v1 panel draws from the authored record', async () => {
     const { source, record } = convertedAdvancedBoundary('tracer-boundary-advanced')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
@@ -1281,16 +1281,38 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     expect(within(advanced).getByRole('checkbox', { name: 'Animate brightness for main' })).toBeEnabled()
     expect(within(advanced).getByRole('checkbox', { name: 'Animate Speed for main' })).toBeEnabled()
 
-    // The settings write is connected (#1066 slice 5a); the repeat-scale
-    // descriptor row stays unconnected and resolves as an internal
-    // no-change result.
-    fireEvent.click(within(advanced).getByRole('checkbox', { name: 'Animate speed for main' }))
-    await act(async () => {})
-
     expectNoWrite(before, editor.state())
-    // The panel is still open and still reads the authored settings.
     expect(within(boundaryPanel()).getByRole('combobox', { name: 'Crossfade source' }))
       .toHaveValue('snapshot-live')
+  })
+
+  it.each([
+    { label: 'speed', targetKind: 'instance-time-scale' },
+    { label: 'brightness', targetKind: 'clip-view' },
+  ])('enabling the $label row writes a $label ramp (#1091 B3a)', async ({ label, targetKind }) => {
+    const { record } = convertedFreshBoundary(`tracer-boundary-${label}-write`)
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await act(async () => {})
+    fireEvent.click(within(boundaryPanel()).getByText('Advanced transition controls'))
+    fireEvent.click(within(boundaryPanel()).getByRole('checkbox', { name: `Animate ${label} for main` }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map(call => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    expectOneEdit(before, after)
+    const transition = after.record.composition.transitions[0]
+    expect(transition.propertyRamps).toEqual([expect.objectContaining({
+      participantId: transition.participants[0].id,
+      target: expect.objectContaining({ kind: targetKind }),
+    })])
+    fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await act(async () => {})
+    expect(editor.state().record.composition).toEqual(before.record.composition)
   })
 
   it('writes a Crossfade source change through the transition-edit door', async () => {

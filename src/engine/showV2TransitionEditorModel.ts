@@ -275,12 +275,11 @@ export function planShowV2TransitionEdit(
  * provenance, so the palette (`kind`), resize (`durationMs`) and Layout
  * surfaces (`layoutId`, `routingDirection`) refuse here before any owner.
  *
- * `propertyTransitions` (the Animate repeat scale and Animate split position
- * sections) maps onto the Show-scalar ramps exactly as the v1 converter maps
- * them (#1066 slice 9c2a): `sample.repeatScale` to a `show-repeat-scale` ramp
+ * `propertyTransitions` maps the scalar sections and incoming Clip value rows
+ * onto their Transition ramps: `sample.repeatScale` to a `show-repeat-scale` ramp
  * and `routing.splitPosition` to a `layout-occurrence-split-position` ramp on
  * the occurrence covering the boundary end, descriptor fields verbatim, repeat
- * before split, after every other ramp. `undefined` removes both.
+ * before split, after every other ramp. `undefined` removes those ramps.
  */
 export type ShowV2BoundaryChangesPlan =
   | { status: 'ready'; intent: Extract<ShowTransitionEditIntentV2, { kind: 'update-transition' }> }
@@ -308,21 +307,45 @@ export function planShowV2BoundaryTransitionChanges(
     else next[key] = structuredClone(value)
   }
   if (Object.prototype.hasOwnProperty.call(changes, 'propertyTransitions')) {
-    const unsupported = Object.keys(propertyTransitions ?? {}).filter(key => key !== 'sample' && key !== 'routing')
+    const unsupported = Object.keys(propertyTransitions ?? {}).filter(key => key !== 'sample' && key !== 'routing' && key !== 'timeScale' && key !== 'brightness')
       .concat(Object.keys(propertyTransitions?.sample ?? {}).filter(key => key !== 'repeatScale').map(key => `sample.${key}`))
       .concat(Object.keys(propertyTransitions?.routing ?? {}).filter(key => key !== 'splitPosition').map(key => `routing.${key}`))
     if (unsupported.length > 0) {
       return { status: 'refused', code: 'unsupported-field', message: `"propertyTransitions.${unsupported[0]}" is not edited through the boundary settings surface.` }
     }
-    // v1 stores each descriptor through its boundary normalizer (rounded
-    // durations with a 100 ms floor capped at the Transition, clamped origins,
-    // normalized easing), so the ramps are written from the same result.
+    const editsClipValueRamp = propertyTransitions?.timeScale !== undefined
+      || propertyTransitions?.brightness !== undefined
+      || current.propertyRamps.some(isShowTransitionClipValueRampV2)
+    if (editsClipValueRamp && (current.wholeOutput !== undefined || current.participants.length !== 1)) {
+      return { status: 'refused', code: 'unsupported-field', message: 'Animation speed and Brightness ramps require one Transition participant.' }
+    }
+    // The scalar sections retain the v1 boundary normalizer. Clip value rows
+    // keep their optional fields as authored in the inspector descriptor.
     const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, origin: _origin, ...currentSettings } = current
     const normalized = propertyTransitions
       ? normalizeShowBoundaryTransition({ ...currentSettings, id: current.id, afterSceneId: 'boundary', propertyTransitions } as ShowBoundaryTransition).propertyTransitions
       : undefined
     const repeatScale = normalized?.sample?.repeatScale
     const splitPosition = normalized?.routing?.splitPosition
+    const participant = current.participants[0]
+    const destination = participant && record.composition.clips.find(clip => clip.id === participant.toClipId)
+    if (editsClipValueRamp && !destination) {
+      return { status: 'refused', code: 'unsupported-field', message: 'The incoming Clip for this Transition participant is missing.' }
+    }
+    const clipValueRamp = (property: 'timeScale' | 'brightness') => {
+      const descriptor = propertyTransitions?.[property]
+      const from = destination && descriptor?.fromByCellId[destination.id]
+      if (from === undefined || !destination) return []
+      return [{
+        participantId: participant.id,
+        target: property === 'timeScale'
+          ? { kind: 'instance-time-scale' as const, instanceId: destination.instanceId }
+          : { kind: 'clip-view' as const, clipId: destination.id, property: 'brightness' as const },
+        from,
+        ...(descriptor?.durationMs !== undefined ? { durationMs: descriptor.durationMs } : {}),
+        ...(descriptor?.easing !== undefined ? { easing: structuredClone(descriptor.easing) } : {}),
+      }]
+    }
     const boundaryEndMs = (current.wholeOutput?.startMs ?? transitionStartMs(record, current) ?? 0) + current.durationMs
     const incoming = record.composition.layoutOccurrences.find(occurrence => (
       occurrence.startMs <= boundaryEndMs && occurrence.startMs + occurrence.durationMs > boundaryEndMs
@@ -330,10 +353,20 @@ export function planShowV2BoundaryTransitionChanges(
     if (splitPosition && !incoming) {
       return { status: 'refused', code: 'unsupported-field', message: 'No Layout occurrence covers the end of this boundary, so its split position cannot animate.' }
     }
+    const replacedClipValues = new Set<'timeScale' | 'brightness'>()
+    const retainedRamps = current.propertyRamps.filter(ramp => !isShowScalarRampTargetV2(ramp.target)).flatMap(ramp => {
+      if (!isShowTransitionClipValueRampV2(ramp)) return [structuredClone(ramp)]
+      const property = ramp.target.kind === 'instance-time-scale' ? 'timeScale' : 'brightness'
+      if (replacedClipValues.has(property)) return []
+      replacedClipValues.add(property)
+      return clipValueRamp(property)
+    })
     next.propertyRamps = [
-      ...current.propertyRamps.filter(ramp => !isShowScalarRampTargetV2(ramp.target)).map(ramp => structuredClone(ramp)),
+      ...retainedRamps,
       ...(repeatScale ? [{ target: { kind: 'show-repeat-scale' as const }, ...structuredClone(repeatScale) }] : []),
       ...(splitPosition ? [{ target: { kind: 'layout-occurrence-split-position' as const, layoutOccurrenceId: incoming!.id }, ...structuredClone(splitPosition) }] : []),
+      ...(!replacedClipValues.has('timeScale') ? clipValueRamp('timeScale') : []),
+      ...(!replacedClipValues.has('brightness') ? clipValueRamp('brightness') : []),
     ]
   }
   if (JSON.stringify(next) === JSON.stringify(current)) return { status: 'no-op' }

@@ -6,6 +6,7 @@ import { formatShowBoundaryIdentity, showBoundaryClipIdentity } from './showClip
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
+import { convertTransitionClipRampProbe, transitionClipRampProbeV1 } from '../test/showV2TransitionClipRampFixture'
 import {
   projectShowEditorBoundaryTransitionsV2,
   projectShowEditorInspectorPresentationV2,
@@ -761,6 +762,30 @@ describe('projectShowEditorBoundaryTransitionsV2', () => {
     // The same descriptor the v1 control edits, read back from the ramp the
     // converter wrote for it.
     expect(boundary.settings.propertyTransitions).toEqual({ sample: { repeatScale: authored } })
+  })
+
+  it('projects incoming speed and brightness ramps under the destination Clip id', () => {
+    const boundary = projectShowEditorBoundaryTransitionsV2(convertTransitionClipRampProbe()).xfade
+    const destinationId = boundary.destinations[0].id
+    expect(boundary.settings.propertyTransitions).toEqual({
+      timeScale: { fromByCellId: { [destinationId]: 1 }, durationMs: 400, easing: { curve: 'sine', direction: 'in-out' } },
+      brightness: { fromByCellId: { [destinationId]: 0.2 } },
+    })
+  })
+
+  it('matches the v1 boundary descriptors after conversion maps the Cell to its destination Clip', () => {
+    const source = transitionClipRampProbeV1()
+    const boundary = projectShowEditorBoundaryTransitionsV2(convertTransitionClipRampProbe(source)).xfade
+    const destinationId = boundary.destinations[0].id
+    const v1 = source.transitions![0].propertyTransitions!
+    expect(boundary.settings.propertyTransitions?.timeScale).toEqual({
+      ...v1.timeScale,
+      fromByCellId: { [destinationId]: v1.timeScale!.fromByCellId['cell-2'] },
+    })
+    expect(boundary.settings.propertyTransitions?.brightness).toEqual({
+      ...v1.brightness,
+      fromByCellId: { [destinationId]: v1.brightness!.fromByCellId['cell-2'] },
+    })
   })
 
   it('reads the outgoing scalar where the handover happens, not where the outgoing Clip began', () => {

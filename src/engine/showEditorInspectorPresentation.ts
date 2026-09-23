@@ -9,6 +9,7 @@ import type {
   ShowRecordV2,
   ShowTransitionV2,
 } from './showCompositionV2'
+import { isShowTransitionClipValueRampV2 } from './showCompositionV2'
 import {
   defaultGroupRuntimeIdV2,
   groupOccurrenceDuration,
@@ -1132,15 +1133,31 @@ export function projectShowEditorBoundaryTransitionsV2(
         } satisfies ShowBoundaryTransitionDestinationValue]
       })
     const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, origin: _origin, ...stored } = transition
-    // Only the two scalar carriers the existing controls can edit are read.
-    // A ramp on any other target has no control on this panel, and inventing
-    // one would claim a v1 form the converter does not admit.
+    // Project only the scalar and incoming Clip value ramps this panel edits.
     const ramps = scalarBoundaryRamps({
       ...transition,
       propertyRamps: transition.propertyRamps.filter(ramp => (
         ramp.target.kind === 'show-repeat-scale' || ramp.target.kind === 'layout-occurrence-split-position'
       )),
     })
+    const propertyTransitions: NonNullable<ShowTransitionSettingsCarrier['propertyTransitions']> = { ...(ramps ?? {}) }
+    for (const ramp of transition.propertyRamps.filter(isShowTransitionClipValueRampV2)) {
+      const participant = transition.participants.find(candidate => candidate.id === ramp.participantId)
+      const incoming = participant && clipsById.get(participant.toClipId)
+      if (!incoming) continue
+      const property = ramp.target.kind === 'instance-time-scale' && ramp.target.instanceId === incoming.instanceId
+        ? 'timeScale'
+        : ramp.target.kind === 'clip-view' && ramp.target.clipId === incoming.id && ramp.target.property === 'brightness'
+          ? 'brightness'
+          : undefined
+      if (!property) continue
+      const previous = propertyTransitions[property]
+      propertyTransitions[property] = {
+        fromByCellId: { ...(previous?.fromByCellId ?? {}), [incoming.id]: ramp.from },
+        ...(ramp.durationMs !== undefined ? { durationMs: ramp.durationMs } : {}),
+        ...(ramp.easing !== undefined ? { easing: structuredClone(ramp.easing) } : {}),
+      }
+    }
     return [[transition.id, {
       id: transition.id,
       boundaryIdentity: formatShowBoundaryIdentity(
@@ -1150,7 +1167,7 @@ export function projectShowEditorBoundaryTransitionsV2(
       destinationStartMs,
       settings: {
         ...structuredClone(stored),
-        ...(ramps ? { propertyTransitions: ramps } : {}),
+        ...(Object.keys(propertyTransitions).length > 0 ? { propertyTransitions } : {}),
       },
       destinations,
       repeat: { from: repeatScaleAt(record, boundaryStartMs), to: repeatScaleAt(record, destinationStartMs) },

@@ -26,6 +26,94 @@ import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
+import { projectShowEditorBoundaryTransitionsV2 } from './showEditorInspectorPresentation'
+
+describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
+  const fields = [
+    { property: 'timeScale' as const, targetKind: 'instance-time-scale', from: 1.5 },
+    { property: 'brightness' as const, targetKind: 'clip-view', from: 0.4 },
+  ]
+
+  it.each(fields)('adds a $property ramp from the inspector row', ({ property, targetKind, from }) => {
+    const record = convertTransitionClipRampProbe()
+    const transition = record.composition.transitions[0]
+    transition.propertyRamps = []
+    const destinationId = projectShowEditorBoundaryTransitionsV2(record).xfade.destinations[0].id
+    const plan = planShowV2BoundaryTransitionChanges(record, transition.id, {
+      propertyTransitions: { [property]: { fromByCellId: { [destinationId]: from } } },
+    })
+    expect(plan.status, JSON.stringify(plan)).toBe('ready')
+    if (plan.status !== 'ready') return
+    expect(plan.intent.transition.propertyRamps).toEqual([{
+      participantId: transition.participants[0].id,
+      target: property === 'timeScale'
+        ? { kind: targetKind, instanceId: record.composition.clips.find(clip => clip.id === destinationId)!.instanceId }
+        : { kind: targetKind, clipId: destinationId, property: 'brightness' },
+      from,
+    }])
+    expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
+  })
+
+  it.each(fields)('changes the $property origin, duration and easing while preserving the other ramp', ({ property, from }) => {
+    const record = convertTransitionClipRampProbe()
+    const before = structuredClone(record.composition.transitions[0].propertyRamps)
+    const projected = projectShowEditorBoundaryTransitionsV2(record).xfade
+    const descriptor = { fromByCellId: { [projected.destinations[0].id]: from }, durationMs: 700, easing: { curve: 'quadratic' as const, direction: 'out' as const } }
+    const plan = planShowV2BoundaryTransitionChanges(record, 'xfade', {
+      propertyTransitions: { ...projected.settings.propertyTransitions, [property]: descriptor },
+    })
+    expect(plan.status, JSON.stringify(plan)).toBe('ready')
+    if (plan.status !== 'ready') return
+    const edited = plan.intent.transition.propertyRamps.find(ramp => ramp.target.kind === (property === 'timeScale' ? 'instance-time-scale' : 'clip-view'))!
+    expect(edited).toMatchObject({ from, durationMs: 700, easing: descriptor.easing })
+    expect(plan.intent.transition.propertyRamps.find(ramp => ramp !== edited)).toEqual(before.find(ramp => ramp.target.kind !== edited.target.kind))
+    expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
+  })
+
+  it.each(fields)('removes a $property ramp when its key is absent', ({ property }) => {
+    const record = convertTransitionClipRampProbe()
+    const projected = projectShowEditorBoundaryTransitionsV2(record).xfade
+    const other = property === 'timeScale' ? { brightness: projected.settings.propertyTransitions!.brightness } : { timeScale: projected.settings.propertyTransitions!.timeScale }
+    const plan = planShowV2BoundaryTransitionChanges(record, 'xfade', { propertyTransitions: other })
+    expect(plan.status, JSON.stringify(plan)).toBe('ready')
+    if (plan.status !== 'ready') return
+    expect(plan.intent.transition.propertyRamps).toHaveLength(1)
+    expect(plan.intent.transition.propertyRamps[0].target.kind).toBe(property === 'timeScale' ? 'clip-view' : 'instance-time-scale')
+    expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
+  })
+
+  it('refuses speed edits at whole-output and multi-participant scope', () => {
+    const record = convertTransitionClipRampProbe()
+    const projected = projectShowEditorBoundaryTransitionsV2(record).xfade
+    const changes = { propertyTransitions: { timeScale: projected.settings.propertyTransitions!.timeScale } }
+    const transition = record.composition.transitions[0]
+    transition.wholeOutput = { startMs: 4000, fromClipIds: [transition.participants[0].fromClipId], toClipIds: [transition.participants[0].toClipId] }
+    expect(planShowV2BoundaryTransitionChanges(record, 'xfade', changes)).toMatchObject({ status: 'refused', code: 'unsupported-field' })
+    delete transition.wholeOutput
+    transition.participants.push({ ...transition.participants[0], id: 'second-participant' })
+    expect(planShowV2BoundaryTransitionChanges(record, 'xfade', changes)).toMatchObject({ status: 'refused', code: 'unsupported-field' })
+  })
+
+  it.each(['controls', 'transform'] as const)('still refuses $property descriptors', (property) => {
+    const record = convertTransitionClipRampProbe()
+    expect(planShowV2BoundaryTransitionChanges(record, 'xfade', {
+      propertyTransitions: { [property]: {} },
+    })).toMatchObject({ status: 'refused', code: 'unsupported-field' })
+  })
+
+  it('plans projected speed and brightness settings back as a no-op', () => {
+    const record = convertTransitionClipRampProbe()
+    for (const ramps of [
+      record.composition.transitions[0].propertyRamps,
+      [...record.composition.transitions[0].propertyRamps].reverse(),
+    ]) {
+      record.composition.transitions[0].propertyRamps = ramps
+      const projected = projectShowEditorBoundaryTransitionsV2(record).xfade
+      expect(planShowV2BoundaryTransitionChanges(record, 'xfade', { propertyTransitions: projected.settings.propertyTransitions }))
+        .toEqual({ status: 'no-op' })
+    }
+  })
+})
 
 function converted(kind: Parameters<typeof transitionV1Show>[0] = 'crossfade'): ShowRecordV2 {
   const result = convertShowRecordV1ToV2(transitionV1Show(kind))
