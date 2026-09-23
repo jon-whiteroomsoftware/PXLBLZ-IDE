@@ -229,6 +229,8 @@ store revisions; existing manual replacement callers retain their original API.
   skip the provider check, queue no persistence, enter no rollback path, and
   settle as `draft`. A lesson pilot never appears in `showV2Rows` and never
   routes rename, delete, or duplicate as a personal v2 row.
+  Workspace reload retains the lesson pilot and its history while retiring
+  provider-owned v2 pilots; later lesson edits and Undo remain available.
   `resetShowV2LessonDraft` re-seeds the pilot from the lesson copy with an
   empty history and an advanced revision. Built-in Shows still open on the
   version-1 editor until the slice 11c routing switch, so this capability has

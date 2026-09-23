@@ -482,6 +482,24 @@ describe('legacy owner observation (#1065)', () => {
 })
 
 describe('v2 tracer settlement routing (#1065)', () => {
+  it('a v2 no-change move preview clears when the drag leaves the lane (#1067)', async () => {
+    const editor = openV2Editor('tracer-native-no-change-leave')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+    const lane = surface.lane('main')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(lane, 'dragover', 0)
+    expect(surface.dataTransfer.dropEffect).toBe('move')
+    expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('0s')
+    surface.fire(lane, 'dragleave', 1)
+    expect(screen.queryByTestId('show-clip-move-preview')).not.toBeInTheDocument()
+    surface.fire(lane, 'drop', 1)
+    await act(async () => {})
+    expectNoWrite(before, editor.state())
+  })
+
   it("a v2 Shift pointer-drag that resolves to the Clip's own start keeps the move preview and commits nothing (#1067)", async () => {
     const editor = openV2Editor('tracer-shift-no-change')
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)

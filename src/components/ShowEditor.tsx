@@ -6756,8 +6756,9 @@ function ShowTimelineWorkspace({
       // its connected component, and a cross-Layer or cross-Zone drop re-places
       // the Clip with the detach permission, so a joined Clip tears off its
       // Transitions and moves alone. A no-change refusal keeps the move
-      // preview at the Clip's own start but submits no command; other refusals
-      // clear the preview and make the drop target read `none`.
+      // preview at the Clip's own start with its refused plan, so lane leave
+      // can clear it and a drop submits no command. Other refusals clear the
+      // preview and make the drop target read `none`.
       const gesturePlan = planShowV2ClipMove(timelineView, {
         clipId: clip.id,
         zoneId: input.zoneId,
@@ -6775,7 +6776,14 @@ function ShowTimelineWorkspace({
       if (gesturePlan.kind === 'refuse') {
         if (gesturePlan.reason === 'no-change') {
           if (input.dataTransfer) input.dataTransfer.dropEffect = 'move'
-          movePlanRef.current = null
+          movePlanRef.current = {
+            recordVersion: 2,
+            preview: nextPreview,
+            mode: 'move',
+            clipId: clip.id,
+            startMs: resolved.startMs,
+            plan: gesturePlan,
+          }
           setMovePreview(nextPreview)
           return
         }

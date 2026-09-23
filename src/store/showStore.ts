@@ -785,13 +785,21 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   loadShows: async () => {
     resizeAdmission.invalidate()
     inputWait.invalidate()
-    // Pilot documents are provider-owned personal content. Retire them before
-    // a workspace reload so a same-id record from the previous account cannot
-    // satisfy the next route before its provider has been consulted.
+    // Personal pilots are provider-owned content. Retire them before a workspace
+    // reload so a same-id record from the previous account cannot satisfy the
+    // next route before its provider has been consulted. Lesson drafts are
+    // session-only copies of built-in Shows, so retain them and their history
+    // across a reload, as v1 stockShowDrafts do.
     showV2WorkspaceGeneration += 1
     lastPersistedShowV2Pilots.clear()
-    showV2LessonDraftIds.clear()
-    set({ showV2Pilots: {}, showV2Histories: {}, showV2SaveFailure: null, showV2Rows: [] })
+    set(state => ({
+      showV2Pilots: Object.fromEntries(Object.entries(state.showV2Pilots)
+        .filter(([id]) => showV2LessonDraftIds.has(id))),
+      showV2Histories: Object.fromEntries(Object.entries(state.showV2Histories)
+        .filter(([id]) => showV2LessonDraftIds.has(id))),
+      showV2SaveFailure: null,
+      showV2Rows: [],
+    }))
     const listProvider = getPersonalContentProvider()
     const listGeneration = showV2WorkspaceGeneration
     const hydration = (async () => {

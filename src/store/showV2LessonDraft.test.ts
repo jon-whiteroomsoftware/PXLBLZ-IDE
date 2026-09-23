@@ -26,8 +26,7 @@ beforeEach(async () => {
     listShowDocumentsV2,
     replaceShowV2,
   })
-  // A workspace reload retires lesson drafts; reloading here keeps each test's
-  // draft membership isolated without reaching into store internals.
+  // Each test starts with no pilot; a later open re-seeds its session draft.
   await useShowStore.getState().loadShows()
   listShowDocumentsV2.mockClear()
   replaceShowV2.mockClear()
@@ -109,14 +108,46 @@ it('(e) an edited lesson draft never gains a personal row and never renames as o
   expect(replaceShowV2).not.toHaveBeenCalled()
 })
 
+it('(g) a workspace reload keeps the lesson pilot and history but retires an open stored pilot (#1067)', async () => {
+  const stored = { ...structuredClone(lesson()), id: 'stored-v2-reload-pilot', name: 'Stored v2 Show' }
+  listShowDocumentsV2.mockResolvedValue([stored])
+  await useShowStore.getState().openShowV2Pilot(LESSON_ID)
+  const draftName = `${lesson().name} (before reload)`
+  await useShowStore.getState().updateShowV2Pilot(LESSON_ID, renamed(draftName))
+  expect((await useShowStore.getState().openShowV2Pilot(stored.id)).status).toBe('ready')
+  const before = useShowStore.getState()
+  const draft = before.showV2Pilots[LESSON_ID]
+  const history = before.showV2Histories[LESSON_ID]
+
+  await useShowStore.getState().loadShows()
+
+  const after = useShowStore.getState()
+  expect(after.showV2Pilots[LESSON_ID]).toBe(draft)
+  expect(after.showV2Histories[LESSON_ID]).toBe(history)
+  expect(after.isShowV2LessonDraft(LESSON_ID)).toBe(true)
+  expect(after.showV2Pilots[stored.id]).toBeUndefined()
+  expect(after.showV2Histories[stored.id]).toBeUndefined()
+  expect(after.showV2Rows.map(row => row.id)).toContain(stored.id)
+
+  const nextName = `${lesson().name} (after reload)`
+  await after.updateShowV2Pilot(LESSON_ID, renamed(nextName))
+  expect(useShowStore.getState().showV2Pilots[LESSON_ID]?.name).toBe(nextName)
+  expect(await useShowStore.getState().undoShowV2Pilot(LESSON_ID)).toBe(true)
+  expect(useShowStore.getState().showV2Pilots[LESSON_ID]?.name).toBe(draftName)
+  expect(replaceShowV2).not.toHaveBeenCalled()
+})
+
 it('(f) a pilot placed directly under a lesson id still saves through the provider', async () => {
+  const directPilotId = 'stock-show-303-compile-simplify-deliver'
+  const directPilot = stockShowV2ById(directPilotId)
+  if (!directPilot) throw new Error(`Missing lesson ${directPilotId}`)
   useShowStore.setState({
-    showV2Pilots: { [LESSON_ID]: structuredClone(lesson()) },
-    showV2Histories: { [LESSON_ID]: { past: [], future: [] } },
+    showV2Pilots: { [directPilotId]: structuredClone(directPilot) },
+    showV2Histories: { [directPilotId]: { past: [], future: [] } },
   })
-  await useShowStore.getState().updateShowV2Pilot(LESSON_ID, {
-    ...structuredClone(lesson()),
-    name: `${lesson().name} (draft)`,
+  await useShowStore.getState().updateShowV2Pilot(directPilotId, {
+    ...structuredClone(directPilot),
+    name: `${directPilot.name} (draft)`,
   })
   expect(replaceShowV2).toHaveBeenCalledTimes(1)
 })

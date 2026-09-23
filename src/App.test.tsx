@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useEffect } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
@@ -53,12 +54,14 @@ const analyticsMock = vi.hoisted(() => ({
 }))
 
 const showEditorRecordVersions = vi.hoisted(() => [] as Array<1 | 2 | undefined>)
+const showEditorMounts = vi.hoisted(() => ({ count: 0 }))
 
 vi.mock('@/components/ShowEditor', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/components/ShowEditor')>()
   return {
     ...original,
     ShowEditor: (props: Parameters<typeof original.ShowEditor>[0]) => {
+      useEffect(() => { showEditorMounts.count += 1 }, [])
       showEditorRecordVersions.push(props.recordVersion)
       return <original.ShowEditor {...props} />
     },
@@ -79,6 +82,7 @@ vi.mock('@/engine/authSession', () => ({
 
 beforeEach(() => {
   showEditorRecordVersions.length = 0
+  showEditorMounts.count = 0
   analyticsMock.trackEvent.mockReset()
   authSessionMock.getAuthSession.mockReset()
   authSessionMock.getAuthSession.mockImplementation(() => new Promise(() => {}))
@@ -266,6 +270,7 @@ describe('App smoke test', () => {
     setStudioLocation(`/studio/shows/${id}`)
     seedSignedInWorkspace()
     const hydration = useShowStore.getState().loadShows()
+    let reload: Promise<void> | undefined
 
     render(<App />)
 
@@ -277,10 +282,15 @@ describe('App smoke test', () => {
         expect(showEditorRecordVersions).toContain(2)
       })
       expect(useShowStore.getState().stockShowDrafts[id]).toBeUndefined()
+      reload = useShowStore.getState().loadShows()
+      expect(useShowStore.getState().showV2Pilots[id]?.version).toBe(2)
     } finally {
       showListRead.resolve([])
-      await act(async () => { await hydration })
+      await act(async () => { await Promise.all([hydration, reload]) })
     }
+    await waitFor(() => expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument())
+    expect(showEditorMounts.count).toBe(1)
+    expect(showEditorRecordVersions).not.toContain(1)
   })
 
   it('leaves a row still stored as v1 on the v1 editor after the flip (#1039)', () => {
