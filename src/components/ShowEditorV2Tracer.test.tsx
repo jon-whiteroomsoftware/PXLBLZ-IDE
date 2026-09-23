@@ -7135,6 +7135,32 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
     await expectUndoRedoExact(editor, before)
   })
 
+  it('inserts Time from a fractional playhead rounded to whole milliseconds', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('sliceC-insert-fractional'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 4023.6 }))
+    const before = editor.state()
+
+    const dialog = await openInsertTimeDialog()
+    expect(within(dialog).getByRole('button', { name: 'Insert' })).toBeEnabled()
+    const amount = within(dialog).getByRole('textbox', { name: 'Time to insert in seconds exact time' })
+    fireEvent.change(amount, { target: { value: '2' } })
+    fireEvent.keyDown(amount, { key: 'Enter' })
+    await act(async () => {})
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Insert Time' })).getByRole('button', { name: 'Insert' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(insertTimeSubmissions()).toEqual([{
+      intent: { atMs: 4024, durationMs: 2000 },
+      baseRevision: 0,
+    }])
+    expect(after.record.composition.showEndMs).toBe(22000)
+    expect(screen.queryByRole('dialog', { name: 'Insert Time' })).not.toBeInTheDocument()
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
   it('disables Insert strictly inside a visual Transition window with the owner message', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('sliceC-insert-refuse'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)

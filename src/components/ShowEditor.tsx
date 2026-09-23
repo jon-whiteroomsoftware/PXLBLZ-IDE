@@ -4255,7 +4255,7 @@ export function ShowEditor({
                     if (!moved) return false
                     const outcome = await commitV2InsertTime({
                       ...moved,
-                      intent: { atMs, durationMs },
+                      intent: { atMs: Math.max(0, Math.round(atMs)), durationMs },
                     })
                     return outcome.status === 'applied'
                   }
@@ -6278,7 +6278,7 @@ function ShowTimelineWorkspace({
   const insertTimePlan = useMemo(() => {
     if (recordVersion === 2) {
       if (!savedShowV2) return { enabled: false as const, reason: 'No Show is open.' }
-      const result = insertShowTimeV2(savedShowV2, { atMs: insertTimeAtMs, durationMs: insertTimeDurationMs })
+      const result = insertShowTimeV2(savedShowV2, { atMs: Math.max(0, Math.round(insertTimeAtMs)), durationMs: insertTimeDurationMs })
       if (result.status === 'changed') return { enabled: true as const }
       return { enabled: false as const, reason: result.message }
     }
