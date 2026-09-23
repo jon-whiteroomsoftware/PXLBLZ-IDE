@@ -186,6 +186,11 @@ import {
   type ShowClipAddTarget,
 } from '@/engine/showTimelineClipAuthoring'
 import {
+  createShowV2AddClipIntent,
+  planShowV2ClipAtTime,
+  planShowV2ClipAtTopmostAvailableLayer,
+} from '@/engine/showV2ClipAddPlacement'
+import {
   insertShowLayerTransition,
   moveShowConnectedClipAtGlobalTime,
   moveShowConnectedClipInShowAtGlobalTime,
@@ -304,6 +309,7 @@ import {
   admitShowV2PilotGroupReplacementEdit,
   admitShowV2PilotClipSharingEdit,
   admitShowV2PilotClipTemporal,
+  admitShowV2PilotCreateClip,
   admitShowV2PilotInstanceProperties,
   admitShowV2PilotPropertyEdit,
   admitShowV2PilotSetShowEnd,
@@ -4005,8 +4011,34 @@ export function ShowEditor({
                 onDirectManipulationChange={setDetailsSuppressed}
                 onReanchorDetails={reanchorOpenDetails}
                 patternOptions={patternOptions}
-                onAddClipAtPlayhead={async ({ zoneId, globalTimeMs, target, pattern, patternName }) => {
-                  if (!legacyShow || !timelineComposition) return null
+                onAddClipAtPlayhead={async ({ zoneId, layerId, globalTimeMs, target, pattern, patternName }) => {
+                  if (recordVersion === 2) {
+                    const moved = captureV2Move()
+                    if (!moved) return null
+                    const exact = layerId
+                      ? planShowV2ClipAtTime(moved.capture.record, { zoneId, layerId, globalTimeMs })
+                      : null
+                    const placed = exact?.enabled ? exact : (
+                      !layerId
+                        ? planShowV2ClipAtTopmostAvailableLayer(moved.capture.record, { zoneId, globalTimeMs })
+                        : null
+                    )
+                    if (!placed) return null
+                    const built = createShowV2AddClipIntent(moved.capture, placed, { pattern, patternName }, newPersonalContentId)
+                    if (built.status === 'refused') return null
+                    const outcome = await admitShowV2PilotCreateClip({
+                      showId,
+                      baseRevision: moved.baseRevision,
+                      capture: moved.capture,
+                      intent: built.intent,
+                      onAdopted: () => {},
+                      isCurrent: () => editorAliveRef.current
+                        && preparedV2CaptureRef.current === moved.capture
+                        && useShowStore.getState().showV2Pilots[showId] === moved.capture.record,
+                    })
+                    return outcome.status === 'applied' ? built.clipId : null
+                  }
+                  if (!legacyShow || !timelineComposition || !target) return null
                   const instanceId = newPersonalContentId()
                   const placementId = newPersonalContentId()
                   const nextShow = addShowClipAtGlobalTimeExtendingShow(
@@ -5811,7 +5843,8 @@ function ShowTimelineWorkspace({
   onAddClipAtPlayhead: (input: {
     zoneId: string
     globalTimeMs: number
-    target: ShowClipAddTarget
+    target?: ShowClipAddTarget
+    layerId?: string
     pattern: ShowCell['pattern']
     patternName: string
   }) => Promise<string | null>
@@ -6001,6 +6034,7 @@ function ShowTimelineWorkspace({
     point: { clientX: number; clientY: number }
     zoneId: string
     target: ShowClipAddTarget
+    layerId?: string
   } | null>(null)
   const [addClipSubmitting, setAddClipSubmitting] = useState(false)
   const [insertTimeOpen, setInsertTimeOpen] = useState(false)
@@ -6026,6 +6060,22 @@ function ShowTimelineWorkspace({
     ?? (show
       ? showLayoutZoneIdAtTime(show, addClipTimeMs, preferredAuthoringZoneId)
       : preferredAuthoringZoneId ?? timelineView.rows[0]?.zoneId)
+  const v2AddClipRecord = recordVersion === 2 ? captureV2Move?.()?.capture.record ?? null : null
+  const v2PointerLayerId = recordVersion === 2 ? addClipPointerContext?.layerId ?? null : null
+  const v2ExactAddClipPlan = v2AddClipRecord && addClipPointerContext && v2PointerLayerId
+    ? planShowV2ClipAtTime(v2AddClipRecord, {
+        zoneId: addClipPointerContext.zoneId,
+        layerId: v2PointerLayerId,
+        globalTimeMs: addClipTimeMs,
+      })
+    : null
+  const v2TopmostAddClipPlan = v2AddClipRecord && !v2PointerLayerId && addClipZoneId
+    ? planShowV2ClipAtTopmostAvailableLayer(v2AddClipRecord, {
+        zoneId: addClipZoneId,
+        globalTimeMs: addClipTimeMs,
+      })
+    : null
+  const v2EnabledAddClipPlan = v2ExactAddClipPlan?.enabled ? v2ExactAddClipPlan : v2TopmostAddClipPlan
   const exactAddClipPlan = show && timelineComposition && addClipPointerContext
     ? planShowClipAtGlobalTime(show, timelineComposition, {
         zoneId: addClipPointerContext.zoneId,
@@ -6033,7 +6083,9 @@ function ShowTimelineWorkspace({
         target: addClipPointerContext.target,
       })
     : null
-  const addClipDestination = addClipPointerContext
+  const addClipDestination = recordVersion === 2
+    ? (v2EnabledAddClipPlan ? { v2plan: v2EnabledAddClipPlan } : null)
+    : addClipPointerContext
     ? exactAddClipPlan?.enabled
       ? { target: addClipPointerContext.target, plan: exactAddClipPlan }
       : null
@@ -6161,10 +6213,13 @@ function ShowTimelineWorkspace({
     if (!pattern) return
     setAddClipPatternKey(patternKey)
     setAddClipSubmitting(true)
+    const clipRequest = 'v2plan' in addClipDestination
+      ? { layerId: addClipDestination.v2plan.layerId }
+      : { target: addClipDestination.target }
     void onAddClipAtPlayhead({
       zoneId: addClipZoneId,
       globalTimeMs: addClipTimeMs,
-      target: addClipDestination.target,
+      ...clipRequest,
       pattern: pattern.ref,
       patternName: pattern.label,
     }).then((placementId) => {
@@ -8315,6 +8370,63 @@ function ShowTimelineWorkspace({
                 data-show-zone-id={row.zoneId}
                 data-drop-active={dropTargetKey === `composition:${layer.id}` ? 'true' : undefined}
                 onDoubleClick={(event) => {
+                  if (recordVersion === 2) {
+                    if (readOnly || isolatedGroupOccurrenceId) return
+                    const v2Record = captureV2Move?.()?.capture.record
+                    if (!v2Record) return
+                    const v2TargetElement = event.target
+                    if (v2TargetElement instanceof Element && v2TargetElement.closest(
+                      '[data-show-composition-clip="true"], [data-show-layer-junction], button, input, select, textarea, [role="slider"]',
+                    )) return
+                    const v2Rect = event.currentTarget.getBoundingClientRect()
+                    const v2Fraction = Math.min(1, Math.max(0, (event.clientX - v2Rect.left) / Math.max(1, v2Rect.width)))
+                    const v2TotalMs = Math.max(1, timelineView.showEndMs)
+                    const v2RawGlobalTimeMs = v2Fraction * v2TotalMs
+                    const v2SnappedGlobalTimeMs = snapClipBoundary(v2RawGlobalTimeMs, {
+                      altKey: event.altKey,
+                      shiftKey: event.shiftKey,
+                      visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? v2Rect.width),
+                      maxTimeMs: v2TotalMs,
+                    }).timeMs
+                    const v2Target: ShowClipAddTarget = layer.rank === 0
+                      ? { kind: 'main' }
+                      : { kind: 'overlay', layerIndex: layer.layerIndex }
+                    let v2GlobalTimeMs = v2SnappedGlobalTimeMs
+                    let v2Plan = planShowV2ClipAtTime(v2Record, {
+                      zoneId: row.zoneId,
+                      layerId: layer.id,
+                      globalTimeMs: v2GlobalTimeMs,
+                    })
+                    if (!v2Plan.enabled && v2SnappedGlobalTimeMs !== v2RawGlobalTimeMs) {
+                      const v2RawPlan = planShowV2ClipAtTime(v2Record, {
+                        zoneId: row.zoneId,
+                        layerId: layer.id,
+                        globalTimeMs: v2RawGlobalTimeMs,
+                      })
+                      if (v2RawPlan.enabled) {
+                        v2GlobalTimeMs = v2RawGlobalTimeMs
+                        v2Plan = v2RawPlan
+                      }
+                    }
+                    if (!v2Plan.enabled) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setAddMenuOpen(false)
+                    setInsertTimeOpen(false)
+                    setLayoutActionsOpen(false)
+                    setAddClipTimeMs(v2GlobalTimeMs)
+                    setAddClipPatternKey(null)
+                    setAddClipSubmitting(false)
+                    setAddClipPointerContext({
+                      anchor: event.currentTarget,
+                      point: { clientX: event.clientX, clientY: event.clientY },
+                      zoneId: row.zoneId,
+                      target: v2Target,
+                      layerId: layer.id,
+                    })
+                    setAddClipOpen(true)
+                    return
+                  }
                   if (readOnly || !show || !timelineComposition || isolatedGroupOccurrenceId) return
                   const targetElement = event.target
                   if (targetElement instanceof Element && targetElement.closest(

@@ -886,6 +886,37 @@ test.describe('authenticated Show authoring', () => {
     await expect(cometLoom).toHaveCount(0)
   })
 
+  test('adds a Clip from the Add menu at a free playhead (#1090)', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    // Free the back half of the Show so the playhead has empty time: the
+    // seeded Show covers the whole timeline on its single Layer.
+    const cometLoom = page.getByRole('button', { name: 'Select CometLoom', exact: true })
+    await expect(cometLoom).toBeVisible()
+    await cometLoom.click()
+    await page.keyboard.press('Delete')
+    await expect(cometLoom).toHaveCount(0)
+
+    const playhead = page.getByRole('slider', { name: 'Show playhead' })
+    await playhead.focus()
+    for (let step = 0; step < 7; step++) await page.keyboard.press('ArrowRight')
+    await expect(playhead).toHaveValue('35000')
+
+    const added = page.getByRole('button', { name: 'Select AuroraSphere', exact: true })
+    await expect(added).toHaveCount(0)
+    await page.getByRole('button', { name: 'Add to Show' }).click()
+    await page.getByRole('menuitem', { name: 'Clip' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add Clip at playhead' })
+    const picker = dialog.getByRole('combobox', { name: 'Pattern for new Clip' })
+    await picker.click()
+    await picker.fill('AuroraSphere')
+    await page.getByRole('option', { name: 'AuroraSphere' }).click()
+
+    await expect(added).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeVisible()
+  })
+
   // Suspended (Jon, 2026-09-22): on the runner the second drag is ignored
   // reproducibly once editor changes land (41.34 px gap); diagnosis in #1086.
   test.fixme('reclaims Scene-boundary Transition time after resizing its Clip away (#695)', async ({ page }) => {

@@ -6872,3 +6872,55 @@ describe('v2 boundary palette live preview (#1066 5c)', () => {
     expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
   })
 })
+
+describe('v2 Add Clip (#1090 slice B)', () => {
+  it('adds one Clip from the Add menu at a free playhead', async () => {
+    const user = userEvent.setup()
+    const editor = openV2Editor('add-clip-free')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 5_000 }))
+
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const command = screen.getByRole('menuitem', { name: 'Clip' })
+    expect(command).toBeEnabled()
+    await user.click(command)
+    const dialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
+    await user.click(within(dialog).getByRole('combobox', { name: 'Pattern for new Clip' }))
+    await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
+
+    await waitFor(() => {
+      expect(editor.state().record.composition.clips).toHaveLength(before.record.composition.clips.length + 1)
+    })
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotCreateClip'])
+    const beforeIds = new Set(before.record.composition.clips.map((clip) => clip.id))
+    const added = after.record.composition.clips.filter((clip) => !beforeIds.has(clip.id))
+    expect(added).toHaveLength(1)
+    // The topmost free Layer at 5000 is the overlay: main holds resize-a
+    // 0-4000 and resize-b 8000-10000, the overlay holds overlay-a 12000-14000.
+    const overlayLayerId = before.record.composition.layers.find((layer) => layer.rank === 1)!.id
+    expect(added[0].zoneId).toBe('z1')
+    expect(added[0].layerId).toBe(overlayLayerId)
+    expect(added[0].startMs).toBe(5_000)
+    expect(added[0].durationMs).toBe(5_000)
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: added[0].id })
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('disables Add Clip with every Layer occupied at the playhead', async () => {
+    const user = userEvent.setup()
+    const record = v2TracerRecord('add-clip-blocked')
+    record.composition.clips.find((clip) => clip.id === 'resize-b')!.durationMs = 12_000
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 13_000 }))
+
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const command = screen.getByRole('menuitem', { name: 'Clip unavailable: no empty Layer' })
+    expect(command).toBeDisabled()
+    expectNoWrite(before, editor.state())
+  })
+})
