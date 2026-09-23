@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1091",
+  "route": "/PXLBLZ-IDE/studio/shows/69209eba-738e-4ad4-b159-d6f86bd4b300 (v2 clone of stock-show-302-installation-composition) and /PXLBLZ-IDE/studio/shows/f17cda26-8579-4796-ae07-e23008c081bc (v2 clone of stock-show-301-installation-mapping)",
+  "operation": "On the v2 backing, clone built-in Show 302 and select Clip hero-windows (Mandelbrot2D on the shared pendulum instance). In the Clip detail's Playback tab, under 'Global placement and clock controls', the 'Restart Pattern on entry' checkbox is aria-disabled but not natively disabled; focusing it by keyboard shows the reason tip 'This Pattern's state can't be reset.' (capture 1). A click and a Space press on it leave it unticked and write nothing. Then clone built-in Show 301 and select Clip clip-floor-rose (CompassRose): the same checkbox is enabled with no reason (capture 2). Capture 3 reads back both stored v2 rows through GET /api/shows?show-version=2: hero-windows keeps entryPolicy continue after the click and Space press; clip-floor-rose is continue and editable. Capture 4 is the raw GET /api/shows?show-version=2 response listing both clones as version 2 rows.",
+  "captures": [
+    ".wrsp/ui-proof/1091-restart-unavailable.png",
+    ".wrsp/ui-proof/1091-restart-available.png",
+    ".wrsp/ui-proof/1091-restart-readback.png",
+    ".wrsp/ui-proof/1091-restart-raw-api.png"
+  ],
+  "capturedAtCommit": "604542bfacf4c376501bd588e0b1f61c177ce285"
+}
