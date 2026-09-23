@@ -850,6 +850,11 @@ async function openStudioList(page: Page, name: 'Shows' | 'Patterns'): Promise<v
   await expect(drawer).toBeInViewport({ ratio: 1 })
   // Leaving the edge tab arms the drawer's close timer until the pointer enters it.
   await drawer.hover()
+  // A delayed pointer-leave close must settle before a row click starts.
+  const closeDeadline = Date.now() + 600
+  await expect.poll(async () => (
+    await drawer.getAttribute('data-drawer-mode') === 'open' && Date.now() >= closeDeadline
+  ), { intervals: [50], timeout: 2_000 }).toBe(true)
 }
 
 test('Studio authoring keeps the rail and editor reachable at 390px (#622)', async ({ page }) => {
