@@ -886,6 +886,7 @@ issues and domain refusals stay distinct categories.
 | `invalid-record` | (new) | The preimage Show is not a valid v2 record. |
 | `invalid-intent` | (new) | The owner rejected the requested operation shape. |
 | `invalid-result` | (new) | The complete candidate would be an invalid Show. |
+| `invalid-request` | (new) | A Layer, Zone or Layout definition intent carries a blank identity or name, or an inconsistent order. |
 | `missing-clip` | `unknown-clip` | The owner could not find the addressed Clip. |
 | `missing-transition` | `unknown-transition` | The owner could not find the addressed Transition. |
 | `missing-occurrence` | `unknown-interval` | The owner could not find the addressed Layout or Group occurrence. |
@@ -899,6 +900,7 @@ issues and domain refusals stay distinct categories.
 | `duplicate-key` | `duplicate-keyframe-reference` | A keyframe with that identity already exists in this track. |
 | `invalid-topology` | `unsupported-topology` | The requested Transition arrangement is not a valid connected topology. |
 | `unsupported-topology` | `unsupported-topology` | The requested Clip arrangement is not supported by the v2 domain. |
+| `unsupported-layout` | (new) | A Transition edit would leave a contributing Clip in a Zone the active Layout does not provide. |
 | `unsupported-property-carrier` | (new) | A Transition Property ramp must be projected into tracks before its carrier is removed. |
 | `unsupported-content-copy` | (new) | Duplicating a Layout interval with content cannot copy a Transition that carries Property ramps. |
 | `boundary-crossing-content` | `multi-segment-clip` | Authored content crosses the duplicated Layout interval boundary. |
@@ -908,6 +910,11 @@ issues and domain refusals stay distinct categories.
 | `zone-unavailable` | `missing-zone` | Content would use a Zone the active Layout does not provide for its whole contribution. |
 | `compiler-ineligible` | `transition-refused` | A bounded compiler scheduling restriction rejects the candidate. |
 | `time-overflow` | (new) | A mapped time would leave safe integer milliseconds. |
+| `visual-transition-window` | (new) | Insert Time falls strictly inside a visual Transition window. |
+| `layout-transfer-window` | (new) | Insert Time falls strictly inside a timed Layout transfer. |
+| `transition-attachment` | (new) | The mapped candidate leaves a Transition detached from its participants. |
+| `property-mapping` | (new) | A Property track or its repeat-scale source curve cannot be mapped across the inserted time. |
+| `shared-track-conflict` | (new) | The mapped candidate overlaps an active owner track for the same target. |
 | `identity-conflict` | `duplicate-target` | A Layer identity or rank is already taken in that Zone. |
 | `incomplete-reassignment` | `layer-not-empty` | Removing a referenced Layer needs an explicit destination for every reference. |
 | `incompatible-reassignment` | (new) | A Layer reassignment does not name another Layer in the same Zone. |
