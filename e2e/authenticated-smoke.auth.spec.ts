@@ -844,6 +844,14 @@ test('keeps the Shows header inside the center editor pane (#758)', async ({ pag
   expect(geometry!.headerRight).toBe(geometry!.workspaceRight)
 })
 
+async function openStudioList(page: Page, name: 'Shows' | 'Patterns'): Promise<void> {
+  await page.getByRole('button', { name: `Open the ${name} list` }).click()
+  const drawer = page.locator('[data-testid="studio-entity-drawer"][data-studio-drawer-owner="studio-entity-list"]')
+  await expect(drawer).toBeInViewport({ ratio: 1 })
+  // Leaving the edge tab arms the drawer's close timer until the pointer enters it.
+  await drawer.hover()
+}
+
 test('Studio authoring keeps the rail and editor reachable at 390px (#622)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('studio/shows')
@@ -873,7 +881,7 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   await expect(page.getByTestId('editor-pane')).toBeInViewport()
 
   await page.goto('studio/shows')
-  await page.getByRole('button', { name: 'Open the Shows list' }).click()
+  await openStudioList(page, 'Shows')
   await page.getByRole('treeitem', { name: 'Untitled Show' }).click()
   await expect.poll(
     () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
@@ -885,7 +893,7 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   await expect(page.getByTestId('show-timeline-toolbar')).toBeInViewport()
 
   // The Learn number is composed from catalogue level and order at runtime.
-  await page.getByRole('button', { name: 'Open the Shows list' }).click()
+  await openStudioList(page, 'Shows')
   await page.getByRole('treeitem', { name: /^100/ }).click()
   await page.getByRole('treeitem', { name: /Clips, Cuts, and Blank Time$/ }).click()
   await expect.poll(
@@ -923,7 +931,7 @@ test('Pattern header controls preserve Space playback and Enter actions (#976)',
 test('rail search stays inside the list pane at narrow widths', async ({ page }) => {
   await page.setViewportSize({ width: 507, height: 520 })
   await page.goto('studio/patterns/IridescentFibers')
-  await page.getByRole('button', { name: 'Open the Patterns list' }).click()
+  await openStudioList(page, 'Patterns')
   const searchInput = page.getByRole('textbox', { name: 'Search patterns', exact: true })
   await expect(searchInput).toBeVisible()
   const dimensionFilter = page.getByRole('group', { name: 'Dimension filter', exact: true })
