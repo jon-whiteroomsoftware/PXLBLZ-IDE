@@ -665,7 +665,7 @@ seeding and readback helpers, so no test body knows which backing it is on and
 the v1 run is unchanged; the project reports as `chromium-shows-v2`. It is a
 diagnostic and is expected to fail until #1066 connects the remaining editor
 commands, so it is deliberately absent from `runner.suites` in
-`wrsp.config.mjs` and gates nothing. Its recorded verdicts and their causes are
+`wrsp.config.mjs` and gates nothing. The v2 barometer runs two workers because each worker's authenticated account pool (64 accounts, 360 s reuse) cannot cover all 87 tests in one fast pass (#1088). Its recorded verdicts and their causes are
 `docs/plans/show-editor-v2-both-backings-inventory.md`; read that before
 treating any failure there as new.
 
