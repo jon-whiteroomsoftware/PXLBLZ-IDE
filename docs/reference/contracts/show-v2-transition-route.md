@@ -114,10 +114,21 @@ destination value. The Clip delete panel builds its plan the same way, so deleti
 a carrier contributor through the route no longer refuses. Derived compiler ramps
 are unchanged.
 
-Guard classification: `unsupported-property-carrier` on a ramp-carrying
-`resize-transition`, on `reset-to-cut` without a plan, on `delete-clip` without a
-complete plan, and the planner's non-scalar-target refusal are adapter-only
-guards — no accepted ramp re-timing or destination semantics exist for them yet.
+Guard classification: participant-scope Transition ramps targeting the incoming
+Clip's instance time scale or Clip View brightness are Clip value ramps.
+Settings edits may add, change, or remove them. Resizing their Transition keeps
+each ramp length, caps it to the new window, and uses the previous Transition
+duration when the ramp has no duration; the result has a minimum duration of
+`min(100, newDurationMs)` and omits `durationMs` when it equals the new window.
+Reset to Cut, incoming Clip deletion, and a permitted cross-Zone or cross-Layer
+detach remove these ramps with their Transition without a projection plan.
+Clip edge resizing follows the same duration rule when it changes the window;
+closing the window drops the ramps. Planners skip Clip value ramps rather than
+projecting them. Other ramp kinds retain their owner and projection guards:
+`unsupported-property-carrier` on resize, Reset without a complete plan, or
+Clip delete without a complete plan; a non-scalar target with no projected
+destination still refuses. Group creation and Layout duplicate-with-content
+keep their carrier refusals.
 RL08, RL09 and RL10 remain bounded compiler refusals and are surfaced unchanged;
 the authenticated flow exercises RL08 as a real zero-write route refusal.
 Continuous-flat participant Transitions with multiple Layouts keep their existing

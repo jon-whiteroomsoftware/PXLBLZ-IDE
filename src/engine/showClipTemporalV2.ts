@@ -1,4 +1,4 @@
-import { validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './showCompositionV2'
+import { isShowTransitionClipValueRampV2, retimeShowTransitionClipValueRampsV2, validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './showCompositionV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { editShowClipPropertyTracksV2, projectShowTransitionPropertyRampsV2, type ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
@@ -94,8 +94,8 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   // drag surfaces grant it, the agent command does not, and a caller that
   // passes nothing gets the refusal. Without it an attached participant
   // refuses invalid-topology, matching v1's command path; with it a plain
-  // participant Transition detaches, a Transition carrying Property ramps is
-  // never silently deleted, and a converted Scene boundary (participant or whole-output scope, #1068)
+  // participant Transition or Clip value ramp carrier detaches, while other
+  // Property-ramp carriers remain protected. A converted Scene boundary (participant or whole-output scope, #1068)
   // reclaims its window through the same cut-and-reclaim commit the
   // resize path uses, or refuses the whole edit when that reclaim is blocked.
   let detachedTransitionIds: string[] = []
@@ -112,7 +112,8 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     ))
     const mayDetach = intent.kind === 'replace-placement' && intent.detachParticipantTransitions === true
     if (attached.length > 0 && !mayDetach) return refuse('invalid-topology', `Clip "${clip.id}" is a participant endpoint or whole-output contributor of Transition ${attached.map(transition => `"${transition.id}"`).join(', ')}; re-placement never detaches or retargets a Transition unless the caller grants it. Reset those Transitions explicitly first.`)
-    const carrier = attached.find(transition => transition.propertyRamps.length > 0)
+    const carrier = attached.find(transition => transition.propertyRamps.length > 0
+      && !transition.propertyRamps.every(isShowTransitionClipValueRampV2))
     if (carrier) return refuse('unsupported-property-carrier', `Transition "${carrier.id}" carries Property ramps. Reset it with an explicit projection plan before moving its participant to another Zone or Layer.`)
     // The blanket carrier check above subsumes the repair spec's ramp-carrier
     // case, so a ready spec here always carries a committable cut-and-reclaim.
@@ -183,6 +184,7 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     }
   } else {
     let resetDeltaMs = 0
+    let relocatedForConvertedClosure = false
     const leadingDeltaMs = startMs - clip.startMs
     const trailingDeltaMs = endMs - oldEndMs
     const incoming = record.composition.transitions.filter(transition => transitionEndpoints(transition).to.includes(clip.id))
@@ -190,16 +192,30 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     const pendingRepairs: ConvertedBoundaryRepairV2[] = []
     if (leadingDeltaMs && incoming.length > 0) {
       if (incoming.length !== 1 || transitionEndpoints(incoming[0]).to.length !== 1) return refuse('invalid-topology', 'Leading resize cannot split a common Transition window.')
+      const requestedDurationMs = incoming[0].durationMs + leadingDeltaMs
+      if (requestedDurationMs !== 0 && incoming[0].propertyRamps.length > 0
+        && !incoming[0].propertyRamps.every(isShowTransitionClipValueRampV2)) {
+        return refuse('unsupported-property-carrier', `Transition "${incoming[0].id}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
+      }
       const leadingBoundary = convertedBoundaryRepairSpecV2(record, incoming[0].id)
       if (leadingBoundary.status === 'ramp-carrier') return refuse('unsupported-property-carrier', `Transition "${leadingBoundary.transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
       if (leadingBoundary.status === 'ready') {
-        if (leadingDeltaMs < 0) return refuse('invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${leadingBoundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
+        if (leadingDeltaMs < 0) {
+          if (requestedDurationMs !== 0 || incoming[0].propertyRamps.length === 0
+            || !incoming[0].propertyRamps.every(isShowTransitionClipValueRampV2)) {
+            return refuse('invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${leadingBoundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
+          }
+          // The closing drag places this Clip at its post-reclaim start. Keep
+          // its original length and let the converted repair shift the rest.
+          resetDeltaMs = -incoming[0].durationMs
+          relocatedForConvertedClosure = true
+        }
         pendingRepairs.push(leadingBoundary.repair)
       } else {
         const durationMs = incoming[0].durationMs + leadingDeltaMs
         if (durationMs < 0) return refuse('invalid-intent', 'Leading resize cannot create a negative Transition duration.')
         if (durationMs === 0) {
-          if (incoming[0].propertyRamps.length) {
+          if (incoming[0].propertyRamps.length && !incoming[0].propertyRamps.every(isShowTransitionClipValueRampV2)) {
             if (!intent.propertyRampProjections || !validProjections(intent.propertyRampProjections, incoming[0].propertyRamps.length)) return refuse('unsupported-property-carrier', 'Reset requires explicit complete Property ramp projections before removing its carrier.')
             const usedIds = new Set(effective.composition.propertyTracks.flatMap(track => [track.id, ...track.keyframes.map(key => key.id)]))
             if (intent.propertyRampProjections.some(plan => [plan.trackId, plan.startKeyId, plan.endKeyId].some(id => usedIds.has(id)))) return refuse('unsupported-property-carrier', 'Property projection identities must be fresh against effective Group and ordinary owners.')
@@ -214,11 +230,18 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
           resetDeltaMs = -incoming[0].durationMs
           applyShowTransitionClipShiftV2(record, next, successors, resetDeltaMs, [incoming[0].id])
           next.composition.transitions = next.composition.transitions.filter(transition => transition.id !== incoming[0].id)
-        } else next.composition.transitions.find(transition => transition.id === incoming[0].id)!.durationMs = durationMs
+        } else {
+          const boundary = next.composition.transitions.find(transition => transition.id === incoming[0].id)!
+          boundary.propertyRamps = retimeShowTransitionClipValueRampsV2(incoming[0], durationMs)
+          boundary.durationMs = durationMs
+        }
       }
     }
     if (trailingDeltaMs && outgoing.length > 0) {
       if (outgoing.length !== 1 || transitionEndpoints(outgoing[0]).from.length !== 1) return refuse('invalid-topology', 'Trailing resize cannot split a common Transition window.')
+      if (outgoing[0].propertyRamps.length > 0 && !outgoing[0].propertyRamps.every(isShowTransitionClipValueRampV2)) {
+        return refuse('unsupported-property-carrier', `Transition "${outgoing[0].id}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
+      }
       const trailingBoundary = convertedBoundaryRepairSpecV2(record, outgoing[0].id)
       if (trailingBoundary.status === 'ramp-carrier') return refuse('unsupported-property-carrier', `Transition "${trailingBoundary.transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
       if (trailingBoundary.status === 'ready') {
@@ -242,7 +265,8 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     edited.appearance.keys = retainedAppearance(clip, retainedStartMs, endMs)
     edited.appearance.keys.forEach(key => { key.timeMs += resetDeltaMs })
     if (pendingRepairs.length > 0) {
-      const committed = commitConvertedBoundaryRepairsV2(record, next, pendingRepairs)
+      const committed = commitConvertedBoundaryRepairsV2(record, next, pendingRepairs,
+        relocatedForConvertedClosure ? { alreadyRelocatedClipIds: [clip.id] } : undefined)
       if (committed.status === 'refused') return refuse('invalid-result', committed.message)
       shortenedLayoutOccurrenceIds.push(...committed.applied.shortenedLayoutOccurrenceIds, ...committed.applied.shiftedLayoutOccurrenceIds)
       shiftedMarkerIds.push(...committed.applied.shiftedMarkerIds)

@@ -4,6 +4,7 @@ import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { createDefaultShow } from './showModel'
+import { convertTransitionClipRampProbe } from '../test/showV2TransitionClipRampFixture'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { continuingV1Show, convertibleV1Show } from '@/test/showV2TracerFixture'
 import { propertyEditRecord } from '@/test/showV2PropertyEditsFixture'
@@ -388,4 +389,17 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
     expect(applied.record.composition.clips.some((clip) => clip.id === 'incoming')).toBe(false)
     expect(validateShowRecordV2(applied.record)).toEqual([])
   })
+})
+
+it.each(['cell-1', 'cell-2'])('plans and applies deletion of %s on a converted Clip value ramp carrier', cellId => {
+  const record = convertTransitionClipRampProbe()
+  const clip = record.composition.clips.find(candidate => candidate.logicalClipId === cellId || candidate.id.includes(cellId))!
+  const plan = planShowV2ClipDelete(record, clip.id, { confirmed: true, allocate: () => 'unused' })
+  expect(plan).toEqual({ kind: 'ready', intent: { kind: 'delete-clip', clipId: clip.id } })
+  if (plan.kind !== 'ready') return
+  const result = editShowTransitionV2(record, plan.intent)
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.transitions).toEqual([])
+  expect(validateShowRecordV2(result.record)).toEqual([])
 })

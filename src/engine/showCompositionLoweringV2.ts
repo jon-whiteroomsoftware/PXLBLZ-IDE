@@ -19,6 +19,7 @@ import { placementPresentationSignature, validateShowComposition } from './showC
 import { compileShow, ShowRestartEligibilityError, type ShowRecipe } from './showCompiler'
 import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
 import {
+  isShowTransitionClipValueRampV2,
   validateShowRecordV2,
   type ShowClipV2,
   type ShowPropertyTargetV2,
@@ -292,8 +293,7 @@ function resolveAndLowerShowV2(
     if (source) sources[binding.runtimeId] = source
   }
   const hasClipRamps = compileRecord.composition.transitions.some(transition =>
-    transition.propertyRamps.some(ramp =>
-      ramp.target.kind === 'instance-time-scale' || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness')))
+    transition.propertyRamps.some(isShowTransitionClipValueRampV2))
   const resolved = resolveShowV2CompileContext(compileRecord, { ...lookup, byPatternInstanceId: sources })
   if ('issues' in resolved) return resolved
   if (hasClipRamps && resolved.route !== 'continuous-flat') {
@@ -411,8 +411,6 @@ function resolveShowV2CompileContext(
   })) {
     return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'A property track targeting a multi-key Clip requires the #1037 projection owner.')
   }
-  const isClipRampTarget = (ramp: ShowRecordV2['composition']['transitions'][number]['propertyRamps'][number]): boolean =>
-    ramp.target.kind === 'instance-time-scale' || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness')
   if (composition.transitions.some(transition => !transition.wholeOutput && transition.participants.length !== 1)) {
     return refuse('unsupported-transition-participants', 'composition.transitions', 'lowering requires one participant per Transition until shared-scope parity is proved.')
   }
@@ -422,7 +420,7 @@ function resolveShowV2CompileContext(
   if (composition.transitions.some(transition => transition.propertyRamps.some(ramp => {
     const scalar = ramp.target.kind === 'show-repeat-scale' || ramp.target.kind === 'layout-occurrence-split-position'
     if (scalar) return !transition.wholeOutput || ramp.participantId !== undefined
-    return !isClipRampTarget(ramp) || transition.wholeOutput !== undefined
+    return !isShowTransitionClipValueRampV2(ramp) || transition.wholeOutput !== undefined
   }))) {
     return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'lowering requires Transition property-ramp compiler evidence before compilation.')
   }
@@ -1265,7 +1263,7 @@ function attachTransitionClipRampsV2(show: ShowRecord, record: ShowRecordV2): vo
   const clipById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
   for (const transition of record.composition.transitions) {
     if (transition.wholeOutput !== undefined) continue
-    const clipRamps = transition.propertyRamps.filter(ramp => ramp.target.kind === 'instance-time-scale' || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness'))
+    const clipRamps = transition.propertyRamps.filter(isShowTransitionClipValueRampV2)
     if (clipRamps.length === 0) continue
     const boundary = show.transitions.find(candidate => candidate.id === transition.id)
     if (!boundary) throw new Error(`Transition clip ramp has no lowered Transition "${transition.id}".`)

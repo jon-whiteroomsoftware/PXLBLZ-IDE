@@ -527,3 +527,37 @@ it('valid zero and complete reordered multiramp indices preserve caller identiti
   expect(result.status).toBe('changed')
   expect(reopen(result.record).composition.propertyTracks.map(track => [track.id, track.keyframes.map(key => key.id)])).toEqual([['opacity-projection', ['opacity:start', 'opacity:end']], ['retained-ramp', ['ramp:first', 'ramp:last']]])
 })
+
+it('retimes an incoming Clip value ramp when a native leading edge changes its window', () => {
+  const source = fixture()
+  const boundary = source.composition.transitions[0]
+  boundary.propertyRamps = [{
+    participantId: boundary.participants[0].id,
+    target: { kind: 'clip-view', clipId: 'selected', property: 'brightness' }, from: 0.2,
+  }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const grown = editShowClipTemporalV2(source, { kind: 'trim', clipId: 'selected', startMs: 250, endMs: 600 })
+  expect(grown.status).toBe('changed')
+  if (grown.status !== 'changed') return
+  expect(grown.record.composition.transitions[0].durationMs).toBe(150)
+  expect(grown.record.composition.transitions[0].propertyRamps[0].durationMs).toBe(100)
+  expect(validateShowRecordV2(grown.record)).toEqual([])
+  const shrunk = editShowClipTemporalV2(source, { kind: 'extend', clipId: 'selected', startMs: 150, endMs: 600 })
+  expect(shrunk.status).toBe('changed')
+  if (shrunk.status !== 'changed') return
+  expect(shrunk.record.composition.transitions[0].durationMs).toBe(50)
+  expect(shrunk.record.composition.transitions[0].propertyRamps[0].durationMs).toBeUndefined()
+  expect(validateShowRecordV2(shrunk.record)).toEqual([])
+})
+
+it('still protects a clip-effect carrier on native edge resize', () => {
+  const source = fixture()
+  const boundary = source.composition.transitions[0]
+  boundary.propertyRamps = [{
+    participantId: boundary.participants[0].id,
+    target: { kind: 'clip-effect', clipId: 'selected', effectId: 'hue', effectKind: 'hue', parameterId: 'turns' }, from: 0.2,
+  }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  expect(editShowClipTemporalV2(source, { kind: 'trim', clipId: 'selected', startMs: 250, endMs: 600 }))
+    .toMatchObject({ status: 'refused', code: 'unsupported-property-carrier' })
+})

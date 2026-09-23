@@ -1,5 +1,7 @@
 import {
   showV2LogicalClipSegmentIds,
+  isShowTransitionClipValueRampV2,
+  retimeShowTransitionClipValueRampsV2,
   validateShowRecordV2,
   type ShowClipV2,
   type ShowPropertyTrackV2,
@@ -121,7 +123,8 @@ export function editShowTransitionV2(
     const removedTransitions = record.composition.transitions.filter(transition => (
       transitionEndpoints(transition).all.some(endpoint => removedClipIdSet.has(endpoint))
     ))
-    const carrierIds = removedTransitions.filter(transition => transition.propertyRamps.length > 0).map(transition => transition.id)
+    const carrierIds = removedTransitions.filter(transition => transition.propertyRamps.length > 0
+      && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)).map(transition => transition.id)
     const plans = intent.propertyRampProjections ?? []
     if (plans.length !== carrierIds.length
       || new Set(plans.map(plan => plan.transitionId)).size !== plans.length
@@ -171,11 +174,10 @@ export function editShowTransitionV2(
       durationMs: transition.durationMs,
       participants: transition.participants,
       wholeOutput: transition.wholeOutput,
-      // The Show-scalar ramps (repeat scale, split position) belong to no Clip
-      // or instance, so a settings edit may add, change or remove them; record
-      // validation owns their scope, uniqueness, occurrence and bounds (#1066
-      // slice 9c2a). Every other ramp stays owner-protected.
-      propertyRamps: transition.propertyRamps.filter(ramp => !isShowScalarRampTargetV2(ramp.target)),
+      // Settings own Show-scalar and incoming Clip value ramps. Validation
+      // checks their shape; every other ramp remains owner-protected.
+      propertyRamps: transition.propertyRamps.filter(ramp =>
+        !isShowScalarRampTargetV2(ramp.target) && !isShowTransitionClipValueRampV2(ramp)),
       // Conversion provenance is written by the v1 converter alone (#1065), so
       // a settings edit can neither change nor clear it.
       origin: transition.origin,
@@ -191,7 +193,7 @@ export function editShowTransitionV2(
         ? editShowTransitionV2(record, { kind: 'resize-transition', transitionId: current.id, durationMs: intent.transition.durationMs })
         : null
       if (!retimed) {
-        return refuse('invalid-intent', 'A settings edit cannot change Transition identity, timing, participants, Clip-owned property ramps or conversion provenance.')
+        return refuse('invalid-intent', 'A settings edit cannot change Transition identity, timing, participants, owner-protected property ramps or conversion provenance.')
       }
       if (retimed.status !== 'changed') return retimed
       const retimedTransition = retimed.record.composition.transitions.find(candidate => candidate.id === current.id)!
@@ -283,12 +285,10 @@ export function editShowTransitionV2(
   if (intent.kind === 'resize-transition' && intent.durationMs === transition.durationMs) {
     return { status: 'unchanged', record, ...empty() }
   }
-  if (transition.propertyRamps.length > 0) {
+  if (transition.propertyRamps.length > 0 && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)) {
     if (intent.kind === 'reset-to-cut' && intent.propertyRampProjections) {
       return resetTransitionWithProjectedPropertyRamps(record, transition, intent.propertyRampProjections)
     }
-    // Reset consumes an explicit projection plan; resizing a boundary carrier window
-    // remains an adapter-only guard with no accepted ramp re-timing semantics.
     return refuse('unsupported-property-carrier', `Transition "${transition.id}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
   }
   if (intent.kind === 'resize-transition' && intent.durationMs === 0) {
@@ -309,7 +309,8 @@ export function editShowTransitionV2(
     ? intent.durationMs - transition.durationMs
     : -transition.durationMs
   const replacements = intent.kind === 'resize-transition'
-    ? [{ ...structuredClone(transition), durationMs: intent.durationMs }]
+    ? [{ ...structuredClone(transition), durationMs: intent.durationMs,
+      propertyRamps: retimeShowTransitionClipValueRampsV2(transition, intent.durationMs) }]
     : []
   return commitShift(record, affectedClipIds, deltaMs, replacements, intent.kind === 'reset-to-cut' ? [transition.id] : [])
 }
@@ -411,7 +412,7 @@ export function convertedBoundaryRepairSpecV2(
   }
   if (endpoints.from.length !== 1 || endpoints.to.length !== 1) return { status: 'ignore' }
   if (!transition.wholeOutput && transition.participants.length !== 1) return { status: 'ignore' }
-  if (transition.propertyRamps.length > 0) return transition.wholeOutput ? { status: 'ignore' } : { status: 'ramp-carrier', transitionId: transition.id }
+  if (transition.propertyRamps.length > 0 && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)) return transition.wholeOutput ? { status: 'ignore' } : { status: 'ramp-carrier', transitionId: transition.id }
   const from = record.composition.clips.find(clip => clip.id === endpoints.from[0])
   const to = record.composition.clips.find(clip => clip.id === endpoints.to[0])
   if (!from || !to) return { status: 'ignore' }
@@ -446,7 +447,7 @@ export function convertedBoundaryRepairSpecV2(
  */
 function multiContributorBoundaryRepairSpec(record: ShowRecordV2, transition: ShowTransitionV2): ConvertedBoundaryRepairEligibilityV2 {
   const wholeOutput = transition.wholeOutput!
-  if (transition.propertyRamps.length > 0) return { status: 'ignore' }
+  if (transition.propertyRamps.length > 0 && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)) return { status: 'ignore' }
   if (wholeOutput.fromClipIds.length === 0 || wholeOutput.toClipIds.length === 0) return { status: 'ignore' }
   const windowStartMs = wholeOutput.startMs
   const windowEndMs = windowStartMs + transition.durationMs
@@ -555,7 +556,9 @@ export function commitConvertedBoundaryRepairsV2(
     if (repair.retainDurationMs === undefined) {
       next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== repair.transitionId)
     } else {
-      next.composition.transitions.find(candidate => candidate.id === repair.transitionId)!.durationMs = repair.retainDurationMs
+      const retained = next.composition.transitions.find(candidate => candidate.id === repair.transitionId)!
+      retained.propertyRamps = retimeShowTransitionClipValueRampsV2(retained, repair.retainDurationMs)
+      retained.durationMs = repair.retainDurationMs
     }
     const movedTrackIds = applyShowTransitionClipShiftV2(record, next, [...shiftIds], -durationMs, [repair.transitionId], repair.windowEndMs)
     for (const id of shiftIds) shiftedClipIds.add(id)

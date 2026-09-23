@@ -140,7 +140,7 @@ it('preserves existing zero resize Reset and exact removed Transition identity w
  expect(await admitShowV2PilotTransitionResize({...request,intent})).toMatchObject({status:'applied',settlement:'saved',removedIds:expected.removedIds})
  expect(readSaved().composition).toEqual(expected.record.composition);expect(write).toHaveBeenCalledTimes(1)
 })
-it('retains typed pure Property carrier refusal and provider recovery without a hidden failed adoption',async()=>{
+it('keeps off-flat Clip value ramps behind admission while provider recovery remains atomic',async()=>{
  const {record,request,write}=setup();const provider=getPersonalContentProvider()
  const unsupported={...provider};delete unsupported.replaceShowV2;setPersonalContentProvider(unsupported)
  expect(await admitShowV2PilotTransitionResize(request)).toMatchObject({status:'refused',source:'admission',code:'unsupported-provider'})
@@ -148,7 +148,7 @@ it('retains typed pure Property carrier refusal and provider recovery without a 
  setPersonalContentProvider(provider)
  const transition=record.composition.transitions[0];const participant=transition.participants[0]
  transition.propertyRamps=[{participantId:participant.id,target:{kind:'clip-view',clipId:participant.toClipId,property:'brightness'},from:0.2,easing:{curve:'quadratic',direction:'in'}}]
- expect(await admitShowV2PilotTransitionResize(request)).toMatchObject({status:'refused',source:'transition',code:'unsupported-property-carrier',affectedTrackIds:[],removedIds:[]})
+ expect(await admitShowV2PilotTransitionResize(request)).toMatchObject({status:'refused',source:'admission',code:'unsupported-pilot-record',affectedTrackIds:[],removedIds:[]})
  expect(write).not.toHaveBeenCalled();transition.propertyRamps=[]
  expect(await admitShowV2PilotTransitionResize(request)).toMatchObject({status:'applied',settlement:'saved'})
  expect(write).toHaveBeenCalledTimes(1);expect(useShowStore.getState().showV2Histories[record.id].past).toHaveLength(1)

@@ -652,7 +652,7 @@ it('refuses the whole drop atomically when the converted-boundary repair is bloc
   expect(source).toEqual(prior)
 })
 
-it('refuses to detach a converted boundary that carries Property ramps', () => {
+it('detaches a converted boundary carrying a Clip value ramp', () => {
   const source = convertedJoin()
   // Participant scope cannot carry global scalar ramps (those require whole-output
   // scope), so the carrier targets the joining Clip's own appearance instead.
@@ -663,13 +663,10 @@ it('refuses to detach a converted boundary that carries Property ramps', () => {
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
   const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', detachParticipantTransitions: true })
-  expect(result.status).toBe('refused')
-  if (result.status !== 'refused') return
-  expect(result.code).toBe('unsupported-property-carrier')
-  expect(result.message).toContain('incoming')
-  expect(result.record).toBe(source)
-  expect(result.record.composition.transitions).toHaveLength(1)
-  expect(result.affectedTransitionIds).toEqual([])
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.affectedTransitionIds).toContain(source.composition.transitions[0].id)
   expect(source).toEqual(prior)
 })
 
@@ -784,7 +781,7 @@ it('keeps a ramp-carrying whole-output converted boundary exact on re-placement'
   expect(reopen(result.record).composition.clips.find(candidate => candidate.id === 'selected')).toMatchObject({ layerId: 'over', startMs: 600, durationMs: 400 })
 })
 
-it('refuses to detach a participant Transition that carries Property ramps', () => {
+it('detaches a native participant Transition carrying a Clip value ramp', () => {
   const source = gappedJoin()
   // Participant scope cannot carry global scalar ramps (those require whole-output
   // scope), so the carrier targets the joining Clip's own appearance instead.
@@ -795,13 +792,10 @@ it('refuses to detach a participant Transition that carries Property ramps', () 
   expect(validateShowRecordV2(source)).toEqual([])
   const prior = structuredClone(source)
   const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', detachParticipantTransitions: true })
-  expect(result.status).toBe('refused')
-  if (result.status !== 'refused') return
-  expect(result.code).toBe('unsupported-property-carrier')
-  expect(result.message).toContain('incoming')
-  expect(result.record).toBe(source)
-  expect(result.record.composition.transitions).toHaveLength(1)
-  expect(result.affectedTransitionIds).toEqual([])
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.transitions).toEqual([])
+  expect(result.affectedTransitionIds).toContain(source.composition.transitions[0].id)
   expect(source).toEqual(prior)
 })
 
@@ -929,4 +923,17 @@ it('retimes only the outgoing Clip\'s track end, not an unrelated upstream track
   expect(result.status, JSON.stringify(result)).toBe('changed')
   if (result.status !== 'changed') return
   expect(result.record.composition.propertyTracks[0]).toEqual(prior)
+})
+
+it('still refuses detach when a participant Transition carries a clip-effect ramp', () => {
+  const source = gappedJoin()
+  source.composition.transitions[0].propertyRamps = [{
+    participantId: 'pair',
+    target: { kind: 'clip-effect', clipId: 'selected', effectId: 'hue', effectKind: 'hue', parameterId: 'turns' },
+    from: 0.2,
+  }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const result = editShowClipTemporalV2(source, { kind: 'replace-placement', clipId: 'selected', layerId: 'over', detachParticipantTransitions: true })
+  expect(result).toMatchObject({ status: 'refused', code: 'unsupported-property-carrier' })
+  expect(result.record).toBe(source)
 })

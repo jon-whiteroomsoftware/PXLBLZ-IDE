@@ -72,8 +72,8 @@ export function planShowTimelineGestureV2(
   if (gesture.kind === 'move') {
     if (gesture.zoneId !== clip.zoneId || gesture.layerId !== clip.layerId) {
       // A human drag grants the detach permission the agent command withholds:
-      // joined participant Transitions detach in the same commit, while ramp
-      // carriers and blocked repairs still refuse at the owner.
+      // joined participant Transitions detach in the same commit, while
+      // non-Clip-value carriers and blocked repairs still refuse at the owner.
       return ready({
         owner: 'clip-temporal',
         intent: {
@@ -102,14 +102,14 @@ export function planShowTimelineGestureV2(
       : (nextStartMs < clip.startMs ? 'extend' : 'trim')
     const intent: ShowClipTemporalIntentV2 = { kind, clipId: clip.id, startMs: nextStartMs, endMs: nextEndMs }
     // A leading edge dragged onto its outgoing neighbour closes the incoming
-    // window, and Reset must project that carrier's ramps before it leaves.
+    // window; the owner drops Clip value ramps and projects other carriers.
     const carrier = trailing ? undefined : closingRampCarrier(record, clip.id, nextStartMs - clip.startMs)
     if (!carrier) return ready({ owner: 'clip-temporal', intent })
     const projected = planShowV2TransitionRampProjections(record, carrier, allocate)
     if (projected.status === 'refused') return refuse(projected.message)
     return ready({
       owner: 'clip-temporal',
-      intent: { ...intent, propertyRampProjections: projected.projections },
+      intent: { ...intent, ...(projected.projections.length > 0 ? { propertyRampProjections: projected.projections } : {}) },
     })
   }
 

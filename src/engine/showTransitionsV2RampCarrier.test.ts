@@ -94,29 +94,19 @@ describe('v2 Transition Property-ramp carriers survive Clip deletion', () => {
     expect(evaluateShowPropertyTrackV2(reopened.composition.propertyTracks[0], 399)).toBeUndefined()
   })
 
-  it('removes a projected ramp that targets the deleted Clip and reports it exactly once', () => {
+  it('removes an incoming Clip value ramp with its Transition without projection', () => {
     const source = participantCarrierShow()
     const before = structuredClone(source)
 
-    const deleted = editShowTransitionV2(source, {
-      kind: 'delete-clip',
-      clipId: 'in',
-      propertyRampProjections: [{
-        transitionId: 'transition-crossfade',
-        projections: [{
-          rampIndex: 0, trackId: 'brightness-track', startKeyId: 'brightness-start', endKeyId: 'brightness-end',
-          activeEndMs: 600, toValue: 1,
-        }],
-      }],
-    })
+    const deleted = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'in' })
 
     expect(source).toEqual(before)
     expect(deleted).toMatchObject({
       status: 'changed',
       affectedClipIds: ['in'],
       affectedTransitionIds: ['transition-crossfade'],
-      affectedTrackIds: ['brightness-track'],
-      removedIds: ['brightness-track', 'in', 'transition-crossfade'],
+      affectedTrackIds: [],
+      removedIds: ['in', 'transition-crossfade'],
     })
     if (deleted.status !== 'changed') return
     const reopened = reopen(deleted.record)

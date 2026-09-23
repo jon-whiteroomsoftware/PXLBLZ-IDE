@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
+import { transitionClipRampProbeV1 as clipRampProbeV1, convertTransitionClipRampProbe as convertClipRampProbe } from '../test/showV2TransitionClipRampFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
@@ -10,6 +11,7 @@ import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from './showTransitionsV2'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { resizeShowLayerTransition, resetShowLayerTransitionToCut } from './showLayerTransitionAuthoring'
+import { removeShowBoundaryTransition, removeShowClip, updateShowBoundaryTransition } from './showModel'
 import type { ShowRecord } from './personalContentRecords'
 import {
   parseProvisionalShowRecordV2,
@@ -23,6 +25,14 @@ function convertedTransitionShow(): ShowRecordV2 {
   const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
   return converted.record
+}
+
+function clipRampSummary(record: ShowRecordV2) {
+  return record.composition.transitions.find(transition => transition.id === 'xfade')?.propertyRamps
+    .map(ramp => ({
+      target: ramp.target.kind === 'instance-time-scale' ? 'speed' : 'brightness',
+      from: ramp.from, durationMs: ramp.durationMs, easing: ramp.easing,
+    }))
 }
 
 function cutShow(gapMs = 0): ShowRecordV2 {
@@ -213,7 +223,7 @@ describe('v2 Transition ownership', () => {
     expect(projectShowTransitionJunctionsV2(reopen(reset.record))).toEqual([expect.objectContaining({ kind: 'cut', atMs: 500 })])
   })
 
-  it('projects Property ramps before resetting their visual Transition carrier', () => {
+  it('drops a Clip value ramp when resetting its visual Transition', () => {
     const source = convertedTransitionShow()
     const transition = source.composition.transitions[0]
     const incoming = source.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
@@ -225,39 +235,18 @@ describe('v2 Transition ownership', () => {
     }]
     const before = structuredClone(source)
 
-    const reset = editShowTransitionV2(source, {
-      kind: 'reset-to-cut',
-      transitionId: transition.id,
-      propertyRampProjections: [{
-        rampIndex: 0,
-        trackId: 'brightness-track',
-        startKeyId: 'brightness-start',
-        endKeyId: 'brightness-end',
-        activeEndMs: incoming.startMs + incoming.durationMs,
-        toValue: incoming.appearance.keys[0].value.view.brightness,
-      }],
-    })
+    const reset = editShowTransitionV2(source, { kind: 'reset-to-cut', transitionId: transition.id })
 
     expect(source).toEqual(before)
     expect(reset).toMatchObject({
-      status: 'changed', affectedTransitionIds: [transition.id], affectedTrackIds: ['brightness-track'],
+      status: 'changed', affectedTransitionIds: [transition.id], affectedTrackIds: [],
       removedIds: [transition.id],
     })
     if (reset.status !== 'changed') return
     const reopened = reopen(reset.record)
     expect(reopened.composition.transitions).toEqual([])
     expect(reopened.composition.clips.find(clip => clip.id === incoming.id)?.startMs).toBe(400)
-    expect(reopened.composition.propertyTracks).toEqual([{
-      id: 'brightness-track',
-      target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
-      activeStartMs: 400,
-      activeDurationMs: incoming.startMs + incoming.durationMs - 400,
-      keyframes: [
-        { id: 'brightness-start', timeMs: 400, value: 0.2, easing: { curve: 'quadratic', direction: 'in' } },
-        { id: 'brightness-end', timeMs: 600, value: 1, easing: { curve: 'linear' } },
-      ],
-    }])
-    expect(evaluateShowPropertyTrackV2(reopened.composition.propertyTracks[0], 500)).toBeCloseTo(0.4)
+    expect(reopened.composition.propertyTracks).toEqual([])
     expect(validateShowRecordV2(reopened)).toEqual([])
   })
 
@@ -859,5 +848,89 @@ describe('owned-track shift across a converted Scene-span activation (#1068)', (
     if (edited.status !== 'changed') return
     expect(trackSummary(edited.record, 'horizon-contribution')).toEqual([4000, 7500, [[4000, 1], [11500, 0.5]]])
     expect(trackSummary(edited.record, 'track-mandala-brightness')).toEqual([0, 16500, [[11500, 1], [13500, 1], [15500, 0.45]]])
+  })
+})
+
+describe('#1091 B2 Transition Clip value ramp ownership', () => {
+  it('settings add, change, and remove speed and brightness while other Clip ramps stay protected', () => {
+    const source = convertClipRampProbe(clipRampProbeV1())
+    const transition = source.composition.transitions.find(candidate => candidate.id === 'xfade')!
+    const incoming = source.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+    const empty = structuredClone(source)
+    empty.composition.transitions[0].propertyRamps = []
+    const added = editShowTransitionV2(empty, { kind: 'update-transition', transition })
+    expect(added.status).toBe('changed')
+    if (added.status !== 'changed') return
+    expect(added.record.composition.transitions[0].propertyRamps).toEqual(transition.propertyRamps)
+    const changedTransition = structuredClone(transition)
+    changedTransition.propertyRamps[0].from = 0.8
+    changedTransition.propertyRamps[1].from = 0.3
+    const changed = editShowTransitionV2(added.record, { kind: 'update-transition', transition: changedTransition })
+    expect(changed.status).toBe('changed')
+    if (changed.status !== 'changed') return
+    expect(changed.record.composition.transitions[0].propertyRamps.map(ramp => ramp.from)).toEqual([0.8, 0.3])
+    const removed = editShowTransitionV2(changed.record, { kind: 'update-transition', transition: { ...changedTransition, propertyRamps: [] } })
+    expect(removed.status).toBe('changed')
+    if (removed.status !== 'changed') return
+    expect(removed.record.composition.transitions[0].propertyRamps).toEqual([])
+    for (const target of [
+      { kind: 'clip-effect' as const, clipId: incoming.id, effectId: 'effect', effectKind: 'hue' as const, parameterId: 'turns' },
+      { kind: 'instance-control' as const, instanceId: incoming.instanceId, exportName: 'speed' },
+    ]) {
+      const protectedTransition = structuredClone(transition)
+      protectedTransition.propertyRamps = [{ target, from: 0.5 }]
+      expect(editShowTransitionV2(empty, { kind: 'update-transition', transition: protectedTransition }))
+        .toMatchObject({ status: 'refused', code: 'invalid-intent' })
+    }
+  })
+
+  it.each([
+    [1500, [400, 1000]],
+    [200, [undefined, undefined]],
+  ] as const)('resizes 1000 ms to %i, validates, prepares flat, and matches v1 descriptors', (durationMs, expectedDurations) => {
+    const v1 = clipRampProbeV1()
+    const source = convertClipRampProbe(v1)
+    const result = editShowTransitionV2(source, { kind: 'resize-transition', transitionId: 'xfade', durationMs })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    const resized = reopen(result.record)
+    expect(resized.composition.transitions[0].propertyRamps.map(ramp => ramp.durationMs)).toEqual(expectedDurations)
+    expect(resized.composition.transitions[0].propertyRamps.map(ramp => ramp.durationMs ?? durationMs)).toEqual(
+      durationMs === 200 ? [200, 200] : [400, 1000])
+    expect(validateShowRecordV2(resized)).toEqual([])
+    const lookup = { byCellId: {}, byPatternInstanceId: Object.fromEntries(resized.composition.patternInstances.map(instance =>
+      [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])), stageDimension: 1 as const }
+    expect(prepareShowV2ForCompile(resized, lookup, { libraries: LIBRARIES })).toMatchObject({ status: 'ready', provenance: { route: 'continuous-flat' } })
+    const v1Resized = updateShowBoundaryTransition(v1, 'xfade', { durationMs })
+    expect(clipRampSummary(resized)).toEqual(clipRampSummary(convertClipRampProbe(v1Resized)))
+  })
+
+  it('resets the converted carrier without projection and matches v1 Reset', () => {
+    const v1 = clipRampProbeV1()
+    const source = convertClipRampProbe(v1)
+    const result = editShowTransitionV2(source, { kind: 'reset-to-cut', transitionId: 'xfade' })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.transitions).toEqual([])
+    expect(result.record.composition.propertyTracks).toEqual([])
+    expect(validateShowRecordV2(result.record)).toEqual([])
+    expect(convertClipRampProbe(removeShowBoundaryTransition(v1, 'xfade')).composition.transitions).toEqual([])
+  })
+
+  it('deletes the incoming Clip and its ramps without projections, matching v1 entry removal directly', () => {
+    const v1 = clipRampProbeV1()
+    const source = convertClipRampProbe(v1)
+    const transition = source.composition.transitions.find(candidate => candidate.id === 'xfade')!
+    const incoming = source.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+    const result = editShowTransitionV2(source, { kind: 'delete-clip', clipId: incoming.id })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.transitions.some(candidate => candidate.id === 'xfade')).toBe(false)
+    expect(result.record.composition.transitions.flatMap(candidate => candidate.propertyRamps).some(ramp =>
+      ('clipId' in ramp.target && ramp.target.clipId === incoming.id)
+      || ('instanceId' in ramp.target && ramp.target.instanceId === incoming.instanceId))).toBe(false)
+    const deletedV1 = removeShowClip(v1, 'cell-2')
+    expect(deletedV1.transitions.flatMap(candidate => Object.values(candidate.propertyTransitions ?? {})).some(descriptor =>
+      descriptor && 'fromByCellId' in descriptor && 'cell-2' in descriptor.fromByCellId)).toBe(false)
   })
 })

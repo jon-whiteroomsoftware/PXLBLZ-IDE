@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
+import { convertTransitionClipRampProbe } from '../test/showV2TransitionClipRampFixture'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { editShowClipTemporalV2 } from './showClipTemporalV2'
@@ -424,4 +425,25 @@ describe('v2 timeline gesture adapters', () => {
     expect(record).toEqual(before)
     expect(allocate).toHaveBeenCalledTimes(1)
   })
+})
+
+it('plans and applies a closed leading window and delete for a Clip value only carrier', () => {
+  const closeRecord = convertTransitionClipRampProbe()
+  const clipId = closeRecord.composition.transitions[0].participants[0].toClipId
+  const closed = plan(closeRecord, { kind: 'resize-leading', clipId, startMs: 4000 }).result
+  expect(closed).toMatchObject({ status: 'ready', submission: { owner: 'clip-temporal', intent: { clipId } } })
+  if (closed.status !== 'ready') return
+  expect(closed.submission.intent).not.toHaveProperty('propertyRampProjections')
+  const appliedClose = editShowClipTemporalV2(closeRecord, closed.submission.intent as never)
+  expect(appliedClose.status, JSON.stringify(appliedClose)).toBe('changed')
+  if (appliedClose.status === 'changed') expect(appliedClose.record.composition.transitions).toEqual([])
+
+  const deleteRecord = convertTransitionClipRampProbe()
+  const deleted = plan(deleteRecord, { kind: 'delete', clipId }).result
+  expect(deleted).toMatchObject({ status: 'ready', submission: { owner: 'clip-delete', intent: { kind: 'delete-clip', clipId } } })
+  if (deleted.status !== 'ready') return
+  expect(deleted.submission.intent).not.toHaveProperty('propertyRampProjections')
+  const appliedDelete = editShowTransitionV2(deleteRecord, deleted.submission.intent as never)
+  expect(appliedDelete.status).toBe('changed')
+  if (appliedDelete.status === 'changed') expect(appliedDelete.record.composition.transitions).toEqual([])
 })

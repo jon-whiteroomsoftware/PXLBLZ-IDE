@@ -4,7 +4,7 @@ import { normalizeShowBoundaryTransition } from './showModel'
 import { showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation, type ShowTransitionChanges } from './showTransitionAuthoring'
 import type { ShowToolkitParameterValue } from './showVisualToolkit'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
-import { showV2LogicalClipSegmentIds, type ShowRecordV2, type ShowTransitionV2 } from './showCompositionV2'
+import { isShowTransitionClipValueRampV2, showV2LogicalClipSegmentIds, type ShowRecordV2, type ShowTransitionV2 } from './showCompositionV2'
 import type { ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
 import { isShowScalarRampTargetV2, projectShowTransitionJunctionsV2, transitionEndpoints, type ShowTransitionCarrierRampProjectionPlanV2, type ShowTransitionEditIntentV2 } from './showTransitionsV2'
 
@@ -125,7 +125,7 @@ export function buildShowV2TransitionEditorModel(
   return { junctions: junctions.sort((left, right) => left.atMs - right.atMs || left.key.localeCompare(right.key)), transitions, kinds }
 }
 
-/** Remove a boundary or reset a Transition to Cut, projecting any carrier ramps first. */
+/** Remove a boundary or reset to Cut, projecting surviving ramps first. */
 export function planShowV2TransitionReset(
   record: ShowRecordV2,
   transitionId: string,
@@ -138,7 +138,7 @@ export function planShowV2TransitionReset(
   }
   const projections = planShowV2TransitionRampProjections(record, transition, allocate)
   if (projections.status === 'refused') return projections
-  return { status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id, propertyRampProjections: projections.projections } }
+  return { status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id, ...(projections.projections.length > 0 ? { propertyRampProjections: projections.projections } : {}) } }
 }
 
 /**
@@ -341,9 +341,8 @@ export function planShowV2BoundaryTransitionChanges(
 }
 
 /**
- * Derive one projection per surviving boundary ramp. Only the global scalar
- * carriers that conversion produces and lowering accepts are planned here;
- * any other target refuses so no value is invented for the consumer.
+ * Derive one projection per surviving boundary ramp. Incoming Clip value ramps
+ * leave with their carrier. Other non-scalar targets still refuse.
  */
 export function planShowV2TransitionRampProjections(
   record: ShowRecordV2,
@@ -358,6 +357,7 @@ export function planShowV2TransitionRampProjections(
   ])
   const projections: ShowTransitionRampProjectionV2[] = []
   for (const [rampIndex, ramp] of transition.propertyRamps.entries()) {
+    if (isShowTransitionClipValueRampV2(ramp)) continue
     const endMs = startMs + (ramp.durationMs ?? transition.durationMs)
     const toValue = ramp.target.kind === 'show-repeat-scale'
       ? repeatScaleAt(record, endMs)
@@ -399,7 +399,7 @@ export function planShowV2ClipDeleteRampProjections(
     if (transition.propertyRamps.length === 0 || !transitionEndpoints(transition).all.some((endpoint) => targets.has(endpoint))) continue
     const projections = planShowV2TransitionRampProjections(record, transition, allocate)
     if (projections.status === 'refused') return projections
-    plans.push({ transitionId: transition.id, projections: projections.projections })
+    if (projections.projections.length > 0) plans.push({ transitionId: transition.id, projections: projections.projections })
   }
   return { status: 'ready', plans }
 }

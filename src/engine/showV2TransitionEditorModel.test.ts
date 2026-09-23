@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
+import { convertTransitionClipRampProbe } from '../test/showV2TransitionClipRampFixture'
 import type { ShowRecord } from './personalContentRecords'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { createDefaultShow, removeShowBoundaryTransition, updateShowBoundaryTransition } from './showModel'
@@ -183,7 +184,7 @@ describe('v2 Transition editor model', () => {
     })
   })
 
-  it('plans a plain Reset when no carrier exists and refuses an unprojectable target', () => {
+  it('plans a plain Reset and drops an incoming Clip value carrier', () => {
     const plain = converted()
     expect(planShowV2TransitionEdit(plain, { kind: 'reset', transitionId: plain.composition.transitions[0].id }, allocator('x'), 2)).toEqual({
       status: 'ready', intent: { kind: 'reset-to-cut', transitionId: plain.composition.transitions[0].id },
@@ -195,8 +196,10 @@ describe('v2 Transition editor model', () => {
       participantId: transition.participants[0].id,
       target: { kind: 'clip-view', clipId: 'in', property: 'brightness' }, from: 0.2,
     }]
-    const refused = planShowV2TransitionEdit(clipCarrier, { kind: 'reset', transitionId: transition.id }, allocator('x'), 2)
-    expect(refused).toMatchObject({ status: 'refused', message: expect.stringContaining('clip-view') })
+    const planned = planShowV2TransitionEdit(clipCarrier, { kind: 'reset', transitionId: transition.id }, allocator('x'), 2)
+    expect(planned).toEqual({ status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id } })
+    if (planned.status !== 'ready') return
+    expect(editShowTransitionV2(clipCarrier, planned.intent).status).toBe('changed')
   })
 
   it('refuses unknown junctions, unknown kinds, unusable durations and conflicting identity', () => {
@@ -712,4 +715,16 @@ describe('planShowV2BoundaryPaletteApply on native Transitions (#1066 slice 5b-2
       expect(result.record).toBe(record)
     }
   })
+})
+
+it('plans a converted speed and brightness Reset with no projections and applies it', () => {
+  const record = convertTransitionClipRampProbe()
+  const transition = record.composition.transitions[0]
+  const plan = planShowV2TransitionReset(record, transition.id, () => 'unused')
+  expect(plan).toEqual({ status: 'ready', intent: { kind: 'reset-to-cut', transitionId: transition.id } })
+  if (plan.status !== 'ready') return
+  const result = editShowTransitionV2(record, plan.intent)
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.transitions).toEqual([])
 })

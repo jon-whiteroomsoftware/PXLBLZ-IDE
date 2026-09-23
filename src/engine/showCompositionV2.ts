@@ -140,6 +140,20 @@ export interface ShowTransitionPropertyRampV2 {
   easing?: ShowStructuredEasing
 }
 
+export function isShowTransitionClipValueRampV2(ramp: ShowTransitionPropertyRampV2): boolean {
+  return ramp.target.kind === 'instance-time-scale'
+    || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness')
+}
+
+export function retimeShowTransitionClipValueRampsV2(transition: ShowTransitionV2, newDurationMs: number): ShowTransitionPropertyRampV2[] {
+  return transition.propertyRamps.map(ramp => {
+    if (!isShowTransitionClipValueRampV2(ramp)) return structuredClone(ramp)
+    const durationMs = Math.max(Math.min(100, newDurationMs), Math.min(ramp.durationMs ?? transition.durationMs, newDurationMs))
+    const { durationMs: _previousDurationMs, ...rest } = structuredClone(ramp)
+    return durationMs === newDurationMs ? rest : { ...rest, durationMs }
+  })
+}
+
 export interface ShowTransitionV2 extends Omit<
   ShowBoundaryTransition,
   'afterSceneId' | 'kind' | 'layoutId' | 'routingDirection' | 'propertyTransitions'
