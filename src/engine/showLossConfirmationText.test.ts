@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { describePatternReplacementCost, describePatternReplacementLoss, formatControlNameList } from './showLossConfirmationText'
+import { describeConnectedClipMoveLoss, describePatternReplacementCost, describePatternReplacementLoss, formatControlNameList } from './showLossConfirmationText'
 
 it('describes the picker cost for animated, value, mixed, and empty losses', () => {
   expect(describePatternReplacementCost([{ animated: true }])).toBe('removes 1 property lane')
@@ -8,6 +8,22 @@ it('describes the picker cost for animated, value, mixed, and empty losses', () 
     .toBe('removes 2 property lanes, 1 control value')
   expect(describePatternReplacementCost([{ animated: false }])).toBe('removes 1 control value')
   expect(describePatternReplacementCost([])).toBeUndefined()
+})
+
+it('names one connected Transition lost on a Clip move (#1069)', () => {
+  expect(describeConnectedClipMoveLoss(1)).toEqual({
+    title: 'Move connected Clip?',
+    description: 'Moving this Clip to another Layer also removes its connected Transition. Other Clip durations and positions stay unchanged.',
+    actionLabel: 'Move Clip and remove Transition',
+  })
+})
+
+it('names multiple connected Transitions lost on a Clip move (#1069)', () => {
+  expect(describeConnectedClipMoveLoss(2)).toEqual({
+    title: 'Move connected Clip?',
+    description: 'Moving this Clip to another Layer also removes its 2 connected Transitions. Other Clip durations and positions stay unchanged.',
+    actionLabel: 'Move Clip and remove Transitions',
+  })
 })
 
 it('keeps the existing slot dialog text for one animated control', () => {

@@ -36,3 +36,14 @@ export function describePatternReplacementLoss(
     actionLabel: `Use ${patternName}`,
   }
 }
+
+export function describeConnectedClipMoveLoss(transitionCount: number): { title: string; description: string; actionLabel: string } {
+  const transitions = transitionCount === 1
+    ? 'its connected Transition'
+    : `its ${transitionCount} connected Transitions`
+  return {
+    title: 'Move connected Clip?',
+    description: `Moving this Clip to another Layer also removes ${transitions}. Other Clip durations and positions stay unchanged.`,
+    actionLabel: `Move Clip and remove Transition${transitionCount === 1 ? '' : 's'}`,
+  }
+}

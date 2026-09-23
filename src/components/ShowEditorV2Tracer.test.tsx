@@ -637,7 +637,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: copies[0].id })
   })
 
-  it('settles a cross-Layer drag of a free Clip as a placement replacement', async () => {
+  it('moves an unjoined Clip across Layers without asking (#1069)', async () => {
     const editor = openV2Editor('tracer-cross-layer')
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
@@ -650,6 +650,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
     await act(async () => {})
 
     const after = editor.state()
+    expect(screen.queryByRole('alertdialog', { name: 'Move connected Clip?' })).toBeNull()
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(temporalSubmissions()).toEqual([{
       intent: {
@@ -690,6 +691,11 @@ describe('v2 tracer settlement routing (#1065)', () => {
     surface.fire(surface.clip, 'dragstart', 0)
     surface.fire(surface.lane('overlay'), 'dragover', 80)
     surface.fire(surface.lane('overlay'), 'drop', 80)
+    await act(async () => {})
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Move connected Clip?' })
+    expectNoWrite(before, editor.state())
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Move Clip and remove Transition' }))
     await act(async () => {})
 
     const after = editor.state()
@@ -2654,7 +2660,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
   })
 })
 
-  it('moves a joined Clip with its connected component', async () => {
+  it('moves a joined Clip within its Layer without asking (#1069)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-move-connected'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
@@ -2666,6 +2672,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     await act(async () => {})
 
     const after = editor.state()
+    expect(screen.queryByRole('alertdialog', { name: 'Move connected Clip?' })).toBeNull()
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
     expect(admission.calls.map((call) => call.request.intent)).toEqual([
       { kind: 'move-connected', clipId: 'resize-a', startMs: 3_000 },
@@ -2678,10 +2685,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     await expectUndoRedoExact(editor, before)
   })
 
-  it('detaches the Transition on a cross-Layer drop of a joined Clip (#1068 gap 2)', async () => {
-    // Rewriting this refusal is the point of the slice, not a weakening of it:
-    // gap 2 turns the connected-reroute refusal into a detach-and-move through
-    // the clip-temporal door — one edit, one history entry and one save.
+  it('confirms a cross-Layer drop that removes a Transition on v2 (#1069)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-connected-reroute'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
@@ -2692,6 +2696,12 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     surface.fire(surface.clip, 'dragstart', 0)
     surface.fire(surface.lane('overlay'), 'dragover', DROP_X)
     surface.fire(surface.lane('overlay'), 'drop', DROP_X)
+    await act(async () => {})
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Move connected Clip?' })
+    expect(dialog).toHaveTextContent('Moving this Clip to another Layer also removes its connected Transition. Other Clip durations and positions stay unchanged.')
+    expectNoWrite(before, editor.state())
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Move Clip and remove Transition' }))
     await act(async () => {})
 
     const after = editor.state()
@@ -2711,6 +2721,26 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     expect(after.record.composition.transitions).toEqual([])
     expectOneEdit(before, after)
     await expectUndoRedoExact(editor, before)
+  })
+
+  it('cancels a cross-Layer drop with no write (#1069)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-connected-cancel'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('overlay'), 'dragover', DROP_X)
+    surface.fire(surface.lane('overlay'), 'drop', DROP_X)
+    await act(async () => {})
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Move connected Clip?' })
+    expectNoWrite(before, editor.state())
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+
+    expect(screen.queryByRole('alertdialog', { name: 'Move connected Clip?' })).toBeNull()
+    expectNoWrite(before, editor.state())
   })
 
   it('splits the selected Clip at the playhead and selects the right half', async () => {

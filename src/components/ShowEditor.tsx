@@ -52,7 +52,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
 import { ShowLossConfirmDialog } from '@/components/ShowLossConfirmDialog'
-import { describePatternReplacementCost, describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
+import { describeConnectedClipMoveLoss, describePatternReplacementCost, describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { showRecordClipCount } from '@/engine/showClipInvariant'
 import { isAlreadyPushed, type SendMode } from '@/engine/sendToController'
@@ -346,7 +346,7 @@ import {
   previewShowV2GroupReplacement,
   type ShowV2GroupReplacementIntent,
 } from '@/engine/showV2GroupReplacementEditorModel'
-import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
+import { editShowClipTemporalV2, type ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
 import { insertShowTimeV2, type ShowInsertTimeIntentV2 } from '@/engine/showTimelineV2'
 import type { ShowMarkerEditIntentV2 } from '@/engine/showMarkersV2'
 import type { ShowLayerEditIntentV2 } from '@/engine/showLayersV2'
@@ -845,6 +845,7 @@ type ShowClipMovePlan = {
   clipId: string
   startMs: number
   plan: ShowV2ClipDropPlan
+  moveRequest?: { clipId: string; zoneId: string; layerId: string; startMs: number }
 })
 
 type ShowClipResizePreview = {
@@ -6201,6 +6202,10 @@ function ShowTimelineWorkspace({
     v2Move?: { capture: ShowV2PilotPreparedCapture; baseRevision: number }
     settling?: boolean
   } | null>(null)
+  const [pendingV2ClipMove, setPendingV2ClipMove] = useState<{
+    plan: { clipId: string; zoneId: string; layerId: string; startMs: number }
+    transitionCount: number
+  } | null>(null)
   const draggingCompositionClipRef = useRef(draggingCompositionClip)
   const movePointerCleanupRef = useRef<(() => void) | null>(null)
   const refreshMoveActivity = useFieldActivity(() => draggingCompositionClipRef.current !== null)
@@ -6677,6 +6682,7 @@ function ShowTimelineWorkspace({
         clipId: clip.id,
         startMs: resolved.startMs,
         plan: gesturePlan,
+        moveRequest: { clipId: clip.id, zoneId: input.zoneId, layerId: input.layer.id, startMs: resolved.startMs },
       }
       setMovePreview(nextPreview)
       return
@@ -6762,6 +6768,35 @@ function ShowTimelineWorkspace({
       ? onCommitV2TransitionResize?.({ ...capture, intent: plan.intent }) ?? Promise.resolve(false)
       : onCommitV2ClipTemporal?.({ ...capture, intent: plan.intent }) ?? Promise.resolve(false)
   }
+  const requestV2ClipMove = (
+    capture: { capture: ShowV2PilotPreparedCapture; baseRevision: number } | undefined,
+    request: { clipId: string; zoneId: string; layerId: string; startMs: number },
+    plan: ShowV2ClipDropPlan,
+  ): Promise<boolean> => {
+    if (capture && plan.kind === 'temporal' && plan.intent.kind === 'replace-placement') {
+      const record = capture.capture.record
+      const outcome = editShowClipTemporalV2(record, plan.intent)
+      if (outcome.status === 'changed') {
+        const transitionIds = new Set(record.composition.transitions.map(transition => transition.id))
+        const transitionCount = outcome.removedIds.filter(id => transitionIds.has(id)).length
+        if (transitionCount > 0) {
+          setPendingV2ClipMove({ plan: request, transitionCount })
+          return Promise.resolve(false)
+        }
+      }
+    }
+    return commitV2ClipPlan(capture, plan)
+  }
+  const confirmV2ClipMove = () => {
+    const pending = pendingV2ClipMove
+    setPendingV2ClipMove(null)
+    if (!pending) return
+    const capture = captureV2Move?.()
+    if (!capture) return
+    const plan = planShowV2ClipMove(timelineView, pending.plan)
+    if (plan.kind === 'refuse') return
+    void commitV2ClipPlan(capture, plan).catch(() => {})
+  }
   const commitCompositionClipMove = (targetKey: string) => {
     const draggedClip = draggingCompositionClipRef.current
     const activePlan = movePlanRef.current
@@ -6781,7 +6816,11 @@ function ShowTimelineWorkspace({
     let pendingSelectClipId: string | null = null
     const commit = activePlan.recordVersion === 2
       ? (() => {
-          if (activePlan.plan.kind !== 'clip-sharing-pending') return commitV2ClipPlan(draggedClip.v2Move, activePlan.plan)
+          if (activePlan.plan.kind !== 'clip-sharing-pending') {
+            return activePlan.mode === 'move' && activePlan.moveRequest
+              ? requestV2ClipMove(draggedClip.v2Move, activePlan.moveRequest, activePlan.plan)
+              : commitV2ClipPlan(draggedClip.v2Move, activePlan.plan)
+          }
           const resolved = draggedClip.v2Move
             ? planShowTimelineGestureV2(draggedClip.v2Move.capture, activePlan.plan.gesture, newPersonalContentId)
             : null
@@ -8509,12 +8548,13 @@ function ShowTimelineWorkspace({
                           })
                         }
                         if (draggedClip.mode !== 'move') return Promise.resolve(false)
-                        return commitV2ClipPlan(draggedClip.v2Move, planShowV2ClipMove(timelineView, {
+                        const request = {
                           clipId: clip.id,
                           zoneId: row.zoneId,
                           layerId: targetLayer.id,
                           startMs: globalStartMs,
-                        }))
+                        }
+                        return requestV2ClipMove(draggedClip.v2Move, request, planShowV2ClipMove(timelineView, request))
                       })()
                     : draggedClip.mode === 'duplicate' && timelineComposition && plannedComposition
                       ? onDuplicateCompositionClipAtTarget({
@@ -9397,6 +9437,14 @@ function ShowTimelineWorkspace({
       {/* Outside the grid subtree: the grid owns marquee and group-isolation
           pointer handlers, and React bubbles portalled popover events through
           their JSX ancestors (#629). */}
+      <ShowLossConfirmDialog
+        open={pendingV2ClipMove !== null}
+        {...(pendingV2ClipMove
+          ? describeConnectedClipMoveLoss(pendingV2ClipMove.transitionCount)
+          : { title: '', description: '', actionLabel: '' })}
+        onCancel={() => setPendingV2ClipMove(null)}
+        onConfirm={confirmV2ClipMove}
+      />
       {zoneMap && zoneMapOpen && (showFullZoneHeaders || showMicroZonePicker) && (
         <ZoneMapPopover
           anchor={zoneMapAnchor}
