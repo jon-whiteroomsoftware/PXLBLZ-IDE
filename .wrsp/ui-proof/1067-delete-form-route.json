@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1067",
+  "route": "/PXLBLZ-IDE/studio/shows/a33dc714-f143-422a-84da-183aef7a8455 (v2 clone of stock-show-showcase-luma-sources, existing Show editor on the v2 backing)",
+  "operation": "This candidate deletes the rejected v2 form route (ShowEditorV2Route) and the components only it used; it had no production mount. The proof shows the surviving v2 surface unaffected on the deletion tip: on the v2 backing, clone the built-in Luma Sources showcase, open it in the existing Show editor, select Clip luma-clip-1 and open the Clip detail's Source pattern picker. The timeline, the Entity Detail Panel with its Pattern tab and control rows, the picker's lossy-cost annotation ('TestPattern2D removes 1 property lane'), the preview and the Stage all render and respond (capture 1). Capture 2 reads the stored v2 row back before and after browsing (unchanged); capture 3 is the raw GET /api/shows?show-version=2 with the version-2 row.",
+  "captures": [
+    ".wrsp/ui-proof/1067-delete-editor.png",
+    ".wrsp/ui-proof/1067-delete-readback.png",
+    ".wrsp/ui-proof/1067-delete-raw-api.png"
+  ],
+  "capturedAtCommit": "36148e768e505cdd7f28c312f486cd0d3d02589c"
+}
