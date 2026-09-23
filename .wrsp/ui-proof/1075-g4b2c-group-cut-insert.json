@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-cut-1790135335398",
+  "operation": "On the v2 backing at the G4b-2c tip: a seeded Show whose Group definition Pulse pair holds Clips g-a (0+2000) and g-b (2000+2000) meeting at a Cut. Double-click the Group to isolate it and click the Cut between Comet and Comet; the Choose Layer Transition palette opens (first capture, duration set to 0.5 s). Press Use Crossfade Transition; the palette closes (second capture). The third capture renders the stored v2 record (GET /api/shows) from the same run: the definition gains a 500 ms crossfade g-a -> g-b, and g-b shifts from 2000 to 2500, as v1's Group insert shifts the to-Clip.",
+  "captures": [
+    ".wrsp/ui-proof/1075-g4b2c-1-palette.png",
+    ".wrsp/ui-proof/1075-g4b2c-2-inserted.png",
+    ".wrsp/ui-proof/1075-g4b2c-3-readback.png"
+  ],
+  "capturedAtCommit": "07baaa9e19780b9659dd29ced6bcf33894c6d31e"
+}
