@@ -1033,3 +1033,181 @@ describe('flat unrouted Zone retirement (#1080 class 2B)', () => {
     expect(zone2Clips.some(clip => clip.startMs === 0)).toBe(true)
   })
 })
+
+describe('#1080 class 2 (A) slice B: boundary ramp carrier conversion', () => {
+  function rampCarrierShow() {
+    const show = createDefaultShow('ramp-carrier', 'Ramp carrier', 1)
+    show.scenes = [
+      { id: 'scene-1', name: 'Scene 1', durationMs: 4000 },
+      { id: 'scene-2', name: 'Scene 2', durationMs: 4000 },
+      { id: 'scene-3', name: 'Scene 3', durationMs: 4000 },
+    ]
+    const zoneId = show.zones[0].id
+    const patterns = ['TestPattern1D', 'CometLoom', 'CellularAutomata1D']
+    show.cells = show.scenes.map((scene, index) => ({
+      id: `cell-${index + 1}`,
+      zoneId,
+      sceneId: scene.id,
+      sceneSpan: 1,
+      pattern: { kind: 'stock' as const, id: patterns[index] },
+      patternName: patterns[index],
+      adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
+      restartOnEntry: false,
+    }))
+    show.transitions = [
+      { id: 'xfade', afterSceneId: 'scene-1', kind: 'crossfade', durationMs: 2000, easing: { curve: 'linear' }, crossfadePolicy: 'live-live' },
+      { id: 'cut', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+    ]
+    return show
+  }
+
+  function rampLookup(show: ReturnType<typeof rampCarrierShow>) {
+    return { byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[cell.pattern.id]])) }
+  }
+
+  function participantBoundary(result: Extract<ReturnType<typeof convertShowRecordV1ToV2>, { status: 'converted' }>) {
+    const transition = result.record.composition.transitions.find(candidate => candidate.id === 'xfade')!
+    expect(transition.wholeOutput).toBeUndefined()
+    expect(transition.participants).toHaveLength(1)
+    expect(transition.propertyRamps).toEqual([])
+    return transition
+  }
+
+  it('converts a boundary timeScale ramp to an exact-window instance-time-scale track', () => {
+    const source = rampCarrierShow()
+    source.transitions[0].propertyTransitions = {
+      timeScale: { fromByCellId: { 'cell-2': 0.5 }, easing: { curve: 'sine', direction: 'in-out' } },
+    }
+    const before = JSON.stringify(source)
+
+    const result = convertShowRecordV1ToV2(source, rampLookup(source))
+
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') return
+    expect(JSON.stringify(source)).toBe(before)
+    const transition = participantBoundary(result)
+    const toClip = result.record.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+    const tracks = result.record.composition.propertyTracks.filter(track => track.target.kind === 'instance-time-scale')
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0]).toEqual({
+      id: `xfade:ramp:timeScale:${toClip.id}`,
+      target: { kind: 'instance-time-scale', instanceId: toClip.instanceId },
+      activeStartMs: 4000,
+      activeDurationMs: 2000,
+      keyframes: [
+        { id: `${tracks[0].id}:k0`, timeMs: 4000, value: 0.5, easing: { curve: 'sine', direction: 'in-out' } },
+        { id: `${tracks[0].id}:k1`, timeMs: 6000, value: 1, easing: { curve: 'linear' } },
+      ],
+    })
+    expect(result.report.unaccountedSourcePaths).toEqual([])
+    expect(validateShowRecordV2(result.record)).toEqual([])
+  })
+
+  it('converts a boundary brightness ramp to an exact-window clip-view track', () => {
+    const source = rampCarrierShow()
+    source.transitions[0].propertyTransitions = {
+      brightness: { fromByCellId: { 'cell-2': 0.2 } },
+    }
+
+    const result = convertShowRecordV1ToV2(source, rampLookup(source))
+
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') return
+    const transition = participantBoundary(result)
+    const toClip = result.record.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+    const tracks = result.record.composition.propertyTracks.filter(track => track.target.kind === 'clip-view')
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0]).toEqual({
+      id: `xfade:ramp:brightness:${toClip.id}`,
+      target: { kind: 'clip-view', clipId: toClip.id, property: 'brightness' },
+      activeStartMs: 4000,
+      activeDurationMs: 2000,
+      keyframes: [
+        { id: `${tracks[0].id}:k0`, timeMs: 4000, value: 0.2, easing: { curve: 'linear' } },
+        { id: `${tracks[0].id}:k1`, timeMs: 6000, value: 1, easing: { curve: 'linear' } },
+      ],
+    })
+    expect(result.report.unaccountedSourcePaths).toEqual([])
+    expect(validateShowRecordV2(result.record)).toEqual([])
+  })
+
+  it('still refuses a boundary controls carrier', () => {
+    const source = rampCarrierShow()
+    for (const cell of source.cells) cell.controlTargets = { speed: 0.5 }
+    source.transitions[0].propertyTransitions = {
+      controls: { speed: { fromByCellId: { 'cell-2': 0.5 } } },
+    }
+
+    expect(convertShowRecordV1ToV2(source, rampLookup(source))).toMatchObject({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({ code: 'unsupported-boundary-transition' })]),
+    })
+  })
+
+  it('refuses a carrier mixing a ramp key with a scalar key', () => {
+    const source = rampCarrierShow()
+    source.transitions[0].propertyTransitions = {
+      timeScale: { fromByCellId: { 'cell-2': 0.5 } },
+      sample: { repeatScale: { from: 1 } },
+    }
+
+    expect(convertShowRecordV1ToV2(source, rampLookup(source))).toMatchObject({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({ code: 'unsupported-boundary-transition' })]),
+    })
+  })
+
+  it('refuses a ramp carrier where a v1 Scene property track forces whole-output scope', () => {
+    const source = convertibleV1Show()
+    source.scenes = [
+      { id: 'scene-1', name: 'Scene 1', durationMs: 4000 },
+      { id: 'scene-2', name: 'Scene 2', durationMs: 4000 },
+      { id: 'scene-3', name: 'Scene 3', durationMs: 4000 },
+    ]
+    const patterns = ['TestPattern1D', 'CometLoom', 'CellularAutomata1D']
+    source.composition!.patternInstances = patterns.map((pattern, index) => ({
+      id: `instance-${index + 1}`,
+      pattern: { kind: 'stock' as const, id: pattern },
+      patternName: pattern,
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }))
+    source.composition!.durationMs = 14000
+    source.composition!.scenes = source.scenes.map((scene, index) => ({
+      sceneId: scene.id,
+      zones: [{
+        zoneId: 'zone',
+        main: [{
+          id: `placement-${index + 1}`,
+          instanceId: `instance-${index + 1}`,
+          startMs: 0,
+          durationMs: 4000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+        overlays: [],
+      }],
+    }))
+    source.composition!.scenes[0].propertyTracks = [{
+      id: 'scene-track',
+      target: { kind: 'placement-view', placementId: 'placement-1', property: 'brightness' },
+      keyframes: [
+        { id: 'scene-track-k0', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+        { id: 'scene-track-k1', timeMs: 4000, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+    source.transitions = [
+      { id: 'xfade', afterSceneId: 'scene-1', kind: 'crossfade', durationMs: 2000, easing: { curve: 'linear' }, crossfadePolicy: 'live-live' },
+      { id: 'cut', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+    ]
+    source.transitions[0].propertyTransitions = {
+      timeScale: { fromByCellId: { 'cell-2': 0.5 } },
+    }
+
+    expect(convertShowRecordV1ToV2(source)).toMatchObject({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({
+        code: 'unsupported-boundary-transition',
+        message: 'A boundary Animation speed or Brightness ramp converts only at Layer participant scope.',
+      })]),
+    })
+  })
+})

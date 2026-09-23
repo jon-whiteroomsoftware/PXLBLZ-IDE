@@ -430,3 +430,50 @@ it('lowers an exact-window incoming brightness ramp to the v1 boundary carrier (
 it('lowers a short exact-window incoming brightness ramp to the v1 boundary carrier (#1080 class 2a)', async () => {
   await class2aParityCase('brightness', 0.2, 5000, 2000, 'incoming-brightness-short')
 })
+
+async function class2bConverterParityCase(
+  key: 'timeScale' | 'brightness',
+  from: number,
+  transitionDurationMs: number,
+  carrierDurationMs: number,
+) {
+  const { runtimeParity } = await import('../../scripts/show-v2-parity')
+  const source = class2aV1Show(transitionDurationMs)
+  const boundary = source.transitions.find(transition => transition.id === 'xfade')!
+  const easing = key === 'timeScale'
+    ? { curve: 'sine' as const, direction: 'in-out' as const }
+    : { curve: 'linear' as const }
+  boundary.propertyTransitions = { [key]: { fromByCellId: { 'cell-2': from }, durationMs: carrierDurationMs, easing } } as typeof boundary.propertyTransitions
+  const converted = convertShowRecordV1ToV2(source, class2aV1Lookup(source))
+  expect(converted.status, JSON.stringify(converted.status === 'refused' ? converted.issues : [])).toBe('converted')
+  if (converted.status !== 'converted') throw new Error('fixture conversion failed')
+  const record = converted.record
+  expect(record.composition.propertyTracks).toHaveLength(1)
+  expect(validateShowRecordV2(record)).toEqual([])
+  const prepared = prepareShowV2ForCompile(record, class2aV2Lookup(record))
+  expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+  if (prepared.status !== 'ready') throw new Error('preparation refused')
+  const before = compileShow(showRecordToCompileRecipe(source, class2aV1Lookup(source)), LIBRARIES)
+  const after = compileShow(prepared.recipe, LIBRARIES)
+  expect(after.code).toBe(before.code)
+  for (const fidelity of ['fast', 'fidelity'] as const) {
+    const parity = runtimeParity(before, after, source, record, fidelity, [])
+    expect(parity.matched, JSON.stringify({ fidelity, max: parity.maxSampledFrameAbsoluteDifference, firstMs: parity.firstMismatchMs })).toBe(true)
+  }
+}
+
+it('converts a boundary timeScale ramp to an exact-window track with v1 parity (#1080 class 2b)', async () => {
+  await class2bConverterParityCase('timeScale', 0.5, 2000, 2000)
+})
+
+it('converts a short boundary timeScale ramp to an exact-window track with v1 parity (#1080 class 2b)', async () => {
+  await class2bConverterParityCase('timeScale', 0.5, 5000, 2000)
+})
+
+it('converts a boundary brightness ramp to an exact-window track with v1 parity (#1080 class 2b)', async () => {
+  await class2bConverterParityCase('brightness', 0.2, 2000, 2000)
+})
+
+it('converts a short boundary brightness ramp to an exact-window track with v1 parity (#1080 class 2b)', async () => {
+  await class2bConverterParityCase('brightness', 0.2, 5000, 2000)
+})
