@@ -4942,7 +4942,13 @@ export function ShowEditor({
                 const transition = changed.transitions?.find((entry) => entry.id === transitionPaletteId)
                 if (!transition) return false
                 const { id, afterSceneId: _afterSceneId, ...changes } = transition
-                void updateBoundaryTransition(legacyShow.id, id, changes)
+                // A key the candidate drops (direction on a 1D Stage) must clear the stored value (#1077).
+                const current = legacyShow.transitions?.find((entry) => entry.id === transitionPaletteId)
+                const cleared: Record<string, undefined> = {}
+                for (const key of Object.keys(current ?? {})) {
+                  if (key !== 'id' && key !== 'afterSceneId' && !(key in transition)) cleared[key] = undefined
+                }
+                void updateBoundaryTransition(legacyShow.id, id, { ...cleared, ...changes })
                 useShowPreviewOverrideStore.getState().clear(legacyShow.id)
                 return true
               }}

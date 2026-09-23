@@ -17,6 +17,7 @@ import {
   removeShowClip,
   removeShowZone,
   spanShowCellZones,
+  updateShowBoundaryTransition,
   updateShowCellAdaptations,
   updateShowTransition,
 } from '@/engine/showModel'
@@ -3025,6 +3026,39 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     // Applying keeps the boundary position rather than restoring, as v1 does.
     expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
     expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
+  })
+
+  it('clears a stored 2D-only Wipe direction when the 1D boundary palette applies Linear (#1077)', async () => {
+    const user = userEvent.setup()
+    const base = createDefaultShow('show-boundary-palette-1d-clear', 'Boundary palette 1D clear', 1000)
+    const seeded = updateShowBoundaryTransition(base, base.transitions![0].id, {
+      kind: 'wipe', wipeVariant: 'linear', edgePolicy: 'hard', feather: 0,
+    })
+    const show = { ...seeded, stageMapId: 'cylinder-strand' }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.getState().openShow(show.id, 62_000)
+    useShowTransportStore.getState().setPosition(show.id, 5_000)
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', {
+      name: 'Edit wipe Transition between TestPattern1D and CometLoom',
+    }))
+    // The stale 2D-only direction arrives after selection: a stored direction
+    // refuses the 1D composition, so the timeline blanks and the junction is
+    // gone, but the open inspector still offers the Change palette.
+    await useShowStore.getState().updateBoundaryTransition(show.id, show.transitions![0].id, { direction: 0 })
+    expect(useShowStore.getState().shows[0].transitions?.[0]).toHaveProperty('direction', 0)
+    await user.click(within(screen.getByRole('region', { name: 'Transition properties' }))
+      .getByRole('button', { name: /Change$/ }))
+    const palette = screen.getByRole('dialog', { name: 'Choose Transition' })
+    await user.click(within(palette).getByRole('button', { name: 'Use Linear Transition' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      expect(saved.transitions?.[0]).toMatchObject({ kind: 'wipe', wipeVariant: 'linear' })
+      expect(saved.transitions?.[0]).not.toHaveProperty('direction')
+    })
   })
 
   it('authors boundary speed and repeat scales as multipliers while persisting raw values (#610)', async () => {
