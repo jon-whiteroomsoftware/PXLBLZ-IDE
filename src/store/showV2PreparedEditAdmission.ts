@@ -12,6 +12,7 @@ import { createShowClipV2, type CreateShowClipIntentV2, type ShowClipCreationRes
 import { editShowClipTemporalV2, type ShowClipTemporalIntentV2, type ShowClipTemporalResultV2 } from '@/engine/showClipTemporalV2'
 import { insertShowTimeV2, type ShowInsertTimeIntentV2, type ShowTimelineEditResultV2, type ShowTimelineEditAffectedV2 } from '@/engine/showTimelineV2'
 import { editShowLayoutIntervalsV2, type ShowLayoutEditIntentV2, type ShowLayoutEditResultV2 } from '@/engine/showLayoutIntervalsV2'
+import { insertShowLayoutIntervalV2, type ShowLayoutIntervalInsertIntentV2 } from '@/engine/showLayoutIntervalInsertV2'
 import { editShowLayerV2, type ShowLayerEditIntentV2, type ShowLayerEditResultV2, type ShowLayerEditAffectedV2 } from '@/engine/showLayersV2'
 import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2, type ShowClipAppearanceEditResultV2 } from '@/engine/showClipAppearanceEditsV2'
 import { editShowPropertyV2, type ShowPropertyTrackOwnerV2, type ShowPropertyEditIntentV2, type ShowPropertyEditResultV2 } from '@/engine/showPropertyEditsV2'
@@ -138,7 +139,9 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
   if (!provider.replaceShowV2) return refuse('unsupported-provider', 'The active provider does not support v2 Shows.')
   const command: Command = request
   const result = (command.owner === 'layout-occurrence'
-    ? editShowLayoutIntervalsV2(current, structuredClone(command.intent))
+    ? (command.intent.kind === 'insert-interval'
+      ? insertShowLayoutIntervalV2(current, structuredClone(command.intent))
+      : editShowLayoutIntervalsV2(current, structuredClone(command.intent)))
     : command.owner === 'group-occurrence'
         ? groupOccurrenceOwnerResult(current, structuredClone(command.intent), request.capture)
         : command.owner === 'group-replace'
@@ -720,6 +723,7 @@ export async function admitShowV2PilotClipDelete(request: ShowV2PilotClipDeleteR
 }
 export type ShowV2PilotLayoutOccurrenceIntent = Extract<ShowLayoutEditIntentV2,
   { kind: 'select-layout' | 'move' | 'remove' | 'remove-switch' | 'make-unique' | 'duplicate' | 'set-parameters' | 'set-transfer' | 'append' }>
+  | ShowLayoutIntervalInsertIntentV2
 type LayoutOccurrenceEffects = Pick<ShowLayoutEditResultV2, 'affectedClipIds' | 'affectedGroupOccurrenceIds' | 'affectedLayoutDefinitionIds' | 'affectedLayoutOccurrenceIds' | 'affectedMarkerIds' | 'affectedTrackIds' | 'affectedTransitionIds' | 'removedLayoutOccurrenceIds'>
 export type ShowV2PilotLayoutOccurrenceRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotLayoutOccurrenceIntent }
 export type ShowV2PilotLayoutOccurrenceOutcome = PilotOwnerOutcome<ShowLayoutEditResultV2, LayoutOccurrenceEffects>
@@ -731,6 +735,30 @@ function validLayoutOccurrenceIntent(intent: unknown): intent is ShowV2PilotLayo
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return false
   const value = intent as Record<string, unknown>
   const text = (input: unknown): input is string => typeof input === 'string' && input.trim().length > 0
+  if (value.kind === 'insert-interval') {
+    if (!exactIntentFields(value, ['kind', 'atMs', 'durationMs', 'layoutId', 'definition', 'occurrenceIds', 'rightClipIds'])) return false
+    if (typeof value.atMs !== 'number' || !Number.isSafeInteger(value.atMs) || value.atMs < 0) return false
+    if (typeof value.durationMs !== 'number' || !Number.isSafeInteger(value.durationMs) || value.durationMs <= 0) return false
+    if (!text(value.layoutId)) return false
+    const definition = value.definition
+    if (!definition || typeof definition !== 'object' || Array.isArray(definition)) return false
+    const defined = definition as Record<string, unknown>
+    if (defined.kind !== 'add' && defined.kind !== 'duplicate') return false
+    if (defined.layoutId !== value.layoutId) return false
+    if (defined.kind === 'add') {
+      if (!exactIntentFields(defined, ['kind', 'layoutId', 'name'])) return false
+      if (!text(defined.name)) return false
+    } else {
+      if (!exactIntentFields(defined, ['kind', 'layoutId', 'name', 'sourceLayoutId'])) return false
+      if (!text(defined.name) || !text(defined.sourceLayoutId)) return false
+    }
+    if (!exactIntentFields(value.occurrenceIds, ['interval', 'resume'])) return false
+    const occurrenceIds = value.occurrenceIds as Record<string, unknown>
+    if (!text(occurrenceIds.interval) || !text(occurrenceIds.resume)) return false
+    const rightClipIds = value.rightClipIds
+    if (!rightClipIds || typeof rightClipIds !== 'object' || Array.isArray(rightClipIds)) return false
+    return Object.entries(rightClipIds).every(([source, right]) => text(source) && text(right))
+  }
   if (!text(value.occurrenceId)) return false
   if (value.kind === 'move') return exactIntentFields(value, ['kind', 'occurrenceId', 'startMs']) && typeof value.startMs === 'number' && Number.isSafeInteger(value.startMs)
   if (value.kind === 'remove' || value.kind === 'remove-switch') return exactIntentFields(value, ['kind', 'occurrenceId'])

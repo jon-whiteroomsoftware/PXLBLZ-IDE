@@ -5149,6 +5149,65 @@ describe('v2 Layout occurrence Append (#1066 slice 8b-1)', () => {
   })
 })
 
+describe('v2 Layout occurrence Insert here (#1066 slice 8b-2b)', () => {
+  function layoutOccurrenceDoors() {
+    return admission.calls.filter((call) => call.door === 'admitShowV2PilotLayoutOccurrenceEdit')
+  }
+
+  async function openLayoutActionsAt(showId: string, timeMs: number) {
+    act(() => useShowTransportStore.getState().setPosition(showId, timeMs))
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Show' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
+    await act(async () => {})
+    return screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
+  }
+
+  it('inserts a copied Zone Layout interval through the layout-occurrence door', async () => {
+    const base = commandFixtureV2()
+    base.id = 'slice8b2b-insert'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const dialog = await openLayoutActionsAt(base.id, 5_001)
+    const before = editor.state()
+    const showEndMs = before.record.composition.showEndMs
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Insert here' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutOccurrenceEdit'])
+    const intent = layoutOccurrenceDoors()[0].request.intent as unknown as {
+      kind: string; atMs: number; durationMs: number; layoutId: string
+      definition: { kind: string; layoutId: string; sourceLayoutId?: string }
+      occurrenceIds: { interval: string; resume: string }
+      rightClipIds: Record<string, string>
+    }
+    expect(intent.kind).toBe('insert-interval')
+    expect(intent.atMs).toBe(5_001)
+    expect(intent.durationMs).toBe(5_000)
+    expect(intent.layoutId).toBe('layout-3')
+    expect(intent.definition).toMatchObject({ kind: 'duplicate', layoutId: 'layout-3', sourceLayoutId: 'both' })
+    expect(intent.layoutId).toBe(intent.definition.layoutId)
+    expect(Object.keys(intent.rightClipIds)).toEqual(['clip-b'])
+    const both = before.record.zoneLayouts.find((layout) => layout.id === 'both')!
+    const copy = after.record.zoneLayouts.find((layout) => layout.id === intent.layoutId)!
+    expect({ ...copy, id: 'layout', name: 'Layout' }).toEqual({ ...both, id: 'layout', name: 'Layout' })
+    const inserted = after.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === intent.occurrenceIds.interval)!
+    expect(inserted).toMatchObject({ layoutId: copy.id, startMs: 5_001, durationMs: 5_000 })
+    const left = after.record.composition.clips.find((clip) => clip.id === 'clip-b')!
+    expect(left).toMatchObject({ startMs: 4_000, durationMs: 1_001 })
+    const rightClipId: string = intent.rightClipIds['clip-b'] as string
+    const right = after.record.composition.clips.find((clip) => clip.id === rightClipId)!
+    expect(right).toMatchObject({ startMs: 10_001, durationMs: 2_999 })
+    expect(after.record.composition.showEndMs).toBe(showEndMs + 5_000)
+    expectOneEdit(before, after)
+    expect(screen.queryByRole('dialog', { name: 'Zone Layout at playhead' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await act(async () => {})
+    expect(editor.state().record.composition).toEqual(before.record.composition)
+  })
+})
+
 describe('v2 View code and Download .epe (#1066)', () => {
   function freshV2Record(id: string): ShowRecordV2 {
     const source = corpusSource('fresh')

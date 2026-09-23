@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { showV2LayoutEditorFixture } from '../test/showV2LayoutEditorFixture'
 import { editShowLayoutIntervalsV2 } from '../engine/showLayoutIntervalsV2'
+import { insertShowLayoutIntervalV2 } from '../engine/showLayoutIntervalInsertV2'
+import { planShowV2LayoutEdit } from '../engine/showV2LayoutEditorModel'
 import type { ShowV2LayoutEditorIntent } from '../engine/showV2LayoutEditorModel'
 import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '../engine/personalContentProvider'
 import * as stage from '../engine/showPreparedStageV2'
@@ -107,4 +109,31 @@ it('refuses unqualified continuous independent Layout routing with zero adoption
  const result=await admitShowV2PilotLayoutOccurrenceEdit({showId:record.id,baseRevision:0,capture,isCurrent:()=>true,onAdopted:adopted,intent:{kind:'move',occurrenceId:'later',startMs:800}})
  expect(result.status).toBe('refused');empty(result);expect(write).not.toHaveBeenCalled();expect(adopted).not.toHaveBeenCalled()
  expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record);expect(useShowStore.getState().showV2Histories[record.id]).toEqual({past:[],future:[]})
+})
+
+it('admits a well-formed insert-interval and refuses malformed variants before the owner runs (#1066 slice 8b-2b)',async()=>{
+ const {record,context,saved}=setup()
+ let allocated=0
+ const plan=planShowV2LayoutEdit(record,{kind:'insert-interval',atMs:1000,durationMs:500,sourceLayoutId:'layout'},()=>`insert-${allocated+=1}`)
+ if(plan.status!=='ready')throw Error(plan.message)
+ expect(allocated).toBe(3)
+ const expected=insertShowLayoutIntervalV2(record,structuredClone(plan.intent))
+ expect(expected.status,expected.status==='refused'?expected.message:'').toBe('changed')
+ const result=await admitShowV2PilotLayoutOccurrenceEdit({...context,intent:plan.intent})
+ expect(result.status).toBe('applied')
+ expect(saved().composition).toEqual(expected.record.composition)
+ const base=structuredClone(plan.intent) as unknown as {kind:'insert-interval';atMs:number;durationMs:number;layoutId:string;definition:{kind:string;layoutId:string;name:string;sourceLayoutId?:string};occurrenceIds:{interval:string;resume?:string};rightClipIds:Record<string,string>}
+ const variants:unknown[]=[
+  {...base,occurrenceIds:{interval:base.occurrenceIds.interval}},
+  {...base,definition:{...base.definition,layoutId:'other-layout'}},
+  {...base,extra:true},
+ ]
+ for(const intent of variants){
+  const fixture=setup()
+  const refused=await admitShowV2PilotLayoutOccurrenceEdit({...fixture.context,intent:intent as never})
+  expect(refused).toMatchObject({status:'refused',source:'owner',code:'invalid-intent'})
+  empty(refused)
+  expect(fixture.write).not.toHaveBeenCalled()
+  expect(useShowStore.getState().showV2Pilots[fixture.record.id]).toBe(fixture.record)
+ }
 })

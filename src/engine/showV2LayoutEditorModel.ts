@@ -1,5 +1,6 @@
 import type { ShowLayoutTransferV2, ShowRecordV2 } from './showCompositionV2'
 import { showLayoutDuplicateSourceIdsV2, type ShowLayoutEditIntentV2 } from './showLayoutIntervalsV2'
+import type { ShowLayoutIntervalInsertIntentV2 } from './showLayoutIntervalInsertV2'
 import { ownedShowIdsV2 } from './showIdentityV2'
 import { nextEntityId, showRoutingLayoutKindLabel, uniqueRoutingLayoutName } from './showModel'
 import { defaultDefinitionBody } from './showZoneLayoutDefinitionsV2'
@@ -17,6 +18,7 @@ export type ShowV2LayoutEditorRequest =
   | { kind: 'make-unique'; occurrenceId: string; name: string }
   | { kind: 'duplicate'; occurrenceId: string; content: 'copy' | 'empty' }
   | { kind: 'append'; durationMs: number; sourceLayoutId?: string }
+  | { kind: 'insert-interval'; atMs: number; durationMs: number; sourceLayoutId?: string }
   | {
     kind: 'set-transfer'
     occurrenceId: string
@@ -74,9 +76,25 @@ export function buildShowV2LayoutEditorModel(record: ShowRecordV2): {
   }
 }
 
-type Plan = { status: 'ready'; intent: ShowV2LayoutEditorIntent } | { status: 'refused'; message: string }
+type NarrowPlan = { status: 'ready'; intent: ShowV2LayoutEditorIntent } | { status: 'refused'; message: string }
+type Plan = { status: 'ready'; intent: ShowV2LayoutEditorIntent | ShowLayoutIntervalInsertIntentV2 } | { status: 'refused'; message: string }
 
 /** Only allocates definition, occurrence and transfer identity; the exact existing owner owns timing and validation. */
+export function planShowV2LayoutEdit(
+  record: ShowRecordV2,
+  request: Extract<ShowV2LayoutEditorRequest, { kind: 'insert-interval' }>,
+  allocate: () => string,
+): { status: 'ready'; intent: ShowLayoutIntervalInsertIntentV2 } | { status: 'refused'; message: string }
+export function planShowV2LayoutEdit(
+  record: ShowRecordV2,
+  request: Exclude<ShowV2LayoutEditorRequest, { kind: 'insert-interval' }>,
+  allocate: () => string,
+): NarrowPlan
+export function planShowV2LayoutEdit(
+  record: ShowRecordV2,
+  request: ShowV2LayoutEditorRequest,
+  allocate: () => string,
+): Plan
 export function planShowV2LayoutEdit(
   record: ShowRecordV2,
   request: ShowV2LayoutEditorRequest,
@@ -109,6 +127,45 @@ export function planShowV2LayoutEdit(
         definition: source
           ? { kind: 'duplicate', layoutId, name, sourceLayoutId: source.id }
           : { kind: 'add', layoutId, name },
+      },
+    }
+  }
+  if (request.kind === 'insert-interval') {
+    const intervalId = allocate()
+    const resumeId = allocate()
+    const spanning = record.composition.clips
+      .filter(clip => clip.startMs < request.atMs && request.atMs < clip.startMs + clip.durationMs)
+      .map(clip => clip.id)
+      .sort()
+    const rightClipIds: Record<string, string> = {}
+    for (const clipId of spanning) rightClipIds[clipId] = allocate()
+    // v1 allocates the inserted Layout as nextEntityId('layout-', layouts)
+    // inside addShowRoutingLayout (src/engine/showModel.ts); the planner owns
+    // the same deterministic identity so v2 Insert reuses layout-2 on a fresh
+    // Installation instead of minting a UUID.
+    const layoutId = nextEntityId('layout-', record.zoneLayouts)
+    const conflict = fresh(record, [intervalId, resumeId, layoutId, ...Object.values(rightClipIds)], 'Layout occurrence')
+    if (conflict) return conflict
+    const source = request.sourceLayoutId === undefined
+      ? undefined
+      : record.zoneLayouts.find(layout => layout.id === request.sourceLayoutId)
+    if (request.sourceLayoutId !== undefined && !source) {
+      return { status: 'refused', message: 'Select an existing Zone Layout to copy.' }
+    }
+    const logical = source ? source.logical : defaultDefinitionBody(record).logical
+    const name = uniqueRoutingLayoutName(showRoutingLayoutKindLabel({ logical }), record.zoneLayouts)
+    return {
+      status: 'ready',
+      intent: {
+        kind: 'insert-interval',
+        atMs: request.atMs,
+        durationMs: request.durationMs,
+        layoutId,
+        definition: source
+          ? { kind: 'duplicate', layoutId, name, sourceLayoutId: source.id }
+          : { kind: 'add', layoutId, name },
+        occurrenceIds: { interval: intervalId, resume: resumeId },
+        rightClipIds,
       },
     }
   }

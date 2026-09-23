@@ -3,6 +3,7 @@ import { expect, it, vi } from 'vitest'
 import { showV2LayoutEditorFixture } from '../test/showV2LayoutEditorFixture'
 import { buildShowV2LayoutEditorModel, planShowV2LayoutEdit, showV2MakeUniqueLayoutName } from './showV2LayoutEditorModel'
 import { editShowLayoutIntervalsV2 } from './showLayoutIntervalsV2'
+import { insertShowLayoutIntervalV2 } from './showLayoutIntervalInsertV2'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { commandFixtureV2 } from './showCommandsV2/fixtures'
 import { addShowRoutingLayout, createDefaultShow, removeShowBoundaryTransition, updateShowBoundaryTransition } from './showModel'
@@ -145,6 +146,46 @@ it('makes one reused occurrence unique by cloning only its Layout definition (#1
  expect(result.record.composition.layoutOccurrences.find(occurrence => occurrence.id === 'interval-2')?.layoutId).toBe(copy?.id)
  expect(result.record.composition.layoutOccurrences.find(occurrence => occurrence.id === 'interval-1')?.layoutId).toBe('both')
  expect(result.record.zones).toEqual(record.zones)
+})
+
+it('plans insert-interval with one right Clip identity, both occurrence ids and layout-2 on a one-Layout record (#1066 slice 8b-2b)', () => {
+ const base = commandFixtureV2()
+ const record = { ...base, zoneLayouts: [base.zoneLayouts[0]] }
+ let allocated = 0
+ const plan = planShowV2LayoutEdit(record, { kind: 'insert-interval', atMs: 500, durationMs: 5000, sourceLayoutId: 'both' }, () => `fresh-${allocated += 1}`)
+ if (plan.status !== 'ready') throw new Error(plan.message)
+ expect(allocated).toBe(3)
+ expect(plan.intent).toEqual({
+  kind: 'insert-interval',
+  atMs: 500,
+  durationMs: 5000,
+  layoutId: 'layout-2',
+  definition: { kind: 'duplicate', layoutId: 'layout-2', name: 'Moving split X', sourceLayoutId: 'both' },
+  occurrenceIds: { interval: 'fresh-1', resume: 'fresh-2' },
+  rightClipIds: { 'clip-a': 'fresh-3' },
+ })
+ const applied = insertShowLayoutIntervalV2(structuredClone(record), plan.intent)
+ if (applied.status !== 'changed') throw new Error(applied.status === 'refused' ? applied.message : applied.status)
+ expect(applied.record.composition.showEndMs).toBe(record.composition.showEndMs + 5000)
+})
+it('plans insert-interval with no right Clip identity and a default definition where nothing spans (#1066 slice 8b-2b)', () => {
+ const base = commandFixtureV2()
+ const record = { ...base, zoneLayouts: [base.zoneLayouts[0]] }
+ let allocated = 0
+ const plan = planShowV2LayoutEdit(record, { kind: 'insert-interval', atMs: 9000, durationMs: 1000 }, () => `fresh-${allocated += 1}`)
+ if (plan.status !== 'ready') throw new Error(plan.message)
+ expect(allocated).toBe(2)
+ expect(plan.intent).toMatchObject({ kind: 'insert-interval', atMs: 9000, durationMs: 1000, layoutId: 'layout-2', rightClipIds: {} })
+ if (plan.intent.kind !== 'insert-interval') throw new Error('insert planner missed its kind')
+ expect(plan.intent.definition.kind).toBe('add')
+ expect(plan.intent.definition.layoutId).toBe('layout-2')
+})
+it('refuses insert-interval with an unknown source layout (#1066 slice 8b-2b)', () => {
+ const base = commandFixtureV2()
+ const record = { ...base, zoneLayouts: [base.zoneLayouts[0]] }
+ let refused = 0
+ const plan = planShowV2LayoutEdit(record, { kind: 'insert-interval', atMs: 500, durationMs: 5000, sourceLayoutId: 'missing' }, () => `refused-${refused += 1}`)
+ expect(plan).toEqual({ status: 'refused', message: 'Select an existing Zone Layout to copy.' })
 })
 
 const APPEND_ORACLE_NOW = 1_750_000_000_000

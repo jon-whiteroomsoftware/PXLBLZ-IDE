@@ -52,7 +52,7 @@ function effects(value: object) {
   return Object.entries(value).filter(([key]) => key.startsWith('affected') || key === 'removedLayoutOccurrenceIds')
 }
 
-const requests: ShowV2LayoutEditorRequest[] = [
+const requests: Exclude<ShowV2LayoutEditorRequest, { kind: 'insert-interval' }>[] = [
   { kind: 'duplicate', occurrenceId: 'later-layout', content: 'copy' },
   { kind: 'duplicate', occurrenceId: 'later-layout', content: 'empty' },
   { kind: 'set-parameters', occurrenceId: 'later-layout', parameters: { splitPosition: 0.4 } },
