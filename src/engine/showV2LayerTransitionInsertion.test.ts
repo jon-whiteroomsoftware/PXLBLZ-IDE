@@ -1328,6 +1328,24 @@ describe('v2 Layer Transition insert room (#1089)', () => {
     }).status === 'changed'
   }
 
+  function bruteForceTopLevelMax(record: ShowRecordV2, fromClipId: string, toClipId: string): number {
+    let maximum = 0
+    for (let durationMs = 1; durationMs <= record.composition.showEndMs; durationMs += 1) {
+      if (!probeTopLevelAccepts(record, fromClipId, toClipId, durationMs)) break
+      maximum = durationMs
+    }
+    return maximum
+  }
+
+  function bruteForceGroupMax(record: ShowRecordV2): number {
+    let maximum = 0
+    for (let durationMs = 1; durationMs <= record.composition.showEndMs; durationMs += 1) {
+      if (!probeGroupAccepts(record, 'def', 'def-layer', 'left', 'right', durationMs)) break
+      maximum = durationMs
+    }
+    return maximum
+  }
+
   function junctionKey1089(record: ShowRecordV2, fromClipId: string, toClipId: string): string {
     const from = record.composition.clips.find(clip => clip.id === fromClipId)!
     return showV2TransitionJunctionKey({
@@ -1514,6 +1532,109 @@ describe('v2 Layer Transition insert room (#1089)', () => {
     })
   }
 
+  function topLevelVsMaterializedGroupWindowRecord(): ShowRecordV2 {
+    return testRecord({
+      zones: [{ id: 'z1', name: 'Z1' }, { id: 'z2', name: 'Z2' }],
+      layoutId: 'layout',
+      logical: { kind: 'split', zoneIds: ['z1', 'z2'], axis: 'x' },
+      layers: [{ id: 'z1-main', zoneId: 'z1', rank: 0 }, { id: 'z2-main', zoneId: 'z2', rank: 0 }],
+      clips: [
+        { id: 'a', instanceId: 'inst-a', zoneId: 'z1', layerId: 'z1-main', startMs: 0, durationMs: 1000 },
+        { id: 'b', instanceId: 'inst-b', zoneId: 'z1', layerId: 'z1-main', startMs: 1000, durationMs: 200 },
+      ],
+      transitions: [],
+      showEndMs: 10000,
+      groupDefinitions: [{
+        id: 'def-g',
+        name: 'Phrase G',
+        patternInstances: [testInstance('def-g-instance')],
+        layers: [{ id: 'def-g-layer', name: 'Def G', rank: 0 }],
+        clips: [
+          testDefinitionClip('gleft', 'def-g-instance', 'def-g-layer', 0, 1500),
+          testDefinitionClip('gright', 'def-g-instance', 'def-g-layer', 1600, 8400),
+        ],
+        transitions: [{
+          id: 't-g',
+          fromPlacementId: 'gleft',
+          toPlacementId: 'gright',
+          kind: 'crossfade',
+          durationMs: 100,
+          easing: { curve: 'linear' },
+          crossfadePolicy: 'live-live',
+        }],
+        propertyTracks: [],
+      }],
+      groupOccurrences: [{
+        id: 'occ-g',
+        definitionId: 'def-g',
+        layoutOccurrenceId: 'layout-occ',
+        zoneId: 'z2',
+        startMs: 0,
+        translationX: 0,
+        translationY: 0,
+        layerBindings: [{ definitionLayerId: 'def-g-layer', layerId: 'z2-main' }],
+        holds: [],
+      }],
+    })
+  }
+
+  function groupVsOtherOccurrenceWindowRecord(): ShowRecordV2 {
+    const { definition, layerId } = twoClipDefinition()
+    return testRecord({
+      zones: [{ id: 'z1', name: 'Z1' }, { id: 'z2', name: 'Z2' }],
+      layoutId: 'layout',
+      logical: { kind: 'split', zoneIds: ['z1', 'z2'], axis: 'x' },
+      layers: [{ id: 'z1-main', zoneId: 'z1', rank: 0 }, { id: 'z2-main', zoneId: 'z2', rank: 0 }],
+      clips: [],
+      transitions: [],
+      showEndMs: 10000,
+      groupDefinitions: [definition, {
+        id: 'def-b',
+        name: 'Phrase B',
+        patternInstances: [testInstance('def-b-instance')],
+        layers: [{ id: 'def-b-layer', name: 'Def B', rank: 0 }],
+        clips: [
+          testDefinitionClip('bleft', 'def-b-instance', 'def-b-layer', 0, 1500),
+          testDefinitionClip('bright', 'def-b-instance', 'def-b-layer', 1600, 8400),
+        ],
+        transitions: [{
+          id: 't-b',
+          fromPlacementId: 'bleft',
+          toPlacementId: 'bright',
+          kind: 'crossfade',
+          durationMs: 100,
+          easing: { curve: 'linear' },
+          crossfadePolicy: 'live-live',
+        }],
+        propertyTracks: [],
+      }],
+      groupOccurrences: [
+        {
+          id: 'occ1',
+          definitionId: 'def',
+          layoutOccurrenceId: 'layout-occ',
+          zoneId: 'z1',
+          startMs: 0,
+          translationX: 0,
+          translationY: 0,
+          layerBindings: [{ definitionLayerId: layerId, layerId: 'z1-main' }],
+          holds: [],
+        },
+        {
+          id: 'occ2',
+          definitionId: 'def-b',
+          layoutOccurrenceId: 'layout-occ',
+          zoneId: 'z2',
+          startMs: 0,
+          translationX: 0,
+          translationY: 0,
+          layerBindings: [{ definitionLayerId: 'def-b-layer', layerId: 'z2-main' }],
+          holds: [],
+        },
+      ],
+    })
+  }
+
   function wholeOutputFixedRecord(): ShowRecordV2 {
     return testRecord({
       zones: [{ id: 'z', name: 'Z' }],
@@ -1592,6 +1713,24 @@ describe('v2 Layer Transition insert room (#1089)', () => {
     expect(probeGroupAccepts(record, 'def', 'def-layer', 'left', 'right', 501), 'group owner refuses max + 1').toBe(false)
   })
 
+  it('caps a top-level insert at a fixed materialized Group Transition window (maximum 300)', () => {
+    const record = topLevelVsMaterializedGroupWindowRecord()
+    const plan = planShowV2LayerTransitionInsertion(record, junctionKey1089(record, 'a', 'b'))
+    expect(plan.enabled, 'materialized group window enabled').toBe(true)
+    if (!plan.enabled) return
+    expect(plan.maxDurationMs, 'materialized group window maximum').toBe(bruteForceTopLevelMax(record, 'a', 'b'))
+    expect(plan.maxDurationMs).toBe(300)
+  })
+
+  it('caps a Group insert at another occurrence materialized Transition window (maximum 500)', () => {
+    const record = groupVsOtherOccurrenceWindowRecord()
+    const plan = planShowV2GroupLayerTransitionInsertion(record, 'occ1', 'left', 'right')
+    expect(plan.enabled, 'other-occurrence window enabled').toBe(true)
+    if (!plan.enabled) return
+    expect(plan.maxDurationMs, 'other-occurrence window maximum').toBe(bruteForceGroupMax(record))
+    expect(plan.maxDurationMs).toBe(500)
+  })
+
   it('keeps room past a whole-output window that moves with the closure', () => {
     const record = wholeOutputMovingRecord()
     const plan = planShowV2LayerTransitionInsertion(record, junctionKey1089(record, 'a', 'b'))
@@ -1623,6 +1762,7 @@ describe('v2 Layer Transition insert room (#1089)', () => {
       { label: 'same-layer-next', record: sameLayerNextRecord(), fromClipId: 'a', toClipId: 'b' },
       { label: 'whole-output-moving', record: wholeOutputMovingRecord(), fromClipId: 'a', toClipId: 'b' },
       { label: 'whole-output-fixed', record: wholeOutputFixedRecord(), fromClipId: 'a', toClipId: 'b' },
+      { label: 'top-level-vs-materialized-group-window', record: topLevelVsMaterializedGroupWindowRecord(), fromClipId: 'a', toClipId: 'b' },
     ]
     for (const fixture of topLevelFixtures) {
       const plan = planShowV2LayerTransitionInsertion(fixture.record, junctionKey1089(fixture.record, fixture.fromClipId, fixture.toClipId))
@@ -1641,6 +1781,7 @@ describe('v2 Layer Transition insert room (#1089)', () => {
       { label: 'group-outer-room', record: groupOuterRecord(false) },
       { label: 'group-outer-obstruction', record: groupOuterRecord(true) },
       { label: 'group-outer-fixed-window', record: groupOuterFixedWindowRecord() },
+      { label: 'group-vs-other-occurrence-window', record: groupVsOtherOccurrenceWindowRecord() },
     ]
     for (const fixture of groupFixtures) {
       const plan = planShowV2GroupLayerTransitionInsertion(fixture.record, 'occ1', 'left', 'right')

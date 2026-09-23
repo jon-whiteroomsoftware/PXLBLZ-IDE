@@ -173,6 +173,23 @@ function pushFixedWindowRefusals(
   }
 }
 
+function fixedLayerWindowsForInsert(
+  materialized: ShowRecordV2,
+  movedIds: Set<string>,
+): FixedTransitionWindowForInsert[] {
+  const windows: FixedTransitionWindowForInsert[] = []
+  for (const transition of materialized.composition.transitions) {
+    if (transition.wholeOutput) continue
+    const endpoints = transitionEndpoints(transition)
+    if (endpoints.from.some(id => movedIds.has(id)) || endpoints.to.some(id => movedIds.has(id))) continue
+    const window = transitionWindowV2(materialized, transition)
+    if (!window) continue
+    const zoneIds = [...new Set(transition.participants.map(participant => participant.zoneId))]
+    windows.push({ startMs: window.startMs, endMs: window.endMs, zoneIds, owned: new Set(endpoints.all) })
+  }
+  return windows
+}
+
 function firstRefusedTopLevel(
   record: ShowRecordV2,
   fromId: string,
@@ -274,15 +291,7 @@ function firstRefusedTopLevel(
       if (best !== Infinity) candidates.push(best)
     }
   }
-  const fixedWindows: Array<{ startMs: number; endMs: number; zoneIds: string[]; owned: Set<string> }> = []
-  for (const transition of layerTransitions) {
-    const endpoints = transitionEndpoints(transition)
-    if (endpoints.from.some(id => moved.has(id)) || endpoints.to.some(id => moved.has(id))) continue
-    const window = transitionWindowV2(record, transition)
-    if (!window) continue
-    const zoneIds = [...new Set(transition.participants.map(participant => participant.zoneId))]
-    fixedWindows.push({ startMs: window.startMs, endMs: window.endMs, zoneIds, owned: new Set(endpoints.all) })
-  }
+  const fixedWindows = fixedLayerWindowsForInsert(materialized, moved)
   const movingClips = [...moved]
     .map(id => clipsById.get(id))
     .filter((clip): clip is NonNullable<typeof clip> => !!clip)
@@ -805,14 +814,8 @@ function outerFirstRefusedForOccurrence(
       if (best !== Infinity) candidates.push(best)
     }
   }
-  const fixedOuterWindows: FixedTransitionWindowForInsert[] = []
-  for (const transition of record.composition.transitions) {
-    if (transition.wholeOutput) continue
-    const window = transitionWindowV2(record, transition)
-    if (!window) continue
-    const zoneIds = [...new Set(transition.participants.map(participant => participant.zoneId))]
-    fixedOuterWindows.push({ startMs: window.startMs, endMs: window.endMs, zoneIds, owned: new Set(transitionEndpoints(transition).all) })
-  }
+  const movedMatIds = new Set([...movedDef].map(id => `${occurrence.id}:${id}`))
+  const fixedOuterWindows = fixedLayerWindowsForInsert(materialized, movedMatIds)
   const movingOuterClips: MovingClipForInsert[] = []
   for (const clip of matClips) {
     if (!clip.id.startsWith(`${occurrence.id}:`)) continue
