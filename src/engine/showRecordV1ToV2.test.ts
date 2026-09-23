@@ -1210,4 +1210,50 @@ describe('#1080 class 2 (A) slice B: boundary ramp carrier conversion', () => {
       })]),
     })
   })
+
+  it('refuses a brightness ramp carrier on a composition-backed v1 Show', () => {
+    const source = convertibleV1Show()
+    source.scenes = [
+      { id: 'scene-1', name: 'Scene 1', durationMs: 4000 },
+      { id: 'scene-2', name: 'Scene 2', durationMs: 4000 },
+      { id: 'scene-3', name: 'Scene 3', durationMs: 4000 },
+    ]
+    const patterns = ['TestPattern1D', 'CometLoom', 'CellularAutomata1D']
+    source.composition!.patternInstances = patterns.map((pattern, index) => ({
+      id: `instance-${index + 1}`,
+      pattern: { kind: 'stock' as const, id: pattern },
+      patternName: pattern,
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }))
+    source.composition!.durationMs = 14000
+    source.composition!.scenes = source.scenes.map((scene, index) => ({
+      sceneId: scene.id,
+      zones: [{
+        zoneId: 'zone',
+        main: [{
+          id: `placement-${index + 1}`,
+          instanceId: `instance-${index + 1}`,
+          startMs: 0,
+          durationMs: 4000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+        overlays: [],
+      }],
+    }))
+    source.transitions = [
+      { id: 'xfade', afterSceneId: 'scene-1', kind: 'crossfade', durationMs: 2000, easing: { curve: 'linear' }, crossfadePolicy: 'live-live' },
+      { id: 'cut', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+    ]
+    source.transitions[0].propertyTransitions = {
+      brightness: { fromByCellId: { 'cell-2': 0.2 } },
+    }
+
+    expect(convertShowRecordV1ToV2(source)).toMatchObject({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({
+        code: 'unsupported-boundary-transition',
+        message: 'A boundary Animation speed or Brightness ramp converts only on a Show without a v1 Layer composition.',
+      })]),
+    })
+  })
 })

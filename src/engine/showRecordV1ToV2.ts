@@ -303,6 +303,10 @@ export function convertShowRecordV1ToV2(
       continue
     }
     if (isRampCarrier(boundary.propertyTransitions)) {
+      if (show.composition !== undefined) {
+        issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'A boundary Animation speed or Brightness ramp converts only on a Show without a v1 Layer composition.' })
+        continue
+      }
       const incomingSceneId = show.scenes[show.scenes.findIndex(scene => scene.id === boundary.afterSceneId) + 1]?.id
       const outgoingCell = showCellAtSlot(show, to[0].zoneId, boundary.afterSceneId)
       const incomingCell = incomingSceneId === undefined ? undefined : showCellAtSlot(show, to[0].zoneId, incomingSceneId)
