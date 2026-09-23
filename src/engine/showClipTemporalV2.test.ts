@@ -550,7 +550,7 @@ it('retimes an incoming Clip value ramp when a native leading edge changes its w
   expect(validateShowRecordV2(shrunk.record)).toEqual([])
 })
 
-it('still protects a clip-effect carrier on native edge resize', () => {
+it('resizes a native edge carrying a clip-effect ramp as before B2', () => {
   const source = fixture()
   const boundary = source.composition.transitions[0]
   boundary.propertyRamps = [{
@@ -558,6 +558,37 @@ it('still protects a clip-effect carrier on native edge resize', () => {
     target: { kind: 'clip-effect', clipId: 'selected', effectId: 'hue', effectKind: 'hue', parameterId: 'turns' }, from: 0.2,
   }]
   expect(validateShowRecordV2(source)).toEqual([])
-  expect(editShowClipTemporalV2(source, { kind: 'trim', clipId: 'selected', startMs: 250, endMs: 600 }))
-    .toMatchObject({ status: 'refused', code: 'unsupported-property-carrier' })
+  const result = editShowClipTemporalV2(source, { kind: 'trim', clipId: 'selected', startMs: 250, endMs: 600 })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.transitions[0].durationMs).toBe(150)
+  expect(result.record.composition.transitions[0].propertyRamps).toEqual(boundary.propertyRamps)
+  expect(validateShowRecordV2(result.record)).toEqual([])
+})
+
+it('resizes the trailing edge against a native Transition carrying a clip-opacity ramp (#1091 C1)', () => {
+  const source = fixture()
+  const boundary = source.composition.transitions[1]
+  boundary.propertyRamps = [{ target: { kind: 'clip-opacity', clipId: 'after' }, from: 0.4 }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const result = editShowClipTemporalV2(source, { kind: 'trim', clipId: 'selected', startMs: 200, endMs: 550 })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.clips.find(clip => clip.id === 'after')?.startMs).toBe(650)
+  expect(result.record.composition.transitions[1].propertyRamps).toEqual(boundary.propertyRamps)
+  expect(validateShowRecordV2(result.record)).toEqual([])
+})
+
+it('resizes the leading edge against a whole-output Transition carrying a show-repeat-scale ramp (#1091 C1)', () => {
+  const source = fixture()
+  const boundary = source.composition.transitions[0]
+  boundary.participants = []
+  boundary.wholeOutput = { startMs: 100, fromClipIds: ['before'], toClipIds: ['selected'] }
+  boundary.propertyRamps = [{ target: { kind: 'show-repeat-scale' }, from: 2 }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const result = editShowClipTemporalV2(source, { kind: 'trim', clipId: 'selected', startMs: 250, endMs: 600 })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.transitions[0]).toMatchObject({ durationMs: 150, wholeOutput: { startMs: 100 }, propertyRamps: boundary.propertyRamps })
+  expect(validateShowRecordV2(result.record)).toEqual([])
 })

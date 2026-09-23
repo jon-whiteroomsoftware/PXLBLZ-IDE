@@ -852,6 +852,51 @@ describe('owned-track shift across a converted Scene-span activation (#1068)', (
 })
 
 describe('#1091 B2 Transition Clip value ramp ownership', () => {
+  it('a palette settings edit with a shorter Duration caps a speed ramp (#1091 C1)', () => {
+    const v1 = clipRampProbeV1()
+    const source = convertClipRampProbe(v1)
+    const transition = structuredClone(source.composition.transitions[0])
+    transition.durationMs = 300
+    const result = editShowTransitionV2(source, { kind: 'update-transition', transition })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    const settled = reopen(result.record)
+    expect(settled.composition.transitions[0].propertyRamps[0].durationMs).toBeUndefined()
+    expect(clipRampSummary(settled)).toEqual(clipRampSummary(convertClipRampProbe(updateShowBoundaryTransition(v1, 'xfade', { durationMs: 300 }))))
+    expect(validateShowRecordV2(settled)).toEqual([])
+  })
+
+  it('a palette settings edit with a longer Duration fixes a keyless ramp at the previous Duration', () => {
+    const v1 = clipRampProbeV1()
+    delete v1.transitions[0].propertyTransitions!.timeScale!.durationMs
+    const source = convertClipRampProbe(v1)
+    const transition = structuredClone(source.composition.transitions[0])
+    transition.durationMs = 1500
+    const result = editShowTransitionV2(source, { kind: 'update-transition', transition })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    const settled = reopen(result.record)
+    expect(settled.composition.transitions[0].propertyRamps[0].durationMs).toBe(1000)
+    expect(clipRampSummary(settled)).toEqual(clipRampSummary(convertClipRampProbe(updateShowBoundaryTransition(v1, 'xfade', { durationMs: 1500 }))))
+    expect(validateShowRecordV2(settled)).toEqual([])
+  })
+
+  it.each([
+    ['grow', 100, 1100, [400, 1000]],
+    ['shrink', -100, 900, [400, undefined]],
+  ] as const)('connected resizeLeading retimes a clip value ramp on %s', (_direction, deltaMs, durationMs, rampDurations) => {
+    const source = convertClipRampProbe()
+    const transition = source.composition.transitions[0]
+    delete transition.origin
+    const incoming = source.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+    const result = editShowTransitionV2(source, { kind: 'resize-leading', clipId: incoming.id, startMs: incoming.startMs + deltaMs })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.transitions[0].durationMs).toBe(durationMs)
+    expect(result.record.composition.transitions[0].propertyRamps.map(ramp => ramp.durationMs)).toEqual(rampDurations)
+    expect(validateShowRecordV2(result.record)).toEqual([])
+  })
+
   it('settings add, change, and remove speed and brightness while other Clip ramps stay protected', () => {
     const source = convertClipRampProbe(clipRampProbeV1())
     const transition = source.composition.transitions.find(candidate => candidate.id === 'xfade')!

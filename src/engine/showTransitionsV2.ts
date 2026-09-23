@@ -197,9 +197,11 @@ export function editShowTransitionV2(
       }
       if (retimed.status !== 'changed') return retimed
       const retimedTransition = retimed.record.composition.transitions.find(candidate => candidate.id === current.id)!
+      const propertyRamps = retimeShowTransitionClipValueRampsV2(
+        { ...intent.transition, durationMs: current.durationMs }, intent.transition.durationMs)
       const settled = structuredClone(retimed.record)
       settled.composition.transitions = settled.composition.transitions.map(transition => (
-        transition.id === current.id ? { ...structuredClone(intent.transition), wholeOutput: retimedTransition.wholeOutput, participants: retimedTransition.participants } : transition
+        transition.id === current.id ? { ...structuredClone(intent.transition), wholeOutput: retimedTransition.wholeOutput, participants: retimedTransition.participants, propertyRamps } : transition
       ))
       const settledIssue = validateShowRecordV2(settled)[0]
       if (settledIssue) return refusedResult(record, 'invalid-result', `${settledIssue.path}: ${settledIssue.message}`)
@@ -902,7 +904,7 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
     ...structuredClone(clip.appearance.keys.filter(key => key !== held && key.timeMs > startMs && key.timeMs < oldEndMs)),
   ]
   next.composition.transitions = next.composition.transitions.map(candidate => candidate.id === transition.id
-    ? { ...candidate, durationMs }
+    ? { ...candidate, durationMs, propertyRamps: retimeShowTransitionClipValueRampsV2(candidate, durationMs) }
     : candidate)
   const issue = validateShowRecordV2(next)[0]
   if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)

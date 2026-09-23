@@ -10,6 +10,7 @@ import { effectiveShowInstanceUseCountV2 } from './showGroupsV2'
 import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
+import { convertTransitionClipRampProbe } from '../test/showV2TransitionClipRampFixture'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 
 function fixture(): ShowRecordV2 {
@@ -34,6 +35,53 @@ function reopen(record: ShowRecordV2) {
   expect(opened.record).toEqual(record)
   return opened.record
 }
+
+function incomingClipRampRecord(shared: boolean): ShowRecordV2 {
+  const record = convertTransitionClipRampProbe()
+  const incomingId = record.composition.transitions[0].participants[0].toClipId
+  const incoming = record.composition.clips.find(clip => clip.id === incomingId)!
+  if (shared) record.composition.clips.find(clip => clip.id !== incomingId && clip.startMs > incoming.startMs)!.instanceId = incoming.instanceId
+  expect(validateShowRecordV2(record)).toEqual([])
+  return record
+}
+
+it('Make independent on the incoming Clip retargets its instance-time-scale ramp (#1091 C1)', () => {
+  const source = incomingClipRampRecord(true)
+  const incomingId = source.composition.transitions[0].participants[0].toClipId
+  const result = editShowClipV2(source, { kind: 'make-independent', clipId: incomingId,
+    independence: { instanceId: 'independent', identitiesBySourceTrackId: {} } })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.clips.find(clip => clip.id === incomingId)?.instanceId).toBe('independent')
+  expect(result.record.composition.transitions[0].propertyRamps[0].target).toEqual({ kind: 'instance-time-scale', instanceId: 'independent' })
+  expect(validateShowRecordV2(reopen(result.record))).toEqual([])
+})
+
+it('Rejoin on the incoming Clip retargets its instance-time-scale ramp (#1091 C1)', () => {
+  const source = incomingClipRampRecord(false)
+  const incomingId = source.composition.transitions[0].participants[0].toClipId
+  const incoming = source.composition.clips.find(clip => clip.id === incomingId)!
+  const oldInstanceId = incoming.instanceId
+  source.composition.patternInstances.push({ ...structuredClone(source.composition.patternInstances.find(instance => instance.id === oldInstanceId)!), id: 'rejoined' })
+  const result = editShowClipV2(source, { kind: 'rejoin', clipId: incomingId, targetInstanceId: 'rejoined' })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.transitions[0].propertyRamps[0].target).toEqual({ kind: 'instance-time-scale', instanceId: 'rejoined' })
+  expect(result.record.composition.patternInstances.some(instance => instance.id === oldInstanceId)).toBe(false)
+  expect(validateShowRecordV2(reopen(result.record))).toEqual([])
+})
+
+it('a clip-view ramp keeps its Clip target through Make independent (#1091 C1)', () => {
+  const source = incomingClipRampRecord(true)
+  const incomingId = source.composition.transitions[0].participants[0].toClipId
+  const viewBefore = structuredClone(source.composition.transitions[0].propertyRamps[1])
+  const result = editShowClipV2(source, { kind: 'make-independent', clipId: incomingId,
+    independence: { instanceId: 'independent', identitiesBySourceTrackId: {} } })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(result.record.composition.transitions[0].propertyRamps[1]).toEqual(viewBefore)
+  expect(validateShowRecordV2(result.record)).toEqual([])
+})
 
 describe('v2 held appearance edits', () => {
   it('moves the Clip and held changes together without changing sharing or the preimage', () => {

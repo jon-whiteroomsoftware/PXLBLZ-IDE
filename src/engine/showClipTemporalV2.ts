@@ -193,10 +193,6 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     if (leadingDeltaMs && incoming.length > 0) {
       if (incoming.length !== 1 || transitionEndpoints(incoming[0]).to.length !== 1) return refuse('invalid-topology', 'Leading resize cannot split a common Transition window.')
       const requestedDurationMs = incoming[0].durationMs + leadingDeltaMs
-      if (requestedDurationMs !== 0 && incoming[0].propertyRamps.length > 0
-        && !incoming[0].propertyRamps.every(isShowTransitionClipValueRampV2)) {
-        return refuse('unsupported-property-carrier', `Transition "${incoming[0].id}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
-      }
       const leadingBoundary = convertedBoundaryRepairSpecV2(record, incoming[0].id)
       if (leadingBoundary.status === 'ramp-carrier') return refuse('unsupported-property-carrier', `Transition "${leadingBoundary.transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
       if (leadingBoundary.status === 'ready') {
@@ -239,9 +235,6 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     }
     if (trailingDeltaMs && outgoing.length > 0) {
       if (outgoing.length !== 1 || transitionEndpoints(outgoing[0]).from.length !== 1) return refuse('invalid-topology', 'Trailing resize cannot split a common Transition window.')
-      if (outgoing[0].propertyRamps.length > 0 && !outgoing[0].propertyRamps.every(isShowTransitionClipValueRampV2)) {
-        return refuse('unsupported-property-carrier', `Transition "${outgoing[0].id}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
-      }
       const trailingBoundary = convertedBoundaryRepairSpecV2(record, outgoing[0].id)
       if (trailingBoundary.status === 'ramp-carrier') return refuse('unsupported-property-carrier', `Transition "${trailingBoundary.transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
       if (trailingBoundary.status === 'ready') {

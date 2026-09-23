@@ -248,6 +248,16 @@ function editShowClipIdentityV2(
   const source = record.composition.patternInstances.find(instance => instance.id === clip.instanceId)!
   const next = structuredClone(record)
   const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
+  const retargetIncomingSpeedRamp = () => {
+    for (const transition of next.composition.transitions) {
+      if (!transition.participants.some(participant => participant.toClipId === edited.id)) continue
+      for (const ramp of transition.propertyRamps) {
+        if (ramp.target.kind === 'instance-time-scale' && ramp.target.instanceId === source.id) {
+          ramp.target.instanceId = edited.instanceId
+        }
+      }
+    }
+  }
   let affectedInstanceIds: string[]
   let affectedTrackIds: string[] = []
   let affectedKeyframeIds: string[] = []
@@ -263,6 +273,7 @@ function editShowClipIdentityV2(
     if (copied.status === 'refused') return refuse(copied.message)
     next.composition.propertyTracks = copied.propertyTracks
     edited.instanceId = plan.instanceId
+    retargetIncomingSpeedRamp()
     next.composition.executionModel = 'continuous'
     affectedInstanceIds = [plan.instanceId]
     affectedTrackIds = copied.copiedTrackIds
@@ -274,6 +285,7 @@ function editShowClipIdentityV2(
     if (!target || target.pattern.kind !== source.pattern.kind || target.pattern.id !== source.pattern.id) return refuse('Rejoin requires an existing instance with the same structured Pattern source identity.')
     edited.instanceId = target.id
     affectedInstanceIds = [target.id, source.id]
+    retargetIncomingSpeedRamp()
     const remainsBound = groupRuntimeBindings(next).some(binding => binding.runtimeId === source.id)
     const remainsRampTarget = next.composition.transitions.some(transition => transition.propertyRamps.some(ramp => (
       'instanceId' in ramp.target && ramp.target.instanceId === source.id
