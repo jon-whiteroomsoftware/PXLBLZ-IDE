@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1090",
+  "route": "/PXLBLZ-IDE/studio/shows/d1e3d50d-e56c-4118-9361-4f7f8b957bbc",
+  "operation": "On the v2 backing, in a fresh Installation Show (converted, so it carries two Scene-label chapter Markers):\n1. Add Marker at playhead (0 s) and rename it 'Cue'. The first capture shows 'Cue' on the Marker lane; it was created as 'Marker 1', as v1 names it.\n2. Add, then Time, then 2 s. The second capture shows the Insert Time dialog with Insert enabled (on v2 it was disabled before this change).\n3. Insert, then Add, then Layer. The third capture shows the new empty top Layer.\n4. The fourth renders the stored v2 record (GET /api/shows) read back in the same run:\n   - before;\n   - after the Marker and Insert Time: the Cue Marker is at 2000 with colour #f59e0b; the Markers and Clips ripple 2 s later, as ruled for Insert; Show End goes from 62000 to 64000;\n   - after Add Layer: a 'Layer 1' at rank 1, above Main.\nThe Zone-at-playhead and Add Clip changes in this range are proven by tracer cases; the Show has one Zone.",
+  "captures": [
+    ".wrsp/ui-proof/1090c-marker-renamed.png",
+    ".wrsp/ui-proof/1090c-insert-time.png",
+    ".wrsp/ui-proof/1090c-layer-added.png",
+    ".wrsp/ui-proof/1090c-readback.png"
+  ],
+  "capturedAtCommit": "b5ff28c1db488edf2cf04edbabce309146990a99"
+}
