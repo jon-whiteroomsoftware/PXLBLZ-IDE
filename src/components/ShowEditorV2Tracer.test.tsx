@@ -5206,6 +5206,29 @@ describe('v2 Layout occurrence Insert here (#1066 slice 8b-2b)', () => {
     await act(async () => {})
     expect(editor.state().record.composition).toEqual(before.record.composition)
   })
+
+  it('rounds a fractional playhead before a v2 Insert here', async () => {
+    // Beside the 8b-2b 'inserts a copied Zone Layout interval through the layout-occurrence door' test above:
+    // the same flow with the playhead at a fractional time still reaches the layout-occurrence door once.
+    const base = commandFixtureV2()
+    base.id = 'slice8b2b-insert-fractional'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const dialog = await openLayoutActionsAt(base.id, 5000.4)
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Insert here' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotLayoutOccurrenceEdit'])
+    const intent = layoutOccurrenceDoors()[0].request.intent as unknown as {
+      kind: string; atMs: number; occurrenceIds: { interval: string; resume: string }
+    }
+    expect(intent.kind).toBe('insert-interval')
+    expect(intent.atMs).toBe(5000)
+    const after = editor.state()
+    const inserted = after.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === intent.occurrenceIds.interval)!
+    expect(inserted.startMs).toBe(5000)
+  })
 })
 
 describe('v2 View code and Download .epe (#1066)', () => {

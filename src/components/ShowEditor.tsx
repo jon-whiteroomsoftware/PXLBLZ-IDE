@@ -3982,7 +3982,7 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, next)
                 }}
                 onInsertLayoutInterval={async (sourceLayoutId, durationMs, atMs) => {
-                  if (recordVersion === 2) return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'insert-interval', atMs, durationMs, sourceLayoutId }, newPersonalContentId))
+                  if (recordVersion === 2) return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'insert-interval', atMs: Math.round(atMs), durationMs, sourceLayoutId }, newPersonalContentId))
                   if (!legacyShow || !timelineComposition) return false
                   const current = useShowStore.getState().resolveEditableShow(legacyShow.id) ?? legacyShow
                   const withLayout = addShowRoutingLayout(current, undefined, sourceLayoutId)
