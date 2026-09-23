@@ -319,8 +319,7 @@ export function planShowV2BoundaryTransitionChanges(
     if (editsClipValueRamp && (current.wholeOutput !== undefined || current.participants.length !== 1)) {
       return { status: 'refused', code: 'unsupported-field', message: 'Animation speed and Brightness ramps require one Transition participant.' }
     }
-    // The scalar sections retain the v1 boundary normalizer. Clip value rows
-    // keep their optional fields as authored in the inspector descriptor.
+    // Scalar sections and Clip value rows use the v1 boundary normalizer.
     const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, origin: _origin, ...currentSettings } = current
     const normalized = propertyTransitions
       ? normalizeShowBoundaryTransition({ ...currentSettings, id: current.id, afterSceneId: 'boundary', propertyTransitions } as ShowBoundaryTransition).propertyTransitions
@@ -333,7 +332,7 @@ export function planShowV2BoundaryTransitionChanges(
       return { status: 'refused', code: 'unsupported-field', message: 'The incoming Clip for this Transition participant is missing.' }
     }
     const clipValueRamp = (property: 'timeScale' | 'brightness') => {
-      const descriptor = propertyTransitions?.[property]
+      const descriptor = normalized?.[property]
       const from = destination && descriptor?.fromByCellId[destination.id]
       if (from === undefined || !destination) return []
       return [{

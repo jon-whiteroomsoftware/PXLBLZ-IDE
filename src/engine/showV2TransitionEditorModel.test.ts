@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
-import { convertTransitionClipRampProbe } from '../test/showV2TransitionClipRampFixture'
+import { convertTransitionClipRampProbe, transitionClipRampProbeV1 } from '../test/showV2TransitionClipRampFixture'
 import type { ShowRecord } from './personalContentRecords'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { createDefaultShow, removeShowBoundaryTransition, updateShowBoundaryTransition } from './showModel'
@@ -50,6 +50,8 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
         ? { kind: targetKind, instanceId: record.composition.clips.find(clip => clip.id === destinationId)!.instanceId }
         : { kind: targetKind, clipId: destinationId, property: 'brightness' },
       from,
+      durationMs: transition.durationMs,
+      easing: transition.easing,
     }])
     expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
   })
@@ -66,8 +68,38 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
     if (plan.status !== 'ready') return
     const edited = plan.intent.transition.propertyRamps.find(ramp => ramp.target.kind === (property === 'timeScale' ? 'instance-time-scale' : 'clip-view'))!
     expect(edited).toMatchObject({ from, durationMs: 700, easing: descriptor.easing })
-    expect(plan.intent.transition.propertyRamps.find(ramp => ramp !== edited)).toEqual(before.find(ramp => ramp.target.kind !== edited.target.kind))
+    const otherBefore = before.find(ramp => ramp.target.kind !== edited.target.kind)
+    expect(plan.intent.transition.propertyRamps.find(ramp => ramp !== edited)).toEqual(property === 'timeScale'
+      ? { ...otherBefore, durationMs: record.composition.transitions[0].durationMs, easing: record.composition.transitions[0].easing }
+      : otherBefore)
     expect(editShowTransitionV2(record, plan.intent).status).toBe('changed')
+  })
+
+  it.each(fields)('normalizes $property row durations, origins and easing before applying them', ({ property, targetKind }) => {
+    for (const { durationMs, expectedMs } of [
+      { durationMs: 250.5, expectedMs: 251 },
+      { durationMs: 1004.9999999999999, expectedMs: 1005 },
+      { durationMs: 2500, expectedMs: 1500 },
+    ]) {
+      const source = transitionClipRampProbeV1()
+      source.transitions[0].durationMs = 1500
+      const record = convertTransitionClipRampProbe(source)
+      const projected = projectShowEditorBoundaryTransitionsV2(record).xfade
+      const destinationId = projected.destinations[0].id
+      const plan = planShowV2BoundaryTransitionChanges(record, 'xfade', {
+        propertyTransitions: {
+          ...projected.settings.propertyTransitions,
+          [property]: { fromByCellId: { [destinationId]: 5 }, durationMs },
+        },
+      })
+      expect(plan.status, JSON.stringify(plan)).toBe('ready')
+      if (plan.status !== 'ready') continue
+      const ramp = plan.intent.transition.propertyRamps.find(candidate => candidate.target.kind === targetKind)
+      expect(ramp).toMatchObject({ durationMs: expectedMs, from: property === 'timeScale' ? 4 : 1, easing: { curve: 'linear' } })
+      const edited = editShowTransitionV2(record, plan.intent)
+      expect(edited.status, JSON.stringify(edited)).toBe('changed')
+      if (edited.status === 'changed') expect(validateShowRecordV2(edited.record)).toEqual([])
+    }
   })
 
   it.each(fields)('removes a $property ramp when its key is absent', ({ property }) => {
@@ -101,7 +133,7 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
     })).toMatchObject({ status: 'refused', code: 'unsupported-field' })
   })
 
-  it('plans projected speed and brightness settings back as a no-op', () => {
+  it('plans normalized speed and brightness settings back as a no-op', () => {
     const record = convertTransitionClipRampProbe()
     for (const ramps of [
       record.composition.transitions[0].propertyRamps,
@@ -109,7 +141,14 @@ describe('v2 boundary Clip value ramp settings (#1091 B3a)', () => {
     ]) {
       record.composition.transitions[0].propertyRamps = ramps
       const projected = projectShowEditorBoundaryTransitionsV2(record).xfade
-      expect(planShowV2BoundaryTransitionChanges(record, 'xfade', { propertyTransitions: projected.settings.propertyTransitions }))
+      const first = planShowV2BoundaryTransitionChanges(record, 'xfade', { propertyTransitions: projected.settings.propertyTransitions })
+      expect(first.status, JSON.stringify(first)).toBe('ready')
+      if (first.status !== 'ready') continue
+      const normalized = editShowTransitionV2(record, first.intent)
+      expect(normalized.status, JSON.stringify(normalized)).toBe('changed')
+      if (normalized.status !== 'changed') continue
+      const again = projectShowEditorBoundaryTransitionsV2(normalized.record).xfade
+      expect(planShowV2BoundaryTransitionChanges(normalized.record, 'xfade', { propertyTransitions: again.settings.propertyTransitions }))
         .toEqual({ status: 'no-op' })
     }
   })
