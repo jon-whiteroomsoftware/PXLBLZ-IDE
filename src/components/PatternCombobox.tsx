@@ -6,6 +6,7 @@ import { usePatternMruStore } from '@/store/patternMruStore'
 export interface PatternComboboxOption {
   value: string
   label: string
+  detail?: string
   group: 'Personal' | 'Built-in'
 }
 
@@ -27,6 +28,7 @@ export function PatternCombobox({
   className = '',
   onChange,
   onCommit,
+  onOpenChange,
 }: {
   ariaLabel: string
   value: string | null
@@ -37,6 +39,7 @@ export function PatternCombobox({
   className?: string
   onChange: (value: string) => void
   onCommit?: () => void
+  onOpenChange?: (open: boolean) => void
 }) {
   const selected = options.find((option) => option.value === value)
   const [query, setQuery] = useState('')
@@ -77,15 +80,19 @@ export function PatternCombobox({
   useEffect(() => {
     if (!open) return
     const closeOutside = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+        onOpenChange?.(false)
+      }
     }
     document.addEventListener('mousedown', closeOutside)
     return () => document.removeEventListener('mousedown', closeOutside)
-  }, [open])
+  }, [open, onOpenChange])
 
   function choose(option: DisplayOption) {
     setQuery(option.label)
     setOpen(false)
+    onOpenChange?.(false)
     setActiveIndex(0)
     recordPatternUse(option.value)
     onChange(option.value)
@@ -99,12 +106,14 @@ export function PatternCombobox({
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       setOpen(true)
+      onOpenChange?.(true)
       setActiveIndex((index) => Math.min(filteredOptions.length - 1, open ? index + 1 : 0))
       return
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault()
       setOpen(true)
+      onOpenChange?.(true)
       setActiveIndex((index) => Math.max(0, open ? index - 1 : filteredOptions.length - 1))
       return
     }
@@ -116,6 +125,7 @@ export function PatternCombobox({
     if (event.key === 'Escape') {
       event.preventDefault()
       setOpen(false)
+      onOpenChange?.(false)
       setActiveIndex(0)
       // Abandoning the search also ends the editing session; the display
       // falls back to the current selection.
@@ -144,16 +154,19 @@ export function PatternCombobox({
           setEditing(true)
           setQuery('')
           setOpen(true)
+          onOpenChange?.(true)
           setActiveIndex(0)
         }}
         onBlur={() => {
           setEditing(false)
           setOpen(false)
+          onOpenChange?.(false)
           setActiveIndex(0)
         }}
         onChange={(event) => {
           setQuery(event.target.value)
           setOpen(true)
+          onOpenChange?.(true)
           setActiveIndex(0)
         }}
         onKeyDown={handleKeyDown}
@@ -186,6 +199,7 @@ export function PatternCombobox({
                   type="button"
                   role="option"
                   aria-selected={option.value === value}
+                  aria-label={option.detail ? `${option.label}, ${option.detail}` : undefined}
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => choose(option)}
@@ -196,6 +210,7 @@ export function PatternCombobox({
                       : 'text-zinc-300 hover:bg-zinc-800'}`}
                 >
                   {option.label}
+                  {option.detail && <span className="ml-1 text-zinc-500">{option.detail}</span>}
                 </button>
               </div>
             )

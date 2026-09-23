@@ -3308,7 +3308,7 @@ function pickSourcePattern(optionName: string): void {
   const pattern = screen.getByRole('combobox', { name: 'Source pattern' })
   fireEvent.focus(pattern)
   fireEvent.change(pattern, { target: { value: optionName.toLocaleLowerCase() } })
-  const option = screen.queryByRole('option', { name: optionName })
+  const option = screen.queryByRole('option', { name: new RegExp(`^${optionName}(?:, removes .*)?$`) })
   if (option) fireEvent.click(option)
 }
 
@@ -4052,6 +4052,25 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
       .toBe(authoredClip(before.record, 'overlay-a').instanceId)
     expectOneEdit(before, after)
     await expectUndoRedoExact(editor, before)
+  })
+
+  it('shows the same one-lane loss in the Source pattern picker and confirmation (#1069)', async () => {
+    const record = connectedV2Record('slice4-replace-lossy-picker')
+    record.composition.patternInstances.find(instance => instance.id === 'resize-instance')!.controlTargets = { sliderSpeed: 0.5 }
+    record.composition.propertyTracks.push({ id: 'lost-speed', target: { kind: 'instance-control', instanceId: 'resize-instance', exportName: 'sliderSpeed' },
+      activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'lost-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lost-speed-b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] })
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    showTab('Pattern')
+    const pattern = screen.getByRole('combobox', { name: 'Source pattern' })
+    fireEvent.focus(pattern)
+    expect(screen.getByRole('option', { name: 'TestPattern2D, removes 1 property lane' })).toHaveTextContent('removes 1 property lane')
+    expect(screen.getByRole('option', { name: 'CometLoom' })).not.toHaveTextContent('removes')
+    fireEvent.click(screen.getByRole('option', { name: 'TestPattern2D, removes 1 property lane' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    expect(dialog).toHaveTextContent('The Speed animation will be removed.')
+    expect(editor.state().record.composition.propertyTracks.some(track => track.id === 'lost-speed')).toBe(true)
   })
 
   it('confirms a lossy Replace Pattern on v2 and applies it once (#1069)', async () => {
@@ -5780,6 +5799,8 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
     showTab('Pattern')
     const before = editor.state()
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Source pattern' }))
+    expect(screen.getByRole('option', { name: 'TestPattern2D, removes 1 control value' })).toHaveTextContent('removes 1 control value')
     pickSourcePattern('TestPattern2D')
     await act(async () => {})
     const dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })

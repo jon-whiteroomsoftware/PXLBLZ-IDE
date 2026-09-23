@@ -52,7 +52,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
 import { ShowLossConfirmDialog } from '@/components/ShowLossConfirmDialog'
-import { describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
+import { describePatternReplacementCost, describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { showRecordClipCount } from '@/engine/showClipInvariant'
 import { isAlreadyPushed, type SendMode } from '@/engine/sendToController'
@@ -4548,6 +4548,7 @@ export function ShowEditor({
                   show={legacyShow}
                   compositionShow={legacyShow ? inspectorShow ?? legacyShow : null}
                   recordV2={recordVersion === 2 ? lessonProjectionV2 ?? null : null}
+                  replacementCaptureV2={recordVersion === 2 ? preparedV2Capture : null}
                   boundaryTransitionsV2={boundaryTransitionsV2}
                   panelKey={detail.id}
                   selection={detail.selection}
@@ -10991,6 +10992,7 @@ function ContextualInspector({
   show,
   compositionShow,
   recordV2,
+  replacementCaptureV2,
   boundaryTransitionsV2,
   panelKey,
   selection,
@@ -11060,6 +11062,7 @@ function ContextualInspector({
   show: ShowRecord | null
   compositionShow: ShowRecord | null
   recordV2: ShowRecordV2 | null
+  replacementCaptureV2: ShowV2PilotPreparedCapture | null
   /** The boundary family v1's Transition inspector owns, projected by the root. */
   boundaryTransitionsV2: Record<string, ShowBoundaryTransitionInspectorValue> | null
   panelKey: string
@@ -11193,6 +11196,13 @@ function ContextualInspector({
             ? `clip:${selection.clipId}`
             : `group-clip:${selection.occurrenceId}:${selection.placementId}`}
           value={presented.value}
+          replacementCapture={replacementCaptureV2}
+          replacementTarget={selection.kind === 'clip'
+            ? { kind: 'clip', clipId: selection.clipId }
+            : (() => {
+                const definitionId = recordV2?.composition.groupOccurrences.find(occurrence => occurrence.id === selection.occurrenceId)?.definitionId
+                return definitionId ? { kind: 'group' as const, definitionId, clipId: selection.placementId } : undefined
+              })()}
           panelKey={panelKey}
           patternOptions={patternOptions}
           patternControls={patternControls}
@@ -11879,6 +11889,8 @@ function CompositionClipInspector({
   value,
   panelKey,
   patternOptions,
+  replacementCapture,
+  replacementTarget,
   patternControls,
   summary,
   transformEnabled,
@@ -11898,6 +11910,8 @@ function CompositionClipInspector({
   value: NonNullable<ReturnType<typeof projectShowClipInspector>> | ShowEditorClipValueV2
   panelKey: string
   patternOptions: ShowPatternOption[]
+  replacementCapture?: ShowV2PilotPreparedCapture | null
+  replacementTarget?: { kind: 'clip'; clipId: string } | { kind: 'group'; definitionId: string; clipId: string }
   patternControls: AutomatablePatternControl[]
   summary: ShowClipSummarySection[]
   transformEnabled: boolean
@@ -11915,6 +11929,38 @@ function CompositionClipInspector({
   onRemove?: () => void
 }) {
   const [animationOverviewOpen, setAnimationOverviewOpen] = useState(false)
+  const [patternPickerOpen, setPatternPickerOpen] = useState(false)
+  const [replacementCostCache, setReplacementCostCache] = useState<{
+    capture: ShowV2PilotPreparedCapture
+    targetKey: string
+    options: PatternComboboxOption[]
+  } | null>(null)
+  const targetKey = replacementTarget?.kind === 'group'
+    ? `group:${replacementTarget.definitionId}:${replacementTarget.clipId}`
+    : replacementTarget ? `clip:${replacementTarget.clipId}` : null
+  const plainPickerOptions = patternOptions.map((option) => ({
+    value: `${option.ref.kind}:${option.ref.id}`,
+    label: option.label,
+    group: option.group,
+  }))
+  const pickerOptions = patternPickerOpen && replacementCostCache && replacementCostCache.capture === replacementCapture
+    && replacementCostCache.targetKey === targetKey ? replacementCostCache.options : plainPickerOptions
+  const onPatternPickerOpenChange = (open: boolean) => {
+    setPatternPickerOpen(open)
+    if (!open || !replacementCapture || !replacementTarget || !targetKey
+      || (replacementCostCache?.capture === replacementCapture && replacementCostCache.targetKey === targetKey)) return
+    const options = patternOptions.map((option) => {
+      const plain = { value: `${option.ref.kind}:${option.ref.id}`, label: option.label, group: option.group }
+      if (option.ref.kind === value.pattern.kind && option.ref.id === value.pattern.id) return plain
+      const preview = replacementTarget.kind === 'clip'
+        ? previewShowV2ClipReplacement(replacementCapture, replacementTarget.clipId, option.ref)
+        : previewShowV2GroupReplacement(replacementCapture, replacementTarget.definitionId, replacementTarget.clipId, option.ref)
+      return preview.status === 'ready'
+        ? { ...plain, detail: describePatternReplacementCost(preview.lostControls) }
+        : plain
+    })
+    setReplacementCostCache({ capture: replacementCapture, targetKey, options })
+  }
   const animationSummaryRef = useRef<HTMLButtonElement>(null)
   const clipDetailRef = useRef<ShowClipEntityDetailHandle>(null)
   const animationCount = propertyAnimationContext?.tracks.length ?? 0
@@ -11969,11 +12015,8 @@ function CompositionClipInspector({
         value={value}
         title={value.patternName}
         readOnly={false}
-        patternOptions={patternOptions.map((option) => ({
-          value: `${option.ref.kind}:${option.ref.id}`,
-          label: option.label,
-          group: option.group,
-        }))}
+        patternOptions={pickerOptions}
+        onPatternPickerOpenChange={replacementCapture ? onPatternPickerOpenChange : undefined}
         patternControls={patternControls}
         transformEnabled={transformEnabled}
         stageDimensions={stageDimensions}

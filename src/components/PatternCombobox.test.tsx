@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
@@ -57,4 +57,16 @@ describe('PatternCombobox recency (#63)', () => {
     // Typed: starts-with before contains, alphabetical - recency plays no part.
     expect(optionLabels()).toEqual(['Caustics', 'CompassRose'])
   })
+})
+
+it('shows optional cost in the option accessible name without changing plain options', () => {
+  render(<PatternCombobox ariaLabel="Source pattern" value="stock:Current" options={[
+    { value: 'stock:Current', label: 'Current', group: 'Built-in' },
+    { value: 'stock:Lossy', label: 'Lossy', group: 'Built-in', detail: 'removes 1 property lane' },
+    { value: 'stock:Compatible', label: 'Compatible', group: 'Built-in' },
+  ]} onChange={() => {}} />)
+  fireEvent.focus(screen.getByRole('combobox', { name: 'Source pattern' }))
+  expect(screen.getByRole('option', { name: 'Lossy, removes 1 property lane' })).toHaveTextContent('removes 1 property lane')
+  expect(screen.getByRole('option', { name: 'Compatible' })).toHaveTextContent('Compatible')
+  expect(screen.getByRole('option', { name: 'Current' })).toHaveTextContent('Current')
 })

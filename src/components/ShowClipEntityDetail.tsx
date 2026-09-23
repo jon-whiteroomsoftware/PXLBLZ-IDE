@@ -47,6 +47,7 @@ export interface ShowClipEntityDetailProps {
   title: string
   readOnly: boolean
   patternOptions: PatternComboboxOption[]
+  onPatternPickerOpenChange?: (open: boolean) => void
   patternControls: AutomatablePatternControl[]
   layerOptions?: Array<{ value: string; label: string }>
   actions?: ReactNode
@@ -105,6 +106,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   title,
   readOnly,
   patternOptions,
+  onPatternPickerOpenChange,
   patternControls,
   layerOptions,
   actions,
@@ -538,6 +540,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
               ariaLabel="Source pattern"
               value={`${value.pattern.kind}:${value.pattern.id}`}
               options={patternOptions}
+              onOpenChange={onPatternPickerOpenChange}
               disabled={readOnly}
               compact
               className="mt-1"

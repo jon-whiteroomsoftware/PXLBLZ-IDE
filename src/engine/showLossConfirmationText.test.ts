@@ -1,5 +1,14 @@
 import { expect, it } from 'vitest'
-import { describePatternReplacementLoss, formatControlNameList } from './showLossConfirmationText'
+import { describePatternReplacementCost, describePatternReplacementLoss, formatControlNameList } from './showLossConfirmationText'
+
+it('describes the picker cost for animated, value, mixed, and empty losses', () => {
+  expect(describePatternReplacementCost([{ animated: true }])).toBe('removes 1 property lane')
+  expect(describePatternReplacementCost([{ animated: true }, { animated: true }])).toBe('removes 2 property lanes')
+  expect(describePatternReplacementCost([{ animated: true }, { animated: true }, { animated: false }]))
+    .toBe('removes 2 property lanes, 1 control value')
+  expect(describePatternReplacementCost([{ animated: false }])).toBe('removes 1 control value')
+  expect(describePatternReplacementCost([])).toBeUndefined()
+})
 
 it('keeps the existing slot dialog text for one animated control', () => {
   expect(describePatternReplacementLoss('TestPattern2D', [{ label: 'Speed', animated: true }])).toEqual({

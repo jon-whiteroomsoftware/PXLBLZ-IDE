@@ -4,6 +4,17 @@ export function formatControlNameList(names: readonly string[], conjunction: 'an
   return `${names.slice(0, -1).join(', ')}, ${conjunction} ${names[names.length - 1]}`
 }
 
+export function describePatternReplacementCost(lost: ReadonlyArray<{ animated: boolean }>): string | undefined {
+  if (lost.length === 0) return undefined
+  const animated = lost.filter(control => control.animated).length
+  const values = lost.length - animated
+  const parts = [
+    animated > 0 ? `${animated} property lane${animated === 1 ? '' : 's'}` : undefined,
+    values > 0 ? `${values} control value${values === 1 ? '' : 's'}` : undefined,
+  ].filter((part): part is string => part !== undefined)
+  return `removes ${parts.join(', ')}`
+}
+
 export function describePatternReplacementLoss(
   patternName: string,
   lost: ReadonlyArray<{ label: string; animated: boolean }>,
