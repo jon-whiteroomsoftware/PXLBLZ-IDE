@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/b5ffe78e-4062-43ec-a8d9-598053f8c770",
+  "operation": "On the v2 backing at the corrective tip: a fresh Installation Show (one Layout occurrence layout-1 0-62000; Clips 0+30000 and 32000+30000). Play the Show preview past 2.5 s and pause (the slider reads 3096; the underlying playhead after playback is fractional, which the Opus 5.5 P2 showed was refused before this fix). Open Add to Show > Zone Layout, set 5 s and press Insert here. Stored readback: Show End 62000 -> 67000; occurrences layout-1@0+3096, layout-2@3096+5000, layout-1@8096+58904; Clips 0+3096, 8096+26904, 37000+30000. The insert lands at the rounded playhead.",
+  "captures": [
+    ".wrsp/ui-proof/1066-8b2b-corr-insert-here.png"
+  ],
+  "capturedAtCommit": "0ac5bc7db8c4f747ba6bb6fbd8e0a88503a1005a"
+}
