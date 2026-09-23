@@ -10,10 +10,11 @@ import type {
   ShowOverlayLayer,
   ShowOverlayPlacement,
   ShowPropertyAnimationTarget,
+  ShowPropertyTransitions,
   ShowRecord,
   ShowZoneComposition,
 } from './personalContentRecords'
-import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
+import { showCellAtSlot, showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { placementPresentationSignature, validateShowComposition } from './showCompositionModel'
 import { compileShow, ShowRestartEligibilityError, type ShowRecipe } from './showCompiler'
 import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
@@ -25,7 +26,7 @@ import {
 } from './showCompositionV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { showV2FlatLoweringEligible, showV2UnsupportedRoutedSampling, structurallyEqualAppearanceV2, withoutUnusedInstanceTracksV2 } from './showFlatLoweringV2'
-import { hasSectionScopedTrackActivationV2, participantSectionBoundaries, participantTransitionWindows, participantWindowBlockedV2 } from './showBoundaryScopeV2'
+import { exactWindowIncomingRampV2, hasSectionScopedTrackActivationV2, participantSectionBoundaries, participantTransitionWindows, participantWindowBlockedV2, type ExactWindowIncomingRampV2 } from './showBoundaryScopeV2'
 import { lowerShowScalarPropertyTracksV2 } from './showScalarPropertyTrackLoweringV2'
 
 export interface LoweredShowCompositionV2 {
@@ -290,11 +291,22 @@ function resolveAndLowerShowV2(
     const source = sources[binding.runtimeId] ?? (unambiguous ? lookup.byPatternInstanceId?.[binding.instance.id] : undefined)
     if (source) sources[binding.runtimeId] = source
   }
-  const resolved = resolveShowV2CompileContext(compileRecord, { ...lookup, byPatternInstanceId: sources })
+  const recognisedRamps: ExactWindowIncomingRampV2[] = []
+  const retainedTracks: ShowRecordV2['composition']['propertyTracks'] = []
+  for (const track of compileRecord.composition.propertyTracks) {
+    const ramp = exactWindowIncomingRampV2(compileRecord, track)
+    if (ramp) recognisedRamps.push(ramp)
+    else retainedTracks.push(track)
+  }
+  const loweredRecord: ShowRecordV2 = recognisedRamps.length > 0
+    ? { ...compileRecord, composition: { ...compileRecord.composition, propertyTracks: retainedTracks } }
+    : compileRecord
+  const resolved = resolveShowV2CompileContext(loweredRecord, { ...lookup, byPatternInstanceId: sources })
   if ('issues' in resolved) return resolved
   let lowered: LoweredShowCompositionV2
   try {
     lowered = emitResolvedShowV2(resolved)
+    attachExactWindowIncomingRampsV2(lowered.show, compileRecord, recognisedRamps)
   } catch (error) {
     // Validation admits the record but lowering cannot represent it: fail
     // closed with a typed refusal rather than an uncaught throw (#1068).
@@ -1238,6 +1250,45 @@ function stripV2PropertyTrackActivation(
     ...v1Track
   } = structuredClone(track)
   return v1Track
+}
+
+function attachExactWindowIncomingRampsV2(show: ShowRecord, record: ShowRecordV2, ramps: ExactWindowIncomingRampV2[]): void {
+  for (const ramp of ramps) {
+    const participant = record.composition.transitions.find(transition => transition.id === ramp.transitionId)?.participants[0]
+    const boundary = show.transitions.find(transition => transition.id === ramp.transitionId)
+    if (boundary) {
+      const afterIndex = show.scenes.findIndex(scene => scene.id === boundary.afterSceneId)
+      const nextScene = afterIndex >= 0 ? show.scenes[afterIndex + 1] : undefined
+      const zoneId = participant?.zoneId ?? show.zones[0]?.id
+      const incomingCell = zoneId !== undefined && nextScene !== undefined ? showCellAtSlot(show, zoneId, nextScene.id) : undefined
+      const incomingId = incomingCell?.id ?? participant?.toClipId
+      if (incomingId === undefined) throw new Error(`Exact-window incoming ramp has no incoming Clip for Transition "${ramp.transitionId}".`)
+      const existing = boundary.propertyTransitions?.[ramp.key]
+      boundary.propertyTransitions = {
+        ...boundary.propertyTransitions,
+        [ramp.key]: {
+          fromByCellId: { ...existing?.fromByCellId, [incomingId]: ramp.from },
+          durationMs: ramp.durationMs,
+          easing: structuredClone(ramp.easing),
+        },
+      }
+      continue
+    }
+    const layered = show.composition?.transitions?.find(transition => transition.id === ramp.transitionId) as (ShowLayerTransition & { propertyTransitions?: ShowPropertyTransitions }) | undefined
+    if (layered) {
+      const existing = layered.propertyTransitions?.[ramp.key]
+      layered.propertyTransitions = {
+        ...layered.propertyTransitions,
+        [ramp.key]: {
+          fromByCellId: { ...existing?.fromByCellId, [layered.toPlacementId]: ramp.from },
+          durationMs: ramp.durationMs,
+          easing: structuredClone(ramp.easing),
+        },
+      }
+      continue
+    }
+    throw new Error(`Exact-window incoming ramp has no lowered Transition "${ramp.transitionId}".`)
+  }
 }
 
 function stripV2TransitionFields(

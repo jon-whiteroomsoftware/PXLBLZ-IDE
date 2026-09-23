@@ -305,3 +305,29 @@ describe('scalar-ramp scope promotion (#1066 L2411)', () => {
     expect(promotion.record).toBe(record)
   })
 })
+
+it('ignores an exact-window incoming ramp for promotion and window blocking (#1080 class 2a)', () => {
+  const record = converted(false)
+  const transition = record.composition.transitions.find(candidate => candidate.wholeOutput === undefined && candidate.participants.length === 1)!
+  const from = record.composition.clips.find(clip => clip.id === transition.participants[0].fromClipId)!
+  const incoming = record.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+  const startMs = from.startMs + from.durationMs
+  const endMs = incoming.startMs
+  const base = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
+  record.composition.propertyTracks.push({
+    id: 'incoming-brightness',
+    target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+    activeStartMs: startMs,
+    activeDurationMs: endMs - startMs,
+    keyframes: [
+      { id: 'incoming-brightness-k0', timeMs: startMs, value: 0.4, easing: { curve: 'linear' } },
+      { id: 'incoming-brightness-k1', timeMs: endMs, value: base, easing: { curve: 'linear' } },
+    ],
+  })
+  expect(validateShowRecordV2(record)).toEqual([])
+  expect(hasSectionScopedTrackActivationV2(record)).toBe(false)
+  expect(participantWindowBlockedV2(record)).toBe(false)
+  const promotion = promoteConvertedBoundariesToWholeOutputV2(record)
+  expect(promotion.record).toBe(record)
+  expect(promotion.promotedTransitionIds).toEqual([])
+})

@@ -1708,3 +1708,92 @@ function cutScopedEffectTrackShow() {
   ]
   return source
 }
+
+function class2aRefusalRecord() {
+  const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade', 'live-live'))
+  if (converted.status !== 'converted') throw new Error('fixture conversion failed')
+  return converted.record
+}
+
+function class2aRefusalLookup(record: ReturnType<typeof class2aRefusalRecord>) {
+  return { byCellId: {}, byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, SOURCE])) }
+}
+
+function class2aWindow(record: ReturnType<typeof class2aRefusalRecord>) {
+  const transition = record.composition.transitions.find(candidate => candidate.wholeOutput === undefined && candidate.participants.length === 1)!
+  const from = record.composition.clips.find(clip => clip.id === transition.participants[0].fromClipId)!
+  const incoming = record.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+  return { transition, from, incoming, startMs: from.startMs + from.durationMs, endMs: incoming.startMs }
+}
+
+it('refuses an exact-window ramp on the outgoing Clip (#1080 class 2a)', () => {
+  const record = class2aRefusalRecord()
+  const { startMs, endMs, from } = class2aWindow(record)
+  const base = [...from.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
+  record.composition.propertyTracks.push({
+    id: 'outgoing-brightness',
+    target: { kind: 'clip-view', clipId: from.id, property: 'brightness' },
+    activeStartMs: startMs,
+    activeDurationMs: endMs - startMs,
+    keyframes: [
+      { id: 'outgoing-brightness-k0', timeMs: startMs, value: 0.2, easing: { curve: 'linear' } },
+      { id: 'outgoing-brightness-k1', timeMs: endMs, value: base, easing: { curve: 'linear' } },
+    ],
+  })
+  expect(prepareShowV2ForCompile(record, class2aRefusalLookup(record)).status).toBe('refused')
+})
+
+it('refuses an incoming ramp active past the Transition window (#1080 class 2a)', () => {
+  const record = class2aRefusalRecord()
+  const { startMs, endMs, incoming } = class2aWindow(record)
+  const base = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
+  record.composition.propertyTracks.push({
+    id: 'shifted-brightness',
+    target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+    activeStartMs: startMs + 1000,
+    activeDurationMs: endMs - startMs + 1000,
+    keyframes: [
+      { id: 'shifted-brightness-k0', timeMs: startMs + 1000, value: 0.2, easing: { curve: 'linear' } },
+      { id: 'shifted-brightness-k1', timeMs: endMs + 1000, value: base, easing: { curve: 'linear' } },
+    ],
+  })
+  expect(prepareShowV2ForCompile(record, class2aRefusalLookup(record)).status).toBe('refused')
+})
+
+it('refuses an exact-window incoming ramp whose end value misses the base (#1080 class 2a)', () => {
+  const record = class2aRefusalRecord()
+  const { startMs, endMs, incoming } = class2aWindow(record)
+  const base = record.composition.patternInstances.find(instance => instance.id === incoming.instanceId)!.time.timeScale
+  record.composition.propertyTracks.push({
+    id: 'off-base-timescale',
+    target: { kind: 'instance-time-scale', instanceId: incoming.instanceId },
+    activeStartMs: startMs,
+    activeDurationMs: endMs - startMs,
+    keyframes: [
+      { id: 'off-base-timescale-k0', timeMs: startMs, value: 0.5, easing: { curve: 'sine', direction: 'in-out' } },
+      { id: 'off-base-timescale-k1', timeMs: endMs, value: base + 0.5, easing: { curve: 'linear' } },
+    ],
+  })
+  expect(prepareShowV2ForCompile(record, class2aRefusalLookup(record)).status).toBe('refused')
+})
+
+it('refuses an exact-window ramp on a whole-output Transition (#1080 class 2a)', () => {
+  const record = class2aRefusalRecord()
+  const { transition, startMs, endMs, incoming } = class2aWindow(record)
+  const from = record.composition.clips.find(clip => clip.startMs + clip.durationMs === startMs)!
+  const to = record.composition.clips.find(clip => clip.startMs === endMs)!
+  transition.participants = []
+  transition.wholeOutput = { startMs, fromClipIds: [from.id], toClipIds: [to.id] }
+  const base = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
+  record.composition.propertyTracks.push({
+    id: 'whole-output-brightness',
+    target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+    activeStartMs: startMs,
+    activeDurationMs: endMs - startMs,
+    keyframes: [
+      { id: 'whole-output-brightness-k0', timeMs: startMs, value: 0.2, easing: { curve: 'linear' } },
+      { id: 'whole-output-brightness-k1', timeMs: endMs, value: base, easing: { curve: 'linear' } },
+    ],
+  })
+  expect(prepareShowV2ForCompile(record, class2aRefusalLookup(record)).status).toBe('refused')
+})

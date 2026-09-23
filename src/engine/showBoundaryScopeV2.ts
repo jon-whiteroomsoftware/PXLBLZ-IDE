@@ -1,5 +1,6 @@
 import { showV2FlatLoweringEligible, withoutUnusedInstanceTracksV2 } from './showFlatLoweringV2'
-import type { ShowRecordV2 } from './showCompositionV2'
+import type { ShowStructuredEasing } from './personalContentRecords'
+import type { ShowPropertyTrackV2, ShowRecordV2 } from './showCompositionV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 
 /**
@@ -7,9 +8,51 @@ import { materializeShowGroupsV2 } from './showGroupsV2'
  * Show. Layout split-position and Show repeat-scale targets reach the compiler
  * through their own scalar channels and never need a derived section.
  */
+export interface ExactWindowIncomingRampV2 {
+  transitionId: string
+  key: 'timeScale' | 'brightness'
+  from: number
+  durationMs: number
+  easing: ShowStructuredEasing
+}
+
+export function exactWindowIncomingRampV2(record: ShowRecordV2, track: ShowPropertyTrackV2): ExactWindowIncomingRampV2 | undefined {
+  const composition = record.composition
+  const activeEndMs = track.activeStartMs + track.activeDurationMs
+  const clipById = new Map(composition.clips.map(clip => [clip.id, clip]))
+  for (const transition of composition.transitions) {
+    if (transition.wholeOutput !== undefined) continue
+    if (transition.participants.length !== 1) continue
+    const participant = transition.participants[0]
+    const from = clipById.get(participant.fromClipId)
+    const incoming = clipById.get(participant.toClipId)
+    if (!from || !incoming) continue
+    const startMs = from.startMs + from.durationMs
+    const endMs = incoming.startMs
+    if (startMs !== track.activeStartMs || endMs !== activeEndMs) continue
+    const key = track.target.kind === 'instance-time-scale' && track.target.instanceId === incoming.instanceId
+      ? 'timeScale' as const
+      : track.target.kind === 'clip-view' && track.target.clipId === incoming.id && track.target.property === 'brightness'
+        ? 'brightness' as const
+        : undefined
+    if (key === undefined) continue
+    if (track.keyframes.length !== 2) continue
+    const [first, second] = track.keyframes
+    if (first.timeMs !== startMs || second.timeMs > endMs) continue
+    if (first.curveSegment !== undefined || second.curveSegment !== undefined) continue
+    const instanceTimeScale = composition.patternInstances.find(instance => instance.id === incoming.instanceId)?.time.timeScale
+    const firstAppearanceBrightness = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0]?.value.view.brightness
+    const base = key === 'timeScale' ? instanceTimeScale : firstAppearanceBrightness
+    if (base === undefined || second.value !== base) continue
+    return { transitionId: transition.id, key, from: first.value, durationMs: second.timeMs - first.timeMs, easing: first.easing ?? { curve: 'linear' as const } }
+  }
+  return undefined
+}
+
 export function hasSectionScopedTrackActivationV2(record: ShowRecordV2): boolean {
   return record.composition.propertyTracks.some(track => (
-    track.target?.kind !== 'layout-occurrence-split-position'
+    exactWindowIncomingRampV2(record, track) === undefined
+    && track.target?.kind !== 'layout-occurrence-split-position'
     && track.target?.kind !== 'show-repeat-scale'
     && (track.activeStartMs !== 0 || track.activeDurationMs !== record.composition.showEndMs)
   ))
@@ -48,9 +91,11 @@ export function participantSectionBoundaries(record: ShowRecordV2): number[] {
     composition.showEndMs,
     ...composition.clips.flatMap(clip => clip.appearance.keys.slice(1).map(key => key.timeMs)),
     ...composition.propertyTracks.flatMap(track => (
-      track.target?.kind === 'show-repeat-scale' || track.target?.kind === 'layout-occurrence-split-position'
+      exactWindowIncomingRampV2(record, track) !== undefined
         ? []
-        : [track.activeStartMs, track.activeStartMs + track.activeDurationMs]
+        : track.target?.kind === 'show-repeat-scale' || track.target?.kind === 'layout-occurrence-split-position'
+          ? []
+          : [track.activeStartMs, track.activeStartMs + track.activeDurationMs]
     )),
   ])].filter(timeMs => timeMs >= 0 && timeMs <= composition.showEndMs)
     .sort((left, right) => left - right)

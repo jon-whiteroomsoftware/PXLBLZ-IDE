@@ -10,6 +10,7 @@ import { compileShow } from './showCompiler'
 import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
 import { LIBRARIES } from '../pixelblaze/libs'
 import type { ShowRecord } from './personalContentRecords'
+import type { ShowPropertyTrackV2, ShowRecordV2 } from './showCompositionV2'
 
 function layoutSource() {
   const source = continuingV1Show()
@@ -309,4 +310,123 @@ it('refuses a Layer Transition whose window crosses a section edge in a mixed re
       message: 'A Layer Transition must sit inside one section of a Show with whole-output boundaries.',
     })]),
   })
+})
+
+function class2aV1Show(transitionDurationMs: number): ShowRecord {
+  const show = createDefaultShow('class2a', 'Class 2a', 1)
+  show.scenes = [
+    { id: 'scene-1', name: 'Scene 1', durationMs: 4000 },
+    { id: 'scene-2', name: 'Scene 2', durationMs: 4000 },
+    { id: 'scene-3', name: 'Scene 3', durationMs: 4000 },
+  ]
+  const zoneId = show.zones[0].id
+  const adaptations = structuredClone(show.cells[0].adaptations)
+  const cellFor = (id: string, sceneId: string) => ({
+    id, zoneId, sceneId, sceneSpan: 1,
+    pattern: { kind: 'stock' as const, id: 'TestPattern1D' },
+    patternName: 'TestPattern1D',
+    adaptations: structuredClone(adaptations),
+    restartOnEntry: false,
+  })
+  show.cells = [cellFor('cell-1', 'scene-1'), cellFor('cell-2', 'scene-2'), cellFor('cell-3', 'scene-3')]
+  show.transitions = [
+    { id: 'xfade', afterSceneId: 'scene-1', kind: 'crossfade', durationMs: transitionDurationMs, easing: { curve: 'linear' }, crossfadePolicy: 'live-live' },
+    { id: 'cut', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+  ]
+  return show
+}
+
+function class2aV1Lookup(show: ShowRecord) {
+  return { byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS.TestPattern1D])) }
+}
+
+function class2aV2Lookup(record: ShowRecordV2) {
+  return {
+    byCellId: {},
+    byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(
+      instance => [instance.id, DEMOS[(instance.pattern as { id: string }).id]],
+    )),
+  }
+}
+
+function class2aIncomingTrack(
+  record: ShowRecordV2,
+  key: 'timeScale' | 'brightness',
+  from: number,
+  keyDurationMs: number,
+  trackId: string,
+): ShowPropertyTrackV2 {
+  const transition = record.composition.transitions.find(candidate => candidate.wholeOutput === undefined && candidate.participants.length === 1)!
+  const fromClip = record.composition.clips.find(clip => clip.id === transition.participants[0].fromClipId)!
+  const toClip = record.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+  const startMs = fromClip.startMs + fromClip.durationMs
+  const easing = key === 'timeScale'
+    ? { curve: 'sine' as const, direction: 'in-out' as const }
+    : { curve: 'linear' as const }
+  const base = key === 'timeScale'
+    ? record.composition.patternInstances.find(instance => instance.id === toClip.instanceId)!.time.timeScale
+    : [...toClip.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
+  return {
+    id: trackId,
+    target: key === 'timeScale'
+      ? { kind: 'instance-time-scale', instanceId: toClip.instanceId }
+      : { kind: 'clip-view', clipId: toClip.id, property: 'brightness' },
+    activeStartMs: startMs,
+    activeDurationMs: toClip.startMs - startMs,
+    keyframes: [
+      { id: `${trackId}-k0`, timeMs: startMs, value: from, easing },
+      { id: `${trackId}-k1`, timeMs: startMs + keyDurationMs, value: base, easing: { curve: 'linear' as const } },
+    ],
+  }
+}
+
+async function class2aParityCase(
+  key: 'timeScale' | 'brightness',
+  from: number,
+  transitionDurationMs: number,
+  carrierDurationMs: number,
+  trackId: string,
+) {
+  const { runtimeParity } = await import('../../scripts/show-v2-parity')
+  const plain = class2aV1Show(transitionDurationMs)
+  const withCarrier = structuredClone(plain)
+  const boundary = withCarrier.transitions.find(transition => transition.id === 'xfade')!
+  const easing = key === 'timeScale'
+    ? { curve: 'sine' as const, direction: 'in-out' as const }
+    : { curve: 'linear' as const }
+  boundary.propertyTransitions = { [key]: { fromByCellId: { 'cell-2': from }, durationMs: carrierDurationMs, easing } } as typeof boundary.propertyTransitions
+  const converted = convertShowRecordV1ToV2(plain, class2aV1Lookup(plain))
+  expect(converted.status, JSON.stringify(converted.status === 'refused' ? converted.issues : [])).toBe('converted')
+  if (converted.status !== 'converted') throw new Error('fixture conversion failed')
+  const record = converted.record
+  record.composition.propertyTracks.push(class2aIncomingTrack(record, key, from, carrierDurationMs, trackId))
+  const { validateShowRecordV2 } = await import('./showCompositionV2')
+  expect(validateShowRecordV2(record)).toEqual([])
+  const prepared = prepareShowV2ForCompile(record, class2aV2Lookup(record))
+  expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+  if (prepared.status !== 'ready') throw new Error('preparation refused')
+  expect(prepared.provenance.route).toBe('continuous-flat')
+  const before = compileShow(showRecordToCompileRecipe(withCarrier, class2aV1Lookup(withCarrier)), LIBRARIES)
+  const after = compileShow(prepared.recipe, LIBRARIES)
+  expect(after.code).toBe(before.code)
+  for (const fidelity of ['fast', 'fidelity'] as const) {
+    const parity = runtimeParity(before, after, withCarrier, record, fidelity, [])
+    expect(parity.matched, JSON.stringify({ fidelity, max: parity.maxSampledFrameAbsoluteDifference, firstMs: parity.firstMismatchMs })).toBe(true)
+  }
+}
+
+it('lowers an exact-window incoming timeScale ramp to the v1 boundary carrier (#1080 class 2a)', async () => {
+  await class2aParityCase('timeScale', 0.5, 2000, 2000, 'incoming-timescale')
+})
+
+it('lowers a short exact-window incoming timeScale ramp to the v1 boundary carrier (#1080 class 2a)', async () => {
+  await class2aParityCase('timeScale', 0.5, 5000, 2000, 'incoming-timescale-short')
+})
+
+it('lowers an exact-window incoming brightness ramp to the v1 boundary carrier (#1080 class 2a)', async () => {
+  await class2aParityCase('brightness', 0.2, 2000, 2000, 'incoming-brightness')
+})
+
+it('lowers a short exact-window incoming brightness ramp to the v1 boundary carrier (#1080 class 2a)', async () => {
+  await class2aParityCase('brightness', 0.2, 5000, 2000, 'incoming-brightness-short')
 })
