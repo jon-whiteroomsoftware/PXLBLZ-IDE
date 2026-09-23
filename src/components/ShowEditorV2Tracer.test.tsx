@@ -1939,6 +1939,100 @@ describe('v2 Layer Transition popover (#1065)', () => {
   })
 })
 
+describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
+  // Same converted Cut the G4b-2b palette tests open: two exactly-adjacent
+  // Clips with 200 ms of free time after them, so the insertion plan is
+  // enabled at 200 ms.
+  function addMenuCutRecord(id: string): ShowRecordV2 {
+    const source = transitionV1Show('crossfade')
+    source.id = id
+    const converted = convertShowRecordV1ToV2(source)
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const record = converted.record
+    record.id = id
+    const incoming = record.composition.clips.find((clip) => clip.id === 'in')!
+    incoming.startMs = 400
+    incoming.appearance.keys.forEach((key) => { key.timeMs -= 200 })
+    record.composition.transitions = []
+    expect(validateShowRecordV2(record)).toEqual([])
+    return record
+  }
+
+  function openAddMenu(): void {
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Show' }))
+  }
+
+  it('enables the Add-menu Transition on a selected Clip and opens the palette', async () => {
+    const record = addMenuCutRecord('tracer-v2-add-transition-palette')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(clipButton('out'))
+    await act(async () => {})
+    const before = editor.state()
+
+    openAddMenu()
+    const command = screen.getByRole('menuitem', { name: 'Transition to Incoming' })
+    expect(command).toBeEnabled()
+    fireEvent.click(command)
+    await act(async () => {})
+
+    const palette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    expect(within(palette).getByText('Outgoing to Incoming')).toBeInTheDocument()
+    expectNoWrite(before, editor.state())
+  })
+
+  it('inserts a crossfade from the Add menu through the transition-edit door', async () => {
+    const record = addMenuCutRecord('tracer-v2-add-transition-insert')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(clipButton('out'))
+    await act(async () => {})
+    const before = editor.state()
+
+    openAddMenu()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Transition to Incoming' }))
+    await act(async () => {})
+    const palette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    const duration = within(palette).getByLabelText('Transition duration in seconds exact time')
+    fireEvent.change(duration, { target: { value: '0.15' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    fireEvent.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const request = admission.calls[0].request as { intent: ShowTransitionEditIntentV2; baseRevision: number }
+    if (request.intent.kind !== 'insert') throw new Error('expected an insert intent')
+    expect(request.intent.transition.kind).toBe('crossfade')
+    expect(request.intent.transition.durationMs).toBe(150)
+    expect(request.intent.transition.crossfadePolicy).toBe('live-live')
+    expect(request.intent.transition.participants.map((participant) => [participant.fromClipId, participant.toClipId]))
+      .toEqual([['out', 'in']])
+    expect(request.baseRevision).toBe(0)
+    const after = editor.state()
+    expectOneEdit(before, after)
+    expect(screen.queryByRole('dialog', { name: 'Choose Layer Transition' })).not.toBeInTheDocument()
+    const oracle = editShowTransitionV2(before.record, request.intent)
+    expect(oracle.status).toBe('changed')
+    if (oracle.status !== 'changed') throw new Error('the oracle refused the admitted intent')
+    expect(after.record.composition).toEqual(oracle.record.composition)
+    expect(after.record.composition.clips.find((clip) => clip.id === 'in')!.startMs).toBe(550)
+  })
+
+  it('disables the Add-menu Transition with Select a Clip first when nothing is selected', async () => {
+    const record = addMenuCutRecord('tracer-v2-add-transition-unselected')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    openAddMenu()
+    const reason = 'Select a Clip first.'
+    const command = screen.getByRole('menuitem', { name: `Transition unavailable: ${reason}` })
+    expect(command).toBeDisabled()
+    expect(within(command).getByText(reason)).toBeInTheDocument()
+    expectNoWrite(before, editor.state())
+  })
+})
+
 // ── Time grid ────────────────────────────────────────────────────────────────
 
 /**

@@ -6,12 +6,16 @@ import { projectShowGroupRuntimePatternInstances } from './showGroupModel'
 import {
   planShowGroupLayerTransitionInsertion,
   planShowLayerTransitionInsertion,
+  planShowLayerTransitionInsertionForClip,
+  type ShowLayerTransitionClipInsertionPlan,
 } from './showLayerTransitionAuthoring'
 import { convertShowRecordV1ToV2, type ShowV1ToV2Report } from './showRecordV1ToV2'
 import { showV2TransitionJunctionKey } from './showV2TransitionEditorModel'
 import {
   planShowV2GroupLayerTransitionInsertion,
   planShowV2LayerTransitionInsertion,
+  planShowV2LayerTransitionInsertionForClip,
+  type ShowV2LayerTransitionClipInsertionPlan,
 } from './showV2LayerTransitionInsertion'
 import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
@@ -891,3 +895,227 @@ const RECORDED_DIVERGENCE: string[] = [
 const RECORDED_SCENE_END_EXCEEDED: string[] = [
   "stock-show-remix-overture arch-blip→arch-redchase@22500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"} v2={\"enabled\":true,\"maxDurationMs\":1875}",
 ]
+
+describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
+  function menuFixture(
+    clips: Array<{ id: string; name: string; startMs: number; durationMs: number }>,
+    transitions: Array<{ id: string; fromClipId: string; toClipId: string; durationMs: number }> = [],
+  ): { show: ShowRecord; composition: ShowCompositionV1 } {
+    const show = createDefaultShow('show-add-transition-v2', 'Add Transition v2', 1_000)
+    const scene = show.scenes[0]
+    const zoneId = show.zones[0].id
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: clips.map(clip => ({
+        id: `instance-${clip.id}`,
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: clip.name,
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      })),
+      transitions: transitions.map(transition => ({
+        id: transition.id,
+        fromPlacementId: transition.fromClipId,
+        toPlacementId: transition.toClipId,
+        kind: 'crossfade',
+        durationMs: transition.durationMs,
+        easing: { curve: 'linear' },
+        crossfadePolicy: 'live-live',
+      })),
+      scenes: [{
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: clips.map(clip => ({
+            id: clip.id,
+            instanceId: `instance-${clip.id}`,
+            startMs: clip.startMs,
+            durationMs: clip.durationMs,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          })),
+          overlays: [],
+        }],
+      }],
+    }
+    show.composition = composition
+    return { show, composition }
+  }
+
+  // Candidate order, resolution, reasons, side and names match v1. The maximum
+  // comes from the rule-B owner instead, so enabled cases assert the owner's
+  // invariant (accepts the offered maximum, refuses one millisecond more)
+  // rather than equality with v1.
+  function expectSameClipResolution(
+    v2plan: ShowV2LayerTransitionClipInsertionPlan,
+    v1plan: ShowLayerTransitionClipInsertionPlan,
+  ): void {
+    expect(v2plan.enabled).toBe(v1plan.enabled)
+    if (v1plan.enabled) {
+      if (!v2plan.enabled) throw new Error('v2 plan disabled while v1 is enabled')
+      expect({ side: v2plan.target.side, fromName: v2plan.target.fromName, toName: v2plan.target.toName })
+        .toEqual({ side: v1plan.target.side, fromName: v1plan.target.fromName, toName: v1plan.target.toName })
+      return
+    }
+    if (v2plan.enabled) throw new Error('v2 plan enabled while v1 is disabled')
+    expect(v2plan.reason).toBe(v1plan.reason)
+    if (v1plan.target === null) {
+      expect(v2plan.target).toBeNull()
+      return
+    }
+    if (v2plan.target === null) throw new Error('v2 plan lost the target v1 kept')
+    expect({ side: v2plan.target.side, fromName: v2plan.target.fromName, toName: v2plan.target.toName })
+      .toEqual({ side: v1plan.target.side, fromName: v1plan.target.fromName, toName: v1plan.target.toName })
+  }
+
+  function expectOwnerBounds(
+    record: ShowRecordV2,
+    fromClipId: string,
+    toClipId: string,
+    maxDurationMs: number,
+    label: string,
+  ): void {
+    const violations: string[] = []
+    checkOwnerBounds(record, fromClipId, toClipId, maxDurationMs, label, violations)
+    expect(violations).toEqual([])
+  }
+
+  function expectGroupOwnerBounds(record: ShowRecordV2, maxDurationMs: number): void {
+    const definition = record.composition.groupDefinitions.find(candidate => candidate.id === 'group-definition')!
+    const layerId = definition.clips.find(clip => clip.id === 'left')!.layerId
+    const groupProbe = (durationMs: number, id: string): ShowTransitionV2 => ({
+      kind: 'crossfade',
+      id,
+      durationMs,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+      participants: [{
+        id: `${id}:participant`,
+        zoneId: 'definition-zone',
+        layerId,
+        fromClipId: 'left',
+        toClipId: 'right',
+      }],
+      propertyRamps: [],
+    })
+    expect(insertShowGroupDefinitionLayerTransitionV2(record, {
+      kind: 'insert-definition-layer-transition',
+      definitionId: definition.id,
+      transition: groupProbe(maxDurationMs, '__probe-group-accept'),
+    }).status, 'Group owner accepts the maximum').toBe('changed')
+    expect(insertShowGroupDefinitionLayerTransitionV2(record, {
+      kind: 'insert-definition-layer-transition',
+      definitionId: definition.id,
+      transition: groupProbe(maxDurationMs + 1, '__probe-group-refuse'),
+    }).status, 'Group owner refuses one past the maximum').toBe('refused')
+  }
+
+  it('asks for a Clip when nothing is selected, like v1', () => {
+    const { show, composition } = menuFixture([{ id: 'clip-solo', name: 'Solo', startMs: 0, durationMs: 400 }])
+    const v1plan = planShowLayerTransitionInsertionForClip(show, composition, null)
+    expect(v1plan).toEqual({
+      enabled: false,
+      maxDurationMs: 0,
+      reason: 'Select a Clip first.',
+      target: null,
+    })
+    const { record } = convertedRecord(show)
+    expect(planShowV2LayerTransitionInsertionForClip(record, null)).toEqual(v1plan)
+  })
+
+  it('reports a Clip touching nothing, like v1', () => {
+    const { show, composition } = menuFixture([{ id: 'clip-solo', name: 'Solo', startMs: 0, durationMs: 400 }])
+    const v1plan = planShowLayerTransitionInsertionForClip(show, composition, 'clip-solo')
+    expect(v1plan).toEqual({
+      enabled: false,
+      maxDurationMs: 0,
+      reason: 'This Clip does not touch another Clip. Move it next to another Clip first.',
+      target: null,
+    })
+    const { record, report } = convertedRecord(show)
+    expect(planShowV2LayerTransitionInsertionForClip(record, clipIdOf(report, 'clip-solo'))).toEqual(v1plan)
+  })
+
+  it('prefers the trailing Cut, like v1', () => {
+    const { show, composition } = menuFixture([
+      { id: 'clip-left', name: 'Left', startMs: 0, durationMs: 1_000 },
+      { id: 'clip-middle', name: 'Middle', startMs: 1_000, durationMs: 1_000 },
+      { id: 'clip-right', name: 'Right', startMs: 2_000, durationMs: 1_000 },
+      { id: 'clip-far', name: 'Far', startMs: 4_000, durationMs: 1_000 },
+    ])
+    const v1plan = planShowLayerTransitionInsertionForClip(show, composition, 'clip-middle')
+    if (!v1plan.enabled) throw new Error('expected an enabled v1 trailing plan')
+    expect({ side: v1plan.target.side, toName: v1plan.target.toName }).toEqual({ side: 'after', toName: 'Right' })
+    const { record, report } = convertedRecord(show)
+    const v2plan = planShowV2LayerTransitionInsertionForClip(record, clipIdOf(report, 'clip-middle'))
+    expectSameClipResolution(v2plan, v1plan)
+    if (!v2plan.enabled || !v2plan.target.v2Cut) throw new Error('expected an ordinary v2 Cut target')
+    expect(v2plan.target.v2Cut.junctionKey).toContain(clipIdOf(report, 'clip-middle'))
+    expectOwnerBounds(
+      record,
+      clipIdOf(report, 'clip-middle'),
+      clipIdOf(report, 'clip-right'),
+      v2plan.maxDurationMs,
+      'add-menu trailing Cut',
+    )
+  })
+
+  it('falls back to a leading-only Cut, like v1', () => {
+    const { show, composition } = menuFixture([
+      { id: 'clip-left', name: 'Left', startMs: 0, durationMs: 1_000 },
+      { id: 'clip-middle', name: 'Middle', startMs: 1_000, durationMs: 1_000 },
+      { id: 'clip-far', name: 'Far', startMs: 4_000, durationMs: 1_000 },
+    ])
+    const v1plan = planShowLayerTransitionInsertionForClip(show, composition, 'clip-middle')
+    if (!v1plan.enabled) throw new Error('expected an enabled v1 leading plan')
+    expect({ side: v1plan.target.side, fromName: v1plan.target.fromName }).toEqual({ side: 'before', fromName: 'Left' })
+    const { record, report } = convertedRecord(show)
+    const v2plan = planShowV2LayerTransitionInsertionForClip(record, clipIdOf(report, 'clip-middle'))
+    expectSameClipResolution(v2plan, v1plan)
+    if (!v2plan.enabled || !v2plan.target.v2Cut) throw new Error('expected an ordinary v2 Cut target')
+    expectOwnerBounds(
+      record,
+      clipIdOf(report, 'clip-left'),
+      clipIdOf(report, 'clip-middle'),
+      v2plan.maxDurationMs,
+      'add-menu leading Cut',
+    )
+  })
+
+  it('takes an enabled leading Cut over a transitioned trailing junction, like v1', () => {
+    const { show, composition } = menuFixture(
+      [
+        { id: 'clip-left', name: 'Left', startMs: 0, durationMs: 1_000 },
+        { id: 'clip-middle', name: 'Middle', startMs: 1_000, durationMs: 1_000 },
+        { id: 'clip-right', name: 'Right', startMs: 2_500, durationMs: 1_000 },
+        { id: 'clip-far', name: 'Far', startMs: 4_500, durationMs: 1_000 },
+      ],
+      [{ id: 'transition-middle-right', fromClipId: 'clip-middle', toClipId: 'clip-right', durationMs: 500 }],
+    )
+    const v1plan = planShowLayerTransitionInsertionForClip(show, composition, 'clip-middle')
+    if (!v1plan.enabled) throw new Error('expected an enabled v1 leading plan')
+    expect({ side: v1plan.target.side, fromName: v1plan.target.fromName }).toEqual({ side: 'before', fromName: 'Left' })
+    const { record, report } = convertedRecord(show)
+    const v2plan = planShowV2LayerTransitionInsertionForClip(record, clipIdOf(report, 'clip-middle'))
+    expectSameClipResolution(v2plan, v1plan)
+    if (!v2plan.enabled || !v2plan.target.v2Cut) throw new Error('expected an ordinary v2 Cut target')
+    expectOwnerBounds(
+      record,
+      clipIdOf(report, 'clip-left'),
+      clipIdOf(report, 'clip-middle'),
+      v2plan.maxDurationMs,
+      'add-menu leading Cut over a transitioned trailing junction',
+    )
+  })
+
+  it('plans a Group Clip in isolation, like v1', () => {
+    const { show, composition } = groupFixture({ id: 'unrelated-overlay', startMs: 2_500, durationMs: 1_000 })
+    const v1plan = planShowLayerTransitionInsertionForClip(show, composition, 'group-use-clear:left')
+    if (!v1plan.enabled) throw new Error('expected an enabled v1 Group plan')
+    expect(v1plan.target.groupOccurrenceId).toBe('group-use-clear')
+    const { record } = convertedRecord(show)
+    const v2plan = planShowV2LayerTransitionInsertionForClip(record, 'group-use-clear:left')
+    expectSameClipResolution(v2plan, v1plan)
+    if (!v2plan.enabled || !v2plan.target.v2GroupCut) throw new Error('expected a v2 Group Cut target')
+    expect(v2plan.target.v2GroupCut).toEqual({ occurrenceId: 'group-use-clear', fromClipId: 'left', toClipId: 'right' })
+    expectGroupOwnerBounds(record, v2plan.maxDurationMs)
+  })
+})

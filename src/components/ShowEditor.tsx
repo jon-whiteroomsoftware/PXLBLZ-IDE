@@ -260,7 +260,7 @@ import {
 } from '@/engine/showLessonNarration'
 import { exportedDims } from '@/engine/exportedDims'
 import { planShowV2BoundaryPaletteApply, planShowV2BoundaryTransitionChanges, planShowV2TransitionEdit, planShowV2TransitionReset, showV2TransitionJunctionKey } from '@/engine/showV2TransitionEditorModel'
-import { planShowV2GroupLayerTransitionInsertion, planShowV2LayerTransitionInsertion } from '@/engine/showV2LayerTransitionInsertion'
+import { planShowV2GroupLayerTransitionInsertion, planShowV2LayerTransitionInsertion, planShowV2LayerTransitionInsertionForClip } from '@/engine/showV2LayerTransitionInsertion'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import {
   replaceShowBoundaryTransition,
@@ -5967,9 +5967,20 @@ function ShowTimelineWorkspace({
     : selection.kind === 'group-clip'
       ? `${selection.occurrenceId}:${selection.placementId}`
       : null
-  const addTransitionPlan = useMemo(() => show && timelineComposition
-    ? planShowLayerTransitionInsertionForClip(show, timelineComposition, selectedTransitionClipId)
-    : { enabled: false as const, maxDurationMs: 0 as const, reason: 'Select a Clip first.', target: null }, [show, selectedTransitionClipId, timelineComposition])
+  // The authored v2 backing the presented timeline draws. The palette
+  // recomputes its own plan from the same record when it opens.
+  const savedShowV2 = useShowStore((state) => state.showV2Pilots[showId])
+  const addTransitionPlan = useMemo(() => {
+    // On v2 the Add menu resolves from the selected Clip through the v2
+    // timeline presentation, reusing the G4b-2b and G4b-2c junction targets;
+    // v1 keeps its unified-composition plan unchanged.
+    if (recordVersion === 2 && savedShowV2) {
+      return planShowV2LayerTransitionInsertionForClip(savedShowV2, selectedTransitionClipId)
+    }
+    return show && timelineComposition
+      ? planShowLayerTransitionInsertionForClip(show, timelineComposition, selectedTransitionClipId)
+      : { enabled: false as const, maxDurationMs: 0 as const, reason: 'Select a Clip first.', target: null }
+  }, [recordVersion, savedShowV2, selectedTransitionClipId, show, timelineComposition])
   const addTransitionLabel = addTransitionPlan.target
     ? `Transition ${addTransitionPlan.target.side === 'after' ? 'to' : 'from'} ${addTransitionPlan.target.side === 'after'
       ? addTransitionPlan.target.toName
@@ -7150,14 +7161,28 @@ function ShowTimelineWorkspace({
                     onClick={(event) => {
                       if (!addTransitionPlan.enabled) return
                       setAddMenuOpen(false)
+                      const transitionTarget = addTransitionPlan.target
+                      // A v2 target reuses the G4b-2b and G4b-2c palette shapes
+                      // and apply paths unchanged; only v1 carries a junction.
+                      if (!('junction' in transitionTarget)) {
+                        onOpenLayerTransition({
+                          settings: null,
+                          fromName: transitionTarget.fromName,
+                          toName: transitionTarget.toName,
+                          anchor: addPopoverAnchor ?? event.currentTarget,
+                          ...(transitionTarget.v2Cut ? { v2Cut: transitionTarget.v2Cut } : {}),
+                          ...(transitionTarget.v2GroupCut ? { v2GroupCut: transitionTarget.v2GroupCut } : {}),
+                        })
+                        return
+                      }
                       onOpenLayerTransition({
-                        settings: addTransitionPlan.target.junction.transition,
-                        legacy: addTransitionPlan.target.junction,
-                        fromName: addTransitionPlan.target.fromName,
-                        toName: addTransitionPlan.target.toName,
+                        settings: transitionTarget.junction.transition,
+                        legacy: transitionTarget.junction,
+                        fromName: transitionTarget.fromName,
+                        toName: transitionTarget.toName,
                         anchor: addPopoverAnchor ?? event.currentTarget,
-                        ...(addTransitionPlan.target.groupOccurrenceId
-                          ? { groupOccurrenceId: addTransitionPlan.target.groupOccurrenceId }
+                        ...(transitionTarget.groupOccurrenceId
+                          ? { groupOccurrenceId: transitionTarget.groupOccurrenceId }
                           : {}),
                       })
                     }}

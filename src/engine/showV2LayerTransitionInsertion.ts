@@ -1,4 +1,6 @@
 import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
+import { projectShowEditorTimelineV2 } from './showEditorTimelinePresentation'
+import type { ShowTimelineLayerView } from './showTimelineViewModel'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
 import type { ShowLayerTransitionInsertionPlan } from './showLayerTransitionAuthoring'
@@ -344,4 +346,107 @@ export function planShowV2GroupLayerTransitionInsertion(
   return maxDurationMs > 0
     ? { enabled: true, maxDurationMs }
     : disabled(NO_FREE_TIME_REASON)
+}
+
+export type ShowV2LayerTransitionClipTarget = {
+  fromName: string
+  toName: string
+  side: 'before' | 'after'
+  v2Cut?: { junctionKey: string }
+  v2GroupCut?: { occurrenceId: string; fromClipId: string; toClipId: string }
+}
+
+export type ShowV2LayerTransitionClipInsertionPlan =
+  | { enabled: true; maxDurationMs: number; target: ShowV2LayerTransitionClipTarget }
+  | { enabled: false; maxDurationMs: 0; reason: string; target: ShowV2LayerTransitionClipTarget | null }
+
+/**
+ * Resolve the Add-menu command from one selected v2 Clip, mirroring v1's
+ * `planShowLayerTransitionInsertionForClip` (`showLayerTransitionAuthoring.ts`):
+ * the same candidate order (trailing junctions, then leading), the same
+ * resolution (first enabled, else first Cut, else first) and the same reason
+ * strings. Adjacent Clips and their names come from the v2 timeline
+ * presentation's Layer junctions and items (`projectShowEditorTimelineV2`),
+ * the same source the junction click reads (`ShowEditor.tsx` Layer-junction
+ * rendering): an ordinary Clip addresses its Cut by junction key, and a Group
+ * Clip in isolation (`${occurrenceId}:${childId}`) addresses its Cut by
+ * occurrence and definition children. Each candidate junction delegates to the
+ * rule-B planner (`planShowV2LayerTransitionInsertion` or
+ * `planShowV2GroupLayerTransitionInsertion`), so the maximum and the refusal
+ * reasons come from the Transition owner.
+ */
+export function planShowV2LayerTransitionInsertionForClip(
+  record: ShowRecordV2,
+  presentedClipId: string | null,
+): ShowV2LayerTransitionClipInsertionPlan {
+  if (!presentedClipId) {
+    return { enabled: false, maxDurationMs: 0, reason: 'Select a Clip first.', target: null }
+  }
+  const view = projectShowEditorTimelineV2(record)
+  let selectedZoneId: string | null = null
+  let selectedLayer: ShowTimelineLayerView | null = null
+  for (const row of view.rows) {
+    for (const layer of row.layers) {
+      if (layer.items.some(item => item.id === presentedClipId)) {
+        selectedZoneId = row.zoneId
+        selectedLayer = layer
+        break
+      }
+    }
+    if (selectedLayer) break
+  }
+  const selectedItem = selectedLayer?.items.find(item => item.id === presentedClipId) ?? null
+  if (!selectedLayer || !selectedItem) {
+    return { enabled: false, maxDurationMs: 0, reason: 'Select a Clip first.', target: null }
+  }
+  const trailing = selectedLayer.junctions.filter(junction => junction.leftItemId === presentedClipId)
+  const leading = selectedLayer.junctions.filter(junction => junction.rightItemId === presentedClipId)
+  const candidates = [...trailing, ...leading].flatMap(junction => {
+    const from = selectedLayer!.items.find(item => item.id === junction.leftItemId)
+    const to = selectedLayer!.items.find(item => item.id === junction.rightItemId)
+    if (!from || !to) return []
+    const side = junction.leftItemId === presentedClipId ? 'after' as const : 'before' as const
+    if (selectedItem!.groupOccurrenceId) {
+      const occurrenceId = selectedItem!.groupOccurrenceId
+      const prefix = `${occurrenceId}:`
+      if (!junction.leftItemId.startsWith(prefix) || !junction.rightItemId.startsWith(prefix)) return []
+      const fromClipId = junction.leftItemId.slice(prefix.length)
+      const toClipId = junction.rightItemId.slice(prefix.length)
+      const plan = planShowV2GroupLayerTransitionInsertion(record, occurrenceId, fromClipId, toClipId)
+      const target: ShowV2LayerTransitionClipTarget = {
+        fromName: from.patternName,
+        toName: to.patternName,
+        side,
+        v2GroupCut: { occurrenceId, fromClipId, toClipId },
+      }
+      return [{ junction, plan, target }]
+    }
+    const junctionKey = showV2TransitionJunctionKey({
+      atMs: junction.startMs,
+      zoneId: selectedZoneId!,
+      layerId: selectedLayer!.id,
+      fromClipId: junction.leftItemId,
+      toClipId: junction.rightItemId,
+    })
+    const plan = planShowV2LayerTransitionInsertion(record, junctionKey)
+    const target: ShowV2LayerTransitionClipTarget = {
+      fromName: from.patternName,
+      toName: to.patternName,
+      side,
+      v2Cut: { junctionKey },
+    }
+    return [{ junction, plan, target }]
+  })
+  if (candidates.length === 0) {
+    return {
+      enabled: false,
+      maxDurationMs: 0,
+      reason: 'This Clip does not touch another Clip. Move it next to another Clip first.',
+      target: null,
+    }
+  }
+  const resolved = candidates.find(candidate => candidate.plan.enabled)
+    ?? candidates.find(candidate => candidate.junction.kind === 'cut')
+    ?? candidates[0]
+  return { ...resolved.plan, target: resolved.target }
 }
