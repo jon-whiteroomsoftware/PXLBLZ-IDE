@@ -245,10 +245,12 @@ interface ShowState {
   duplicateShow: (sourceId: string, sourceRecord?: ShowRecord) => Promise<ShowRecord | null>
   /**
    * Persists a copy of one stored v2 row under a fresh identity and a free
-   * name (#1039), the v2 counterpart of `duplicateShow`. Resolves null when the
+   * name (#1039), the v2 counterpart of `duplicateShow`. Callers displaying a
+   * transient projection (lesson Try with Pattern selections) pass it as
+   * sourceRecord so the copy keeps what the user sees. Resolves null when the
    * row is unknown, the workspace cannot store v2 Shows, or the create fails.
    */
-  duplicateShowV2Row: (sourceId: string) => Promise<ShowRecordV2 | null>
+  duplicateShowV2Row: (sourceId: string, sourceRecord?: ShowRecordV2) => Promise<ShowRecordV2 | null>
   updateShow: (id: string, next: ShowRecord) => Promise<void>
   // Resolves the record an edit operation should start from: a personal
   // record, an in-memory built-in draft, or the pristine built-in fixture.
@@ -981,13 +983,14 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     }
   },
 
-  duplicateShowV2Row: async (sourceId) => {
+  duplicateShowV2Row: async (sourceId, sourceRecord) => {
     if (showsHydration) await showsHydration.catch(() => {})
     const provider = getPersonalContentProvider()
     if (!provider.createShowV2) return null
     // The open working copy is what the user sees, so it is what gets copied;
     // a listed row that is not open copies its stored bytes.
-    const source = get().showV2Pilots[sourceId]
+    const source = sourceRecord
+      ?? get().showV2Pilots[sourceId]
       ?? (provider.listShowDocumentsV2
         ? (await provider.listShowDocumentsV2()).find((record) => record.id === sourceId)
         : undefined)

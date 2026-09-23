@@ -146,6 +146,25 @@ vi.mock('@/engine/showV2ShowLevelPlanning', async (importOriginal) => {
 })
 
 /**
+ * The compatibility surface reads the resolved target profile, which on v2 is
+ * hook-local: no DOM node names it when no Controller is live. The real
+ * builder still runs; the wrapper only records which profile it resolved.
+ */
+const compatibilityProfiles = vi.hoisted(() => ({ calls: [] as Array<{ id: string } | undefined> }))
+vi.mock('@/engine/showControllerCompatibilityContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/engine/showControllerCompatibilityContext')>()
+  return {
+    ...actual,
+    buildShowControllerCompatibilityContext: (
+      ...args: Parameters<typeof actual.buildShowControllerCompatibilityContext>
+    ) => {
+      compatibilityProfiles.calls.push(args[0])
+      return actual.buildShowControllerCompatibilityContext(...args)
+    },
+  }
+})
+
+/**
  * The legacy command owners the unconnected v1 commands reach: Split, Clone,
  * Delete, manual resize and the two legacy drag owners. Provider spies cannot
  * stand in for these - with no legacy row open every one of them returns its
@@ -410,6 +429,7 @@ beforeEach(() => {
   admission.calls.length = 0
   planned.calls.length = 0
   plannedShowLevel.calls.length = 0
+  compatibilityProfiles.calls.length = 0
   legacy.calls.length = 0
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
@@ -853,7 +873,7 @@ describe('v2 tracer unconnected commands (#1065)', () => {
     await act(async () => {})
   }
 
-  it('leaves Delete on a Group occurrence unclaimed with no write (#1066 slice 2)', async () => {
+  it('refuses Delete on a Group occurrence on a refused Stage capture with no write (#1066 slice 2)', async () => {
     const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
     const record = propertyEditGroupRecord()
     record.id = 'tracer-group-unconnected-delete'
@@ -866,7 +886,13 @@ describe('v2 tracer unconnected commands (#1065)', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
     await act(async () => {})
 
+    // Group Delete is wired: the keystroke reaches the group-occurrence edit
+    // input, but this fixture's prepared Stage capture is refused (its Pattern
+    // instance automates a slider no Pattern source provides), so the edit
+    // stops before any admission door. The capture refusal is what the editor
+    // surfaces, in the CompileBar error notice.
     expectNoWrite(before, editor.state())
+    expect(screen.getByText('Clip "instance" cannot automate "sliderGain": public slider control not found.')).toBeInTheDocument()
   })
 
   it('keeps the Clip edge handles rendered on a v2 backing', async () => {
@@ -4152,6 +4178,53 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
   })
 })
 
+describe('v2 target profile (#1091 item 4)', () => {
+  function twoProfiles(): void {
+    act(() => {
+      useControllerProfileStore.setState({
+        profiles: [
+          { id: 'profile-1', name: 'Profile 1', board: { kind: 'pixelblaze-v3-standard' }, inputs: [], globalTransforms: [], patternBindings: [], lastKnownPixelCount: 60, updatedAt: 1 },
+          { id: 'profile-2', name: 'Profile 2', board: { kind: 'pixelblaze-v3-standard' }, inputs: [], globalTransforms: [], patternBindings: [], lastKnownPixelCount: 120, updatedAt: 2 },
+        ],
+        profilesLoaded: true,
+      })
+    })
+  }
+
+  function resolvedProfileIds(): Array<string | undefined> {
+    return compatibilityProfiles.calls.map((call) => call?.id)
+  }
+
+  it('resolves the named target profile for a v2 record with no live Controller', async () => {
+    const record = installationV2Record('item4-target-profile')
+    record.targetControllerProfileId = 'profile-2'
+    openV2EditorForRecord(record)
+    twoProfiles()
+    render(<ShowEditor showId={record.id} recordVersion={2} />)
+    await act(async () => {})
+
+    // No live Controller, so the compatibility surface reads the record's
+    // named profile rather than the first profile.
+    expect(compatibilityProfiles.calls.length).toBeGreaterThan(0)
+    const ids = resolvedProfileIds()
+    expect(ids[ids.length - 1]).toBe('profile-2')
+  })
+
+  it('resolves no target profile for a v2 portable-2d record', async () => {
+    const record = connectedV2Record('item4-portable')
+    expect(record.outputContract.kind).toBe('portable-2d')
+    record.targetControllerProfileId = 'profile-2'
+    openV2EditorForRecord(record)
+    twoProfiles()
+    render(<ShowEditor showId={record.id} recordVersion={2} />)
+    await act(async () => {})
+
+    expect(compatibilityProfiles.calls.length).toBeGreaterThan(0)
+    const ids = resolvedProfileIds()
+    expect(ids[ids.length - 1]).toBeUndefined()
+  })
+})
+
 describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
   function zoneDoors() {
     return admission.calls.filter((call) => call.door === 'admitShowV2PilotZoneEdit')
@@ -6218,6 +6291,78 @@ describe('v2 lesson Reset built-in Show (#1066 t54)', () => {
     expect(legacyWrites).not.toHaveBeenCalled()
     expect(useShowStore.getState().shows).toEqual([])
     expect(useShowStore.getState().stockShowDrafts[id]).toBeUndefined()
+  })
+})
+
+describe('v2 lesson header Clone (#1091 item 3)', () => {
+  it('clones the edited lesson projection as a v2 row with the Try with Pattern selection', async () => {
+    const id = 'stock-show-101-clips-cuts-blank-time'
+    const createdV2: ShowRecordV2[] = []
+    const legacyWrites = vi.fn(async () => {})
+    setPersonalContentProvider({
+      id: 'clone-lesson-provider',
+      listPatterns: async () => [],
+      listMaps: async () => [],
+      listMixins: async () => [],
+      listShows: async () => [],
+      listControllerProfiles: async () => [],
+      createShow: legacyWrites,
+      updateShow: legacyWrites,
+      deleteShow: legacyWrites,
+      createShowV2: async (record: ShowRecordV2) => { createdV2.push(structuredClone(record)) },
+      replaceShowV2: async () => {},
+      getLastActive: async () => undefined,
+      setLastActive: async () => {},
+    } as unknown as PersonalContentProvider)
+    const opened = await useShowStore.getState().openShowV2Pilot(id)
+    expect(opened.status).toBe('ready')
+    act(() => { useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true }) })
+    const { stockShowById } = await import('@/pixelblaze/stock/shows')
+    const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
+    const stock = stockShowById(id)!
+    const lesson = stockShowV2ById(id)!
+    render(<ShowEditor
+      showId={id}
+      recordVersion={2}
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        patternSlots: stock.patternSlots,
+        reference: stock.reference,
+      }}
+    />)
+    await act(async () => {})
+
+    await selectClipByName('RibbonLoom', 0)
+    typeAndCommit('Brightness exact percentage', '37')
+    await act(async () => {})
+    expect((await authoredClipValue(id, 'clip-ribbons')).view.brightness).toBe(0.37)
+
+    act(() => {
+      useShowEditorSessionStore.getState().setReferencePattern(id, 0, { kind: 'stock', id: 'Kishimisu' })
+    })
+    await act(async () => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clone' }))
+    await act(async () => {})
+
+    // One v2 row, carrying the Clip edit and the selected Pattern; no v1 row.
+    expect(createdV2).toHaveLength(1)
+    const copy = createdV2[0]
+    expect(copy.id).not.toBe(id)
+    expect(copy.name).toBe(`${lesson.name} copy`)
+    const copiedClip = copy.composition.clips.find((clip) => clip.id === 'clip-ribbons')!
+    expect(copiedClip.appearance.keys.some((key) => key.value.view.brightness === 0.37)).toBe(true)
+    const pristineClip = lesson.composition.clips.find((clip) => clip.id === 'clip-ribbons')!
+    expect(pristineClip.appearance.keys.some((key) => key.value.view.brightness === 0.37)).toBe(false)
+    expect(copy.composition.patternInstances.find((instance) => instance.id === 'ribbons')?.pattern)
+      .toEqual({ kind: 'stock', id: 'Kishimisu' })
+    expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toContain(copy.id)
+    expect(legacyWrites).not.toHaveBeenCalled()
+    expect(useShowStore.getState().shows).toEqual([])
   })
 })
 

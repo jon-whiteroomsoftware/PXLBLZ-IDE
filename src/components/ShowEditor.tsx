@@ -1209,6 +1209,7 @@ export function ShowEditor({
   const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
   const resetShowV2LessonDraft = useShowStore((state) => state.resetShowV2LessonDraft)
   const duplicateShow = useShowStore((state) => state.duplicateShow)
+  const duplicateShowV2Row = useShowStore((state) => state.duplicateShowV2Row)
   const openShow = useShowStore((state) => state.openShow)
   const routerNavigate = useRouterStore((state) => state.navigate)
   const personalWorkspaceAuthenticated = useWorkspaceStore((state) => state.personalWorkspaceAuthenticated)
@@ -2566,10 +2567,12 @@ export function ShowEditor({
       () => false,
     )
   }, [commitV2GroupOccurrenceEdit, readOnly, showId])
-  const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
+  const targetProfileOwner = recordVersion === 2 ? savedShowV2 : activeShow
+  const targetProfileOwnerId = targetProfileOwner?.targetControllerProfileId
+  const targetProfile = targetProfileOwner?.outputContract?.kind === 'portable-2d'
     ? undefined
-    : activeShow?.targetControllerProfileId
-    ? controllerProfiles.find((profile) => profile.id === activeShow.targetControllerProfileId)
+    : targetProfileOwnerId
+    ? controllerProfiles.find((profile) => profile.id === targetProfileOwnerId)
     : controllerProfiles[0]
   const activeControllerProfile = activeController
     ? findProfileForLiveController(controllerProfiles, activeController) ?? undefined
@@ -3789,7 +3792,10 @@ export function ShowEditor({
     ? () => {
         if (savingBuiltInCopy) return
         setSavingBuiltInCopy(true)
-        void duplicateShow(showId, legacyShow ?? undefined).then((copy) => {
+        const clone = recordVersion === 2
+          ? duplicateShowV2Row(showId, lessonProjectionV2 ?? savedShowV2 ?? undefined)
+          : duplicateShow(showId, legacyShow ?? undefined)
+        void clone.then((copy) => {
           if (!copy) return
           void openShow(copy.id)
           routerNavigate({ kind: 'studio', entity: { kind: 'shows', id: copy.id } })

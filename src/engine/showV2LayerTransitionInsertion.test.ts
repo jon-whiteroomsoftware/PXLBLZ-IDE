@@ -741,6 +741,41 @@ describe('v2 Group Layer Transition insertion plan (#1075 G4b-2a)', () => {
   })
 })
 
+describe('v2 missing-Clip Transition reason (#1091 item 7)', () => {
+  const MISSING_CLIP = 'The selected Clip no longer exists.'
+
+  it('reports a missing Clip when the materialized junction names unknown Clips', () => {
+    const { show } = groupFixture({ id: 'unrelated-overlay', startMs: 1_000, durationMs: 1_000 })
+    const { record } = convertedRecord(show)
+    expect(planShowV2GroupLayerTransitionInsertion(record, 'group-use-clear', 'missing-from', 'missing-to')).toEqual({
+      enabled: false,
+      maxDurationMs: 0,
+      reason: MISSING_CLIP,
+    })
+  })
+
+  it('reports a missing Clip when only the definition lookup misses', () => {
+    const { show } = groupFixture({ id: 'unrelated-overlay', startMs: 1_000, durationMs: 1_000 })
+    const { record } = convertedRecord(show)
+    // Top-level Clips addressed exactly like one linked occurrence's
+    // materialized pair sail through the materialized refusal check, so the
+    // definition lookup is the site that reports them missing.
+    const template = record.composition.clips[0]
+    for (const occurrenceId of ['group-use-obstructed', 'group-use-clear']) {
+      const base = occurrenceId === 'group-use-obstructed' ? 20_000 : 24_000
+      record.composition.clips.push(
+        { ...structuredClone(template), id: `${occurrenceId}:ghost-from`, zoneId: 'ghost-zone', layerId: 'ghost-layer', startMs: base, durationMs: 1_000 },
+        { ...structuredClone(template), id: `${occurrenceId}:ghost-to`, zoneId: 'ghost-zone', layerId: 'ghost-layer', startMs: base + 1_000, durationMs: 1_000 },
+      )
+    }
+    expect(planShowV2GroupLayerTransitionInsertion(record, 'group-use-clear', 'ghost-from', 'ghost-to')).toEqual({
+      enabled: false,
+      maxDurationMs: 0,
+      reason: MISSING_CLIP,
+    })
+  })
+})
+
 // Recorded divergence under Jon's #1075 ruling (2026-09-22): every Cut below
 // is a cross-Scene seam where v1 refuses with the Scene-based "different Zone
 // Layouts" reason while no Layout occurrence changes at the Cut. Chapter

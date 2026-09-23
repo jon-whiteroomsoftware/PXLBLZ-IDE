@@ -26,6 +26,7 @@ const SIMULTANEOUS_TRANSITION_REASON =
 const NO_FREE_TIME_REASON =
   'There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.'
 const MISSING_GROUP_REASON = 'This Group no longer exists.'
+const MISSING_CLIP_REASON = 'The selected Clip no longer exists.'
 
 function disabled(reason: string): ShowLayerTransitionInsertionPlan {
   return { enabled: false, maxDurationMs: 0, reason }
@@ -463,7 +464,7 @@ function refusalForClips(
   const clipsById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
   const from = clipsById.get(fromClipId)
   const to = clipsById.get(toClipId)
-  if (!from || !to) return disabled(DIFFERENT_LAYOUTS_REASON)
+  if (!from || !to) return disabled(MISSING_CLIP_REASON)
   const cutMs = from.startMs + from.durationMs
   if (isLayoutBoundaryWithDifferentLayout(record, cutMs)) return disabled(DIFFERENT_LAYOUTS_REASON)
   if (from.zoneId !== to.zoneId || from.layerId !== to.layerId) return disabled(NOT_ADJACENT_REASON)
@@ -951,7 +952,7 @@ export function planShowV2GroupLayerTransitionInsertion(
     if (refusal) return refusal
   }
   const fromDefinitionClip = definition.clips.find(clip => clip.id === definitionFromClipId)
-  if (!fromDefinitionClip) return disabled(DIFFERENT_LAYOUTS_REASON)
+  if (!fromDefinitionClip) return disabled(MISSING_CLIP_REASON)
   const maxDurationMs = maxGroupDurationViaOwner(
     record,
     definition.id,

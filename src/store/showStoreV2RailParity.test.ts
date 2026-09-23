@@ -127,6 +127,24 @@ describe('duplicating a v2 row from the rail', () => {
     await useShowStore.getState().loadShows()
     expect(await useShowStore.getState().duplicateShowV2Row('absent')).toBeNull()
   })
+
+  it('copies a caller-supplied record rather than the pilot or stored bytes', async () => {
+    const { stored } = provider([createShowV2WithOutputContract('row', 'Stored', CONTRACT, 1)])
+    await useShowStore.getState().loadShows()
+    await useShowStore.getState().openShowV2Pilot('row')
+    // The open working copy and the stored bytes both disagree with the
+    // transient projection the caller passes; the copy keeps the projection.
+    stored[0] = createShowV2WithOutputContract('row', 'Stale bytes', CONTRACT, 1)
+    const source = createShowV2WithOutputContract('other', 'Projected', CONTRACT, 2)
+
+    const copy = await useShowStore.getState().duplicateShowV2Row('row', source)
+
+    expect(copy).not.toBeNull()
+    expect(copy!.id).not.toBe(source.id)
+    expect(copy!.name).toBe('Projected copy')
+    expect(copy).toEqual({ ...source, id: copy!.id, name: 'Projected copy', updatedAt: copy!.updatedAt })
+    expect(stored.map(record => record.id)).toContain(copy!.id)
+  })
 })
 
 describe('trashing a v2 row from the rail', () => {
