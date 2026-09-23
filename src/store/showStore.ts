@@ -262,6 +262,13 @@ interface ShowState {
    * advances. No provider call, exactly as opening the lesson makes none.
    */
   resetShowV2LessonDraft: (id: string) => void
+  /**
+   * Read-only membership for a session-only v2 lesson draft (#1066 slice
+   * 11a). True exactly when the pilot was opened as that built-in lesson;
+   * a pilot placed directly under a built-in id by other means is personal
+   * content and reads false.
+   */
+  isShowV2LessonDraft: (id: string) => boolean
   updateStageMap: (showId: string, stageMapId: string | null) => Promise<void>
   addScene: (showId: string) => Promise<void>
   duplicateScene: (showId: string, sceneId: string) => Promise<void>
@@ -1024,6 +1031,8 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       ?? state.stockShowDrafts[id]
       ?? stockShowById(id)?.show
   },
+
+  isShowV2LessonDraft: (id) => showV2LessonDraftIds.has(id),
 
   resetShowV2LessonDraft: (id) => {
     const lesson = stockShowV2ById(id)

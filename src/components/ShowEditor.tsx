@@ -1170,8 +1170,18 @@ export function ShowEditor({
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const savedShowV2 = useShowStore((state) => state.showV2Pilots[showId])
   const stockShowDraft = useShowStore((state) => state.stockShowDrafts[showId])
-  const hasStockDraft = stockShowDraft !== undefined
+  const isShowV2LessonDraft = useShowStore((state) => state.isShowV2LessonDraft)
+  const showV2History = useShowStore((state) => state.showV2Histories[showId])
+  // A v2 lesson draft is session-only state in showV2Pilots/showV2Histories
+  // (#1066 slice 11a), which the v1 stockShowDrafts map never sees. Like a v1
+  // stock draft, it exists once any edit was made, even if undone: either
+  // ShowV2History side (past, future) holding an entry counts.
+  const isV2LessonDraft = recordVersion === 2 && isShowV2LessonDraft(showId)
+  const hasStockDraft = isV2LessonDraft
+    ? showV2History !== undefined && (showV2History.past.length > 0 || showV2History.future.length > 0)
+    : stockShowDraft !== undefined
   const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
+  const resetShowV2LessonDraft = useShowStore((state) => state.resetShowV2LessonDraft)
   const duplicateShow = useShowStore((state) => state.duplicateShow)
   const openShow = useShowStore((state) => state.openShow)
   const routerNavigate = useRouterStore((state) => state.navigate)
@@ -3667,7 +3677,8 @@ export function ShowEditor({
             : 'bg-zinc-900/60 text-[11px] text-zinc-500 disabled:opacity-40'}
           disabled={!hasStockDraft && !selectedReferencePatterns}
           onClick={() => {
-            resetStockShowDraft(showId)
+            if (isV2LessonDraft) resetShowV2LessonDraft(showId)
+            else resetStockShowDraft(showId)
             clearReferencePatterns(showId)
           }}
         >

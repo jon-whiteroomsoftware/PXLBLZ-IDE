@@ -5568,6 +5568,73 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
   })
 })
 
+describe('v2 lesson Reset built-in Show (#1066 t54)', () => {
+  // Beside the lesson Live-strip tests (e.g. 'keeps Clip edits on the stored
+  // record with exactly one history entry (#1066 L2)'): Reset on a v2 lesson
+  // draft follows the session-only v2 history, not the v1 stockShowDrafts map.
+  it('enables Reset on a Clip Brightness edit and restores the lesson copy with no write', async () => {
+    const id = 'stock-show-101-clips-cuts-blank-time'
+    const v2Writes = vi.fn(async (_showId: string, _next: ShowRecordV2) => {})
+    const legacyWrites = vi.fn(async () => {})
+    setPersonalContentProvider({
+      id: 't54-lesson-reset-provider',
+      listPatterns: async () => [],
+      listMaps: async () => [],
+      listMixins: async () => [],
+      listShows: async () => [],
+      listControllerProfiles: async () => [],
+      createShow: legacyWrites,
+      updateShow: legacyWrites,
+      deleteShow: legacyWrites,
+      replaceShowV2: v2Writes,
+      getLastActive: async () => undefined,
+      setLastActive: async () => {},
+    } as unknown as PersonalContentProvider)
+    const opened = await useShowStore.getState().openShowV2Pilot(id)
+    expect(opened.status).toBe('ready')
+    const { stockShowById } = await import('@/pixelblaze/stock/shows')
+    const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
+    const stock = stockShowById(id)!
+    const lesson = stockShowV2ById(id)!
+    expect(useShowStore.getState().isShowV2LessonDraft(id)).toBe(true)
+    render(<ShowEditor
+      showId={id}
+      recordVersion={2}
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        patternSlots: stock.patternSlots,
+        reference: stock.reference,
+      }}
+    />)
+    await act(async () => {})
+
+    const reset = screen.getByRole('button', { name: 'Reset built-in Show' })
+    expect(reset).toBeDisabled()
+
+    await selectClipByName('RibbonLoom', 0)
+    typeAndCommit('Brightness exact percentage', '37')
+    await act(async () => {})
+
+    await waitFor(() => expect(reset).toBeEnabled())
+    expect(useShowStore.getState().showV2Histories[id].past).toHaveLength(1)
+    expect(useShowStore.getState().showV2Pilots[id].composition).not.toEqual(lesson.composition)
+
+    fireEvent.click(reset)
+    await act(async () => {})
+
+    expect(reset).toBeDisabled()
+    expect(useShowStore.getState().showV2Pilots[id].composition).toEqual(lesson.composition)
+    expect(useShowStore.getState().showV2Histories[id]).toEqual({ past: [], future: [] })
+    expect(v2Writes).not.toHaveBeenCalled()
+    expect(legacyWrites).not.toHaveBeenCalled()
+    expect(useShowStore.getState().shows).toEqual([])
+    expect(useShowStore.getState().stockShowDrafts[id]).toBeUndefined()
+  })
+})
+
 describe('v2 Layout occurrence Append (#1066 slice 8b-1)', () => {
   function layoutOccurrenceDoors() {
     return admission.calls.filter((call) => call.door === 'admitShowV2PilotLayoutOccurrenceEdit')
