@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1069",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1069d-1ce18099-6a80-40c5-999a-d214ebeb176c?show-v2-editor=1 (existing Show editor on the v2 backing; Show seeded as a v1 row and replaced by its converted v2 row through PUT /api/shows/proof-1069d-1ce18099-6a80-40c5-999a-d214ebeb176c?show-version=2)",
+  "operation": "Show proof-1069d-1ce18099-6a80-40c5-999a-d214ebeb176c has Clips resize-a (1000+4000) and resize-b (7000+2000) on the main Layer, joined by crossfade Transition join-a-b, and overlay-a on the overlay Layer. Dragging resize-b onto the overlay Layer opens 'Move connected Clip?': 'Moving this Clip to another Layer also removes its connected Transition. Other Clip durations and positions stay unchanged.' with Cancel and 'Move Clip and remove Transition' (capture 1). Cancel was pressed first: the stored v2 row is unchanged (capture 3, 'after Cancel'). The drag was repeated and 'Move Clip and remove Transition' pressed: resize-b is on layer:z1:overlay:1 and join-a-b is gone (capture 2 timeline; capture 3 readback of the stored v2 row before, after Cancel and after confirm). Capture 4 is the raw GET /api/shows?show-version=2 response with the version-2 row. Before this change the v2 drop removed the Transition silently.",
+  "captures": [
+    ".wrsp/ui-proof/1069-move-dialog.png",
+    ".wrsp/ui-proof/1069-move-confirmed.png",
+    ".wrsp/ui-proof/1069-move-readback.png",
+    ".wrsp/ui-proof/1069-move-raw-api.png"
+  ],
+  "capturedAtCommit": "385d333579e0839b534ac17e3ca1c60d6678bcb3"
+}
