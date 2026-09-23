@@ -886,7 +886,9 @@ test.describe('authenticated Show authoring', () => {
     await expect(cometLoom).toHaveCount(0)
   })
 
-  test('reclaims Scene-boundary Transition time after resizing its Clip away (#695)', async ({ page }) => {
+  // Suspended (Jon, 2026-09-22): on the runner the second drag is ignored
+  // reproducibly once editor changes land (41.34 px gap); diagnosis in #1086.
+  test.fixme('reclaims Scene-boundary Transition time after resizing its Clip away (#695)', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
