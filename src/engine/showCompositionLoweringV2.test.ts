@@ -11,6 +11,7 @@ import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from '.
 import { lowerShowCompositionV2ForCompile, prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
 import { continuingV1Show, convertibleV1Show, flatV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
 import type { MapPoint } from './maps/types'
@@ -1793,6 +1794,89 @@ it('refuses an exact-window ramp on a whole-output Transition (#1080 class 2a)',
     keyframes: [
       { id: 'whole-output-brightness-k0', timeMs: startMs, value: 0.2, easing: { curve: 'linear' } },
       { id: 'whole-output-brightness-k1', timeMs: endMs, value: base, easing: { curve: 'linear' } },
+    ],
+  })
+  expect(prepareShowV2ForCompile(record, class2aRefusalLookup(record)).status).toBe('refused')
+})
+
+it('refuses an exact-window incoming ramp on the looping transition route (#1080 class 2a repair)', () => {
+  const record = class2aRefusalRecord()
+  record.composition.executionModel = 'deterministic-loop'
+  const { startMs, endMs, incoming } = class2aWindow(record)
+  const base = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
+  record.composition.propertyTracks.push({
+    id: 'looping-brightness',
+    target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+    activeStartMs: startMs,
+    activeDurationMs: endMs - startMs,
+    keyframes: [
+      { id: 'looping-brightness-k0', timeMs: startMs, value: 0.2, easing: { curve: 'linear' } },
+      { id: 'looping-brightness-k1', timeMs: endMs, value: base, easing: { curve: 'linear' } },
+    ],
+  })
+  const prepared = prepareShowV2ForCompile(record, class2aRefusalLookup(record))
+  expect(prepared.status).toBe('refused')
+  if (prepared.status !== 'refused') return
+  // DEVIATION from the brief (named unsupported-transition-property-track): with the
+  // partition discarded, today's clip-activation intersection check refuses first, since
+  // an exact-window incoming track ends exactly at its target Clip's startMs. This is the
+  // pre-slice-A refusal for this fixture; the P1 requirement is refusal, not ready.
+  expect(prepared.issues).toContainEqual(expect.objectContaining({ code: 'unsupported-track-activation' }))
+})
+
+it('refuses an exact-window incoming ramp on the participant Transition of a mixed record (#1080 class 2a repair)', () => {
+  // Mixed whole-output/participant v1 construction after mixedBoundaryLayerShow
+  // in showV2LayoutConversion.test.ts (#1080 class 3).
+  const source = convertibleV1Show()
+  source.scenes = [
+    { id: 'scene-a', name: 'Opening', durationMs: 6000 },
+    { id: 'scene-b', name: 'Incoming', durationMs: 6000 },
+  ]
+  source.composition!.durationMs = 14000
+  source.composition!.scenes = [
+    {
+      sceneId: 'scene-a',
+      zones: [{ zoneId: 'zone', main: [
+        {
+          id: 'clip-a', instanceId: 'instance', startMs: 0, durationMs: 2000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        },
+        {
+          id: 'clip-b', instanceId: 'instance', startMs: 2000, durationMs: 2000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        },
+      ], overlays: [] }],
+    },
+    { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: [], overlays: [] }] },
+  ]
+  source.transitions = [{
+    id: 'boundary', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 2000,
+    easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+  }]
+  const withLayer = insertShowLayerTransition(source, source.composition!, {
+    id: 'layer-t', fromPlacementId: 'clip-a', toPlacementId: 'clip-b',
+    kind: 'crossfade', durationMs: 1000, easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+  })
+  if (withLayer === source.composition) throw new Error('Synthetic layer transition refused')
+  source.composition = withLayer
+  const converted = convertShowRecordV1ToV2(source)
+  if (converted.status !== 'converted') throw new Error('fixture conversion failed')
+  const record = converted.record
+  expect(record.composition.transitions.some(transition => transition.wholeOutput !== undefined)).toBe(true)
+  const layer = record.composition.transitions.find(transition => transition.wholeOutput === undefined && transition.participants.length === 1)!
+  const from = record.composition.clips.find(clip => clip.id === layer.participants[0].fromClipId)!
+  const incoming = record.composition.clips.find(clip => clip.id === layer.participants[0].toClipId)!
+  const startMs = from.startMs + from.durationMs
+  const endMs = incoming.startMs
+  const base = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
+  record.composition.propertyTracks.push({
+    id: 'mixed-participant-brightness',
+    target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+    activeStartMs: startMs,
+    activeDurationMs: endMs - startMs,
+    keyframes: [
+      { id: 'mixed-participant-brightness-k0', timeMs: startMs, value: 0.2, easing: { curve: 'linear' } },
+      { id: 'mixed-participant-brightness-k1', timeMs: endMs, value: base, easing: { curve: 'linear' } },
     ],
   })
   expect(prepareShowV2ForCompile(record, class2aRefusalLookup(record)).status).toBe('refused')

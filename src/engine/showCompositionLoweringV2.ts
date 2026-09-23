@@ -10,7 +10,6 @@ import type {
   ShowOverlayLayer,
   ShowOverlayPlacement,
   ShowPropertyAnimationTarget,
-  ShowPropertyTransitions,
   ShowRecord,
   ShowZoneComposition,
 } from './personalContentRecords'
@@ -298,11 +297,17 @@ function resolveAndLowerShowV2(
     if (ramp) recognisedRamps.push(ramp)
     else retainedTracks.push(track)
   }
-  const loweredRecord: ShowRecordV2 = recognisedRamps.length > 0
+  const partitionedRecord: ShowRecordV2 = recognisedRamps.length > 0
     ? { ...compileRecord, composition: { ...compileRecord.composition, propertyTracks: retainedTracks } }
     : compileRecord
+  const loweredRecord: ShowRecordV2 = recognisedRamps.length > 0 && !showV2FlatLoweringEligible(partitionedRecord)
+    ? compileRecord
+    : partitionedRecord
   const resolved = resolveShowV2CompileContext(loweredRecord, { ...lookup, byPatternInstanceId: sources })
   if ('issues' in resolved) return resolved
+  if (recognisedRamps.length > 0 && resolved.route !== 'continuous-flat') {
+    return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'An exact-window ramp track lowers only on the flat route.')
+  }
   let lowered: LoweredShowCompositionV2
   try {
     lowered = emitResolvedShowV2(resolved)
@@ -1256,38 +1261,22 @@ function attachExactWindowIncomingRampsV2(show: ShowRecord, record: ShowRecordV2
   for (const ramp of ramps) {
     const participant = record.composition.transitions.find(transition => transition.id === ramp.transitionId)?.participants[0]
     const boundary = show.transitions.find(transition => transition.id === ramp.transitionId)
-    if (boundary) {
-      const afterIndex = show.scenes.findIndex(scene => scene.id === boundary.afterSceneId)
-      const nextScene = afterIndex >= 0 ? show.scenes[afterIndex + 1] : undefined
-      const zoneId = participant?.zoneId ?? show.zones[0]?.id
-      const incomingCell = zoneId !== undefined && nextScene !== undefined ? showCellAtSlot(show, zoneId, nextScene.id) : undefined
-      const incomingId = incomingCell?.id ?? participant?.toClipId
-      if (incomingId === undefined) throw new Error(`Exact-window incoming ramp has no incoming Clip for Transition "${ramp.transitionId}".`)
-      const existing = boundary.propertyTransitions?.[ramp.key]
-      boundary.propertyTransitions = {
-        ...boundary.propertyTransitions,
-        [ramp.key]: {
-          fromByCellId: { ...existing?.fromByCellId, [incomingId]: ramp.from },
-          durationMs: ramp.durationMs,
-          easing: structuredClone(ramp.easing),
-        },
-      }
-      continue
+    if (!boundary) throw new Error(`Exact-window incoming ramp has no lowered Transition "${ramp.transitionId}".`)
+    const afterIndex = show.scenes.findIndex(scene => scene.id === boundary.afterSceneId)
+    const nextScene = afterIndex >= 0 ? show.scenes[afterIndex + 1] : undefined
+    const zoneId = participant?.zoneId ?? show.zones[0]?.id
+    const incomingCell = zoneId !== undefined && nextScene !== undefined ? showCellAtSlot(show, zoneId, nextScene.id) : undefined
+    const incomingId = incomingCell?.id ?? participant?.toClipId
+    if (incomingId === undefined) throw new Error(`Exact-window incoming ramp has no incoming Clip for Transition "${ramp.transitionId}".`)
+    const existing = boundary.propertyTransitions?.[ramp.key]
+    boundary.propertyTransitions = {
+      ...boundary.propertyTransitions,
+      [ramp.key]: {
+        fromByCellId: { ...existing?.fromByCellId, [incomingId]: ramp.from },
+        durationMs: ramp.durationMs,
+        easing: structuredClone(ramp.easing),
+      },
     }
-    const layered = show.composition?.transitions?.find(transition => transition.id === ramp.transitionId) as (ShowLayerTransition & { propertyTransitions?: ShowPropertyTransitions }) | undefined
-    if (layered) {
-      const existing = layered.propertyTransitions?.[ramp.key]
-      layered.propertyTransitions = {
-        ...layered.propertyTransitions,
-        [ramp.key]: {
-          fromByCellId: { ...existing?.fromByCellId, [layered.toPlacementId]: ramp.from },
-          durationMs: ramp.durationMs,
-          easing: structuredClone(ramp.easing),
-        },
-      }
-      continue
-    }
-    throw new Error(`Exact-window incoming ramp has no lowered Transition "${ramp.transitionId}".`)
   }
 }
 
