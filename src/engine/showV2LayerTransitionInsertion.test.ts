@@ -18,6 +18,7 @@ import {
   type ShowV2LayerTransitionClipInsertionPlan,
 } from './showV2LayerTransitionInsertion'
 import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
+import { validateShowRecordV2 } from './showCompositionV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
@@ -1118,4 +1119,428 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
     expect(v2plan.target.v2GroupCut).toEqual({ occurrenceId: 'group-use-clear', fromClipId: 'left', toClipId: 'right' })
     expectGroupOwnerBounds(record, v2plan.maxDurationMs)
   })
+})
+
+describe('v2 Layer Transition insert room (#1089)', () => {
+  type TestClipSpec = { id: string; instanceId: string; zoneId: string; layerId: string; startMs: number; durationMs: number }
+  type TestTransitionSpec = { id: string; zoneId: string; layerId: string; fromClipId: string; toClipId: string; durationMs: number }
+
+  function testInstance(id: string) {
+    return {
+      id,
+      pattern: { kind: 'stock' as const, id: 'TestPattern1D' },
+      patternName: 'TestPattern1D',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }
+  }
+
+  function testClip(spec: TestClipSpec) {
+    return {
+      id: spec.id,
+      instanceId: spec.instanceId,
+      zoneId: spec.zoneId,
+      layerId: spec.layerId,
+      startMs: spec.startMs,
+      durationMs: spec.durationMs,
+      entryPolicy: 'continue' as const,
+      zoneSampleMode: 'span' as const,
+      appearance: {
+        keys: [{
+          id: `${spec.id}:appearance:1`,
+          timeMs: spec.startMs,
+          value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] },
+        }],
+      },
+    }
+  }
+
+  function testTransition(spec: TestTransitionSpec) {
+    return {
+      id: spec.id,
+      kind: 'crossfade' as const,
+      durationMs: spec.durationMs,
+      easing: { curve: 'linear' as const },
+      crossfadePolicy: 'live-live' as const,
+      participants: [{
+        id: `${spec.id}:participant`,
+        zoneId: spec.zoneId,
+        layerId: spec.layerId,
+        fromClipId: spec.fromClipId,
+        toClipId: spec.toClipId,
+      }],
+      propertyRamps: [],
+    }
+  }
+
+  function testRecord(options: {
+    zones: Array<{ id: string; name: string }>;
+    layoutId: string;
+    logical: { kind: 'single'; zoneIds: [string] } | { kind: 'split'; zoneIds: [string, string]; axis: 'x' };
+    layers: Array<{ id: string; zoneId: string; rank: number }>;
+    clips: TestClipSpec[];
+    transitions: TestTransitionSpec[];
+    showEndMs: number;
+    propertyTracks?: ShowRecordV2['composition']['propertyTracks'];
+    groupDefinitions?: ShowRecordV2['composition']['groupDefinitions'];
+    groupOccurrences?: ShowRecordV2['composition']['groupOccurrences'];
+  }): ShowRecordV2 {
+    const instances: ShowRecordV2['composition']['patternInstances'] = [...new Set(options.clips.map(clip => clip.instanceId))].map(testInstance)
+    const definitionInstances = (options.groupDefinitions ?? []).flatMap(definition => definition.patternInstances)
+    for (const instance of definitionInstances) {
+      if (!instances.some(candidate => candidate.id === instance.id)) instances.push(structuredClone(instance))
+    }
+    const record: ShowRecordV2 = {
+      version: 2,
+      id: 'test-1089',
+      name: 'Test 1089',
+      zones: options.zones.map(zone => ({ id: zone.id, name: zone.name, nominalPixelCount: 16 })),
+      zoneLayouts: [{ id: options.layoutId, name: 'Full', zones: [], logical: options.logical }],
+      outputContract: {
+        version: 1,
+        kind: 'portable-2d',
+        referenceMapId: 'plane',
+        referencePixelCount: 16,
+        compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
+      },
+      composition: {
+        version: 2,
+        executionModel: 'deterministic-loop',
+        showEndMs: options.showEndMs,
+        sampleRemap: { repeatScale: 1 },
+        patternInstances: instances,
+        layers: options.layers.map(layer => ({ id: layer.id, zoneId: layer.zoneId, name: layer.id, rank: layer.rank })),
+        clips: options.clips.map(testClip),
+        transitions: options.transitions.map(testTransition),
+        layoutOccurrences: [{
+          id: 'layout-occ', layoutId: options.layoutId, startMs: 0, durationMs: options.showEndMs, parameters: {},
+        }],
+        propertyTracks: options.propertyTracks ?? [],
+        markers: [],
+        groupDefinitions: options.groupDefinitions ?? [],
+        groupOccurrences: options.groupOccurrences ?? [],
+      },
+      updatedAt: 1,
+    }
+    expect(validateShowRecordV2(record), 'test fixture valid').toEqual([])
+    return record
+  }
+
+  function testDefinitionClip(id: string, instanceId: string, layerId: string, startMs: number, durationMs: number) {
+    return {
+      id,
+      instanceId,
+      layerId,
+      startMs,
+      durationMs,
+      entryPolicy: 'continue' as const,
+      zoneSampleMode: 'span' as const,
+      appearance: {
+        keys: [{
+          id: `${id}:appearance:1`,
+          timeMs: startMs,
+          value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] },
+        }],
+      },
+    }
+  }
+
+  function twoClipDefinition() {
+    const layerId = 'def-layer'
+    return {
+      definition: {
+        id: 'def',
+        name: 'Phrase',
+        patternInstances: [testInstance('def-instance')],
+        layers: [{ id: layerId, name: 'Def', rank: 0 }],
+        clips: [
+          testDefinitionClip('left', 'def-instance', layerId, 0, 500),
+          testDefinitionClip('right', 'def-instance', layerId, 500, 500),
+        ],
+        transitions: [],
+        propertyTracks: [],
+      },
+      layerId,
+    }
+  }
+
+  function probeTopLevelAccepts(record: ShowRecordV2, fromClipId: string, toClipId: string, durationMs: number): boolean {
+    const from = record.composition.clips.find(clip => clip.id === fromClipId)!
+    const transition: ShowTransitionV2 = {
+      kind: 'crossfade',
+      id: `__probe-1089-${durationMs}`,
+      durationMs,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+      participants: [{
+        id: `__probe-1089-${durationMs}:participant`,
+        zoneId: from.zoneId,
+        layerId: from.layerId,
+        fromClipId,
+        toClipId,
+      }],
+      propertyRamps: [],
+    }
+    return editShowTransitionV2(record, { kind: 'insert', transition }).status === 'changed'
+  }
+
+  function probeGroupAccepts(
+    record: ShowRecordV2,
+    definitionId: string,
+    definitionLayerId: string,
+    fromClipId: string,
+    toClipId: string,
+    durationMs: number,
+  ): boolean {
+    const transition: ShowTransitionV2 = {
+      kind: 'crossfade',
+      id: `__probe-group-1089-${durationMs}`,
+      durationMs,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+      participants: [{
+        id: `__probe-group-1089-${durationMs}:participant`,
+        zoneId: 'definition-zone',
+        layerId: definitionLayerId,
+        fromClipId,
+        toClipId,
+      }],
+      propertyRamps: [],
+    }
+    return insertShowGroupDefinitionLayerTransitionV2(record, {
+      kind: 'insert-definition-layer-transition',
+      definitionId,
+      transition,
+    }).status === 'changed'
+  }
+
+  function junctionKey1089(record: ShowRecordV2, fromClipId: string, toClipId: string): string {
+    const from = record.composition.clips.find(clip => clip.id === fromClipId)!
+    return showV2TransitionJunctionKey({
+      atMs: from.startMs + from.durationMs,
+      zoneId: from.zoneId,
+      layerId: from.layerId,
+      fromClipId,
+      toClipId,
+    })
+  }
+
+  function rl09BandRecord(): ShowRecordV2 {
+    return testRecord({
+      zones: [{ id: 'z1', name: 'Z1' }, { id: 'z2', name: 'Z2' }],
+      layoutId: 'layout',
+      logical: { kind: 'split', zoneIds: ['z1', 'z2'], axis: 'x' },
+      layers: [{ id: 'z1-main', zoneId: 'z1', rank: 0 }, { id: 'z2-main', zoneId: 'z2', rank: 0 }],
+      clips: [
+        { id: 'a', instanceId: 'inst-a', zoneId: 'z1', layerId: 'z1-main', startMs: 0, durationMs: 1000 },
+        { id: 'b', instanceId: 'inst-b', zoneId: 'z1', layerId: 'z1-main', startMs: 1000, durationMs: 1000 },
+        { id: 'c', instanceId: 'inst-c', zoneId: 'z1', layerId: 'z1-main', startMs: 2200, durationMs: 1000 },
+        { id: 'e', instanceId: 'inst-e', zoneId: 'z2', layerId: 'z2-main', startMs: 0, durationMs: 2300 },
+        { id: 'f', instanceId: 'inst-f', zoneId: 'z2', layerId: 'z2-main', startMs: 2300, durationMs: 7700 },
+      ],
+      transitions: [{ id: 't-bc', zoneId: 'z1', layerId: 'z1-main', fromClipId: 'b', toClipId: 'c', durationMs: 200 }],
+      showEndMs: 10000,
+    })
+  }
+
+  function groupOuterRecord(withOuterClip: boolean): ShowRecordV2 {
+    const { definition, layerId } = twoClipDefinition()
+    const clips: TestClipSpec[] = withOuterClip
+      ? [{ id: 'outer-clip', instanceId: 'inst-outer', zoneId: 'z', layerId: 'outer-main', startMs: 1300, durationMs: 500 }]
+      : []
+    return testRecord({
+      zones: [{ id: 'z', name: 'Z' }],
+      layoutId: 'layout',
+      logical: { kind: 'single', zoneIds: ['z'] },
+      layers: [{ id: 'outer-main', zoneId: 'z', rank: 0 }],
+      clips,
+      transitions: [],
+      showEndMs: 10000,
+      groupDefinitions: [definition],
+      groupOccurrences: [{
+        id: 'occ1',
+        definitionId: 'def',
+        layoutOccurrenceId: 'layout-occ',
+        zoneId: 'z',
+        startMs: 0,
+        translationX: 0,
+        translationY: 0,
+        layerBindings: [{ definitionLayerId: layerId, layerId: 'outer-main' }],
+        holds: [],
+      }],
+    })
+  }
+
+  function propertyTrackRecord(): ShowRecordV2 {
+    return testRecord({
+      zones: [{ id: 'z', name: 'Z' }],
+      layoutId: 'layout',
+      logical: { kind: 'single', zoneIds: ['z'] },
+      layers: [{ id: 'main', zoneId: 'z', rank: 0 }],
+      clips: [
+        { id: 'a', instanceId: 'inst-a', zoneId: 'z', layerId: 'main', startMs: 0, durationMs: 1000 },
+        { id: 'b', instanceId: 'inst-b', zoneId: 'z', layerId: 'main', startMs: 1000, durationMs: 1000 },
+      ],
+      transitions: [],
+      showEndMs: 10000,
+      propertyTracks: [{
+        id: 'track-b',
+        target: { kind: 'clip-opacity', clipId: 'b' },
+        activeStartMs: 0,
+        activeDurationMs: 1500,
+        keyframes: [
+          { id: 'track-b:k1', timeMs: 500, value: 1, easing: { curve: 'linear' } },
+          { id: 'track-b:k2', timeMs: 1200, value: 0.5, easing: { curve: 'linear' } },
+        ],
+      }],
+    })
+  }
+
+  function topLevelVsOccurrenceRecord(): ShowRecordV2 {
+    const { definition, layerId } = twoClipDefinition()
+    return testRecord({
+      zones: [{ id: 'z', name: 'Z' }],
+      layoutId: 'layout',
+      logical: { kind: 'single', zoneIds: ['z'] },
+      layers: [{ id: 'outer-main', zoneId: 'z', rank: 0 }],
+      clips: [
+        { id: 'a', instanceId: 'inst-a', zoneId: 'z', layerId: 'outer-main', startMs: 0, durationMs: 1000 },
+        { id: 'b', instanceId: 'inst-b', zoneId: 'z', layerId: 'outer-main', startMs: 1000, durationMs: 500 },
+      ],
+      transitions: [],
+      showEndMs: 10000,
+      groupDefinitions: [definition],
+      groupOccurrences: [{
+        id: 'occ1',
+        definitionId: 'def',
+        layoutOccurrenceId: 'layout-occ',
+        zoneId: 'z',
+        startMs: 2000,
+        translationX: 0,
+        translationY: 0,
+        layerBindings: [{ definitionLayerId: layerId, layerId: 'outer-main' }],
+        holds: [],
+      }],
+    })
+  }
+
+  function simpleRoomRecord(): ShowRecordV2 {
+    return testRecord({
+      zones: [{ id: 'z', name: 'Z' }],
+      layoutId: 'layout',
+      logical: { kind: 'single', zoneIds: ['z'] },
+      layers: [{ id: 'main', zoneId: 'z', rank: 0 }],
+      clips: [
+        { id: 'a', instanceId: 'inst-a', zoneId: 'z', layerId: 'main', startMs: 0, durationMs: 1000 },
+        { id: 'b', instanceId: 'inst-b', zoneId: 'z', layerId: 'main', startMs: 1000, durationMs: 1000 },
+      ],
+      transitions: [],
+      showEndMs: 5000,
+    })
+  }
+
+  function sameLayerNextRecord(): ShowRecordV2 {
+    return testRecord({
+      zones: [{ id: 'z', name: 'Z' }],
+      layoutId: 'layout',
+      logical: { kind: 'single', zoneIds: ['z'] },
+      layers: [{ id: 'main', zoneId: 'z', rank: 0 }],
+      clips: [
+        { id: 'a', instanceId: 'inst-a', zoneId: 'z', layerId: 'main', startMs: 0, durationMs: 1000 },
+        { id: 'b', instanceId: 'inst-b', zoneId: 'z', layerId: 'main', startMs: 1000, durationMs: 1000 },
+        { id: 'c', instanceId: 'inst-c', zoneId: 'z', layerId: 'main', startMs: 2500, durationMs: 500 },
+      ],
+      transitions: [],
+      showEndMs: 10000,
+    })
+  }
+
+  it('stops at the RL09 band (maximum 99)', () => {
+    const record = rl09BandRecord()
+    const plan = planShowV2LayerTransitionInsertion(record, junctionKey1089(record, 'a', 'b'))
+    expect(plan).toEqual({ enabled: true, maxDurationMs: 99 })
+    for (let durationMs = 1; durationMs <= 99; durationMs += 1) {
+      expect(probeTopLevelAccepts(record, 'a', 'b', durationMs), `owner accepts ${durationMs}`).toBe(true)
+    }
+    expect(probeTopLevelAccepts(record, 'a', 'b', 100), 'owner refuses max + 1').toBe(false)
+  })
+
+  it('takes the Group outer room (maximum 9000)', () => {
+    const record = groupOuterRecord(false)
+    const plan = planShowV2GroupLayerTransitionInsertion(record, 'occ1', 'left', 'right')
+    expect(plan).toEqual({ enabled: true, maxDurationMs: 9000 })
+    for (let durationMs = 1; durationMs <= 9000; durationMs += 1) {
+      expect(probeGroupAccepts(record, 'def', 'def-layer', 'left', 'right', durationMs), `group owner accepts ${durationMs}`).toBe(true)
+    }
+    expect(probeGroupAccepts(record, 'def', 'def-layer', 'left', 'right', 9001), 'group owner refuses max + 1').toBe(false)
+  }, 30000)
+
+  it('takes the Group outer obstruction (maximum 300)', () => {
+    const record = groupOuterRecord(true)
+    const plan = planShowV2GroupLayerTransitionInsertion(record, 'occ1', 'left', 'right')
+    expect(plan).toEqual({ enabled: true, maxDurationMs: 300 })
+    for (let durationMs = 1; durationMs <= 300; durationMs += 1) {
+      expect(probeGroupAccepts(record, 'def', 'def-layer', 'left', 'right', durationMs), `group owner accepts ${durationMs}`).toBe(true)
+    }
+    expect(probeGroupAccepts(record, 'def', 'def-layer', 'left', 'right', 301), 'group owner refuses max + 1').toBe(false)
+  })
+
+  it('stops at the Property-track key (maximum 300)', () => {
+    const record = propertyTrackRecord()
+    const plan = planShowV2LayerTransitionInsertion(record, junctionKey1089(record, 'a', 'b'))
+    expect(plan).toEqual({ enabled: true, maxDurationMs: 300 })
+    for (let durationMs = 1; durationMs <= 300; durationMs += 1) {
+      expect(probeTopLevelAccepts(record, 'a', 'b', durationMs), `owner accepts ${durationMs}`).toBe(true)
+    }
+    expect(probeTopLevelAccepts(record, 'a', 'b', 301), 'owner refuses max + 1').toBe(false)
+  })
+
+  it('stops at a Group occurrence on the same Layer (maximum 500)', () => {
+    const record = topLevelVsOccurrenceRecord()
+    const plan = planShowV2LayerTransitionInsertion(record, junctionKey1089(record, 'a', 'b'))
+    expect(plan).toEqual({ enabled: true, maxDurationMs: 500 })
+    for (let durationMs = 1; durationMs <= 500; durationMs += 1) {
+      expect(probeTopLevelAccepts(record, 'a', 'b', durationMs), `owner accepts ${durationMs}`).toBe(true)
+    }
+    expect(probeTopLevelAccepts(record, 'a', 'b', 501), 'owner refuses max + 1').toBe(false)
+  })
+
+  it('sweeps every offered duration across small fixtures', () => {
+    const topLevelFixtures: Array<{ label: string; record: ShowRecordV2; fromClipId: string; toClipId: string }> = [
+      { label: 'rl09-band', record: rl09BandRecord(), fromClipId: 'a', toClipId: 'b' },
+      { label: 'property-key', record: propertyTrackRecord(), fromClipId: 'a', toClipId: 'b' },
+      { label: 'top-level-vs-occurrence', record: topLevelVsOccurrenceRecord(), fromClipId: 'a', toClipId: 'b' },
+      { label: 'simple-room', record: simpleRoomRecord(), fromClipId: 'a', toClipId: 'b' },
+      { label: 'same-layer-next', record: sameLayerNextRecord(), fromClipId: 'a', toClipId: 'b' },
+    ]
+    for (const fixture of topLevelFixtures) {
+      const plan = planShowV2LayerTransitionInsertion(fixture.record, junctionKey1089(fixture.record, fixture.fromClipId, fixture.toClipId))
+      expect(plan.enabled, `${fixture.label} enabled`).toBe(true)
+      if (!plan.enabled) continue
+      const showEndMs = fixture.record.composition.showEndMs
+      for (let durationMs = 1; durationMs <= showEndMs; durationMs += 1) {
+        if (durationMs > plan.maxDurationMs) continue
+        expect(
+          probeTopLevelAccepts(fixture.record, fixture.fromClipId, fixture.toClipId, durationMs),
+          `${fixture.label} owner accepts ${durationMs} <= max ${plan.maxDurationMs}`,
+        ).toBe(true)
+      }
+    }
+    const groupFixtures: Array<{ label: string; record: ShowRecordV2 }> = [
+      { label: 'group-outer-room', record: groupOuterRecord(false) },
+      { label: 'group-outer-obstruction', record: groupOuterRecord(true) },
+    ]
+    for (const fixture of groupFixtures) {
+      const plan = planShowV2GroupLayerTransitionInsertion(fixture.record, 'occ1', 'left', 'right')
+      expect(plan.enabled, `${fixture.label} enabled`).toBe(true)
+      if (!plan.enabled) continue
+      const showEndMs = fixture.record.composition.showEndMs
+      for (let durationMs = 1; durationMs <= showEndMs; durationMs += 1) {
+        if (durationMs > plan.maxDurationMs) continue
+        expect(
+          probeGroupAccepts(fixture.record, 'def', 'def-layer', 'left', 'right', durationMs),
+          `${fixture.label} group owner accepts ${durationMs} <= max ${plan.maxDurationMs}`,
+        ).toBe(true)
+      }
+    }
+  }, 60000)
 })
