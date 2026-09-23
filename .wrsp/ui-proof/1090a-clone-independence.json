@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1090",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-clone-sharing-1790141753230",
+  "operation": "On the v2 backing: a seeded Show with one Clip (Clone Sharing Rings, 0-5 s, main Layer). Select it and press the toolbar Clone. The first capture is the editor after Clone: a second Clip at 5-10 s on the same Layer, and the inspector shows 'Shared by 2 Clips'. Then press Make Pattern Independent on the selected copy. The second capture shows 'Independent', with the Rejoin instance row offered. The third renders the stored v2 record (GET /api/shows) read back in the same run: before; after Clone (the copy has the same instanceId); after Make Independent (the copy has a fresh instanceId, and the instance count goes from 1 to 2).",
+  "captures": [
+    ".wrsp/ui-proof/1090a-clone-linked.png",
+    ".wrsp/ui-proof/1090a-make-independent.png",
+    ".wrsp/ui-proof/1090a-sharing-readback.png"
+  ],
+  "capturedAtCommit": "175a7c62f5cc3bae8dfa93c08374e04188039c9a"
+}
