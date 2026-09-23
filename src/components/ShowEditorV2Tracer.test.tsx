@@ -5,7 +5,6 @@ import { showInitialState, useShowStore } from '@/store/showStore'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { validateShowRecordV2 } from '@/engine/showCompositionV2'
 import { editShowTransitionV2, type ShowTransitionEditIntentV2 } from '@/engine/showTransitionsV2'
-import * as showTransitionsV2 from '@/engine/showTransitionsV2'
 import { editShowZoneV2 } from '@/engine/showZonesV2'
 import { editShowLayerV2 } from '@/engine/showLayersV2'
 import { showBoundaryClipIdentity } from '@/engine/showClipIdentity'
@@ -1762,21 +1761,17 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('keeps the palette open with the apply error when the door refuses the insert', async () => {
     const record = cutV2Record('tracer-v2-cut-refused')
     const editor = openV2EditorForRecord(record)
+    const live = getPersonalContentProvider()
+    const failingWrite = vi.fn(async (_id: string, _next: ShowRecordV2) => {
+      throw new Error('Synthetic v2 cut insert save failure')
+    })
+    setPersonalContentProvider({
+      ...live,
+      id: 'tracer-v2-cut-refusal',
+      replaceShowV2: failingWrite,
+    } as unknown as PersonalContentProvider)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
-    const owner = vi.spyOn(showTransitionsV2, 'editShowTransitionV2').mockImplementationOnce((current) => ({
-      status: 'refused',
-      record: current,
-      code: 'invalid-result',
-      message: 'The Clip extends beyond Show End.',
-      affectedClipIds: [],
-      affectedTransitionIds: [],
-      affectedTrackIds: [],
-      affectedLayoutOccurrenceIds: [],
-      affectedMarkerIds: [],
-      affectedGroupOccurrenceIds: [],
-      removedIds: [],
-    }))
 
     const palette = openCutPalette()
     await act(async () => {})
@@ -1788,14 +1783,15 @@ describe('v2 Layer Transition popover (#1065)', () => {
     await act(async () => {})
 
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
-    const live = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
-    expect(within(live).getByText(
+    expect(failingWrite).toHaveBeenCalledTimes(1)
+    const livePalette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    expect(within(livePalette).getByText(
       'Crossfade could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.',
     )).toBeInTheDocument()
     const after = editor.state()
-    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.record.composition).toEqual(before.record.composition)
     expect(after.v2Writes).toBe(0)
-    owner.mockRestore()
   })
 
   // #1075 G4b-2c: a Cut between two Clips of one Group occurrence in

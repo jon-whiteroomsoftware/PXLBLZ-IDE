@@ -4718,6 +4718,10 @@ export function ShowEditor({
                         `${item.label} could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.`,
                       )
                     }
+                  }).catch(() => {
+                    setLayerTransitionApplyError(
+                      `${item.label} could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.`,
+                    )
                   })
                   return
                 }
