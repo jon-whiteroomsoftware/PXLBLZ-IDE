@@ -188,12 +188,31 @@ function removeZone(
     for (const id of outcome.removedIds) removedIds.add(id)
   }
 
+  const clipById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
+  const clipGroups = new Map<string, string[]>()
   for (const clipId of removableClipIds) {
-    const plan = plans.find(candidate => candidate.clipId === clipId)
+    const key = clipById.get(clipId)?.logicalClipId ?? clipId
+    const group = clipGroups.get(key)
+    if (group) group.push(clipId)
+    else clipGroups.set(key, [clipId])
+  }
+
+  for (const group of clipGroups.values()) {
+    const clipId = group[0]
+    const merged: ShowTransitionCarrierRampProjectionPlanV2[] = []
+    let hasPlan = false
+    for (const memberId of group) {
+      const entry = plans.find(candidate => candidate.clipId === memberId)
+      if (!entry) continue
+      hasPlan = true
+      for (const item of entry.propertyRampProjections) {
+        if (!merged.some(existing => existing.transitionId === item.transitionId)) merged.push(item)
+      }
+    }
     const outcome = editShowTransitionV2(working, {
       kind: 'delete-clip',
       clipId,
-      ...(plan ? { propertyRampProjections: plan.propertyRampProjections } : {}),
+      ...(hasPlan ? { propertyRampProjections: merged } : {}),
     })
     if (outcome.status !== 'changed') {
       const carrier = outcome.status === 'refused' && outcome.code === 'unsupported-property-carrier'

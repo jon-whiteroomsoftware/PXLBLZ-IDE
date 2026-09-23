@@ -302,6 +302,27 @@ describe('v2 Clip commands', () => {
     expect(validateShowRecordV2(empty.record)).toEqual([])
   })
 
+  it('removes logical-Clip segments as one group', () => {
+    const grouped = commandFixtureV2()
+    for (const clip of grouped.composition.clips) {
+      if (clip.id === 'clip-a' || clip.id === 'clip-b') clip.logicalClipId = 'solo'
+    }
+    expect(validateShowRecordV2(grouped)).toEqual([])
+    const both = changed(applyShowCommandV2(grouped, 'remove_clips', { clip_ids: ['clip-a', 'clip-b'] }))
+    expect(both.record.composition.clips.map(clip => clip.id).sort()).toEqual(['clip-c'])
+    expect(both.changes[0].details.removed).toEqual(expect.arrayContaining(['clip-a', 'clip-b']))
+    expect(both.changes[0].details.clips).toEqual(expect.arrayContaining(['clip-a', 'clip-b']))
+
+    const one = changed(applyShowCommandV2(grouped, 'remove_clips', { clip_ids: ['clip-a'] }))
+    expect(one.record.composition.clips.map(clip => clip.id).sort()).toEqual(['clip-c'])
+    expect(one.changes[0].details.removed).toEqual(expect.arrayContaining(['clip-a', 'clip-b']))
+
+    const mixed = changed(applyShowCommandV2(grouped, 'remove_clips', { clip_ids: ['clip-a', 'clip-c'] }))
+    expect(mixed.record.composition.clips).toEqual([])
+    expect(mixed.changes[0].details.removed).toEqual(expect.arrayContaining(['clip-a', 'clip-b', 'clip-c']))
+    expect(validateShowRecordV2(mixed.record)).toEqual([])
+  })
+
   it('splits a Clip, leaving the left identity and a continuing right piece', () => {
     const record = commandFixtureV2()
     const split = changed(applyShowCommandV2(record, 'split_clip', { clip_id: 'clip-a', at_ms: 1_500 }))

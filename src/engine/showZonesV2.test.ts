@@ -265,6 +265,58 @@ describe('removing a Zone', () => {
     if (result.status !== 'changed') throw new Error(result.status)
     expect(result.record.zoneLayouts.every(layout => !layout.zones.some(entry => entry.zoneId === 'left'))).toBe(true)
   })
+
+  it('removes a Zone holding a layout-split logical Clip in one edit', () => {
+    const source = record()
+    for (const clip of source.composition.clips) {
+      if (clip.id === 'clip-a' || clip.id === 'clip-b') clip.logicalClipId = 'solo'
+    }
+    expect(validateShowRecordV2(source)).toEqual([])
+    const result = editShowZoneV2(source, { kind: 'remove', zoneId: 'left' })
+    if (result.status !== 'changed') throw new Error(`${result.status}: ${JSON.stringify(result)}`)
+    expect(result.record.composition.clips.map(clip => clip.id)).toEqual(['clip-right'])
+    expect(result.record.composition.transitions).toEqual([])
+    expect(result.record.composition.propertyTracks).toEqual([])
+    expect(result.record.zones.map(zone => zone.id)).toEqual(['right'])
+    expect(validateShowRecordV2(reopen(result.record))).toEqual([])
+  })
+
+  it('merges per-Clip carrier plans across a layout-split group', () => {
+    const source = record()
+    moveClipB(source)
+    for (const clip of source.composition.clips) {
+      if (clip.id === 'clip-a' || clip.id === 'clip-b') clip.logicalClipId = 'solo'
+    }
+    source.composition.transitions.push({
+      id: 'cross',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      participants: [{ id: 'pair', zoneId: 'left', layerId: 'base', fromClipId: 'clip-a', toClipId: 'clip-b' }],
+      propertyRamps: [{ participantId: 'pair', target: { kind: 'clip-opacity', clipId: 'clip-b' }, from: 0 }],
+    })
+    expect(validateShowRecordV2(source)).toEqual([])
+    const carrierPlan = [{
+      transitionId: 'cross',
+      projections: [{
+        rampIndex: 0,
+        trackId: 'cross-track',
+        startKeyId: 'cross-start',
+        endKeyId: 'cross-end',
+        activeEndMs: 5_000,
+        toValue: 1,
+      }],
+    }]
+    const result = editShowZoneV2(source, {
+      kind: 'remove',
+      zoneId: 'left',
+      clipRemovals: [{ clipId: 'clip-b', propertyRampProjections: carrierPlan }],
+    })
+    if (result.status !== 'changed') throw new Error(`${result.status}: ${JSON.stringify(result)}`)
+    expect(result.record.composition.clips.map(clip => clip.id)).toEqual(['clip-right'])
+    expect(result.record.composition.transitions).toEqual([])
+    expect(validateShowRecordV2(reopen(result.record))).toEqual([])
+  })
 })
 
 describe('the shared result check', () => {

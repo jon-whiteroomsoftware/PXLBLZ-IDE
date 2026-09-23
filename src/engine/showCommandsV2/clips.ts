@@ -241,8 +241,15 @@ const removeClips: ShowCommandV2Descriptor = {
     if (new Set(ids).size !== ids.length) {
       return invalidArgument(record, 'remove_clips', 'clip_ids must be unique.', '$.clip_ids')
     }
+    const clipById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
+    const seenGroups = new Map<string, string>()
+    for (const clipId of ids) {
+      const key = clipById.get(clipId)?.logicalClipId ?? clipId
+      if (!seenGroups.has(key)) seenGroups.set(key, clipId)
+    }
+    const representatives = [...seenGroups.values()]
     return adoptOwnerResults('remove_clips', record,
-      ids.map(clipId => ({ targetId: clipId, run: (value: ShowRecordV2) => editShowTransitionV2(value, { kind: 'delete-clip', clipId }) })),
+      representatives.map(clipId => ({ targetId: clipId, run: (value: ShowRecordV2) => editShowTransitionV2(value, { kind: 'delete-clip', clipId }) })),
       affected => `Removed Clips ${describeIds(ids)}; Transitions ${describeIds(affected.transitions)}.`)
   },
 }
