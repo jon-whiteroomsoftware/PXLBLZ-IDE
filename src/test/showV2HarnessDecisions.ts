@@ -48,6 +48,16 @@ export function v2RevisionAdvanced(
   return current > snapshot
 }
 
+export function v2BarrierCaughtUp(input: {
+  stored: number | undefined
+  anchor: number | undefined
+  page: number | undefined
+}): boolean {
+  if (input.stored === undefined) return false
+  return v2RevisionAdvanced(input.stored, input.anchor)
+    && (input.page === undefined || input.stored >= input.page)
+}
+
 export interface V2BarrierAnchorReadings {
   observed?: number
   seeded?: number

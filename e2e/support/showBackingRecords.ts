@@ -7,7 +7,7 @@
  */
 import type { Page } from '@playwright/test'
 import type { ShowRecordV2 } from '../../src/engine/showCompositionV2'
-import { keepV2StoredRecords, selectV2BarrierAnchor, v2RevisionAdvanced } from '../../src/test/showV2HarnessDecisions'
+import { keepV2StoredRecords, selectV2BarrierAnchor, v2BarrierCaughtUp, v2RevisionAdvanced } from '../../src/test/showV2HarnessDecisions'
 import { ensureCurrentShowV2Binding, seededShowV2Stamp, showBackingIsV2, storeShowAsV2 } from './showBacking'
 
 export { storeShowAsV2 as storeSeededShowAsV2 }
@@ -41,6 +41,18 @@ export async function findStoredShowV2(page: Page, id: string): Promise<ShowReco
   return (await listStoredShowsV2(page)).find((record) => record.id === id)
 }
 
+/** The current page's adopted version-2 pilot revision for one Show, if available. */
+async function readPagePilotStamp(page: Page, id: string): Promise<number | undefined> {
+  return page.evaluate(async (showId) => {
+    const load = (path: string) => import(path)
+    const url = performance.getEntriesByType('resource').map(entry => entry.name)
+      .filter(name => /\/src\/store\/showStore\.ts(?:\?|$)/.test(name)).slice(-1)[0]
+    if (url === undefined) return undefined
+    const { useShowStore } = await load(url)
+    return useShowStore.getState().showV2Pilots[showId]?.updatedAt
+  }, id)
+}
+
 /**
  * Whether a version-2 save has reached storage for one Show since the
  * barrier's anchor revision (#1066).
@@ -70,8 +82,11 @@ export async function v2SaveReachedStorage(page: Page, id: string, snapshot?: nu
 }
 
 /**
- * Wait for the version-2 save one barrier guards.
+ * Wait for storage to catch up with the page's last adopted version-2 edit.
  *
+ * A Show's saves run through a serial queue. An earlier edit can reach storage
+ * while the last edit is still queued; reloading then loses that last edit.
+ * Each poll reads the page pilot again so a later adoption raises the target.
  * The anchor is the revision the harness knew before any gesture on this Show
  * could run — the previous barrier's consumed revision, else the revision
  * this run wrote when it seeded the version-2 document — never a read taken
@@ -93,14 +108,23 @@ export async function waitForV2BarrierSave(page: Page, id: string, timeoutMs = 1
   const anchored = barrierAnchor(id)
   const snapshot = anchored ?? (await findStoredShowV2(page, id))?.updatedAt
   const deadline = Date.now() + timeoutMs
+  let lastStoredStamp: number | undefined
+  let lastPageStamp: number | undefined
   for (;;) {
-    if (await v2SaveReachedStorage(page, id, snapshot)) return
+    lastStoredStamp = (await findStoredShowV2(page, id))?.updatedAt
+    lastPageStamp = await readPagePilotStamp(page, id)
+    if (lastStoredStamp !== undefined
+      && v2BarrierCaughtUp({ stored: lastStoredStamp, anchor: snapshot, page: lastPageStamp })) {
+      observedSaveStamp.set(id, lastStoredStamp)
+      return
+    }
     if (Date.now() >= deadline) {
       throw new Error(
         `The v2 run never observed a version-2 save for Show ${id} within ${timeoutMs}ms`
         + (anchored === undefined
           ? ` (no pre-gesture anchor; barrier-start revision ${String(snapshot)})`
-          : ` (anchor revision ${String(snapshot)})`),
+          : ` (anchor revision ${String(snapshot)})`)
+        + `; page revision ${String(lastPageStamp)}, stored revision ${String(lastStoredStamp)}`,
       )
     }
     await page.waitForTimeout(100)

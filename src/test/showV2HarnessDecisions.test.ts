@@ -7,6 +7,7 @@ import {
   mergeShowListingsById,
   routedShowIdFromUrl,
   selectV2BarrierAnchor,
+  v2BarrierCaughtUp,
   v2RevisionAdvanced,
 } from './showV2HarnessDecisions'
 
@@ -76,6 +77,24 @@ describe('v2RevisionAdvanced', () => {
     expect(v2RevisionAdvanced(5, undefined)).toBe(true)
     expect(v2RevisionAdvanced(undefined, undefined)).toBe(false)
     expect(v2RevisionAdvanced(undefined, 3)).toBe(false)
+  })
+})
+
+describe('v2BarrierCaughtUp', () => {
+  it('accepts a stored save that has advanced to the page pilot', () => {
+    expect(v2BarrierCaughtUp({ stored: 5, anchor: 3, page: 5 })).toBe(true)
+  })
+  it('waits while an earlier save has landed but the latest page edit is queued', () => {
+    expect(v2BarrierCaughtUp({ stored: 4, anchor: 3, page: 5 })).toBe(false)
+  })
+  it('rejects a stored revision that has not advanced past the anchor', () => {
+    expect(v2BarrierCaughtUp({ stored: 3, anchor: 3, page: 3 })).toBe(false)
+  })
+  it('rejects an absent stored document', () => {
+    expect(v2BarrierCaughtUp({ stored: undefined, anchor: 3, page: 5 })).toBe(false)
+  })
+  it('falls back to the advance check when the page has no pilot', () => {
+    expect(v2BarrierCaughtUp({ stored: 5, anchor: 3, page: undefined })).toBe(true)
   })
 })
 

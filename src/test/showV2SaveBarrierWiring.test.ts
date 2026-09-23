@@ -20,7 +20,10 @@ interface FakeApiResponse {
 
 type ShowsScript = FakeShowRow[][] | ((call: number) => FakeShowRow[])
 
-function fakeBarrierPage(script: ShowsScript): { page: Page; getCalls: () => number } {
+function fakeBarrierPage(
+  script: ShowsScript,
+  pageStamp?: (storedReadCount: number) => number | undefined,
+): { page: Page; getCalls: () => number } {
   let calls = 0
   const resolveShows = (call: number): FakeShowRow[] => (
     typeof script === 'function' ? script(call) : script[Math.min(call, script.length - 1)]!
@@ -34,6 +37,7 @@ function fakeBarrierPage(script: ShowsScript): { page: Page; getCalls: () => num
     url: () => 'studio/shows/wiring-target',
     isClosed: () => false,
     waitForTimeout: async () => {},
+    evaluate: async () => pageStamp?.(calls),
     context: () => ({ request: { get } }),
   }
   return { page: fake as unknown as Page, getCalls: () => calls }
@@ -82,6 +86,17 @@ describe('waitForV2BarrierSave', () => {
     expect(getCalls()).toBeGreaterThanOrEqual(2)
   })
 
+  it('waits for the page pilot after an earlier save advances storage', async () => {
+    const id = 'wiring-queued-last-edit'
+    const rows = (revision: number): FakeShowRow[] => [{ id, version: 2, updatedAt: revision }]
+    const { page, getCalls } = fakeBarrierPage(
+      (call) => rows(call < 2 ? 10 : call === 2 ? 12 : 14),
+      (storedReadCount) => storedReadCount < 2 ? 12 : 14,
+    )
+    await waitForV2BarrierSave(page, id, 5_000)
+    expect(getCalls()).toBe(4)
+  })
+
   it('treats an appearing document as a save', async () => {
     const { page } = fakeBarrierPage((call) => (
       call < 2 ? [] : [{ id: 'wiring-appearing-document', version: 2, updatedAt: 5 }]
@@ -127,10 +142,12 @@ function fakeSeededBarrierPage(
     isClosed: () => false,
     waitForTimeout: async () => {},
     goto: async () => undefined,
-    evaluate: async () => ({
-      status: 'converted',
-      record: { id, version: 2, updatedAt: seededRevision },
-    }),
+    evaluate: async (_: unknown, argument: unknown) => (
+      typeof argument === 'string' ? undefined : {
+        status: 'converted',
+        record: { id, version: 2, updatedAt: seededRevision },
+      }
+    ),
     context: () => ({ request: { get, put } }),
   }
   return { page: fake as unknown as Page, getCalls: () => calls }

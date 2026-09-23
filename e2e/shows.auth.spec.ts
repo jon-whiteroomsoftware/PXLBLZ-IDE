@@ -918,9 +918,8 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeVisible()
   })
 
-  // Suspended (Jon, 2026-09-22): on the runner the second drag is ignored
-  // reproducibly once editor changes land (41.34 px gap); diagnosis in #1086.
-  test.fixme('reclaims Scene-boundary Transition time after resizing its Clip away (#695)', async ({ page }) => {
+  // Restored on the v2 backing (#1086): 5/5 on the host at 48373d37.
+  test('reclaims Scene-boundary Transition time after resizing its Clip away (#695)', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
