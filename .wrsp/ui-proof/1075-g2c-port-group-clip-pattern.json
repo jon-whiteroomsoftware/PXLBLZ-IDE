@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-1790138640653",
+  "operation": "On the v2 backing at the ported G2c tip: the case 2583 flow (marquee two Clips, Make Group, Duplicate the occurrence so 2 are linked, isolate the second occurrence), select Group Clip Main pulse and pick TestPattern2D in Source pattern. The first capture is the editor after the pick. The second renders the stored v2 record (GET /api/shows) read back in the same run, before and after: one Group definition linked by both occurrences, Main pulse's instance now TestPattern2D, and Overlay pulse unchanged.",
+  "captures": [
+    ".wrsp/ui-proof/1075-g2c-port-pattern.png",
+    ".wrsp/ui-proof/1075-g2c-port-pattern-readback.png"
+  ],
+  "capturedAtCommit": "a916559c443026e10133e364204fb890cf0aed3c"
+}
