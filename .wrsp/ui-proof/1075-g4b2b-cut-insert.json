@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-cut-insert-1790135292906",
+  "operation": "On the v2 backing at the G4b-2b tip: a seeded Show with Clips Outgoing (0+4000) and Incoming (4000+4000) meeting at a Cut on one Layer. Click the Cut; the Choose Layer Transition palette opens (first capture, duration set to 1 s). Press Use Crossfade Transition; the palette closes and the timeline shows the crossfade (second capture). The third capture renders the stored v2 record (GET /api/shows) from the same run: a new 1000 ms live-live crossfade clip-out -> clip-in, with clip-in shifted from 4000 to 5000. The 2000 ms crossfade present before and after is the fixture's whole-output Scene-boundary Transition.",
+  "captures": [
+    ".wrsp/ui-proof/1075-g4b2b-1-palette.png",
+    ".wrsp/ui-proof/1075-g4b2b-2-inserted.png",
+    ".wrsp/ui-proof/1075-g4b2b-3-readback.png"
+  ],
+  "capturedAtCommit": "e1a4d95c948ffd8f1a09952ce5811b29063ebb3a"
+}
