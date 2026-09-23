@@ -749,6 +749,32 @@ then retire legacy columns with a numbered migration chosen against current main
 #1043 finishes the reference and bounded product-string sweep. #1045 is Jon's
 post-migration interaction decision, not authorization for a redesign now.
 
+### Accepted divergences from v1 (consolidated, #1066)
+
+This table is the one list of the places where the v2 editor deliberately behaves differently from v1. A v2 behaviour that differs from v1 and is not listed here is a defect. #1090 and #1091 track the known unlisted differences (#1066 final review, 2026-09-22).
+
+| v2 behaviour | Ruling / record |
+|---|---|
+| A whole-output boundary with an empty side converts, with that side an explicitly empty contributor set | #1068; this section |
+| Divergent overlay names convert by the survivor rule; the first Scene wins | #1068; this section |
+| Select, delete and animate on a split logical Clip act on one run (`<id>--run-<n>`), not the logical Clip | #1080 class 1 (Jon, 2026-09-22); this section |
+| Boundary speed and brightness ramps convert only on flat Shows; native whole-output window tracks refuse | #1080 class 2 (A); this section |
+| A Transition inserted on a Cut takes room up to the next logical obstruction; chapter Markers and the v1 Scene end do not bound it | #1075 (Jon, 2026-09-22); this section |
+| "Different Zone Layouts" reads Layout occurrences, not Scenes; about 140 stock Cuts now report no free time | #1075 ruling; `showV2LayerTransitionInsertion.test.ts` |
+| Delete acts on each converted run as a Clip; v1 counts and refuses at the logical Clip | #1068 gap 8 (conditional, unlanded) |
+| Delete permits the Trails-armed and cross-boundary shared-instance cases v1 refuses | #1068 gap 6 (Jon, 2026-09-22) |
+| Layout Make Unique clones only the definition | #1066 comment 2026-09-21; `show-v2-layout-edits.md` |
+| On a native whole-output boundary, Show End stays fixed on insert, resize and Reset, and a Cut does not grow into a Transition | #1066 comment (engine freeze) |
+| Native palette Apply keeps Show End fixed | #1066 comment |
+| The Cut-boundary lane buttons are absent (slice 9c2b) | #1066 comment |
+| Option-drag copy and toolbar Clone make a linked copy that shares the Pattern instance; v1 makes an independent copy | #1066 comment; §4 |
+| Insert here ripples Markers | #1066 comment; §7 |
+| Group delete keeps a dormant definition | #1075 comment; `show-v2-group-edits` contract |
+| A Group Clip Pattern change stores a different layout that compiles byte-equal | #1075 G2c comment |
+| Add Zone keeps an entry-less Layout definition entry-less | #1064 item 4; `showZonesV2.ts` |
+| Lossy edits refuse: Replace Pattern with loss, control-target removal, multi-key appearance, packed colour parameters, sub-minimum feather | #1069; #1066 slice-3 comment |
+| Edit refusals show their reason in the surface's existing error slot instead of emulating v1 ("UI honesty replaces emulation") | Jon, 2026-09-22 |
+
 ## 11. Work allocation and integration order
 
 One coordinator owns interface changes and serialized landing. Parallel workers
