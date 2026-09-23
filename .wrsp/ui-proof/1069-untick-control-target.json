@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "1069",
+  "route": "/PXLBLZ-IDE/studio/shows/b97d1fa4-c054-4b07-8cb4-dde68f8a5e30 (v2 clone of stock-show-showcase-luma-sources, existing Show editor on the v2 backing)",
+  "operation": "On the v2 backing, clone the built-in Luma Sources showcase. Select Clip luma-clip-1 (instance luma-Stripes: target sliderWidth 0.4 with lane track-luma-1-0) and untick 'Set Width target' in the Clip detail's Pattern tab: 'Remove Width control?' / 'The Width animation will be removed.' with Cancel and 'Remove Width' (capture 1). Cancel leaves the stored target and lane unchanged. Untick again and press 'Remove Width': sliderWidth and track-luma-1-0 are gone (capture 2). Close the panel, select luma-clip-2 (instance luma-SineWaves: sliderFeather has no lane) and untick 'Set Feather target': no dialog; sliderFeather is removed, sliderLean and its lane stay (capture 3). Capture 4 reads the stored v2 row back at each step; capture 5 is the raw GET /api/shows?show-version=2 response. Before this change the v2 untick refused silently and snapped back.",
+  "captures": [
+    ".wrsp/ui-proof/1069-untick-dialog.png",
+    ".wrsp/ui-proof/1069-untick-confirmed.png",
+    ".wrsp/ui-proof/1069-untick-nolane.png",
+    ".wrsp/ui-proof/1069-untick-readback.png",
+    ".wrsp/ui-proof/1069-untick-raw-api.png"
+  ],
+  "capturedAtCommit": "2ccde32b626f764a91d58ccd4402ebb20f97d0ee"
+}
