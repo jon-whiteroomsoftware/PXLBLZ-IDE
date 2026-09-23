@@ -496,24 +496,57 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     })
   })
 
-  it('refuses a packed color edit with no single parameter spelling', () => {
+  it('names a packed shadow color edit as one shadowColor update (#1069)', () => {
     const record = fixture()
     const effect = normalizeShowClipEffects([{
       id: 'grade', kind: 'color-map', amount: 1,
       shadowR: 0, shadowG: 0, shadowB: 0, highlightR: 1, highlightG: 1, highlightB: 1,
     } as unknown as ShowClipEffect])[0] as ShowClipEffect
     record.composition.clips[0].appearance.keys[0].value.effects = [effect]
-    const outcome = plan(record, {
-      effects: [{ ...effect, shadowR: 0.5, shadowG: 0.25, shadowB: 0.125 } as ShowClipEffect],
-    })
+    const next = {
+      ...effect, shadowR: 0x80 / 255, shadowG: 0x40 / 255, shadowB: 0x20 / 255,
+    } as ShowClipEffect
+    const outcome = plan(record, { effects: [next] })
     expect(outcome).toEqual({
-      kind: 'refuse',
-      reason: 'ambiguous-effects',
-      message: 'One stack write carries one Effect change; combined stack rewrites stay unconnected.',
+      kind: 'appearance',
+      intent: {
+        kind: 'update-effect', clipId: 'clip', scope: 'whole-clip',
+        effectId: 'grade', effectKind: 'color-map', parameter: 'shadowColor', value: '#804020',
+      },
     })
+    if (outcome.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    const applied = editShowClipAppearanceV2(record, outcome.intent)
+    expect(applied.status).toBe('changed')
+    if (applied.status !== 'changed') throw new Error('Expected the owner to accept the intent.')
+    expect(applied.record.composition.clips[0].appearance.keys[0].value.effects).toEqual([next])
   })
 
-  it('refuses a packed highlight triple with no single parameter spelling', () => {
+  it('names a packed highlight color edit as one highlightColor update (#1069)', () => {
+    const record = fixture()
+    const effect = normalizeShowClipEffects([{
+      id: 'grade', kind: 'color-map', amount: 1,
+      shadowR: 0, shadowG: 0, shadowB: 0, highlightR: 1, highlightG: 1, highlightB: 1,
+    } as unknown as ShowClipEffect])[0] as ShowClipEffect
+    record.composition.clips[0].appearance.keys[0].value.effects = [effect]
+    const next = {
+      ...effect, highlightR: 0x12 / 255, highlightG: 0x34 / 255, highlightB: 0x56 / 255,
+    } as ShowClipEffect
+    const outcome = plan(record, { effects: [next] })
+    expect(outcome).toEqual({
+      kind: 'appearance',
+      intent: {
+        kind: 'update-effect', clipId: 'clip', scope: 'whole-clip',
+        effectId: 'grade', effectKind: 'color-map', parameter: 'highlightColor', value: '#123456',
+      },
+    })
+    if (outcome.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    const applied = editShowClipAppearanceV2(record, outcome.intent)
+    expect(applied.status).toBe('changed')
+    if (applied.status !== 'changed') throw new Error('Expected the owner to accept the intent.')
+    expect(applied.record.composition.clips[0].appearance.keys[0].value.effects).toEqual([next])
+  })
+
+  it('refuses a packed edit mixing shadow and highlight channels (#1069)', () => {
     const record = fixture()
     const effect = normalizeShowClipEffects([{
       id: 'grade', kind: 'color-map', amount: 1,
@@ -521,12 +554,83 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     } as unknown as ShowClipEffect])[0] as ShowClipEffect
     record.composition.clips[0].appearance.keys[0].value.effects = [effect]
     expect(plan(record, {
-      effects: [{ ...effect, highlightR: 0.5, highlightG: 0.75, highlightB: 0.25 } as ShowClipEffect],
+      effects: [{ ...effect, shadowR: 0x80 / 255, highlightB: 0x80 / 255 } as ShowClipEffect],
     })).toEqual({
       kind: 'refuse',
       reason: 'ambiguous-effects',
       message: 'One stack write carries one Effect change; combined stack rewrites stay unconnected.',
     })
+  })
+
+  it('refuses a packed color edit combined with another field (#1069)', () => {
+    const record = fixture()
+    const effect = normalizeShowClipEffects([{
+      id: 'grade', kind: 'color-map', amount: 1,
+      shadowR: 0, shadowG: 0, shadowB: 0, highlightR: 1, highlightG: 1, highlightB: 1,
+    } as unknown as ShowClipEffect])[0] as ShowClipEffect
+    record.composition.clips[0].appearance.keys[0].value.effects = [effect]
+    expect(plan(record, {
+      effects: [{
+        ...effect, shadowR: 0x80 / 255, shadowG: 0x40 / 255, shadowB: 0x20 / 255, amount: 0.5,
+      } as ShowClipEffect],
+    })).toEqual({
+      kind: 'refuse',
+      reason: 'ambiguous-effects',
+      message: 'One stack write carries one Effect change; combined stack rewrites stay unconnected.',
+    })
+  })
+
+  it('refuses a packed triple no color string reproduces (#1069)', () => {
+    const record = fixture()
+    const effect = normalizeShowClipEffects([{
+      id: 'grade', kind: 'color-map', amount: 1,
+      shadowR: 0, shadowG: 0, shadowB: 0, highlightR: 1, highlightG: 1, highlightB: 1,
+    } as unknown as ShowClipEffect])[0] as ShowClipEffect
+    record.composition.clips[0].appearance.keys[0].value.effects = [effect]
+    expect(plan(record, {
+      effects: [{ ...effect, shadowR: 0.123456789 } as ShowClipEffect],
+    })).toEqual({
+      kind: 'refuse',
+      reason: 'ambiguous-effects',
+      message: 'One stack write carries one Effect change; combined stack rewrites stay unconnected.',
+    })
+  })
+
+  it('clamps aperture values to the viewport ranges before the owner (#1069)', () => {
+    expect(plan(fixture(), { viewport: { feather: 0.0005 } })).toEqual({
+      kind: 'appearance',
+      intent: { kind: 'appearance', clipId: 'clip', scope: 'whole-clip', patch: { aperture: { feather: 0.001 } } },
+    })
+    expect(plan(fixture(), { viewport: { feather: 2 } })).toEqual({
+      kind: 'appearance',
+      intent: { kind: 'appearance', clipId: 'clip', scope: 'whole-clip', patch: { aperture: { feather: 1 } } },
+    })
+    expect(plan(fixture(), { viewport: { starPoints: 2.6 } })).toEqual({
+      kind: 'appearance',
+      intent: { kind: 'appearance', clipId: 'clip', scope: 'whole-clip', patch: { aperture: { starPoints: 3 } } },
+    })
+    expect(plan(fixture(), { viewport: { width: 0.001 } })).toEqual({
+      kind: 'appearance',
+      intent: { kind: 'appearance', clipId: 'clip', scope: 'whole-clip', patch: { aperture: { width: 0.01 } } },
+    })
+    const record = fixture()
+    record.composition.clips[0].appearance.keys[0].value.aperture = {
+      enabled: true, x: 0, y: 0, width: 1, height: 1, feather: 0.1,
+    }
+    expect(plan(record, { viewport: { feather: undefined } })).toEqual({
+      kind: 'appearance',
+      intent: { kind: 'appearance', clipId: 'clip', scope: 'whole-clip', patch: { aperture: { feather: null } } },
+    })
+  })
+
+  it('lands a clamped sub-minimum feather through the owner (#1069)', () => {
+    const record = fixture()
+    const outcome = plan(record, { viewport: { feather: 0.0005 } })
+    if (outcome.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    const applied = editShowClipAppearanceV2(record, outcome.intent)
+    expect(applied.status).toBe('changed')
+    if (applied.status !== 'changed') throw new Error('Expected the owner to accept the intent.')
+    expect(applied.record.composition.clips[0].appearance.keys[0].value.aperture?.feather).toBe(0.001)
   })
 
   it('refuses a mixed appearance and instance write rather than splitting history', () => {

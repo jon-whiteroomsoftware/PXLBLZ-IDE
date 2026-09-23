@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   SHOW_CLIP_APERTURE_DEFAULT_FEATHER,
+  SHOW_CLIP_VIEWPORT_NUMERIC_RANGES,
   compactShowClipViewport,
   normalizeShowClipViewport,
   showClipViewportEffectiveEdge,
@@ -297,5 +298,38 @@ describe('unified aperture silhouette catalogue (#690)', () => {
     )
     expect(dithered).toContain('__pxlblz_show_hash01(index)')
     expect(dithered).toContain('__pxlblz_show_gauge_star(')
+  })
+})
+
+describe('Clip Viewport numeric ranges (#1069)', () => {
+  it('agrees with the numeric ranges table at each bound', () => {
+    const shapeForKey: Record<string, string | undefined> = {
+      x: undefined,
+      y: undefined,
+      width: undefined,
+      height: undefined,
+      feather: undefined,
+      rotation: undefined,
+      ringWidth: 'ring',
+      cornerRadius: 'rounded-box',
+      crossWidth: 'cross',
+      starPoints: 'star',
+      starInner: 'star',
+      crescentOffset: 'crescent',
+      polygonSides: 'polygon',
+    }
+    expect(Object.keys(shapeForKey).sort()).toEqual(Object.keys(SHOW_CLIP_VIEWPORT_NUMERIC_RANGES).sort())
+    for (const [key, range] of Object.entries(SHOW_CLIP_VIEWPORT_NUMERIC_RANGES)) {
+      const frame: Record<string, unknown> = { enabled: true, x: 0, y: 0, width: 1, height: 1 }
+      if (shapeForKey[key] !== undefined) frame.aperture = shapeForKey[key]
+      const below = { ...frame, [key]: range.min - 1 } as unknown as Parameters<typeof normalizeShowClipViewport>[0]
+      const above = { ...frame, [key]: range.max + 1 } as unknown as Parameters<typeof normalizeShowClipViewport>[0]
+      expect((normalizeShowClipViewport(below) as unknown as Record<string, unknown>)[key]).toBe(range.min)
+      expect((normalizeShowClipViewport(above) as unknown as Record<string, unknown>)[key]).toBe(range.max)
+      if (range.round === true) {
+        const mid = { ...frame, [key]: range.min + 3.4 } as unknown as Parameters<typeof normalizeShowClipViewport>[0]
+        expect((normalizeShowClipViewport(mid) as unknown as Record<string, unknown>)[key]).toBe(range.min + 3)
+      }
+    }
   })
 })

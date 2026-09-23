@@ -18,11 +18,46 @@ export const DEFAULT_SHOW_CLIP_VIEWPORT: Readonly<ShowClipViewport> = Object.fre
  */
 export const SHOW_CLIP_APERTURE_DEFAULT_FEATHER = '(1.5 / sqrt(pixelCount))'
 
+/** The exact numeric bounds (and rounding) the viewport normalizer enforces. */
+export interface ShowClipViewportNumericRange {
+  min: number
+  max: number
+  round?: boolean
+}
+
+export const SHOW_CLIP_VIEWPORT_NUMERIC_RANGES: Readonly<
+  Record<
+    | 'x' | 'y' | 'width' | 'height' | 'feather' | 'rotation'
+    | 'ringWidth' | 'cornerRadius' | 'crossWidth'
+    | 'starPoints' | 'starInner' | 'crescentOffset' | 'polygonSides',
+    ShowClipViewportNumericRange
+  >
+> = Object.freeze({
+  x: { min: -4, max: 4 },
+  y: { min: -4, max: 4 },
+  width: { min: 0.01, max: 8 },
+  height: { min: 0.01, max: 8 },
+  feather: { min: 0.001, max: 1 },
+  rotation: { min: -1, max: 1 },
+  ringWidth: { min: 0.05, max: 1 },
+  cornerRadius: { min: 0.05, max: 1 },
+  crossWidth: { min: 0.1, max: 0.9 },
+  starPoints: { min: 3, max: 12, round: true },
+  starInner: { min: 0.2, max: 0.8 },
+  crescentOffset: { min: 0.15, max: 0.8 },
+  polygonSides: { min: 3, max: 8, round: true },
+})
+
+function clampToRange(value: number, range: ShowClipViewportNumericRange): number {
+  const clamped = Math.max(range.min, Math.min(range.max, value))
+  return range.round === true ? Math.round(clamped) : clamped
+}
+
 export function normalizeShowClipViewport(
   viewport: Partial<ShowClipViewport> | undefined,
 ): ShowClipViewport {
   const feather = typeof viewport?.feather === 'number' && Number.isFinite(viewport.feather)
-    ? Math.max(0.001, Math.min(1, viewport.feather))
+    ? clampToRange(viewport.feather, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.feather)
     : undefined
   const aperture = viewport?.aperture !== undefined && SHAPED_APERTURES.includes(viewport.aperture)
     ? viewport.aperture
@@ -30,14 +65,14 @@ export function normalizeShowClipViewport(
   const rotation = typeof viewport?.rotation === 'number'
     && Number.isFinite(viewport.rotation)
     && viewport.rotation !== 0
-    ? Math.max(-1, Math.min(1, viewport.rotation))
+    ? clampToRange(viewport.rotation, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.rotation)
     : undefined
   return {
     enabled: Boolean(viewport?.enabled),
-    x: clamp(viewport?.x, -4, 4, 0),
-    y: clamp(viewport?.y, -4, 4, 0),
-    width: clamp(viewport?.width, 0.01, 8, 1),
-    height: clamp(viewport?.height, 0.01, 8, 1),
+    x: clamp(viewport?.x, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.x.min, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.x.max, 0),
+    y: clamp(viewport?.y, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.y.min, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.y.max, 0),
+    width: clamp(viewport?.width, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.width.min, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.width.max, 1),
+    height: clamp(viewport?.height, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.height.min, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.height.max, 1),
     // Rectangle is the compact default, so it normalizes away entirely; only
     // an authored non-default shape survives. Shape parameters are owned by
     // their shape and normalize away with it. Rotation and invert are
@@ -48,25 +83,25 @@ export function normalizeShowClipViewport(
     ...(rotation !== undefined ? { rotation } : {}),
     ...(viewport?.invert === true ? { invert: true } : {}),
     ...(aperture === 'ring' && typeof viewport?.ringWidth === 'number' && Number.isFinite(viewport.ringWidth)
-      ? { ringWidth: Math.max(0.05, Math.min(1, viewport.ringWidth)) }
+      ? { ringWidth: clampToRange(viewport.ringWidth, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.ringWidth) }
       : {}),
     ...(aperture === 'rounded-box' && typeof viewport?.cornerRadius === 'number' && Number.isFinite(viewport.cornerRadius)
-      ? { cornerRadius: Math.max(0.05, Math.min(1, viewport.cornerRadius)) }
+      ? { cornerRadius: clampToRange(viewport.cornerRadius, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.cornerRadius) }
       : {}),
     ...(aperture === 'cross' && typeof viewport?.crossWidth === 'number' && Number.isFinite(viewport.crossWidth)
-      ? { crossWidth: Math.max(0.1, Math.min(0.9, viewport.crossWidth)) }
+      ? { crossWidth: clampToRange(viewport.crossWidth, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.crossWidth) }
       : {}),
     ...(aperture === 'star' && typeof viewport?.starPoints === 'number' && Number.isFinite(viewport.starPoints)
-      ? { starPoints: Math.round(Math.max(3, Math.min(12, viewport.starPoints))) }
+      ? { starPoints: clampToRange(viewport.starPoints, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.starPoints) }
       : {}),
     ...(aperture === 'star' && typeof viewport?.starInner === 'number' && Number.isFinite(viewport.starInner)
-      ? { starInner: Math.max(0.2, Math.min(0.8, viewport.starInner)) }
+      ? { starInner: clampToRange(viewport.starInner, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.starInner) }
       : {}),
     ...(aperture === 'crescent' && typeof viewport?.crescentOffset === 'number' && Number.isFinite(viewport.crescentOffset)
-      ? { crescentOffset: Math.max(0.15, Math.min(0.8, viewport.crescentOffset)) }
+      ? { crescentOffset: clampToRange(viewport.crescentOffset, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.crescentOffset) }
       : {}),
     ...(aperture === 'polygon' && typeof viewport?.polygonSides === 'number' && Number.isFinite(viewport.polygonSides)
-      ? { polygonSides: Math.round(Math.max(3, Math.min(8, viewport.polygonSides))) }
+      ? { polygonSides: clampToRange(viewport.polygonSides, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES.polygonSides) }
       : {}),
   }
 }

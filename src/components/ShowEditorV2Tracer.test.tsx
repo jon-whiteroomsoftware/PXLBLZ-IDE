@@ -3689,6 +3689,33 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect(legacy.calls).toEqual([])
   })
 
+  it('clamps a sub-minimum Edge width on v2 as v1 does (#1069)', async () => {
+    const editor = openV2EditorForRecord(stagedV2Record('slice3-aperture-shape'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Place')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' }))
+    await act(async () => {})
+    chooseOption('Aperture shape', 'ellipse')
+    await act(async () => {})
+
+    typeAndCommit('Aperture edge width', '0.0005')
+    await act(async () => {})
+
+    const submissions = appearanceSubmissions()
+    expect(submissions).toHaveLength(3)
+    const [, , feather] = submissions
+    expect(feather.baseRevision).toBe(2)
+    if (feather.intent.kind !== 'appearance') throw new Error('Expected an appearance intent.')
+    expect(feather.intent.patch).toEqual({ aperture: { feather: 0.001 } })
+    expect((await authoredClipValue(editor.showId, 'overlay-a')).viewport.feather).toBe(0.001)
+    const after = editor.state()
+    expect(after.history.past).toHaveLength(3)
+    expect(after.v2Writes).toBe(3)
+    expect(legacy.calls).toEqual([])
+  })
+
   it('adds a Ripple Effect through the palette and the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-add'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
@@ -3731,6 +3758,37 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
         effectId: 'ripple', effectKind: 'ripple', parameter: 'amount', value: 0.2,
       },
       baseRevision: 1,
+    })
+    const after = editor.state()
+    expect(after.history.past).toHaveLength(2)
+    expect(after.v2Writes).toBe(2)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('writes a packed shadow color edit on v2 (#1069)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-param'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Effects')
+
+    await addEffectThroughPalette('Color map')
+    typeAndCommit('Shadow Color exact value', '#804020')
+    await act(async () => {})
+
+    expect(appearanceSubmissions()).toHaveLength(2)
+    const [, shadow] = appearanceSubmissions()
+    expect(shadow).toEqual({
+      intent: {
+        kind: 'update-effect', clipId: 'overlay-a', scope: 'whole-clip',
+        effectId: 'color-map', effectKind: 'color-map', parameter: 'shadowColor', value: '#804020',
+      },
+      baseRevision: 1,
+    })
+    const value = await authoredClipValue(editor.showId, 'overlay-a')
+    expect(value.effects).toHaveLength(1)
+    expect(value.effects[0]).toMatchObject({
+      id: 'color-map', kind: 'color-map',
+      shadowR: 0x80 / 255, shadowG: 0x40 / 255, shadowB: 0x20 / 255,
     })
     const after = editor.state()
     expect(after.history.past).toHaveLength(2)

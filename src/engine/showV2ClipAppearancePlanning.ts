@@ -11,10 +11,11 @@ import type {
 } from './personalContentRecords'
 import {
   moveShowClipEffectToStagePosition,
+  showClipEffectParameterValue,
   showClipEffectStage,
   updateShowClipEffectParameter,
 } from './showEffectAuthoring'
-import { SHOW_CLIP_APERTURE_SHAPES } from './showClipViewport'
+import { SHOW_CLIP_APERTURE_SHAPES, SHOW_CLIP_VIEWPORT_NUMERIC_RANGES } from './showClipViewport'
 import { normalizeShowClipTransform } from './showClipTransform'
 import { normalizeShowClipViewport } from './showClipViewport'
 
@@ -168,9 +169,29 @@ function diffEffects(before: ShowClipEffect[], after: ShowClipEffect[]): Effects
       (key) => !sameJson((effect as Record<string, unknown>)[key], (next as Record<string, unknown>)[key]),
     )
     // One persisted field names one update intent: a number, or a single
-    // colour string such as a chroma-key target. A multi-field change is a
-    // packed color edit (shadow/highlight triples), which has no single
-    // parameter spelling and stays unconnected.
+    // colour string such as a chroma-key target. A change confined to one
+    // packed colour triple (shadow or highlight) names that colour parameter:
+    // the candidate value is read back off the edited stack and re-expanded
+    // through the owner's own update, and only an exact triple reproduction
+    // connects. Any other multi-field change stays unconnected.
+    if (effect.kind === 'color-map') {
+      const shadowFields = ['shadowR', 'shadowG', 'shadowB']
+      const highlightFields = ['highlightR', 'highlightG', 'highlightB']
+      const inShadow = fields.length > 0 && fields.every((field) => shadowFields.includes(field))
+      const inHighlight = fields.length > 0 && fields.every((field) => highlightFields.includes(field))
+      if (inShadow || inHighlight) {
+        const parameter = inShadow ? 'shadowColor' : 'highlightColor'
+        const value = showClipEffectParameterValue(next, parameter)
+        if (typeof value !== 'string') return { kind: 'ambiguous' }
+        const recomputed = updateShowClipEffectParameter(effect, parameter, value) as unknown as Record<string, unknown>
+        const nextFields = next as unknown as Record<string, unknown>
+        const triple = inShadow ? shadowFields : highlightFields
+        if (!triple.every((field) => sameJson(recomputed[field], nextFields[field]))) {
+          return { kind: 'ambiguous' }
+        }
+        return { kind: 'update', effectId: effect.id, effectKind: effect.kind, parameter, value }
+      }
+    }
     const raw = (next as Record<string, unknown>)[fields[0]]
     if (fields.length !== 1 || (typeof raw !== 'number' && typeof raw !== 'string')) {
       return { kind: 'ambiguous' }
@@ -248,6 +269,14 @@ function planAperture(patch: Record<string, unknown>): Record<string, unknown> |
     if (value === undefined) {
       if (!NULLABLE_APERTURE_KEYS.has(key)) return null
       aperture[key] = null
+      continue
+    }
+    // Clamp finite numerics to v1's ranges (rounding where v1 rounds) so the
+    // owner admits exactly what the viewport normalizer would store.
+    if (typeof value === 'number' && Number.isFinite(value) && has(SHOW_CLIP_VIEWPORT_NUMERIC_RANGES, key)) {
+      const range = SHOW_CLIP_VIEWPORT_NUMERIC_RANGES[key as keyof typeof SHOW_CLIP_VIEWPORT_NUMERIC_RANGES]
+      const clamped = Math.max(range.min, Math.min(range.max, value))
+      aperture[key] = range.round === true ? Math.round(clamped) : clamped
       continue
     }
     aperture[key] = value
