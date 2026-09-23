@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/715d9ec3-1323-449a-8ec5-5c80bf2da3a8",
+  "operation": "On the v2 backing at the code tip: a fresh Installation Show (one Layout occurrence layout-1 0-62000; Clips 0+30000 and 32000+30000). Seek the playhead to 5 s, open Add to Show > Zone Layout, set 5 s and press Insert here. Stored readback: Show End 62000 -> 67000; Layouts layout-1, layout-2; occurrences layout-1@0+5000, layout-2@5000+5000, layout-1@10000+57000; Clips 0+5000, 10000+25000 (the spanning Clip split around the blank 5 s gap), 37000+30000 (shifted). This is v1's blank insert, per Jon's ruling.",
+  "captures": [".wrsp/ui-proof/1066-8b2b-insert-here.png"],
+  "capturedAtCommit": "ebffc597c47436f0cf9c34736dfe56ef229c6d20"
+}
