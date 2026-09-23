@@ -15,6 +15,8 @@ import { duplicateShowClipAfter } from '@/engine/showTimelineClipAuthoring'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { convertibleV1Show, transitionV1Show } from '@/test/showV2TracerFixture'
 import { planShowV2LayerTransitionInsertion } from '@/engine/showV2LayerTransitionInsertion'
+import { planShowV2GroupLayerTransitionInsertion } from '@/engine/showV2LayerTransitionInsertion'
+import { insertShowGroupDefinitionLayerTransitionV2 } from '@/engine/showGroupEditsV2'
 import { showV2TransitionJunctionKey } from '@/engine/showV2TransitionEditorModel'
 import { commandFixtureV2 } from '@/engine/showCommandsV2/fixtures'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
@@ -1794,6 +1796,150 @@ describe('v2 Layer Transition popover (#1065)', () => {
     expect(after.record).toBe(before.record)
     expect(after.v2Writes).toBe(0)
     owner.mockRestore()
+  })
+
+  // #1075 G4b-2c: a Cut between two Clips of one Group occurrence in
+  // isolation opens the same palette for a definition-local insert. Two
+  // exactly-adjacent definition Clips with no Transition, shared by two
+  // linked occurrences.
+  function groupCutV2Record(id: string): ShowRecordV2 {
+    const source = convertibleV1Show()
+    source.id = id
+    source.scenes[0].durationMs = 30000
+    source.composition!.durationMs = 30000
+    source.composition!.scenes[0].zones[0].overlays = [{ id: 'ov1', name: 'ov', placements: [] }]
+    const inst = { ...structuredClone(source.composition!.patternInstances[0]), id: 'g-inst' }
+    source.composition!.groupDefinitions = [{
+      id: 'def-1',
+      name: 'Chorus',
+      patternInstances: [inst],
+      placements: [
+        { id: 'g-a', instanceId: 'g-inst', layerOffset: 0, startMs: 0, durationMs: 4000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
+        { id: 'g-b', instanceId: 'g-inst', layerOffset: 0, startMs: 4000, durationMs: 3000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
+      ],
+    }]
+    source.composition!.groupOccurrences = [
+      { id: 'occ-1', definitionId: 'def-1', sceneId: 'scene-a', zoneId: 'zone', startMs: 0, baseLayer: 1, translationX: 0, translationY: 0 },
+      { id: 'occ-2', definitionId: 'def-1', sceneId: 'scene-a', zoneId: 'zone', startMs: 10000, baseLayer: 1, translationX: 0, translationY: 0 },
+    ]
+    const converted = convertShowRecordV1ToV2(source)
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const record = converted.record
+    record.id = id
+    expect(validateShowRecordV2(record)).toEqual([])
+    return record
+  }
+
+  function groupCutDefinitionId(record: ShowRecordV2): string {
+    return record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-1')!.definitionId
+  }
+
+  async function openGroupCutPalette(): Promise<HTMLElement> {
+    // v1 reaches a Group's internals only through isolation, and so does this.
+    const children = screen.getAllByRole('button', { name: 'Select Group Chorus' })
+      .filter((candidate) => candidate.getAttribute('data-show-group-occurrence') === 'occ-1')
+    fireEvent.click(children[0]!, { detail: 2 })
+    await act(async () => {})
+    const cut = screen.getAllByRole('button', { name: 'Edit Cut between TestPattern1D and TestPattern1D' })
+      .find((candidate) => candidate.getAttribute('data-show-group-occurrence') === 'occ-1')!
+    fireEvent.click(cut)
+    await act(async () => {})
+    return screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+  }
+
+  it('opens the Layer Transition palette on a Group Cut inside isolation', async () => {
+    const record = groupCutV2Record('tracer-group-cut-palette')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    const palette = await openGroupCutPalette()
+
+    const plan = planShowV2GroupLayerTransitionInsertion(record, 'occ-1', 'g-a', 'g-b')
+    if (!plan.enabled) throw new Error('expected room at the Group Cut')
+    expect(within(palette).getByText('TestPattern1D to TestPattern1D')).toBeInTheDocument()
+    expect(within(palette).getByText(/seconds fits here\./).textContent)
+      .toContain(`Up to ${(plan.maxDurationMs / 1000).toFixed(3)} seconds fits here.`)
+
+    expectNoWrite(before, editor.state())
+  })
+
+  it('inserts a crossfade on a Group Cut through the group-occurrence door', async () => {
+    const record = groupCutV2Record('tracer-group-cut-insert')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const definitionId = groupCutDefinitionId(record)
+    const layerId = before.record.composition.groupDefinitions.find((definition) => definition.id === definitionId)!.layers[0]!.id
+
+    const palette = await openGroupCutPalette()
+    const duration = within(palette).getByLabelText('Transition duration in seconds exact time')
+    fireEvent.change(duration, { target: { value: '0.15' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    fireEvent.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    const request = admission.calls[0].request as { intent: { kind: string; definitionId: string; transition: { id: string; kind: string; durationMs: number; crossfadePolicy?: string; participants: Array<{ id: string; zoneId: string; layerId: string; fromClipId: string; toClipId: string }> } }; baseRevision: number }
+    expect(request.intent.kind).toBe('insert-definition-layer-transition')
+    expect(request.intent.definitionId).toBe(definitionId)
+    expect(request.intent.transition.kind).toBe('crossfade')
+    expect(request.intent.transition.durationMs).toBe(150)
+    expect(request.intent.transition.crossfadePolicy).toBe('live-live')
+    expect(request.intent.transition.participants).toEqual([
+      { id: `${request.intent.transition.id}:participant`, zoneId: 'definition-zone', layerId, fromClipId: 'g-a', toClipId: 'g-b' },
+    ])
+    expect(request.baseRevision).toBe(0)
+    const after = editor.state()
+    expectOneEdit(before, after)
+    expect(screen.queryByRole('dialog', { name: 'Choose Layer Transition' })).not.toBeInTheDocument()
+    const oracle = insertShowGroupDefinitionLayerTransitionV2(
+      before.record,
+      request.intent as Parameters<typeof insertShowGroupDefinitionLayerTransitionV2>[1],
+    )
+    expect(oracle.status).toBe('changed')
+    if (oracle.status !== 'changed') throw new Error('the oracle refused the admitted intent')
+    expect(after.record.composition).toEqual(oracle.record.composition)
+    const edited = after.record.composition.groupDefinitions.find((definition) => definition.id === definitionId)!
+    expect(edited.transitions).toHaveLength(1)
+    expect(edited.transitions[0]).toMatchObject({ fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade', durationMs: 150 })
+    expect(after.record.composition.groupOccurrences.map((occurrence) => occurrence.definitionId))
+      .toEqual([definitionId, definitionId])
+  })
+
+  it('keeps the palette open when the group-occurrence door rejects the insert', async () => {
+    const record = groupCutV2Record('tracer-group-cut-refused')
+    const editor = openV2EditorForRecord(record)
+    const live = getPersonalContentProvider()
+    const failingWrite = vi.fn(async (_id: string, _next: ShowRecordV2) => {
+      throw new Error('Synthetic group cut insert save failure')
+    })
+    setPersonalContentProvider({
+      ...live,
+      id: 'tracer-group-cut-refusal',
+      replaceShowV2: failingWrite,
+    } as unknown as PersonalContentProvider)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    const palette = await openGroupCutPalette()
+    const duration = within(palette).getByLabelText('Transition duration in seconds exact time')
+    fireEvent.change(duration, { target: { value: '0.15' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    fireEvent.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
+    await act(async () => {})
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(failingWrite).toHaveBeenCalledTimes(1)
+    const livePalette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    expect(within(livePalette).getByText(
+      'Crossfade could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.',
+    )).toBeInTheDocument()
+    const after = editor.state()
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.record.composition).toEqual(before.record.composition)
+    expect(after.v2Writes).toBe(0)
   })
 })
 

@@ -260,7 +260,7 @@ import {
 } from '@/engine/showLessonNarration'
 import { exportedDims } from '@/engine/exportedDims'
 import { planShowV2BoundaryPaletteApply, planShowV2BoundaryTransitionChanges, planShowV2TransitionEdit, planShowV2TransitionReset, showV2TransitionJunctionKey } from '@/engine/showV2TransitionEditorModel'
-import { planShowV2LayerTransitionInsertion } from '@/engine/showV2LayerTransitionInsertion'
+import { planShowV2GroupLayerTransitionInsertion, planShowV2LayerTransitionInsertion } from '@/engine/showV2LayerTransitionInsertion'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import {
   replaceShowBoundaryTransition,
@@ -742,6 +742,7 @@ type ShowLayerTransitionTarget = {
   transitionId?: string
   legacy?: ShowUnifiedTimelineJunctionProjection
   v2Cut?: { junctionKey: string }
+  v2GroupCut?: { occurrenceId: string; fromClipId: string; toClipId: string }
 }
 
 type TimelineMarkerFeedback =
@@ -2969,7 +2970,14 @@ export function ShowEditor({
         })
     : recordVersion === 2 && layerTransitionTarget?.v2Cut && savedShowV2
       ? planShowV2LayerTransitionInsertion(preparedV2Capture?.record ?? savedShowV2, layerTransitionTarget.v2Cut.junctionKey)
-      : null
+      : recordVersion === 2 && layerTransitionTarget?.v2GroupCut && savedShowV2
+        ? planShowV2GroupLayerTransitionInsertion(
+            preparedV2Capture?.record ?? savedShowV2,
+            layerTransitionTarget.v2GroupCut.occurrenceId,
+            layerTransitionTarget.v2GroupCut.fromClipId,
+            layerTransitionTarget.v2GroupCut.toClipId,
+          )
+        : null
   const pendingConnectedTransitions = timelineComposition && compositionClipPendingDelete
     ? showLayerTransitionsConnectedToClip(timelineComposition, compositionClipPendingDelete.placementId)
     : []
@@ -4669,7 +4677,7 @@ export function ShowEditor({
               onClose={() => setTransitionPaletteId(null)}
             />
           )}
-          {(layerTransitionTarget?.legacy?.kind === 'cut' || layerTransitionTarget?.v2Cut) && layerTransitionPlan && (
+          {(layerTransitionTarget?.legacy?.kind === 'cut' || layerTransitionTarget?.v2Cut || layerTransitionTarget?.v2GroupCut) && layerTransitionPlan && (
             <ShowLayerTransitionPalette
               stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
               maxDurationMs={layerTransitionPlan.maxDurationMs}
@@ -4711,6 +4719,30 @@ export function ShowEditor({
                       )
                     }
                   })
+                  return
+                }
+                if (layerTransitionTarget.v2GroupCut) {
+                  if (!layerTransitionPlan || !layerTransitionPlan.enabled) return
+                  const groupCut = layerTransitionTarget.v2GroupCut
+                  const groupItem = item
+                  const groupDurationMs = Math.min(Math.round(durationMs), layerTransitionPlan.maxDurationMs)
+                  void requestV2GroupOccurrenceEditApplied({
+                    kind: 'insert-definition-layer-transition',
+                    occurrenceId: groupCut.occurrenceId,
+                    fromClipId: groupCut.fromClipId,
+                    toClipId: groupCut.toClipId,
+                    kindKey: groupItem.key,
+                    durationMs: groupDurationMs,
+                  }).then((applied) => {
+                    if (applied) {
+                      setLayerTransitionApplyError(null)
+                      setLayerTransitionTarget(null)
+                    } else {
+                      setLayerTransitionApplyError(
+                        `${groupItem.label} could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.`,
+                      )
+                    }
+                  }).catch(() => {})
                   return
                 }
                 if (!legacyShow || !timelineComposition || !layerTransitionPlan.enabled) return
@@ -8735,6 +8767,27 @@ function ShowTimelineWorkspace({
                           }),
                         },
                       })
+                    }
+                    // A Cut between two Clips of one Group occurrence in
+                    // isolation opens the Layer Transition palette for a
+                    // definition-local insert (#1075 G4b-2c). The presented
+                    // Clip ids carry the occurrence prefix, which strips
+                    // exactly as the internal-Group code above does.
+                    if (recordVersion === 2 && junction.scope === 'derived-cut' && junction.transitionId === null && insideIsolatedGroup && internalGroup) {
+                      const occurrencePrefix = `${internalGroup.id}:`
+                      if (junction.leftItemId.startsWith(occurrencePrefix) && junction.rightItemId.startsWith(occurrencePrefix)) {
+                        onOpenLayerTransition({
+                          settings: null,
+                          fromName: leftClip.patternName,
+                          toName: rightClip.patternName,
+                          anchor,
+                          v2GroupCut: {
+                            occurrenceId: internalGroup.id,
+                            fromClipId: junction.leftItemId.slice(occurrencePrefix.length),
+                            toClipId: junction.rightItemId.slice(occurrencePrefix.length),
+                          },
+                        })
+                      }
                     }
                   }
                   const legacyLeftClip = legacyJunction

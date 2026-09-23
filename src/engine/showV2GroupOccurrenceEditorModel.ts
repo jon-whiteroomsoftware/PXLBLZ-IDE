@@ -1,16 +1,20 @@
-import type { ShowRecordV2 } from './showCompositionV2'
-import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, EditShowGroupDefinitionClipAppearanceIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, ResizeShowGroupDefinitionLayerTransitionIntentV2, SetShowGroupDefinitionClipTimingIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2, WriteShowGroupDefinitionInstancePropertiesIntentV2 } from './showGroupEditsV2'
+import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
+import type { DeleteShowGroupOccurrenceIntentV2, DuplicateShowGroupOccurrenceIntentV2, EditShowGroupDefinitionClipAppearanceIntentV2, InsertShowGroupDefinitionLayerTransitionIntentV2, MakeShowGroupUniqueIntentV2, MoveShowGroupOccurrenceIntentV2, ResizeShowGroupDefinitionLayerTransitionIntentV2, SetShowGroupDefinitionClipTimingIntentV2, ShowGroupOccurrencePlacementV2, ShowGroupUniqueIdentityPlanV2, UngroupShowGroupOccurrenceIntentV2, WriteShowGroupDefinitionInstancePropertiesIntentV2 } from './showGroupEditsV2'
 import { groupDefinitionAsRecord, groupOccurrenceDuration, groupOccurrenceLocalTimeAtV2, occurrenceBoundaryAfter } from './showGroupsV2'
 import { planShowV2ClipInspectorPatch } from './showV2ClipAppearancePlanning'
 import type { ShowClipInspectorPatch } from './showClipInspectorModel'
+import { planShowV2GroupLayerTransitionInsertion } from './showV2LayerTransitionInsertion'
+import { showTransitionChangesForPresentation } from './showTransitionAuthoring'
+import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
 
-export type ShowV2GroupOccurrenceIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2 | EditShowGroupDefinitionClipAppearanceIntentV2 | WriteShowGroupDefinitionInstancePropertiesIntentV2 | ResizeShowGroupDefinitionLayerTransitionIntentV2
+export type ShowV2GroupOccurrenceIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2 | EditShowGroupDefinitionClipAppearanceIntentV2 | WriteShowGroupDefinitionInstancePropertiesIntentV2 | ResizeShowGroupDefinitionLayerTransitionIntentV2 | InsertShowGroupDefinitionLayerTransitionIntentV2
 export type ShowV2GroupOccurrenceRequest =
   | { kind: 'move-occurrence' | 'duplicate-occurrence'; occurrenceId: string; placement: Omit<ShowGroupOccurrencePlacementV2, 'layoutOccurrenceId'> }
   | { kind: 'make-unique' | 'ungroup-occurrence' | 'delete-occurrence'; occurrenceId: string }
   | { kind: 'set-child-timing'; occurrenceId: string; clipId: string; startMs?: number; durationMs?: number }
   | { kind: 'set-child-inspector-patch'; occurrenceId: string; clipId: string; patch: ShowClipInspectorPatch }
   | { kind: 'resize-definition-layer-transition'; occurrenceId: string; transitionId: string; durationMs: number }
+  | { kind: 'insert-definition-layer-transition'; occurrenceId: string; fromClipId: string; toClipId: string; kindKey: string; durationMs: number }
 export function buildShowV2GroupOccurrenceEditorModel(record: ShowRecordV2) {
   return {
     occurrences: record.composition.groupOccurrences.map(occurrence => {
@@ -24,6 +28,30 @@ export function buildShowV2GroupOccurrenceEditorModel(record: ShowRecordV2) {
     layers: record.composition.layers.map(layer => ({ id: layer.id, zoneId: layer.zoneId, name: layer.name })),
   }
 }
+
+type GroupInsertKindSettings = Omit<ShowTransitionV2, 'id' | 'durationMs' | 'participants' | 'wholeOutput' | 'propertyRamps'> & { easing?: ShowTransitionV2['easing'] }
+
+/**
+ * Catalogue defaults for one palette kind key. The palette gates
+ * compatibility against the live Stage; catalogue keys are
+ * stage-independent, so the planner resolves them across Stages.
+ */
+function groupInsertKindSettings(
+  kindKey: string,
+): { status: 'ready'; value: GroupInsertKindSettings } | { status: 'refused'; message: string } {
+  for (const stageDimensions of [2, 1, 3] as const) {
+    const item = buildShowToolkitPresentationCatalogue({ stageDimensions })
+      .find(candidate => candidate.kind === 'transition' && candidate.key === kindKey && candidate.variantId !== 'cut')
+    if (!item) continue
+    const { durationMs: _durationMs, ...changes } = showTransitionChangesForPresentation(item)
+    if (changes.kind === undefined || changes.kind === 'cut' || changes.kind === 'routing') {
+      return { status: 'refused', message: 'Cut is the absence of a Transition; choose a visual kind.' }
+    }
+    return { status: 'ready', value: structuredClone(changes) as GroupInsertKindSettings }
+  }
+  return { status: 'refused', message: 'Choose a Transition kind for this Stage.' }
+}
+
 /** Plans only explicit placement/identities. Existing pure owners validate choreography. */
 export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: ShowV2GroupOccurrenceRequest, allocate: () => string):
   { status: 'ready'; intent: ShowV2GroupOccurrenceIntent } | { status: 'refused'; message: string } {
@@ -116,6 +144,37 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
         definitionId: definition.id,
         transitionId: transition.id,
         durationMs,
+      }
+      return { status: 'ready', intent }
+    }
+    if (request.kind === 'insert-definition-layer-transition') {
+      const fromClip = definition.clips.find(value => value.id === request.fromClipId)
+      const toClip = definition.clips.find(value => value.id === request.toClipId)
+      if (!fromClip || !toClip) return { status: 'refused', message: 'Select two Group Clips that follow each other on one Layer.' }
+      if (fromClip.layerId !== toClip.layerId) return { status: 'refused', message: 'A Transition joins two Group Clips on the same definition Layer.' }
+      const insertion = planShowV2GroupLayerTransitionInsertion(record, occurrence.id, fromClip.id, toClip.id)
+      if (!insertion.enabled) return { status: 'refused', message: insertion.reason }
+      const durationMs = Math.min(Math.round(request.durationMs), insertion.maxDurationMs)
+      if (!Number.isSafeInteger(durationMs) || durationMs <= 0) {
+        return { status: 'refused', message: 'A Transition requires a positive whole-millisecond duration.' }
+      }
+      const settings = groupInsertKindSettings(request.kindKey)
+      if (settings.status !== 'ready') return settings
+      const id = fresh(new Set([...record.composition.transitions.map(value => value.id), ...definition.transitions.map(value => value.id)]))
+      const { kind, ...rest } = settings.value
+      const intent: InsertShowGroupDefinitionLayerTransitionIntentV2 = {
+        kind: 'insert-definition-layer-transition',
+        definitionId: definition.id,
+        transition: {
+          ...rest,
+          id,
+          kind,
+          durationMs,
+          easing: rest.easing ?? { curve: 'linear' },
+          ...(kind === 'crossfade' ? { crossfadePolicy: 'live-live' as const } : {}),
+          participants: [{ id: `${id}:participant`, zoneId: 'definition-zone', layerId: fromClip.layerId, fromClipId: fromClip.id, toClipId: toClip.id }],
+          propertyRamps: [],
+        },
       }
       return { status: 'ready', intent }
     }

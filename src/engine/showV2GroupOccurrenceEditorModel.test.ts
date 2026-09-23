@@ -1,7 +1,10 @@
 import { expect, it } from 'vitest'
 import { showV2GroupOccurrenceEditorFixture } from '../test/showV2GroupOccurrenceEditorFixture'
+import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { serializeProvisionalShowRecordV2, parseProvisionalShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
-import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, editShowGroupDefinitionClipAppearanceV2, setShowGroupDefinitionClipTimingV2, writeShowGroupDefinitionInstancePropertiesV2 } from './showGroupEditsV2'
+import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, editShowGroupDefinitionClipAppearanceV2, setShowGroupDefinitionClipTimingV2, writeShowGroupDefinitionInstancePropertiesV2, insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
+import { insertShowGroupLayerTransition } from './showGroupModel'
+import { planShowV2GroupLayerTransitionInsertion } from './showV2LayerTransitionInsertion'
 import { buildShowV2GroupOccurrenceEditorModel, planShowV2GroupOccurrenceEdit } from './showV2GroupOccurrenceEditorModel'
 import { projectShowEditorInspectorPresentationV2 } from './showEditorInspectorPresentation'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
@@ -388,5 +391,118 @@ it('refuses a negative or non-finite Group-local Layer Transition duration (#107
     }, () => 'unused')
     expect(plan.status).toBe('refused')
   }
+  expect(record).toEqual(before)
+})
+
+function g4b2cV1Before(): ShowRecord {
+  const source = convertibleV1Show()
+  source.scenes[0].durationMs = 30000
+  source.composition!.durationMs = 30000
+  source.composition!.scenes[0].zones[0].overlays = [{ id: 'ov1', name: 'ov', placements: [] }]
+  const inst = { ...structuredClone(source.composition!.patternInstances[0]), id: 'g-inst' }
+  source.composition!.groupDefinitions = [{
+    id: 'def-1',
+    name: 'D',
+    patternInstances: [inst],
+    placements: [
+      { id: 'g-a', instanceId: 'g-inst', layerOffset: 0, startMs: 0, durationMs: 4000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
+      { id: 'g-b', instanceId: 'g-inst', layerOffset: 0, startMs: 4000, durationMs: 3000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
+    ],
+  }]
+  source.composition!.groupOccurrences = [
+    { id: 'occ-1', definitionId: 'def-1', sceneId: 'scene-a', zoneId: 'zone', startMs: 0, baseLayer: 1, translationX: 0, translationY: 0 },
+    { id: 'occ-2', definitionId: 'def-1', sceneId: 'scene-a', zoneId: 'zone', startMs: 10000, baseLayer: 1, translationX: 0, translationY: 0 },
+  ]
+  return source
+}
+
+function g4b2cV2Before(): ShowRecordV2 {
+  const converted = convertShowRecordV1ToV2(g4b2cV1Before())
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  return converted.record
+}
+
+it('plans a Group-local Layer Transition insert with definition-local ids (#1075 G4b-2c)', () => {
+  const record = g4b2cV2Before()
+  const before = structuredClone(record)
+  const definition = record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const layerId = definition.layers[0]!.id
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'insert-definition-layer-transition', occurrenceId: 'occ-1', fromClipId: 'g-a', toClipId: 'g-b',
+    kindKey: 'transition:blend:crossfade', durationMs: 1000,
+  }, () => 'lt-1')
+  expect(plan).toEqual({
+    status: 'ready',
+    intent: {
+      kind: 'insert-definition-layer-transition',
+      definitionId: 'def-1',
+      transition: {
+        id: 'lt-1',
+        kind: 'crossfade',
+        durationMs: 1000,
+        easing: { curve: 'linear' },
+        crossfadePolicy: 'live-live',
+        participants: [{ id: 'lt-1:participant', zoneId: 'definition-zone', layerId, fromClipId: 'g-a', toClipId: 'g-b' }],
+        propertyRamps: [],
+      },
+    },
+  })
+  expect(record).toEqual(before)
+  if (plan.status !== 'ready' || plan.intent.kind !== 'insert-definition-layer-transition') throw new Error('plan')
+  const applied = insertShowGroupDefinitionLayerTransitionV2(record, plan.intent)
+  expect(applied.status, applied.status === 'refused' ? applied.message : '').toBe('changed')
+  if (applied.status !== 'changed') return
+  const v1before = g4b2cV1Before()
+  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
+  const v1afterComposition = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1afterComposition })
+  expect(oracle.status).toBe('converted')
+  if (oracle.status !== 'converted') return
+  const edited = applied.record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  expect(edited.clips).toEqual(oracle.record.composition.groupDefinitions[0]!.clips)
+  expect(edited.transitions).toEqual(oracle.record.composition.groupDefinitions[0]!.transitions)
+})
+
+it('clamps a Group-local Layer Transition insert to the plan maximum (#1075 G4b-2c)', () => {
+  const record = g4b2cV2Before()
+  const maximum = planShowV2GroupLayerTransitionInsertion(record, 'occ-1', 'g-a', 'g-b')
+  if (!maximum.enabled) throw new Error('expected room at the Group Cut')
+  const before = structuredClone(record)
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'insert-definition-layer-transition', occurrenceId: 'occ-1', fromClipId: 'g-a', toClipId: 'g-b',
+    kindKey: 'transition:blend:crossfade', durationMs: maximum.maxDurationMs + 5000,
+  }, () => 'lt-2')
+  expect(plan.status).toBe('ready')
+  if (plan.status !== 'ready' || plan.intent.kind !== 'insert-definition-layer-transition') throw new Error('plan')
+  expect(plan.intent.transition.durationMs).toBe(maximum.maxDurationMs)
+  expect(record).toEqual(before)
+})
+
+it('refuses a Group-local Layer Transition insert with the disabled plan reason (#1075 G4b-2c)', () => {
+  const record = g4b2cV2Before()
+  record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+    .clips.find(value => value.id === 'g-b')!.startMs = 5000
+  const disabled = planShowV2GroupLayerTransitionInsertion(record, 'occ-1', 'g-a', 'g-b')
+  if (disabled.enabled) throw new Error('expected a disabled plan')
+  const before = structuredClone(record)
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'insert-definition-layer-transition', occurrenceId: 'occ-1', fromClipId: 'g-a', toClipId: 'g-b',
+    kindKey: 'transition:blend:crossfade', durationMs: 100,
+  }, () => 'unused')
+  expect(plan).toEqual({ status: 'refused', message: disabled.reason })
+  expect(record).toEqual(before)
+})
+
+it('refuses a Group-local Layer Transition insert across definition layers (#1075 G4b-2c)', () => {
+  const record = g4b2cV2Before()
+  const definition = record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  definition.layers.push({ id: 'def-layer-2', name: 'Second', rank: 1 })
+  definition.clips.find(value => value.id === 'g-b')!.layerId = 'def-layer-2'
+  const before = structuredClone(record)
+  const plan = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'insert-definition-layer-transition', occurrenceId: 'occ-1', fromClipId: 'g-a', toClipId: 'g-b',
+    kindKey: 'transition:blend:crossfade', durationMs: 100,
+  }, () => 'unused')
+  expect(plan.status).toBe('refused')
   expect(record).toEqual(before)
 })
