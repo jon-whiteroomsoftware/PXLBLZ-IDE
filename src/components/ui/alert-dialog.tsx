@@ -14,7 +14,7 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialog.Overlay
     ref={ref}
-    className={cn('fixed inset-0 z-50 bg-black/60', className)}
+    className={cn('fixed inset-0 z-[90] bg-black/60', className)}
     {...props}
   />
 ))
@@ -29,7 +29,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialog.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2',
+        'fixed left-1/2 top-1/2 z-[90] w-full max-w-sm -translate-x-1/2 -translate-y-1/2',
         'rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl',
         className,
       )}

@@ -4068,6 +4068,7 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
     pickSourcePattern('TestPattern2D')
     await act(async () => {})
     const dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    expect(dialog).toHaveClass('z-[90]')
     expect(dialog).toHaveTextContent("TestPattern2D doesn't have the Speed control. The Speed animation will be removed.")
     expect(replacementSubmissions()).toHaveLength(0)
     expect(editor.state().record).toBe(before.record)
