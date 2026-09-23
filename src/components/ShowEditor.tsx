@@ -456,7 +456,7 @@ import { ShowStripSection } from '@/components/ShowStripSection'
 import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
 import { previewShowClipResize, resizeShowClipManually } from '@/engine/showManualClipResize'
 import { FieldActivityContext, createFieldActivityScope, useFieldActivity } from './ui/field-activity'
-import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
+import { captureShowStageEditV2, showV2ClipRestartAvailabilityV2, type ShowPreparedStageEditCaptureV2 } from '@/engine/showPreparedStageV2'
 import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { groupOccurrenceDuration, materializeShowGroupsV2 } from '@/engine/showGroupsV2'
@@ -4549,6 +4549,7 @@ export function ShowEditor({
                   compositionShow={legacyShow ? inspectorShow ?? legacyShow : null}
                   recordV2={recordVersion === 2 ? lessonProjectionV2 ?? null : null}
                   replacementCaptureV2={recordVersion === 2 ? preparedV2Capture : null}
+                  preparedCaptureV2={recordVersion === 2 ? preparedV2Capture : null}
                   boundaryTransitionsV2={boundaryTransitionsV2}
                   panelKey={detail.id}
                   selection={detail.selection}
@@ -10993,6 +10994,7 @@ function ContextualInspector({
   compositionShow,
   recordV2,
   replacementCaptureV2,
+  preparedCaptureV2,
   boundaryTransitionsV2,
   panelKey,
   selection,
@@ -11063,6 +11065,7 @@ function ContextualInspector({
   compositionShow: ShowRecord | null
   recordV2: ShowRecordV2 | null
   replacementCaptureV2: ShowV2PilotPreparedCapture | null
+  preparedCaptureV2?: ShowPreparedStageEditCaptureV2 | null
   /** The boundary family v1's Transition inspector owns, projected by the root. */
   boundaryTransitionsV2: Record<string, ShowBoundaryTransitionInspectorValue> | null
   panelKey: string
@@ -11203,6 +11206,7 @@ function ContextualInspector({
                 const definitionId = recordV2?.composition.groupOccurrences.find(occurrence => occurrence.id === selection.occurrenceId)?.definitionId
                 return definitionId ? { kind: 'group' as const, definitionId, clipId: selection.placementId } : undefined
               })()}
+          preparedCaptureV2={preparedCaptureV2}
           panelKey={panelKey}
           patternOptions={patternOptions}
           patternControls={patternControls}
@@ -11896,6 +11900,7 @@ function CompositionClipInspector({
   transformEnabled,
   stageDimensions,
   instanceOwnership,
+  preparedCaptureV2,
   onPatch,
   propertyAnimationContext,
   onPropertyAnimationChange,
@@ -11917,6 +11922,7 @@ function CompositionClipInspector({
   transformEnabled: boolean
   stageDimensions: 1 | 2 | 3
   instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
+  preparedCaptureV2?: ShowPreparedStageEditCaptureV2 | null
   onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   propertyAnimationContext?: Omit<ShowPropertyAnimationEditorContext, 'storageOwner'> | ShowPropertyAnimationEditorContext | null
   onPropertyAnimationChange?: (change: ShowPropertyAnimationChange) => boolean | void
@@ -11964,6 +11970,16 @@ function CompositionClipInspector({
   const animationSummaryRef = useRef<HTMLButtonElement>(null)
   const clipDetailRef = useRef<ShowClipEntityDetailHandle>(null)
   const animationCount = propertyAnimationContext?.tracks.length ?? 0
+  const v2ClipId = value.owner.kind === 'clip' ? value.owner.clipId : null
+  const restartAvailability = useMemo(() => {
+    if (!preparedCaptureV2 || !v2ClipId) return { available: true } as const
+    return showV2ClipRestartAvailabilityV2(preparedCaptureV2, v2ClipId)
+  }, [preparedCaptureV2, v2ClipId])
+  const restartUnavailableReason = restartAvailability.available ? undefined : "This Pattern's state can't be reset."
+  const handlePatch = (patch: ShowClipInspectorPatch) => {
+    if (restartUnavailableReason && patch.entryPolicy === 'restart') return false
+    return onPatch(patch)
+  }
   const closeAnimationOverview = (restoreSummaryFocus: boolean) => {
     setAnimationOverviewOpen(false)
     if (restoreSummaryFocus) {
@@ -12015,6 +12031,7 @@ function CompositionClipInspector({
         value={value}
         title={value.patternName}
         readOnly={false}
+        restartUnavailableReason={restartUnavailableReason}
         patternOptions={pickerOptions}
         onPatternPickerOpenChange={replacementCapture ? onPatternPickerOpenChange : undefined}
         patternControls={patternControls}
@@ -12031,7 +12048,7 @@ function CompositionClipInspector({
           />
         ) : undefined}
         embedded
-        onPatch={onPatch}
+        onPatch={handlePatch}
         onPreviewPatch={onPreviewPatch}
         onPreviewEnd={onPreviewEnd}
         onPatternCommit={onPatternCommit}

@@ -1,8 +1,8 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { validateShowRecordV2, parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
-import { prepareShowStageV2, type ShowPreparedStageDependenciesV2 } from './showPreparedStageV2'
+import { captureShowStageEditV2, prepareShowStageV2, showV2ClipRestartAvailabilityV2, type ShowPreparedStageDependenciesV2 } from './showPreparedStageV2'
 import { createCustomMap } from './maps'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { compileShow } from './showCompiler'
@@ -10,6 +10,10 @@ import { LIBRARIES } from '../pixelblaze/libs'
 import { createFastReplayRuntime } from './fastReplay'
 import { parseEpe } from './epeImport'
 import { insertShowTimeV2 } from './showTimelineV2'
+import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
+import { SOURCE_STOCK_MAPS } from '../pixelblaze/stock/maps/stockCatalogue'
+import { editShowClipV2 } from './showClipsV2'
+import * as showPreviewArtifact from './showPreviewArtifact'
 
 const code = 'export var elapsed=0; export function beforeRender(delta){elapsed+=delta} export function render2D(i,x,y){rgb(x,y,elapsed/1000)}'
 function fixture(): ShowRecordV2 {
@@ -185,5 +189,55 @@ describe('shared content-keyed compile cache (#1066)', () => {
     expect(second.bundle.artifact).toBe(first.bundle.artifact)
     const fresh = compileShow(first.bundle.recipe, first.bundle.libraries)
     expect(second.bundle.artifact.code).toBe(fresh.code)
+  })
+})
+
+describe('clip restart availability (#1091)', () => {
+  function stockCapture(id: string) {
+    const source = stockShowV2ById(id)
+    if (!source) throw new Error(`Missing stock show ${id}`)
+    const record = structuredClone(source)
+    const stageMap = SOURCE_STOCK_MAPS.find(map => map.id === record.stageMapId) ?? null
+    const capture = captureShowStageEditV2(record, { patterns: [], maps: [], libraries: [], profiles: [], stageMap })
+    if (capture.prepared.status !== 'ready') throw new Error(`Stock capture not ready: ${capture.prepared.status === 'refused' ? capture.prepared.message : capture.prepared.status}`)
+    return capture
+  }
+
+  it('reports clip-garden on 101 as available', () => {
+    const capture = stockCapture('stock-show-101-clips-cuts-blank-time')
+    expect(showV2ClipRestartAvailabilityV2(capture, 'clip-garden')).toEqual({ available: true })
+  })
+
+  it('reports hero-windows on 302 as unavailable', () => {
+    const capture = stockCapture('stock-show-302-installation-composition')
+    expect(showV2ClipRestartAvailabilityV2(capture, 'hero-windows')).toEqual({ available: false })
+  })
+
+  it('reports a clip already set to restart as available', () => {
+    const source = stockShowV2ById('stock-show-302-installation-composition')
+    if (!source) throw new Error('Missing stock show 302')
+    const base = structuredClone(source)
+    const edited = editShowClipV2(base, { kind: 'set-entry-policy', clipId: 'hero-windows', entryPolicy: 'restart' })
+    if (edited.status !== 'changed') throw new Error('Entry-policy edit refused')
+    const stageMap = SOURCE_STOCK_MAPS.find(map => map.id === edited.record.stageMapId) ?? null
+    const capture = captureShowStageEditV2(edited.record, { patterns: [], maps: [], libraries: [], profiles: [], stageMap })
+    expect(showV2ClipRestartAvailabilityV2(capture, 'hero-windows')).toEqual({ available: true })
+  })
+
+  it('keeps a shared instance unavailable', () => {
+    const capture = stockCapture('stock-show-302-installation-composition')
+    expect(showV2ClipRestartAvailabilityV2(capture, 'hero-windows')).toEqual({ available: false })
+    expect(showV2ClipRestartAvailabilityV2(capture, 'satellite-1-window')).toEqual({ available: false })
+  })
+
+  it('checks an eligible clip without compiling the preview artifact', () => {
+    const capture = stockCapture('stock-show-101-clips-cuts-blank-time')
+    const compile = vi.spyOn(showPreviewArtifact, 'compileShowRecipeCached')
+    try {
+      expect(showV2ClipRestartAvailabilityV2(capture, 'clip-garden')).toEqual({ available: true })
+      expect(compile).not.toHaveBeenCalled()
+    } finally {
+      compile.mockRestore()
+    }
   })
 })

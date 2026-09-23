@@ -6,6 +6,8 @@ import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { type GeneratedShowArtifact, type ShowRecipe } from './showCompiler'
 import { compileShowRecipeCached } from './showPreviewArtifact'
 import { prepareShowV2ForCompile, type ShowV2CompileProvenance } from './showCompositionLoweringV2'
+import { editShowClipV2 } from './showClipsV2'
+import type { ShowCompileRecipeSourceLookup } from './showModel'
 import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
 import { applyNormalizeMode, type MapPoint, type PixelMap } from './maps'
@@ -109,22 +111,48 @@ export function prepareShowStageFromCapturedInputsV2(record: ShowRecordV2, input
   catch (error) { return { status: 'refused', message: error instanceof Error ? error.message : String(error) } }
 }
 
+export function showV2ClipRestartAvailabilityV2(
+  capture: ShowPreparedStageEditCaptureV2,
+  clipId: string,
+): { available: true } | { available: false } {
+  const clip = capture.record.composition.clips.find(candidate => candidate.id === clipId)
+  if (!clip || clip.entryPolicy === 'restart') return { available: true }
+  const edited = editShowClipV2(capture.record, { kind: 'set-entry-policy', clipId, entryPolicy: 'restart' })
+  if (edited.status !== 'changed') return { available: true }
+  if (capture.inputCapture.status !== 'qualified') return { available: true }
+  const compileInputs = capturedStageCompileInputsV2(edited.record, capture.inputCapture.inputs)
+  if (compileInputs.status !== 'ready') return { available: true }
+  const prepared = prepareShowV2ForCompile(edited.record, compileInputs.lookup, { libraries: compileInputs.libraries })
+  if (prepared.status === 'refused' && prepared.issues.some(issue => issue.code === 'unsupported-restart')) return { available: false }
+  return { available: true }
+}
+
+function capturedStageCompileInputsV2(snapshot: ShowRecordV2, inputs: ShowPreparedStageInputCaptureV2): { status: 'ready'; lookup: ShowCompileRecipeSourceLookup; libraries: Record<string, string> } | { status: 'refused'; message: string } | { status: 'empty' } {
+  const { assets, stageMap: map } = inputs
+  const invalid = validateShowRecordV2(snapshot)[0]
+  if (invalid) return { status: 'refused', message: `${invalid.path}: ${invalid.message}` }
+  if (effectiveShowClipsV2(snapshot).length === 0) return { status: 'empty' }
+  if (map && (map.id !== snapshot.stageMapId || (map.dim !== 2 && map.dim !== 3))) return { status: 'refused', message: 'Stage map identity or dimension does not match the captured Show.' }
+  const stageDimension = map?.dim === 3 ? 3 : 2
+  const sources: Record<string, string> = {}
+  const instances = [...snapshot.composition.patternInstances, ...groupRuntimeBindings(snapshot).map(binding => ({ ...binding.instance, id: binding.runtimeId }))]
+  for (const instance of instances) {
+    const source = preparedShowPatternSourceV2(instance.pattern, assets.patterns)
+    if (source !== undefined) sources[instance.id] = source
+  }
+  const libraries = compileLibraries(LIBRARIES, assets.libraries)
+  return { status: 'ready', lookup: { byCellId: {}, byPatternInstanceId: sources, stageDimension }, libraries }
+}
+
 function prepareCapturedStage(snapshot: ShowRecordV2, inputs: ShowPreparedStageInputCaptureV2, record: ShowRecordV2): ShowPreparedStageResultV2 {
   try {
     const { assets, stageMap: map } = inputs
-    const invalid = validateShowRecordV2(snapshot)[0]
-    if (invalid) return { status: 'refused', message: `${invalid.path}: ${invalid.message}` }
-    if (effectiveShowClipsV2(snapshot).length === 0) return { status: 'empty', record: snapshot }
-    if (map && (map.id !== snapshot.stageMapId || (map.dim !== 2 && map.dim !== 3))) return { status: 'refused', message: 'Stage map identity or dimension does not match the captured Show.' }
-    const stageDimension = map?.dim === 3 ? 3 : 2
-    const sources: Record<string, string> = {}
-    const instances = [...snapshot.composition.patternInstances, ...groupRuntimeBindings(snapshot).map(binding => ({ ...binding.instance, id: binding.runtimeId }))]
-    for (const instance of instances) {
-      const source = preparedShowPatternSourceV2(instance.pattern, assets.patterns)
-      if (source !== undefined) sources[instance.id] = source
-    }
-    const libraries = compileLibraries(LIBRARIES, assets.libraries)
-    const prepared = prepareShowV2ForCompile(snapshot, { byCellId: {}, byPatternInstanceId: sources, stageDimension }, { libraries })
+    const compileInputs = capturedStageCompileInputsV2(snapshot, inputs)
+    if (compileInputs.status === 'empty') return { status: 'empty', record: snapshot }
+    if (compileInputs.status !== 'ready') return { status: 'refused', message: compileInputs.message }
+    const { lookup, libraries } = compileInputs
+    const stageDimension = lookup.stageDimension === 3 ? 3 : 2
+    const prepared = prepareShowV2ForCompile(snapshot, lookup, { libraries })
     if (prepared.status !== 'ready') return { status: 'refused', message: prepared.issues.map(issue => `${issue.path}: ${issue.message}`).join('; ') }
     const libraryOverrides = Object.fromEntries(
       Object.entries(libraries).filter(([name, source]) => LIBRARIES[name] !== source),

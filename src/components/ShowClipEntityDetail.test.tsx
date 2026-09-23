@@ -1185,3 +1185,37 @@ describe('Restart Pattern on entry placement (#1091)', () => {
     expect(section()).toHaveAttribute('open')
   })
 })
+
+describe('Restart unavailable reason (#1091)', () => {
+  function restartValueWithReason(entryPolicy: 'continue' | 'restart', startMs: number): ShowClipInspectorValue {
+    return {
+      ...value('scene-main'),
+      local: { startMs, durationMs: 2_000, opacity: 1 },
+      entryPolicy,
+    } as ShowClipInspectorValue
+  }
+
+  it('disables the checkbox with the reason linked when set', () => {
+    const onPatch = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    render(<ShowClipEntityDetail {...props} value={restartValueWithReason('continue', 1_000)} restartUnavailableReason="This Pattern's state can't be reset." />)
+    showTab('Playback')
+
+    const box = screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })
+    expect(box).toBeDisabled()
+    expect(box).toHaveAttribute('aria-describedby', 'clip-restart-unavailable-reason')
+    expect(screen.getByText("This Pattern's state can't be reset.")).toBeInTheDocument()
+  })
+
+  it('keeps the checkbox enabled without a reason', () => {
+    const onPatch = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    render(<ShowClipEntityDetail {...props} value={restartValueWithReason('continue', 1_000)} />)
+    showTab('Playback')
+
+    const box = screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })
+    expect(box).toBeEnabled()
+    expect(box).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByText("This Pattern's state can't be reset.")).not.toBeInTheDocument()
+  })
+})

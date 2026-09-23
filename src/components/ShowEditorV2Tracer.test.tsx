@@ -7703,3 +7703,49 @@ describe('v2 Add Clip and Add Layer resolve the Zone from the Layout at the play
     await expectUndoRedoExact(editor, before)
   })
 })
+
+describe('v2 restart availability (#1091)', () => {
+  async function selectStockClip(clipId: string): Promise<void> {
+    const node = document.querySelector<HTMLElement>(`[data-show-selection-key="clip:${clipId}"]`)
+    if (!node) throw new Error(`No timeline button for ${clipId}.`)
+    fireEvent.click(node)
+    await act(async () => {})
+  }
+
+  it('disables Restart with its reason on a pattern that cannot reset and admits nothing on click', async () => {
+    const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
+    const source = stockShowV2ById('stock-show-302-installation-composition')
+    if (!source) throw new Error('Missing stock show 302')
+    const editor = openV2EditorForRecord(structuredClone(source))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectStockClip('hero-windows')
+    showTab('Playback')
+
+    const box = screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })
+    expect(box).toBeDisabled()
+    expect(box).toHaveAttribute('aria-describedby', 'clip-restart-unavailable-reason')
+    expect(screen.getByText("This Pattern's state can't be reset.")).toBeInTheDocument()
+
+    const before = editor.state()
+    fireEvent.click(box)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.record).toBe(before.record)
+  })
+
+  it('keeps Restart enabled on an eligible stock clip', async () => {
+    const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
+    const source = stockShowV2ById('stock-show-101-clips-cuts-blank-time')
+    if (!source) throw new Error('Missing stock show 101')
+    const editor = openV2EditorForRecord(structuredClone(source))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectStockClip('clip-garden')
+    showTab('Playback')
+
+    const box = screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })
+    expect(box).toBeEnabled()
+    expect(screen.queryByText("This Pattern's state can't be reset.")).not.toBeInTheDocument()
+  })
+})
