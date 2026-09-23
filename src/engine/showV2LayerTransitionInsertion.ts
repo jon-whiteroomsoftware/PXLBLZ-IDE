@@ -1,6 +1,8 @@
-import type { ShowClipV2, ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
+import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
+import { insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
 import type { ShowLayerTransitionInsertionPlan } from './showLayerTransitionAuthoring'
+import { editShowTransitionV2 } from './showTransitionsV2'
 import { showV2TransitionJunctionKey } from './showV2TransitionEditorModel'
 
 const DIFFERENT_LAYOUTS_REASON =
@@ -27,62 +29,21 @@ function clipsOnLayer(record: ShowRecordV2, zoneId: string, layerId: string) {
     .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
 }
 
-// v2 retires Scenes, so there is no Scene end to read. On a converted record
-// every v1 Scene start survives as a chapter Marker (the converter mints one
-// per Scene, absorbing a same-named Marker already there), and Scene
-// intervals are contiguous with the loop end after the last one. The v2 bound
-// is therefore the next chapter Marker time after the junction's Scene start,
-// else showEndMs. A natively authored record without chapter Markers treats
-// the whole loop as one Scene.
-function chapterBoundaries(record: ShowRecordV2): number[] {
-  return [...new Set(
-    record.composition.markers
-      .filter(marker => marker.role === 'chapter')
-      .map(marker => marker.timeMs),
-  )].sort((left, right) => left - right)
+// "Different Zone Layouts" reads the Layout occurrences, which cover Show
+// time exactly once, sorted by startMs. The Cut sits in different layouts
+// when one occurrence ends at the Cut time and the next starts there with
+// another layoutId. A boundary with the same layoutId on both sides, or a Cut
+// inside one occurrence, stays inside one layout.
+function orderedLayoutOccurrences(record: ShowRecordV2) {
+  return [...record.composition.layoutOccurrences]
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
 }
 
-function sceneIndexAt(boundaries: number[], timeMs: number): number {
-  let scene = -1
-  for (let index = 0; index < boundaries.length; index += 1) {
-    if (boundaries[index] <= timeMs) scene = index
-    else break
-  }
-  return scene
-}
-
-function sceneEndAt(
-  record: ShowRecordV2,
-  boundaries: number[],
-  clipsById: Map<string, ShowClipV2>,
-  timeMs: number,
-): number {
-  const scene = sceneIndexAt(boundaries, timeMs)
-  const base = boundaries[scene + 1] ?? record.composition.showEndMs
-  // A converted Scene-boundary Transition bridges its Scene end and the next
-  // Scene start, so v1's Scene end is the window start, not the next Marker.
-  // Former boundaries carry converted-boundary-transition provenance; native
-  // Transitions never do, so they never narrow the bound.
-  let endMs = base
-  for (const transition of record.composition.transitions) {
-    if (transition.origin !== 'converted-boundary-transition') continue
-    const window = transitionWindow(clipsById, transition)
-    if (window && window.endMs === base) endMs = Math.min(endMs, window.startMs)
-  }
-  return endMs
-}
-
-function transitionWindow(
-  clipsById: Map<string, ShowClipV2>,
-  transition: ShowTransitionV2,
-): { startMs: number; endMs: number } | null {
-  if (transition.wholeOutput) {
-    return { startMs: transition.wholeOutput.startMs, endMs: transition.wholeOutput.startMs + transition.durationMs }
-  }
-  const source = clipsById.get(transition.participants[0]?.fromClipId ?? '')
-  if (!source) return null
-  const startMs = source.startMs + source.durationMs
-  return { startMs, endMs: startMs + transition.durationMs }
+function isLayoutBoundaryWithDifferentLayout(record: ShowRecordV2, cutMs: number): boolean {
+  const ordered = orderedLayoutOccurrences(record)
+  const before = ordered.find(occurrence => occurrence.startMs + occurrence.durationMs === cutMs)
+  const after = ordered.find(occurrence => occurrence.startMs === cutMs)
+  return !!before && !!after && before.layoutId !== after.layoutId
 }
 
 function participantTransitions(record: ShowRecordV2): ShowTransitionV2[] {
@@ -108,32 +69,92 @@ function transitionConnects(
   ))
 }
 
-function planForClips(
+function freshProbeId(record: ShowRecordV2): string {
+  const used = new Set(record.composition.transitions.map(transition => transition.id))
+  const base = '__probe-layer-transition-insertion'
+  if (!used.has(base)) return base
+  let counter = 2
+  while (used.has(`${base}-${counter}`)) counter += 1
+  return `${base}-${counter}`
+}
+
+function ownerAcceptsAt(
+  record: ShowRecordV2,
+  from: { id: string; zoneId: string; layerId: string },
+  to: { id: string },
+  durationMs: number,
+  probeId: string,
+): boolean {
+  const transition: ShowTransitionV2 = {
+    kind: 'crossfade',
+    id: probeId,
+    durationMs,
+    easing: { curve: 'linear' },
+    crossfadePolicy: 'live-live',
+    participants: [{
+      id: `${probeId}:participant`,
+      zoneId: from.zoneId,
+      layerId: from.layerId,
+      fromClipId: from.id,
+      toClipId: to.id,
+    }],
+    propertyRamps: [],
+  }
+  return editShowTransitionV2(record, { kind: 'insert', transition }).status === 'changed'
+}
+
+// #1075, Jon 2026-09-22: Chapter Markers are labels only. The maximum duration
+// offered at a Cut is the room up to the next logical obstruction, which is
+// the largest whole-millisecond duration the Transition owner accepts.
+function maxDurationViaOwner(
+  record: ShowRecordV2,
+  from: { id: string; zoneId: string; layerId: string },
+  to: { id: string },
+): number {
+  const high = record.composition.showEndMs
+  if (!Number.isSafeInteger(high) || high < 1) return 0
+  const probeId = freshProbeId(record)
+  if (!ownerAcceptsAt(record, from, to, 1, probeId)) return 0
+  let low = 1
+  let highBound = high
+  while (low < highBound) {
+    const mid = Math.floor((low + highBound + 1) / 2)
+    if (ownerAcceptsAt(record, from, to, mid, probeId)) low = mid
+    else highBound = mid - 1
+  }
+  return low
+}
+
+function refusalForClips(
   record: ShowRecordV2,
   fromClipId: string,
   toClipId: string,
-): ShowLayerTransitionInsertionPlan {
+): ShowLayerTransitionInsertionPlan | null {
   const clipsById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
   const from = clipsById.get(fromClipId)
   const to = clipsById.get(toClipId)
   if (!from || !to) return disabled(DIFFERENT_LAYOUTS_REASON)
-  const boundaries = chapterBoundaries(record)
-  if (sceneIndexAt(boundaries, from.startMs) !== sceneIndexAt(boundaries, to.startMs)) {
-    return disabled(DIFFERENT_LAYOUTS_REASON)
-  }
+  const cutMs = from.startMs + from.durationMs
+  if (isLayoutBoundaryWithDifferentLayout(record, cutMs)) return disabled(DIFFERENT_LAYOUTS_REASON)
   if (from.zoneId !== to.zoneId || from.layerId !== to.layerId) return disabled(NOT_ADJACENT_REASON)
   const layerClips = clipsOnLayer(record, from.zoneId, from.layerId)
   const fromIndex = layerClips.findIndex(clip => clip.id === fromClipId)
   const toIndex = layerClips.findIndex(clip => clip.id === toClipId)
   if (fromIndex < 0 || toIndex !== fromIndex + 1) return disabled(NOT_ADJACENT_REASON)
-  const cutMs = from.startMs + from.durationMs
   if (to.startMs !== cutMs || transitionConnects(record, fromClipId, toClipId)) {
     return disabled(ALREADY_TRANSITION_REASON)
   }
+  const unrelatedClips = record.composition.clips.filter(clip => (
+    clip.zoneId === from.zoneId
+    && clip.layerId !== from.layerId
+  ))
+  if (unrelatedClips.some(clip => clip.startMs === cutMs)) {
+    return disabled(SAME_INSTANT_REASON)
+  }
   const scope = layerScopeTransitions(record)
-  const connected = (fromClipId: string, toClipId: string): boolean => scope.some(
+  const connected = (candidateFrom: string, candidateTo: string): boolean => scope.some(
     transition => transition.participants.some(
-      participant => participant.fromClipId === fromClipId && participant.toClipId === toClipId,
+      participant => participant.fromClipId === candidateFrom && participant.toClipId === candidateTo,
     ),
   )
   const chain = [layerClips[toIndex]]
@@ -143,43 +164,6 @@ function planForClips(
     if (current.startMs + current.durationMs !== next.startMs) break
     if (!connected(current.id, next.id)) break
     chain.push(next)
-  }
-  const last = chain[chain.length - 1]
-  const lastEndMs = last.startMs + last.durationMs
-  const obstruction = layerClips[toIndex + chain.length]
-  const sceneEndMs = sceneEndAt(record, boundaries, clipsById, cutMs)
-  let maxDurationMs = Math.max(
-    0,
-    Math.min(obstruction?.startMs ?? sceneEndMs, sceneEndMs) - lastEndMs,
-  )
-  const cutScene = sceneIndexAt(boundaries, cutMs)
-  const unrelatedClips = record.composition.clips.filter(clip => (
-    clip.zoneId === from.zoneId
-    && clip.layerId !== from.layerId
-    && sceneIndexAt(boundaries, clip.startMs) === cutScene
-  ))
-  const nextUnrelatedStartMs = unrelatedClips
-    .filter(clip => clip.startMs > cutMs)
-    .reduce((nearest, clip) => Math.min(nearest, clip.startMs), Number.POSITIVE_INFINITY)
-  if (Number.isFinite(nextUnrelatedStartMs)) {
-    maxDurationMs = Math.min(maxDurationMs, nextUnrelatedStartMs - cutMs - 1)
-  }
-  if (unrelatedClips.some(clip => clip.startMs === cutMs)) {
-    return disabled(SAME_INSTANT_REASON)
-  }
-  const activeUnrelatedEndMs = unrelatedClips
-    .filter(clip => clip.startMs < cutMs && clip.startMs + clip.durationMs >= cutMs)
-    .reduce((nearest, clip) => Math.min(nearest, clip.startMs + clip.durationMs), Number.POSITIVE_INFINITY)
-  if (Number.isFinite(activeUnrelatedEndMs)) {
-    maxDurationMs = Math.min(maxDurationMs, activeUnrelatedEndMs - cutMs - 1)
-  }
-  const nextOtherZoneBoundaryMs = record.composition.clips
-    .filter(clip => clip.zoneId !== from.zoneId && sceneIndexAt(boundaries, clip.startMs) === cutScene)
-    .flatMap(clip => [clip.startMs, clip.startMs + clip.durationMs])
-    .filter(boundaryMs => boundaryMs > cutMs && boundaryMs < sceneEndMs)
-    .reduce((nearest, boundaryMs) => Math.min(nearest, boundaryMs), Number.POSITIVE_INFINITY)
-  if (Number.isFinite(nextOtherZoneBoundaryMs)) {
-    maxDurationMs = Math.min(maxDurationMs, nextOtherZoneBoundaryMs - cutMs - 1)
   }
   const chainIds = new Set(chain.map(clip => clip.id))
   const movingTransitionIds = new Set(scope.filter(transition => (
@@ -196,10 +180,20 @@ function planForClips(
   if (fixedIntervals.some(interval => cutMs >= interval.startMs && cutMs < interval.endMs)) {
     return disabled(SIMULTANEOUS_TRANSITION_REASON)
   }
-  const nextFixedStart = fixedIntervals
-    .filter(interval => interval.startMs > cutMs)
-    .reduce((nearest, interval) => Math.min(nearest, interval.startMs), Number.POSITIVE_INFINITY)
-  if (Number.isFinite(nextFixedStart)) maxDurationMs = Math.min(maxDurationMs, nextFixedStart - cutMs)
+  return null
+}
+
+function planForClips(
+  record: ShowRecordV2,
+  fromClipId: string,
+  toClipId: string,
+): ShowLayerTransitionInsertionPlan {
+  const refusal = refusalForClips(record, fromClipId, toClipId)
+  if (refusal) return refusal
+  const clipsById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
+  const from = clipsById.get(fromClipId)!
+  const to = clipsById.get(toClipId)!
+  const maxDurationMs = maxDurationViaOwner(record, from, to)
   return maxDurationMs > 0
     ? { enabled: true, maxDurationMs }
     : disabled(NO_FREE_TIME_REASON)
@@ -254,6 +248,67 @@ export function planShowV2LayerTransitionInsertion(
   return planForClips(record, resolved.fromClipId, resolved.toClipId)
 }
 
+function groupProbeAccepts(
+  record: ShowRecordV2,
+  definitionId: string,
+  definitionLayerId: string,
+  definitionFromClipId: string,
+  definitionToClipId: string,
+  durationMs: number,
+  probeId: string,
+): boolean {
+  const transition: ShowTransitionV2 = {
+    kind: 'crossfade',
+    id: probeId,
+    durationMs,
+    easing: { curve: 'linear' },
+    crossfadePolicy: 'live-live',
+    participants: [{
+      id: `${probeId}:participant`,
+      zoneId: 'definition-zone',
+      layerId: definitionLayerId,
+      fromClipId: definitionFromClipId,
+      toClipId: definitionToClipId,
+    }],
+    propertyRamps: [],
+  }
+  return insertShowGroupDefinitionLayerTransitionV2(record, {
+    kind: 'insert-definition-layer-transition',
+    definitionId,
+    transition,
+  }).status === 'changed'
+}
+
+// #1075, Jon 2026-09-22: the Group maximum comes from the Group owner the same
+// way. Its whole-record validation covers every linked occurrence.
+function maxGroupDurationViaOwner(
+  record: ShowRecordV2,
+  definitionId: string,
+  definitionLayerId: string,
+  definitionFromClipId: string,
+  definitionToClipId: string,
+): number {
+  const high = record.composition.showEndMs
+  if (!Number.isSafeInteger(high) || high < 1) return 0
+  const used = new Set(record.composition.groupDefinitions.flatMap(definition => definition.transitions.map(transition => transition.id)))
+  const base = '__probe-group-layer-transition-insertion'
+  let probeId = base
+  let counter = 2
+  while (used.has(probeId)) {
+    probeId = `${base}-${counter}`
+    counter += 1
+  }
+  if (!groupProbeAccepts(record, definitionId, definitionLayerId, definitionFromClipId, definitionToClipId, 1, probeId)) return 0
+  let low = 1
+  let highBound = high
+  while (low < highBound) {
+    const mid = Math.floor((low + highBound + 1) / 2)
+    if (groupProbeAccepts(record, definitionId, definitionLayerId, definitionFromClipId, definitionToClipId, mid, probeId)) low = mid
+    else highBound = mid - 1
+  }
+  return low
+}
+
 export function planShowV2GroupLayerTransitionInsertion(
   record: ShowRecordV2,
   occurrenceId: string,
@@ -262,22 +317,31 @@ export function planShowV2GroupLayerTransitionInsertion(
 ): ShowLayerTransitionInsertionPlan {
   const occurrence = record.composition.groupOccurrences.find(candidate => candidate.id === occurrenceId)
   if (!occurrence) return disabled(MISSING_GROUP_REASON)
+  const definition = record.composition.groupDefinitions.find(candidate => candidate.id === occurrence.definitionId)
+  if (!definition) return disabled(MISSING_GROUP_REASON)
   const materialized = materializeShowGroupsV2(record)
-  let maxDurationMs = Number.POSITIVE_INFINITY
-  let sawLinked = false
-  for (const linked of record.composition.groupOccurrences.filter(
+  const linked = record.composition.groupOccurrences.filter(
     candidate => candidate.definitionId === occurrence.definitionId,
-  )) {
-    sawLinked = true
-    const plan = planForClips(
+  )
+  if (linked.length === 0) return disabled(MISSING_GROUP_REASON)
+  for (const linkedOccurrence of linked) {
+    const refusal = refusalForClips(
       materialized,
-      `${linked.id}:${definitionFromClipId}`,
-      `${linked.id}:${definitionToClipId}`,
+      `${linkedOccurrence.id}:${definitionFromClipId}`,
+      `${linkedOccurrence.id}:${definitionToClipId}`,
     )
-    if (!plan.enabled) return plan
-    maxDurationMs = Math.min(maxDurationMs, plan.maxDurationMs)
+    if (refusal) return refusal
   }
-  return sawLinked && Number.isFinite(maxDurationMs)
+  const fromDefinitionClip = definition.clips.find(clip => clip.id === definitionFromClipId)
+  if (!fromDefinitionClip) return disabled(DIFFERENT_LAYOUTS_REASON)
+  const maxDurationMs = maxGroupDurationViaOwner(
+    record,
+    definition.id,
+    fromDefinitionClip.layerId,
+    definitionFromClipId,
+    definitionToClipId,
+  )
+  return maxDurationMs > 0
     ? { enabled: true, maxDurationMs }
-    : disabled(MISSING_GROUP_REASON)
+    : disabled(NO_FREE_TIME_REASON)
 }

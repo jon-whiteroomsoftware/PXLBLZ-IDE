@@ -1,4 +1,3 @@
-import { appendFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { BASELINE_FIXTURES, resolveBaselineFixtureRecord, type BaselineFixture } from '../agent-harness/baseline/fixtures'
 import type { ShowPatternRef, ShowRecord } from './personalContentRecords'
@@ -14,7 +13,9 @@ import {
   planShowV2GroupLayerTransitionInsertion,
   planShowV2LayerTransitionInsertion,
 } from './showV2LayerTransitionInsertion'
-import type { ShowRecordV2 } from './showCompositionV2'
+import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
+import { editShowTransitionV2 } from './showTransitionsV2'
+import { insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 import { addShowZone, createDefaultShow, type ShowCompileRecipeSourceLookup } from './showModel'
 import { stockMapSpec } from './maps'
@@ -97,10 +98,15 @@ function junctionKeyFor(record: ShowRecordV2, fromClipId: string, toClipId: stri
 }
 
 describe('v2 Layer Transition insertion plan (#1075 G4b-2a)', () => {
-  it('matches v1 on every exact-adjacency Cut of every convertible stock Show', () => {
+  it('offers room up to the next logical obstruction (#1075 ruling)', () => {
     const expected = new Set(censusLoweringInputs().map(entry => `${entry.corpus}:${entry.corpusId}`))
     let showsCompared = 0
     let cutsCompared = 0
+    let enabledCuts = 0
+    let disabledCuts = 0
+    const diverged: string[] = []
+    const sceneEndExceeded: string[] = []
+    const violations: string[] = []
     const converted: string[] = []
     const skipped: string[] = []
     const unmapped: string[] = []
@@ -149,11 +155,40 @@ describe('v2 Layer Transition insertion plan (#1075 G4b-2a)', () => {
             }
             const key = junctionKeyFor(record, fromClipId, toClipId, junction.startMs)
             const v2plan = planShowV2LayerTransitionInsertion(record, key)
-            expect(
-              v2plan,
-              `${input.corpusId} ${junction.fromPlacementId}→${junction.toPlacementId} v1=${JSON.stringify(v1plan)}`,
-            ).toEqual(v1plan)
             cutsCompared += 1
+            const label = `${input.corpusId} ${junction.fromPlacementId}→${junction.toPlacementId}@${junction.startMs}`
+            const v1SceneBound = !v1plan.enabled && (v1plan as { reason?: string }).reason === DIFFERENT_LAYOUTS
+            if (v1SceneBound && !layoutBoundaryChangesAt(record, junction.startMs)) {
+              diverged.push(`${label} v1=${JSON.stringify(v1plan)} v2=${JSON.stringify(v2plan)}`)
+              if (v2plan.enabled) {
+                enabledCuts += 1
+                checkOwnerBounds(record, fromClipId, toClipId, v2plan.maxDurationMs, label, violations)
+              } else {
+                disabledCuts += 1
+              }
+              continue
+            }
+            if (v2plan.enabled) {
+              enabledCuts += 1
+              checkOwnerBounds(record, fromClipId, toClipId, v2plan.maxDurationMs, label, violations)
+              if (v1plan.enabled) {
+                if (v2plan.maxDurationMs < v1plan.maxDurationMs) {
+                  violations.push(`${label}: v2 max ${v2plan.maxDurationMs} < v1 max ${v1plan.maxDurationMs}`)
+                }
+              } else if (
+                !v1plan.enabled
+                && (v1plan as { reason?: string }).reason === NO_FREE_TIME
+              ) {
+                sceneEndExceeded.push(`${label} v1=${JSON.stringify(v1plan)} v2=${JSON.stringify(v2plan)}`)
+              } else {
+                violations.push(`${label}: v2 enabled while v1 refuses ${JSON.stringify(v1plan)}`)
+              }
+            } else {
+              disabledCuts += 1
+              if (JSON.stringify(v2plan) !== JSON.stringify(v1plan)) {
+                violations.push(`${label}: v2 disabled ${JSON.stringify(v2plan)} !== v1 ${JSON.stringify(v1plan)}`)
+              }
+            }
           }
         }
       }
@@ -161,22 +196,86 @@ describe('v2 Layer Transition insertion plan (#1075 G4b-2a)', () => {
     }
     console.log(`UNMAPPED ${JSON.stringify(unmapped)}`)
     console.log(`SAMECLIP ${JSON.stringify(sameClip)}`)
-    appendFileSync('/tmp/g4b2a-sweep-counts.txt', `sameClipDetail=${JSON.stringify(sameClip)}
-shows=${showsCompared} cuts=${cutsCompared} unmapped=${unmapped.length} sameClip=${sameClip.length} skipped=${JSON.stringify(skipped)}
-`)
+    expect(diverged, 'recorded scene-bound divergence').toEqual(RECORDED_DIVERGENCE)
+    expect(sceneEndExceeded, 'recorded scene-end-limit divergence').toEqual(RECORDED_SCENE_END_EXCEEDED)
     // Interior seams: both v1 segments coalesce to one v2 Clip, so no v2
-    // junction key exists for the Cut. v1 refuses each as a cross-Scene seam;
-    // that characterization is pinned here and reported as BRIEF GAP.
+    // junction key exists for the Cut. v1 refuses each as a cross-Scene seam.
     expect(unmapped, 'placements without a converted Clip').toEqual([])
     for (const entry of sameClip) {
       expect(entry.includes('These two Clips sit in different Zone Layouts'), entry).toBe(true)
     }
     expect(new Set(converted), 'same convertible list as show:v2-parity').toEqual(expected)
     expect(skipped, 'skipped corpus entries').toEqual([])
-    console.log(`SWEEP shows=${showsCompared} cuts=${cutsCompared}`)
+    console.log(`SWEEP shows=${showsCompared} cuts=${cutsCompared} enabled=${enabledCuts} disabled=${disabledCuts} diverged=${diverged.length} sceneEndExceeded=${sceneEndExceeded.length}`)
+    expect(violations, 'oracle violations').toEqual([])
     expect(cutsCompared).toBeGreaterThan(0)
   })
 })
+
+const DIFFERENT_LAYOUTS =
+  'These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.'
+
+const NO_FREE_TIME =
+  'There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.'
+
+function layoutBoundaryChangesAt(record: ShowRecordV2, cutMs: number): boolean {
+  const ordered = [...record.composition.layoutOccurrences]
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+  const before = ordered.find(occurrence => occurrence.startMs + occurrence.durationMs === cutMs)
+  const after = ordered.find(occurrence => occurrence.startMs === cutMs)
+  return !!before && !!after && before.layoutId !== after.layoutId
+}
+
+function layerProbeTransition(
+  record: ShowRecordV2,
+  fromClipId: string,
+  toClipId: string,
+  durationMs: number,
+  id: string,
+): ShowTransitionV2 {
+  const from = record.composition.clips.find(clip => clip.id === fromClipId)!
+  return {
+    kind: 'crossfade',
+    id,
+    durationMs,
+    easing: { curve: 'linear' },
+    crossfadePolicy: 'live-live',
+    participants: [{
+      id: `${id}:participant`,
+      zoneId: from.zoneId,
+      layerId: from.layerId,
+      fromClipId,
+      toClipId,
+    }],
+    propertyRamps: [],
+  }
+}
+
+function checkOwnerBounds(
+  record: ShowRecordV2,
+  fromClipId: string,
+  toClipId: string,
+  maxDurationMs: number,
+  label: string,
+  violations: string[],
+): void {
+  const accepted = editShowTransitionV2(record, {
+    kind: 'insert',
+    transition: layerProbeTransition(record, fromClipId, toClipId, maxDurationMs, '__sweep-probe-accept'),
+  })
+  if (accepted.status !== 'changed') {
+    violations.push(`${label}: owner refuses the offered maximum ${maxDurationMs} (${accepted.status})`)
+  }
+  const refused = editShowTransitionV2(record, {
+    kind: 'insert',
+    transition: layerProbeTransition(record, fromClipId, toClipId, maxDurationMs + 1, '__sweep-probe-refuse'),
+  })
+  if (refused.status !== 'refused') {
+    violations.push(`${label}: owner accepts one past the maximum ${maxDurationMs + 1} (${refused.status})`)
+  }
+}
+
+
 
 function layerFixture(): { show: ShowRecord; composition: ShowCompositionV1 } {
   const show = createDefaultShow('show-layer-transition', 'Layer transition', 1_000)
@@ -228,13 +327,15 @@ function boundaryFixture(): { show: ShowRecord; composition: ShowCompositionV1 }
   const show = createDefaultShow('show-boundary-move', 'Boundary move', 1_000)
   const zoneId = show.zones[0].id
   const [leftScene, rightScene] = show.scenes
+  show.routingLayouts.push({ ...show.routingLayouts[0], id: 'layout-2', name: 'Alternate' })
+  show.transitions = []
   show.transitions.push({
     id: 'routing-scene-1',
     afterSceneId: leftScene.id,
     kind: 'routing',
     durationMs: 0,
     easing: { curve: 'linear' },
-    layoutId: show.routingLayouts[0].id,
+    layoutId: 'layout-2',
   })
   show.composition = {
     version: 1,
@@ -518,7 +619,7 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
     expect(planShowV2LayerTransitionInsertion(record, key)).toEqual(v1plan)
   })
 
-  it('bounds insertion by the endpoint Scene like v1', () => {
+  it('offers the owner room past the retired Scene end (#1075 ruling)', () => {
     const { show, composition } = layerFixture()
     show.scenes[0].durationMs = 5_000
     show.scenes.push({ ...show.scenes[0], id: 'later-scene', name: 'Later', durationMs: 30_000 })
@@ -545,7 +646,18 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
     })
     const { v1plan, key, record } = reasonCase(show, composition, 'clip-a', 'clip-b', 2_000)
     expect(v1plan).toEqual({ enabled: true, maxDurationMs: 1_000 })
-    expect(planShowV2LayerTransitionInsertion(record, key)).toEqual(v1plan)
+    // Chapter Markers are labels only, so the retired Scene end does not bound
+    // v2 (#1075, Jon 2026-09-22). The maximum is what the Transition owner
+    // accepts: pushing clip-b exactly onto the converted whole-output
+    // boundary window start would leave its empty contributor side inexact,
+    // so the owner refuses 1_000 and the plan offers 999.
+    const v2plan = planShowV2LayerTransitionInsertion(record, key)
+    expect(v2plan).toEqual({ enabled: true, maxDurationMs: 999 })
+    const fromClipId = record.composition.clips.find(clip => clip.id === 'clip-a')!.id
+    const toClipId = record.composition.clips.find(clip => clip.id === 'clip-b')!.id
+    const violations: string[] = []
+    checkOwnerBounds(record, fromClipId, toClipId, 999, 'endpoint-scene', violations)
+    expect(violations).toEqual([])
   })
 })
 
@@ -575,7 +687,36 @@ describe('v2 Group Layer Transition insertion plan (#1075 G4b-2a)', () => {
     })
     expect(v1plan).toEqual({ enabled: true, maxDurationMs: 1_000 })
     const { record } = convertedRecord(show)
-    expect(planShowV2GroupLayerTransitionInsertion(record, 'group-use-clear', 'left', 'right')).toEqual(v1plan)
+    const v2plan = planShowV2GroupLayerTransitionInsertion(record, 'group-use-clear', 'left', 'right')
+    expect(v2plan).toEqual(v1plan)
+    if (!v2plan.enabled) throw new Error('expected an enabled Group plan')
+    const definition = record.composition.groupDefinitions.find(candidate => candidate.id === 'group-definition')!
+    const layerId = definition.clips.find(clip => clip.id === 'left')!.layerId
+    const groupProbe = (durationMs: number, id: string): ShowTransitionV2 => ({
+      kind: 'crossfade',
+      id,
+      durationMs,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+      participants: [{
+        id: `${id}:participant`,
+        zoneId: 'definition-zone',
+        layerId,
+        fromClipId: 'left',
+        toClipId: 'right',
+      }],
+      propertyRamps: [],
+    })
+    expect(insertShowGroupDefinitionLayerTransitionV2(record, {
+      kind: 'insert-definition-layer-transition',
+      definitionId: definition.id,
+      transition: groupProbe(v2plan.maxDurationMs, '__probe-group-accept'),
+    }).status, 'Group owner accepts the maximum').toBe('changed')
+    expect(insertShowGroupDefinitionLayerTransitionV2(record, {
+      kind: 'insert-definition-layer-transition',
+      definitionId: definition.id,
+      transition: groupProbe(v2plan.maxDurationMs + 1, '__probe-group-refuse'),
+    }).status, 'Group owner refuses one past the maximum').toBe('refused')
   })
 
   it('reports a missing Group like v1', () => {
@@ -594,3 +735,159 @@ describe('v2 Group Layer Transition insertion plan (#1075 G4b-2a)', () => {
     expect(planShowV2GroupLayerTransitionInsertion(record, 'group-missing', 'left', 'right')).toEqual(v1plan)
   })
 })
+
+// Recorded divergence under Jon's #1075 ruling (2026-09-22): every Cut below
+// is a cross-Scene seam where v1 refuses with the Scene-based "different Zone
+// Layouts" reason while no Layout occurrence changes at the Cut. Chapter
+// Markers do not bound the v2 plan, so v2 answers from the Transition owner
+// instead. On a converted Show that room can exceed the v1 Scene-end limit.
+const RECORDED_DIVERGENCE: string[] = [
+  "stock-show-302-installation-composition hero-render→hero-windows@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-302-installation-composition hero-windows→hero-answer@14000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-302-installation-composition satellite-1-render→satellite-1-window@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-302-installation-composition satellite-1-window→satellite-1-answer@14000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-302-installation-composition satellite-2-render→satellite-2-window@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-302-installation-composition satellite-2-window→satellite-2-answer@14000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-302-installation-composition satellite-3-render→satellite-3-window@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-302-installation-composition satellite-3-window→satellite-3-answer@14000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-302-installation-composition satellite-4-render→satellite-4-window@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-302-installation-composition satellite-4-window→satellite-4-answer@14000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-transform-effects clip-affine-effects--span-effect-5→clip-wrap-effect@20000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-distortion-effects clip-distortion-effect-1→clip-distortion-effect-2@3000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-distortion-effects clip-distortion-effect-2→clip-distortion-effect-3@7000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-distortion-effects clip-distortion-effect-3→clip-distortion-effect-4@9500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-distortion-effects clip-distortion-effect-4→clip-distortion-effect-5@12000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-distortion-effects clip-distortion-effect-5→clip-distortion-effect-6@14500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-color-adjustment-effects clip-color-adjustment-effect-1→clip-color-adjustment-effect-2@4000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-color-adjustment-effects clip-color-adjustment-effect-2→clip-color-adjustment-effect-3@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-color-adjustment-effects clip-color-adjustment-effect-3→clip-color-adjustment-effect-4@8000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-color-adjustment-effects clip-color-adjustment-effect-4→clip-color-adjustment-effect-5@10000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-color-adjustment-effects clip-color-adjustment-effect-5→clip-color-adjustment-effect-6@12000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-color-adjustment-effects clip-color-adjustment-effect-6→clip-color-adjustment-effect-7@14000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-color-adjustment-effects clip-color-adjustment-effect-7→clip-color-adjustment-effect-8@16000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-color-adjustment-effects clip-color-adjustment-effect-8→clip-color-adjustment-effect-9@18000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-color-adjustment-effects clip-color-adjustment-effect-9→clip-color-adjustment-effect-10@20000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-compositing-key-effects subject-1→subject-2@3000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects subject-2→subject-3@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects subject-3→subject-4@9000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects subject-4→subject-5@12500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects subject-5→subject-6@16000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects subject-6→subject-7@19000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects subject-7→subject-8@24000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects bed-1→bed-2@3000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects bed-2→bed-3@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects bed-3→bed-4@9000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects bed-4→bed-5@12500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects bed-5→bed-6@16000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects bed-6→bed-7@19000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-compositing-key-effects bed-7→bed-8@24000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-luma-sources luma-clip-1→luma-clip-2@4000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-luma-sources luma-clip-2→luma-clip-3@8000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-luma-sources luma-clip-3→luma-clip-4@12000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-luma-sources luma-clip-4→luma-clip-5@16000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-luma-sources luma-clip-5→luma-clip-6@20000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-luma-sources luma-clip-6→luma-clip-7@24000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-luma-sources luma-clip-7→luma-clip-8@28000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-blend-fade-transitions placement-reference-content-1→placement-reference-content-2@3000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-animation-speed-a→placement-pattern-control-a@5000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-pattern-control-a→placement-brightness-a@10000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-brightness-a→placement-clip-transform-a@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-clip-transform-a→placement-clip-viewport-a@20000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-clip-viewport-a→placement-overlay-opacity-a@25000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-property-animation placement-overlay-opacity-a→placement-effect-parameter-a@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-animation-speed-b→placement-pattern-control-b@5000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-pattern-control-b→placement-brightness-b@10000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-brightness-b→placement-clip-transform-b@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-clip-transform-b→placement-clip-viewport-b@20000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-clip-viewport-b→placement-overlay-opacity-b@25000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-property-animation placement-overlay-opacity-b→placement-effect-parameter-b@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-reference-aperture-shapes subject-rectangle→subject-ellipse@3000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes subject-ellipse→subject-diamond@8000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes subject-diamond→subject-rounded-box@10000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes subject-rounded-box→subject-rounded-box-wide@12000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes subject-rounded-box-wide→subject-cross@14000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes subject-cross→subject-polygon@16000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes subject-polygon→subject-ring-soft@18000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes subject-ring-soft→subject-ring-hard@22000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes subject-ring-hard→subject-ring-dither@24000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes bed-rectangle→bed-ellipse@3000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes bed-ellipse→bed-diamond@8000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes bed-diamond→bed-rounded-box@10000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes bed-rounded-box→bed-rounded-box-wide@12000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes bed-rounded-box-wide→bed-cross@14000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes bed-cross→bed-polygon@16000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes bed-polygon→bed-ring-soft@18000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes bed-ring-soft→bed-ring-hard@22000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-shapes bed-ring-hard→bed-ring-dither@24000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons subject-heart→subject-star@4000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons subject-star→subject-crescent@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons subject-crescent→subject-cloud@8000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons subject-cloud→subject-cat-head@11000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons subject-cat-head→subject-cat-side-profile@13000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons subject-cat-side-profile→subject-bastet@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons subject-bastet→subject-star-rotated@17000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons subject-star-rotated→subject-cloud-cut-out@20000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons bed-heart→bed-star@4000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons bed-star→bed-crescent@6000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons bed-crescent→bed-cloud@8000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons bed-cloud→bed-cat-head@11000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons bed-cat-head→bed-cat-side-profile@13000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons bed-cat-side-profile→bed-bastet@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons bed-bastet→bed-star-rotated@17000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-reference-aperture-icons bed-star-rotated→bed-cloud-cut-out@20000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-showcase-redline-installation ignition-center→first-lift-center@7500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-lift-center→countermotion-center@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation countermotion-center→first-drop-center@22500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-drop-center→vacuum-center@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation vacuum-center→rebuild-center@37500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation rebuild-center→compression-center@45000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation compression-center→peak-release-center@52500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-lift-target-1→countermotion-target-1@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation countermotion-target-1→first-drop-target-1@22500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-drop-target-1→vacuum-target-1@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation vacuum-target-1→rebuild-target-1@37500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation rebuild-target-1→compression-target-1@45000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation compression-target-1→peak-release-target-1@52500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-lift-target-2→countermotion-target-2@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation countermotion-target-2→first-drop-target-2@22500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-drop-target-2→vacuum-target-2@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":true,\"maxDurationMs\":750}",
+  "stock-show-showcase-redline-installation rebuild-target-2→compression-target-2@45000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation compression-target-2→peak-release-target-2@52500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-lift-target-3→countermotion-target-3@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation countermotion-target-3→first-drop-target-3@22500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-drop-target-3→vacuum-target-3@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":true,\"maxDurationMs\":1500}",
+  "stock-show-showcase-redline-installation rebuild-target-3→compression-target-3@45000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation compression-target-3→peak-release-target-3@52500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-lift-target-4→countermotion-target-4@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation countermotion-target-4→first-drop-target-4@22500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation first-drop-target-4→vacuum-target-4@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":true,\"maxDurationMs\":2250}",
+  "stock-show-showcase-redline-installation rebuild-target-4→compression-target-4@45000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-showcase-redline-installation compression-target-4→peak-release-target-4@52500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-remix-coronal-mass-ejection placement-cell-1-scene-1→placement-cell-1-scene-2@8000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-remix-quadrille bands-first-light→bands-four-mirrors-nw@6400 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "stock-show-remix-overture stage-anticipation→stage-velvet@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":true,\"maxDurationMs\":938}",
+  "stock-show-remix-overture arch-reversed→arch-steady@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-remix-overture cols-reversed→cols-hold@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "stock-show-remix-overture cols-ember→surge-colA-bolt@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":true,\"maxDurationMs\":937}",
+  "personal-base placement-c1-s1→placement-c2-s2@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "personal-library-pattern placement-c1-s1→placement-c2-s2@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-animation-speed-a→placement-pattern-control-a@5000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-pattern-control-a→placement-brightness-a@10000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-brightness-a→placement-clip-transform-a@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-clip-transform-a→placement-clip-viewport-a@20000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-clip-viewport-a→placement-overlay-opacity-a@25000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.\"}",
+  "animation placement-overlay-opacity-a→placement-effect-parameter-a@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-animation-speed-b→placement-pattern-control-b@5000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-pattern-control-b→placement-brightness-b@10000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-brightness-b→placement-clip-transform-b@15000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-clip-transform-b→placement-clip-viewport-b@20000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-clip-viewport-b→placement-overlay-opacity-b@25000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+  "animation placement-overlay-opacity-b→placement-effect-parameter-b@30000 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.\"} v2={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"}",
+]
+
+// Recorded scene-end-limit divergence: v1 sees no free time because the
+// Scene ends at the last Clip, while the owner finds room up to the next
+// logical obstruction in the following Scene (#1075, Jon 2026-09-22).
+const RECORDED_SCENE_END_EXCEEDED: string[] = [
+  "stock-show-remix-overture arch-blip→arch-redchase@22500 v1={\"enabled\":false,\"maxDurationMs\":0,\"reason\":\"There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.\"} v2={\"enabled\":true,\"maxDurationMs\":1875}",
+]

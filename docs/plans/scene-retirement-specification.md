@@ -690,6 +690,8 @@ mixed-scope gate; that gate keeps its own separate preservation proof.
 
 #1080 converts a boundary Animation speed or Brightness ramp into an exact-window property track on the incoming Clip, lowered back to the same v1 carrier. It converts only on a flat v1 Show (no v1 Layer composition) where the boundary lands at Layer participant scope. Everywhere else, and for a carrier that also holds other properties, it refuses at conversion. A whole-output-scope window track, including one authored natively on v2, still refuses in preparation.
 
+A Layer Transition inserted on a Cut may take all the room up to the next logical obstruction, which is the first thing the Transition owner refuses. Chapter Markers do not bound it. On a converted Show this can exceed the v1 Scene-end limit (#1075, Jon 2026-09-22).
+
 The explicit exception is a v1 placement fully unrouted because its Zone is absent
 for the entire placement interval. Account every such source leaf as
 `retired-silent-runtime-use`; include its placement/instance/Zone/interval provenance;
