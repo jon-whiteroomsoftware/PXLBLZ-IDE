@@ -3145,6 +3145,101 @@ describe('v2 clip delete (#1066 slice 2)', () => {
     expect(legacy.calls).toEqual([])
   })
 
+// A converted `--layout-N` split with a second logical Clip: deleting one
+// segment removes every segment of that logical Clip in one accepted edit,
+// as v1 does (#1068 item 1b). Undo restores both segments.
+function layoutSplitV2Record(id: string): ShowRecordV2 {
+  const probeView = { mirror: false, phase: 0, brightness: 1 }
+  const show: ShowRecord = convertibleV1Show()
+  show.scenes = [
+    { id: 'a', name: 'A', durationMs: 400 },
+    { id: 'b', name: 'B', durationMs: 400 },
+    { id: 'c', name: 'C', durationMs: 400 },
+  ]
+  show.zones = [
+    { id: 'zone', name: 'Main', nominalPixelCount: 16 },
+    { id: 'other', name: 'Other', nominalPixelCount: 16 },
+  ]
+  show.routingLayouts = [
+    { id: 'full', name: 'Full', zones: [], logical: { kind: 'single', zoneIds: ['zone'] } },
+    { id: 'other-only', name: 'Other only', zones: [], logical: { kind: 'single', zoneIds: ['other'] } },
+  ]
+  show.transitions = [
+    { id: 'to-other', afterSceneId: 'a', kind: 'routing', layoutId: 'other-only', durationMs: 0, easing: { curve: 'linear' } },
+    { id: 'to-full', afterSceneId: 'b', kind: 'routing', layoutId: 'full', durationMs: 0, easing: { curve: 'linear' } },
+  ]
+  show.composition = {
+    version: 1,
+    executionModel: 'deterministic-loop',
+    durationMs: 1_200,
+    patternInstances: [{
+      id: 'instance', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }],
+    scenes: (['a', 'b', 'c'] as const).map((sceneId, index) => ({
+      sceneId,
+      zones: [
+        {
+          zoneId: 'zone',
+          main: [{
+            id: index === 0 ? 'solo' : `solo--span-${sceneId}`,
+            ...(index === 0 ? {} : { logicalClipId: 'solo' }),
+            instanceId: 'instance', startMs: 0, durationMs: 400, view: probeView,
+          }],
+          overlays: [],
+        },
+        { zoneId: 'other', main: [], overlays: [] },
+      ],
+    })),
+  }
+  const converted = convertShowRecordV1ToV2(show)
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const record = converted.record
+  record.id = id
+  const segment = record.composition.clips.find((clip) => clip.id === 'solo--layout-1')
+  if (!segment) throw new Error('No solo--layout-1 segment to copy.')
+  const otherLayer = record.composition.layers.find((layer) => layer.zoneId !== segment.zoneId)
+  if (!otherLayer) throw new Error('No second Zone Layer for the extra logical Clip.')
+  // The extra logical Clip lives inside the `other-only` Layout occurrence,
+  // so the prepared-stage capture stays qualified and the delete can commit.
+  record.composition.clips.push({
+    ...structuredClone(segment),
+    id: 'other',
+    logicalClipId: undefined,
+    zoneId: otherLayer.zoneId,
+    layerId: otherLayer.id,
+    startMs: 400,
+    durationMs: 400,
+    appearance: { keys: [{ id: 'other:appearance:1', timeMs: 400, value: structuredClone(segment.appearance.keys[0].value) }] },
+  })
+  expect(validateShowRecordV2(record)).toEqual([])
+  return record
+}
+
+describe('v2 logical-clip delete (#1068 item 1b)', () => {
+  it('deletes every layout-split segment in one edit and undoes to both', async () => {
+    const editor = openV2EditorForRecord(layoutSplitV2Record('slice2-logical-delete'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:solo--layout-1"]')!)
+    await act(async () => {})
+    const before = editor.state()
+    expect(before.record.composition.clips.map((clip) => clip.id).sort()).toEqual(
+      ['other', 'solo--layout-1', 'solo--layout-2'],
+    )
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(screen.queryByRole('alertdialog', { name: 'Remove connected Clip?' })).not.toBeInTheDocument()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipDelete'])
+    expect(deleteSubmissions()).toEqual([{ intent: { kind: 'delete-clip', clipId: 'solo--layout-1' }, baseRevision: 0 }])
+    expect(after.record.composition.clips.map((clip) => clip.id)).toEqual(['other'])
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+})
+
   it('refuses a missing Clip with no write and keeps record identity', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice2-missing-clip'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)

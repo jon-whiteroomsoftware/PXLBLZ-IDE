@@ -4,7 +4,7 @@ import { normalizeShowBoundaryTransition } from './showModel'
 import { showBoundaryTransitionParameterChanges, showTransitionChangesForPresentation, type ShowTransitionChanges } from './showTransitionAuthoring'
 import type { ShowToolkitParameterValue } from './showVisualToolkit'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
-import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
+import { showV2LogicalClipSegmentIds, type ShowRecordV2, type ShowTransitionV2 } from './showCompositionV2'
 import type { ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
 import { isShowScalarRampTargetV2, projectShowTransitionJunctionsV2, transitionEndpoints, type ShowTransitionCarrierRampProjectionPlanV2, type ShowTransitionEditIntentV2 } from './showTransitionsV2'
 
@@ -393,9 +393,10 @@ export function planShowV2ClipDeleteRampProjections(
   clipId: string,
   allocate: () => string,
 ): { status: 'ready'; plans: ShowTransitionCarrierRampProjectionPlanV2[] } | { status: 'refused'; message: string } {
+  const targets = new Set(showV2LogicalClipSegmentIds(record.composition, clipId))
   const plans: ShowTransitionCarrierRampProjectionPlanV2[] = []
   for (const transition of record.composition.transitions) {
-    if (transition.propertyRamps.length === 0 || !transitionEndpoints(transition).all.includes(clipId)) continue
+    if (transition.propertyRamps.length === 0 || !transitionEndpoints(transition).all.some((endpoint) => targets.has(endpoint))) continue
     const projections = planShowV2TransitionRampProjections(record, transition, allocate)
     if (projections.status === 'refused') return projections
     plans.push({ transitionId: transition.id, projections: projections.projections })

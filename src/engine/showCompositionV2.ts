@@ -74,6 +74,29 @@ export interface ShowClipAppearanceTimelineV2 {
   keys: ShowClipAppearanceKeyV2[]
 }
 
+/**
+ * Every segment of the logical Clip a `--layout-N` conversion split produced.
+ * A Clip without `logicalClipId` is its own logical Clip; otherwise the group
+ * is every Clip carrying the same field (#1068 item 1b). Sorted for stable
+ * delete reporting.
+ */
+export function showV2LogicalClipSegmentIds(
+  composition: Pick<ShowCompositionV2, 'clips'>,
+  clipId: string,
+): string[] {
+  const clip = composition.clips.find((candidate) => candidate.id === clipId)
+  if (!clip || clip.logicalClipId === undefined) return [clipId]
+  return composition.clips
+    .filter((candidate) => candidate.logicalClipId === clip.logicalClipId)
+    .map((candidate) => candidate.id)
+    .sort()
+}
+
+/** The v1 `logicalClipId ?? id` identity v2 dedupes ordinary Clips by. */
+export function showV2LogicalClipKey(clip: Pick<ShowClipV2, 'id' | 'logicalClipId'>): string {
+  return clip.logicalClipId ?? clip.id
+}
+
 export interface ShowClipAppearanceKeyV2 {
   id: string
   timeMs: number

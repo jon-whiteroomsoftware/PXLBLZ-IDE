@@ -1,4 +1,5 @@
 import {
+  showV2LogicalClipSegmentIds,
   validateShowRecordV2,
   type ShowClipV2,
   type ShowPropertyTrackV2,
@@ -112,8 +113,13 @@ export function editShowTransitionV2(
   if (intent.kind === 'delete-clip') {
     const clip = record.composition.clips.find(candidate => candidate.id === intent.clipId)
     if (!clip) return refuse('missing-clip', `Clip "${intent.clipId}" does not exist.`)
+    // A `--layout-N` segment carries its v1 logical Clip in `logicalClipId`;
+    // deleting one segment deletes every segment in one edit, as v1 does
+    // (#1068 item 1b). A Clip without the field deletes alone.
+    const removedClipIds = showV2LogicalClipSegmentIds(record.composition, clip.id)
+    const removedClipIdSet = new Set(removedClipIds)
     const removedTransitions = record.composition.transitions.filter(transition => (
-      transitionEndpoints(transition).all.includes(clip.id)
+      transitionEndpoints(transition).all.some(endpoint => removedClipIdSet.has(endpoint))
     ))
     const carrierIds = removedTransitions.filter(transition => transition.propertyRamps.length > 0).map(transition => transition.id)
     const plans = intent.propertyRampProjections ?? []
@@ -137,10 +143,10 @@ export function editShowTransitionV2(
     }
     const removedTransitionIds = removedTransitions.map(transition => transition.id)
     const removedTrackIds = projected.composition.propertyTracks
-      .filter(track => 'clipId' in track.target && track.target.clipId === clip.id)
+      .filter(track => 'clipId' in track.target && removedClipIdSet.has(track.target.clipId))
       .map(track => track.id)
     const next = structuredClone(projected)
-    next.composition.clips = next.composition.clips.filter(candidate => candidate.id !== clip.id)
+    next.composition.clips = next.composition.clips.filter(candidate => !removedClipIdSet.has(candidate.id))
     next.composition.transitions = next.composition.transitions.filter(transition => !removedTransitionIds.includes(transition.id))
     next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !removedTrackIds.includes(track.id))
     const issue = validateShowRecordV2(next)[0]
@@ -149,11 +155,11 @@ export function editShowTransitionV2(
     if (compilerRestriction) return refuse('compiler-ineligible', compilerRestriction.message)
     return {
       status: 'changed', record: next,
-      affectedClipIds: [clip.id],
+      affectedClipIds: removedClipIds,
       affectedTransitionIds: removedTransitionIds.sort(),
       affectedTrackIds: [...new Set([...projectedTrackIds, ...removedTrackIds])].sort(),
       affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [],
-      removedIds: [clip.id, ...removedTransitionIds, ...removedTrackIds].sort(),
+      removedIds: [...removedClipIds, ...removedTransitionIds, ...removedTrackIds].sort(),
     }
   }
 

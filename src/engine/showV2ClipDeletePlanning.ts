@@ -1,4 +1,4 @@
-import type { ShowRecordV2 } from './showCompositionV2'
+import { showV2LogicalClipKey, showV2LogicalClipSegmentIds, type ShowRecordV2 } from './showCompositionV2'
 import { isConvertedBoundaryTransitionV2, transitionEndpoints, type ShowTransitionEditIntentV2 } from './showTransitionsV2'
 import { planShowV2ClipDeleteRampProjections } from './showV2TransitionEditorModel'
 
@@ -17,7 +17,8 @@ export type ShowV2ClipDeletePlan =
   | { kind: 'refuse'; reason: ShowV2ClipDeleteRefusalReason; message: string }
 
 export function showV2ClipCount(record: ShowRecordV2): number {
-  return record.composition.clips.length
+  const ordinaryClipCount = new Set(record.composition.clips.map(showV2LogicalClipKey)).size
+  return ordinaryClipCount
     + record.composition.groupOccurrences.reduce((count, occurrence) => count + (
       record.composition.groupDefinitions
         .find((definition) => definition.id === occurrence.definitionId)?.clips.length ?? 0
@@ -55,7 +56,10 @@ export function planShowV2ClipDelete(
   if (showV2ClipCount(record) <= 1) {
     return { kind: 'refuse', reason: 'final-clip', message: 'A Show must contain at least one Clip.' }
   }
-  const connected = showV2ConnectedTransitionIds(record, clipId)
+  const connected = showV2LogicalClipSegmentIds(record.composition, clipId)
+    .flatMap((segmentId) => showV2ConnectedTransitionIds(record, segmentId))
+    .filter((transitionId, index, ids) => ids.indexOf(transitionId) === index)
+    .sort()
   if (connected.length > 0 && !options.confirmed) {
     return { kind: 'needs-confirm', clipId, connectedTransitionIds: connected }
   }

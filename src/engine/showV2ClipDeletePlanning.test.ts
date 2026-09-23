@@ -5,7 +5,7 @@ import { editShowTransitionV2 } from './showTransitionsV2'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { createDefaultShow } from './showModel'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
-import { convertibleV1Show } from '@/test/showV2TracerFixture'
+import { continuingV1Show, convertibleV1Show } from '@/test/showV2TracerFixture'
 import { propertyEditRecord } from '@/test/showV2PropertyEditsFixture'
 import { deleteShowClipInShow } from './showClipDeletion'
 import { showRecordClipCount } from './showClipInvariant'
@@ -202,6 +202,18 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
     return show
   }
 
+  function runSplitLogicalClipShow(): ShowRecord {
+    const show = continuingV1Show()
+    show.id = 'run-split-logical-clip'
+    show.name = 'Run split logical Clip'
+    show.composition!.durationMs = 1200
+    show.transitions = [{
+      id: 'fade', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 200,
+      easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+    }]
+    return show
+  }
+
   function boundaryDeleteFixture(): ShowRecord {
     const show = convertibleV1Show()
     show.id = 'boundary-delete'
@@ -252,15 +264,11 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
 
   // The converter splits one v1 logical Clip into `solo--layout-1` and
   // `solo--layout-2` wherever its Zone is unavailable for part of its span.
-  // ShowClipV2 carries no logical-clip provenance (the #1065 contract names
-  // exactly three provenance owners and clips are not one, and the schema
-  // closes clips with additionalProperties: false), so the record cannot
-  // recover the segments of one former logical Clip without an id-shape
-  // heuristic the contract bars. Pinned as a #1068 gap: v1 counts and deletes
-  // the logical Clip (deduped count 1, so the editor refuses with Keep one
-  // Clip), while v2 counts two runs, admits the delete, and removes only one
-  // segment. When the gap closes this test fails and forces an update.
-  it('counts and deletes a layout-segmented logical Clip per run, unlike v1 (#1068)', () => {
+  // Both segments carry `logicalClipId: 'solo'`, so v2 counts and deletes the
+  // logical Clip exactly as v1 does (#1068 item 1b): the deduped count is 1,
+  // the editor refuses with Keep one Clip, and a delete with another logical
+  // Clip present removes every segment in one edit.
+  it('counts and deletes a layout-segmented logical Clip as one Clip, like v1 (#1068)', () => {
     const show = layoutSegmentedSingleLogicalClipShow()
     expect(validateShowComposition(show, show.composition!)).toEqual([])
     expect(showRecordClipCount(show)).toBe(1)
@@ -273,13 +281,58 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
     const record = converted.record
     expect(validateShowRecordV2(record)).toEqual([])
     expect(record.composition.clips.map((clip) => clip.id).sort()).toEqual(['solo--layout-1', 'solo--layout-2'])
+    expect(showV2ClipCount(record)).toBe(1)
+    expect(planShowV2ClipDelete(record, 'solo--layout-1', { confirmed: true, allocate: () => 'unused' }))
+      .toMatchObject({ kind: 'refuse', reason: 'final-clip' })
+    const roomy = structuredClone(record)
+    const segment = roomy.composition.clips.find((clip) => clip.id === 'solo--layout-1')
+    if (!segment) throw new Error('No solo--layout-1 segment to copy.')
+    const otherLayer = roomy.composition.layers.find((layer) => layer.zoneId !== segment.zoneId)
+    if (!otherLayer) throw new Error('No second Zone Layer for the extra logical Clip.')
+    roomy.composition.clips.push({
+      ...structuredClone(segment),
+      id: 'other',
+      logicalClipId: undefined,
+      zoneId: otherLayer.zoneId,
+      layerId: otherLayer.id,
+      startMs: 400,
+      durationMs: 400,
+      appearance: { keys: [{ id: 'other:appearance:1', timeMs: 400, value: structuredClone(segment.appearance.keys[0].value) }] },
+    })
+    expect(validateShowRecordV2(roomy)).toEqual([])
+    expect(showV2ClipCount(roomy)).toBe(2)
+    const plan = planShowV2ClipDelete(roomy, 'solo--layout-1', { confirmed: true, allocate: () => 'unused' })
+    expect(plan.kind).toBe('ready')
+    if (plan.kind !== 'ready') return
+    const applied = editShowTransitionV2(roomy, plan.intent)
+    expect(applied.status).toBe('changed')
+    if (applied.status !== 'changed') return
+    expect(applied.record.composition.clips.map((clip) => clip.id)).toEqual(['other'])
+    expect(applied.removedIds).toEqual(expect.arrayContaining(['solo--layout-1', 'solo--layout-2']))
+    expect(validateShowRecordV2(applied.record)).toEqual([])
+  })
+
+  // A discontinuous v1 logical Clip converts to `--run-N` Clips with no
+  // provenance field (#1080 class 1): each run stays its own logical Clip, so
+  // v2 counts two and a delete removes exactly the named run.
+  it('deletes a run-split logical Clip per run, without provenance (#1080)', () => {
+    const show = runSplitLogicalClipShow()
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+    const converted = convertShowRecordV1ToV2(show)
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const record = converted.record
+    expect(validateShowRecordV2(record)).toEqual([])
+    expect(record.composition.clips.map((clip) => clip.id).sort()).toEqual(['clip--run-1', 'clip--run-2'])
+    expect(record.composition.clips.every((clip) => clip.logicalClipId === undefined)).toBe(true)
     expect(showV2ClipCount(record)).toBe(2)
-    const plan = planShowV2ClipDelete(record, 'solo--layout-1', { confirmed: true, allocate: () => 'unused' })
+    const plan = planShowV2ClipDelete(record, 'clip--run-1', { confirmed: true, allocate: () => 'unused' })
     expect(plan.kind).toBe('ready')
     if (plan.kind !== 'ready') return
     const applied = editShowTransitionV2(record, plan.intent)
     expect(applied.status).toBe('changed')
-    expect(applied.record.composition.clips.map((clip) => clip.id)).toEqual(['solo--layout-2'])
+    if (applied.status !== 'changed') return
+    expect(applied.record.composition.clips.map((clip) => clip.id)).toEqual(['clip--run-2'])
     expect(validateShowRecordV2(applied.record)).toEqual([])
   })
 
