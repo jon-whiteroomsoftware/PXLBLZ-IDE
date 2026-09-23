@@ -11,7 +11,7 @@ import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from './showTransitionsV2'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { resizeShowLayerTransition, resetShowLayerTransitionToCut } from './showLayerTransitionAuthoring'
-import { removeShowBoundaryTransition, removeShowClip } from './showModel'
+import { createDefaultShow, removeShowBoundaryTransition, removeShowClip } from './showModel'
 import type { ShowRecord } from './personalContentRecords'
 import {
   parseProvisionalShowRecordV2,
@@ -844,6 +844,67 @@ describe('owned-track shift across a converted Scene-span activation (#1068)', (
 })
 
 describe('#1061 Transition ramp carrier resize', () => {
+  function convertedBoundaryCarrier(): ShowRecordV2 {
+    const show = createDefaultShow('converted-carrier', 'Converted carrier', 1)
+    const converted = convertShowRecordV1ToV2(show, {
+      byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
+    })
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const transition = converted.record.composition.transitions[0]
+    expect(transition.origin).toBe('converted-boundary-transition')
+    transition.propertyRamps = [{
+      participantId: transition.participants[0].id,
+      target: { kind: 'clip-opacity', clipId: transition.participants[0].toClipId },
+      from: 0.4, durationMs: 800,
+    }]
+    expect(validateShowRecordV2(converted.record)).toEqual([])
+    return converted.record
+  }
+
+  it.each([
+    ['shrinks', 1000, 400, 61000],
+    ['grows', 3000, 1200, 63000],
+  ] as const)('a converted participant boundary carrying a clip-opacity ramp %s through the converted repair (#1061)', (_direction, durationMs, rampDurationMs, showEndMs) => {
+    const source = convertedBoundaryCarrier()
+    const plain = structuredClone(source)
+    plain.composition.transitions[0].propertyRamps = []
+    const transitionId = source.composition.transitions[0].id
+    const withoutRamp = editShowTransitionV2(plain, { kind: 'resize-transition', transitionId, durationMs })
+    const withRamp = editShowTransitionV2(source, { kind: 'resize-transition', transitionId, durationMs })
+    expect(withoutRamp.status).toBe('changed')
+    expect(withRamp.status).toBe('changed')
+    if (withoutRamp.status !== 'changed' || withRamp.status !== 'changed') return
+    const settled = reopen(withRamp.record)
+    const withoutCarrier = structuredClone(settled)
+    withoutCarrier.composition.transitions[0].propertyRamps = []
+    expect(withoutCarrier).toEqual(reopen(withoutRamp.record))
+    expect(settled.composition.clips[1].startMs).toBe(30000 + durationMs)
+    expect(settled.composition.showEndMs).toBe(showEndMs)
+    expect(settled.composition.layoutOccurrences.map(occurrence => [occurrence.startMs, occurrence.durationMs])).toEqual([[0, showEndMs]])
+    expect(settled.composition.transitions[0].propertyRamps[0].durationMs).toBe(rampDurationMs)
+    expect(validateShowRecordV2(settled)).toEqual([])
+  })
+
+  it('a converted carrier palette settings Duration edit matches resize-transition (#1061)', () => {
+    const source = convertedBoundaryCarrier()
+    const current = source.composition.transitions[0]
+    const resized = editShowTransitionV2(source, { kind: 'resize-transition', transitionId: current.id, durationMs: 1000 })
+    const palette = editShowTransitionV2(source, { kind: 'update-transition', transition: { ...structuredClone(current), durationMs: 1000 } })
+    expect(resized.status).toBe('changed')
+    expect(palette.status).toBe('changed')
+    if (resized.status !== 'changed' || palette.status !== 'changed') return
+    expect(reopen(palette.record)).toEqual(reopen(resized.record))
+    expect(palette.record.composition.transitions[0].propertyRamps[0].durationMs).toBe(400)
+  })
+
+  it('still refuses Reset to Cut on a converted non-Clip-value carrier without projections', () => {
+    const source = convertedBoundaryCarrier()
+    const before = structuredClone(source)
+    const result = editShowTransitionV2(source, { kind: 'reset-to-cut', transitionId: source.composition.transitions[0].id })
+    expect(result).toMatchObject({ status: 'refused', code: 'unsupported-property-carrier', record: source })
+    expect(source).toEqual(before)
+  })
+
   it.each([
     ['one whole-output ramp', false, [
       { target: { kind: 'show-repeat-scale' as const }, from: 2, durationMs: 100 },

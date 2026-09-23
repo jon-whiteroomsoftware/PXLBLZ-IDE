@@ -297,7 +297,9 @@ export function editShowTransitionV2(
     return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })
   }
   if (intent.kind === 'reset-to-cut' || intent.kind === 'resize-transition') {
-    const spec = convertedBoundaryRepairSpecV2(record, transition.id, { multiContributor: true })
+    const spec = convertedBoundaryRepairSpecV2(record, transition.id, intent.kind === 'resize-transition'
+      ? { multiContributor: true, retimeRampCarrier: true }
+      : { multiContributor: true })
     if (spec.status === 'ready') {
       return resetConvertedBoundaryToCut(record, intent.kind === 'resize-transition' ? { ...spec.repair, retainDurationMs: intent.durationMs } : spec.repair)
     }
@@ -399,6 +401,8 @@ export interface ConvertedBoundaryRepairSpecOptionsV2 {
    * stay single-contributor until their own slice.
    */
   multiContributor?: boolean
+  /** Resizing retains the carrier and retimes its ramps; removal callers omit this. */
+  retimeRampCarrier?: boolean
 }
 
 export function convertedBoundaryRepairSpecV2(
@@ -410,11 +414,11 @@ export function convertedBoundaryRepairSpecV2(
   if (!transition || !isConvertedBoundaryTransitionV2(transition)) return { status: 'ignore' }
   const endpoints = transitionEndpoints(transition)
   if (options?.multiContributor && transition.wholeOutput && (endpoints.from.length > 1 || endpoints.to.length > 1)) {
-    return multiContributorBoundaryRepairSpec(record, transition)
+    return multiContributorBoundaryRepairSpec(record, transition, options.retimeRampCarrier)
   }
   if (endpoints.from.length !== 1 || endpoints.to.length !== 1) return { status: 'ignore' }
   if (!transition.wholeOutput && transition.participants.length !== 1) return { status: 'ignore' }
-  if (transition.propertyRamps.length > 0 && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)) return transition.wholeOutput ? { status: 'ignore' } : { status: 'ramp-carrier', transitionId: transition.id }
+  if (!options?.retimeRampCarrier && transition.propertyRamps.length > 0 && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)) return transition.wholeOutput ? { status: 'ignore' } : { status: 'ramp-carrier', transitionId: transition.id }
   const from = record.composition.clips.find(clip => clip.id === endpoints.from[0])
   const to = record.composition.clips.find(clip => clip.id === endpoints.to[0])
   if (!from || !to) return { status: 'ignore' }
@@ -444,12 +448,12 @@ export function convertedBoundaryRepairSpecV2(
 /**
  * A whole-output boundary naming several Clips per side: every outgoing
  * contributor ends at the window start and every incoming one starts at the
- * window end, which record validation already pins. Ramp carriers and empty
- * sides stay outside this slice.
+ * window end, which record validation already pins. Removal of ramp carriers
+ * and empty sides stay outside this slice.
  */
-function multiContributorBoundaryRepairSpec(record: ShowRecordV2, transition: ShowTransitionV2): ConvertedBoundaryRepairEligibilityV2 {
+function multiContributorBoundaryRepairSpec(record: ShowRecordV2, transition: ShowTransitionV2, retimeRampCarrier = false): ConvertedBoundaryRepairEligibilityV2 {
   const wholeOutput = transition.wholeOutput!
-  if (transition.propertyRamps.length > 0 && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)) return { status: 'ignore' }
+  if (!retimeRampCarrier && transition.propertyRamps.length > 0 && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)) return { status: 'ignore' }
   if (wholeOutput.fromClipIds.length === 0 || wholeOutput.toClipIds.length === 0) return { status: 'ignore' }
   const windowStartMs = wholeOutput.startMs
   const windowEndMs = windowStartMs + transition.durationMs

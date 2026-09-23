@@ -262,6 +262,25 @@ describe('converted Scene-boundary repair on Clip-edge resize (gap 1)', () => {
 })
 
 describe('converted Scene-boundary repair through the Transition owner', () => {
+  it('admits a converted carrier for retiming while clip-edge repair still classifies it as a ramp carrier', () => {
+    const source = convertedDefaultShow()
+    const transition = source.composition.transitions[0]
+    transition.propertyRamps = [{
+      participantId: transition.participants[0].id,
+      target: { kind: 'clip-opacity', clipId: RIGHT }, from: 0.4, durationMs: 800,
+    }]
+    expect(validateShowRecordV2(source)).toEqual([])
+    expect(convertedBoundaryRepairSpecV2(source, BOUNDARY)).toEqual({ status: 'ramp-carrier', transitionId: BOUNDARY })
+    expect(convertedBoundaryRepairSpecV2(source, BOUNDARY, { retimeRampCarrier: true })).toEqual({
+      status: 'ready',
+      repair: {
+        transitionId: BOUNDARY,
+        fromClipIds: [LEFT], toClipIds: [RIGHT],
+        windowStartMs: 30000, windowEndMs: 32000, durationMs: 2000,
+      },
+    })
+  })
+
   it('routes resize-leading through the same cut and reclaim', () => {
     const result = editShowTransitionV2(convertedDefaultShow(), { kind: 'resize-leading', clipId: RIGHT, startMs: 36000 })
     expect(result.status).toBe('changed')

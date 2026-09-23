@@ -132,7 +132,9 @@ projecting them. Other ramp kinds retain their owner and projection guards:
 without a complete plan; a non-scalar target with no projected
 destination still refuses. Group creation and Layout duplicate-with-content
 keep their carrier refusals.
-Converted-boundary `ramp-carrier` edge-repair refusals remain in place.
+Converted boundary carriers resize through the converted repair, with every
+Property ramp proportionally re-timed to the retained window. Clip-edge repair
+removes the Transition, so its `ramp-carrier` refusal remains in place.
 RL08, RL09 and RL10 remain bounded compiler refusals and are surfaced unchanged;
 the authenticated flow exercises RL08 as a real zero-write route refusal.
 Continuous-flat participant Transitions with multiple Layouts keep their existing

@@ -9,9 +9,29 @@ import { materializeShowGroupsV2 } from './showGroupsV2'
 import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2, projectShowTransitionPropertyRampsV2, type ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
 import { expect, it } from 'vitest'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
+import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
+import { createDefaultShow } from './showModel'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { editShowClipTemporalV2 } from './showClipTemporalV2'
+
+it('refuses a clip-edge resize against a converted Property ramp carrier (#1061)', () => {
+  const show = createDefaultShow('converted-clip-edge', 'Converted clip edge', 1)
+  const converted = convertShowRecordV1ToV2(show, {
+    byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
+  })
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const source = converted.record
+  const boundary = source.composition.transitions[0]
+  expect(boundary.origin).toBe('converted-boundary-transition')
+  const incoming = boundary.participants[0].toClipId
+  boundary.propertyRamps = [{ participantId: boundary.participants[0].id, target: { kind: 'clip-opacity', clipId: incoming }, from: 0.4, durationMs: 800 }]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const before = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'trim', clipId: incoming, startMs: 33000, endMs: 62000 })
+  expect(result).toMatchObject({ status: 'refused', code: 'unsupported-property-carrier', record: source })
+  expect(source).toEqual(before)
+})
 
 function fixture(): ShowRecordV2 {
   const converted = convertShowRecordV1ToV2(convertibleV1Show())
