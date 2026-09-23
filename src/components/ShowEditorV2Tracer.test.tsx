@@ -1246,7 +1246,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     expectNoWrite(before, editor.state())
   })
 
-  it('reads every advanced row the v1 panel draws from the authored record', async () => {
+  it('reads supported advanced rows from the authored record', async () => {
     const { source, record } = convertedAdvancedBoundary('tracer-boundary-advanced')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
@@ -1269,21 +1269,66 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     fireEvent.click(within(panel).getByText('Advanced transition controls'))
     const advanced = within(panel).getByText('Advanced transition controls').closest('details')!
     expect(within(advanced).getByTestId('transition-cost-tag')).toHaveTextContent('cost · expensive')
-    // Each side's authored Transform pose, read from the two Clips the
-    // Transition names rather than from a Scene's ShowCells.
-    const transform = within(advanced).getByRole('region', { name: 'Transform transition' })
-    expect(within(transform).getByText('0.25 to -0.5')).toBeInTheDocument()
     // The Show-wide scalar each side holds across this boundary.
     expect(within(advanced).getByText('1x → 2x')).toBeInTheDocument()
-    // The per-Zone rows are named by the authored Zone and stay enabled; the
-    // shared Pattern control appears because both sides target it.
-    expect(within(advanced).getByRole('checkbox', { name: 'Animate speed for main' })).toBeEnabled()
-    expect(within(advanced).getByRole('checkbox', { name: 'Animate brightness for main' })).toBeEnabled()
-    expect(within(advanced).getByRole('checkbox', { name: 'Animate Speed for main' })).toBeEnabled()
+    expect(within(advanced).getByRole('checkbox', { name: 'Animate speed for main' })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(advanced).getByRole('checkbox', { name: 'Animate brightness for main' })).toHaveAttribute('aria-disabled', 'true')
 
     expectNoWrite(before, editor.state())
     expect(within(boundaryPanel()).getByRole('combobox', { name: 'Crossfade source' }))
       .toHaveValue('snapshot-live')
+  })
+
+  it('speed and brightness rows are disabled with a reason off the flat route (#1091 B3b)', async () => {
+    const { record } = convertedFreshBoundary('tracer-boundary-layered-unavailable')
+    record.composition.layers.push({ id: 'overlay', zoneId: record.zones[0].id, name: 'Overlay', rank: 1 })
+    const transition = record.composition.transitions[0]
+    const participant = transition.participants[0]
+    const incoming = record.composition.clips.find(clip => clip.id === participant.toClipId)!
+    transition.propertyRamps = [
+      { participantId: participant.id, target: { kind: 'instance-time-scale', instanceId: incoming.instanceId }, from: 0.5, durationMs: 500 },
+      { participantId: participant.id, target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' }, from: 0.4, durationMs: 500 },
+    ]
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await act(async () => {})
+    fireEvent.click(within(boundaryPanel()).getByText('Advanced transition controls'))
+    const advanced = within(boundaryPanel()).getByText('Advanced transition controls').closest('details')!
+    for (const label of ['speed', 'brightness']) {
+      const row = within(advanced).getByRole('region', { name: `${label === 'speed' ? 'Animation speed' : 'Brightness'} transition` })
+      const control = within(row).getByRole('checkbox', { name: `Animate ${label} for main` })
+      for (const input of row.querySelectorAll('input, select')) {
+        expect(input).toHaveAttribute('aria-disabled', 'true')
+        expect(input).not.toBeDisabled()
+      }
+      expect(control).toHaveAttribute('aria-disabled', 'true')
+      const reasonId = control.getAttribute('aria-describedby')!
+      expect(reasonId).toBeTruthy()
+      control.focus()
+      expect(document.getElementById(reasonId)).toHaveTextContent("This Transition can't animate speed or brightness.")
+      await waitFor(() => expect(document.getElementById(reasonId)).toBeVisible())
+      fireEvent.click(control)
+    }
+    await act(async () => {})
+    expectNoWrite(before, editor.state())
+  })
+
+  it('Pattern control and Transform rows are hidden on v2 (#1091 B3b)', async () => {
+    const { record } = convertedAdvancedBoundary('tracer-boundary-hidden-rows')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between CometLoom and CometLoom',
+    }))
+    await act(async () => {})
+    fireEvent.click(within(boundaryPanel()).getByText('Advanced transition controls'))
+    const advanced = within(boundaryPanel()).getByText('Advanced transition controls').closest('details')!
+    expect(within(advanced).queryByRole('region', { name: 'Transform transition' })).not.toBeInTheDocument()
+    expect(within(advanced).queryByRole('checkbox', { name: 'Animate Speed for main' })).not.toBeInTheDocument()
   })
 
   it.each([

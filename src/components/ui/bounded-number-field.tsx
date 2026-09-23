@@ -66,6 +66,8 @@ export interface BoundedNumberFieldProps {
   compact?: boolean
   align?: 'left' | 'right'
   disabled?: boolean
+  /** Keep the field focusable while an unavailable inspector row explains why. */
+  ariaDisabled?: boolean
   variant?: 'inspector' | 'editor'
   /** Commit a valid exact draft when focus leaves the field instead of cancelling it. */
   commitOnBlur?: boolean
@@ -92,6 +94,7 @@ export function BoundedNumberField({
   compact = false,
   align,
   disabled = false,
+  ariaDisabled = false,
   variant = 'inspector',
   commitOnBlur = false,
   onPreview,
@@ -169,7 +172,7 @@ export function BoundedNumberField({
   // incremental — returning to the native absolute mapping on release would
   // jump the value to the pointer's coarse position (#667 review).
   const popoverFineEngagedRef = useRef(false)
-  const refreshActivity = useFieldActivity(() => !disabled && (dirtyRef.current || sliderDirtyRef.current || pointerSessionRef.current !== null || sliderPointerIdRef.current !== null))
+  const refreshActivity = useFieldActivity(() => !disabled && !ariaDisabled && (dirtyRef.current || sliderDirtyRef.current || pointerSessionRef.current !== null || sliderPointerIdRef.current !== null))
 
   useEffect(() => {
     if (!focusedRef.current) setDraft(interactionDraft)
@@ -214,6 +217,7 @@ export function BoundedNumberField({
     refreshActivity()
   }
   const commit = (raw: string) => {
+    if (ariaDisabled) { revert(); return }
     focusedRef.current = false
     if (!dirtyRef.current) {
       setDraft(formatDraft(interactionValue))
@@ -246,6 +250,7 @@ export function BoundedNumberField({
     }
   }
   const previewSliderValue = (next: number) => {
+    if (ariaDisabled) return
     sliderDirtyRef.current = true
     refreshActivity()
     previewActiveRef.current = true
@@ -280,6 +285,7 @@ export function BoundedNumberField({
     } finally { finishSliderActivity() }
   }
   const commitSlider = (next: number) => {
+    if (ariaDisabled) { cancelSlider(); return }
     try {
       const startValue = sliderStartValueRef.current
       endPreview()
@@ -336,7 +342,7 @@ export function BoundedNumberField({
     )
   }
   const openSlider = (event: PointerEvent<HTMLButtonElement>) => {
-    if (disabled) return
+    if (disabled || ariaDisabled) return
     const rect = event.currentTarget.getBoundingClientRect()
     const placement = placeSlider(rect, event.clientX, interactionValue)
     pointerSessionRef.current = {
@@ -387,7 +393,7 @@ export function BoundedNumberField({
     window.setTimeout(() => sliderRef.current?.focus(), 0)
   }
   const openPinnedSlider = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (disabled || (event.key !== 'Enter' && event.key !== ' ')) return
+    if (disabled || ariaDisabled || (event.key !== 'Enter' && event.key !== ' ')) return
     event.preventDefault()
     event.stopPropagation()
     revert()
@@ -437,11 +443,14 @@ export function BoundedNumberField({
             title={help}
             value={draft}
             disabled={disabled}
+            readOnly={ariaDisabled}
+            aria-disabled={ariaDisabled || undefined}
             onFocus={() => {
               focusedRef.current = true
               dirtyRef.current = false
             }}
             onChange={(event) => {
+              if (ariaDisabled) return
               focusedRef.current = true
               dirtyRef.current = true
               refreshActivity()
@@ -466,6 +475,7 @@ export function BoundedNumberField({
             title={accessibleFieldLabel}
             aria-expanded={slider !== null}
             disabled={disabled}
+            aria-disabled={ariaDisabled || undefined}
             onPointerDown={openSlider}
             onPointerMove={moveSlider}
             onPointerUp={releaseSlider}
@@ -542,6 +552,7 @@ export function BoundedNumberField({
               max={sliderPositionCount}
               step={1}
               value={Math.round(toSliderPosition(sliderValue) * sliderPositionCount)}
+              aria-disabled={ariaDisabled || undefined}
               onPointerDown={(event) => {
                 sliderPointerIdRef.current = event.pointerId
                 refreshActivity()

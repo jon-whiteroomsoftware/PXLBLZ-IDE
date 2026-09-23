@@ -7,6 +7,7 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { convertTransitionClipRampProbe, transitionClipRampProbeV1 } from '../test/showV2TransitionClipRampFixture'
+import { planShowV2BoundaryTransitionChanges } from './showV2TransitionEditorModel'
 import {
   projectShowEditorBoundaryTransitionsV2,
   projectShowEditorInspectorPresentationV2,
@@ -766,11 +767,46 @@ describe('projectShowEditorBoundaryTransitionsV2', () => {
 
   it('projects incoming speed and brightness ramps under the destination Clip id', () => {
     const boundary = projectShowEditorBoundaryTransitionsV2(convertTransitionClipRampProbe()).xfade
+    expect(boundary.clipValueRampsUnavailable).toBe(false)
     const destinationId = boundary.destinations[0].id
     expect(boundary.settings.propertyTransitions).toEqual({
       timeScale: { fromByCellId: { [destinationId]: 1 }, durationMs: 400, easing: { curve: 'sine', direction: 'in-out' } },
       brightness: { fromByCellId: { [destinationId]: 0.2 } },
     })
+  })
+
+  it('keeps a speed ramp without participantId when enabling brightness', () => {
+    const record = convertTransitionClipRampProbe()
+    const speed = record.composition.transitions[0].propertyRamps.find(ramp => ramp.target.kind === 'instance-time-scale')!
+    record.composition.transitions[0].propertyRamps = [speed]
+    delete speed.participantId
+    expect(validateShowRecordV2(record)).toEqual([])
+    const boundary = projectShowEditorBoundaryTransitionsV2(record).xfade
+    const destinationId = boundary.destinations[0].id
+    expect(boundary.settings.propertyTransitions?.timeScale?.fromByCellId).toEqual({ [destinationId]: speed.from })
+    const plan = planShowV2BoundaryTransitionChanges(record, 'xfade', {
+      propertyTransitions: {
+        ...boundary.settings.propertyTransitions,
+        brightness: { fromByCellId: { [destinationId]: 0.4 } },
+      },
+    })
+    expect(plan.status).toBe('ready')
+    if (plan.status === 'ready') {
+      expect(plan.intent.transition.propertyRamps.some(ramp => ramp.target.kind === 'instance-time-scale' && ramp.from === speed.from)).toBe(true)
+    }
+  })
+
+  it('marks a non-base Layer route unavailable for Clip value ramps', () => {
+    const record = convertTransitionClipRampProbe()
+    record.composition.layers.push({ id: 'overlay', zoneId: record.zones[0].id, name: 'Overlay', rank: 1 })
+    expect(projectShowEditorBoundaryTransitionsV2(record).xfade.clipValueRampsUnavailable).toBe(true)
+  })
+
+  it('marks whole-output and multi-participant Transitions unavailable for Clip value ramps', () => {
+    expect(projectShowEditorBoundaryTransitionsV2(wholeOutputBoundary())['transition-scene-2'].clipValueRampsUnavailable).toBe(true)
+    const record = convertTransitionClipRampProbe()
+    record.composition.transitions[0].participants.push({ ...record.composition.transitions[0].participants[0], id: 'second-participant' })
+    expect(projectShowEditorBoundaryTransitionsV2(record).xfade.clipValueRampsUnavailable).toBe(true)
   })
 
   it('matches the v1 boundary descriptors after conversion maps the Cell to its destination Clip', () => {

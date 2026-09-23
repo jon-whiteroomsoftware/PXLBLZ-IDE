@@ -3129,6 +3129,26 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
   })
 
+  it('keeps Pattern control and Transform rows available on the v1 boundary inspector (#1091 B3b)', async () => {
+    const show = createDefaultShow('show-v1-boundary-advanced-rows', 'V1 boundary rows', 1000)
+    show.cells = show.cells.map(cell => ({
+      ...cell,
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
+      controlTargets: { sliderSpeed: 0.2 },
+    }))
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit crossfade Transition between CometLoom and CometLoom' }))
+    fireEvent.click(screen.getByText('Advanced transition controls'))
+    const advanced = screen.getByText('Advanced transition controls').closest('details')!
+    expect(within(advanced).getByRole('region', { name: 'Transform transition' })).toBeInTheDocument()
+    const control = within(advanced).getByRole('checkbox', { name: 'Animate Speed for main' })
+    expect(control).toBeEnabled()
+    expect(control).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
   it('contracts unchanged values across a non-Cut Clip junction (#599 review)', () => {
     const show = createDefaultShow('show-transition-summary-delta', 'Transition summary delta', 1000)
     const sceneId = show.scenes[0].id

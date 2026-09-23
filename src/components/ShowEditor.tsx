@@ -12709,15 +12709,16 @@ function BoundaryTransitionInspector({
               property={property}
               transition={transition}
               destinations={destinations}
+              clipValueRampsUnavailable={value.clipValueRampsUnavailable === true}
               onUpdate={onUpdate}
               onUpdateDestinationAdaptations={onUpdateDestinationAdaptations}
             />
           ))}
-          <TransformTransitionEditor
+          {value.clipValueRampsUnavailable === undefined && <TransformTransitionEditor
             transition={transition}
             destinations={destinations}
             onUpdate={onUpdate}
-          />
+          />}
           {value.split && (
             <RoutingSplitTransitionEditor
               transition={transition}
@@ -12734,7 +12735,7 @@ function BoundaryTransitionInspector({
               onUpdate={onUpdate}
             />
           )}
-          {boundaryControls.map((control) => (
+          {value.clipValueRampsUnavailable === undefined && boundaryControls.map((control) => (
             <PatternControlTransitionEditor
               key={control.exportName}
               control={control}
@@ -13140,12 +13141,14 @@ function PropertyTransitionEditor({
   property,
   transition,
   destinations,
+  clipValueRampsUnavailable,
   onUpdate,
   onUpdateDestinationAdaptations,
 }: {
   property: ShowAutomatableProperty
   transition: ShowTransitionSettingsCarrier
   destinations: readonly ShowBoundaryTransitionDestinationValue[]
+  clipValueRampsUnavailable: boolean
   onUpdate: (transitionId: string, changes: ShowTransitionChanges) => void
   onUpdateDestinationAdaptations: (
     destinationId: string,
@@ -13156,6 +13159,7 @@ function PropertyTransitionEditor({
   const descriptor = transition.propertyTransitions?.[property]
   const title = isTime ? 'Animation speed' : 'Brightness'
   const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>, fromByCellId = descriptor?.fromByCellId ?? {}) => {
+    if (clipValueRampsUnavailable) return
     const nextDescriptor = {
       fromByCellId,
       durationMs: changes.durationMs ?? descriptor?.durationMs ?? transition.durationMs,
@@ -13169,6 +13173,7 @@ function PropertyTransitionEditor({
     })
   }
   const removeCell = (cellId: string) => {
+    if (clipValueRampsUnavailable) return
     const fromByCellId = { ...(descriptor?.fromByCellId ?? {}) }
     delete fromByCellId[cellId]
     const propertyTransitions = { ...(transition.propertyTransitions ?? {}) }
@@ -13194,14 +13199,16 @@ function PropertyTransitionEditor({
             min={0.1}
             max={Math.max(0.1, transition.durationMs / 1000)}
             step={0.1}
-            onChange={(seconds) => updateDescriptor({ durationMs: seconds * 1000 })}
+            ariaDisabled={clipValueRampsUnavailable}
+            onChange={(seconds) => { if (!clipValueRampsUnavailable) updateDescriptor({ durationMs: seconds * 1000 }) }}
           />
           <label className="text-[10px] uppercase text-zinc-600">
             {title} easing
             <select
               aria-label={`${title} easing`}
+              aria-disabled={clipValueRampsUnavailable || undefined}
               value={showEasingOptionId(descriptor.easing ?? transition.easing)}
-              onChange={(event) => updateDescriptor({ easing: showEasingFromOptionId(event.target.value) })}
+              onChange={(event) => { if (!clipValueRampsUnavailable) updateDescriptor({ easing: showEasingFromOptionId(event.target.value) }) }}
               className={`${transitionRuleUnderField} mt-1 w-full`}
             >
               <ShowEasingOptions />
@@ -13220,19 +13227,31 @@ function PropertyTransitionEditor({
             updateDescriptor({}, { ...(descriptor?.fromByCellId ?? {}), [destination.id]: value })
           }
           const max = isTime ? 4 : 1
+          const reasonId = `transition-${transition.id}-${property}-${destination.id}-unavailable`
           return (
             <div key={destination.id} className="border-t border-zinc-900 bg-transparent py-2">
-              <label className="flex items-center gap-2 text-[10px] text-zinc-300">
-                <input
-                  type="checkbox"
-                  aria-label={`Animate ${isTime ? 'speed' : 'brightness'} for ${destination.zoneName}`}
-                  checked={enabled}
-                  disabled={transition.kind === 'cut'}
-                  onChange={(event) => updateFrom(event.target.checked ? outgoing?.adaptations[property] ?? 1 : undefined)}
-                  className="h-3.5 w-3.5 accent-live"
-                />
-                {destination.zoneName}
-              </label>
+              <span className="relative inline-flex">
+                <label className="flex items-center gap-2 text-[10px] text-zinc-300">
+                  <input
+                    type="checkbox"
+                    aria-label={`Animate ${isTime ? 'speed' : 'brightness'} for ${destination.zoneName}`}
+                    aria-disabled={clipValueRampsUnavailable || undefined}
+                    aria-describedby={clipValueRampsUnavailable ? reasonId : undefined}
+                    checked={enabled}
+                    disabled={transition.kind === 'cut' && !clipValueRampsUnavailable}
+                    onChange={(event) => {
+                      if (clipValueRampsUnavailable) {
+                        event.preventDefault()
+                        return
+                      }
+                      updateFrom(event.target.checked ? outgoing?.adaptations[property] ?? 1 : undefined)
+                    }}
+                    className="h-3.5 w-3.5 accent-live"
+                  />
+                  {destination.zoneName}
+                </label>
+                {clipValueRampsUnavailable && <DisabledReasonTip id={reasonId}>This Transition can't animate speed or brightness.</DisabledReasonTip>}
+              </span>
               {enabled && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {isTime ? (
@@ -13243,7 +13262,8 @@ function PropertyTransitionEditor({
                       min={0}
                       max={max}
                       step={0.05}
-                      onChange={updateFrom}
+                      ariaDisabled={clipValueRampsUnavailable}
+                      onChange={(value) => { if (!clipValueRampsUnavailable) updateFrom(value) }}
                     />
                   ) : (
                     <PercentageField
@@ -13252,7 +13272,8 @@ function PropertyTransitionEditor({
                       min={0}
                       max={1}
                       step={0.05}
-                      onChange={updateFrom}
+                      ariaDisabled={clipValueRampsUnavailable}
+                      onChange={(value) => { if (!clipValueRampsUnavailable) updateFrom(value) }}
                     />
                   )}
                   {isTime ? (
@@ -13263,7 +13284,8 @@ function PropertyTransitionEditor({
                       min={0}
                       max={max}
                       step={0.05}
-                      onChange={(value) => onUpdateDestinationAdaptations(destination.id, { [property]: value })}
+                      ariaDisabled={clipValueRampsUnavailable}
+                      onChange={(value) => { if (!clipValueRampsUnavailable) onUpdateDestinationAdaptations(destination.id, { [property]: value }) }}
                     />
                   ) : (
                     <PercentageField
@@ -13272,7 +13294,8 @@ function PropertyTransitionEditor({
                       min={0}
                       max={1}
                       step={0.05}
-                      onChange={(value) => onUpdateDestinationAdaptations(destination.id, { [property]: value })}
+                      ariaDisabled={clipValueRampsUnavailable}
+                      onChange={(value) => { if (!clipValueRampsUnavailable) onUpdateDestinationAdaptations(destination.id, { [property]: value }) }}
                     />
                   )}
                 </div>

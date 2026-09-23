@@ -28,6 +28,7 @@ import {
 } from './showInstallationCoverage'
 import { lowerPropertyTarget } from './showV2ValueConversion'
 import { repeatScaleAt, scalarBoundaryRamps } from './showV2ScalarProperties'
+import { showV2FlatLoweringEligible } from './showFlatLoweringV2'
 import type { ShowTransitionSettingsCarrier } from './showTransitionAuthoring'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { formatShowBoundaryIdentity } from './showClipIdentity'
@@ -1017,6 +1018,8 @@ export interface ShowBoundaryTransitionInspectorValue {
   boundaryIdentity: string
   /** v2 only: where the incoming side starts, the time its timeline section boundary sits at. */
   destinationStartMs?: number
+  /** v2 only: the authored Transition cannot carry speed or brightness ramps through the flat route. */
+  clipValueRampsUnavailable?: boolean
   settings: ShowTransitionSettingsCarrier
   destinations: ShowBoundaryTransitionDestinationValue[]
   /** Repeat scale on each side; absent where v1 draws no destination. */
@@ -1077,6 +1080,7 @@ function splitPositionAt(record: ShowRecordV2, atMs: number): number {
 export function projectShowEditorBoundaryTransitionsV2(
   record: ShowRecordV2,
 ): Record<string, ShowBoundaryTransitionInspectorValue> {
+  const flatLoweringEligible = showV2FlatLoweringEligible(record)
   const clipsById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
   const zoneOrder = new Map(record.zones.map((zone, index) => [zone.id, index]))
   const hasSplitLayout = record.zoneLayouts.some(layout => (
@@ -1142,7 +1146,9 @@ export function projectShowEditorBoundaryTransitionsV2(
     })
     const propertyTransitions: NonNullable<ShowTransitionSettingsCarrier['propertyTransitions']> = { ...(ramps ?? {}) }
     for (const ramp of transition.propertyRamps.filter(isShowTransitionClipValueRampV2)) {
-      const participant = transition.participants.find(candidate => candidate.id === ramp.participantId)
+      const participant = ramp.participantId !== undefined
+        ? transition.participants.find(candidate => candidate.id === ramp.participantId)
+        : transition.participants.length === 1 ? transition.participants[0] : undefined
       const incoming = participant && clipsById.get(participant.toClipId)
       if (!incoming) continue
       const property = ramp.target.kind === 'instance-time-scale' && ramp.target.instanceId === incoming.instanceId
@@ -1165,6 +1171,7 @@ export function projectShowEditorBoundaryTransitionsV2(
         incomingPatternNamesAtV2(record, destinationStartMs),
       ),
       destinationStartMs,
+      clipValueRampsUnavailable: !flatLoweringEligible || transition.wholeOutput !== undefined || transition.participants.length !== 1,
       settings: {
         ...structuredClone(stored),
         ...(Object.keys(propertyTransitions).length > 0 ? { propertyTransitions } : {}),
