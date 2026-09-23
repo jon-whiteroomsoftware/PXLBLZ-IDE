@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1091",
+  "route": "/PXLBLZ-IDE/studio/shows/b3f891d7-fe39-40c0-903c-f5936cab0581?show-v2-editor=1",
+  "operation": "On the v2 backing, open built-in lesson 102 Transitions and Values. Select ClockworkIris and set its brightness to 37%. Open Patterns (3), then Try with Pattern, and set Pattern 2 to Caustics. Capture 1 shows the edited lesson. Then use Show actions, then Clone. Capture 2 shows the copy opened in the existing editor: '102 Transitions and Values copy', with ClockworkIris at 37% and the Caustics Clip. Capture 3 renders the copy as a stored v2 row (GET /api/shows, v2 documents): clip-iris brightness 0.37, and instance horizon is Caustics. Before this change the v2 header Clone copied the stock v1 definition as a v1 row, dropping both edits. Items 4, 6 and 7 of this commit have no visible surface; tracer and unit cases cover them. Capture 4 is the raw response of GET /api/shows?show-version=2, which the authenticated page navigates to right after the Clone. The fresh test account holds only this Show: version 2, named \"102 Transitions and Values copy\", with clip-iris brightness 0.37 and instance horizon set to Caustics.",
+  "captures": [
+    ".wrsp/ui-proof/1091-edited-lesson.png",
+    ".wrsp/ui-proof/1091-clone-opened.png",
+    ".wrsp/ui-proof/1091-clone-readback.png",
+    ".wrsp/ui-proof/1091-clone-raw-api.png"
+  ],
+  "capturedAtCommit": "f930b3119b6dd40d8b6df1bb08643e4e8266c5e9"
+}
