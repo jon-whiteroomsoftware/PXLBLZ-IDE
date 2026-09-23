@@ -50,6 +50,19 @@ function participantCarrierShow(): ShowRecordV2 {
 }
 
 describe('v2 Transition Property-ramp carriers survive Clip deletion', () => {
+  it('resizes a scalar carrier without a projection and keeps Reset protected', () => {
+    const source = globalScalarCarrierShow()
+    source.composition.transitions[0].propertyRamps[0].durationMs = 100
+    const before = structuredClone(source)
+    const resized = editShowTransitionV2(source, { kind: 'resize-transition', transitionId: 'boundary', durationMs: 100 })
+    expect(resized.status).toBe('changed')
+    if (resized.status !== 'changed') return
+    expect(reopen(resized.record).composition.transitions[0].propertyRamps[0].durationMs).toBe(50)
+    expect(editShowTransitionV2(source, { kind: 'reset-to-cut', transitionId: 'boundary' }))
+      .toMatchObject({ status: 'refused', code: 'unsupported-property-carrier' })
+    expect(source).toEqual(before)
+  })
+
   it('projects a surviving global scalar ramp into an independently activated track', () => {
     const source = globalScalarCarrierShow()
     const before = structuredClone(source)

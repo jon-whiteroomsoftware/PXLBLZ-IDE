@@ -308,7 +308,7 @@ constraints refuse as invalid topology.
 | --- | --- |
 | Insert | At an eligible exact junction, create positive Transition identity and ripple incoming connected content later by duration. Preserve outgoing timing. Collision, Show End, Zone and compiler eligibility must hold; do not silently extend Show End. |
 | Change kind/parameters | Keep ID, endpoints, duration and times; validate configuration/source/capability requirements. |
-| Change duration | Apply new-minus-old duration once to the incoming/downstream affected set. Preserve outgoing timing and unrelated content. |
+| Change duration | Apply new-minus-old duration once to the incoming/downstream affected set. Preserve outgoing timing and unrelated content. Re-time every Transition Property ramp proportionally: a ramp without `durationMs` remains keyless and spans the new window; an explicit `durationMs = d` becomes `Math.round(d * new / old)`, clamped to `[min(floor, new), new]`, where `floor` is 100 ms for Clip value ramps (speed and brightness) and 1 ms for every other target. Omit `durationMs` when the result equals `new`; preserve `from`, easing, target and participant. |
 | Connected move | Translate the full connected component rigidly to the requested Clip position; preserve relative offsets and Transition identity/settings. Refuse incompatible Zone/Layer destinations. |
 | Trailing resize | Change the selected outgoing end and ripple connected successors by the end delta while preserving Transition duration. Apply the Clip appearance/curve retention rules to the resized interval. |
 | Leading resize | Keep the selected Clip's end fixed. At an incoming Transition, changing its start changes incoming duration by the same delta while the outgoing end stays fixed. A zero result delegates to Reset; negative duration refuses. Update whole-output contributor consistency atomically or refuse. |
@@ -765,6 +765,7 @@ This table is the one list of the places where the v2 editor deliberately behave
 | Boundary speed and brightness ramps convert only on flat Shows, held on the Transition (#1091); a Transition speed or brightness ramp compiles only on the flat route | #1080 class 2 (A); this section |
 | Transition Pattern control and Transform ramps are not offered on v2; the inspector hides those rows (#1091, Jon 2026-09-23) | #1091 (Jon, 2026-09-23) |
 | Deleting a Clip removes its Transition, including a speed or brightness ramp; v1 keeps a fade from empty with the ramp | #1091 (Jon, 2026-09-23) |
+| Transition ramps re-time proportionally when the Transition is resized; v1 kept a speed or brightness ramp's absolute duration, capped at the new window | #1061 (Jon, 2026-09-23); §5 Transition edits |
 | A Transition inserted on a Cut takes room up to the next logical obstruction; chapter Markers and the v1 Scene end do not bound it | #1075 (Jon, 2026-09-22); this section |
 | "Different Zone Layouts" reads Layout occurrences, not Scenes; about 140 stock Cuts now report no free time | #1075 ruling; `showV2LayerTransitionInsertion.test.ts` |
 | Select, move and animate act on each `--layout-N` segment of a layout-split logical Clip; delete, the final-Clip count, Zone removal and `remove_clips` act on the logical Clip as v1 does, through the `logicalClipId` provenance field | #1068 gap 8 (ruling 1b); `show-v2-conversion-provenance.md` |

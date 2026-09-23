@@ -145,10 +145,11 @@ export function isShowTransitionClipValueRampV2(ramp: ShowTransitionPropertyRamp
     || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness')
 }
 
-export function retimeShowTransitionClipValueRampsV2(transition: ShowTransitionV2, newDurationMs: number): ShowTransitionPropertyRampV2[] {
+export function retimeShowTransitionRampsV2(transition: ShowTransitionV2, newDurationMs: number): ShowTransitionPropertyRampV2[] {
   return transition.propertyRamps.map(ramp => {
-    if (!isShowTransitionClipValueRampV2(ramp)) return structuredClone(ramp)
-    const durationMs = Math.max(Math.min(100, newDurationMs), Math.min(ramp.durationMs ?? transition.durationMs, newDurationMs))
+    if (ramp.durationMs === undefined) return structuredClone(ramp)
+    const floor = isShowTransitionClipValueRampV2(ramp) ? 100 : 1
+    const durationMs = Math.min(newDurationMs, Math.max(Math.min(floor, newDurationMs), Math.round(ramp.durationMs * newDurationMs / transition.durationMs)))
     const { durationMs: _previousDurationMs, ...rest } = structuredClone(ramp)
     return durationMs === newDurationMs ? rest : { ...rest, durationMs }
   })

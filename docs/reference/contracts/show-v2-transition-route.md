@@ -116,19 +116,23 @@ are unchanged.
 
 Guard classification: participant-scope Transition ramps targeting the incoming
 Clip's instance time scale or Clip View brightness are Clip value ramps.
-Settings edits may add, change, or remove them. Resizing their Transition keeps
-each ramp length, caps it to the new window, and uses the previous Transition
-duration when the ramp has no duration; the result has a minimum duration of
-`min(100, newDurationMs)` and omits `durationMs` when it equals the new window.
-Reset to Cut, deletion of either adjacent Clip, and a permitted cross-Zone or
-cross-Layer detach remove these ramps with their Transition without a projection plan.
-Clip edge resizing follows the same duration rule when it changes the window;
+Settings edits may add, change, or remove them. Resizing a Transition re-times
+every Property ramp, including speed and brightness, by the same rule: a ramp
+without `durationMs` remains keyless and spans the new window; an explicit
+`durationMs = d` becomes `Math.round(d * new / old)`, clamped to
+`[min(floor, new), new]`. The floor is 100 ms for Clip value ramps and 1 ms for
+every other target. Omit `durationMs` when the result equals `new`; preserve
+`from`, easing, target and participant.
+Reset to Cut, deletion of either adjacent Clip, and a permitted cross-Zone or cross-Layer
+detach remove these ramps with their Transition without a projection plan.
+Clip edge resizing follows the same proportional rule when it changes the window;
 closing the window drops the ramps. Planners skip Clip value ramps rather than
 projecting them. Other ramp kinds retain their owner and projection guards:
-`unsupported-property-carrier` on resize, Reset without a complete plan, or
-Clip delete without a complete plan; a non-scalar target with no projected
+`unsupported-property-carrier` on Reset without a complete plan or Clip delete
+without a complete plan; a non-scalar target with no projected
 destination still refuses. Group creation and Layout duplicate-with-content
 keep their carrier refusals.
+Converted-boundary `ramp-carrier` edge-repair refusals remain in place.
 RL08, RL09 and RL10 remain bounded compiler refusals and are surfaced unchanged;
 the authenticated flow exercises RL08 as a real zero-write route refusal.
 Continuous-flat participant Transitions with multiple Layouts keep their existing

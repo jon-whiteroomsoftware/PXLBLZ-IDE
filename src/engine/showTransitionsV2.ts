@@ -1,7 +1,7 @@
 import {
   showV2LogicalClipSegmentIds,
   isShowTransitionClipValueRampV2,
-  retimeShowTransitionClipValueRampsV2,
+  retimeShowTransitionRampsV2,
   validateShowRecordV2,
   type ShowClipV2,
   type ShowPropertyTrackV2,
@@ -197,7 +197,7 @@ export function editShowTransitionV2(
       }
       if (retimed.status !== 'changed') return retimed
       const retimedTransition = retimed.record.composition.transitions.find(candidate => candidate.id === current.id)!
-      const propertyRamps = retimeShowTransitionClipValueRampsV2(
+      const propertyRamps = retimeShowTransitionRampsV2(
         { ...intent.transition, durationMs: current.durationMs }, intent.transition.durationMs)
       const settled = structuredClone(retimed.record)
       settled.composition.transitions = settled.composition.transitions.map(transition => (
@@ -287,7 +287,7 @@ export function editShowTransitionV2(
   if (intent.kind === 'resize-transition' && intent.durationMs === transition.durationMs) {
     return { status: 'unchanged', record, ...empty() }
   }
-  if (transition.propertyRamps.length > 0 && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)) {
+  if (intent.kind === 'reset-to-cut' && transition.propertyRamps.length > 0 && !transition.propertyRamps.every(isShowTransitionClipValueRampV2)) {
     if (intent.kind === 'reset-to-cut' && intent.propertyRampProjections) {
       return resetTransitionWithProjectedPropertyRamps(record, transition, intent.propertyRampProjections)
     }
@@ -312,7 +312,7 @@ export function editShowTransitionV2(
     : -transition.durationMs
   const replacements = intent.kind === 'resize-transition'
     ? [{ ...structuredClone(transition), durationMs: intent.durationMs,
-      propertyRamps: retimeShowTransitionClipValueRampsV2(transition, intent.durationMs) }]
+      propertyRamps: retimeShowTransitionRampsV2(transition, intent.durationMs) }]
     : []
   return commitShift(record, affectedClipIds, deltaMs, replacements, intent.kind === 'reset-to-cut' ? [transition.id] : [])
 }
@@ -559,7 +559,7 @@ export function commitConvertedBoundaryRepairsV2(
       next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== repair.transitionId)
     } else {
       const retained = next.composition.transitions.find(candidate => candidate.id === repair.transitionId)!
-      retained.propertyRamps = retimeShowTransitionClipValueRampsV2(retained, repair.retainDurationMs)
+      retained.propertyRamps = retimeShowTransitionRampsV2(retained, repair.retainDurationMs)
       retained.durationMs = repair.retainDurationMs
     }
     const movedTrackIds = applyShowTransitionClipShiftV2(record, next, [...shiftIds], -durationMs, [repair.transitionId], repair.windowEndMs)
@@ -904,7 +904,7 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
     ...structuredClone(clip.appearance.keys.filter(key => key !== held && key.timeMs > startMs && key.timeMs < oldEndMs)),
   ]
   next.composition.transitions = next.composition.transitions.map(candidate => candidate.id === transition.id
-    ? { ...candidate, durationMs, propertyRamps: retimeShowTransitionClipValueRampsV2(candidate, durationMs) }
+    ? { ...candidate, durationMs, propertyRamps: retimeShowTransitionRampsV2(candidate, durationMs) }
     : candidate)
   const issue = validateShowRecordV2(next)[0]
   if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)

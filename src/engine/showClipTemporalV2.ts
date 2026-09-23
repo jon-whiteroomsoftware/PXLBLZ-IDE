@@ -1,4 +1,4 @@
-import { isShowTransitionClipValueRampV2, retimeShowTransitionClipValueRampsV2, validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './showCompositionV2'
+import { isShowTransitionClipValueRampV2, retimeShowTransitionRampsV2, validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './showCompositionV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { editShowClipPropertyTracksV2, projectShowTransitionPropertyRampsV2, type ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
@@ -228,7 +228,7 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
           next.composition.transitions = next.composition.transitions.filter(transition => transition.id !== incoming[0].id)
         } else {
           const boundary = next.composition.transitions.find(transition => transition.id === incoming[0].id)!
-          boundary.propertyRamps = retimeShowTransitionClipValueRampsV2(incoming[0], durationMs)
+          boundary.propertyRamps = retimeShowTransitionRampsV2(incoming[0], durationMs)
           boundary.durationMs = durationMs
         }
       }

@@ -5311,6 +5311,34 @@ describe('v2 fixes A (#1066)', () => {
     expectOneEdit(before, after)
   })
 
+  it('retimes a show-repeat-scale ramp on one inspector Duration edit and Undo restores it', async () => {
+    const { record } = nativeWholeOutputBoundary('issue-1061-inspector-duration')
+    const transition = record.composition.transitions[0]
+    transition.propertyRamps = [{ target: { kind: 'show-repeat-scale' }, from: 1, durationMs: 800 }]
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit crossfade Transition between/ }))
+    await act(async () => {})
+    const duration = within(boundaryPanel()).getByRole('textbox', { name: /^Duration/ })
+    expect(duration).toHaveValue('2')
+    fireEvent.change(duration, { target: { value: '1.5' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    const after = editor.state()
+    expect(after.record.composition.transitions[0].propertyRamps).toEqual([
+      { target: { kind: 'show-repeat-scale' }, from: 1, durationMs: 600 },
+    ])
+    expectOneEdit(before, after)
+    fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await act(async () => {})
+    expect(editor.state().record.composition).toEqual(before.record.composition)
+  })
+
   it('commits nothing for an unchanged boundary Duration', async () => {
     const { record } = convertedFreshBoundary('fixa-boundary-duration-unchanged')
     const editor = openV2EditorForRecord(record)

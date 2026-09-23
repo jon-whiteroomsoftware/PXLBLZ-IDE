@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { ShowRecordV2 } from './showCompositionV2'
 import {
   parseProvisionalShowRecordV2,
+  retimeShowTransitionRampsV2,
   serializeProvisionalShowRecordV2,
   validateShowRecordV2,
   validateShowRecordV2Domain,
+  type ShowTransitionV2,
 } from './showCompositionV2'
 
 export function minimalShowRecordV2(): ShowRecordV2 {
@@ -338,6 +340,43 @@ describe('validateShowRecordV2', () => {
       issues: expect.arrayContaining([expect.objectContaining({ path, code })]),
     }))
     expect(JSON.stringify(record)).toBe(before)
+  })
+})
+
+describe('Transition ramp proportional retiming', () => {
+  const transition = (ramps: ShowTransitionV2['propertyRamps']): ShowTransitionV2 => ({
+    id: 'transition', kind: 'crossfade', durationMs: 1000,
+    easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
+    participants: [], propertyRamps: ramps,
+  })
+
+  it('keeps a keyless ramp spanning the window and preserves the preimage', () => {
+    const source = transition([{ target: { kind: 'show-repeat-scale' }, from: 2, easing: { curve: 'sine', direction: 'in' } }])
+    const before = structuredClone(source)
+    expect(retimeShowTransitionRampsV2(source, 1500)).toEqual(source.propertyRamps)
+    expect(retimeShowTransitionRampsV2(source, 500)).toEqual(source.propertyRamps)
+    expect(source).toEqual(before)
+  })
+
+  it('rounds explicit durations on growth and shrinkage without changing ramp identity or settings', () => {
+    const ramp = { target: { kind: 'show-repeat-scale' as const }, from: 2, durationMs: 333, easing: { curve: 'sine' as const, direction: 'in' as const } }
+    const source = transition([ramp])
+    expect(retimeShowTransitionRampsV2(source, 1500)).toEqual([{ ...ramp, durationMs: 500 }])
+    expect(retimeShowTransitionRampsV2(source, 500)).toEqual([{ ...ramp, durationMs: 167 }])
+  })
+
+  it('clamps scalar ramps to 1 ms and Clip value ramps to 100 ms or the new window', () => {
+    const source = transition([
+      { target: { kind: 'show-repeat-scale' }, from: 2, durationMs: 1 },
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 0.5, durationMs: 100 },
+    ])
+    expect(retimeShowTransitionRampsV2(source, 999).map(ramp => ramp.durationMs)).toEqual([1, 100])
+    expect(retimeShowTransitionRampsV2(source, 50)).toEqual([
+      { target: { kind: 'show-repeat-scale' }, from: 2, durationMs: 1 },
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 0.5 },
+    ])
+    expect(retimeShowTransitionRampsV2(transition([{ target: { kind: 'clip-opacity', clipId: 'in' }, from: 0.2, durationMs: 900 }]), 100))
+      .toEqual([{ target: { kind: 'clip-opacity', clipId: 'in' }, from: 0.2, durationMs: 90 }])
   })
 })
 

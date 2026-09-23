@@ -528,7 +528,7 @@ it('valid zero and complete reordered multiramp indices preserve caller identiti
   expect(reopen(result.record).composition.propertyTracks.map(track => [track.id, track.keyframes.map(key => key.id)])).toEqual([['opacity-projection', ['opacity:start', 'opacity:end']], ['retained-ramp', ['ramp:first', 'ramp:last']]])
 })
 
-it('retimes an incoming Clip value ramp when a native leading edge changes its window', () => {
+it('keeps a keyless incoming Clip value ramp spanning a native leading edge window', () => {
   const source = fixture()
   const boundary = source.composition.transitions[0]
   boundary.propertyRamps = [{
@@ -540,7 +540,7 @@ it('retimes an incoming Clip value ramp when a native leading edge changes its w
   expect(grown.status).toBe('changed')
   if (grown.status !== 'changed') return
   expect(grown.record.composition.transitions[0].durationMs).toBe(150)
-  expect(grown.record.composition.transitions[0].propertyRamps[0].durationMs).toBe(100)
+  expect(grown.record.composition.transitions[0].propertyRamps[0].durationMs).toBeUndefined()
   expect(validateShowRecordV2(grown.record)).toEqual([])
   const shrunk = editShowClipTemporalV2(source, { kind: 'extend', clipId: 'selected', startMs: 150, endMs: 600 })
   expect(shrunk.status).toBe('changed')
@@ -550,19 +550,19 @@ it('retimes an incoming Clip value ramp when a native leading edge changes its w
   expect(validateShowRecordV2(shrunk.record)).toEqual([])
 })
 
-it('resizes a native edge carrying a clip-effect ramp as before B2', () => {
+it('proportionally retimes a native edge carrying a clip-effect ramp', () => {
   const source = fixture()
   const boundary = source.composition.transitions[0]
   boundary.propertyRamps = [{
     participantId: boundary.participants[0].id,
-    target: { kind: 'clip-effect', clipId: 'selected', effectId: 'hue', effectKind: 'hue', parameterId: 'turns' }, from: 0.2,
+    target: { kind: 'clip-effect', clipId: 'selected', effectId: 'hue', effectKind: 'hue', parameterId: 'turns' }, from: 0.2, durationMs: 40,
   }]
   expect(validateShowRecordV2(source)).toEqual([])
   const result = editShowClipTemporalV2(source, { kind: 'trim', clipId: 'selected', startMs: 250, endMs: 600 })
   expect(result.status).toBe('changed')
   if (result.status !== 'changed') return
   expect(result.record.composition.transitions[0].durationMs).toBe(150)
-  expect(result.record.composition.transitions[0].propertyRamps).toEqual(boundary.propertyRamps)
+  expect(result.record.composition.transitions[0].propertyRamps).toEqual([{ ...boundary.propertyRamps[0], durationMs: 60 }])
   expect(validateShowRecordV2(result.record)).toEqual([])
 })
 

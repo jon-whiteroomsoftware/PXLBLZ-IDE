@@ -243,6 +243,22 @@ describe('converted Scene-boundary repair on Clip-edge resize (gap 1)', () => {
     expect(result.record.composition.transitions).toEqual([])
     expect(source).toEqual(before)
   })
+
+  it('proportionally retimes a retained converted boundary Clip value ramp', () => {
+    const source = convertedDefaultShow()
+    const carrier = source.composition.transitions.find(transition => transition.id === BOUNDARY)!
+    carrier.propertyRamps = [{
+      participantId: carrier.participants[0].id,
+      target: { kind: 'clip-view', clipId: RIGHT, property: 'brightness' },
+      from: 0.2, durationMs: 400,
+    }]
+    expect(validateShowRecordV2(source)).toEqual([])
+    const result = editShowTransitionV2(source, { kind: 'resize-transition', transitionId: BOUNDARY, durationMs: 1000 })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.transitions[0].propertyRamps[0].durationMs).toBe(200)
+    expect(validateShowRecordV2(result.record)).toEqual([])
+  })
 })
 
 describe('converted Scene-boundary repair through the Transition owner', () => {

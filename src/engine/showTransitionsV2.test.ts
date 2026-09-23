@@ -11,7 +11,7 @@ import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from './showTransitionsV2'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { resizeShowLayerTransition, resetShowLayerTransitionToCut } from './showLayerTransitionAuthoring'
-import { removeShowBoundaryTransition, removeShowClip, updateShowBoundaryTransition } from './showModel'
+import { removeShowBoundaryTransition, removeShowClip } from './showModel'
 import type { ShowRecord } from './personalContentRecords'
 import {
   parseProvisionalShowRecordV2,
@@ -25,14 +25,6 @@ function convertedTransitionShow(): ShowRecordV2 {
   const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
   return converted.record
-}
-
-function clipRampSummary(record: ShowRecordV2) {
-  return record.composition.transitions.find(transition => transition.id === 'xfade')?.propertyRamps
-    .map(ramp => ({
-      target: ramp.target.kind === 'instance-time-scale' ? 'speed' : 'brightness',
-      from: ramp.from, durationMs: ramp.durationMs, easing: ramp.easing,
-    }))
 }
 
 function cutShow(gapMs = 0): ShowRecordV2 {
@@ -851,8 +843,60 @@ describe('owned-track shift across a converted Scene-span activation (#1068)', (
   })
 })
 
+describe('#1061 Transition ramp carrier resize', () => {
+  it.each([
+    ['one whole-output ramp', false, [
+      { target: { kind: 'show-repeat-scale' as const }, from: 2, durationMs: 100 },
+    ], [150], [50]],
+    ['two whole-output ramps', false, [
+      { target: { kind: 'show-repeat-scale' as const }, from: 2, durationMs: 100 },
+      { target: { kind: 'clip-opacity' as const, clipId: 'in' }, from: 0.4, durationMs: 50 },
+    ], [150, 75], [50, 25]],
+    ['three participant ramps', true, [
+      { target: { kind: 'instance-time-scale' as const, instanceId: 'in-instance' }, from: 0.5, durationMs: 100 },
+      { target: { kind: 'clip-view' as const, clipId: 'in', property: 'brightness' as const }, from: 0.2, durationMs: 150 },
+      { target: { kind: 'clip-opacity' as const, clipId: 'in' }, from: 0.4, durationMs: 1 },
+    ], [150, 225, 2], [undefined, undefined, 1]],
+  ] as const)('grows and shrinks %s with every ramp inside the window', (_name, participantScope, ramps, grownDurations, shrunkDurations) => {
+    const source = convertedTransitionShow()
+    source.composition.showEndMs = 1200
+    source.composition.layoutOccurrences[0].durationMs = 1200
+    const transition = source.composition.transitions[0]
+    delete transition.origin
+    if (!participantScope) {
+      transition.participants = []
+      transition.wholeOutput = { startMs: 400, fromClipIds: ['out'], toClipIds: ['in'] }
+    }
+    transition.propertyRamps = ramps.map(ramp => structuredClone(ramp))
+    expect(validateShowRecordV2(source)).toEqual([])
+    const before = structuredClone(source)
+    for (const [durationMs, expected] of [[300, grownDurations], [100, shrunkDurations]] as const) {
+      const result = editShowTransitionV2(source, { kind: 'resize-transition', transitionId: transition.id, durationMs })
+      expect(result.status).toBe('changed')
+      if (result.status !== 'changed') continue
+      const settled = reopen(result.record)
+      expect(settled.composition.transitions[0].propertyRamps.map(ramp => ramp.durationMs)).toEqual(expected)
+      expect(settled.composition.transitions[0].propertyRamps.every(ramp => (ramp.durationMs ?? durationMs) <= durationMs)).toBe(true)
+      expect(validateShowRecordV2(settled)).toEqual([])
+    }
+    expect(source).toEqual(before)
+  })
+
+  it('still refuses Reset to Cut without projections for a non-Clip-value carrier', () => {
+    const source = convertedTransitionShow()
+    const transition = source.composition.transitions[0]
+    delete transition.origin
+    transition.participants = []
+    transition.wholeOutput = { startMs: 400, fromClipIds: ['out'], toClipIds: ['in'] }
+    transition.propertyRamps = [{ target: { kind: 'show-repeat-scale' }, from: 2, durationMs: 100 }]
+    expect(validateShowRecordV2(source)).toEqual([])
+    expect(editShowTransitionV2(source, { kind: 'reset-to-cut', transitionId: transition.id }))
+      .toMatchObject({ status: 'refused', code: 'unsupported-property-carrier', record: source })
+  })
+})
+
 describe('#1091 B2 Transition Clip value ramp ownership', () => {
-  it('a palette settings edit with a shorter Duration caps a speed ramp (#1091 C1)', () => {
+  it('a palette settings edit with a shorter Duration scales a speed ramp (#1061)', () => {
     const v1 = clipRampProbeV1()
     const source = convertClipRampProbe(v1)
     const transition = structuredClone(source.composition.transitions[0])
@@ -861,12 +905,11 @@ describe('#1091 B2 Transition Clip value ramp ownership', () => {
     expect(result.status).toBe('changed')
     if (result.status !== 'changed') return
     const settled = reopen(result.record)
-    expect(settled.composition.transitions[0].propertyRamps[0].durationMs).toBeUndefined()
-    expect(clipRampSummary(settled)).toEqual(clipRampSummary(convertClipRampProbe(updateShowBoundaryTransition(v1, 'xfade', { durationMs: 300 }))))
+    expect(settled.composition.transitions[0].propertyRamps.map(ramp => ramp.durationMs)).toEqual([120, undefined])
     expect(validateShowRecordV2(settled)).toEqual([])
   })
 
-  it('a palette settings edit with a longer Duration fixes a keyless ramp at the previous Duration', () => {
+  it('a palette settings edit with a longer Duration leaves a keyless ramp keyless', () => {
     const v1 = clipRampProbeV1()
     delete v1.transitions[0].propertyTransitions!.timeScale!.durationMs
     const source = convertClipRampProbe(v1)
@@ -876,14 +919,13 @@ describe('#1091 B2 Transition Clip value ramp ownership', () => {
     expect(result.status).toBe('changed')
     if (result.status !== 'changed') return
     const settled = reopen(result.record)
-    expect(settled.composition.transitions[0].propertyRamps[0].durationMs).toBe(1000)
-    expect(clipRampSummary(settled)).toEqual(clipRampSummary(convertClipRampProbe(updateShowBoundaryTransition(v1, 'xfade', { durationMs: 1500 }))))
+    expect(settled.composition.transitions[0].propertyRamps.map(ramp => ramp.durationMs)).toEqual([undefined, undefined])
     expect(validateShowRecordV2(settled)).toEqual([])
   })
 
   it.each([
-    ['grow', 100, 1100, [400, 1000]],
-    ['shrink', -100, 900, [400, undefined]],
+    ['grow', 100, 1100, [440, undefined]],
+    ['shrink', -100, 900, [360, undefined]],
   ] as const)('connected resizeLeading retimes a clip value ramp on %s', (_direction, deltaMs, durationMs, rampDurations) => {
     const source = convertClipRampProbe()
     const transition = source.composition.transitions[0]
@@ -930,9 +972,9 @@ describe('#1091 B2 Transition Clip value ramp ownership', () => {
   })
 
   it.each([
-    [1500, [400, 1000]],
-    [200, [undefined, undefined]],
-  ] as const)('resizes 1000 ms to %i, validates, prepares flat, and matches v1 descriptors', (durationMs, expectedDurations) => {
+    [1500, [600, undefined]],
+    [200, [100, undefined]],
+  ] as const)('resizes 1000 ms to %i, validates, and prepares flat', (durationMs, expectedDurations) => {
     const v1 = clipRampProbeV1()
     const source = convertClipRampProbe(v1)
     const result = editShowTransitionV2(source, { kind: 'resize-transition', transitionId: 'xfade', durationMs })
@@ -941,13 +983,11 @@ describe('#1091 B2 Transition Clip value ramp ownership', () => {
     const resized = reopen(result.record)
     expect(resized.composition.transitions[0].propertyRamps.map(ramp => ramp.durationMs)).toEqual(expectedDurations)
     expect(resized.composition.transitions[0].propertyRamps.map(ramp => ramp.durationMs ?? durationMs)).toEqual(
-      durationMs === 200 ? [200, 200] : [400, 1000])
+      durationMs === 200 ? [100, 200] : [600, 1500])
     expect(validateShowRecordV2(resized)).toEqual([])
     const lookup = { byCellId: {}, byPatternInstanceId: Object.fromEntries(resized.composition.patternInstances.map(instance =>
       [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])), stageDimension: 1 as const }
     expect(prepareShowV2ForCompile(resized, lookup, { libraries: LIBRARIES })).toMatchObject({ status: 'ready', provenance: { route: 'continuous-flat' } })
-    const v1Resized = updateShowBoundaryTransition(v1, 'xfade', { durationMs })
-    expect(clipRampSummary(resized)).toEqual(clipRampSummary(convertClipRampProbe(v1Resized)))
   })
 
   it('resets the converted carrier without projection and matches v1 Reset', () => {
