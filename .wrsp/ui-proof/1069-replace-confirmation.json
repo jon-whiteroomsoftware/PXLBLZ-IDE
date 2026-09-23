@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1069",
+  "route": "/PXLBLZ-IDE/studio/shows/0926a2cb-6ea3-4e57-9521-f7330beebb57 (v2 clone of stock-show-showcase-luma-sources)",
+  "operation": "On the v2 backing, clone the built-in Luma Sources showcase and select Clip luma-clip-1 (LumaStripes, whose Width control has a value and an animation track). In the Clip detail's Source pattern picker choose TestPattern2D, which exports no controls. Capture 1 (dialog): the loss confirmation opens above the Entity Detail Panel: 'Use TestPattern2D? TestPattern2D doesn't have the Width control. The Width animation will be removed.' with Cancel and 'Use TestPattern2D'. Cancel was pressed first: the stored row is unchanged (capture 3, 'After Cancel'). The picker was then chosen again and 'Use TestPattern2D' pressed. Capture 2 (confirmed): the Clip is TestPattern2D and the width lane is gone from the timeline. Capture 3 (readback) is the Clip read back from the stored v2 row before, after Cancel, and after confirm (pattern TestPattern2D, controlTargets {}, no control tracks). Capture 4 is the raw GET /api/shows?show-version=2 response. Before this change the v2 picker reverted silently with no write.",
+  "captures": [
+    ".wrsp/ui-proof/1069-replace-dialog.png",
+    ".wrsp/ui-proof/1069-replace-confirmed.png",
+    ".wrsp/ui-proof/1069-replace-readback.png",
+    ".wrsp/ui-proof/1069-replace-raw-api.png"
+  ],
+  "capturedAtCommit": "1d77b5a45c840411be73ccc67ab3bbe4bc3053b8"
+}
