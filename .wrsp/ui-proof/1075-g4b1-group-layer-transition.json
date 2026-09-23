@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-lt-1790130275632",
+  "operation": "On the v2 backing at the G4b-1 code tip: a seeded Show whose Group definition Pulse pair holds Clips g-a 0+2000 and g-b 3000+2000 joined by a 1 s crossfade lt-pair. Double-click the Group to isolate it, open the crossfade's Layer Transition Details, set Duration to 2.5 s (first capture), then open it again and press Reset to Cut (second capture). The third capture renders the stored v2 record (GET /api/shows) from the same run: seeded; after Duration, lt-pair 2500 ms with g-b shifted to 4500; after Reset to Cut, no Transition and g-b back at 2000, flush with g-a's end, as v1's resize and Reset shift the to-Clip.",
+  "captures": [
+    ".wrsp/ui-proof/1075-g4b1-duration.png",
+    ".wrsp/ui-proof/1075-g4b1-reset.png",
+    ".wrsp/ui-proof/1075-g4b1-readback.png"
+  ],
+  "capturedAtCommit": "518f2851b0e02eec846c9dda36ffabde732872bf"
+}
