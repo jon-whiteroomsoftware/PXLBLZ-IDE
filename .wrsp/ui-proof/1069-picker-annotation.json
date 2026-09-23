@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1069",
+  "route": "/PXLBLZ-IDE/studio/shows/63e1ddec-6b94-40d4-8c91-915599dd4d0c (v2 clone of stock-show-showcase-luma-sources)",
+  "operation": "On the v2 backing, clone the built-in Luma Sources showcase (the clone opened at the route above) and select Clip luma-clip-1 (LumaStripes; its Width control has a value and an animation track). Open the Clip detail's Source pattern picker. Capture 1 (lossy): searching 'Pattern2D' lists 'TestPattern2D' with its cost 'removes 1 property lane', the same loss the slice 1 confirmation names. Capture 2 (compatible): searching 'Luma' lists the other Luma Patterns, which also export Width, with no cost, and the current Pattern with none. Capture 3 (readback) is Show 63e1ddec-6b94-40d4-8c91-915599dd4d0c's stored v2 row read back through GET /api/shows?show-version=2 before opening the picker and after browsing it and pressing Escape: LumaStripes, sliderWidth 0.4 and track-luma-1-0 are unchanged, so browsing writes nothing; it also lists the 'Luma' options exactly as captured. Capture 4 is the raw GET /api/shows?show-version=2 response, whose only row is version 2 with that id. Before this change the picker gave no hint that choosing TestPattern2D would lose anything.",
+  "captures": [
+    ".wrsp/ui-proof/1069-picker-lossy.png",
+    ".wrsp/ui-proof/1069-picker-compatible.png",
+    ".wrsp/ui-proof/1069-picker-readback.png",
+    ".wrsp/ui-proof/1069-picker-raw-api.png"
+  ],
+  "capturedAtCommit": "9c437599673d8456d03b2dfb5c219cbbef87ac1a"
+}
