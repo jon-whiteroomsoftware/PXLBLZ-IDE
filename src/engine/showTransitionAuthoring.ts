@@ -54,28 +54,42 @@ export function showTransitionChangesForPresentation(
   if (!family || !variant) throw new Error(`Unsupported Show Transition ${item.key}.`)
   const preset = variant.presets?.find((candidate) => candidate.id === presetId)
   const parameters = resolveShowToolkitParameters('transition', item.familyId, item.variantId, {}, stageDimensions)
+  const compatibleIds = new Set(parameters.map((parameter) => parameter.id))
   const values = {
     ...Object.fromEntries(parameters.map((parameter) => [parameter.id, parameter.defaultValue])),
-    ...(preset?.values ?? {}),
+    ...Object.fromEntries(
+      Object.entries(preset?.values ?? {}).filter(([parameterId]) => compatibleIds.has(parameterId)),
+    ),
   }
+  // A parameter excluded for the Stage dimension (direction on a 1D Stage)
+  // must clear a stored value: both palette mergers spread these changes
+  // over the current Transition, and the boundary normalizer treats an
+  // explicit undefined as absent (#1077 corrective).
+  const cleared: Record<string, undefined> = stageDimensions === undefined ? {} : Object.fromEntries(
+    resolveShowToolkitParameters('transition', item.familyId, item.variantId, {})
+      .filter((parameter) => !compatibleIds.has(parameter.id))
+      .map((parameter) => [parameter.id, undefined]),
+  )
   return {
     ...transitionIdentity(item.familyId, item.variantId),
     ...Object.fromEntries(Object.entries(values).map(([parameterId, value]) => (
       [parameterId, persistedParameterValue(parameterId, value)]
     ))),
+    ...cleared,
   } as ShowTransitionChanges
 }
 
 export function showBoundaryTransitionParameters(
   item: ShowToolkitPresentationItem,
   transition: ShowTransitionSettingsCarrier,
+  stageDimensions?: 1 | 2 | 3,
 ): ShowToolkitParameterDescriptor[] {
   const family = getShowToolkitFamily('transition', item.familyId)
   if (!family) return []
   const values = Object.fromEntries(family.parameters.map((parameter) => (
     [parameter.id, showBoundaryTransitionParameterValue(transition, parameter.id)]
   )))
-  return resolveShowToolkitParameters('transition', item.familyId, item.variantId, values)
+  return resolveShowToolkitParameters('transition', item.familyId, item.variantId, values, stageDimensions)
 }
 
 export function showBoundaryTransitionParameterValue(
@@ -94,10 +108,11 @@ export function updateShowBoundaryTransitionParameter(
   item: ShowToolkitPresentationItem,
   parameterId: string,
   value: ShowToolkitParameterValue,
+  stageDimensions?: 1 | 2 | 3,
 ): ShowRecord {
   const transition = show.transitions?.find((candidate) => candidate.id === transitionId)
   if (!transition || item.kind !== 'transition') return show
-  const changes = showBoundaryTransitionParameterChanges(transition, item, parameterId, value)
+  const changes = showBoundaryTransitionParameterChanges(transition, item, parameterId, value, stageDimensions)
   return changes ? updateShowBoundaryTransition(show, transitionId, changes) : show
 }
 
@@ -106,9 +121,10 @@ export function showBoundaryTransitionParameterChanges(
   item: ShowToolkitPresentationItem,
   parameterId: string,
   value: ShowToolkitParameterValue,
+  stageDimensions?: 1 | 2 | 3,
 ): ShowTransitionChanges | null {
   if (item.kind !== 'transition') return null
-  const parameter = showBoundaryTransitionParameters(item, transition)
+  const parameter = showBoundaryTransitionParameters(item, transition, stageDimensions)
     .find((candidate) => candidate.id === parameterId)
   if (!parameter) return null
   return {

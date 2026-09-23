@@ -298,6 +298,24 @@ describe('Show Transition authoring UI', () => {
     }
   })
 
+  it('omits the 2D-only Direction from the 1D Transition parameter panel (#1077 corrective)', () => {
+    const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    const linear = catalogue.find((item) => item.key === 'transition:wipe:linear')!
+    const base = createDefaultShow('show-1077-panel', 'Panel', 1)
+    const show = replaceShowBoundaryTransition(base, base.transitions![0].id, linear)
+    expect(show.transitions![0]).toHaveProperty('direction', 0)
+    const onChange = vi.fn()
+    const { unmount } = render(
+      <ShowTransitionParameters transition={show.transitions![0]} item={linear} stageDimensions={1} onChange={onChange} />,
+    )
+    expect(screen.queryByRole('textbox', { name: 'Direction exact direction' })).not.toBeInTheDocument()
+    unmount()
+    render(
+      <ShowTransitionParameters transition={show.transitions![0]} item={linear} stageDimensions={2} onChange={onChange} />,
+    )
+    expect(screen.getByRole('textbox', { name: 'Direction exact direction' })).toBeInTheDocument()
+  })
+
   it('authors Fade through color with the shared Color field and one picker commit (#609)', () => {
     const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
     const fade = catalogue.find((item) => item.key === 'transition:fade:through-color')!

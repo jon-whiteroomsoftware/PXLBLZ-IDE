@@ -216,6 +216,7 @@ export function ShowTransitionPalette({
 export function ShowTransitionParameters({
   transition,
   item,
+  stageDimensions,
   omitParameterIds,
   onPreview,
   onPreviewEnd,
@@ -223,13 +224,14 @@ export function ShowTransitionParameters({
 }: {
   transition: ShowTransitionSettingsCarrier
   item: ShowToolkitPresentationItem
+  stageDimensions?: 1 | 2 | 3
   /** Parameters another control on the same surface already owns. */
   omitParameterIds?: readonly string[]
   onPreview?: (parameterId: string, value: ShowToolkitParameterValue) => void
   onPreviewEnd?: () => void
   onChange: (parameterId: string, value: ShowToolkitParameterValue) => void
 }) {
-  const parameters = showBoundaryTransitionParameters(item, transition)
+  const parameters = showBoundaryTransitionParameters(item, transition, stageDimensions)
     .filter((parameter) => !omitParameterIds?.includes(parameter.id))
   return (
     <div role="group" aria-label={`${item.label} Transition parameters`} className="grid grid-cols-2 items-end gap-1.5 sm:grid-cols-3">

@@ -576,10 +576,41 @@ describe('planShowV2BoundaryPaletteApply (#1066 slice 5b)', () => {
       .find((candidate) => candidate.key === 'transition:wipe:linear')!
     expect(item.compatible).toBe(true)
     const changes = showTransitionChangesForPresentation(item, undefined, 1)
-    expect(changes).not.toHaveProperty('direction')
+    expect(changes.direction).toBeUndefined()
     const plan = planShowV2BoundaryPaletteApply(record, 'transition-scene-1', changes, () => 'unused')
     expect(plan.status).toBe('ready')
     if (plan.status !== 'ready') throw new Error(JSON.stringify(plan))
+    const edited = editShowTransitionV2(record, plan.intent)
+    expect(edited.status).toBe('changed')
+    if (edited.status !== 'changed') throw new Error(JSON.stringify(edited))
+    const transition = edited.record.composition.transitions.find((candidate) => candidate.id === 'transition-scene-1')!
+    expect(transition).not.toHaveProperty('direction')
+    const prepared = prepareShowV2ForCompile(edited.record, {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(edited.record.composition.patternInstances.map((instance) => [
+        instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)],
+      ])),
+      stageDimension: 1,
+    }, { libraries: LIBRARIES })
+    expect(prepared.status).toBe('ready')
+  })
+
+  it('clears a stored direction when the 1D palette applies Linear Wipe (#1077 corrective)', () => {
+    // v1 conversion compiles its source, so a directional 1D Wipe never
+    // reaches v2 that way; the stored direction is injected on the converted
+    // record instead, as a 2D Show moved to a 1D Stage would carry it.
+    const record = convertWithStock(createDefaultShow('wipe-1d-clear-v2', 'Wipe 1D clear v2', 1))
+    const stored = record.composition.transitions.find((candidate) => candidate.id === 'transition-scene-1')!
+    Object.assign(stored, { kind: 'wipe', wipeVariant: 'linear', direction: 0 })
+    expect(stored).toHaveProperty('direction', 0)
+    const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 1 })
+      .find((candidate) => candidate.key === 'transition:wipe:linear')!
+    const changes = showTransitionChangesForPresentation(item, undefined, 1)
+    const plan = planShowV2BoundaryPaletteApply(record, 'transition-scene-1', changes, () => 'unused')
+    expect(plan.status).toBe('ready')
+    if (plan.status !== 'ready') throw new Error(JSON.stringify(plan))
+    if (plan.intent.kind !== 'update-transition') throw new Error(JSON.stringify(plan.intent))
+    expect(plan.intent.transition).not.toHaveProperty('direction')
     const edited = editShowTransitionV2(record, plan.intent)
     expect(edited.status).toBe('changed')
     if (edited.status !== 'changed') throw new Error(JSON.stringify(edited))

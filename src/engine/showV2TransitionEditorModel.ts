@@ -193,7 +193,7 @@ export function planShowV2TransitionEdit(
     const item = buildShowToolkitPresentationCatalogue({ stageDimensions })
       .find(candidate => candidate.kind === 'transition' && candidate.key === transitionKindKey(current))
     if (!item) return { status: 'refused', message: 'This Transition kind is unavailable on this Stage.' }
-    const changes = showBoundaryTransitionParameterChanges(current, item, request.parameterId, request.value)
+    const changes = showBoundaryTransitionParameterChanges(current, item, request.parameterId, request.value, stageDimensions)
     if (!changes) return { status: 'refused', message: `"${request.parameterId}" is not a parameter of this Transition.` }
     return {
       status: 'ready',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEMOS } from '../pixelblaze/stock/patterns'
-import { createDefaultShow, showRecordToCompileRecipe } from './showModel'
+import { createDefaultShow, showRecordToCompileRecipe, updateShowBoundaryTransition } from './showModel'
 import {
   replaceShowBoundaryTransition,
   showBoundaryTransitionParameterValue,
@@ -144,7 +144,7 @@ describe('Show Transition authoring adapter', () => {
     expect(item.compatible).toBe(true)
     const changes = showTransitionChangesForPresentation(item, undefined, 1)
     expect(changes).toMatchObject({ kind: 'wipe', wipeVariant: 'linear' })
-    expect(changes).not.toHaveProperty('direction')
+    expect(changes.direction).toBeUndefined()
     const base = createDefaultShow('show-1077-wipe-1d', 'Wipe 1D', 1)
     const show = replaceShowBoundaryTransition(base, base.transitions![0].id, item, undefined, 1)
     expect(show.transitions![0]).not.toHaveProperty('direction')
@@ -161,5 +161,39 @@ describe('Show Transition authoring adapter', () => {
     expect(showTransitionChangesForPresentation(item, undefined, 2)).toMatchObject({
       kind: 'wipe', wipeVariant: 'linear', direction: 0,
     })
+  })
+
+  it('clears a stored 2D-only direction when the 1D palette applies Linear Wipe (#1077 corrective)', () => {
+    const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 1 })
+      .find((candidate) => candidate.key === 'transition:wipe:linear')!
+    const base = createDefaultShow('show-1077-clear-1d', 'Clear direction 1D', 1)
+    const transitionId = base.transitions![0].id
+    const stored = updateShowBoundaryTransition(base, transitionId, { kind: 'wipe', wipeVariant: 'linear', direction: 0 })
+    expect(stored.transitions![0]).toHaveProperty('direction', 0)
+    const changes = showTransitionChangesForPresentation(item, undefined, 1)
+    expect(changes.direction).toBeUndefined()
+    const repaired = updateShowBoundaryTransition(stored, transitionId, changes)
+    expect(repaired.transitions![0]).not.toHaveProperty('direction')
+    const recipe = showRecordToCompileRecipe(repaired, {
+      byCellId: Object.fromEntries(repaired.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
+      stageDimension: 1,
+    })
+    expect(recipe.routeTransition).toMatchObject({ kind: 'wipe' })
+  })
+
+  it('omits the 2D-only Direction from the 1D parameter panel (#1077 corrective)', () => {
+    const linear = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+      .find((candidate) => candidate.key === 'transition:wipe:linear')!
+    const base = createDefaultShow('show-1077-panel-1d', 'Panel 1D', 1)
+    const stored = updateShowBoundaryTransition(
+      base,
+      base.transitions![0].id,
+      { kind: 'wipe', wipeVariant: 'linear', direction: 0 },
+    )
+    const transition = stored.transitions![0]
+    expect(showBoundaryTransitionParameters(linear, transition, 2).map((parameter) => parameter.id))
+      .toContain('direction')
+    expect(showBoundaryTransitionParameters(linear, transition, 1).map((parameter) => parameter.id))
+      .not.toContain('direction')
   })
 })

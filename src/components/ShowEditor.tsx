@@ -11487,6 +11487,7 @@ function ContextualInspector({
       <TransitionInspector
         show={show}
         transitionId={selection.transitionId}
+        stageDimensions={stageDimensions}
         onUpdate={onUpdateBoundaryTransition}
         onOpenPalette={() => onOpenTransitions(selection.transitionId)}
         onRemove={onRemoveBoundaryTransition}
@@ -11624,6 +11625,7 @@ function ContextualInspector({
       return (
         <BoundaryTransitionInspector
           value={boundary}
+          stageDimensions={stageDimensions}
           // A v2 side names its Pattern instance, which is what automatable
           // control metadata is keyed by on this backing.
           patternControlsBySourceId={patternControlsByInstanceId}
@@ -12305,6 +12307,7 @@ function MotionCadenceControl({
 function TransitionInspector({
   show,
   transitionId,
+  stageDimensions,
   onUpdate,
   onOpenPalette,
   onRemove,
@@ -12314,6 +12317,7 @@ function TransitionInspector({
 }: {
   show: ShowRecord
   transitionId: string
+  stageDimensions: 1 | 2 | 3
   onUpdate: (transitionId: string, changes: ShowTransitionChanges) => void
   onOpenPalette: () => void
   onRemove: (transitionId: string) => void
@@ -12396,6 +12400,7 @@ function TransitionInspector({
   return (
     <BoundaryTransitionInspector
       value={value}
+      stageDimensions={stageDimensions}
       patternControlsBySourceId={patternControlsByCellId}
       onUpdate={onUpdate}
       onPreviewSettings={(changes) => useShowPreviewOverrideStore.getState().preview(
@@ -12428,6 +12433,7 @@ function TransitionInspector({
  */
 function BoundaryTransitionInspector({
   value,
+  stageDimensions,
   patternControlsBySourceId,
   onUpdate,
   onPreviewSettings,
@@ -12438,6 +12444,7 @@ function BoundaryTransitionInspector({
   onUpdateDestinationControlTarget,
 }: {
   value: ShowBoundaryTransitionInspectorValue
+  stageDimensions: 1 | 2 | 3
   /** Keyed by each side's `controlSourceId`: a ShowCell on v1, an instance on v2. */
   patternControlsBySourceId: Record<string, AutomatablePatternControl[]>
   onUpdate: (transitionId: string, changes: ShowTransitionChanges) => void
@@ -12461,7 +12468,7 @@ function BoundaryTransitionInspector({
   // it never reaches this panel; the guard states that rather than assuming it.
   if (transition.kind === 'routing') return null
   const cost = transitionCost(transition.kind)
-  const transitionItem = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+  const transitionItem = buildShowToolkitPresentationCatalogue({ stageDimensions })
     .find((item) => item.key === showBoundaryTransitionPresentationKey(transition))
   const boundaryControls = destinations.flatMap((destination) => {
     const outgoing = destination.outgoing
@@ -12500,13 +12507,14 @@ function BoundaryTransitionInspector({
         <ShowTransitionParameters
           transition={transition}
           item={transitionItem}
+          stageDimensions={stageDimensions}
           onPreview={(parameterId, parameterValue) => {
-            const changes = showBoundaryTransitionParameterChanges(transition, transitionItem, parameterId, parameterValue)
+            const changes = showBoundaryTransitionParameterChanges(transition, transitionItem, parameterId, parameterValue, stageDimensions)
             if (changes) onPreviewSettings(changes)
           }}
           onPreviewEnd={onPreviewEnd}
           onChange={(parameterId, parameterValue) => {
-            const changes = showBoundaryTransitionParameterChanges(transition, transitionItem, parameterId, parameterValue)
+            const changes = showBoundaryTransitionParameterChanges(transition, transitionItem, parameterId, parameterValue, stageDimensions)
             if (changes) onUpdate(transition.id, changes)
           }}
         />
