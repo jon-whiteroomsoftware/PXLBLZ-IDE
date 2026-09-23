@@ -52,6 +52,7 @@ for (const profile of ['Show', 'Pattern'] as const) {
     for (const name of ['Light size', 'Diffusion']) {
       const slider = page.getByRole('slider', { name, exact: true })
       await slider.focus()
+      await expect(slider).toBeFocused()
       await page.keyboard.press('Home')
       const before = await pixels()
       await page.keyboard.press('End')
@@ -92,6 +93,7 @@ test('Pattern panel preserves controls, Space ownership, canvas execution and re
   await expect(section('Controls')).toHaveAttribute('aria-expanded', 'true')
   const brightness = pane.getByTestId('pattern-preview-title').getByRole('slider', { name: 'Brightness', exact: true })
   await brightness.focus()
+  await expect(brightness).toBeFocused()
   await page.keyboard.press('ArrowLeft')
   await expect(brightness).toHaveAttribute('aria-valuetext', '99%')
   const map = pane.getByRole('button', { name: 'Map', exact: true })
@@ -153,6 +155,7 @@ test('Pattern panel preserves controls, Space ownership, canvas execution and re
   if (await section('Pause').count()) await section('Pause').click()
   const light = pane.getByRole('slider', { name: 'Light size', exact: true })
   await light.focus()
+  await expect(light).toBeFocused()
   await page.keyboard.press('Home')
   await expect(light).toHaveValue('0.15')
   const smallLights = await pane.locator('canvas.rounded-sm').screenshot()
