@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-lt-1790132268848",
+  "operation": "On the v2 backing at the G4b-1 corrective tip (the popover now closes only when the Group edit applied): a seeded Show whose Group definition Pulse pair holds Clips g-a 0+2000 and g-b 3000+2000 joined by a 1 s crossfade lt-pair. Isolate the Group, open the crossfade's Layer Transition Details, set Duration to 2.5 s (first capture; the applied edit closes the popover), then open it again and press Reset to Cut (second capture). The third capture renders the stored v2 record (GET /api/shows) from the same run: lt-pair 2500 ms with g-b at 4500, then no Transition with g-b back at 2000. The refused-edit path, which keeps the popover open, cannot be triggered in the browser without injecting a fault. The tracer 'keeps the popover open when the group-occurrence door rejects a Reset to Cut' covers it.",
+  "captures": [
+    ".wrsp/ui-proof/1075-g4b1c-duration.png",
+    ".wrsp/ui-proof/1075-g4b1c-reset.png",
+    ".wrsp/ui-proof/1075-g4b1c-readback.png"
+  ],
+  "capturedAtCommit": "f660fc904fce36a569992598efb6335ed579c1aa"
+}
