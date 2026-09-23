@@ -2723,6 +2723,37 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     await expectUndoRedoExact(editor, before)
   })
 
+  it('reanchors a pinned Clip detail after confirming a cross-Layer drop (#1069)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('slice3-pinned-reroute'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const originalClip = clipButton('resize-a')
+    fireEvent.click(originalClip)
+    const detail = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    fireEvent.click(within(detail).getByRole('button', { name: 'Pin Entity Detail Panel' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
+
+    const surface = dragSurface('resize-a')
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('overlay'), 'dragover', DROP_X)
+    surface.fire(surface.lane('overlay'), 'drop', DROP_X)
+    await act(async () => {})
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Move connected Clip?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Move Clip and remove Transition' }))
+    await act(async () => {})
+
+    const movedClip = clipButton('resize-a')
+    expect(movedClip).not.toBe(originalClip)
+    expect(originalClip.isConnected).toBe(false)
+    const movedRect = vi.spyOn(movedClip, 'getBoundingClientRect')
+    await waitFor(() => expect(movedRect).toHaveBeenCalled())
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
+    expect(authoredClip(editor.state().record, 'resize-a').layerId).toBe(
+      editor.state().record.composition.layers.find((layer) => layer.rank === 1)!.id,
+    )
+  })
+
   it('cancels a cross-Layer drop with no write (#1069)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-connected-cancel'))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)

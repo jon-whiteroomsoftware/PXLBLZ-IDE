@@ -6795,7 +6795,9 @@ function ShowTimelineWorkspace({
     if (!capture) return
     const plan = planShowV2ClipMove(timelineView, pending.plan)
     if (plan.kind === 'refuse') return
-    void commitV2ClipPlan(capture, plan).catch(() => {})
+    void commitV2ClipPlan(capture, plan).then((changed) => {
+      if (changed) onReanchorDetails({ kind: 'clip', clipId: pending.plan.clipId })
+    }).catch(() => {})
   }
   const commitCompositionClipMove = (targetKey: string) => {
     const draggedClip = draggingCompositionClipRef.current
