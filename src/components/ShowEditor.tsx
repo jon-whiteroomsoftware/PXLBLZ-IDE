@@ -259,7 +259,8 @@ import {
   type ShowLessonNarration,
 } from '@/engine/showLessonNarration'
 import { exportedDims } from '@/engine/exportedDims'
-import { planShowV2BoundaryPaletteApply, planShowV2BoundaryTransitionChanges, planShowV2TransitionReset } from '@/engine/showV2TransitionEditorModel'
+import { planShowV2BoundaryPaletteApply, planShowV2BoundaryTransitionChanges, planShowV2TransitionEdit, planShowV2TransitionReset, showV2TransitionJunctionKey } from '@/engine/showV2TransitionEditorModel'
+import { planShowV2LayerTransitionInsertion } from '@/engine/showV2LayerTransitionInsertion'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import {
   replaceShowBoundaryTransition,
@@ -740,6 +741,7 @@ type ShowLayerTransitionTarget = {
   groupTransitionId?: string
   transitionId?: string
   legacy?: ShowUnifiedTimelineJunctionProjection
+  v2Cut?: { junctionKey: string }
 }
 
 type TimelineMarkerFeedback =
@@ -2965,7 +2967,9 @@ export function ShowEditor({
           fromPlacementId: layerTransitionTarget.legacy.fromPlacementId,
           toPlacementId: layerTransitionTarget.legacy.toPlacementId,
         })
-    : null
+    : recordVersion === 2 && layerTransitionTarget?.v2Cut && savedShowV2
+      ? planShowV2LayerTransitionInsertion(preparedV2Capture?.record ?? savedShowV2, layerTransitionTarget.v2Cut.junctionKey)
+      : null
   const pendingConnectedTransitions = timelineComposition && compositionClipPendingDelete
     ? showLayerTransitionsConnectedToClip(timelineComposition, compositionClipPendingDelete.placementId)
     : []
@@ -4665,7 +4669,7 @@ export function ShowEditor({
               onClose={() => setTransitionPaletteId(null)}
             />
           )}
-          {layerTransitionTarget?.legacy?.kind === 'cut' && layerTransitionPlan && (
+          {(layerTransitionTarget?.legacy?.kind === 'cut' || layerTransitionTarget?.v2Cut) && layerTransitionPlan && (
             <ShowLayerTransitionPalette
               stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
               maxDurationMs={layerTransitionPlan.maxDurationMs}
@@ -4674,6 +4678,41 @@ export function ShowEditor({
               fromName={layerTransitionTarget.fromName}
               toName={layerTransitionTarget.toName}
               onApply={(item, durationMs) => {
+                if (layerTransitionTarget.v2Cut) {
+                  if (!layerTransitionPlan || !layerTransitionPlan.enabled) return
+                  const capture = preparedV2CaptureRef.current
+                  if (recordVersion !== 2 || !savedShowV2 || readOnly || !capture || capture.prepared.status === 'refused') return
+                  const v2CutPlan = planShowV2TransitionEdit(
+                    capture.record,
+                    {
+                      kind: 'insert',
+                      junctionKey: layerTransitionTarget.v2Cut.junctionKey,
+                      kindKey: item.key,
+                      durationMs: Math.min(Math.round(durationMs), layerTransitionPlan.maxDurationMs),
+                      crossfadePolicy: 'live-live',
+                    },
+                    newPersonalContentId,
+                    (stageDimension ?? 2) as 1 | 2 | 3,
+                  )
+                  if (v2CutPlan.status !== 'ready') {
+                    setLayerTransitionApplyError(
+                      `${item.label} could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.`,
+                    )
+                    return
+                  }
+                  const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+                  void commitV2TransitionEdit({ capture, baseRevision, intent: v2CutPlan.intent }).then((outcome) => {
+                    if (outcome.status === 'applied') {
+                      setLayerTransitionApplyError(null)
+                      setLayerTransitionTarget(null)
+                    } else {
+                      setLayerTransitionApplyError(
+                        `${item.label} could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.`,
+                      )
+                    }
+                  })
+                  return
+                }
                 if (!legacyShow || !timelineComposition || !layerTransitionPlan.enabled) return
                 const legacyJunction = layerTransitionTarget.legacy
                 if (!legacyJunction) return
@@ -8671,6 +8710,30 @@ function ShowTimelineWorkspace({
                         ...(internalGroup ? { groupOccurrenceId: internalGroup.id } : {}),
                         ...(internalGroup && junction.transitionId ? { groupTransitionId: junction.transitionId.startsWith(`${internalGroup.id}:`) ? junction.transitionId.slice(internalGroup.id.length + 1) : junction.transitionId } : {}),
                         ...(!internalGroup && junction.transitionId ? { transitionId: junction.transitionId } : {}),
+                      })
+                    }
+                    // An ordinary Cut on the authored-v2 backing opens the Layer
+                    // Transition palette for insertion (#1066 G4b-2b). A derived
+                    // Cut mints no persisted identity, so the key addresses it
+                    // by boundary time and Clip identities: atMs from the
+                    // junction start, zone and Layer from the row and lane, and
+                    // both endpoints from the junction's item ids. Group-local
+                    // Cuts stay closed here; their insert is a later slice.
+                    if (recordVersion === 2 && junction.scope === 'derived-cut' && junction.transitionId === null && !insideIsolatedGroup) {
+                      onOpenLayerTransition({
+                        settings: null,
+                        fromName: leftClip.patternName,
+                        toName: rightClip.patternName,
+                        anchor,
+                        v2Cut: {
+                          junctionKey: showV2TransitionJunctionKey({
+                            atMs: junction.startMs,
+                            zoneId: row.zoneId,
+                            layerId: layer.id,
+                            fromClipId: junction.leftItemId,
+                            toClipId: junction.rightItemId,
+                          }),
+                        },
                       })
                     }
                   }

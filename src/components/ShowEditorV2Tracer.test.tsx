@@ -4,7 +4,8 @@ import { ShowEditor } from './ShowEditor'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { validateShowRecordV2 } from '@/engine/showCompositionV2'
-import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
+import { editShowTransitionV2, type ShowTransitionEditIntentV2 } from '@/engine/showTransitionsV2'
+import * as showTransitionsV2 from '@/engine/showTransitionsV2'
 import { editShowZoneV2 } from '@/engine/showZonesV2'
 import { editShowLayerV2 } from '@/engine/showLayersV2'
 import { showBoundaryClipIdentity } from '@/engine/showClipIdentity'
@@ -12,7 +13,9 @@ import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { duplicateShowClipAfter } from '@/engine/showTimelineClipAuthoring'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
-import { convertibleV1Show } from '@/test/showV2TracerFixture'
+import { convertibleV1Show, transitionV1Show } from '@/test/showV2TracerFixture'
+import { planShowV2LayerTransitionInsertion } from '@/engine/showV2LayerTransitionInsertion'
+import { showV2TransitionJunctionKey } from '@/engine/showV2TransitionEditorModel'
 import { commandFixtureV2 } from '@/engine/showCommandsV2/fixtures'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
@@ -1608,6 +1611,189 @@ describe('v2 Layer Transition popover (#1065)', () => {
     expect(pictogram.querySelector('[data-crossfade-ramp="incoming"]')).not.toBeNull()
 
     expectNoWrite(before, editor.state())
+  })
+
+  // #1075 G4b-2b: an ordinary Cut on v2 opens the Layer Transition palette
+  // for insertion. The Cut below is two exactly-adjacent Clips with 200 ms of
+  // free time after them, so the insertion plan is enabled at 200 ms.
+  function cutV2Record(id: string): ShowRecordV2 {
+    const source = transitionV1Show('crossfade')
+    source.id = id
+    const converted = convertShowRecordV1ToV2(source)
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const record = converted.record
+    record.id = id
+    const incoming = record.composition.clips.find((clip) => clip.id === 'in')!
+    incoming.startMs = 400
+    incoming.appearance.keys.forEach((key) => { key.timeMs -= 200 })
+    record.composition.transitions = []
+    expect(validateShowRecordV2(record)).toEqual([])
+    return record
+  }
+
+  function cutV2JunctionKey(): string {
+    return showV2TransitionJunctionKey({
+      atMs: 400,
+      zoneId: 'zone',
+      layerId: 'layer:zone:main',
+      fromClipId: 'out',
+      toClipId: 'in',
+    })
+  }
+
+  function openCutPalette(): HTMLElement {
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit Cut between Outgoing and Incoming',
+    }))
+    return screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+  }
+
+  it('opens the Layer Transition palette on a v2 Cut with the plan maximum', async () => {
+    const record = cutV2Record('tracer-v2-cut-palette')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    const palette = openCutPalette()
+    await act(async () => {})
+
+    const plan = planShowV2LayerTransitionInsertion(record, cutV2JunctionKey())
+    if (!plan.enabled) throw new Error('expected room after the Cut')
+    expect(within(palette).getByText('Outgoing to Incoming')).toBeInTheDocument()
+    expect(within(palette).getByText(/seconds fits here\./).textContent)
+      .toContain(`Up to ${(plan.maxDurationMs / 1_000).toFixed(3)} seconds fits here.`)
+
+    expectNoWrite(before, editor.state())
+  })
+
+  it('inserts a crossfade on a v2 Cut through the transition-edit door', async () => {
+    const record = cutV2Record('tracer-v2-cut-insert')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    const palette = openCutPalette()
+    await act(async () => {})
+    const duration = within(palette).getByLabelText('Transition duration in seconds exact time')
+    fireEvent.change(duration, { target: { value: '0.15' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    fireEvent.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const request = admission.calls[0].request as { intent: ShowTransitionEditIntentV2; baseRevision: number }
+    if (request.intent.kind !== 'insert') throw new Error('expected an insert intent')
+    expect(request.intent.transition.kind).toBe('crossfade')
+    expect(request.intent.transition.durationMs).toBe(150)
+    expect(request.intent.transition.crossfadePolicy).toBe('live-live')
+    expect(request.intent.transition.participants.map((participant) => [participant.fromClipId, participant.toClipId]))
+      .toEqual([['out', 'in']])
+    expect(request.baseRevision).toBe(0)
+    const after = editor.state()
+    expectOneEdit(before, after)
+    expect(screen.queryByRole('dialog', { name: 'Choose Layer Transition' })).not.toBeInTheDocument()
+    // The engine oracle on the admitted intent is the stored record exactly.
+    const oracle = editShowTransitionV2(before.record, request.intent)
+    expect(oracle.status).toBe('changed')
+    if (oracle.status !== 'changed') throw new Error('the oracle refused the admitted intent')
+    expect(after.record.composition).toEqual(oracle.record.composition)
+    expect(after.record.composition.clips.find((clip) => clip.id === 'in')!.startMs).toBe(550)
+  })
+
+  it('clamps an over-maximum duration to the plan maximum on a v2 Cut', async () => {
+    const record = cutV2Record('tracer-v2-cut-clamp')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const plan = planShowV2LayerTransitionInsertion(record, cutV2JunctionKey())
+    if (!plan.enabled) throw new Error('expected room after the Cut')
+
+    const palette = openCutPalette()
+    await act(async () => {})
+    const duration = within(palette).getByLabelText('Transition duration in seconds exact time')
+    fireEvent.change(duration, { target: { value: '5' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    fireEvent.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const request = admission.calls[0].request as { intent: ShowTransitionEditIntentV2; baseRevision: number }
+    if (request.intent.kind !== 'insert') throw new Error('expected an insert intent')
+    expect(request.intent.transition.durationMs).toBe(plan.maxDurationMs)
+    const after = editor.state()
+    expectOneEdit(before, after)
+    expect(screen.queryByRole('dialog', { name: 'Choose Layer Transition' })).not.toBeInTheDocument()
+    expect(after.record.composition.clips.find((clip) => clip.id === 'in')!.startMs).toBe(400 + plan.maxDurationMs)
+  })
+
+  it('shows the disabled reason and reaches no door on a Cut another Layer blocks', async () => {
+    const record = cutV2Record('tracer-v2-cut-blocked')
+    const outgoing = record.composition.clips.find((clip) => clip.id === 'out')!
+    const obstruction = structuredClone(outgoing)
+    obstruction.id = 'obstruction'
+    obstruction.layerId = 'layer:zone:overlay:1'
+    obstruction.startMs = 400
+    obstruction.appearance.keys.forEach((key, index) => {
+      key.id = `obstruction:appearance:${index + 1}`
+      key.timeMs = 400
+    })
+    record.composition.clips.push(obstruction)
+    expect(validateShowRecordV2(record)).toEqual([])
+    const plan = planShowV2LayerTransitionInsertion(record, cutV2JunctionKey())
+    if (plan.enabled) throw new Error('expected a disabled plan')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    const palette = openCutPalette()
+    await act(async () => {})
+
+    expect(within(palette).getByText(plan.reason)).toBeInTheDocument()
+    fireEvent.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual([])
+    expect(editor.state().record).toBe(before.record)
+    expect(screen.getByRole('dialog', { name: 'Choose Layer Transition' })).toBeInTheDocument()
+  })
+
+  it('keeps the palette open with the apply error when the door refuses the insert', async () => {
+    const record = cutV2Record('tracer-v2-cut-refused')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const owner = vi.spyOn(showTransitionsV2, 'editShowTransitionV2').mockImplementationOnce((current) => ({
+      status: 'refused',
+      record: current,
+      code: 'invalid-result',
+      message: 'The Clip extends beyond Show End.',
+      affectedClipIds: [],
+      affectedTransitionIds: [],
+      affectedTrackIds: [],
+      affectedLayoutOccurrenceIds: [],
+      affectedMarkerIds: [],
+      affectedGroupOccurrenceIds: [],
+      removedIds: [],
+    }))
+
+    const palette = openCutPalette()
+    await act(async () => {})
+    const duration = within(palette).getByLabelText('Transition duration in seconds exact time')
+    fireEvent.change(duration, { target: { value: '0.15' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    fireEvent.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
+    await act(async () => {})
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    const live = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    expect(within(live).getByText(
+      'Crossfade could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.',
+    )).toBeInTheDocument()
+    const after = editor.state()
+    expect(after.record).toBe(before.record)
+    expect(after.v2Writes).toBe(0)
+    owner.mockRestore()
   })
 })
 
