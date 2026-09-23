@@ -4,14 +4,7 @@ export const SHOW_STRIP_MIN_HEIGHT = 140
 export const SHOW_CONTROLS_MIN_WIDTH = 200
 export const SHOW_PREVIEW_RAIL_WIDTH = 30
 export const SHOW_TIMELINE_DEFAULT_SLACK = 12
-export const SHOW_TIMELINE_HEIGHT_STORAGE_KEY = 'pxlblz-show-workspace-timeline-height'
-
-/** Convert the intended (unclamped) split to pixels in the current workspace. */
-export function scaleShowTimelineHeight(height: number, workspaceHeight: number, referenceHeight = workspaceHeight): number {
-  const available = Math.max(1, Math.floor(workspaceHeight) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
-  const referenceAvailable = Math.max(1, Math.floor(referenceHeight) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
-  return Math.round(Math.round(height) * available / referenceAvailable)
-}
+export const SHOW_TIMELINE_FRACTION_STORAGE_KEY = 'pxlblz-show-workspace-timeline-fraction'
 
 export type ShowWorkspaceClamp = 'timeline-min' | 'strip-min' | null
 
@@ -26,16 +19,16 @@ export interface ShowWorkspaceLayout {
 export function resolveShowWorkspaceLayout({
   width,
   height,
+  desiredTimelineFraction,
   desiredTimelineHeight,
-  referenceHeight,
   previewAspect,
   timelineMinimumHeight = SHOW_TIMELINE_MIN_HEIGHT,
   timelineContentHeight = timelineMinimumHeight,
 }: {
   width: number
   height: number
-  desiredTimelineHeight: number | null
-  referenceHeight?: number
+  desiredTimelineFraction: number | null
+  desiredTimelineHeight?: number
   previewAspect: number
   timelineMinimumHeight?: number
   timelineContentHeight?: number
@@ -43,11 +36,12 @@ export function resolveShowWorkspaceLayout({
   const workspaceWidth = Math.max(1, Math.floor(width))
   const availableHeight = Math.max(1, Math.floor(height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
   const aspect = Number.isFinite(previewAspect) && previewAspect > 0 ? previewAspect : 1
-  const referenceAvailable = Math.max(1, Math.floor(referenceHeight ?? height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
-  const desiredTimeline = desiredTimelineHeight === null
-    ? Math.min(Math.ceil(timelineContentHeight + SHOW_TIMELINE_DEFAULT_SLACK), Math.floor(referenceAvailable / 2))
-    : Math.round(desiredTimelineHeight)
-  const desiredStrip = availableHeight - scaleShowTimelineHeight(desiredTimeline, height, referenceHeight)
+  const desiredTimeline = desiredTimelineHeight !== undefined
+    ? Math.round(desiredTimelineHeight)
+    : desiredTimelineFraction === null
+      ? Math.min(Math.ceil(timelineContentHeight + SHOW_TIMELINE_DEFAULT_SLACK), Math.floor(availableHeight / 2))
+      : Math.round(desiredTimelineFraction * availableHeight)
+  const desiredStrip = availableHeight - desiredTimeline
   const minimumTimeline = Math.max(1, Math.ceil(timelineMinimumHeight))
   const upperStrip = Math.max(1, availableHeight - minimumTimeline)
   const lowerStrip = Math.min(SHOW_STRIP_MIN_HEIGHT, upperStrip)
@@ -88,12 +82,18 @@ export function measureShowTimelineMinimumHeight({
   return Math.max(1, Math.ceil(toolbarBottom - editorTop + fixedFooterHeight + 24))
 }
 
-export function serializeShowTimelineHeight(height: number): string {
-  return String(Math.max(1, Math.round(height)))
+export function showTimelineFraction(timelineHeight: number, workspaceHeight: number): number {
+  return timelineHeight / Math.max(1, Math.floor(workspaceHeight) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
 }
 
-export function parseShowTimelineHeight(value: string | null): number | null {
+export function serializeShowTimelineFraction(fraction: number): string {
+  if (fraction <= 0) return String(0.0001)
+  if (fraction >= 1) return String(0.9999)
+  return String(fraction)
+}
+
+export function parseShowTimelineFraction(value: string | null): number | null {
   if (value === null || value.trim() === '') return null
   const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null
+  return Number.isFinite(parsed) && parsed > 0 && parsed < 1 ? parsed : null
 }

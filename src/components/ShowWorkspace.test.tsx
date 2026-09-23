@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SHOW_TIMELINE_HEIGHT_STORAGE_KEY } from '@/engine/showWorkspaceLayout'
+import { SHOW_TIMELINE_FRACTION_STORAGE_KEY, parseShowTimelineFraction, serializeShowTimelineFraction } from '@/engine/showWorkspaceLayout'
 import { ShowWorkspace } from './ShowWorkspace'
 
 let resizeObserverCallback: ResizeObserverCallback | null = null
@@ -21,10 +21,21 @@ function resizeWorkspace(width: number, height: number) {
   } as ResizeObserverEntry], {} as ResizeObserver))
 }
 
+function seedTimelineFraction(pixels: number, workspaceHeight: number) {
+  window.localStorage.setItem(
+    SHOW_TIMELINE_FRACTION_STORAGE_KEY,
+    serializeShowTimelineFraction(pixels / (workspaceHeight - 6)),
+  )
+}
+
+function storedTimelineFraction() {
+  return parseShowTimelineFraction(window.localStorage.getItem(SHOW_TIMELINE_FRACTION_STORAGE_KEY))
+}
+
 describe('ShowWorkspace (#967)', () => {
   it.each(['release', 'cancel', 'capture loss', 'window release', 'window blur', 'released buttons'])(
     'stops resizing after %s, even at a size limit (#63)', (ending) => {
-      window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '416')
+      seedTimelineFraction(416, 700)
       render(<ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
       resizeWorkspace(900, 700)
       const divider = screen.getByRole('separator')
@@ -49,7 +60,7 @@ describe('ShowWorkspace (#967)', () => {
   )
 
   it('retains every movement when pointer events arrive before a render (#63)', () => {
-    window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '416')
+    seedTimelineFraction(416, 700)
     render(<ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
     resizeWorkspace(900, 700)
     const divider = screen.getByRole('separator')
@@ -66,14 +77,24 @@ describe('ShowWorkspace (#967)', () => {
     resizeWorkspace(1200, 800)
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '302px' })
     resizeWorkspace(1200, 900)
-    expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '554px' })
+    expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '592px' })
     view.rerender(<ShowWorkspace previewAspect={1} timelineContentHeight={470} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '447px' })
-    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBeNull()
+    expect(window.localStorage.getItem(SHOW_TIMELINE_FRACTION_STORAGE_KEY)).toBeNull()
+  })
+
+  it('does not write storage when the window resizes (#1085)', () => {
+    const seeded = serializeShowTimelineFraction(416 / (700 - 6))
+    window.localStorage.setItem(SHOW_TIMELINE_FRACTION_STORAGE_KEY, seeded)
+    render(<ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
+    resizeWorkspace(900, 700)
+    resizeWorkspace(1600, 900)
+    resizeWorkspace(900, 700)
+    expect(window.localStorage.getItem(SHOW_TIMELINE_FRACTION_STORAGE_KEY)).toBe(seeded)
   })
 
   it('moves the horizontal divider by 10 px or 50 px and remembers the Show-mode split', () => {
-    window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '416')
+    seedTimelineFraction(416, 700)
     const first = render(
       <ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />,
     )
@@ -87,7 +108,7 @@ describe('ShowWorkspace (#967)', () => {
     expect(divider).toHaveAttribute('aria-valuenow', '406')
     fireEvent.keyDown(divider, { key: 'ArrowDown', shiftKey: true })
     expect(divider).toHaveAttribute('aria-valuenow', '456')
-    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('456')
+    expect(storedTimelineFraction()).toBeCloseTo(456 / (700 - 6), 4)
 
     first.unmount()
     render(<ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
@@ -104,13 +125,13 @@ describe('ShowWorkspace (#967)', () => {
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '352px' })
     resizeWorkspace(1200, 400)
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '175px' })
-    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('175')
+    expect(storedTimelineFraction()).toBeCloseTo(352 / (800 - 6), 4)
     resizeWorkspace(1200, 800)
     expect(screen.getByTestId('show-timeline-pane')).toHaveStyle({ height: '352px' })
   })
 
   it.each([false, true])('restores the visible remembered split after resize and remount (adjust at resized viewport: %s)', (adjustAfterResize) => {
-    window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '400')
+    seedTimelineFraction(400, 800)
     const mount = () => render(<ShowWorkspace previewAspect={1} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
     const height = () => Number(screen.getByRole('separator').getAttribute('aria-valuenow'))
     let view = mount()
@@ -143,14 +164,14 @@ describe('ShowWorkspace (#967)', () => {
   })
 
   it('lets a wide preview grow while its frame fits beside the controls', () => {
-    window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, '300')
+    seedTimelineFraction(300, 700)
     render(<ShowWorkspace previewAspect={16 / 9} timeline={<div>timeline</div>} stage={<div>stage</div>} />)
     resizeWorkspace(900, 700)
     const divider = screen.getByRole('separator')
     for (let step = 0; step < 3; step++) fireEvent.keyDown(divider, { key: 'ArrowUp', shiftKey: true })
     expect(divider).toHaveAttribute('data-clamp', 'none')
     expect(screen.getByTestId('show-stage-strip')).toHaveStyle({ height: '544px' })
-    expect(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY)).toBe('150')
+    expect(storedTimelineFraction()).toBeCloseTo(150 / (700 - 6), 4)
   })
 
   it('uses the timeline chrome measurement as the keyboard clamp', () => {

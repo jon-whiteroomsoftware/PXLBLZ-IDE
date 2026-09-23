@@ -58,14 +58,14 @@ test('does not restore the legacy source footer below the narrow breakpoint (#63
   await expect(page.getByRole('dialog', { name: 'Show source inventory' })).toHaveCount(0)
 })
 
-// Suspended (Jon, 2026-09-22): the split does not survive resize-then-reload
-// (#1085, diagnosis in progress). Restore when #1085 lands its fix.
-test.fixme('preserves the split ratio through resizing, reload, and narrow width (#63)', async ({ page }, testInfo) => {
+test('preserves the split ratio through resizing, reload, and narrow width (#63)', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1800, height: 1000 })
   await page.goto('studio/shows/stock-show-301-installation-mapping')
   const divider = page.getByRole('separator', { name: 'Resize timeline and Stage' })
   await expect(divider).toBeVisible()
+  const beforeFirstPress = await divider.getAttribute('aria-valuenow')
   await divider.press('Shift+ArrowDown')
+  await expect(divider).not.toHaveAttribute('aria-valuenow', beforeFirstPress!)
   const ratio = () => page.getByTestId('show-over-under-workspace').evaluate((root) => {
     const timeline = root.querySelector('[data-testid="show-timeline-pane"]')!.getBoundingClientRect().height
     const strip = root.querySelector('[data-testid="show-stage-strip"]')!.getBoundingClientRect().height
@@ -77,7 +77,9 @@ test.fixme('preserves the split ratio through resizing, reload, and narrow width
     await expect(divider).toHaveAttribute('data-clamp', 'none')
     await expect.poll(async () => Math.abs(await ratio() - original)).toBeLessThan(0.003)
     if (size.width === 1900) {
+      const beforeSecondPress = await divider.getAttribute('aria-valuenow')
       await divider.press('Shift+ArrowUp')
+      await expect(divider).not.toHaveAttribute('aria-valuenow', beforeSecondPress!)
       original = await ratio()
     }
     await page.reload()

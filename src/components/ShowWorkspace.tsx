@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   SHOW_STRIP_MIN_HEIGHT,
-  SHOW_TIMELINE_HEIGHT_STORAGE_KEY,
+  SHOW_TIMELINE_FRACTION_STORAGE_KEY,
   SHOW_TIMELINE_MIN_HEIGHT,
   SHOW_WORKSPACE_DIVIDER_HEIGHT,
-  parseShowTimelineHeight,
+  parseShowTimelineFraction,
   resolveShowWorkspaceLayout,
-  scaleShowTimelineHeight,
-  serializeShowTimelineHeight,
+  serializeShowTimelineFraction,
+  showTimelineFraction,
 } from '@/engine/showWorkspaceLayout'
 import ShowSourceOutletContext from './ShowSourceOutlet'
 
@@ -28,10 +28,10 @@ export function ShowWorkspace({
 }) {
   const workspaceRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ pointerId: number; y: number; height: number; target: HTMLDivElement } | null>(null)
-  const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight, referenceHeight: undefined as number | undefined }))
-  const [desiredTimelineHeight, setDesiredTimelineHeightState] = useState<number | null>(() => {
+  const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
+  const [desiredTimelineFraction, setDesiredTimelineFractionState] = useState<number | null>(() => {
     try {
-      return parseShowTimelineHeight(window.localStorage.getItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY))
+      return parseShowTimelineFraction(window.localStorage.getItem(SHOW_TIMELINE_FRACTION_STORAGE_KEY))
     } catch {
       return null
     }
@@ -42,7 +42,7 @@ export function ShowWorkspace({
     const workspace = workspaceRef.current
     if (!workspace) return
     const observer = new ResizeObserver(([entry]) => {
-      setSize((previous) => ({ width: entry.contentRect.width, height: entry.contentRect.height, referenceHeight: previous.referenceHeight ?? entry.contentRect.height }))
+      setSize({ width: entry.contentRect.width, height: entry.contentRect.height })
     })
     observer.observe(workspace)
     return () => observer.disconnect()
@@ -50,41 +50,33 @@ export function ShowWorkspace({
 
   const layout = useMemo(() => resolveShowWorkspaceLayout({
     ...size,
-    desiredTimelineHeight,
+    desiredTimelineFraction,
     previewAspect,
     timelineMinimumHeight,
     timelineContentHeight,
-  }), [desiredTimelineHeight, previewAspect, size, timelineMinimumHeight, timelineContentHeight])
+  }), [desiredTimelineFraction, previewAspect, size, timelineMinimumHeight, timelineContentHeight])
 
   const rememberTimelineHeight = useCallback((height: number) => {
-    const rounded = Math.round(height)
-    // Store the unclamped ratio against the first measured viewport for this mount.
-    const referenceAvailable = Math.max(1, (size.referenceHeight ?? size.height) - SHOW_WORKSPACE_DIVIDER_HEIGHT)
-    setDesiredTimelineHeightState(rounded * referenceAvailable / Math.max(1, size.height - SHOW_WORKSPACE_DIVIDER_HEIGHT))
-  }, [size.height, size.referenceHeight])
-
-  useEffect(() => {
-    if (desiredTimelineHeight === null || size.referenceHeight === undefined) return
-    // Keep the existing pixel preference current across resize and reload,
-    // without saving temporary clamps or turning automatic fitting into a preference.
-    const height = scaleShowTimelineHeight(desiredTimelineHeight, size.height, size.referenceHeight)
+    // The divider remembers its position as a fraction of the workspace, written only when the user moves it (#1085).
+    const fraction = showTimelineFraction(Math.round(height), size.height)
+    setDesiredTimelineFractionState(fraction)
     try {
-      window.localStorage.setItem(SHOW_TIMELINE_HEIGHT_STORAGE_KEY, serializeShowTimelineHeight(height))
+      window.localStorage.setItem(SHOW_TIMELINE_FRACTION_STORAGE_KEY, serializeShowTimelineFraction(fraction))
     } catch {
       // A blocked storage surface should not make the divider unusable.
     }
-  }, [desiredTimelineHeight, size.height, size.referenceHeight])
+  }, [size.height])
 
   const moveDivider = useCallback((deltaY: number) => {
     const next = resolveShowWorkspaceLayout({
       ...size,
-      referenceHeight: undefined,
+      desiredTimelineFraction,
       desiredTimelineHeight: layout.timelineHeight + deltaY,
       previewAspect,
       timelineMinimumHeight,
     })
     rememberTimelineHeight(next.timelineHeight)
-  }, [layout.timelineHeight, previewAspect, rememberTimelineHeight, size, timelineMinimumHeight])
+  }, [desiredTimelineFraction, layout.timelineHeight, previewAspect, rememberTimelineHeight, size, timelineMinimumHeight])
 
   const endDragging = useCallback((pointerId?: number) => {
     const drag = dragRef.current
@@ -158,7 +150,7 @@ export function ShowWorkspace({
             // the gesture's last clamped height, not a stale rendered layout.
             const next = resolveShowWorkspaceLayout({
               ...size,
-              referenceHeight: undefined,
+              desiredTimelineFraction,
               desiredTimelineHeight: drag.height + event.clientY - drag.y,
               previewAspect,
               timelineMinimumHeight,
