@@ -94,7 +94,7 @@ differ; the parity report must measure them rather than treating them as exact.
 | G4 / P6, P10, P14 | Global storage, ownership-based moves, exact curve restriction and Insert Time accepted; source activation stays explicit. §6–§7 specify the mechanisms. |
 | G5 / P7, P11 | Sharing and Restart are separate. New Restart resets the existing shared Pattern instance's clock and Pattern-owned variable/private state at first contribution without creating another runtime; legacy lifecycle conversion stays preserved. |
 | G6 / P8, P12 | Groups share runtimes by default; explicit Layer bindings and Zone-valid crossing accepted. Occurrence-local holds are §7. |
-| G7 / P9 | Scene names become Markers; equal name/time pairs deduplicate; Markers are optional narrative guides, not playback owners. |
+| G7 / P9 | Scene names become Markers; a coinciding authored Marker is kept beside the minted label, not absorbed (#1068 ruling 1a); Markers are optional narrative guides, not playback owners. |
 
 The former gates are no longer unanswered product questions blocking all workers.
 Their implementation proof is assigned below. A new counterexample can expose a
@@ -155,8 +155,10 @@ all affected validators together, then qualify the complete record.
    IDs after Make Unique. Definition-ID-derived default runtime IDs must not cause
    new runtimes on definition duplication. See §4 for authoritative payload rules.
 7. **#1040:** add optional Marker `role: chapter`; conversion marks former Scene
-   labels as chapters. When an existing same-name/time Marker absorbs a chapter,
-   preserve its ID/color and promote its role. Other Markers remain general-purpose.
+   labels as chapters. A same-name/time authored Marker is never absorbed: the
+   chapter is minted beside it and the authored Marker keeps its ID, color and role
+   (#1068 ruling 1a, superseding the original absorption rule). Other Markers remain
+   general-purpose.
 
 No new universal normalizer supplies these changes. Version-aware explicit
 conversion and the named edit owner produce valid records; validators observe.
@@ -596,10 +598,12 @@ makes shortening invalid until explicitly resolved. Markers remain dormant beyon
 Show End. Extending stretches final Layout coverage and leaves authored content
 unchanged. Undo restores the complete prior record.
 
-Former Scene labels become chapter Markers at original global starts; identical
-name/time pairs deduplicate without losing a pre-existing Marker ID. Conversion
-records `origin: 'converted-scene-label'` only on newly created Scene-label
-Markers; an absorbed existing authored Marker does not acquire that origin.
+Former Scene labels become chapter Markers at original global starts, always
+newly minted with `origin: 'converted-scene-label'`; a coinciding authored Marker
+(same name and time) stays exactly as authored beside the label and never acquires
+that origin (#1068 ruling 1a: v1 has a derived Scene start that moves under a
+boundary reclaim and an authored guide that does not, and one v2 Marker cannot be
+both).
 The field exists so the existing editor can omit those conversion-origin
 Markers and preserve its v1 visible guides; that omission and its proof land
 with the existing-editor connection candidate of #1065, not with the record
@@ -832,7 +836,7 @@ independently authored expected result for intentional new behavior.
 | GROUP-HOLD | Two occurrences example in §7; repeat insertion inside hold; move/duplicate/unique/ungroup; internal Transition and shared-animation conflict | #1038; mapped choreography, unchanged definition/runtime identities, reopened artifact and immutable refusal |
 | LAYOUT-END | Repeated Layout definition → Make Unique → switch move/remove → shorten/extend Show End → Undo | #1036/#1038; coverage, transfer/track protection, Clip/Group continuity, dormant Markers |
 | LAYERS | Empty named Layer → reorder → Group bind → remove/reassign | #1038; stable IDs/stacking, explicit ambiguity and materialized collision refusal |
-| CHAPTERS | No chapter / converted Scene label / same-name-time Marker / general Marker / equal-time chapters | #1040; Gallery/Live and timeline projection, unchanged playback |
+| CHAPTERS | No chapter / converted Scene label / coinciding authored Marker kept beside it / general Marker / equal-time chapters | #1040; Gallery/Live and timeline projection, unchanged playback |
 | PARITY | All 47 legacy records and later native stock counterparts; initial true gap → wholly unrouted use → retained visible use → disconnected gap in both lowering routes | Every engine owner; all 47 convert/compile with complete accounting; exact Fast/Precise output/state for unaffected records; source-accounted retired intervals plus first state/output mismatch and maximum sampled frame delta for accepted differences; no inferred carrier before authored use |
 | ROUTE | v1 flat/composition or v2 → edit → Undo/Redo → save → reload → export/import | #1044/#1039; committed browser proof, provider readback, ordinary `.pxlshow` v1/v2 and `.epe` reopen |
 | FAILURE | Missing dependency, invalid/stale/duplicate candidate; failed/superseded save; interrupted conversion/retry | #1044/#1041/#1039; original recoverable, no partial adoption, existing rollback and idempotency |
