@@ -947,6 +947,72 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Snap playhead' })).toHaveAttribute('aria-pressed', 'false')
   })
 
+  test('clones a Clip as a linked copy and makes it independent (#1090)', async ({ page }) => {
+    const id = `playwright-clone-sharing-${Date.now()}`
+    const show = {
+      ...legacyShowFixture(id, 'Clone sharing', [{ start: 0, end: 59 }]),
+      outputContract: {
+        version: 1 as const,
+        kind: 'installation' as const,
+        outputMapId: null,
+        pixelCount: 60,
+        resolution: 'fixed' as const,
+      },
+      composition: {
+        version: 1,
+        patternInstances: [{
+          id: 'instance-source',
+          pattern: { kind: 'stock' as const, id: 'TestPattern1D' },
+          patternName: 'Clone Sharing Rings',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        scenes: [
+          {
+            sceneId: 'scene-1',
+            zones: [{
+              zoneId: 'zone-1',
+              main: [{
+                id: 'clip-source',
+                instanceId: 'instance-source',
+                startMs: 0,
+                durationMs: 5_000,
+                view: { mirror: true, phase: 0.25, brightness: 0.6 },
+              }],
+              overlays: [{ id: 'overlay-scene-1', name: 'Layer 1', placements: [] }],
+            }],
+          },
+          {
+            sceneId: 'scene-2',
+            zones: [{
+              zoneId: 'zone-1',
+              main: [],
+              overlays: [{ id: 'overlay-scene-2', name: 'Layer 1', placements: [] }],
+            }],
+          },
+        ],
+      },
+    }
+    const response = await page.context().request.post('/api/shows', { data: show })
+    expect(response.ok(), await response.text()).toBe(true)
+    await storeSeededShowAsV2(page, show.id)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`studio/shows/${id}`)
+    const source = page.getByRole('button', { name: 'Select Clone Sharing Rings' })
+    await expect(source).toHaveCount(1)
+    await source.click()
+    await page.getByRole('button', { name: 'Clone selection' }).click()
+    await expect(page.getByRole('button', { name: 'Select Clone Sharing Rings' })).toHaveCount(2)
+    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    // The v2 Clone is linked by contract while the v1 Clone mints an
+    // independent copy, so only the v2 run passes through the shared state.
+    if (showBackingIsV2()) {
+      await expect(panel.getByText('Shared by 2 Clips')).toBeVisible()
+      await panel.getByRole('button', { name: 'Make Pattern Independent' }).click()
+    }
+    await expect(panel.getByText('Independent', { exact: true })).toBeVisible()
+  })
+
   test('Option-drags an independent Clip duplicate onto another Layer (#668)', async ({ page }) => {
     const id = `playwright-option-drag-${Date.now()}`
     const show = {

@@ -853,27 +853,6 @@ describe('v2 tracer unconnected commands (#1065)', () => {
     await act(async () => {})
   }
 
-  it(
-    'resolves Clone selection as an internal no-change result without disabling the control',
-    async () => {
-      const editor = openV2Editor('tracer-unconnected-clone')
-      render(<ShowEditor showId={editor.showId} recordVersion={2} />)
-      await selectFirstClip(editor.showId)
-      const before = editor.state()
-      const button = timelineCommand('Clone selection')
-      // The tracer changes no enabled styling: the control the v1 editor offers
-      // for this selection stays offered, and stays reachable.
-      expect(button).toBeEnabled()
-      expect(button).not.toHaveAttribute('aria-disabled', 'true')
-
-      fireEvent.click(button)
-      await act(async () => {})
-
-      expectNoWrite(before, editor.state())
-      expect(timelineCommand('Clone selection')).toBeEnabled()
-    },
-  )
-
   it('leaves Delete on a Group occurrence unclaimed with no write (#1066 slice 2)', async () => {
     const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
     const record = propertyEditGroupRecord()
@@ -898,6 +877,156 @@ describe('v2 tracer unconnected commands (#1065)', () => {
     // affordance. Their behavior is proved in the slice-1 suite below.
     expect(screen.getAllByRole('separator', { name: 'Resize CometLoom end' })[0]).toBeInTheDocument()
     expect(screen.getAllByRole('separator', { name: 'Resize CometLoom start' })[0]).toBeInTheDocument()
+  })
+})
+
+// ── Clip sharing commands (#1090 slice A) ────────────────────────────────────
+// Toolbar Clone and the Clip inspector's Make Pattern Independent / Rejoin
+// Shared Pattern reach the v2 clip-sharing door through the existing
+// ShowEditor handlers. Clone commits a linked duplicate immediately after the
+// source Clip; independence mints a fresh instance for one Clip; rejoin
+// adopts an existing compatible instance and collects the orphan. Every
+// accepted edit keeps the tracer fences: exactly one history entry and one
+// save, exact Undo then Redo, and no legacy owner invocation.
+
+describe('v2 clip sharing (#1090 slice A)', () => {
+  /** Selects resize-a and parks the playhead inside it. */
+  async function selectResizeA(showId: string): Promise<void> {
+    act(() => useShowTransportStore.setState({ showId, positionMs: 2_000 }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select CometLoom' })[0])
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: 'resize-a' })
+  }
+
+  /** The clip-sharing submissions one command made, in order. */
+  function sharingSubmissions() {
+    return admission.calls
+      .filter((call) => call.door === 'admitShowV2PilotClipSharingEdit')
+      .map((call) => ({ intent: call.request.intent, baseRevision: call.request.baseRevision }))
+  }
+
+  it('clones the selected Clip as a linked copy through the clip-sharing door', async () => {
+    const editor = openV2Editor('tracer-clone-linked')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectResizeA(editor.showId)
+    const before = editor.state()
+    const source = authoredClip(before.record, 'resize-a')
+    const button = timelineCommand('Clone selection')
+    expect(button).toBeEnabled()
+    expect(button).not.toHaveAttribute('aria-disabled', 'true')
+
+    fireEvent.click(button)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipSharingEdit'])
+    expect(sharingSubmissions()).toHaveLength(1)
+    expect(sharingSubmissions()[0].baseRevision).toBe(0)
+    expect(sharingSubmissions()[0].intent).toMatchObject({
+      kind: 'duplicate',
+      clipId: 'resize-a',
+      zoneId: source.zoneId,
+      layerId: source.layerId,
+      startMs: source.startMs + source.durationMs,
+    })
+    expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length + 1)
+    const beforeIds = new Set(before.record.composition.clips.map((clip) => clip.id))
+    const copies = after.record.composition.clips.filter((clip) => !beforeIds.has(clip.id))
+    expect(copies).toHaveLength(1)
+    expect(copies[0].layerId).toBe(source.layerId)
+    expect(copies[0].startMs).toBe(source.startMs + source.durationMs)
+    // Linked by contract: the copy consumes the source's Pattern instance
+    // and mints no runtime of its own.
+    expect(copies[0].instanceId).toBe(source.instanceId)
+    expect(after.record.composition.patternInstances).toHaveLength(before.record.composition.patternInstances.length)
+    expectOneEdit(before, after)
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: copies[0].id })
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('disables Clone with the v2 reason and writes nothing when the Layer has no room', async () => {
+    // resize-a 1000-5000 is followed by resize-b at 7000: 2000 ms of room
+    // cannot hold a 4000 ms copy, so the landed capability refuses.
+    const editor = openV2EditorForRecord(connectedV2Record('tracer-clone-no-room'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectResizeA(editor.showId)
+    const before = editor.state()
+    const button = timelineCommand('Clone selection')
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).toHaveAccessibleDescription('The selected Clip needs empty time after it on this Layer')
+
+    fireEvent.click(button)
+    await act(async () => {})
+
+    expectNoWrite(before, editor.state())
+  })
+
+  it('makes a shared Clip independent through the clip-sharing door', async () => {
+    // resize-a and resize-b share one CometLoom instance on this fixture.
+    const editor = openV2Editor('tracer-make-independent')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectResizeA(editor.showId)
+    expect(screen.getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Shared by 2 Clips')
+    const before = editor.state()
+    const sharedInstanceId = authoredClip(before.record, 'resize-a').instanceId
+    expect(authoredClip(before.record, 'resize-b').instanceId).toBe(sharedInstanceId)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Make Pattern Independent' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipSharingEdit'])
+    expect(sharingSubmissions()).toHaveLength(1)
+    expect(sharingSubmissions()[0].baseRevision).toBe(0)
+    expect(sharingSubmissions()[0].intent).toMatchObject({ kind: 'make-independent', clipId: 'resize-a' })
+    expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length)
+    expect(authoredClip(after.record, 'resize-a').instanceId).not.toBe(sharedInstanceId)
+    expect(authoredClip(after.record, 'resize-b').instanceId).toBe(sharedInstanceId)
+    expect(screen.getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Independent')
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('rejoins an independent Clip to a shared instance and collects the orphan', async () => {
+    // resize-a and resize-b run the same CometLoom Pattern on independent
+    // instances, so resize-a can rejoin resize-b's instance.
+    const editor = openV2EditorForRecord(connectedV2Record('tracer-rejoin'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectResizeA(editor.showId)
+    const before = editor.state()
+    const targetInstanceId = authoredClip(before.record, 'resize-b').instanceId
+    expect(authoredClip(before.record, 'resize-a').instanceId).not.toBe(targetInstanceId)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rejoin Shared Pattern' }))
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Rejoin Pattern instance' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipSharingEdit'])
+    expect(sharingSubmissions()).toHaveLength(1)
+    expect(sharingSubmissions()[0].baseRevision).toBe(0)
+    expect(sharingSubmissions()[0].intent).toMatchObject({ kind: 'rejoin', clipId: 'resize-a', targetInstanceId })
+    expect(authoredClip(after.record, 'resize-a').instanceId).toBe(targetInstanceId)
+    expect(authoredClip(after.record, 'resize-b').instanceId).toBe(targetInstanceId)
+    expect(after.record.composition.patternInstances.map((instance) => instance.id).sort())
+      .toEqual(['overlay-instance', 'resize-b-instance'])
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('offers no independence write on a Clip that is already independent', async () => {
+    const editor = openV2Editor('tracer-already-independent')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: 'overlay-a' })
+    expect(screen.getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Independent')
+    const before = editor.state()
+    // The control is absent, so independence is unreachable: the planner's
+    // `unchanged` outcome is never even submitted.
+    expect(screen.queryByRole('button', { name: 'Make Pattern Independent' })).toBeNull()
+    expectNoWrite(before, editor.state())
   })
 })
 

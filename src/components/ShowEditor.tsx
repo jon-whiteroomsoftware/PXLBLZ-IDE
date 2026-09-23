@@ -335,6 +335,10 @@ import {
 } from '@/engine/showV2GroupReplacementEditorModel'
 import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
 import { checkShowTimelineDuplicateGestureV2, planShowTimelineGestureV2, type ShowTimelineGestureV2 } from '@/engine/showTimelineGesturesV2'
+import {
+  createShowV2IndependentIntent,
+  createShowV2RejoinIntent,
+} from '@/engine/showV2ClipSharingEditorModel'
 import type { CreateShowGroupFromSelectionIntentV2 } from '@/engine/showGroupCreationV2'
 import { planShowV2GroupCreation } from '@/engine/showV2GroupCreationEditorModel'
 import { planShowV2GroupOccurrenceEdit, type ShowV2GroupOccurrenceRequest } from '@/engine/showV2GroupOccurrenceEditorModel'
@@ -1797,6 +1801,27 @@ export function ShowEditor({
     })
     return outcome.status === 'applied'
   }, [showId])
+  // Toolbar Clone on a v2 backing: a linked duplicate immediately after the
+  // source Clip on its own Layer, committed through the clip-sharing door
+  // (#1090). Linked by contract, exactly as the Option-drag copy: the copy
+  // consumes the source's Pattern instance and mints no runtime of its own.
+  const duplicateClipAfterV2 = useCallback(async (clipId: string): Promise<string | null> => {
+    const gesture = captureV2Move()
+    if (!gesture) return null
+    const clip = gesture.capture.record.composition.clips.find((candidate) => candidate.id === clipId)
+    if (!clip) return null
+    const planned = planShowTimelineGestureV2(gesture.capture, {
+      kind: 'duplicate',
+      clipId,
+      startMs: clip.startMs + clip.durationMs,
+      zoneId: clip.zoneId,
+      layerId: clip.layerId,
+    }, newPersonalContentId)
+    if (planned.status !== 'ready' || planned.submission.owner !== 'clip-sharing') return null
+    const selectClipId = planned.selectAfterId ?? planned.submission.intent.identities.clipId
+    const applied = await commitV2ClipSharing({ ...gesture, intent: planned.submission.intent })
+    return applied ? selectClipId : null
+  }, [captureV2Move, commitV2ClipSharing])
   const commitV2CreateGroup = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
@@ -4072,6 +4097,7 @@ export function ShowEditor({
                   }))) return null
                   return placementId
                 }}
+                onDuplicateCompositionClipV2={duplicateClipAfterV2}
                 onResizeCompositionClip={async ({
                   owner,
                   globalStartMs,
@@ -4459,6 +4485,23 @@ export function ShowEditor({
                     })
                     if (composition === timelineComposition) return
                     updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
+                  }}
+                  onMakePatternIndependentV2={(clipId) => {
+                    // Independence and rejoin reach the v2 clip-sharing door;
+                    // an unchanged or refused plan writes nothing, as v1
+                    // returns silently when its composition is unchanged (#1090).
+                    const gesture = captureV2Move()
+                    if (!gesture) return
+                    const plan = createShowV2IndependentIntent(gesture.capture, clipId, newPersonalContentId)
+                    if (plan.status !== 'ready') return
+                    void commitV2ClipSharing({ ...gesture, intent: plan.intent }).catch(() => {})
+                  }}
+                  onRejoinPatternV2={(clipId, targetInstanceId) => {
+                    const gesture = captureV2Move()
+                    if (!gesture) return
+                    const plan = createShowV2RejoinIntent(gesture.capture, clipId, targetInstanceId)
+                    if (plan.status !== 'ready') return
+                    void commitV2ClipSharing({ ...gesture, intent: plan.intent }).catch(() => {})
                   }}
                   onRemoveCompositionClip={(owner) => {
                     if (recordVersion === 2) {
@@ -5197,6 +5240,7 @@ function ShowTimelineCommands({
   onCreateGroup,
   onSplitCompositionClip,
   onDuplicateCompositionClip,
+  onDuplicateCompositionClipV2,
   captureV2ClipEdit,
   onCommitV2ClipTemporal,
 }: {
@@ -5213,6 +5257,7 @@ function ShowTimelineCommands({
   onCreateGroup: (selection: ShowGroupSelection) => Promise<string | null>
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
+  onDuplicateCompositionClipV2?: (clipId: string) => Promise<string | null>
   captureV2ClipEdit?: () => { capture: ShowV2PilotPreparedCapture; baseRevision: number } | null
   onCommitV2ClipTemporal?: (input: {
     capture: ShowV2PilotPreparedCapture
@@ -5318,8 +5363,14 @@ function ShowTimelineCommands({
 
   const cloneSelection = async () => {
     if (!cloneCapability.enabled) return
-    // Clone is not a connected v2 command: it stops here rather than reaching a
-    // legacy owner, leaving no record, history entry or save (#1065).
+    if (commandsV2) {
+      // Clone commits a linked duplicate through the clip-sharing door (#1090).
+      if (selection.kind === 'clip') {
+        const copyId = await onDuplicateCompositionClipV2?.(selection.clipId)
+        if (copyId) onSelect({ kind: 'clip', clipId: copyId })
+      }
+      return
+    }
     if (!show) return
     if (compositionOwner) {
       const copyId = await onDuplicateCompositionClip(compositionOwner)
@@ -5686,6 +5737,7 @@ function ShowTimelineWorkspace({
   onAddCompositionLayer,
   onSplitCompositionClip,
   onDuplicateCompositionClip,
+  onDuplicateCompositionClipV2,
   onResizeCompositionClip,
   onOpenLayerTransition,
   onInsertTime,
@@ -5776,6 +5828,7 @@ function ShowTimelineWorkspace({
   onAddCompositionLayer: (zoneId: string) => Promise<boolean>
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
+  onDuplicateCompositionClipV2?: (clipId: string) => Promise<string | null>
   onResizeCompositionClip: (input: {
     owner: ShowTimelineClipOwner,
     globalStartMs: number,
@@ -7454,6 +7507,7 @@ function ShowTimelineWorkspace({
             onCreateGroup={onCreateGroup}
             onSplitCompositionClip={onSplitCompositionClip}
             onDuplicateCompositionClip={onDuplicateCompositionClip}
+            onDuplicateCompositionClipV2={onDuplicateCompositionClipV2}
             captureV2ClipEdit={captureV2ClipEdit}
             onCommitV2ClipTemporal={onCommitV2ClipTemporal}
           />
@@ -10648,6 +10702,8 @@ function ContextualInspector({
   onPreviewEnd,
   onMakeCompositionPatternIndependent,
   onRejoinCompositionPattern,
+  onMakePatternIndependentV2,
+  onRejoinPatternV2,
   onRemoveCompositionClip,
   onRemoveClipV2,
   onDuplicateGroup,
@@ -10716,6 +10772,8 @@ function ContextualInspector({
   onPreviewEnd: () => void
   onMakeCompositionPatternIndependent: (owner: ShowClipInspectorOwner) => void
   onRejoinCompositionPattern: (owner: ShowClipInspectorOwner, targetInstanceId: string) => void
+  onMakePatternIndependentV2?: (clipId: string) => void
+  onRejoinPatternV2?: (clipId: string, targetInstanceId: string) => void
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
   onRemoveClipV2?: (clipId: string) => void
   onV2GroupOccurrenceRequest?: (request: ShowV2GroupOccurrenceRequest) => boolean | Promise<void>
@@ -10897,8 +10955,18 @@ function ContextualInspector({
           onPreviewPatch={() => {}}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
-          onMakePatternIndependent={() => {}}
-          onRejoinPattern={() => {}}
+          // A Group Clip use reports its shared runtime without offering a
+          // refused write, exactly as v1 passes instanceOwnership={null} for
+          // Group Clips and never renders the buttons (#1090).
+          {...(selection.kind === 'clip'
+            ? {
+                onMakePatternIndependent: () => onMakePatternIndependentV2?.(selection.clipId),
+                onRejoinPattern: (targetInstanceId: string) => onRejoinPatternV2?.(selection.clipId, targetInstanceId),
+              }
+            : {
+                onMakePatternIndependent: () => {},
+                onRejoinPattern: () => {},
+              })}
           // v1 offers Delete on an ordinary Clip's inspector and none on a
           // Group child's, so the v2 branch matches per selection. The control
           // keeps v1's markup and enabled state; the write reaches the
