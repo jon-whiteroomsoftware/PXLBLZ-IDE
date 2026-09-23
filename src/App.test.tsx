@@ -52,6 +52,19 @@ const analyticsMock = vi.hoisted(() => ({
   trackEvent: vi.fn(),
 }))
 
+const showEditorRecordVersions = vi.hoisted(() => [] as Array<1 | 2 | undefined>)
+
+vi.mock('@/components/ShowEditor', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/components/ShowEditor')>()
+  return {
+    ...original,
+    ShowEditor: (props: Parameters<typeof original.ShowEditor>[0]) => {
+      showEditorRecordVersions.push(props.recordVersion)
+      return <original.ShowEditor {...props} />
+    },
+  }
+})
+
 vi.mock('@/analytics', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/analytics')>()),
   trackEvent: analyticsMock.trackEvent,
@@ -65,6 +78,7 @@ vi.mock('@/engine/authSession', () => ({
 }))
 
 beforeEach(() => {
+  showEditorRecordVersions.length = 0
   analyticsMock.trackEvent.mockReset()
   authSessionMock.getAuthSession.mockReset()
   authSessionMock.getAuthSession.mockImplementation(() => new Promise(() => {}))
@@ -239,6 +253,34 @@ describe('App smoke test', () => {
     expect(createShow).not.toHaveBeenCalled()
     expect(createShowV2).not.toHaveBeenCalled()
     expect(replaceShowV2).not.toHaveBeenCalled()
+  })
+
+  it('a built-in Show deep link never renders on its v1 record while the Show list loads (#1067)', async () => {
+    const id = 'stock-show-102-transitions-values'
+    const showListRead = deferred<[]>()
+    setPersonalContentProvider({
+      ...getPersonalContentProvider(),
+      id: 'pending-stock-v2-route-test',
+      listShows: () => showListRead.promise,
+    })
+    setStudioLocation(`/studio/shows/${id}`)
+    seedSignedInWorkspace()
+    const hydration = useShowStore.getState().loadShows()
+
+    render(<App />)
+
+    try {
+      await waitFor(() => expect(showEditorRecordVersions.length).toBeGreaterThan(0))
+      expect(showEditorRecordVersions).not.toContain(1)
+      await waitFor(() => {
+        expect(useShowStore.getState().showV2Pilots[id]?.version).toBe(2)
+        expect(showEditorRecordVersions).toContain(2)
+      })
+      expect(useShowStore.getState().stockShowDrafts[id]).toBeUndefined()
+    } finally {
+      showListRead.resolve([])
+      await act(async () => { await hydration })
+    }
   })
 
   it('leaves a row still stored as v1 on the v1 editor after the flip (#1039)', () => {

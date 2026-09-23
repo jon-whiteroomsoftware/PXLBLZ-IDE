@@ -7,18 +7,8 @@
  */
 import type { Page } from '@playwright/test'
 import type { ShowRecordV2 } from '../../src/engine/showCompositionV2'
-import { SHOW_V2_ROUTE_PREVIEW_PARAM } from '../../src/engine/showV2RouteGate'
 import { keepV2StoredRecords, selectV2BarrierAnchor, v2RevisionAdvanced } from '../../src/test/showV2HarnessDecisions'
-import { ensureCurrentShowV2Binding, SHOW_V2_EDITOR_PREVIEW_PARAM, seededShowV2Stamp, showBackingIsV2, storeShowAsV2 } from './showBacking'
-
-// The one place the repeated parameter name is checked against the product's
-// own constant. A rename would otherwise leave the v2 run silently opening
-// every Show on v1 and reporting it as passing.
-if (SHOW_V2_EDITOR_PREVIEW_PARAM !== SHOW_V2_ROUTE_PREVIEW_PARAM) {
-  throw new Error(
-    `The Show backing harness targets "${SHOW_V2_EDITOR_PREVIEW_PARAM}" but the editor reads "${SHOW_V2_ROUTE_PREVIEW_PARAM}".`,
-  )
-}
+import { ensureCurrentShowV2Binding, seededShowV2Stamp, showBackingIsV2, storeShowAsV2 } from './showBacking'
 
 export { storeShowAsV2 as storeSeededShowAsV2 }
 

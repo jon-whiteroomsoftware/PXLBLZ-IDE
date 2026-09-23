@@ -882,11 +882,15 @@ function StudioApp() {
   const routedShowId = showsLoaded && route.kind === 'studio' && route.entity?.kind === 'shows'
     ? route.entity.id
     : null
-  const v2EditorShowId = routedShowId !== null && routedShowOpensOnV2(routedShowId) ? routedShowId : null
-  const activeShow = routedStockShowOverride ?? (
-    activeShowId && (v2EditorShowId === null || activeShowId === v2EditorShowId)
-      ? shows.find((show) => show.id === activeShowId)
-      : undefined
+  const routedStockV2Id = route.kind === 'studio' && route.entity?.kind === 'shows'
+    && stockShowV2ById(route.entity.id) !== undefined
+    ? route.entity.id
+    : null
+  const v2EditorShowId = routedStockV2Id ?? (
+    routedShowId !== null && routedShowOpensOnV2(routedShowId) ? routedShowId : null
+  )
+  const activeShow = v2EditorShowId !== null ? undefined : routedStockShowOverride ?? (
+    activeShowId ? shows.find((show) => show.id === activeShowId) : undefined
   )
   // A routed v2 row hydrates through the Show store's own open action, which
   // owns the stored read, conversion fallback, history seed and save queue. The

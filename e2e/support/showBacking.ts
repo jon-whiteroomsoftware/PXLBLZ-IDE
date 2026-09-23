@@ -2,7 +2,8 @@
  * Which stored record version backs the Shows the browser suite opens (#1066).
  *
  * `e2e/shows.auth.spec.ts` is the strongest available oracle for putting the
- * existing Show editor on the v2 backend. The required Show suite runs on v2;
+ * existing Show editor on the v2 backend. The required Show suite runs on v2
+ * through ordinary Show URLs;
  * the unconverted-row diagnostic runs the same spec on v1. The backing is
  * chosen here and reached only through the authenticated fixture and that
  * spec's own seeding and readback helpers; no test body knows which run it is in.
@@ -25,14 +26,6 @@ import type { APIRequestContext, Frame, Page } from '@playwright/test'
 import { isBindingProofFresh, isInAppProofFresh, routedShowIdFromUrl, type V2BindingProof } from '../../src/test/showV2HarnessDecisions'
 
 export type ShowBacking = 'v1' | 'v2'
-
-/**
- * `SHOW_V2_ROUTE_PREVIEW_PARAM` in `src/engine/showV2RouteGate.ts`, repeated
- * here because of the import restriction above.
- * `showBackingRecords.ts` fails the run if the two ever diverge, so a rename
- * cannot quietly turn the v2 run back into a second v1 run.
- */
-export const SHOW_V2_EDITOR_PREVIEW_PARAM = 'show-v2-editor'
 
 export function showBacking(): ShowBacking {
   return process.env.PXLBLZ_SHOW_BACKING?.trim() === 'v2' ? 'v2' : 'v1'
@@ -68,28 +61,6 @@ export async function removeStoredShowsV2(request: APIRequestContext): Promise<v
   storedAsV2.clear()
 }
 
-/**
- * Make one Studio URL open on the v2 backing.
- *
- * A row this run stores as a v2 document already opens there, and adding a
- * query string to its route would break the exact-URL assertions several test
- * bodies make. A built-in Show has no stored document and cannot be given one,
- * so it uses the landed development-only preview parameter, which converts the
- * record in memory for the open session and writes nothing. Both reach the
- * same existing editor on a v2 record.
- */
-export function showBackingUrl(url: string): string {
-  if (!showBackingIsV2()) return url
-  const [beforeHash, hash] = splitOnce(url, '#')
-  const [path, search] = splitOnce(beforeHash, '?')
-  if (!/(^|\/)studio(\/|$)/.test(path)) return url
-  if (storedAsV2.has(routedShowIdFromUrl(path) ?? '')) return url
-  const parameters = new URLSearchParams(search)
-  if (parameters.get(SHOW_V2_EDITOR_PREVIEW_PARAM) === '1') return url
-  parameters.set(SHOW_V2_EDITOR_PREVIEW_PARAM, '1')
-  return `${path}?${parameters.toString()}${hash ? `#${hash}` : ''}`
-}
-
 interface V2BackingPageState {
   proofs: Map<string, V2BindingProof>
   navigationSequence: number
@@ -108,9 +79,9 @@ const backingPageStates = new WeakMap<Page, V2BackingPageState>()
  * `convertShowRecordV1ToV2` with no Pattern sources and is refused with
  * `missing-source-dependency`, leaving no editor mounted at all.
  *
- * `routerStore` carries `window.location.search` through in-app navigation, so
- * one loaded document keeps the preview parameter across rail clicks and
- * reloads. Every navigation still needs its own proof: registrations are keyed
+ * Built-in Shows open from their native v2 catalogue records on the ordinary
+ * route, while personal v1 rows are stored as v2 before navigation. Every
+ * navigation still needs its own proof: registrations are keyed
  * by navigation generation, so a repeat visit re-waits for the new document
  * instead of trusting the previous visit's entry, and `page.reload` is wrapped
  * alongside `page.goto`. In-app navigations (rail rows, links, duplicate and
@@ -153,10 +124,10 @@ export function installShowBacking(page: Page): void {
     state.navigationSequence += 1
     const requiredSequence = state.navigationSequence
     if (id !== null && !storedAsV2.has(id)) {
-      if (!page.url().startsWith('http')) await goto(showBackingUrl('studio/shows'))
+      if (!page.url().startsWith('http')) await goto('studio/shows')
       await storeShowAsV2(page, id)
     }
-    const response = await goto(showBackingUrl(url), options)
+    const response = await goto(url, options)
     if (id !== null) {
       await waitForV2Backing(page, id, state.proofs, requiredSequence)
       acceptBindingProof(state, id)
@@ -310,9 +281,4 @@ async function convertInPage(page: Page, record: Record<string, unknown>): Promi
     }
     return convertShowRecordV1ToV2(source, { byCellId })
   }, record) as Promise<ConversionOutcome>
-}
-
-function splitOnce(value: string, separator: string): [string, string] {
-  const index = value.indexOf(separator)
-  return index === -1 ? [value, ''] : [value.slice(0, index), value.slice(index + 1)]
 }
