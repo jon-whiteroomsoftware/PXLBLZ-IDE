@@ -779,7 +779,7 @@ This table is the one list of the places where the v2 editor deliberately behave
 | Group delete keeps a dormant definition | #1075 comment; `show-v2-group-edits` contract |
 | A Group Clip Pattern change stores a different layout that compiles byte-equal | #1075 G2c comment |
 | Add Zone keeps an entry-less Layout definition entry-less | #1064 item 4; `showZonesV2.ts` |
-| Lossy edits refuse: control-target removal, multi-key appearance | #1069; #1066 slice-3 comment |
+| A lossy edit asks first on v2 and v1 acts silently. Replace Pattern, a cross-Layer Clip move that removes connected Transitions, unticking a control target that has a lane, and a whole-Clip appearance write over held segments open a confirmation that names what the edit removes or overwrites; Cancel writes nothing. The Source Pattern picker marks each Pattern whose selection would remove controls. Group Clips confirm the same way against their Group definition | #1069 (Jon, 2026-09-23): v2-only confirmations |
 | A v1 placement whose Zone is absent for its whole interval retires as `retired-silent-runtime-use`, with no v2 Clip; the parity harness accepts the resulting runtime mismatch only under the provenance rule | §2; this section |
 | Edit refusals show their reason in the surface's existing error slot instead of emulating v1 ("UI honesty replaces emulation") | Jon, 2026-09-22 |
 | Restart resets the shared Pattern instance in place and is unavailable, with its reason shown, for a Pattern whose state the Restart planner cannot reset; v1 gave the Clip a fresh runtime, so any Pattern could restart | #1091 (Jon, 2026-09-23); §3 Restart |
