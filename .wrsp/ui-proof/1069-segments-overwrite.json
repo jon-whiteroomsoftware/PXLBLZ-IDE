@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1069",
+  "route": "/PXLBLZ-IDE/studio/shows/46fff976-239c-4f6b-945c-4cf1b9202d9f (v2 clone of stock-show-101-clips-cuts-blank-time, existing Show editor on the v2 backing)",
+  "operation": "On the v2 backing, clone built-in Show 101; the stored clone's Clip clip-garden is given a second held appearance key at 6000 ms (brightness 0.8) through PUT /api/shows/46fff976-239c-4f6b-945c-4cf1b9202d9f?show-version=2, since the existing editor has no held-segment authoring. In the Clip detail, setting the header Brightness opens 'Change every segment?': 'This Clip has 2 held segments. This change applies to all of them.' with Cancel and 'Change all segments' (capture: dialog). Cancel leaves both keys unchanged (1 and 0.8). Repeating and pressing 'Change all segments' sets both keys to 0.63 at their original times (capture: confirmed). The readback capture shows the stored keys before, after Cancel and after confirm; the raw-api capture is GET /api/shows?show-version=2. Before this change the v2 write refused silently and snapped back.",
+  "captures": [
+    ".wrsp/ui-proof/1069-segments-confirmed.png",
+    ".wrsp/ui-proof/1069-segments-dialog.png",
+    ".wrsp/ui-proof/1069-segments-raw-api.png",
+    ".wrsp/ui-proof/1069-segments-readback.png"
+  ],
+  "capturedAtCommit": "0106e4aede112d658bb50d40b99ab909f269205c"
+}
