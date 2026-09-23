@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-1790133418125",
+  "operation": "On the v2 backing at the G3 corrective tip: the case 2583 flow (Make Group, Duplicate to 2 linked occurrences, isolate the second), select Group Clip Main pulse, press Animate Animation speed and set its To value to 2. Close the popover; the Clip's 'Edit Animation speed animation' control now reads as animated (the stored track matches its option again). Reopen it and set the To value to 3. The first capture is the editor after the second edit. The second renders the stored v2 record (GET /api/shows) from the same run: no top-level track, and one instance-time-scale track in the Group definition on its definition-local instance, with keys 0 ms = 1 and 5000 ms = 3.",
+  "captures": [
+    ".wrsp/ui-proof/1075-g3c-group-clip-speed.png",
+    ".wrsp/ui-proof/1075-g3c-group-clip-speed-readback.png"
+  ],
+  "capturedAtCommit": "ee64d4ed4afb6d318364048050833c480eec4fba"
+}
