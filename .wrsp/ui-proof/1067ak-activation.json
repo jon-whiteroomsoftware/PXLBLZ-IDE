@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "1067",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-102-transitions-values and /PXLBLZ-IDE/studio/shows/cc0605d5-8eb1-4c0d-94b6-568370f399ec",
+  "operation": "Existing Show editor, run with PXLBLZ_SHOW_BACKING unset in one account; the harness adds no query parameter. Built-in: /studio/shows/stock-show-102-transitions-values opens with an empty search string; every editor registration the page posts to /api/agent/channel for that id declares showVersion 2 (capture 3, first section). The editor renders the native v2 lesson, its crossfade Transition button focused (capture 1; the lane in capture 2). Opening wrote nothing (v1 and v2 stored lists unchanged); Show actions > Clone stores 17c3dd47-9962-4430-932b-13e12b701012 as a v2 row, absent from the v1 list. Controller: with a Controller profile stored through POST /api/controllers, Shows rail Add show > 'New show from Proof controller 1067a' opens cc0605d5-8eb1-4c0d-94b6-568370f399ec with an empty search string; its registrations declare showVersion 2; it is stored as version 2 with targetControllerProfileId equal to the profile id and absent from the v1 list (captures 3 and 4). Capture 5 is the raw GET /api/shows?show-version=2 for that one account, listing both the Clone and the controller-seeded Show. Before #1067 the built-in opened on its v1 record without the development preview parameter, and New show from a controller stored a v1 row.",
+  "captures": [
+    ".wrsp/ui-proof/1067ak-stock.png",
+    ".wrsp/ui-proof/1067ak-stock-transition.png",
+    ".wrsp/ui-proof/1067ak-readback.png",
+    ".wrsp/ui-proof/1067ak-controller.png",
+    ".wrsp/ui-proof/1067ak-raw-api.png"
+  ],
+  "capturedAtCommit": "c10b29d91396757c5cf3769e67ea04df7b155381"
+}
