@@ -29,6 +29,10 @@ export function hasQueuedShowPersistence(id: string): boolean {
   return queues.has(id)
 }
 
+export function hasAnyQueuedShowPersistence(): boolean {
+  return queues.size > 0
+}
+
 export async function queueShowPersistence(id: string, operation: () => Promise<void>): Promise<void> {
   const previous = queues.get(id) ?? Promise.resolve()
   const persistence = previous.catch(() => undefined).then(operation)

@@ -44,6 +44,7 @@ import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { transitionV1Show } from '@/test/showV2TracerFixture'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
+import { queueShowPersistence } from '@/store/showReplacementPolicy'
 
 const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
@@ -195,6 +196,46 @@ async function choosePlace(name: 'Patterns' | 'Shows' | 'Maps' | 'Controllers' |
 }
 
 describe('App smoke test', () => {
+  it('warns before leaving while Show persistence is pending (#1095)', async () => {
+    render(<App />)
+    const beforeUnload = () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    expect(beforeUnload()).toBe(false)
+
+    const gate = deferred<void>()
+    const save = queueShowPersistence('pending-show', () => gate.promise)
+    try {
+      await Promise.resolve()
+      expect(beforeUnload()).toBe(true)
+    } finally {
+      gate.resolve()
+      await save
+    }
+    expect(beforeUnload()).toBe(false)
+  })
+
+  it('still warns before leaving when Pattern source cannot autosave (#810)', () => {
+    render(<App />)
+    usePatternStore.setState({
+      activePatternId: 'broken-pattern',
+      userPatterns: [{
+        id: 'broken-pattern',
+        name: 'Broken Pattern',
+        src: 'export function render(index) { hsv(1, 1, 1) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+    })
+    useEditorStore.setState({ source: 'broken(', compileStatus: 'broken', isReadOnly: false })
+
+    const event = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
   it('renders without crashing', () => {
     render(<App />)
   })

@@ -140,6 +140,7 @@ import { SaveStatusBadge } from '@/components/SaveStatusBadge'
 import { NavigationSaveFailureNotice } from '@/components/NavigationSaveFailureNotice'
 import { NavigationPreflightDialog } from '@/components/NavigationPreflightDialog'
 import { activeStuckSaveStatus } from '@/store/autosaveSync'
+import { hasAnyQueuedShowPersistence } from '@/store/showReplacementPolicy'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 import {
   studioOperationDismissLabel,
@@ -1158,14 +1159,14 @@ function StudioApp() {
     window.location.assign(`/api/auth/login?provider=${provider}`)
   }, [])
 
-  // Warn before a reload/close exactly when unsaved editor work is at risk
-  // (#810): broken source that autosave will not persist, or a clean edit
-  // whose write is failing. Lives here rather than in Editor so the guard
-  // survives Editor unmounts. Never fires during ordinary typing — the next
-  // tick covers that.
+  // Warn before a reload/close when unsaved work is at risk: broken source
+  // that autosave will not persist or a failing write (#810), or a Show save
+  // still queued or in flight because reload discards its queue (#1095).
+  // Lives here rather than in Editor so the guard survives Editor unmounts.
+  // Ordinary typing remains silent until the next autosave tick.
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (activeStuckSaveStatus() !== null) event.preventDefault()
+      if (activeStuckSaveStatus() !== null || hasAnyQueuedShowPersistence()) event.preventDefault()
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
