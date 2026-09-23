@@ -829,6 +829,7 @@ function convertClips(
       || runs[0]?.startMs !== first.globalStartMs
       || runs[0]?.endMs !== endMs
     const emittedClipIds: string[] = []
+    const emittedSegments: ShowClipV2[] = []
     for (const [runIndex, run] of runs.entries()) {
       const runId = segmentedByLayout ? `${baseId}--layout-${runIndex + 1}` : baseId
       const held = [...appearanceValues].reverse().find(entry => entry.timeMs <= run.startMs)
@@ -839,7 +840,7 @@ function convertClips(
           .filter(entry => entry.timeMs > run.startMs && entry.timeMs < run.endMs)
           .map(entry => structuredClone(entry)),
       ].filter((entry, index, entries) => index === 0 || JSON.stringify(entry.value) !== JSON.stringify(entries[index - 1].value))
-      clips.push({
+      const segment: ShowClipV2 = {
         id: runId,
         instanceId: first.placement.instanceId,
         zoneId: first.zoneId,
@@ -855,7 +856,9 @@ function convertClips(
             value: entry.value,
           })),
         },
-      })
+      }
+      clips.push(segment)
+      emittedSegments.push(segment)
       report.clipMappings.push({
         sourcePlacementIds: [
           ...(runIndex === 0 ? pendingPlacementIds : []),
@@ -866,6 +869,11 @@ function convertClips(
         clipId: runId,
       })
       emittedClipIds.push(runId)
+    }
+    if (segmentedByLayout && emittedSegments.length > 1) {
+      for (const segment of emittedSegments) {
+        segment.logicalClipId = baseId
+      }
     }
     return emittedClipIds
   }

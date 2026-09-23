@@ -3,10 +3,11 @@
 Canonical authority is [the Scene-retirement specification](../../plans/scene-retirement-specification.md)
 §§5, 8 and 10, and the [editor tracer plan](../../plans/show-editor-v2-tracer-plan.md).
 
-v1 and v2 describe the same choreography with different objects. In four cases
+v1 and v2 describe the same choreography with different objects. In five cases
 the v2 object is strictly less specific than the v1 object the editor drew, so
 the original editor cannot reproduce its own surface from the converted record
-alone. Jon approved three narrow, explicit provenance fields for #1065 and a fourth for #1066 so the
+alone. Jon approved three narrow, explicit provenance fields for #1065, a fourth for #1066,
+and a fifth for #1068 item 1b, so the
 existing editor stays unchanged for a converted Show. Each one is written by
 `convertShowRecordV1ToV2` and nothing else, and each is inert: it carries no
 timing, ownership, compilation or playback meaning.
@@ -17,6 +18,7 @@ timing, ownership, compilation or playback meaning.
 | `ShowTransitionV2.origin` | `composition.transitions` | Which of v1's two Transition families this Transition came from. |
 | `ShowLayoutOccurrenceV2.incomingSwitch` | `composition.layoutOccurrences` | The identity and authored settings of a v1 zero-duration routing switch. See [Layout edits](show-v2-layout-edits.md). |
 | `ShowSampleRemapV2.origin` | `composition.sampleRemap` | That the v1 Show explicitly authored `sampleTargets.repeatScale` on at least one Scene (#1066). |
+| `ShowClipV2.logicalClipId` | `composition.clips` | The v1 logical Clip a `--layout-N` segment was split from (#1068 item 1b). |
 
 ## Transition family
 
@@ -52,6 +54,26 @@ identity space so the timeline can select either by the same identity.
 
 `sampleRemap.origin` is `converted-authored-repeat-scale` when any v1 Scene authors `sampleTargets.repeatScale`, including an explicit 1, and is absent otherwise. An explicit 1 and an absent value convert to the same `repeatScale` and tracks, so without it the editor could not tell whether the Show's author reached for sample repeat; the editor shows the sample-repeat lane when this field is present or the record's values decide it (Jon, 2026-09-18). Lowering reads only `repeatScale`, so the field is inert.
 
+## Split logical Clip
+
+`ShowClipV2.logicalClipId` names the v1 logical Clip a `--layout-N` segment was
+split from (#1068 item 1b). Conversion splits one v1 logical Clip into
+`X--layout-1`, `X--layout-2`, … wherever its Zone is unavailable for part of its
+span, and the v2 record otherwise cannot say those segments were one Clip.
+Every segment of a layout split carries the v1 logical id the `--layout-N` ids
+are built from; unsplit Clips carry nothing.
+
+The scope is `--layout-N` only. A `--run-N` split (#1080 class 1) is a temporal
+gap between same-logical-id placements whose converted runs act per run on v2,
+so those segments carry no field.
+
+Commands neither author the field nor carry it forward: no command intent sets
+it, and an edit that rebuilds a Clip drops it rather than copying a value that
+describes a conversion the edit is not. Its only reader is part B's delete
+planner, which treats segments sharing one `logicalClipId` as one logical Clip.
+Lowering never reads it, so the compiled artifact is byte-identical with and
+without it.
+
 ## Inertness
 
 Lowering strips `ShowTransitionV2.origin` in `stripV2TransitionFields` before
@@ -63,7 +85,7 @@ oracle case compiles identically with and without the metadata.
 
 ## Persistence and fail-closed decoding
 
-All four fields live in the v2 record schema, so one definition serves the
+All five fields live in the v2 record schema, so one definition serves the
 client decoder, `.pxlshow` import and Worker admission. `origin` values are
 enumerated and every v2 object keeps `additionalProperties: false`, so an
 unknown origin value, an unknown switch field, a timed `durationMs` on a switch,
@@ -120,7 +142,8 @@ claim about how the record was produced:
 
 ## No new provenance for #1068
 
-#1068 admits two previously refused shapes without adding a provenance field,
+Apart from item 1b's Clip field above, #1068 admits two previously refused
+shapes without adding a provenance field,
 and that omission is deliberate under this contract: each field above exists so
 the existing editor can reproduce a surface it already draws.
 

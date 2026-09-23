@@ -61,6 +61,13 @@ export interface ShowClipV2 {
   entryPolicy: 'continue' | 'restart'
   zoneSampleMode: 'independent' | 'span' | 'repeat'
   appearance: ShowClipAppearanceTimelineV2
+  /**
+   * Conversion provenance for a `--layout-N` segment of one v1 logical Clip
+   * (#1068 item 1b), under `docs/reference/contracts/show-v2-conversion-provenance.md`.
+   * Written only by the v1 converter when a Zone unavailable for part of the
+   * span splits the Clip; inert for playback and never authored by a command.
+   */
+  logicalClipId?: string
 }
 
 export interface ShowClipAppearanceTimelineV2 {
@@ -414,6 +421,9 @@ export function validateShowRecordV2Domain(record: ShowRecordV2, derivedStructur
     validatePositiveTime(issues, `${path}.durationMs`, clip.durationMs)
     if (safeAdd(clip.startMs, clip.durationMs) > composition.showEndMs) {
       addIssue(issues, path, 'out-of-bounds', 'The Clip extends beyond Show End.')
+    }
+    if (clip.logicalClipId !== undefined && clips.has(clip.logicalClipId)) {
+      addIssue(issues, `${path}.logicalClipId`, 'duplicate-id', `Logical Clip identity "${clip.logicalClipId}" shadows another Clip.`)
     }
     uniqueIndex(issues, `${path}.appearance.keys`, clip.appearance.keys)
     clip.appearance.keys.forEach((key, keyIndex) => {

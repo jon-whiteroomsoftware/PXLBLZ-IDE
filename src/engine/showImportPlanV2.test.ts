@@ -366,3 +366,16 @@ describe('v2 ordinary Show import planning', () => {
     expect(destination).toEqual(before)
   })
 })
+
+describe('v2 Clip logicalClipId file round-trip (#1068 item 1b)', () => {
+  it('exports and reopens a Clip logicalClipId through .pxlshow', async () => {
+    const show = v2Show()
+    show.composition.clips[0].logicalClipId = 'former-logical-clip'
+    expect(validateShowRecordV2(show)).toEqual([])
+    const built = buildShowFileBundle(show, { patterns: [pattern()], maps: [], libraries: [pulse()] }, { appVersion: '1068-test', exportedAt: '2026-09-15T00:00:00.000Z' })
+    const reopened = await parseShowFileBundle(await serializeShowFileBundle(built.bundle), { acceptV2: true })
+    if (reopened.version !== 2) throw new Error('Expected v2 bundle')
+    expect(reopened.show.composition.clips[0].logicalClipId).toBe('former-logical-clip')
+    expect(validateShowRecordV2(reopened.show)).toEqual([])
+  })
+})

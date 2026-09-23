@@ -42,3 +42,21 @@ it('preserves known conversion provenance and refuses an unknown Marker origin',
   expect(() => cloneValidShowRecordV2ForWorker(tampered)).toThrow(PersonalStorageGuardError)
   expect(() => cloneValidShowRecordV2ForWorker(tampered)).toThrow(/Invalid Show v2 record/)
 })
+
+it('preserves a known Clip logicalClipId through Worker admission', () => {
+  const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const provenanced = structuredClone(converted.record)
+  provenanced.composition.clips[0].logicalClipId = 'former-logical-clip'
+  expect(cloneValidShowRecordV2ForWorker(provenanced).composition.clips[0].logicalClipId)
+    .toBe('former-logical-clip')
+})
+
+it('refuses a blank Clip logicalClipId before Worker storage', () => {
+  const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const blank = structuredClone(converted.record)
+  blank.composition.clips[0].logicalClipId = ''
+  expect(() => cloneValidShowRecordV2ForWorker(blank)).toThrow(PersonalStorageGuardError)
+  expect(() => cloneValidShowRecordV2ForWorker(blank)).toThrow(/Invalid Show v2 record/)
+})

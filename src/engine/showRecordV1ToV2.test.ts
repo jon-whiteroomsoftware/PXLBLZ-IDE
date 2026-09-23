@@ -1257,3 +1257,149 @@ describe('#1080 class 2 (A) slice B: boundary ramp carrier conversion', () => {
     })
   })
 })
+
+describe('layout-segmented logical Clip provenance (#1068 item 1b)', () => {
+  const probeView = { mirror: false, phase: 0, brightness: 1 }
+
+  function layoutSegmentedSingleLogicalClipShow() {
+    const show = convertibleV1Show()
+    show.id = 'layout-segmented-single-clip'
+    show.name = 'Layout segmented single Clip'
+    show.scenes = [
+      { id: 'a', name: 'A', durationMs: 400 },
+      { id: 'b', name: 'B', durationMs: 400 },
+      { id: 'c', name: 'C', durationMs: 400 },
+    ]
+    show.zones = [
+      { id: 'zone', name: 'Main', nominalPixelCount: 16 },
+      { id: 'other', name: 'Other', nominalPixelCount: 16 },
+    ]
+    show.routingLayouts = [
+      { id: 'full', name: 'Full', zones: [], logical: { kind: 'single', zoneIds: ['zone'] } },
+      { id: 'other-only', name: 'Other only', zones: [], logical: { kind: 'single', zoneIds: ['other'] } },
+    ]
+    show.transitions = [
+      { id: 'to-other', afterSceneId: 'a', kind: 'routing', layoutId: 'other-only', durationMs: 0, easing: { curve: 'linear' } },
+      { id: 'to-full', afterSceneId: 'b', kind: 'routing', layoutId: 'full', durationMs: 0, easing: { curve: 'linear' } },
+    ]
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      durationMs: 1_200,
+      patternInstances: [{
+        id: 'instance', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: (['a', 'b', 'c'] as const).map((sceneId, index) => ({
+        sceneId,
+        zones: [
+          {
+            zoneId: 'zone',
+            main: [{
+              id: index === 0 ? 'solo' : `solo--span-${sceneId}`,
+              ...(index === 0 ? {} : { logicalClipId: 'solo' }),
+              instanceId: 'instance', startMs: 0, durationMs: 400, view: probeView,
+            }],
+            overlays: [],
+          },
+          { zoneId: 'other', main: [], overlays: [] },
+        ],
+      })),
+    }
+    return show
+  }
+
+  function convertedLayoutSegmentedShow(): ShowRecordV2 {
+    const result = convertShowRecordV1ToV2(layoutSegmentedSingleLogicalClipShow())
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') throw new Error('conversion refused')
+    return result.record
+  }
+
+  function gappedContinuingShow() {
+    const source = continuingV1Show()
+    source.composition!.durationMs = 1200
+    source.transitions = [{
+      id: 'fade', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 200,
+      easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
+    }]
+    return source
+  }
+
+  it('records the shared logical id on every --layout-N segment', () => {
+    const record = convertedLayoutSegmentedShow()
+    expect(record.composition.clips.map(clip => clip.id)).toEqual(['solo--layout-1', 'solo--layout-2'])
+    for (const clip of record.composition.clips) {
+      expect(clip.logicalClipId).toBe('solo')
+    }
+    expect(validateShowRecordV2(record)).toEqual([])
+    expect(parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(record))).toEqual({ status: 'opened', record })
+  })
+
+  it('leaves --run-N segments and unsplit Clips without the field', () => {
+    const gapped = convertShowRecordV1ToV2(gappedContinuingShow())
+    expect(gapped.status).toBe('converted')
+    if (gapped.status !== 'converted') return
+    expect(gapped.record.composition.clips.map(clip => clip.id)).toEqual(['clip--run-1', 'clip--run-2'])
+    for (const clip of gapped.record.composition.clips) {
+      expect(clip.logicalClipId).toBeUndefined()
+    }
+    expect(validateShowRecordV2(gapped.record)).toEqual([])
+
+    const abutting = convertShowRecordV1ToV2(continuingV1Show())
+    expect(abutting.status).toBe('converted')
+    if (abutting.status !== 'converted') return
+    expect(abutting.record.composition.clips.map(clip => clip.id)).toEqual(['clip'])
+    expect(abutting.record.composition.clips[0].logicalClipId).toBeUndefined()
+    expect(validateShowRecordV2(abutting.record)).toEqual([])
+  })
+
+  it('refuses a blank logicalClipId at the structural boundary', () => {
+    const record = convertedLayoutSegmentedShow()
+    expect(parseProvisionalShowRecordV2(JSON.stringify({
+      ...record,
+      composition: {
+        ...record.composition,
+        clips: record.composition.clips.map(clip => ({ ...clip, logicalClipId: '' })),
+      },
+    }))).toEqual(expect.objectContaining({
+      status: 'refused',
+      issues: expect.arrayContaining([expect.objectContaining({ path: '/composition/clips/0/logicalClipId', code: 'schema' })]),
+    }))
+  })
+
+  it('refuses a logicalClipId that shadows another Clip id', () => {
+    const record = convertedLayoutSegmentedShow()
+    const shadowed = structuredClone(record)
+    shadowed.composition.clips[0].logicalClipId = shadowed.composition.clips[1].id
+    expect(validateShowRecordV2(shadowed)).toContainEqual(expect.objectContaining({
+      path: 'composition.clips[0].logicalClipId',
+      code: 'duplicate-id',
+    }))
+  })
+
+  it('compiles byte-identical code with and without the field', () => {
+    const compile = (record: ShowRecordV2) => {
+      const prepared = prepareShowV2ForCompile(
+        record,
+        {
+          byCellId: {},
+          byPatternInstanceId: Object.fromEntries(
+            record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]]),
+          ),
+          stageDimension: 2 as const,
+        },
+        { libraries: LIBRARIES },
+      )
+      expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+      if (prepared.status !== 'ready') throw new Error('preparation refused')
+      return compileShow(prepared.recipe, LIBRARIES).code
+    }
+    const record = convertedLayoutSegmentedShow()
+    const stripped = structuredClone(record)
+    for (const clip of stripped.composition.clips) {
+      delete clip.logicalClipId
+    }
+    expect(compile(record)).toBe(compile(stripped))
+  })
+})
