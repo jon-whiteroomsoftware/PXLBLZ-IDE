@@ -5,7 +5,7 @@
     "specification": "docs/plans/scene-retirement-specification.md",
     "nativeBuilder": "src/pixelblaze/stock/showsV2.ts",
     "pinnedLegacyBuilder": "src/pixelblaze/stock/shows.ts",
-    "provisionalSchemaSha256": "52218315f07fd6e4fa3f6d597c3f80ff00f3b85f71957372b7e0a204481f5e0a",
+    "provisionalSchemaSha256": "a93d41b4d6242fe41256d79052472af1efabeb174a24908e47532bcd4191671c",
     "recordIdentity": {
       "algorithm": "sha256",
       "excludedVolatileFields": [
