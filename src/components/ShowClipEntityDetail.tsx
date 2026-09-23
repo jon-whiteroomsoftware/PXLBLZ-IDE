@@ -977,26 +977,29 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                       </select>
                     </td>
                   </tr>
-                  {'entryPolicy' in value && value.entryPolicy !== undefined && (
-                    <tr className="h-6 whitespace-nowrap">
-                      <td className="py-0.5 pr-2">
-                        <input
-                          type="checkbox"
-                          aria-label="Restart Pattern on entry"
-                          checked={value.entryPolicy === 'restart'}
-                          disabled={readOnly}
-                          className="h-3 w-3 accent-cyan-400"
-                          onChange={(event) => onPatch({ entryPolicy: event.target.checked ? 'restart' : 'continue' })}
-                        />
-                      </td>
-                      <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Restart on entry</th>
-                      <td className="truncate py-0.5 text-zinc-500">
-                        Reset the whole Pattern instance at this Clip&apos;s first contribution
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
+              {'entryPolicy' in value && value.entryPolicy !== undefined && (value.local?.startMs ?? 0) > 0 && (
+                <details
+                  className="min-w-0 border-t border-zinc-800/80"
+                  aria-label="Global placement and clock controls"
+                  open={value.entryPolicy === 'restart'}
+                >
+                  <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Global placement and clock controls</summary>
+                  <section className="mt-1 max-w-2xl border-t border-zinc-800/65 py-1">
+                    <label className="flex shrink-0 items-center gap-2 text-zinc-200">
+                      <input
+                        type="checkbox"
+                        aria-label="Restart Pattern on entry"
+                        checked={value.entryPolicy === 'restart'}
+                        disabled={readOnly}
+                        onChange={(event) => onPatch({ entryPolicy: event.target.checked ? 'restart' : 'continue' })}
+                      />
+                      Restart Pattern on entry
+                    </label>
+                  </section>
+                </details>
+              )}
             </div>
           )}
         </div>

@@ -385,12 +385,12 @@ export async function admitShowV2PilotSetShowEnd(request: ShowV2PilotSetShowEndR
 
 /**
  * The Show-level metadata the editor writes through the registry owner: the
- * output contract, the Stage map, one Zone's metadata and the Trails output
- * Effect. The allowlist is the surface's own scope, not a new rule: every
+ * output contract, the Stage map, one Zone's metadata, the Trails output
+ * Effect and the target Controller. The allowlist is the surface's own scope, not a new rule: every
  * command outside it has its own admission wrapper, and a caller may not reach
  * one through this door.
  */
-const SHOW_METADATA_COMMANDS = ['set_output_contract', 'set_stage_map', 'update_zone', 'set_output_trails'] as const
+const SHOW_METADATA_COMMANDS = ['set_output_contract', 'set_stage_map', 'update_zone', 'set_output_trails', 'set_target_controller_profile'] as const
 export type ShowV2PilotShowMetadataRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2ShowMetadataCommand }
 export type ShowV2PilotShowMetadataOutcome =
   | { status: 'applied'; settlement: 'saved' | 'superseded'; description: string; affected: string[] }
@@ -406,7 +406,7 @@ function validShowMetadataIntent(intent: unknown): intent is ShowV2ShowMetadataC
 }
 export async function admitShowV2PilotShowMetadata(request: ShowV2PilotShowMetadataRequest): Promise<ShowV2PilotShowMetadataOutcome> {
   if (!validShowMetadataIntent(request.intent)) {
-    return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one Show output contract, Stage map, Zone or Trails command with its complete input.', affected: [] }
+    return { status: 'refused', source: 'owner', code: 'invalid-intent', message: 'Give one Show output contract, Stage map, Zone, Trails or target Controller command with its complete input.', affected: [] }
   }
   const outcome = await admitPreparedEdit({ ...request, owner: 'show-metadata' as const })
   if (outcome.status === 'refused') {

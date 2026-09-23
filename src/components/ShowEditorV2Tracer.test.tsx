@@ -4115,13 +4115,11 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
 
 // ── Slice-6 Show End and Show metadata (#1066) ─────────────────────────────
 // Show End commits through the set-show-end door and Show-level metadata
-// (Trails, portable reference) through the show-metadata door, every accepted
-// edit one history entry and one save. The drag preview paints from the
-// v2-projected view and never writes; the commit reads the prepared capture,
-// never preview state. Target controller has no landed door (the metadata
-// allowlist names only output contract, Stage map, Zone and Trails), so its
-// select stays unconnected: changing it writes nothing. A shortened end that
-// would cut protected content refuses with no write instead of clamping.
+// (Trails, portable reference, target Controller) through the show-metadata
+// door, every accepted edit one history entry and one save. The drag preview
+// paints from the v2-projected view and never writes; the commit reads the
+// prepared capture, never preview state. A shortened end that would cut
+// protected content refuses with no write instead of clamping.
 function showEndSubmissions() {
   return admission.calls
     .filter((call) => call.door === 'admitShowV2PilotSetShowEnd')
@@ -4297,7 +4295,7 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
     expectOneEdit(before, after)
   })
 
-  it('leaves Target controller unconnected on v2: no door admits it, so it writes nothing', async () => {
+  it('writes Target controller through the Show metadata door on v2 (#1091)', async () => {
     const editor = openV2EditorForRecord(installationV2Record('slice6-target-profile'))
     act(() => {
       useControllerProfileStore.setState({
@@ -4322,12 +4320,15 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
     await act(async () => {})
 
     const after = editor.state()
-    expect(admission.calls).toEqual([])
-    expect(after.record).toBe(before.record)
-    expect(after.history).toEqual({ past: [], future: [] })
-    expect(after.v2Writes).toBe(0)
-    expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
+    expect(showMetadataSubmissions()).toEqual([{
+      intent: { command: 'set_target_controller_profile', input: { profile_id: 'profile-1' } },
+      baseRevision: 0,
+    }])
+    expect(after.record.targetControllerProfileId).toBe('profile-1')
+    expectOneEdit(before, after)
+    fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await act(async () => {})
+    expect(editor.state().record.targetControllerProfileId).toBeUndefined()
   })
 })
 

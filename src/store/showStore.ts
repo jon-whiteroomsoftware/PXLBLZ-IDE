@@ -71,6 +71,7 @@ import { createShowInputWait, type ShowEditActivity, type ShowInputWaitReceipt }
 import { isShowEditDiagnosticInput, retainShowEditDiagnostic, type ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { cloneValidShowRecordV2 } from '@/engine/showDocument'
+import { applyShowCommandV2 } from '@/engine/showCommandsV2/registry'
 import { createShowV2WithOutputContract } from '@/engine/showCreationV2'
 import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
 import { convertShowRecordV1ToV2, type ShowV1ToV2Issue } from '@/engine/showRecordV1ToV2'
@@ -1165,8 +1166,11 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
 
     renameShowV2Pilot: async (showId, name) => {
       const current = get().showV2Pilots[showId]
-      if (!current || current.name === name) return
-      await get().updateShowV2Pilot(showId, { ...current, name })
+      if (!current) return
+      // The rename applies the registry owner so the name follows the same rules as the agent path (#1091).
+      const outcome = applyShowCommandV2(cloneValidShowRecordV2(current), 'rename_show', { name })
+      if (outcome.status !== 'changed') return
+      await get().updateShowV2Pilot(showId, outcome.record)
     },
 
     undoShowV2Pilot: async (showId) => {

@@ -8,8 +8,9 @@ import { DEFAULT_SHOW_TRAILS_RETENTION, normalizeShowOutputEffects } from './sho
  * the summary the v1 editor's Show output summary and Show properties panel
  * show, plus the exact `showCommandsV2` inputs the surface submits. Every
  * mutation rule stays in `showCommandsV2/show.ts`: `set_output_contract`,
- * `set_stage_map`, `update_zone` and `set_output_trails` are the one writer for
- * these fields, whether a person or an agent asks.
+ * `set_stage_map`, `update_zone`, `set_output_trails` and
+ * `set_target_controller_profile` are the one writer for these fields, whether
+ * a person or an agent asks.
  *
  * A named map this workspace cannot see is reported as missing. Nothing here
  * substitutes another map's geometry or identity, because a silent fallback
@@ -93,7 +94,7 @@ function describeMap(mapId: string | null, maps: readonly ShowV2MapChoice[]): { 
 
 /** One registry command name and its complete typed input. */
 export interface ShowV2ShowMetadataCommand {
-  command: 'set_output_contract' | 'set_stage_map' | 'update_zone' | 'set_output_trails'
+  command: 'set_output_contract' | 'set_stage_map' | 'update_zone' | 'set_output_trails' | 'set_target_controller_profile'
   input: Record<string, unknown>
 }
 

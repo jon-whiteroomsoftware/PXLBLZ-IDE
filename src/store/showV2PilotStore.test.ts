@@ -623,6 +623,39 @@ describe('opt-in v2 Show route adoption', () => {
     expect(replaceShowV2).not.toHaveBeenCalled()
     expect(state().showV2Pilots[source.id]).toBe(invalid)
   })
+
+  it('trims a rename through the registry owner, refuses blanks, and undoes once (#1091)', async () => {
+    const source = transitionV1Show('crossfade')
+    const replaceShowV2 = vi.fn(async () => {})
+    setPersonalContentProvider({
+      id: 'v2-rename-owner',
+      listShows: async () => [source],
+      listShowDocumentsV2: async () => [],
+      replaceShowV2,
+    } as unknown as PersonalContentProvider)
+    useShowStore.setState({ shows: [source] })
+    const opened = await state().openShowV2Pilot(source.id)
+    if (opened.status !== 'ready') throw new Error('conversion failed')
+    const oldName = opened.record.name
+
+    await state().renameShowV2Pilot(source.id, '  New name  ')
+    expect(state().showV2Pilots[source.id].name).toBe('New name')
+    expect(replaceShowV2).toHaveBeenCalledTimes(1)
+    const history = state().showV2Histories[source.id]
+    expect(history.past).toHaveLength(1)
+    expect(history.past[0].name).toBe(oldName)
+    expect(history.future).toEqual([])
+
+    await state().renameShowV2Pilot(source.id, '   ')
+    await state().renameShowV2Pilot(source.id, 'New name')
+    await state().renameShowV2Pilot(source.id, '  New name  ')
+    expect(state().showV2Pilots[source.id].name).toBe('New name')
+    expect(replaceShowV2).toHaveBeenCalledTimes(1)
+    expect(state().showV2Histories[source.id].past).toHaveLength(1)
+
+    expect(await state().undoShowV2Pilot(source.id)).toBe(true)
+    expect(state().showV2Pilots[source.id].name).toBe(oldName)
+  })
 })
 
 describe('v2 save-failure notice actions (#1066 slice 12)', () => {

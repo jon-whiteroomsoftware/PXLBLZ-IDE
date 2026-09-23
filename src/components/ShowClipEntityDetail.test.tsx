@@ -1103,3 +1103,62 @@ describe('placement field display (#617)', () => {
     expect(onPatch).not.toHaveBeenCalled()
   })
 })
+
+describe('Restart Pattern on entry placement (#1091)', () => {
+  function restartValue(entryPolicy: 'continue' | 'restart', startMs: number): ShowClipInspectorValue {
+    return {
+      ...value('scene-main'),
+      local: { startMs, durationMs: 2_000, opacity: 1 },
+      entryPolicy,
+    } as ShowClipInspectorValue
+  }
+
+  it('labels the control like v1 with no note', () => {
+    const props = commonProps('scene-main')
+    render(<ShowClipEntityDetail {...props} value={restartValue('continue', 1_000)} />)
+    showTab('Playback')
+
+    expect(screen.getByText('Global placement and clock controls')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })).toBeInTheDocument()
+    expect(screen.queryByText(/whole Pattern instance at this Clip/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('rowheader', { name: 'Restart on entry' })).not.toBeInTheDocument()
+  })
+
+  it('hides the control for a Clip at start 0', () => {
+    const props = commonProps('scene-main')
+    render(<ShowClipEntityDetail {...props} value={restartValue('continue', 0)} />)
+    showTab('Playback')
+
+    expect(screen.queryByRole('checkbox', { name: 'Restart Pattern on entry' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Global placement and clock controls' })).not.toBeInTheDocument()
+  })
+
+  it('opens the section only when restarting', () => {
+    const props = commonProps('scene-main')
+    const first = render(<ShowClipEntityDetail {...props} value={restartValue('continue', 1_000)} />)
+    showTab('Playback')
+    expect(screen.getByRole('group', { name: 'Global placement and clock controls' })).not.toHaveAttribute('open')
+    first.unmount()
+
+    render(<ShowClipEntityDetail {...props} value={restartValue('restart', 1_000)} />)
+    showTab('Playback')
+    expect(screen.getByRole('group', { name: 'Global placement and clock controls' })).toHaveAttribute('open')
+  })
+
+  it('toggles entryPolicy through onPatch', () => {
+    const onPatch = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    const first = render(<ShowClipEntityDetail {...props} value={restartValue('continue', 1_000)} />)
+    showTab('Playback')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Restart Pattern on entry' }))
+    expect(onPatch).toHaveBeenCalledWith({ entryPolicy: 'restart' })
+    first.unmount()
+
+    const onPatchRestart = vi.fn()
+    const restartProps = commonProps('scene-main', onPatchRestart)
+    render(<ShowClipEntityDetail {...restartProps} value={restartValue('restart', 1_000)} />)
+    showTab('Playback')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Restart Pattern on entry' }))
+    expect(onPatchRestart).toHaveBeenCalledWith({ entryPolicy: 'continue' })
+  })
+})

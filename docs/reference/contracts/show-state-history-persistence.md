@@ -299,8 +299,8 @@ active-Show selection, including a late open for a route the user has left.
 Ordinary Show-list selection remains one explicit open plus route navigation.
 The header reads and renames the version-2 record through
 the store-owned `renameShowV2Pilot(id, name)` action. That action resolves the
-current version-2 record at submission, creates a name-only replacement from
-that record, and delegates once to `updateShowV2Pilot`. A title field may retain
+current version-2 record at submission, applies the `rename_show` registry
+owner, and delegates the one name-only replacement to `updateShowV2Pilot`. A title field may retain
 its submit callback while another edit, Undo, or failed-save rollback replaces
 the visible record; submitting the name therefore cannot restore the record
 snapshot from edit start. Missing and same-name requests remain no-ops, and the

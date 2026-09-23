@@ -2183,8 +2183,7 @@ export function ShowEditor({
     return outcome
   }, [showId])
   // Slice 6 connects the Show metadata the setup panel edits on this backing
-  // (Trails, portable reference) through the same plumbing. Target controller
-  // has no landed door, so it stays unconnected (see onUpdateTargetProfile).
+  // (Trails, portable reference, target Controller) through the same plumbing.
   const commitV2ShowMetadata = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
@@ -4544,12 +4543,17 @@ export function ShowEditor({
                     }
                   }}
                   onUpdateTargetProfile={(targetControllerProfileId) => {
-                    // No landed door admits set_target_controller_profile (the
-                    // show-metadata allowlist names only output contract,
-                    // Stage map, Zone and Trails), so a v2 target-profile edit
-                    // cannot land as one accepted edit: it stays unconnected
-                    // and the select snaps back (#1066 slice 6, #1068 rule).
-                    if (recordVersion === 2) return
+                    if (recordVersion === 2) {
+                      const capture = preparedV2CaptureRef.current
+                      if (!capture) return
+                      const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+                      void commitV2ShowMetadata({
+                        capture,
+                        baseRevision,
+                        intent: { command: 'set_target_controller_profile', input: { profile_id: targetControllerProfileId || null } },
+                      })
+                      return
+                    }
                     if (!legacyShow) return
                     updateShowInBackground(legacyShow.id, {
                       ...legacyShow,

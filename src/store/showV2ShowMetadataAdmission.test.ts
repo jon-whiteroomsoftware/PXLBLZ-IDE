@@ -102,6 +102,16 @@ it('turns Trails on at the authored retention and back off', async () => {
   expect(useShowStore.getState().showV2Histories[record.id].past).toHaveLength(2)
 })
 
+it('sets the target Controller profile and clears it back to automatic (#1091)', async () => {
+  const { record, context, write, saved } = setup()
+  await admitShowV2PilotShowMetadata({ ...context(), intent: { command: 'set_target_controller_profile', input: { profile_id: 'profile-1' } } })
+  expect(saved().targetControllerProfileId).toBe('profile-1')
+  await admitShowV2PilotShowMetadata({ ...context(), intent: { command: 'set_target_controller_profile', input: { profile_id: null } } })
+  expect(saved().targetControllerProfileId).toBeUndefined()
+  expect(write).toHaveBeenCalledTimes(2)
+  expect(useShowStore.getState().showV2Histories[record.id].past).toHaveLength(2)
+})
+
 it('keeps an already-satisfied request a true no-op with no preparation, history or save', async () => {
   const { record, context, write } = setup()
   const captured = context()
@@ -143,9 +153,6 @@ const malformed: unknown[] = [
   { command: 'update_zone', input: null },
   { command: 'update_zone', input: {}, extra: 1 },
   // A command outside the Show-metadata allowlist may not reach this surface.
-  // set_target_controller_profile is the slice-6 divergence: the registry
-  // defines it, but this door has no wrapper for it yet (#1066).
-  { command: 'set_target_controller_profile', input: { profile_id: 'profile-1' } },
   { command: 'remove_clips', input: { clip_ids: ['clip-a'] } },
   { command: 'set_show_end', input: { end_ms: 1_000 } },
   { command: 'rename_show', input: { name: 'Renamed' } },
