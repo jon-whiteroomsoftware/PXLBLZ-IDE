@@ -4,7 +4,7 @@
 routing-transfer and Show End edits for the provisional v2 engine. Production v1
 commands, editor history, persistence and export still do not call it. Its landed
 consumers are `admitShowV2PilotLayoutOccurrenceEdit` and
-`admitShowV2PilotSetShowEnd` on the gated `?show-v2-editor=1` route
+`admitShowV2PilotSetShowEnd` on the gated `?show-v2-editor=1` route (removed by #1067 Stage 1)
 ([occurrence adoption](show-v2-layout-occurrence-adoption.md)); coordinated
 production adoption remains #1039's work.
 

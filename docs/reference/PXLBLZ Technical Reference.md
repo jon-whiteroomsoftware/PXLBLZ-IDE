@@ -1365,11 +1365,11 @@ Pattern preview, reports measured FPS, and omits Pattern-level speed,
 controls, and watch variables — Show transport is the canonical clock. Stage
 preview does not apply artifact gates; `compileShowForArtifact` enforces
 coverage, Portable 2D capability, the 2,000-pixel ceiling, and resource limits
-for inspection, export, Run, Save, and reconciliation. In the rejected v2 route
-the same Installation coverage and Portable gates live in `buildShowV2RouteArtifacts`,
+for inspection, export, Run, Save, and reconciliation. In the rejected v2 route (removed by #1067 Stage 1)
+the same Installation coverage and Portable gates lived in `buildShowV2RouteArtifacts`,
 which the delivery panel and Send to Controller both read (#1039), together
 with the compiled artifact's own resource ledger, whose first blocker that
-route now returns verbatim the way `compileShowForArtifact` reports it as
+route returned verbatim the way `compileShowForArtifact` reports it as
 `artifactBlocker`. v1 preview (`compileShowForPreview` in `showPreviewArtifact.ts`) and v2 Stage preparation share one content-keyed LRU-8 compile cache keyed by the compile recipe, library overrides, compile options and attribution. The coverage and Portable gates never compete: the coverage
 rule returns nothing for a Portable contract and the Portable rule nothing for
 an Installation one. The Portable target-Controller pixel-count blocker has no

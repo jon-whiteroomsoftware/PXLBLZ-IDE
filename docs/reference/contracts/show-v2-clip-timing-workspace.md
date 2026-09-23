@@ -1,6 +1,6 @@
 # Opt-in v2 ordinary Clip timing workspace
 
-Authority: scene-retirement specification §§4–9/12, assigned ROUTE/FAILURE/SHARING/RESTART/CURVE/ACTIVATION/INSERT/GROUP-HOLD/LAYOUT-END proof subset. This workspace was additive under the retired `?show-v2-pilot=1` route; its Clip timing, Add Clip and Insert Time controls moved onto the gated `?show-v2-editor=1` editor route with #1056 slice 6, and production-v1 activation is unchanged. The approved layout, supported partitions and limits are recorded in [the frontend contract](../evidence/issue-1038-clip-timing-workspace/frontend-contract.md).
+Authority: scene-retirement specification §§4–9/12, assigned ROUTE/FAILURE/SHARING/RESTART/CURVE/ACTIVATION/INSERT/GROUP-HOLD/LAYOUT-END proof subset. This workspace was additive under the retired `?show-v2-pilot=1` route; its Clip timing, Add Clip and Insert Time controls moved onto the gated `?show-v2-editor=1` editor route with #1056 slice 6 (removed by #1067 Stage 1), and production-v1 activation is unchanged. The approved layout, supported partitions and limits are recorded in [the frontend contract](../evidence/issue-1038-clip-timing-workspace/frontend-contract.md).
 
 ## Checked commands
 

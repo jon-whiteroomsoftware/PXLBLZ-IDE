@@ -3,8 +3,8 @@
 `editShowClipV2(record, intent)` supplies immutable held-appearance, Property
 animation and ordinary runtime-identity edits for the provisional v2 engine.
 Production v1 commands, the production editor and production persistence still do
-not call it. Its landed consumers are the gated `?show-v2-editor=1` route
-adapters described below, which reach it only through the closed prepared-edit
+not call it. Its landed consumers were the gated `?show-v2-editor=1` route
+adapters described below, removed by #1067 Stage 1, which reached it only through the closed prepared-edit
 admission path; that pilot is not a v2 rollout, which remains #1039's work.
 Accepted product behavior is recorded in the
 [authoring decisions](../../plans/show-v2-accepted-authoring.md).
@@ -474,7 +474,7 @@ in the slice's evidence; no unsplit byte-exact claim or widened oracle is made.
 
 ## Native ordinary Clip sharing inspector
 
-The opt-in v2 route exposes linked Duplicate, Make Pattern Independent and
+The removed opt-in v2 route exposed linked Duplicate, Make Pattern Independent and
 explicit Rejoin for the selected ordinary Clip. Duplicate requires a chosen
 Zone, matching Layer and integer start; no destination or Rejoin target is
 inferred. Rejoin offers only compatible authored top-level instances, including

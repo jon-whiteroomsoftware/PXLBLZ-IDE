@@ -201,7 +201,8 @@ ignores it however the URL is written.
 
 Everything below this line describes the rejected `ShowEditorV2Route`
 presentation, which is no longer mounted. It is kept as the record of what
-#1056 built and #1067 removes.
+#1056 built and #1067 removes; #1067 Stage 1 deletes those components, so the
+`src/components` links below are historical.
 
 `ShowEditorV2Route` resolves the record through
 the existing `openShowV2Pilot` store path, captures it with
@@ -866,9 +867,9 @@ duplicating a v2 row from the Shows rail landed with #1039 too, as did the
 [Show properties](#show-properties) section, the header's Show actions and the
 [Zone Layouts](#zone-layouts) section with the Zone Map's Add and Remove.
 
-One gap remains in that window: `ShowV2AnimationLanes` - the Property lanes, the
+One gap remained in that window before #1067 Stage 1 deleted the rejected route: `ShowV2AnimationLanes` - the Property lanes, the
 held-appearance keys and the Group occurrence bands drawn beneath the timeline -
-still maps every time across the whole Show, so a zoomed timeline no longer
-lines up with the lanes under it. The lanes read their own geometry from the
-view model's precomputed fractions and are mounted by `ShowEditorV2Route`, so
+mapped every time across the whole Show, so a zoomed timeline no longer
+lined up with the lanes under it. The lanes read their own geometry from the
+view model's precomputed fractions and were mounted by `ShowEditorV2Route`, so
 carrying the window into them is its own slice.

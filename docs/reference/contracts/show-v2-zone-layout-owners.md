@@ -163,7 +163,7 @@ owner, so a malformed runtime object never reaches preparation or adoption.
   gain a Zone (#1063); two steps past that still do, and both are this control's
   gap rather than the lowerer's:
 
-  - `ShowV2AddClipEditor` writes `zoneSampleMode: 'span'` for every new Clip. A
+  - `ShowV2AddClipEditor` (removed by #1067 Stage 1) wrote `zoneSampleMode: 'span'` for every new Clip. A
     fresh Show's own Clips sample `independent`, and mixed sampling is not
     flat-eligible, so the first Clip added to a second Zone refuses with
     `composition.clips: lowering requires repeat-mode Clip sampling evidence

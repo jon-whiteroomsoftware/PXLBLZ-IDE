@@ -4,7 +4,7 @@ Canonical vocabulary and semantics live in the Scene-retirement specification
 §§6/9 and [Clip edit contract](show-v2-clip-edits.md). This slice adopts the five
 existing appearance bodies without changing that pure owner.
 
-`ShowV2AppearanceEditor` targets the route's explicit ordinary Clip selection.
+`ShowV2AppearanceEditor` (removed by #1067 Stage 1) targeted the route's explicit ordinary Clip selection.
 Its key combines Show and Clip, retiring callbacks/drafts on selection changes.
 Scope starts unselected; selected-time requires explicit global milliseconds
 inside `[Clip start, Clip end)`. Whole-Clip values are uniform or mixed across
