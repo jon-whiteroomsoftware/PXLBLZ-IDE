@@ -1972,7 +1972,26 @@ describe('Transition speed and brightness ramps (#1091 B1)', () => {
     }))
   })
 
-  it('refuses differing ramp timing across participants', () => {
+  it('refuses a multi-participant Layer Transition with no ramps (#1091 B1 P1)', () => {
+    const source = rampProbeV1()
+    const converted = convertShowRecordV1ToV2(source, probeLookup(source))
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const record = structuredClone(converted.record)
+    const transition = record.composition.transitions.find(candidate => candidate.id === 'xfade')!
+    transition.participants.push({ ...structuredClone(transition.participants[0]), id: 'participant-2' })
+    transition.propertyRamps = []
+    expect(validateShowRecordV2(record)).toEqual([])
+    const prepared = prepareShowV2ForCompile(record, stockV2Lookup(record), { libraries: LIBRARIES })
+    expect(prepared.status).toBe('refused')
+    if (prepared.status !== 'refused') return
+    expect(prepared.issues).toContainEqual(expect.objectContaining({
+      code: 'unsupported-transition-participants',
+      message: 'lowering requires one participant per Transition until shared-scope parity is proved.',
+    }))
+  })
+
+  it('refuses a multi-participant Layer Transition with speed ramps on both participants (#1091 B1 P1)', () => {
     const source = rampProbeV1()
     const converted = convertShowRecordV1ToV2(source, probeLookup(source))
     expect(converted.status).toBe('converted')
@@ -1984,15 +2003,15 @@ describe('Transition speed and brightness ramps (#1091 B1)', () => {
     const incoming = record.composition.clips.find(clip => clip.id === participant.toClipId)!
     transition.propertyRamps = [
       { participantId: participant.id, target: { kind: 'instance-time-scale', instanceId: incoming.instanceId }, from: 1, durationMs: 150 },
-      { participantId: 'participant-2', target: { kind: 'instance-time-scale', instanceId: incoming.instanceId }, from: 1.5, durationMs: 200 },
+      { participantId: 'participant-2', target: { kind: 'instance-time-scale', instanceId: incoming.instanceId }, from: 1.5, durationMs: 150 },
     ]
     expect(validateShowRecordV2(record)).toEqual([])
     const prepared = prepareShowV2ForCompile(record, stockV2Lookup(record), { libraries: LIBRARIES })
     expect(prepared.status).toBe('refused')
     if (prepared.status !== 'refused') return
     expect(prepared.issues).toContainEqual(expect.objectContaining({
-      code: 'unsupported-transition-property-ramp',
-      message: 'Participants of one Transition carry different ramp timing for the same property.',
+      code: 'unsupported-transition-participants',
+      message: 'lowering requires one participant per Transition until shared-scope parity is proved.',
     }))
   })
 

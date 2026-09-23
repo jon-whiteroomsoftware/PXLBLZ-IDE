@@ -12,7 +12,6 @@ import type {
   ShowPropertyAnimationTarget,
   ShowPropertyTransitions,
   ShowRecord,
-  ShowStructuredEasing,
   ShowZoneComposition,
 } from './personalContentRecords'
 import { showCellAtSlot, showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
@@ -309,9 +308,6 @@ function resolveAndLowerShowV2(
     // closed with a typed refusal rather than an uncaught throw (#1068).
     // The message preserves the lowering diagnosis for the repair owner.
     const message = error instanceof Error ? error.message : String(error)
-    if (message === 'Participants of one Transition carry different ramp timing for the same property.') {
-      return refuse('unsupported-transition-property-ramp', 'composition.transitions', message)
-    }
     return refuse('unsupported-transition-participants', 'composition.transitions', message)
   }
   const sceneIds = new Set(lowered.show.scenes.map(scene => scene.id))
@@ -417,7 +413,7 @@ function resolveShowV2CompileContext(
   }
   const isClipRampTarget = (ramp: ShowRecordV2['composition']['transitions'][number]['propertyRamps'][number]): boolean =>
     ramp.target.kind === 'instance-time-scale' || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness')
-  if (composition.transitions.some(transition => !transition.wholeOutput && transition.participants.length !== 1 && !transition.propertyRamps.every(isClipRampTarget))) {
+  if (composition.transitions.some(transition => !transition.wholeOutput && transition.participants.length !== 1)) {
     return refuse('unsupported-transition-participants', 'composition.transitions', 'lowering requires one participant per Transition until shared-scope parity is proved.')
   }
   if (hasCoincidentPositiveTransitionWindows(record)) {
@@ -1273,7 +1269,6 @@ function attachTransitionClipRampsV2(show: ShowRecord, record: ShowRecordV2): vo
     if (clipRamps.length === 0) continue
     const boundary = show.transitions.find(candidate => candidate.id === transition.id)
     if (!boundary) throw new Error(`Transition clip ramp has no lowered Transition "${transition.id}".`)
-    const byKey = new Map<'timeScale' | 'brightness', { durationMs: number; easing: ShowStructuredEasing; fromByCellId: Record<string, number> }>()
     for (const ramp of clipRamps) {
       const isSpeed = ramp.target.kind === 'instance-time-scale'
       const key = isSpeed ? 'timeScale' as const : 'brightness' as const
@@ -1291,24 +1286,13 @@ function attachTransitionClipRampsV2(show: ShowRecord, record: ShowRecordV2): vo
       const incomingCell = zoneId !== undefined && nextScene !== undefined ? showCellAtSlot(show, zoneId, nextScene.id) : undefined
       const incomingId = incomingCell?.id ?? participant.toClipId
       if (incomingId === undefined) throw new Error(`Transition clip ramp has no incoming Clip for Transition "${transition.id}".`)
-      const existing = byKey.get(key)
-      if (!existing) {
-        byKey.set(key, { durationMs, easing, fromByCellId: { [incomingId]: ramp.from } })
-      } else {
-        if (existing.durationMs !== durationMs || JSON.stringify(existing.easing) !== JSON.stringify(easing)) {
-          throw new Error('Participants of one Transition carry different ramp timing for the same property.')
-        }
-        existing.fromByCellId[incomingId] = ramp.from
-      }
-    }
-    for (const [key, descriptor] of byKey) {
       const existing = boundary.propertyTransitions?.[key]
       boundary.propertyTransitions = {
         ...boundary.propertyTransitions,
         [key]: {
-          fromByCellId: { ...existing?.fromByCellId, ...descriptor.fromByCellId },
-          durationMs: descriptor.durationMs,
-          easing: structuredClone(descriptor.easing),
+          fromByCellId: { ...existing?.fromByCellId, [incomingId]: ramp.from },
+          durationMs,
+          easing: structuredClone(easing),
         },
       }
     }
