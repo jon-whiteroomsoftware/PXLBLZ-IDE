@@ -363,6 +363,7 @@ import {
   type ShowV2ZonePlan,
 } from '@/engine/showV2ZonePlanning'
 import {
+  planShowV2GroupPropertyAnimationChange,
   planShowV2PropertyAnimationChange,
   type ShowV2PropertyAnimationFrame,
 } from '@/engine/showV2PropertyAnimationPlanning'
@@ -2273,6 +2274,20 @@ export function ShowEditor({
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2PropertyAnimationChange(capture.record, clipId, frame, change, newPersonalContentId)
+    if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    void commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent })
+    return true
+  }, [commitV2PropertyEdit, readOnly, recordVersion, savedShowV2, showId])
+  // #1075 G3 connects Group-child Property animation through the property
+  // door with the definition owner: refused and no-op plans return false
+  // synchronously so the popover reverts its draft, and an accepted change
+  // fires one property admission and returns true.
+  const commitV2GroupPropertyAnimationChange = useCallback((occurrenceId: string, clipId: string, change: ShowPropertyAnimationChange): boolean => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return false
+    const plan = planShowV2GroupPropertyAnimationChange(capture.record, occurrenceId, clipId, change, newPersonalContentId)
     if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     void commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent })
@@ -4303,6 +4318,7 @@ export function ShowEditor({
                   onUpdateRoutingTransferV2={commitV2RoutingTransferUpdate}
                   onRemoveRoutingTransferV2={commitV2RoutingTransferRemove}
                   onPropertyAnimationChangeV2={commitV2PropertyAnimationChange}
+                  onGroupPropertyAnimationChangeV2={commitV2GroupPropertyAnimationChange}
                   onPropertyAnimationChange={(owner, change) => {
                     if (!legacyShow || !inspectorShow?.composition) return false
                     const composition = inspectorShow.composition
@@ -10420,6 +10436,7 @@ function ContextualInspector({
   onUpdateRoutingTransferV2,
   onRemoveRoutingTransferV2,
   onPropertyAnimationChangeV2,
+  onGroupPropertyAnimationChangeV2,
   onPropertyAnimationChange,
   onUpdateGroupClipInspector,
   onPreviewClipInspector,
@@ -10486,6 +10503,7 @@ function ContextualInspector({
   onUpdateRoutingTransferV2?: (occurrenceId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
   onRemoveRoutingTransferV2?: (occurrenceId: string) => void
   onPropertyAnimationChangeV2?: (clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange) => boolean
+  onGroupPropertyAnimationChangeV2?: (occurrenceId: string, clipId: string, change: ShowPropertyAnimationChange) => boolean
   onPropertyAnimationChange: (owner: ShowPropertyAnimationStorageOwner, change: ShowPropertyAnimationChange) => boolean | void
   onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
@@ -10612,7 +10630,8 @@ function ContextualInspector({
           // instance-properties, entry-policy and replacement admissions
           // through the v2 inspector commit, one patch to at most one intent
           // (#1066 slices 3-4), and Property animation writes reach the
-          // property admission through the v2 animation commit (slice 10).
+          // property admission through the v2 animation commit (slice 10;
+          // Group-child writes through the definition owner, #1075 G3).
           // A Group Clip Start/Duration write reaches the definition-timing
           // owner through the group-occurrence door, and appearance and
           // instance values reach the definition through the same door
@@ -10660,7 +10679,10 @@ function ContextualInspector({
               },
               change,
             ) ?? false
-            : () => false}
+            : (change) => {
+              if (selection.kind !== 'group-clip') return false
+              return onGroupPropertyAnimationChangeV2?.(selection.occurrenceId, selection.placementId, change) ?? false
+            }}
           onPreviewPatch={() => {}}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}

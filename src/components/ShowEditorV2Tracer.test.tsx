@@ -3916,8 +3916,8 @@ describe('v2 header export (#1066 slice 12)', () => {
 // The authored-v2 Clip inspector's animation surface reaches the property
 // admission door through the same prepared-capture plumbing as the slice-3
 // appearance commit: one accepted change is one history entry and one save.
-// A Group child's inspector keeps the unconnected no-change result because its
-// hold-aware time mapping has no landed inverse.
+// A Group child's animation writes reach the same door through the definition
+// owner (#1075 G3); its cases live with the Group occurrence writes.
 describe('v2 property animation (#1066 slice 10)', () => {
   it('stores a Brightness animation through the property door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice10-brightness'))
@@ -3941,24 +3941,6 @@ describe('v2 property animation (#1066 slice 10)', () => {
     await expectUndoRedoExact(editor, before)
   })
 
-  it('leaves a Group child animation unconnected with no write', async () => {
-    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
-    const record = propertyEditGroupRecord()
-    record.id = 'tracer-group-animation-unconnected'
-    const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
-    // v1 reaches a Group's internals only through isolation, and so does this.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0], { detail: 2 })
-    await act(async () => {})
-    const before = editor.state()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
-    await act(async () => {})
-    typeAndCommit('Brightness animation to exact percentage', '42')
-    await act(async () => {})
-
-    expectNoWrite(before, editor.state())
-  })
 })
 
 // ── v2 Zone Layouts lane split cell (#1066 slice 9a) ─────────────────────────
@@ -4770,6 +4752,104 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     expect(admission.calls).toHaveLength(1)
     expect(after.record.composition.groupDefinitions[0]!.patternInstances[0]!.controlTargets).toEqual({ sliderSpeed: 0.5 })
     expectOneEdit(before, after)
+  })
+
+  it('stores a Group Clip Brightness animation through the property door (#1075 G3)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-animation'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
+    await act(async () => {})
+    typeAndCommit('Brightness animation to exact percentage', '42')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotPropertyEdit'])
+    expect(admission.calls).toHaveLength(1)
+    expect(after.record.composition.propertyTracks).toEqual([])
+    const [track] = after.record.composition.groupDefinitions[0]!.propertyTracks
+    expect(track.target).toEqual({ kind: 'clip-view', clipId: 'child', property: 'brightness' })
+    expect(track.keyframes.map((key) => key.timeMs)).toEqual([0, 400])
+    expect(track.keyframes[1]!.value).toBe(0.42)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('makes no property door call on a two-key Group Clip animation (#1075 G3)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-animation-delete-refused'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.groupDefinitions[0]!.propertyTracks = [{
+      id: 'two-key',
+      target: { kind: 'clip-view', clipId: 'child', property: 'brightness' },
+      activeStartMs: 0,
+      activeDurationMs: 400,
+      keyframes: [
+        { id: 'left', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+        { id: 'right', timeMs: 400, value: 0.8, easing: { curve: 'linear' } },
+      ],
+    }]
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Brightness animation' }))
+    await act(async () => {})
+
+    expect(screen.queryByRole('button', { name: 'Delete Brightness animation from' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete Brightness animation to' })).not.toBeInTheDocument()
+    expectNoWrite(before, editor.state())
+  })
+
+  it('stores Group Clip keyframe times through the held-occurrence inverse (#1075 G3)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-animation-held'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.composition.groupDefinitions[0]!.propertyTracks = [{
+      id: 'held-track',
+      target: { kind: 'clip-view', clipId: 'child', property: 'brightness' },
+      activeStartMs: 0,
+      activeDurationMs: 400,
+      keyframes: [
+        { id: 'hk-1', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+        { id: 'hk-2', timeMs: 100, value: 0.5, easing: { curve: 'linear' } },
+        { id: 'hk-3', timeMs: 400, value: 0.8, easing: { curve: 'linear' } },
+      ],
+    }]
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Brightness animation' }))
+    await act(async () => {})
+
+    typeAndCommit('Brightness animation keyframe 2 time exact time', '0.4')
+    await act(async () => {})
+
+    const afterFirst = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotPropertyEdit'])
+    expect(afterFirst.record.composition.groupDefinitions[0]!.propertyTracks[0]!.keyframes.map((key) => key.timeMs)).toEqual([0, 300, 400])
+    expect(afterFirst.history.past).toHaveLength(1)
+
+    typeAndCommit('Brightness animation keyframe 2 time exact time', '0.15')
+    await act(async () => {})
+
+    const afterSecond = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotPropertyEdit', 'admitShowV2PilotPropertyEdit'])
+    expect(afterSecond.record.composition.groupDefinitions[0]!.propertyTracks[0]!.keyframes.map((key) => key.timeMs)).toEqual([0, 150, 400])
+    expect(afterSecond.history.past).toHaveLength(2)
   })
 
   it('leaves a Group Clip Pattern change unconnected with no door call (#1075 G2b)', async () => {

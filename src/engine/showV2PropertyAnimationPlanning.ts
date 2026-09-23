@@ -1,9 +1,10 @@
 import type { ShowPropertyAnimationTarget } from './personalContentRecords'
 import type { ShowPropertyAnimationChange } from './showPropertyAnimationEditorModel'
 import { targetBelongsToClip } from './showEditorInspectorPresentation'
+import { groupDuration, groupOccurrenceLocalTimeAtV2 } from './showGroupsV2'
 import type { ShowPropertyEditIntentV2, ShowPropertyTrackOwnerV2 } from './showPropertyEditsV2'
 import { convertPropertyTarget } from './showV2ValueConversion'
-import type { ShowClipV2, ShowPropertyKeyframeV2, ShowRecordV2 } from './showCompositionV2'
+import type { ShowClipV2, ShowGroupDefinitionV2, ShowPropertyKeyframeV2, ShowRecordV2 } from './showCompositionV2'
 
 export interface ShowV2PropertyAnimationFrame {
   showTimeOffsetMs: number
@@ -152,5 +153,94 @@ export function planShowV2PropertyAnimationChange(
       return { kind: 'edit', propertyOwner: { kind: 'show' }, intent: { kind: 'remove-key', trackId: track.id, keyId: change.keyframeId } }
     case 'delete-track':
       return { kind: 'edit', propertyOwner: { kind: 'show' }, intent: { kind: 'remove-track', trackId: track.id } }
+  }
+}
+
+function planGroupAddTrack(
+  definition: ShowGroupDefinitionV2,
+  child: ShowGroupDefinitionV2['clips'][number],
+  change: Extract<ShowPropertyAnimationChange, { kind: 'add-track' }>,
+  newId: () => string,
+  toRecordTime: (editorTimeMs: number) => number,
+): ShowV2PropertyAnimationPlan {
+  const target: ShowPropertyAnimationTarget = change.target
+  if ('placementId' in target) {
+    if (target.placementId !== child.id) {
+      return { kind: 'refuse', code: 'foreign-target', message: `Target placement "${target.placementId}" does not belong to Clip "${child.id}".` }
+    }
+  } else if ('instanceId' in target) {
+    if (target.instanceId !== child.instanceId) {
+      return { kind: 'refuse', code: 'foreign-target', message: `Target instance "${target.instanceId}" does not belong to Clip "${child.id}".` }
+    }
+  } else {
+    return { kind: 'refuse', code: 'foreign-target', message: `Target does not belong to Clip "${child.id}".` }
+  }
+  const converted = convertPropertyTarget(target, new Map([[child.id, child.id]]))
+  const extent = groupDuration(definition)
+  const sources = change.keyframes ?? [
+    { timeMs: 0, value: change.initialValue, easing: { curve: 'linear' as const } },
+    { timeMs: extent, value: change.initialValue, easing: { curve: 'linear' as const } },
+  ]
+  const trackId = newId()
+  const keyframes = sources.map(source => ({
+    id: newId(),
+    timeMs: toRecordTime(source.timeMs),
+    value: source.value,
+    easing: structuredClone(source.easing),
+  }))
+  return {
+    kind: 'edit',
+    propertyOwner: { kind: 'group-definition', definitionId: definition.id },
+    intent: { kind: 'add-track', track: { id: trackId, target: converted, activeStartMs: 0, activeDurationMs: extent, keyframes } },
+  }
+}
+
+/** Group-child writes are definition-local and shared by every linked occurrence (#1075 G3). */
+export function planShowV2GroupPropertyAnimationChange(
+  record: ShowRecordV2,
+  occurrenceId: string,
+  clipId: string,
+  change: ShowPropertyAnimationChange,
+  newId: () => string,
+): ShowV2PropertyAnimationPlan {
+  const occurrence = record.composition.groupOccurrences.find(candidate => candidate.id === occurrenceId)
+  const definition = occurrence
+    ? record.composition.groupDefinitions.find(candidate => candidate.id === occurrence.definitionId)
+    : undefined
+  if (!occurrence || !definition) {
+    return { kind: 'refuse', code: 'missing-clip', message: `Group occurrence "${occurrenceId}" does not exist.` }
+  }
+  const child = definition.clips.find(candidate => candidate.id === clipId)
+  if (!child) return { kind: 'refuse', code: 'missing-clip', message: `Clip "${clipId}" does not exist.` }
+  const toRecordTime = (editorTimeMs: number): number => Math.round(groupOccurrenceLocalTimeAtV2(occurrence, occurrence.startMs + Math.round(editorTimeMs)))
+  if (change.kind === 'add-track') return planGroupAddTrack(definition, child, change, newId, toRecordTime)
+  const track = definition.propertyTracks.find(candidate => candidate.id === change.trackId)
+  if (!track || !targetBelongsToClip(track.target, child.id, child.instanceId)) {
+    return { kind: 'refuse', code: 'missing-track', message: `Track "${change.trackId}" does not belong to Clip "${clipId}".` }
+  }
+  switch (change.kind) {
+    case 'update-keyframe': {
+      const patch: Partial<Pick<ShowPropertyKeyframeV2, 'timeMs' | 'value' | 'easing'>> = {}
+      if (change.changes.timeMs !== undefined) patch.timeMs = toRecordTime(change.changes.timeMs)
+      if (change.changes.value !== undefined) patch.value = change.changes.value
+      if (change.changes.easing !== undefined) patch.easing = structuredClone(change.changes.easing)
+      if (Object.keys(patch).length === 0) return { kind: 'no-op' }
+      return { kind: 'edit', propertyOwner: { kind: 'group-definition', definitionId: definition.id }, intent: { kind: 'update-key', trackId: track.id, keyId: change.keyframeId, patch } }
+    }
+    case 'add-keyframe':
+      return {
+        kind: 'edit',
+        propertyOwner: { kind: 'group-definition', definitionId: definition.id },
+        intent: {
+          kind: 'add-key',
+          trackId: track.id,
+          key: { id: newId(), timeMs: toRecordTime(change.keyframe.timeMs), value: change.keyframe.value, easing: structuredClone(change.keyframe.easing) },
+        },
+      }
+    case 'delete-keyframe':
+      if (track.keyframes.length <= 2) return { kind: 'no-op' }
+      return { kind: 'edit', propertyOwner: { kind: 'group-definition', definitionId: definition.id }, intent: { kind: 'remove-key', trackId: track.id, keyId: change.keyframeId } }
+    case 'delete-track':
+      return { kind: 'edit', propertyOwner: { kind: 'group-definition', definitionId: definition.id }, intent: { kind: 'remove-track', trackId: track.id } }
   }
 }
