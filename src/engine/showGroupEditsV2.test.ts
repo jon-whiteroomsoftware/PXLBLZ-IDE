@@ -1797,3 +1797,49 @@ it('shifts a definition-owned track on the to-Clip with the v1 keyframes (#1075 
   expect(editedTrack).toEqual(oracleTrack)
   expect(edited.propertyTracks).toEqual(oracle.record.composition.groupDefinitions[0].propertyTracks)
 })
+
+it('grows a whole-span definition track whose key sits within the shift of the old extent (#1075 G4a)', () => {
+  const v1before = g4aV1Before(true)
+  const v1track = v1before.composition!.groupDefinitions![0].propertyTracks![0]
+  v1track.keyframes[0].timeMs = 4000
+  v1track.keyframes[1].timeMs = 6900
+  const convertedBefore = convertShowRecordV1ToV2(v1before)
+  expect(convertedBefore.status).toBe('converted')
+  if (convertedBefore.status !== 'converted') return
+  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
+  const v1afterComposition = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1afterComposition })
+  expect(oracle.status).toBe('converted')
+  if (oracle.status !== 'converted') return
+  const oracleTrack = oracle.record.composition.groupDefinitions[0].propertyTracks.find(track => track.id === 'trk')!
+  expect(oracleTrack.keyframes.map(key => key.timeMs)).toEqual([5000, 7900])
+  expect(oracleTrack).toMatchObject({ activeStartMs: 0, activeDurationMs: 8000 })
+  const v2before = convertedBefore.record
+  const definition = v2before.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const result = insertShowGroupDefinitionLayerTransitionV2(v2before, {
+    kind: 'insert-definition-layer-transition', definitionId: 'def-1', transition: g4aInsertV2Transition(definition.layers[0].id) as never,
+  })
+  expect(result.status, result.status === 'refused' ? result.message : '').toBe('changed')
+  if (result.status !== 'changed') return
+  const edited = result.record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const editedTrack = edited.propertyTracks.find(track => track.id === 'trk')!
+  expect(editedTrack.keyframes.map(key => key.timeMs)).toEqual([5000, 7900])
+  expect(editedTrack).toMatchObject({ activeStartMs: 0, activeDurationMs: 8000 })
+  expect(editedTrack).toEqual(oracleTrack)
+  expect(edited.propertyTracks).toEqual(oracle.record.composition.groupDefinitions[0].propertyTracks)
+  const v1reset = resizeShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1afterComposition), { occurrenceId: 'occ-1', transitionId: 'lt-1', durationMs: 0 })
+  const resetOracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1reset })
+  expect(resetOracle.status).toBe('converted')
+  if (resetOracle.status !== 'converted') return
+  const reset = resizeShowGroupDefinitionLayerTransitionV2(result.record, {
+    kind: 'resize-definition-layer-transition', definitionId: 'def-1', transitionId: 'lt-1', durationMs: 0,
+  })
+  expect(reset.status, reset.status === 'refused' ? reset.message : '').toBe('changed')
+  if (reset.status !== 'changed') return
+  const resetDefinition = reset.record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const resetTrack = resetDefinition.propertyTracks.find(track => track.id === 'trk')!
+  expect(resetTrack.keyframes.map(key => key.timeMs)).toEqual([4000, 6900])
+  expect(resetTrack).toMatchObject({ activeStartMs: 0, activeDurationMs: 7000 })
+  expect(resetTrack).toEqual(resetOracle.record.composition.groupDefinitions[0].propertyTracks.find(track => track.id === 'trk')!)
+  expect(resetDefinition.propertyTracks).toEqual(resetOracle.record.composition.groupDefinitions[0].propertyTracks)
+})

@@ -484,6 +484,12 @@ function grownDefinitionAdapter(record: ShowRecordV2, definition: ShowGroupDefin
     adapter.composition.showEndMs += deltaMs
     const occurrence = adapter.composition.layoutOccurrences[0]
     if (occurrence) occurrence.durationMs += deltaMs
+    const oldExtentMs = Math.max(...definition.clips.map(clip => clip.startMs + clip.durationMs))
+    for (const track of adapter.composition.propertyTracks) {
+      if (track.activeStartMs === 0 && track.activeDurationMs === oldExtentMs) {
+        track.activeDurationMs += deltaMs
+      }
+    }
   }
   return adapter
 }
@@ -507,11 +513,12 @@ function applyAdapterDefinitionBack(next: ShowRecordV2, definitionId: string, ad
     mapped.push(back)
   }
   target.transitions = mapped
+  const wholeSpanIds = new Set(target.propertyTracks.filter(track => track.activeStartMs === 0 && track.activeDurationMs === oldExtentMs).map(track => track.id))
   target.propertyTracks = structuredClone(adapterRecord.composition.propertyTracks)
   const newExtentMs = Math.max(...target.clips.map(clip => clip.startMs + clip.durationMs))
   // Definition tracks span the whole definition, as convertGroupDefinition assigns (#1075 G4a).
   for (const track of target.propertyTracks) {
-    if (track.activeStartMs === 0 && track.activeDurationMs === oldExtentMs) {
+    if (wholeSpanIds.has(track.id)) {
       track.activeStartMs = 0
       track.activeDurationMs = newExtentMs
     }
