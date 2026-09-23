@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "1091",
+  "route": "/PXLBLZ-IDE/studio/shows/dee0abce-f46a-4774-be89-2a1e205015bc (v2 clone of stock-show-301-installation-mapping)",
+  "operation": "On the v2 backing, with a controller profile 'Proof Bench Controller' created through /api/controllers, open built-in Installation lesson 301 and use Show actions > Clone. Capture 1 (target-and-name): the copy after renaming it through the header to 'Proof Rename 1091' (item 8, rename through the rename_show owner) and choosing 'Proof Bench Controller' in Show properties > Target controller (item 2). Before this change the v2 select snapped back and wrote nothing. Capture 2 (clip-at-zero): the Playback tab (selected) of clip-arch-palettes, which starts at 0, has no 'Global placement and clock controls' section (item 5: hidden at time 0, as v1 hides it in the first Scene). Capture 3 (restart): clip-floor-rose (CompassRose, start 7 s) shows v1's collapsed 'Global placement and clock controls' section at v1's small text size with 'Restart Pattern on entry' ticked, and no explanatory note. Capture 4 (readback) is the stored v2 row: name 'Proof Rename 1091', targetControllerProfileId set, clip-floor-rose entryPolicy 'restart'. Capture 5 is the raw GET /api/shows?show-version=2 response. The Restart is shown on a Pattern the Restart planner can reset; ineligible Patterns are handled separately (#1091, Jon's option A).",
+  "captures": [
+    ".wrsp/ui-proof/1091m-target-and-name.png",
+    ".wrsp/ui-proof/1091m-clip-at-zero.png",
+    ".wrsp/ui-proof/1091m-restart.png",
+    ".wrsp/ui-proof/1091m-readback.png",
+    ".wrsp/ui-proof/1091m-raw-api.png"
+  ],
+  "capturedAtCommit": "833647810f2c958b7a64c1e806a39e75c2b76a9b"
+}
