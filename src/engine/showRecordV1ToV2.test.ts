@@ -923,3 +923,113 @@ describe('gapped logical Clip split (#1080 class 1)', () => {
     expect(result.report.unaccountedSourcePaths).toEqual([])
   })
 })
+
+describe('flat unrouted Zone retirement (#1080 class 2B)', () => {
+  const tinySource = 'export var calls=0; export var elapsed=0; export function beforeRender(delta) { calls++; elapsed+=delta/1000 } export function render2D(index,x,y) { rgb(1,x,y) }'
+
+  function twoZoneFlatShow() {
+    const source = convertibleV1Show()
+    source.zones = [
+      { id: 'zone-1', name: 'One', nominalPixelCount: 16 },
+      { id: 'zone-2', name: 'Two', nominalPixelCount: 16 },
+    ]
+    source.routingLayouts = [{ id: 'layout', name: 'Full', zones: [], logical: { kind: 'single', zoneIds: ['zone-1'] } }]
+    source.scenes = [{ id: 'scene-a', name: 'Opening', durationMs: 1000 }]
+    const cellShape = flatV1Show().cells[0]
+    source.cells = [
+      { ...structuredClone(cellShape), id: 'cell-1', zoneId: 'zone-1', sceneId: 'scene-a', sceneSpan: 1 },
+      { ...structuredClone(cellShape), id: 'cell-2', zoneId: 'zone-2', sceneId: 'scene-a', sceneSpan: 1 },
+    ]
+    delete (source as { composition?: unknown }).composition
+    return source
+  }
+
+  function partlyRoutedFlatShow() {
+    const source = twoZoneFlatShow()
+    source.routingLayouts = [
+      { id: 'both', name: 'Both', zones: [], logical: { kind: 'split', zoneIds: ['zone-1', 'zone-2'], axis: 'x' } },
+      { id: 'one', name: 'One', zones: [], logical: { kind: 'single', zoneIds: ['zone-1'] } },
+    ]
+    source.scenes = [
+      { id: 'scene-a', name: 'A', durationMs: 500 },
+      { id: 'scene-b', name: 'B', durationMs: 500 },
+      { id: 'scene-c', name: 'C', durationMs: 500 },
+    ]
+    for (const cell of source.cells) cell.sceneSpan = 3
+    source.transitions = [
+      { id: 'to-one', afterSceneId: 'scene-a', kind: 'routing', layoutId: 'one', durationMs: 0, easing: { curve: 'linear' } },
+      { id: 'to-both', afterSceneId: 'scene-b', kind: 'routing', layoutId: 'both', durationMs: 0, easing: { curve: 'linear' } },
+    ]
+    return source
+  }
+
+  it('retires a flat cell whose Zone no Layout routes', () => {
+    const source = twoZoneFlatShow()
+    const result = convertShowRecordV1ToV2(source, { byCellId: { 'cell-1': 'source1', 'cell-2': 'source2' } })
+
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') return
+    expect(result.report.unaccountedSourcePaths).toEqual([])
+    expect(result.report.retiredSilentRuntimeUses).toEqual([{
+      sourcePlacementId: 'placement-cell-2-scene-a',
+      sourcePath: 'cells.1',
+      instanceId: 'cell-2',
+      zoneId: 'zone-2',
+      startMs: 0,
+      durationMs: 1000,
+      outcome: 'retired-silent-runtime-use',
+    }])
+    const retiredLeaves = result.report.accounting.filter(entry => entry.sourcePath.startsWith('cells.1.'))
+    expect(retiredLeaves.length).toBeGreaterThan(0)
+    expect(retiredLeaves.every(entry => entry.outcome === 'retired-silent-runtime-use')).toBe(true)
+    expect(result.report.accounting.filter(entry => entry.sourcePath.startsWith('cells.0.'))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ outcome: 'mapped' })]),
+    )
+  })
+
+  it('compiles the retired flat Show with accepted retirement provenance', async () => {
+    const source = twoZoneFlatShow()
+    const lookup = { byCellId: { 'cell-1': tinySource, 'cell-2': tinySource }, stageDimension: 2 as const }
+    const converted = convertShowRecordV1ToV2(source, lookup)
+    expect(converted.status, JSON.stringify(converted.status === 'refused' ? converted.issues : [])).toBe('converted')
+    if (converted.status !== 'converted') return
+    const prepared = prepareShowV2ForCompile(
+      converted.record,
+      { byCellId: {}, byPatternInstanceId: { 'cell-1': tinySource, 'cell-2': tinySource }, stageDimension: 2 as const },
+      { libraries: LIBRARIES },
+    )
+    expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+    if (prepared.status !== 'ready') return
+    const v1 = compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES)
+    const v2 = compileShow(prepared.recipe, LIBRARIES)
+    const { runtimeParity } = await import('../../scripts/show-v2-parity')
+    const firstRetiredStartMs = Math.min(...converted.report.retiredSilentRuntimeUses.map(entry => entry.startMs))
+    const retiredInstanceIds = new Set(converted.report.retiredSilentRuntimeUses.map(entry => entry.instanceId))
+    const surviving = converted.report.flatProjectionMappings.find(mapping => mapping.cellId === 'cell-1')!
+    const survivingClipId = converted.report.clipMappings.find(mapping => mapping.sourcePlacementIds.some(id => surviving.placementIds.includes(id)))!.clipId
+    const memberIdentityMappings = [{ v1MemberId: surviving.patternInstanceIds[0], v2MemberId: survivingClipId, provenance: 'flat-projection' as const }]
+    for (const fidelity of ['fast', 'fidelity'] as const) {
+      const parity = runtimeParity(v1, v2, source, converted.record, fidelity, memberIdentityMappings)
+      if (parity.matched) continue
+      expect(parity.firstMismatchMs).toBeGreaterThanOrEqual(firstRetiredStartMs)
+      for (const key of parity.firstMismatchStateDifferences) {
+        expect(
+          key.startsWith('__pxlblz_empty-routed:') || [...retiredInstanceIds].some(instanceId => key.startsWith(`${instanceId}:`)),
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('keeps a partly routed cell visible with no retirement', () => {
+    const source = partlyRoutedFlatShow()
+    const result = convertShowRecordV1ToV2(source, { byCellId: { 'cell-1': 'source1', 'cell-2': 'source2' } })
+
+    expect(result.status, JSON.stringify(result.status === 'refused' ? result.issues : [])).toBe('converted')
+    if (result.status !== 'converted') return
+    expect(result.report.unaccountedSourcePaths).toEqual([])
+    expect(result.report.retiredSilentRuntimeUses).toEqual([])
+    const zone2Clips = result.record.composition.clips.filter(clip => clip.zoneId === 'zone-2')
+    expect(zone2Clips.length).toBeGreaterThan(0)
+    expect(zone2Clips.some(clip => clip.startMs === 0)).toBe(true)
+  })
+})

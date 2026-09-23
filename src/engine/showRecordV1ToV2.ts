@@ -1121,6 +1121,48 @@ function auditFlatCell(
   const sourcePath = `cells.${cellIndex}`
   const projection = report.flatProjectionMappings.find(candidate => candidate.cellId === cell.id)
   if (!projection) return
+  if (projection.placementIds.length > 0 && projection.patternInstanceIds.length === 1) {
+    const instanceId = projection.patternInstanceIds[0]
+    const startSceneIndex = show.scenes.findIndex(scene => scene.id === cell.sceneId)
+    const startZoneIndex = show.zones.findIndex(zone => zone.id === cell.zoneId)
+    if (startSceneIndex >= 0 && startZoneIndex >= 0) {
+      const coveredScenes = show.scenes.slice(startSceneIndex, startSceneIndex + Math.max(1, cell.sceneSpan))
+      const coveredZones = show.zones.slice(startZoneIndex, startZoneIndex + Math.max(1, Math.min(cell.zoneSpan ?? 1, show.zones.length - startZoneIndex))).map(zone => zone.id)
+      const expected = new Map<string, { zoneId: string; startMs: number; durationMs: number }>()
+      for (const scene of coveredScenes) {
+        const offset = report.sceneOffsets.find(candidate => candidate.sceneId === scene.id)
+        const placementStartMs = offset?.startMs ?? 0
+        const placementDurationMs = offset ? offset.endMs - offset.startMs : scene.durationMs
+        for (const zoneId of coveredZones) {
+          const baseId = `placement-${cell.id}-${scene.id}`
+          const placementId = coveredZones.length === 1 ? baseId : `${baseId}-${zoneId}`
+          expected.set(placementId, { zoneId, startMs: placementStartMs, durationMs: placementDurationMs })
+        }
+      }
+      const unrouted = projection.placementIds.map(placementId => {
+        const detail = expected.get(placementId)
+        return detail ? { placementId, ...detail } : undefined
+      })
+      if (unrouted.every((entry): entry is NonNullable<typeof entry> => entry !== undefined)
+        && unrouted.every(entry => !placementIntervalRouted(record, entry.zoneId, entry.startMs, entry.startMs + entry.durationMs))) {
+        for (const entry of unrouted) {
+          if (!report.retiredSilentRuntimeUses.some(retirement => retirement.sourcePlacementId === entry.placementId && retirement.sourcePath === sourcePath)) {
+            report.retiredSilentRuntimeUses.push({
+              sourcePlacementId: entry.placementId,
+              sourcePath,
+              instanceId,
+              zoneId: entry.zoneId,
+              startMs: entry.startMs,
+              durationMs: entry.durationMs,
+              outcome: 'retired-silent-runtime-use',
+            })
+          }
+        }
+        addAccountingLeaves(accounting, sourcePath, cell, 'retired-silent-runtime-use', 'conversion.report.retiredSilentRuntimeUses', false)
+        return
+      }
+    }
+  }
   const clipIds = new Set(report.clipMappings
     .filter(mapping => mapping.sourcePlacementIds.some(id => projection.placementIds.includes(id)))
     .map(mapping => mapping.clipId))
@@ -1326,6 +1368,19 @@ function auditComposition(
   }
 }
 
+function placementIntervalRouted(
+  record: ShowRecordV2,
+  zoneId: string,
+  startMs: number,
+  endMs: number,
+): boolean {
+  return record.composition.layoutOccurrences.some(occurrence => {
+    if (occurrence.startMs >= endMs || occurrence.startMs + occurrence.durationMs <= startMs) return false
+    const layout = record.zoneLayouts.find(candidate => candidate.id === occurrence.layoutId)
+    return layoutProvidesZone(layout, zoneId, record.zones.map(zone => zone.id))
+  })
+}
+
 function auditPlacement(
   accounting: ShowV1ToV2AccountingEntry[],
   record: ShowRecordV2,
@@ -1337,11 +1392,7 @@ function auditPlacement(
 ): void {
   const timeMs = sceneStartMs + placement.startMs
   const endMs = timeMs + placement.durationMs
-  const routed = record.composition.layoutOccurrences.some(occurrence => {
-    if (occurrence.startMs >= endMs || occurrence.startMs + occurrence.durationMs <= timeMs) return false
-    const layout = record.zoneLayouts.find(candidate => candidate.id === occurrence.layoutId)
-    return layoutProvidesZone(layout, zoneId, record.zones.map(zone => zone.id))
-  })
+  const routed = placementIntervalRouted(record, zoneId, timeMs, endMs)
   if (!routed && record.composition.patternInstances.some(instance => instance.id === placement.instanceId)) {
     if (!report.retiredSilentRuntimeUses.some(retirement => retirement.sourcePath === sourcePath)) {
       report.retiredSilentRuntimeUses.push({
