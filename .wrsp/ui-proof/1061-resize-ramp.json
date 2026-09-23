@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1061",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1061-<uuid> (existing Show editor on the v2 backing; a flat Show seeded as a v1 row with one 1000 ms crossfade Scene boundary, then replaced by its converted v2 row through PUT /api/shows/<id>?show-version=2; the converted Transition's origin is converted-boundary-transition)",
+  "operation": "Open the boundary's Transition properties, expand Advanced transition controls, tick 'Animate speed for main' and set the Animation speed duration to 0.5 s: the stored Transition (1000 ms) carries one instance-time-scale ramp, from 1, 500 ms (capture 1). Set the Transition's Duration to 0.5 s: the stored Transition is 500 ms and its ramp is 250 ms, with from, easing and target unchanged and still the only ramp (capture 2). One Undo restores the Transition to 1000 ms and the ramp to 500 ms. Capture 3 reads the stored Transition back before, after the resize and after Undo; capture 4 is the raw GET /api/shows?show-version=2 (200). Before #1061 the resize of a ramp-carrying Transition refused with unsupported-property-carrier and changed nothing.",
+  "captures": [
+    ".wrsp/ui-proof/1061-before.png",
+    ".wrsp/ui-proof/1061-after.png",
+    ".wrsp/ui-proof/1061-readback.png",
+    ".wrsp/ui-proof/1061-raw-api.png"
+  ],
+  "capturedAtCommit": "af34d6b377a43ac70d7de87b42a9d62cbbc2fbf5"
+}
