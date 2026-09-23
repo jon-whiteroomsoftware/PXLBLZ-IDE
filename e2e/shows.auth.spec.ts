@@ -900,13 +900,14 @@ test.describe('authenticated Show authoring', () => {
 
     const playhead = page.getByRole('slider', { name: 'Show playhead' })
     await playhead.focus()
-    for (let step = 0; step < 7; step++) await page.keyboard.press('ArrowRight')
+    // ArrowRight steps the playhead by one second.
+    for (let step = 0; step < 35; step++) await page.keyboard.press('ArrowRight')
     await expect(playhead).toHaveValue('35000')
 
     const added = page.getByRole('button', { name: 'Select AuroraSphere', exact: true })
     await expect(added).toHaveCount(0)
     await page.getByRole('button', { name: 'Add to Show' }).click()
-    await page.getByRole('menuitem', { name: 'Clip' }).click()
+    await page.getByRole('menuitem', { name: 'Clip', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Add Clip at playhead' })
     const picker = dialog.getByRole('combobox', { name: 'Pattern for new Clip' })
     await picker.click()
