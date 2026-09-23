@@ -584,15 +584,13 @@ describe.each(grouped)('$key Group Clip inspector', testCase => {
 })
 
 /**
- * Marker partition (#1065 coordinator steering).
+ * Marker partition (#1068 ruling 1a).
  *
- * Conversion creates one chapter Marker per Scene label, and absorbs an
- * authored Marker that already sits at the Scene's start with the Scene's name
- * instead of minting a duplicate. The approved contract distinguishes the two:
- * a newly created Scene-label Marker carries `origin: 'converted-scene-label'`,
- * an absorbed authored Marker carries no origin, and a Marker with no origin
- * stays visible exactly as the v1 editor showed it. These read the record, not
- * an id prefix.
+ * Conversion mints one chapter Marker per Scene label, always carrying
+ * `origin: 'converted-scene-label'`. An authored Marker that already sits at
+ * the Scene's start with the Scene's name stays exactly as authored - no role
+ * promotion, no origin - and a Marker with no origin stays visible exactly as
+ * the v1 editor showed it. These read the record, not an id prefix.
  */
 function markerOrigin(marker: ShowRecordV2['composition']['markers'][number]): string | undefined {
   // Read the shipped field directly: a widening cast here would keep this file
@@ -604,18 +602,12 @@ describe.each(manifest.corpus)('$key converted Scene-label Markers', testCase =>
   const source = testCase.source
   const record = convert(source)
 
-  it('marks every newly created Scene-label Marker with its conversion origin', () => {
-    const authored = source.composition?.markers ?? []
-    const absorbed = new Set(authored
-      .filter(marker => projectShowTimeline(source).scenes.some(scene => (
-        scene.startMs === marker.timeMs && scene.scene.name === marker.name
-      )))
-      .map(marker => marker.id))
+  it('mints one Scene-label Marker per Scene with its conversion origin', () => {
     const created = record.composition.markers
-      .filter(marker => marker.role === 'chapter' && !absorbed.has(marker.id))
-    expect(created.length).toBe(projectShowTimeline(source).scenes.length - absorbed.size)
-    expect(created.map(marker => markerOrigin(marker)))
-      .toEqual(created.map(() => 'converted-scene-label'))
+      .filter(marker => markerOrigin(marker) === 'converted-scene-label')
+    expect(created.length).toBe(projectShowTimeline(source).scenes.length)
+    expect(created.map(marker => marker.role))
+      .toEqual(created.map(() => 'chapter'))
   })
 
   it('keeps every Marker the v1 editor showed visible after conversion', () => {
@@ -628,8 +620,8 @@ describe.each(manifest.corpus)('$key converted Scene-label Markers', testCase =>
   })
 })
 
-describe('absorbed authored Marker', () => {
-  // The committed corpus authors no Markers, so the absorption partition is
+describe('authored Marker at a Scene start', () => {
+  // The committed corpus authors no Markers, so the coexistence partition is
   // derived from one committed source rather than left untested.
   const base = manifest.corpus.find(entry => entry.key === 'stock-lesson')!
   function sourceWithAuthoredMarkers(): ShowRecord {
@@ -642,19 +634,20 @@ describe('absorbed authored Marker', () => {
     return source
   }
 
-  it('absorbs the matching authored Marker instead of minting a duplicate', () => {
+  it('leaves the matching authored Marker exactly as authored and mints the label beside it', () => {
     const record = convert(sourceWithAuthoredMarkers())
     expect(record.composition.markers).toEqual([
-      { id: 'authored-scene-label', timeMs: 0, name: 'Passages', color: '#f43f5e', role: 'chapter' },
+      { id: 'authored-scene-label', timeMs: 0, name: 'Passages', color: '#f43f5e' },
+      { id: 'scene-marker:passages', timeMs: 0, name: 'Passages', role: 'chapter', origin: 'converted-scene-label' },
       { id: 'authored-cue', timeMs: 8_000, name: 'Cue', color: '#22d3ee' },
     ])
   })
 
-  it('leaves an absorbed authored Marker without a conversion origin', () => {
+  it('leaves the authored Marker general and without a conversion origin', () => {
     const record = convert(sourceWithAuthoredMarkers())
-    const absorbed = record.composition.markers.find(marker => marker.id === 'authored-scene-label')
-    expect(absorbed?.role).toBe('chapter')
-    expect(markerOrigin(absorbed!)).toBeUndefined()
+    const authored = record.composition.markers.find(marker => marker.id === 'authored-scene-label')
+    expect(authored?.role).toBeUndefined()
+    expect(markerOrigin(authored!)).toBeUndefined()
   })
 
   it('keeps both authored Markers visible under the origin rule', () => {
@@ -671,9 +664,10 @@ describe('absorbed authored Marker', () => {
  *
  * Every committed case authors none, so the corpus test above can only prove
  * that converted labels stay off the timeline. This derives a three-Scene
- * source that authors one Marker absorbing a Scene label and one unrelated cue,
- * so the same test also proves the filter keeps authored Markers - including an
- * absorbed one that is now a chapter - exactly where the v1 editor drew them.
+ * source that authors one Marker coinciding with a Scene label and one
+ * unrelated cue, so the same test also proves the filter keeps authored
+ * Markers - including the coinciding one, still general - exactly where the
+ * v1 editor drew them.
  */
 describe('editor timeline Marker visibility with authored Markers', () => {
   const base = manifest.corpus.find(entry => entry.key === 'installation-layouts')!
@@ -702,7 +696,7 @@ describe('editor timeline Marker visibility with authored Markers', () => {
     }))
     expect(visible(v1).map(marker => marker.id)).toEqual(['authored-scene-label', 'authored-cue'])
     expect(visible(v2)).toEqual(visible(v1))
-    // Two Scene labels were newly created and both must stay off the timeline.
+    // Three Scene labels were minted and all must stay off the timeline.
     expect(record.composition.markers.filter(marker => marker.role === 'chapter')).toHaveLength(3)
   })
 })

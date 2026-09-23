@@ -114,19 +114,25 @@ it('marks every converted Scene label as a chapter at its original global start'
   ])
 })
 
-it('absorbs a same-name/time Marker into the chapter, keeping its identity and color', () => {
+it('leaves a same-name/time Marker exactly as authored and mints the chapter beside it', () => {
   const show = convertibleV1Show()
   show.composition!.markers = [
     { id: 'authored-opening', timeMs: 0, name: 'Opening', color: '#f97316' },
     { id: 'authored-cue', timeMs: 0, name: 'Camera cue', color: '#22c55e' },
   ]
-  const record = convert(show)
+  const converted = convertShowRecordV1ToV2(show)
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted))
+  const record = converted.record
   expect(record.composition.markers).toEqual([
     { id: 'authored-cue', timeMs: 0, name: 'Camera cue', color: '#22c55e' },
-    { id: 'authored-opening', timeMs: 0, name: 'Opening', color: '#f97316', role: 'chapter' },
+    { id: 'authored-opening', timeMs: 0, name: 'Opening', color: '#f97316' },
+    { id: 'scene-marker:scene-a', timeMs: 0, name: 'Opening', role: 'chapter', origin: 'converted-scene-label' },
+  ])
+  expect(converted.report.markerMappings).toEqual([
+    { sourceSceneId: 'scene-a', markerId: 'scene-marker:scene-a', timeMs: 0 },
   ])
   expect(showChaptersV2(reopen(record))).toEqual([
-    { id: 'authored-opening', timeMs: 0, durationMs: 1_000, name: 'Opening', color: '#f97316' },
+    { id: 'scene-marker:scene-a', timeMs: 0, durationMs: 1_000, name: 'Opening' },
   ])
 })
 
@@ -149,15 +155,18 @@ it('records conversion provenance only on the Scene-label Markers it newly creat
   ])
 })
 
-it('leaves an absorbed authored Marker without conversion provenance', () => {
+it('keeps the authored Marker general and marks only the minted label with provenance', () => {
   const show = convertibleV1Show()
   show.composition!.markers = [{ id: 'authored-opening', timeMs: 0, name: 'Opening', color: '#f97316' }]
   const record = convert(show)
-  const absorbed = record.composition.markers.find(marker => marker.id === 'authored-opening')
-  expect(absorbed).toEqual({ id: 'authored-opening', timeMs: 0, name: 'Opening', color: '#f97316', role: 'chapter' })
-  expect(absorbed).not.toHaveProperty('origin')
-  // The conversion minted no second guide, so nothing in the record carries provenance.
-  expect(record.composition.markers.filter(marker => marker.origin !== undefined)).toEqual([])
+  const authored = record.composition.markers.find(marker => marker.id === 'authored-opening')
+  expect(authored).toEqual({ id: 'authored-opening', timeMs: 0, name: 'Opening', color: '#f97316' })
+  expect(authored).not.toHaveProperty('role')
+  expect(authored).not.toHaveProperty('origin')
+  // Only the minted Scene label carries provenance.
+  expect(record.composition.markers.filter(marker => marker.origin !== undefined)).toEqual([
+    { id: 'scene-marker:scene-a', timeMs: 0, name: 'Opening', role: 'chapter', origin: 'converted-scene-label' },
+  ])
 })
 
 it('never infers provenance from a Marker identity that resembles a conversion identity', () => {

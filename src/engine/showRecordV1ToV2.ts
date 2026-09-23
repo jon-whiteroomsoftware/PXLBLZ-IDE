@@ -353,16 +353,9 @@ export function convertShowRecordV1ToV2(
   if (issues.length > 0) return refused(show, report, issues)
   const markers: ShowMarkerV2[] = structuredClone(composition.markers ?? [])
   for (const scene of timeline.scenes) {
-    const existing = markers.find(marker => marker.timeMs === scene.startMs && marker.name === scene.scene.name)
-    if (existing) {
-      // Absorption keeps the authored Marker's identity and color and promotes
-      // only its role; a former Scene label never mints a duplicate guide.
-      existing.role = 'chapter'
-      report.markerMappings.push({ sourceSceneId: scene.sceneId, markerId: existing.id, timeMs: scene.startMs })
-      continue
-    }
-    // Only a guide this conversion invented carries provenance, so the editor can
-    // keep showing exactly the Markers the v1 editor drew (#1065).
+    // A Scene label is always minted; an authored Marker at the same time and
+    // name stays exactly as authored (#1068 ruling 1a). The origin gate in
+    // commitConvertedBoundaryRepairsV2 then moves only the minted label.
     const markerId = uniqueId(`scene-marker:${scene.sceneId}`, new Set(markers.map(marker => marker.id)))
     markers.push({ id: markerId, timeMs: scene.startMs, name: scene.scene.name, role: 'chapter', origin: 'converted-scene-label' })
     report.markerMappings.push({ sourceSceneId: scene.sceneId, markerId, timeMs: scene.startMs })
@@ -1330,9 +1323,9 @@ function auditComposition(
   }
   for (const [markerIndex, marker] of (composition.markers ?? []).entries()) {
     const targetIndex = record.composition.markers.findIndex(candidate => candidate.id === marker.id)
-    // An absorbed Scene label promotes the authored Marker's role and changes
-    // nothing else, so its source leaves stay accounted against that Marker.
-    const { role: _role, ...target } = record.composition.markers[targetIndex] ?? {}
+    // An authored Marker is never absorbed into a Scene label (#1068 ruling
+    // 1a), so it maps leaf-for-leaf against the Marker with the same id.
+    const target = record.composition.markers[targetIndex]
     if (targetIndex >= 0 && JSON.stringify(marker) === JSON.stringify(target)) {
       addAccountingLeaves(accounting, `composition.markers.${markerIndex}`, marker, 'mapped', `composition.markers.${targetIndex}`)
     }

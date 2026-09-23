@@ -799,6 +799,23 @@ describe('converted Scene-boundary repair moves every Show-time anchor (#1068 P1
     expect(labels.map(marker => marker.timeMs)).toEqual(sceneStarts.map(([, startMs]) => startMs))
   })
 
+  it('moves the minted Scene label with a reclaim and leaves a coinciding authored Marker at its authored time', () => {
+    const source = convertedDefaultShow()
+    const labelId = sceneLabel(source, 32000).id
+    source.composition.markers.push({ id: 'authored-scene-2', timeMs: 32000, name: 'Scene 2', color: '#f97316' })
+    expect(validateShowRecordV2(source)).toEqual([])
+    const result = editShowClipTemporalV2(source, { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    const next = reopen(result.record)
+    expect(next.composition.markers.map(marker => [marker.id, marker.timeMs])).toContainEqual([labelId, 30000])
+    expect(next.composition.markers.find(marker => marker.id === 'authored-scene-2')).toEqual(
+      { id: 'authored-scene-2', timeMs: 32000, name: 'Scene 2', color: '#f97316' },
+    )
+    expect(result.affectedMarkerIds).toEqual([labelId])
+    expect(validateShowRecordV2(next)).toEqual([])
+  })
+
   it('shifts the same anchors through the connected route and reports them there', () => {
     const source = convertedAnchoredShow()
     const labelId = sceneLabel(source, 32000).id
