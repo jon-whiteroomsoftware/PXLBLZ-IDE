@@ -2117,7 +2117,26 @@ export function ShowEditor({
       }
     }
     const plan = planShowV2ClipInspectorPatch(capture.record, clipId, patch)
-    if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
+    if (plan.kind === 'refuse') return false
+    if (plan.kind === 'no-op') {
+      // Re-picking the stored Pattern ends the slot's trial and writes nothing (#1066 L2).
+      if (Object.keys(patch).length === 1 && patch.pattern !== undefined) {
+        const clip = capture.record.composition.clips.find((candidate) => candidate.id === clipId)
+        const instanceId = clip?.instanceId
+        if (instanceId && builtInSlotGroups) {
+          const selections = useShowEditorSessionStore.getState().referencePatternsByShowId[showId]
+          let cleared = false
+          builtInSlotGroups.forEach((group, index) => {
+            if (selections?.[index] && group.instanceIds.includes(instanceId)) {
+              setReferencePattern(showId, index, null)
+              cleared = true
+            }
+          })
+          if (cleared) return true
+        }
+      }
+      return false
+    }
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     if (plan.kind === 'entry-policy') {
       return commitV2ClipEntryPolicy({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
@@ -2137,7 +2156,7 @@ export function ShowEditor({
     // the draft) from anything else (keep the draft), exactly as the legacy
     // chokepoint's contract reads.
     return commit.then(() => {}, () => {})
-  }, [commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2ClipTemporal, commitV2InstanceProperties, commitV2TransitionResize, readOnly, recordVersion, savedShowV2, showId, timelineViewV2])
+  }, [builtInSlotGroups, commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2ClipTemporal, commitV2InstanceProperties, commitV2TransitionResize, readOnly, recordVersion, savedShowV2, setReferencePattern, showId, timelineViewV2])
   // Slice 5a connects the boundary Transition settings writes (the Transition
   // parameter editor and the Crossfade source select) through the
   // transition-edit door. Refused and no-op changes return synchronously so

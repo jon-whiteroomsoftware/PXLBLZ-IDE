@@ -5338,6 +5338,30 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
       .toEqual({ kind: 'stock', id: 'TestPattern2D' })
     expectOneEdit(before, after)
   })
+
+  it('ends a slot trial when Clip Detail re-picks the stored Pattern (#1066 L2)', async () => {
+    const { editor } = await renderLessonV2('stock-show-102-transitions-values')
+    act(() => {
+      useShowEditorSessionStore.getState().setReferencePattern(editor.showId, 1, { kind: 'stock', id: 'Caustics' })
+    })
+    expect(screen.getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Select EventHorizon' })).not.toBeInTheDocument()
+
+    await selectClipByName('Caustics', 0)
+    showTab('Pattern')
+    pickSourcePattern('EventHorizon')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[editor.showId]?.[1] ?? null).toBeNull()
+    expect(after.record.composition.patternInstances.find((instance) => instance.id === 'horizon')?.pattern)
+      .toEqual({ kind: 'stock', id: 'EventHorizon' })
+    expect(screen.getByRole('combobox', { name: 'Source pattern' })).toHaveValue('EventHorizon')
+    expect(screen.getAllByRole('button', { name: 'Select EventHorizon' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Select Caustics' })).not.toBeInTheDocument()
+  })
 })
 
 describe('v2 Layout occurrence Append (#1066 slice 8b-1)', () => {
