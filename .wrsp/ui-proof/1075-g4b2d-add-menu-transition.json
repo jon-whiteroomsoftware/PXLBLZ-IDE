@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-add-transition-1790136411176",
+  "operation": "On the v2 backing at the G4b-2d tip: a seeded Show with Clips Outgoing (0+4000) and Incoming (4000+4000) at a Cut. Select Outgoing, open Add to Show; the 'Transition to Incoming' item is enabled (first capture). Choose it; the Choose Layer Transition palette opens (second capture, duration set to 1 s). Press Use Crossfade Transition (third capture). The fourth capture renders the stored v2 record (GET /api/shows) from the same run: a new 1000 ms live-live crossfade clip-out -> clip-in, with clip-in shifted from 4000 to 5000. The 2000 ms crossfade present before and after is the fixture's Scene-boundary Transition.",
+  "captures": [
+    ".wrsp/ui-proof/1075-g4b2d-0-menu.png",
+    ".wrsp/ui-proof/1075-g4b2d-1-palette.png",
+    ".wrsp/ui-proof/1075-g4b2d-2-inserted.png",
+    ".wrsp/ui-proof/1075-g4b2d-3-readback.png"
+  ],
+  "capturedAtCommit": "632c2916ad312b292fab03a410f1f81c1efbc09f"
+}
