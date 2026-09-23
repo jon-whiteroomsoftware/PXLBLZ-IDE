@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "issue": "1085",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-301-installation-mapping",
+  "operation": "Same script at main dde2f14a (before) and at the fix 3e0e1240 (after), on built-in Show 301. At 1800x1000 press Shift+ArrowDown on the 'Resize timeline and Stage' divider and record the split ratio (0.4664). Then three times: page.setViewportSize to 1900x1200, 1800x1000 and 1600x900, and call page.reload() immediately after it resolves, with no wait in between (each label states the resize time and the 0 ms settle). An init script records localStorage at document start of each reload, before the app runs, which is exactly what the reload restores. BEFORE: storage holds a pixel height tied to the viewport, rewritten after each resize (pixel key 523 read at 1900x1200, 430 at 1800x1000), so a reload that wins the race against that rewrite restores the previous viewport's height; that is the #1085 failure, |Δ| 0.0916 on the runner under suite load. On this host the race is not won in isolation, so the before ratios also match (|Δ| up to 0.0002); the before captures show the mechanism, not the failure. AFTER: storage holds one fraction (0.46637744034707157) that is identical at document start at every viewport, and no resize writes it, so there is nothing for a reload to race. After ratios: |Δ| 0.0000, 0.0000 and 0.0004 (1600x900, rounding at the smaller height), all under the test's 0.003 threshold. The restored e2e test runs this path in the e2e-shows runner suite.",
+  "captures": [
+    ".wrsp/ui-proof/1085-before-1900x1200.png",
+    ".wrsp/ui-proof/1085-before-1800x1000.png",
+    ".wrsp/ui-proof/1085-before-1600x900.png",
+    ".wrsp/ui-proof/1085-after-1900x1200.png",
+    ".wrsp/ui-proof/1085-after-1800x1000.png",
+    ".wrsp/ui-proof/1085-after-1600x900.png"
+  ],
+  "capturedAtCommit": "3e0e124092a7f4e964f769d5805de52fdf31e9c5"
+}
