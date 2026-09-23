@@ -26,6 +26,14 @@ export function createShowClipV2(record: ShowRecordV2, intent: CreateShowClipInt
   const refuse = (code: ShowClipEditRefusalV2, message: string): ShowClipCreationResultV2 => ({ status: 'refused', record, code, message, ...empty })
   const invalid = validateShowRecordV2(record)[0]
   if (invalid) return refuse('invalid-record', `${invalid.path}: ${invalid.message}`)
+  // Only the v1 converter writes conversion provenance; an authored creation
+  // cannot mint it (#1068). The shape check below owns malformed intents, so
+  // this guard only reads a present Clip object.
+  const clipValue: unknown = typeof intent === 'object' && intent !== null ? (intent as { clip?: unknown }).clip : undefined
+  if (typeof clipValue === 'object' && clipValue !== null
+    && (clipValue as { logicalClipId?: unknown }).logicalClipId !== undefined) {
+    return refuse('invalid-intent', 'A created Clip cannot author conversion provenance.')
+  }
   if (!exact(intent, ['kind', 'patternReference', 'clip', 'runtime']) || intent.kind !== 'create-clip'
     || !exact(intent.patternReference, ['kind', 'id']) || !['stock', 'user'].includes(intent.patternReference.kind)
     || typeof intent.patternReference.id !== 'string' || !intent.patternReference.id.trim()

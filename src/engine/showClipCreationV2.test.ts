@@ -634,3 +634,18 @@ it('a Zone cannot use another Zone Layer, and repeated creation cannot reuse its
   expect(repeated.record).toBe(added.record)
   emptyAffected(repeated)
 })
+
+it('refuses a create-clip intent that authors conversion provenance (#1068 gap 8, part A2)', () => {
+  const record = emptyFixture()
+  const requested = intent(record)
+  requested.clip.logicalClipId = 'solo'
+  const before = structuredClone(record)
+  const result = createShowClipV2(record, requested)
+  expect(result.status).toBe('refused')
+  if (result.status !== 'refused') return
+  expect(result.code).toBe('invalid-intent')
+  expect(result.message).toContain('conversion provenance')
+  expect(result.record).toBe(record)
+  expect(record).toEqual(before)
+  emptyAffected(result)
+})

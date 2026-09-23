@@ -276,3 +276,30 @@ describe('Layout occurrence duplication (D7)', () => {
     expect(restored.record.composition.layoutOccurrences).toEqual(record.composition.layoutOccurrences)
   })
 })
+
+it('duplicates interval content without carrying conversion provenance (#1068 gap 8, part A2)', () => {
+  const record = duplicateRecord()
+  record.composition.clips[0].logicalClipId = 'solo'
+  expect(validateShowRecordV2(record)).toEqual([])
+  const result = editShowLayoutIntervalsV2(record, {
+    kind: 'duplicate',
+    occurrenceId: 'first',
+    newOccurrenceId: 'first-copy',
+    content: {
+      idsBySourceId: {
+        'inside-clip': 'inside-clip-copy',
+        'inside-appearance': 'inside-appearance-copy',
+        'inside-track': 'inside-track-copy',
+        'inside-key-start': 'inside-key-start-copy',
+        'inside-key-end': 'inside-key-end-copy',
+      },
+    },
+  })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  const composition = result.record.composition
+  expect(composition.clips.find(clip => clip.id === 'inside-clip')!.logicalClipId).toBe('solo')
+  const copy = composition.clips.find(clip => clip.id === 'inside-clip-copy')!
+  expect(copy.logicalClipId).toBeUndefined()
+  expect('logicalClipId' in copy).toBe(false)
+})

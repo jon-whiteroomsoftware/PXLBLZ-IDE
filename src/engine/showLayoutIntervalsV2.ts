@@ -609,8 +609,11 @@ function duplicateLayoutOccurrence(
   if (plan !== null && !('message' in plan)) {
     const id = (sourceId: string): string => plan.idsBySourceId[sourceId]
     for (const clip of inside.clips) {
+      // A content copy is a new Clip under a fresh identity; conversion
+      // provenance describes the converter's own segment, so it never copies (#1068).
+      const { logicalClipId: _layoutCopyLogicalClipId, ...layoutCopySource } = structuredClone(clip)
       next.composition.clips.push({
-        ...structuredClone(clip),
+        ...layoutCopySource,
         id: id(clip.id),
         startMs: clip.startMs + spanMs,
         appearance: {

@@ -537,3 +537,15 @@ describe('v2 Clip inspector appearance planning (#1066 slice 3)', () => {
     })
   })
 })
+
+describe('v2 Clip inspector conversion provenance (#1068 gap 8, part A2)', () => {
+  it('refuses an inspector patch that carries logicalClipId', () => {
+    const record = fixture()
+    const before = structuredClone(record)
+    const outcome = plan(record, { view: { brightness: 0.5 }, logicalClipId: 'solo' } as unknown as ShowClipInspectorPatch)
+    expect(outcome).toMatchObject({ kind: 'refuse' })
+    if (outcome.kind !== 'refuse') return
+    expect(outcome.message).toContain('conversion provenance')
+    expect(record).toEqual(before)
+  })
+})

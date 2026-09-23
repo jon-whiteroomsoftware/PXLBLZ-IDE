@@ -312,6 +312,11 @@ export function planShowV2ClipInspectorPatch(
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
     return refuse('invalid-request', 'Give one Clip inspector patch.')
   }
+  // Only the v1 converter writes conversion provenance; an inspector patch
+  // cannot author it (#1068).
+  if ('logicalClipId' in patch && patch.logicalClipId !== undefined) {
+    return refuse('invalid-request', 'A Clip inspector patch cannot author conversion provenance.')
+  }
   const clip = record.composition.clips.find((candidate) => candidate.id === clipId)
   if (!clip) return refuse('missing-clip', `Clip "${clipId}" does not exist.`)
   // The Pattern and entry-policy facets each own their admission, so either

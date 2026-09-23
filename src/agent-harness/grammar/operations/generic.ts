@@ -59,6 +59,10 @@ export const PROTECTED_POINTERS: Array<{ pattern: string; reason: string }> = [
     pattern: '/composition/sampleRemap/origin',
     reason: 'v1 conversion provenance, written by the converter alone (#1066)',
   },
+  {
+    pattern: '/composition/clips/*/logicalClipId',
+    reason: 'v1 conversion provenance, written by the converter alone (#1068)',
+  },
 ]
 
 export const PROTECTED_POINTER_PATTERNS: string[] = PROTECTED_POINTERS.map(({ pattern }) => pattern)
@@ -108,6 +112,7 @@ function conversionProvenanceByElement(record: ShowRecordV2): Map<string, string
   // is read defensively rather than trusted to be an array (#1064).
   const composition = record.composition as Partial<ShowRecordV2['composition']> | undefined
   for (const marker of elementsOf(composition?.markers)) note('markers', marker.id, marker.origin)
+  for (const clip of elementsOf(composition?.clips)) note('clips', clip.id, clip.logicalClipId)
   for (const transition of elementsOf(composition?.transitions)) note('transitions', transition.id, transition.origin)
   for (const occurrence of elementsOf(composition?.layoutOccurrences)) {
     note('layoutOccurrences', occurrence.id, occurrence.incomingSwitch)

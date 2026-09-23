@@ -807,3 +807,25 @@ describe('v2 command addressing, no-op policy and parity', () => {
     }
   })
 })
+
+describe('v2 Clip conversion provenance guards (#1068 gap 8, part A2)', () => {
+  it('refuses create_clips and update_clips inputs that name conversion provenance', () => {
+    const record = commandFixtureV2()
+    const created = applyShowCommandV2(record, 'create_clips', {
+      clips: [{
+        zone_id: 'left', layer_id: 'base', start_ms: 0, duration_ms: 500,
+        pattern: { kind: 'stock', id: 'TestPattern1D' },
+        logical_clip_id: 'solo',
+      }],
+    })
+    expect(created.status).toBe('refused')
+    if (created.status !== 'refused') return
+    expect(created.record).toBe(record)
+    const patched = applyShowCommandV2(record, 'update_clips', {
+      updates: [{ clip_id: 'clip-a', logical_clip_id: 'solo' }],
+    })
+    expect(patched.status).toBe('refused')
+    if (patched.status !== 'refused') return
+    expect(patched.record).toBe(record)
+  })
+})

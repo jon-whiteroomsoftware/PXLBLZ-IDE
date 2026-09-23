@@ -102,7 +102,10 @@ export function createShowGroupFromSelectionV2(record: ShowRecordV2, intent: Cre
     patternInstances: runtimeIds.map(id => ({ ...structuredClone(record.composition.patternInstances.find(instance => instance.id === id)!), id: plan.patternInstanceIds[id] })),
     layers: layers.map(layer => ({ id: plan.layerIds[layer.id], name: layer.name, rank: layer.rank })),
     clips: clips.map(clip => {
-      const { zoneId: _zoneId, ...child } = structuredClone(clip)
+      // A Group definition Clip is a fresh definition-local object with its own
+      // identity; conversion provenance describes a top-level converter segment,
+      // so localization drops it rather than copying it (#1068).
+      const { zoneId: _zoneId, logicalClipId: _groupLogicalClipId, ...child } = structuredClone(clip)
       return { ...child, id: plan.clipIds[clip.id], instanceId: plan.patternInstanceIds[clip.instanceId], layerId: plan.layerIds[clip.layerId], startMs: clip.startMs - intent.originMs,
         appearance: { keys: clip.appearance.keys.map(key => ({ ...structuredClone(key), id: plan.appearanceKeyIdsByClipId[clip.id][key.id], timeMs: key.timeMs - intent.originMs })) } }
     }), transitions: transitions.map(transition => {

@@ -244,3 +244,67 @@ describe('generic operations and v1 conversion provenance (#1065)', () => {
     }
   })
 })
+
+describe('logical Clip provenance (#1068 gap 8, part A2)', () => {
+  function convertedClipDocument(): ShowGrammarDocument {
+    const document = baseDocument()
+    const show = structuredClone(document.show)
+    show.composition.clips[0].logicalClipId = 'solo'
+    expect(validateShowRecordV2(show)).toEqual([])
+    return { ...document, show }
+  }
+
+  it('refuses a set_field that forges a Clip logicalClipId on a native Show', () => {
+    const document = baseDocument()
+    expect(document.show.composition.clips[0].logicalClipId).toBeUndefined()
+    applyRefused(document, 'set_field', {
+      pointer: '/composition/clips/0/logicalClipId',
+      value: 'solo',
+    }, 'invalid-argument')
+    expect(document.show.composition.clips[0].logicalClipId).toBeUndefined()
+  })
+
+  it('refuses forging Clip provenance through an ancestor write', () => {
+    const document = baseDocument()
+    const clip = document.show.composition.clips[0]
+    applyRefused(document, 'set_field', {
+      pointer: '/composition/clips/0',
+      value: { ...structuredClone(clip), logicalClipId: 'solo' },
+    }, 'invalid-argument')
+    expect(document.show.composition.clips[0].logicalClipId).toBeUndefined()
+    // The fixture fills its one Layer, so an appended Clip cannot isolate the
+    // provenance refusal from overlap: the ancestor write replaces the whole
+    // Clip collection with one Clip forged, reaching the provenance comparison.
+    const forged = structuredClone(document.show.composition.clips)
+    forged[0].logicalClipId = 'solo'
+    applyRefused(document, 'set_field', {
+      pointer: '/composition/clips',
+      value: forged,
+    }, 'invalid-argument')
+    expect(document.show.composition.clips[0].logicalClipId).toBeUndefined()
+  })
+
+  it('refuses changing or clearing provenance a converted Show already carries', () => {
+    const document = convertedClipDocument()
+    applyRefused(document, 'set_field', {
+      pointer: '/composition/clips/0/logicalClipId',
+      value: 'other',
+    }, 'invalid-argument')
+    applyRefused(document, 'set_field', {
+      pointer: '/composition/clips/0/logicalClipId',
+      delete: true,
+    }, 'invalid-argument')
+    const cleared = structuredClone(document.show.composition.clips[0])
+    delete cleared.logicalClipId
+    applyRefused(document, 'set_field', { pointer: '/composition/clips/0', value: cleared }, 'invalid-argument')
+    expect(document.show.composition.clips[0].logicalClipId).toBe('solo')
+  })
+
+  it('carries Clip provenance through an ordinary generic edit unchanged', () => {
+    const document = convertedClipDocument()
+    const renamed = applyOk(document, 'set_field', { pointer: '/composition/clips/0/entryPolicy', value: 'restart' })
+    expect(renamed.document.show.composition.clips[0].entryPolicy).toBe('restart')
+    expect(renamed.document.show.composition.clips[0].logicalClipId).toBe('solo')
+    expect(validateShowRecordV2(renamed.document.show)).toEqual([])
+  })
+})

@@ -294,3 +294,16 @@ it('requires ordinary same-Zone selection and retains the shared RL placement bo
   one.zones.push({ id: 'right-zone', name: 'Right', nominalPixelCount: 16 }); one.composition.layers.push({ id: 'right-layer', zoneId: 'right-zone', name: 'Main', rank: 0 }); one.zoneLayouts[0].logical = { kind: 'split', zoneIds: ['zone', 'right-zone'], axis: 'x' }; one.composition.clips.push(right)
   expect(validateShowRecordV2(one)).toEqual([]); atomicRefusal(one, planFor(one), 'invalid-selection')
 })
+
+it('drops conversion provenance from Group definition Clips (#1068 gap 8, part A2)', () => {
+  const { record, intent } = fixture()
+  record.composition.clips[0].logicalClipId = 'solo'
+  expect(validateShowRecordV2(record)).toEqual([])
+  const result = createShowGroupFromSelectionV2(record, intent)
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  const definition = result.record.composition.groupDefinitions.find(candidate => candidate.id === 'created')!
+  expect(definition.clips).toHaveLength(1)
+  expect(definition.clips[0].logicalClipId).toBeUndefined()
+  expect('logicalClipId' in definition.clips[0]).toBe(false)
+})

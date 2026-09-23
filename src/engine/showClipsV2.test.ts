@@ -774,3 +774,35 @@ function duplicateCandidateForPreparation(
   })
   return candidate
 }
+
+describe('v2 logicalClipId provenance (#1068 gap 8, part A2)', () => {
+  it('splits conversion provenance off the right half while the source keeps it', () => {
+    const source = fixture()
+    source.composition.clips[0].logicalClipId = 'solo'
+    expect(validateShowRecordV2(source)).toEqual([])
+    const result = editShowClipV2(source, { kind: 'split', clipId: 'clip', atMs: 500, rightClipId: 'right' })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    const left = result.record.composition.clips.find(clip => clip.id === 'clip')!
+    const right = result.record.composition.clips.find(clip => clip.id === 'right')!
+    expect(left.logicalClipId).toBe('solo')
+    expect(right.logicalClipId).toBeUndefined()
+    expect('logicalClipId' in right).toBe(false)
+  })
+
+  it('duplicates without carrying conversion provenance while the source keeps it', () => {
+    const source = fixture()
+    source.composition.showEndMs = 2_200
+    source.composition.layoutOccurrences[0].durationMs = 2_200
+    source.composition.clips[0].logicalClipId = 'solo'
+    expect(validateShowRecordV2(source)).toEqual([])
+    const result = editShowClipV2(source, linkedDuplicateIntent(source))
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    const kept = result.record.composition.clips.find(clip => clip.id === 'clip')!
+    const copy = result.record.composition.clips.find(clip => clip.id === 'copy')!
+    expect(kept.logicalClipId).toBe('solo')
+    expect(copy.logicalClipId).toBeUndefined()
+    expect('logicalClipId' in copy).toBe(false)
+  })
+})

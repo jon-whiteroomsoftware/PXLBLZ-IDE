@@ -168,8 +168,12 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
     const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
     edited.durationMs = intent.atMs - clip.startMs
     edited.appearance.keys = retainedAppearance(clip, clip.startMs, intent.atMs)
+    // Conversion provenance describes the converter's own `--layout-N` segment with
+    // this identity; the right half is a new Clip, so it never inherits it (#1068).
+    // The left half keeps its value under its unchanged identity.
+    const { logicalClipId: _splitLogicalClipId, ...rightSource } = structuredClone(clip)
     next.composition.clips.splice(next.composition.clips.indexOf(edited) + 1, 0, {
-      ...structuredClone(clip), id: intent.rightClipId, startMs: intent.atMs, durationMs: oldEndMs - intent.atMs, entryPolicy: 'continue', appearance: { keys: retainedAppearance(clip, intent.atMs, oldEndMs).map((key, index) => ({ ...key, id: `${intent.rightClipId}:appearance:${index + 1}` })) },
+      ...rightSource, id: intent.rightClipId, startMs: intent.atMs, durationMs: oldEndMs - intent.atMs, entryPolicy: 'continue', appearance: { keys: retainedAppearance(clip, intent.atMs, oldEndMs).map((key, index) => ({ ...key, id: `${intent.rightClipId}:appearance:${index + 1}` })) },
     })
     for (const transition of next.composition.transitions) {
       if (transition.wholeOutput) transition.wholeOutput.fromClipIds = transition.wholeOutput.fromClipIds.map(id => id === clip.id ? intent.rightClipId : id)

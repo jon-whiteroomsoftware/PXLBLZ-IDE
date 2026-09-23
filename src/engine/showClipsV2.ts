@@ -189,8 +189,11 @@ function duplicateShowClipV2(
 
   const deltaMs = intent.startMs - clip.startMs
   const next = structuredClone(record)
+  // A linked duplicate is a new Clip under a fresh identity; conversion
+  // provenance describes the converter's own segment, so it never copies (#1068).
+  const { logicalClipId: _duplicateLogicalClipId, ...duplicateSource } = structuredClone(clip)
   next.composition.clips.push({
-    ...structuredClone(clip),
+    ...duplicateSource,
     id: plan.clipId,
     zoneId: intent.zoneId,
     layerId: intent.layerId,
