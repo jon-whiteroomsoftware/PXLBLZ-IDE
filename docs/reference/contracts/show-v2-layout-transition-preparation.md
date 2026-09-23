@@ -86,8 +86,8 @@ the incoming hold alike, and the whole-output Scene-boundary blend sees only the
 two participants. A Clip that overlaps the window, or merely touches either edge
 - where the blend would fade it in or out instead of cutting it - keeps the
 atomic `unsupported-zone-sampling` refusal and its existing diagnostic,
-`composition.clips: lowering requires repeat-mode Clip sampling evidence before
-compilation.` So does a Clip that spans the Show across a Transition.
+`composition.clips: This multi-Zone arrangement requires span Clip sampling
+before compilation.` So does a Clip that spans the Show across a Transition.
 
 Nothing else changed. `canLowerToFlat` still requires whole-Show sampling of
 `independent`, rank-zero Layers, opacity one and single-key appearance, so a

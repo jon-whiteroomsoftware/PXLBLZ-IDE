@@ -1586,7 +1586,6 @@ describe('lowerShowCompositionV2ForCompile', () => {
   })
 
   it.each([
-    ['Clip repeat sampling', (record: ReturnType<typeof convertedRecord>) => { record.composition.clips[0].zoneSampleMode = 'repeat' }, 'repeat-mode'],
     ['Transition property ramps', (record: ReturnType<typeof convertedRecord>) => {
       record.composition.clips = [
         { ...record.composition.clips[0], id: 'from', durationMs: 400 },

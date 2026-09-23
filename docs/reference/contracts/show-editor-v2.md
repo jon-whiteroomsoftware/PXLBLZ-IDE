@@ -814,7 +814,7 @@ still stored as v1, and has no counterpart here:
 
 | Surface | What the v1 editor offers | Why it is still absent |
 | --- | --- | --- |
-| Clip Zone sampling | choosing a Clip's `independent`, `span` or `repeat` Zone sampling | no editor route offers it; only the `update_clips` command writes `zone_sample_mode` |
+| Clip Zone sampling | choosing a Clip's `independent` or `span` Zone sampling | no editor route offers it; only the `update_clips` command writes `zone_sample_mode` |
 
 Adding or removing a Zone and writing a Layout definition's routing were rows
 here until #1039's Zone slice landed their owners, and dragging an Installation

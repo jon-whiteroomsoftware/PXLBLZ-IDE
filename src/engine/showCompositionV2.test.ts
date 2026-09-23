@@ -6,6 +6,7 @@ import {
   serializeProvisionalShowRecordV2,
   validateShowRecordV2,
   validateShowRecordV2Domain,
+  validateShowRecordV2Structure,
   type ShowTransitionV2,
 } from './showCompositionV2'
 
@@ -276,6 +277,24 @@ describe('validateShowRecordV2', () => {
 
     expect(parseProvisionalShowRecordV2(bytes)).toEqual({ status: 'opened', record })
     expect(parseProvisionalShowRecordV2('{')).toMatchObject({ status: 'refused', issues: [{ code: 'schema' }] })
+  })
+
+  it('rejects repeat-per-zone sampling in an ordinary or Group Clip at the structural boundary', () => {
+    const record = minimalShowRecordV2()
+    const ordinary = structuredClone(record) as unknown as { composition: { clips: Array<{ zoneSampleMode: string }> } }
+    ordinary.composition.clips[0].zoneSampleMode = 'repeat'
+    expect(validateShowRecordV2Structure(ordinary)).toMatchObject({
+      valid: false,
+      errors: expect.arrayContaining([expect.objectContaining({ keyword: 'enum', instancePath: '/composition/clips/0/zoneSampleMode' })]),
+    })
+    const group = structuredClone(minimalHeldGroupRecord()) as unknown as {
+      composition: { groupDefinitions: Array<{ clips: Array<{ zoneSampleMode: string }> }> }
+    }
+    group.composition.groupDefinitions[0].clips[0].zoneSampleMode = 'repeat'
+    expect(validateShowRecordV2Structure(group)).toMatchObject({
+      valid: false,
+      errors: expect.arrayContaining([expect.objectContaining({ keyword: 'enum', instancePath: '/composition/groupDefinitions/0/clips/0/zoneSampleMode' })]),
+    })
   })
 
   it('reopens required ordered Group occurrence holds and refuses their omission', () => {

@@ -125,7 +125,7 @@ of one Zone for one interval of global time. Required fields:
   `layerId`; `startMs` (global, ≥ 0) and `durationMs` (> 0).
 - `entryPolicy`: `continue` (the shared runtime keeps running) or `restart`
   (the runtime's clock and Pattern-owned state reset at this contribution).
-- `zoneSampleMode`: `independent`, `span`, or `repeat` — routed-coordinate
+- `zoneSampleMode`: `independent` or `span` — routed-coordinate
   behavior, not source provenance.
 - `appearance`: a **key timeline**, `{"keys":[…]}`, each key `{id, timeMs,
   value}` with `value` carrying `opacity`, `view` (`mirror`, `phase`,

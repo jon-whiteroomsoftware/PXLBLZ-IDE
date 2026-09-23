@@ -191,7 +191,7 @@ export const EASING_FIELD: ShowCommandV2Field = {
 }
 
 export const ENTRY_POLICY_VALUES = ['continue', 'restart'] as const
-export const ZONE_SAMPLE_MODE_VALUES = ['independent', 'span', 'repeat'] as const
+export const ZONE_SAMPLE_MODE_VALUES = ['independent', 'span'] as const
 export const TRANSITION_KIND_VALUES = ['crossfade', 'fade-color', 'wipe', 'dither', 'portal', 'motion'] as const
 export const ROUTING_DIRECTION_VALUES = ['forward', 'reverse'] as const
 export const EFFECT_KIND_VALUES = [

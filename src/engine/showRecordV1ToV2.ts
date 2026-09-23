@@ -36,6 +36,7 @@ export type ShowV1ToV2IssueCode =
   | 'divergent-clip-field'
   | 'discontinuous-logical-clip'
   | 'unsupported-group'
+  | 'unsupported-zone-sampling'
   | 'invalid-v2'
 
 export interface ShowV1ToV2Issue {
@@ -124,6 +125,16 @@ export function convertShowRecordV1ToV2(
       message: issue.message,
     })))
   }
+  if (!show.composition) {
+    const repeatCellIndex = show.cells.findIndex(cell => cell.zoneMode === 'repeat')
+    if (repeatCellIndex >= 0) {
+      return refused(show, report, [{
+        path: `cells[${repeatCellIndex}].zoneMode`,
+        code: 'unsupported-zone-sampling',
+        message: 'Repeat-per-zone sampling is retired in v2; this Show has a Clip that repeats its Pattern per Zone.',
+      }])
+    }
+  }
   let composition = show.composition
   let sourceShow = show
   const flatSampleModeByPlacementId = new Map<string, ShowClipV2['zoneSampleMode']>()
@@ -163,7 +174,7 @@ export function convertShowRecordV1ToV2(
         ...zone.overlays.flatMap(layer => layer.placements),
       ])).filter(placement => placementIds.includes(placement.id)).map(placement => placement.instanceId))]
       report.flatProjectionMappings.push({ cellId: cell.id, placementIds, patternInstanceIds })
-      const zoneSampleMode = cell.zoneMode ?? ((cell.zoneSpan ?? 1) === 1 ? 'independent' : 'span')
+      const zoneSampleMode = cell.zoneMode === 'span' ? 'span' : ((cell.zoneSpan ?? 1) === 1 ? 'independent' : 'span')
       for (const placementId of placementIds) flatSampleModeByPlacementId.set(placementId, zoneSampleMode)
     }
   } else {

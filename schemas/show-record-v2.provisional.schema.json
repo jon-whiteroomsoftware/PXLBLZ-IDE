@@ -171,7 +171,7 @@
         "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
         "entryPolicy": { "enum": ["continue", "restart"] },
         "zoneSampleMode": {
-          "enum": ["independent", "span", "repeat"],
+          "enum": ["independent", "span"],
           "description": "Routed-coordinate behavior. independent preserves the current flat single-Zone default; it is not source-origin metadata."
         },
         "logicalClipId": { "type": "string", "minLength": 1, "description": "Conversion provenance (#1068): the v1 logical Clip this --layout-N segment was split from. Written by the v1 converter alone; inert." },
@@ -574,7 +574,7 @@
         "durationMs": { "$ref": "#/$defs/PositiveSafeInteger" },
         "entryPolicy": { "enum": ["continue", "restart"] },
         "zoneSampleMode": {
-          "enum": ["independent", "span", "repeat"],
+          "enum": ["independent", "span"],
           "description": "Routed-coordinate behavior. independent preserves the current flat single-Zone default; it is not source-origin metadata."
         },
         "appearance": { "$ref": "#/$defs/ShowClipAppearanceTimelineV2" }

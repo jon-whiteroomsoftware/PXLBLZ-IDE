@@ -59,7 +59,7 @@ export interface ShowClipV2 {
   startMs: number
   durationMs: number
   entryPolicy: 'continue' | 'restart'
-  zoneSampleMode: 'independent' | 'span' | 'repeat'
+  zoneSampleMode: 'independent' | 'span'
   appearance: ShowClipAppearanceTimelineV2
   /**
    * Conversion provenance for a `--layout-N` segment of one v1 logical Clip

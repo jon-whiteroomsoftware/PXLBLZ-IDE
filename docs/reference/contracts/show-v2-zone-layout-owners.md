@@ -166,7 +166,7 @@ owner, so a malformed runtime object never reaches preparation or adoption.
   - `ShowV2AddClipEditor` (removed by #1067 Stage 1) wrote `zoneSampleMode: 'span'` for every new Clip. A
     fresh Show's own Clips sample `independent`, and mixed sampling is not
     flat-eligible, so the first Clip added to a second Zone refuses with
-    `composition.clips: lowering requires repeat-mode Clip sampling evidence
+    `composition.clips: This multi-Zone arrangement requires span Clip sampling
     before compilation.` Nothing is written and the message is shown.
   - A second Layout occurrence over a participant Transition refuses on the
     continuous-flat route with `unsupported-layout-occurrences`.

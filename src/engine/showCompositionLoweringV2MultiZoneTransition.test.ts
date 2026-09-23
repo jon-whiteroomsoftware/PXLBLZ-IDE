@@ -75,7 +75,7 @@ const TIMELINE_MS = [16_000, 29_984, 30_000, 30_496, 31_008, 31_984, 32_000, 45_
 const UNSUPPORTED_SAMPLING = {
   code: 'unsupported-zone-sampling',
   path: 'composition.clips',
-  message: 'lowering requires repeat-mode Clip sampling evidence before compilation.',
+  message: 'This multi-Zone arrangement requires span Clip sampling before compilation.',
 }
 
 function addZone(record: ShowRecordV2, zone: typeof SECOND_ZONE | typeof THIRD_ZONE): ShowRecordV2 {

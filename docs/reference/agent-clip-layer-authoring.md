@@ -41,8 +41,8 @@ candidate identities when several exist; `"new"` creates the first runtime and
 refuses when one already exists; any other value is an explicit existing
 `instance_id`. `entry_policy` is `continue` or `restart`, where `restart` resets
 the whole Pattern instance at that Clip's first contribution and every Clip
-sharing the runtime observes it. `zone_sample_mode` is `independent`, `span` or
-`repeat`. `appearance` seeds the first held key, including its Effect stack, and
+sharing the runtime observes it. `zone_sample_mode` is `independent` or `span`.
+`appearance` seeds the first held key, including its Effect stack, and
 `instance_properties` writes Pattern-instance controls, time and evaluation.
 
 `ClipPatch` updates one Clip by `clip_id`. Placement goes through the Clip

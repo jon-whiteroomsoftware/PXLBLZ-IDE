@@ -666,7 +666,7 @@ bypasses arbitrary compiler refusals or creates a placeholder runtime.
 ## 10. Conversion, pilot and cutover
 
 Conversion inventories source leaves and preserves payload or reports explicit
-retirement/refusal. Flat sampling (`independent | span | repeat`), divergent
+retirement/refusal. Flat sampling (`independent | span`; `repeat` refuses), divergent
 appearance, private legacy instances, property activation, Layout scalar carriers,
 Groups and execution lifecycle follow the measured converter. Preserve identity
 mappings for source/render comparison. Unknown fields, dependencies or unsupported
@@ -783,6 +783,7 @@ This table is the one list of the places where the v2 editor deliberately behave
 | A v1 placement whose Zone is absent for its whole interval retires as `retired-silent-runtime-use`, with no v2 Clip; the parity harness accepts the resulting runtime mismatch only under the provenance rule | §2; this section |
 | Edit refusals show their reason in the surface's existing error slot instead of emulating v1 ("UI honesty replaces emulation") | Jon, 2026-09-22 |
 | Restart resets the shared Pattern instance in place and is unavailable, with its reason shown, for a Pattern whose state the Restart planner cannot reset; v1 gave the Clip a fresh runtime, so any Pattern could restart | #1091 (Jon, 2026-09-23); §3 Restart |
+| Repeat-per-zone Clip sampling is retired: v2 Clips sample across Zones as one canvas (span) or independently; a v1 Show using repeat does not convert | #1094 (Jon, 2026-09-23) |
 
 ## 11. Work allocation and integration order
 

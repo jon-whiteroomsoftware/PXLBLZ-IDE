@@ -135,6 +135,23 @@ describe('convertShowRecordV1ToV2', () => {
     expect(JSON.stringify(source)).toBe(before)
   })
 
+  it('refuses a flat v1 repeat Cell with the retired sampling reason', () => {
+    const source = flatV1Show()
+    source.cells[0].zoneMode = 'repeat'
+    const before = JSON.stringify(source)
+    const result = convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'source' } })
+    expect(result).toMatchObject({
+      status: 'refused',
+      issues: [{
+        path: 'cells[0].zoneMode',
+        code: 'unsupported-zone-sampling',
+        message: 'Repeat-per-zone sampling is retired in v2; this Show has a Clip that repeats its Pattern per Zone.',
+      }],
+      report: { unaccountedSourcePaths: [] },
+    })
+    expect(JSON.stringify(source)).toBe(before)
+  })
+
   it.each([
     ['Freeze presentation', { presentation: { mode: 'freeze' as const } }],
     ['Blink visibility', { blink: { rateHz: 2, duty: 0.25, phase: 0.125 } }],

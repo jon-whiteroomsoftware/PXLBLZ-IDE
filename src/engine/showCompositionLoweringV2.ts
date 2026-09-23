@@ -475,7 +475,7 @@ function resolveShowV2CompileContext(
     return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Independent Clip sampling with Layer Transitions and multiple Layout occurrences requires lossless routing preparation proof.')
   }
   if (unsupportedRoutedSampling && !flatEligible) {
-    return refuse('unsupported-zone-sampling', 'composition.clips', 'lowering requires repeat-mode Clip sampling evidence before compilation.')
+    return refuse('unsupported-zone-sampling', 'composition.clips', 'This multi-Zone arrangement requires span Clip sampling before compilation.')
   }
   const sectionedParticipantRoute = !flatEligible && !wholeOutput
     && composition.transitions.length > 0 && hasSectionScopedTrackActivationV2(record)

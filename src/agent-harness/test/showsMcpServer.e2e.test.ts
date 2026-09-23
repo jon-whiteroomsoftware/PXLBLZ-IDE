@@ -43,7 +43,7 @@ describe('pxlblz-shows MCP server (#7)', () => {
     // bounded number keeps its bounds, so the protocol layer refuses an
     // out-of-domain value before any owner runs.
     expect(patch.entry_policy).toMatchObject({ type: 'string', enum: ['continue', 'restart'] })
-    expect(patch.zone_sample_mode).toMatchObject({ type: 'string', enum: ['independent', 'span', 'repeat'] })
+    expect(patch.zone_sample_mode).toMatchObject({ type: 'string', enum: ['independent', 'span'] })
     expect(patch.start_ms).toMatchObject({ type: 'integer', minimum: 0 })
 
     for (const update of [

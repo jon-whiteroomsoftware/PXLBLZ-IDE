@@ -249,7 +249,7 @@ export function createClipsFromSpecs(
             startMs: spec.start_ms as number,
             durationMs: spec.duration_ms as number,
             entryPolicy: (spec.entry_policy as 'continue' | 'restart' | undefined) ?? 'continue',
-            zoneSampleMode: (spec.zone_sample_mode as 'independent' | 'span' | 'repeat' | undefined) ?? 'span',
+            zoneSampleMode: (spec.zone_sample_mode as 'independent' | 'span' | undefined) ?? 'span',
             appearance: { keys: [{ id: appearanceKeyId, timeMs: spec.start_ms as number, value: DEFAULT_APPEARANCE() }] },
           },
           runtime: selection.runtime,
