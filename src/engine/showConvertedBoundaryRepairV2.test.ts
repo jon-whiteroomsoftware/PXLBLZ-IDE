@@ -442,36 +442,7 @@ describe('converted Scene-boundary repair on Clip delete (gap 7)', () => {
     expect(result.affectedTrackIds).toEqual(expect.arrayContaining(['brightness-track']))
     expect(validateShowRecordV2(reopen(result.record))).toEqual([])
   })
-  it('keeps a projection plan anchored to the survivor on converted-boundary delete', () => {
-    const source = convertedDefaultShow()
-    const carrier = source.composition.transitions.find(transition => transition.id === BOUNDARY)!
-    carrier.propertyRamps = [{
-      participantId: carrier.participants[0].id,
-      target: { kind: 'clip-view', clipId: LEFT, property: 'brightness' },
-      from: 0.2,
-      easing: { curve: 'quadratic', direction: 'in' },
-    }]
-    const result = editShowTransitionV2(source, {
-      kind: 'delete-clip',
-      clipId: RIGHT,
-      propertyRampProjections: [{
-        transitionId: BOUNDARY,
-        projections: [{
-          rampIndex: 0, trackId: 'brightness-track', startKeyId: 'brightness-start', endKeyId: 'brightness-end',
-          activeEndMs: 62000, toValue: 1,
-        }],
-      }],
-    })
-    expect(result.status).toBe('changed')
-    if (result.status !== 'changed') return
-    expect(result.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([[LEFT, 0, 30000]])
-    expect(result.record.composition.transitions).toEqual([])
-    expect(result.record.composition.showEndMs).toBe(62000)
-    expect(result.record.composition.propertyTracks).toEqual([
-      expect.objectContaining({ id: 'brightness-track', target: { kind: 'clip-view', clipId: LEFT, property: 'brightness' } }),
-    ])
-    expect(validateShowRecordV2(reopen(result.record))).toEqual([])
-  })
+
   it('keeps carrier projection refusals on delete where v1 retains or repairs', () => {
     const source = convertedDefaultShow()
     const carrier = source.composition.transitions.find(transition => transition.id === BOUNDARY)!

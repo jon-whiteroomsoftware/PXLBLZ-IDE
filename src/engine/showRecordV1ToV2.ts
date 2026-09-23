@@ -2,6 +2,7 @@ import { convertGroupDefinition, convertGroupOccurrence, groupDefinitionPreserve
 import { materializeShowGroupLayerShells } from './showGroupModel'
 import { clipAppearance, convertPropertyTarget } from './showV2ValueConversion'
 import { repeatScaleAt, scalarBoundaryRamps } from './showV2ScalarProperties'
+import { normalizePersistedShowEasing } from './showEasing'
 import type {
   ShowMainPlacement,
   ShowOverlayPlacement,
@@ -17,7 +18,6 @@ import {
   type ShowLayerV2,
   type ShowLayoutOccurrenceV2,
   type ShowMarkerV2,
-  type ShowPropertyTrackV2,
   type ShowRecordV2,
   type ShowTransitionV2,
 } from './showCompositionV2'
@@ -281,7 +281,6 @@ export function convertShowRecordV1ToV2(
     for (const placementId of mapping.sourcePlacementIds) clipIdByPlacementId.set(placementId, mapping.clipId)
   }
   const boundaryTransitions: ShowTransitionV2[] = []
-  const boundaryRampTracks: ShowPropertyTrackV2[] = []
   for (const boundary of visualBoundaries) {
     const atMs = sceneEndById.get(boundary.afterSceneId)
     const from = clips.filter(clip => clip.startMs + clip.durationMs === atMs)
@@ -302,6 +301,7 @@ export function convertShowRecordV1ToV2(
       issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'A boundary Animation speed or Brightness ramp converts only at Layer participant scope.' })
       continue
     }
+    let clipRamps: ShowTransitionV2['propertyRamps'] = []
     if (isRampCarrier(boundary.propertyTransitions)) {
       if (show.composition !== undefined) {
         issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'A boundary Animation speed or Brightness ramp converts only on a Show without a v1 Layer composition.' })
@@ -314,26 +314,7 @@ export function convertShowRecordV1ToV2(
         issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: `Boundary Transition "${boundary.id}" carries an Animation speed or Brightness ramp without exact v1 Cells on both sides.` })
         continue
       }
-      // Bases mirror the v1 recipe (showModel.ts:2211-2214): the incoming Cell's id keys
-      // fromByCellId, the outgoing Cell's adaptations supply a missing from, and the
-      // incoming Cell's adaptations supply the to value slice A's recogniser compares.
-      for (const key of ['timeScale', 'brightness'] as const) {
-        const descriptor = boundary.propertyTransitions?.[key]
-        if (!descriptor) continue
-        const trackId = `${boundary.id}:ramp:${key}:${to[0].id}`
-        boundaryRampTracks.push({
-          id: trackId,
-          target: key === 'timeScale'
-            ? { kind: 'instance-time-scale', instanceId: to[0].instanceId }
-            : { kind: 'clip-view', clipId: to[0].id, property: 'brightness' },
-          activeStartMs: atMs!,
-          activeDurationMs: boundary.durationMs,
-          keyframes: [
-            { id: `${trackId}:k0`, timeMs: atMs!, value: descriptor.fromByCellId[incomingCell.id] ?? outgoingCell.adaptations[key], easing: descriptor.easing === undefined ? { curve: 'linear' as const } : structuredClone(descriptor.easing) },
-            { id: `${trackId}:k1`, timeMs: atMs! + (descriptor.durationMs ?? boundary.durationMs), value: incomingCell.adaptations[key], easing: { curve: 'linear' as const } },
-          ],
-        })
-      }
+      clipRamps = buildTransitionClipRampsV2(boundary, to[0], incomingCell.id, outgoingCell.adaptations)
     }
     boundaryTransitions.push({
       ...settings,
@@ -347,6 +328,7 @@ export function convertShowRecordV1ToV2(
       propertyRamps: [
         ...(boundary.propertyTransitions?.sample?.repeatScale ? [{ target: { kind: 'show-repeat-scale' as const }, ...structuredClone(boundary.propertyTransitions.sample.repeatScale) }] : []),
         ...(boundary.propertyTransitions?.routing?.splitPosition ? [{ target: { kind: 'layout-occurrence-split-position' as const, layoutOccurrenceId: layoutOccurrences.find(occurrence => occurrence.startMs <= atMs! + boundary.durationMs && occurrence.startMs + occurrence.durationMs > atMs! + boundary.durationMs)!.id }, ...structuredClone(boundary.propertyTransitions.routing.splitPosition) }] : []),
+        ...clipRamps,
       ],
     })
   }
@@ -413,22 +395,6 @@ export function convertShowRecordV1ToV2(
   })
 
   if (issues.length > 0) return refused(show, report, issues)
-
-  const admittedRampTracks: ShowPropertyTrackV2[] = []
-  for (const track of boundaryRampTracks) {
-    const collides = [...propertyTracks, ...admittedRampTracks].some(existing => (
-      JSON.stringify(existing.target) === JSON.stringify(track.target)
-      && existing.activeStartMs < track.activeStartMs + track.activeDurationMs
-      && existing.activeStartMs + existing.activeDurationMs > track.activeStartMs
-    ))
-    if (collides) {
-      issues.push({ path: 'transitions', code: 'unsupported-boundary-transition', message: 'A boundary ramp collides with an existing property track.' })
-    } else {
-      admittedRampTracks.push(track)
-    }
-  }
-  if (issues.length > 0) return refused(show, report, issues)
-  propertyTracks.push(...admittedRampTracks)
 
   const repeatKeys = timeline.scenes.map(scene => ({ timeMs: scene.startMs, value: scene.scene.sampleTargets?.repeatScale ?? 1 }))
     .filter((key, index, all) => index === 0 || key.value !== all[index - 1].value)
@@ -961,6 +927,90 @@ function layoutProvidesZone(
   return zoneIds.includes(zoneId)
 }
 
+function clampTransitionClipTimeScaleV1(value: number): number {
+  return Math.max(0, Math.min(4, Number.isFinite(value) ? value : 1))
+}
+
+function clampTransitionClip01V1(value: number): number {
+  return Math.max(0, Math.min(1, value))
+}
+
+function clampTransitionClipPropertyDurationV1(durationMs: number): number {
+  return Math.max(100, Math.round(durationMs))
+}
+
+function clampTransitionClipTransitionDurationV1(durationMs: number): number {
+  return Math.max(0, Math.round(durationMs))
+}
+
+function normalizedTransitionClipCarrierV2(boundary: ShowRecord['transitions'][number]): {
+  timeScale?: { fromByCellId: Record<string, number>; durationMs: number; easing: ReturnType<typeof normalizePersistedShowEasing> };
+  brightness?: { fromByCellId: Record<string, number>; durationMs: number; easing: ReturnType<typeof normalizePersistedShowEasing> };
+} {
+  const normalizeOne = (key: 'timeScale' | 'brightness') => {
+    const source = boundary.propertyTransitions?.[key]
+    if (!source) return undefined
+    const clamp = key === 'timeScale' ? clampTransitionClipTimeScaleV1 : clampTransitionClip01V1
+    return {
+      fromByCellId: Object.fromEntries(Object.entries(source.fromByCellId ?? {}).map(([cellId, value]) => [cellId, clamp(value as number)])),
+      durationMs: Math.min(
+        clampTransitionClipPropertyDurationV1(source.durationMs ?? boundary.durationMs),
+        clampTransitionClipTransitionDurationV1(boundary.durationMs),
+      ),
+      easing: normalizePersistedShowEasing(source.easing ?? boundary.easing),
+    }
+  }
+  return { timeScale: normalizeOne('timeScale'), brightness: normalizeOne('brightness') }
+}
+
+function buildTransitionClipRampsV2(
+  boundary: ShowRecord['transitions'][number],
+  toClip: { id: string; instanceId: string },
+  incomingCellId: string,
+  outgoingAdaptations: { timeScale: number; brightness: number },
+): ShowTransitionV2['propertyRamps'] {
+  const normalized = normalizedTransitionClipCarrierV2(boundary)
+  const participantId = `${boundary.id}:participant:1`
+  const transitionEasing = normalizePersistedShowEasing(boundary.easing)
+  const ramps: ShowTransitionV2['propertyRamps'] = []
+  for (const key of ['timeScale', 'brightness'] as const) {
+    const descriptor = normalized[key]
+    if (!descriptor) continue
+    const from = descriptor.fromByCellId[incomingCellId] ?? outgoingAdaptations[key]
+    const target = key === 'timeScale'
+      ? { kind: 'instance-time-scale' as const, instanceId: toClip.instanceId }
+      : { kind: 'clip-view' as const, clipId: toClip.id, property: 'brightness' as const }
+    ramps.push({
+      participantId,
+      target,
+      from,
+      ...(descriptor.durationMs === boundary.durationMs ? {} : { durationMs: descriptor.durationMs }),
+      ...(JSON.stringify(descriptor.easing) === JSON.stringify(transitionEasing) ? {} : { easing: structuredClone(descriptor.easing) }),
+    })
+  }
+  return ramps
+}
+
+function rampCarrierRampsAccounted(
+  show: ShowRecord,
+  record: ShowRecordV2,
+  transition: ShowRecord['transitions'][number],
+): boolean {
+  const carrier = transition.propertyTransitions
+  if (carrier === undefined || !isRampCarrier(carrier)) return false
+  const targetIndex = record.composition.transitions.findIndex(candidate => candidate.id === transition.id)
+  const target = record.composition.transitions[targetIndex]
+  if (target === undefined || target.participants.length !== 1) return false
+  const toClip = record.composition.clips.find(clip => clip.id === target.participants[0].toClipId)
+  if (toClip === undefined) return false
+  const incomingSceneId = show.scenes[show.scenes.findIndex(scene => scene.id === transition.afterSceneId) + 1]?.id
+  const outgoingCell = showCellAtSlot(show, toClip.zoneId, transition.afterSceneId)
+  const incomingCell = incomingSceneId === undefined ? undefined : showCellAtSlot(show, toClip.zoneId, incomingSceneId)
+  if (outgoingCell === undefined || incomingCell === undefined) return false
+  const expected = buildTransitionClipRampsV2(transition, toClip, incomingCell.id, outgoingCell.adaptations)
+  return JSON.stringify(target.propertyRamps) === JSON.stringify(expected)
+}
+
 function isRampCarrier(carrier: ShowRecord['transitions'][number]['propertyTransitions']): boolean {
   return carrier !== undefined && Object.keys(carrier).length > 0 && Object.keys(carrier).every(key => key === 'timeScale' || key === 'brightness')
 }
@@ -969,45 +1019,6 @@ function isScalarCarrier(carrier: NonNullable<ShowRecord['transitions'][number][
   return Object.keys(carrier).length > 0 && Object.keys(carrier).every(key => key === 'sample' || key === 'routing')
     && (!carrier.sample || (Object.keys(carrier.sample).length === 1 && carrier.sample.repeatScale !== undefined))
     && (!carrier.routing || (Object.keys(carrier.routing).length === 1 && carrier.routing.splitPosition !== undefined))
-}
-
-function rampCarrierTracksAccounted(
-  show: ShowRecord,
-  record: ShowRecordV2,
-  report: ShowV1ToV2Report,
-  transition: ShowRecord['transitions'][number],
-): boolean {
-  const carrier = transition.propertyTransitions
-  if (carrier === undefined || !isRampCarrier(carrier)) return false
-  const target = record.composition.transitions.find(candidate => candidate.id === transition.id)
-  if (target === undefined || target.participants.length !== 1) return false
-  const toClip = record.composition.clips.find(clip => clip.id === target.participants[0].toClipId)
-  const atMs = report.sceneOffsets.find(scene => scene.sceneId === transition.afterSceneId)?.endMs
-  const incomingSceneId = show.scenes[show.scenes.findIndex(scene => scene.id === transition.afterSceneId) + 1]?.id
-  const outgoingCell = toClip === undefined ? undefined : showCellAtSlot(show, toClip.zoneId, transition.afterSceneId)
-  const incomingCell = toClip === undefined || incomingSceneId === undefined ? undefined : showCellAtSlot(show, toClip.zoneId, incomingSceneId)
-  if (toClip === undefined || atMs === undefined || outgoingCell === undefined || incomingCell === undefined) return false
-  return (['timeScale', 'brightness'] as const).every(key => {
-    const descriptor = carrier[key]
-    if (!descriptor) return true
-    const trackId = `${transition.id}:ramp:${key}:${toClip.id}`
-    const track = record.composition.propertyTracks.find(candidate => candidate.id === trackId)
-    if (!track) return false
-    const expectedTarget = key === 'timeScale'
-      ? { kind: 'instance-time-scale', instanceId: toClip.instanceId }
-      : { kind: 'clip-view', clipId: toClip.id, property: 'brightness' }
-    return JSON.stringify(track.target) === JSON.stringify(expectedTarget)
-      && track.activeStartMs === atMs
-      && track.activeDurationMs === transition.durationMs
-      && track.keyframes.length === 2
-      && track.keyframes[0].id === `${trackId}:k0`
-      && track.keyframes[0].timeMs === atMs
-      && track.keyframes[0].value === (descriptor.fromByCellId[incomingCell.id] ?? outgoingCell.adaptations[key])
-      && JSON.stringify(track.keyframes[0].easing) === JSON.stringify(descriptor.easing ?? { curve: 'linear' })
-      && track.keyframes[1].id === `${trackId}:k1`
-      && track.keyframes[1].timeMs === atMs + (descriptor.durationMs ?? transition.durationMs)
-      && track.keyframes[1].value === incomingCell.adaptations[key]
-  })
 }
 
 function uniqueId(preferred: string, used: Set<string>): string {
@@ -1174,7 +1185,7 @@ export function auditShowV1ToV2Accounting(
         const { participants: _participants, wholeOutput: _wholeOutput, propertyRamps: _ramps, origin: _origin, ...targetSettings } = record.composition.transitions[targetIndex]
         mapped(`transitions.${transitionIndex}`, `composition.transitions.${targetIndex}`, settings, JSON.stringify(settings) === JSON.stringify(targetSettings))
         if (propertyTransitions !== undefined && isRampCarrier(propertyTransitions)) {
-          mapped(`transitions.${transitionIndex}.propertyTransitions`, 'composition.propertyTracks', propertyTransitions, rampCarrierTracksAccounted(show, record, report, transition))
+          mapped(`transitions.${transitionIndex}.propertyTransitions`, `composition.transitions.${targetIndex}.propertyRamps`, propertyTransitions, rampCarrierRampsAccounted(show, record, transition))
         } else if (propertyTransitions !== undefined) mapped(`transitions.${transitionIndex}.propertyTransitions`, `composition.transitions.${targetIndex}.propertyRamps`, propertyTransitions, JSON.stringify([propertyTransitions.sample, propertyTransitions.routing]) === JSON.stringify([scalarBoundaryRamps(record.composition.transitions[targetIndex])?.sample, scalarBoundaryRamps(record.composition.transitions[targetIndex])?.routing]))
         retired(`transitions.${transitionIndex}.afterSceneId`, `composition.transitions.${targetIndex}.participants`, afterSceneId, report.sceneOffsets.some(scene => scene.sceneId === afterSceneId))
         continue

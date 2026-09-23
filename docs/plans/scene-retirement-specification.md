@@ -692,7 +692,7 @@ mixed-scope gate; that gate keeps its own separate preservation proof.
 
 #1080 admits a v1 logical Clip whose source segments leave a gap (Jon, 2026-09-22). It converts to one v2 Clip per continuous run, `<logical id>--run-<n>`, all on the logical Clip's one Pattern instance with `entryPolicy: 'continue'`. The conversion report names each split in `splitLogicalClips`, with every emitted Clip id and gap. This is an accepted divergence: selecting, deleting or animating acts on one run on v2 where v1 acted on the whole logical Clip. Playback is unchanged, and the runtime parity oracle holds. Overlapping segments still refuse.
 
-#1080 converts a boundary Animation speed or Brightness ramp into an exact-window property track on the incoming Clip, lowered back to the same v1 carrier. It converts only on a flat v1 Show (no v1 Layer composition) where the boundary lands at Layer participant scope. Everywhere else, and for a carrier that also holds other properties, it refuses at conversion. A whole-output-scope window track, including one authored natively on v2, still refuses in preparation.
+#1091 holds a boundary Animation speed or Brightness ramp on its participant Transition as a Transition-owned speed or brightness ramp, lowered back to the same v1 carrier. It converts only on a flat v1 Show (no v1 Layer composition) where the boundary lands at Layer participant scope. Everywhere else, and for a carrier that also holds other properties, it refuses at conversion. A Transition speed or brightness ramp compiles only on the flat route; off the flat route it refuses in preparation.
 
 A Layer Transition inserted on a Cut may take all the room up to the next logical obstruction, which is the first thing the Transition owner refuses. Chapter Markers do not bound it. On a converted Show this can exceed the v1 Scene-end limit (#1075, Jon 2026-09-22).
 
@@ -762,7 +762,7 @@ This table is the one list of the places where the v2 editor deliberately behave
 | A whole-output boundary with an empty side converts, with that side an explicitly empty contributor set | #1068; this section |
 | Divergent overlay names convert by the survivor rule; the first Scene wins | #1068; this section |
 | Select, delete and animate on a split logical Clip act on one run (`<id>--run-<n>`), not the logical Clip | #1080 class 1 (Jon, 2026-09-22); this section |
-| Boundary speed and brightness ramps convert only on flat Shows; native whole-output window tracks refuse | #1080 class 2 (A); this section |
+| Boundary speed and brightness ramps convert only on flat Shows, held on the Transition (#1091); a Transition speed or brightness ramp compiles only on the flat route | #1080 class 2 (A); this section |
 | A Transition inserted on a Cut takes room up to the next logical obstruction; chapter Markers and the v1 Scene end do not bound it | #1075 (Jon, 2026-09-22); this section |
 | "Different Zone Layouts" reads Layout occurrences, not Scenes; about 140 stock Cuts now report no free time | #1075 ruling; `showV2LayerTransitionInsertion.test.ts` |
 | Select, move and animate act on each `--layout-N` segment of a layout-split logical Clip; delete, the final-Clip count, Zone removal and `remove_clips` act on the logical Clip as v1 does, through the `logicalClipId` provenance field | #1068 gap 8 (ruling 1b); `show-v2-conversion-provenance.md` |

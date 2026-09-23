@@ -542,18 +542,77 @@ export function validateShowRecordV2Domain(record: ShowRecordV2, derivedStructur
       }
     })
     const scalarTargets = new Set<string>()
+    const clipRampSeen = new Set<string>()
     transition.propertyRamps.forEach((ramp, index) => {
       const rampPath = `${path}.propertyRamps[${index}]`
-      if (ramp.target.kind !== 'show-repeat-scale' && ramp.target.kind !== 'layout-occurrence-split-position') return
-      if (scalarTargets.has(ramp.target.kind)) addIssue(issues, rampPath, 'invalid-transition', 'A scalar target may have only one boundary ramp.')
-      scalarTargets.add(ramp.target.kind)
-      if (!transition.wholeOutput || ramp.participantId !== undefined) addIssue(issues, rampPath, 'invalid-transition', 'Global scalar ramps require whole-output scope.')
-      if (ramp.target.kind === 'layout-occurrence-split-position') {
-        const occurrence = occurrences.get(ramp.target.layoutOccurrenceId)
-        const atMs = (transition.wholeOutput?.startMs ?? 0) + transition.durationMs
-        if (!occurrence || occurrence.startMs > atMs || occurrence.startMs + occurrence.durationMs <= atMs) addIssue(issues, rampPath, 'missing-reference', 'Split ramp must target the incoming Layout occurrence.')
-        if (ramp.from < 0 || ramp.from > 1) addIssue(issues, rampPath, 'out-of-bounds', 'Split ramp origin must be between zero and one.')
-      } else if (ramp.from <= 0) addIssue(issues, rampPath, 'out-of-bounds', 'Repeat-scale ramp origin must be positive.')
+      if (ramp.target.kind === 'show-repeat-scale' || ramp.target.kind === 'layout-occurrence-split-position') {
+        if (scalarTargets.has(ramp.target.kind)) addIssue(issues, rampPath, 'invalid-transition', 'A scalar target may have only one boundary ramp.')
+        scalarTargets.add(ramp.target.kind)
+        if (!transition.wholeOutput || ramp.participantId !== undefined) addIssue(issues, rampPath, 'invalid-transition', 'Global scalar ramps require whole-output scope.')
+        if (ramp.target.kind === 'layout-occurrence-split-position') {
+          const occurrence = occurrences.get(ramp.target.layoutOccurrenceId)
+          const atMs = (transition.wholeOutput?.startMs ?? 0) + transition.durationMs
+          if (!occurrence || occurrence.startMs > atMs || occurrence.startMs + occurrence.durationMs <= atMs) addIssue(issues, rampPath, 'missing-reference', 'Split ramp must target the incoming Layout occurrence.')
+          if (ramp.from < 0 || ramp.from > 1) addIssue(issues, rampPath, 'out-of-bounds', 'Split ramp origin must be between zero and one.')
+        } else if (ramp.from <= 0) addIssue(issues, rampPath, 'out-of-bounds', 'Repeat-scale ramp origin must be positive.')
+        return
+      }
+      if (ramp.target.kind !== 'instance-time-scale' && ramp.target.kind !== 'clip-view') return
+      const isSpeed = ramp.target.kind === 'instance-time-scale'
+      const isBrightness = ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness'
+      if (!isSpeed && !isBrightness) {
+        addIssue(issues, rampPath, 'invalid-property-target', 'Transition property ramps animate only the incoming Clip\'s Animation speed or Brightness.')
+        return
+      }
+      if (transition.wholeOutput !== undefined) {
+        addIssue(issues, rampPath, 'invalid-transition', 'A Transition speed or brightness ramp belongs to a participant.')
+        return
+      }
+      const participant = ramp.participantId !== undefined
+        ? transition.participants.find(candidate => candidate.id === ramp.participantId)
+        : transition.participants.length === 1 ? transition.participants[0] : undefined
+      if (!participant) {
+        addIssue(issues, rampPath, 'invalid-transition', 'Name the participant this ramp animates.')
+        return
+      }
+      const incoming = clips.get(participant.toClipId)
+      if (!incoming) {
+        addIssue(issues, rampPath, 'missing-reference', 'A Transition ramp animates the incoming Clip of its participant.')
+        return
+      }
+      const namesIncoming = isSpeed
+        ? (ramp.target.kind === 'instance-time-scale' && ramp.target.instanceId === incoming.instanceId)
+        : (ramp.target.kind === 'clip-view' && ramp.target.clipId === incoming.id)
+      if (!namesIncoming) {
+        addIssue(issues, rampPath, 'invalid-property-target', 'A Transition ramp animates the incoming Clip of its participant.')
+        return
+      }
+      const rampKey = `${participant.id}:${isSpeed ? 'timeScale' : 'brightness'}`
+      if (clipRampSeen.has(rampKey)) {
+        addIssue(issues, rampPath, 'invalid-transition', 'A Transition participant may have only one speed ramp and one brightness ramp.')
+      } else {
+        clipRampSeen.add(rampKey)
+      }
+      if (!Number.isFinite(ramp.from)) {
+        addIssue(issues, rampPath, 'not-finite', isSpeed ? 'Speed ramp origin must be finite.' : 'Brightness ramp origin must be finite.')
+      } else if (isSpeed ? (ramp.from < 0 || ramp.from > 4) : (ramp.from < 0 || ramp.from > 1)) {
+        addIssue(issues, rampPath, 'out-of-bounds', isSpeed ? 'Speed ramp origin must be between 0 and 4.' : 'Brightness ramp origin must be between 0 and 1.')
+      }
+      if (ramp.durationMs !== undefined) {
+        if (!Number.isFinite(ramp.durationMs)) {
+          addIssue(issues, rampPath, 'not-finite', 'Ramp duration must be finite.')
+        } else if (!Number.isSafeInteger(ramp.durationMs)) {
+          addIssue(issues, rampPath, 'not-integer', 'Ramp duration must be a safe integer.')
+        } else {
+          const minDurationMs = Math.min(100, transition.durationMs)
+          if (ramp.durationMs < minDurationMs || ramp.durationMs > transition.durationMs) {
+            addIssue(issues, rampPath, 'out-of-bounds', `Ramp duration must be between ${minDurationMs} and ${transition.durationMs}.`)
+          }
+        }
+      }
+      if (ramp.easing !== undefined && !validateShowEasing(ramp.easing).valid) {
+        addIssue(issues, rampPath, 'out-of-bounds', 'Ramp easing must be valid.')
+      }
     })
   })
 

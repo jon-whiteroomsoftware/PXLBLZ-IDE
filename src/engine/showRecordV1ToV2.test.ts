@@ -1069,14 +1069,14 @@ describe('#1080 class 2 (A) slice B: boundary ramp carrier conversion', () => {
     const transition = result.record.composition.transitions.find(candidate => candidate.id === 'xfade')!
     expect(transition.wholeOutput).toBeUndefined()
     expect(transition.participants).toHaveLength(1)
-    expect(transition.propertyRamps).toEqual([])
     return transition
   }
 
-  it('converts a boundary timeScale ramp to an exact-window instance-time-scale track', () => {
+  it('converts a timeScale and brightness carrier to two Transition propertyRamps', () => {
     const source = rampCarrierShow()
     source.transitions[0].propertyTransitions = {
-      timeScale: { fromByCellId: { 'cell-2': 0.5 }, easing: { curve: 'sine', direction: 'in-out' } },
+      timeScale: { fromByCellId: { 'cell-2': 0.5 }, durationMs: 400, easing: { curve: 'sine', direction: 'in-out' } },
+      brightness: { fromByCellId: { 'cell-2': 0.2 } },
     }
     const before = JSON.stringify(source)
 
@@ -1087,26 +1087,30 @@ describe('#1080 class 2 (A) slice B: boundary ramp carrier conversion', () => {
     expect(JSON.stringify(source)).toBe(before)
     const transition = participantBoundary(result)
     const toClip = result.record.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
-    const tracks = result.record.composition.propertyTracks.filter(track => track.target.kind === 'instance-time-scale')
-    expect(tracks).toHaveLength(1)
-    expect(tracks[0]).toEqual({
-      id: `xfade:ramp:timeScale:${toClip.id}`,
-      target: { kind: 'instance-time-scale', instanceId: toClip.instanceId },
-      activeStartMs: 4000,
-      activeDurationMs: 2000,
-      keyframes: [
-        { id: `${tracks[0].id}:k0`, timeMs: 4000, value: 0.5, easing: { curve: 'sine', direction: 'in-out' } },
-        { id: `${tracks[0].id}:k1`, timeMs: 6000, value: 1, easing: { curve: 'linear' } },
-      ],
-    })
+    expect(transition.propertyRamps).toEqual([
+      {
+        participantId: transition.participants[0].id,
+        target: { kind: 'instance-time-scale', instanceId: toClip.instanceId },
+        from: 0.5,
+        durationMs: 400,
+        easing: { curve: 'sine', direction: 'in-out' },
+      },
+      {
+        participantId: transition.participants[0].id,
+        target: { kind: 'clip-view', clipId: toClip.id, property: 'brightness' },
+        from: 0.2,
+      },
+    ])
+    expect(result.record.composition.propertyTracks.filter(track => track.target.kind === 'instance-time-scale' || track.target.kind === 'clip-view')).toEqual([])
     expect(result.report.unaccountedSourcePaths).toEqual([])
     expect(validateShowRecordV2(result.record)).toEqual([])
   })
 
-  it('converts a boundary brightness ramp to an exact-window clip-view track', () => {
+  it('omits ramp duration and easing when they equal the Transition', () => {
     const source = rampCarrierShow()
     source.transitions[0].propertyTransitions = {
-      brightness: { fromByCellId: { 'cell-2': 0.2 } },
+      timeScale: { fromByCellId: { 'cell-2': 0.5 } },
+      brightness: { fromByCellId: { 'cell-2': 0.2 }, durationMs: 2000, easing: { curve: 'linear' } },
     }
 
     const result = convertShowRecordV1ToV2(source, rampLookup(source))
@@ -1115,20 +1119,40 @@ describe('#1080 class 2 (A) slice B: boundary ramp carrier conversion', () => {
     if (result.status !== 'converted') return
     const transition = participantBoundary(result)
     const toClip = result.record.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
-    const tracks = result.record.composition.propertyTracks.filter(track => track.target.kind === 'clip-view')
-    expect(tracks).toHaveLength(1)
-    expect(tracks[0]).toEqual({
-      id: `xfade:ramp:brightness:${toClip.id}`,
-      target: { kind: 'clip-view', clipId: toClip.id, property: 'brightness' },
-      activeStartMs: 4000,
-      activeDurationMs: 2000,
-      keyframes: [
-        { id: `${tracks[0].id}:k0`, timeMs: 4000, value: 0.2, easing: { curve: 'linear' } },
-        { id: `${tracks[0].id}:k1`, timeMs: 6000, value: 1, easing: { curve: 'linear' } },
-      ],
-    })
+    expect(transition.propertyRamps).toEqual([
+      {
+        participantId: transition.participants[0].id,
+        target: { kind: 'instance-time-scale', instanceId: toClip.instanceId },
+        from: 0.5,
+      },
+      {
+        participantId: transition.participants[0].id,
+        target: { kind: 'clip-view', clipId: toClip.id, property: 'brightness' },
+        from: 0.2,
+      },
+    ])
     expect(result.report.unaccountedSourcePaths).toEqual([])
     expect(validateShowRecordV2(result.record)).toEqual([])
+  })
+
+  it('accounts every descriptor leaf on the Transition ramps', () => {
+    const source = rampCarrierShow()
+    source.transitions[0].propertyTransitions = {
+      timeScale: { fromByCellId: { 'cell-2': 0.5 }, durationMs: 400, easing: { curve: 'sine', direction: 'in-out' } },
+      brightness: { fromByCellId: { 'cell-2': 0.2 } },
+    }
+
+    const result = convertShowRecordV1ToV2(source, rampLookup(source))
+
+    expect(result.status).toBe('converted')
+    if (result.status !== 'converted') return
+    expect(result.report.unaccountedSourcePaths).toEqual([])
+    const rampEntries = result.report.accounting.filter(entry => entry.sourcePath.startsWith('transitions.0.propertyTransitions'))
+    expect(rampEntries.length).toBeGreaterThan(0)
+    for (const entry of rampEntries) {
+      expect(entry.targetPath?.startsWith('composition.transitions.0.propertyRamps')).toBe(true)
+      expect(entry.outcome).toBe('mapped')
+    }
   })
 
   it('still refuses a boundary controls carrier', () => {

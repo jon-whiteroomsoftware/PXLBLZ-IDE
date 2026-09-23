@@ -105,10 +105,14 @@ refuses the whole deletion atomically with the original record identity.
 `planShowV2TransitionRampProjections` derives plans for the route from the record:
 activation is exactly the ramp window, and the destination value is the held
 repeat scale at the boundary or the incoming occurrence's split position. Those
-are the two global scalar targets conversion produces and lowering accepts; any
-other ramp target refuses by name rather than inventing a destination value. The
-Clip delete panel builds its plan the same way, so deleting a carrier contributor
-through the route no longer refuses. Derived compiler ramps are unchanged.
+are the two global scalar targets conversion produces and lowering accepts on
+whole-output Transitions. Conversion also holds a boundary Animation speed or
+Brightness ramp on its participant Transition (#1091 B1), and lowering accepts
+that Transition-held speed or brightness ramp on the flat route, refusing it off
+the flat route; any other ramp target refuses by name rather than inventing a
+destination value. The Clip delete panel builds its plan the same way, so deleting
+a carrier contributor through the route no longer refuses. Derived compiler ramps
+are unchanged.
 
 Guard classification: `unsupported-property-carrier` on a ramp-carrying
 `resize-transition`, on `reset-to-cut` without a plan, on `delete-clip` without a

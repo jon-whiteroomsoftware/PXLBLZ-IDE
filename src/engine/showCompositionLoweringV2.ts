@@ -10,7 +10,9 @@ import type {
   ShowOverlayLayer,
   ShowOverlayPlacement,
   ShowPropertyAnimationTarget,
+  ShowPropertyTransitions,
   ShowRecord,
+  ShowStructuredEasing,
   ShowZoneComposition,
 } from './personalContentRecords'
 import { showCellAtSlot, showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
@@ -25,7 +27,7 @@ import {
 } from './showCompositionV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { showV2FlatLoweringEligible, showV2UnsupportedRoutedSampling, structurallyEqualAppearanceV2, withoutUnusedInstanceTracksV2 } from './showFlatLoweringV2'
-import { exactWindowIncomingRampV2, hasSectionScopedTrackActivationV2, participantSectionBoundaries, participantTransitionWindows, participantWindowBlockedV2, type ExactWindowIncomingRampV2 } from './showBoundaryScopeV2'
+import { hasSectionScopedTrackActivationV2, participantSectionBoundaries, participantTransitionWindows, participantWindowBlockedV2 } from './showBoundaryScopeV2'
 import { lowerShowScalarPropertyTracksV2 } from './showScalarPropertyTrackLoweringV2'
 
 export interface LoweredShowCompositionV2 {
@@ -290,33 +292,27 @@ function resolveAndLowerShowV2(
     const source = sources[binding.runtimeId] ?? (unambiguous ? lookup.byPatternInstanceId?.[binding.instance.id] : undefined)
     if (source) sources[binding.runtimeId] = source
   }
-  const recognisedRamps: ExactWindowIncomingRampV2[] = []
-  const retainedTracks: ShowRecordV2['composition']['propertyTracks'] = []
-  for (const track of compileRecord.composition.propertyTracks) {
-    const ramp = exactWindowIncomingRampV2(compileRecord, track)
-    if (ramp) recognisedRamps.push(ramp)
-    else retainedTracks.push(track)
-  }
-  const partitionedRecord: ShowRecordV2 = recognisedRamps.length > 0
-    ? { ...compileRecord, composition: { ...compileRecord.composition, propertyTracks: retainedTracks } }
-    : compileRecord
-  const loweredRecord: ShowRecordV2 = recognisedRamps.length > 0 && !showV2FlatLoweringEligible(partitionedRecord)
-    ? compileRecord
-    : partitionedRecord
-  const resolved = resolveShowV2CompileContext(loweredRecord, { ...lookup, byPatternInstanceId: sources })
+  const hasClipRamps = compileRecord.composition.transitions.some(transition =>
+    transition.propertyRamps.some(ramp =>
+      ramp.target.kind === 'instance-time-scale' || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness')))
+  const resolved = resolveShowV2CompileContext(compileRecord, { ...lookup, byPatternInstanceId: sources })
   if ('issues' in resolved) return resolved
-  if (recognisedRamps.length > 0 && resolved.route !== 'continuous-flat') {
-    return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'An exact-window ramp track lowers only on the flat route.')
+  if (hasClipRamps && resolved.route !== 'continuous-flat') {
+    return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'A Transition speed or brightness ramp compiles only on the flat route.')
   }
   let lowered: LoweredShowCompositionV2
   try {
     lowered = emitResolvedShowV2(resolved)
-    attachExactWindowIncomingRampsV2(lowered.show, compileRecord, recognisedRamps)
+    attachTransitionClipRampsV2(lowered.show, compileRecord)
   } catch (error) {
     // Validation admits the record but lowering cannot represent it: fail
     // closed with a typed refusal rather than an uncaught throw (#1068).
     // The message preserves the lowering diagnosis for the repair owner.
-    return refuse('unsupported-transition-participants', 'composition.transitions', error instanceof Error ? error.message : String(error))
+    const message = error instanceof Error ? error.message : String(error)
+    if (message === 'Participants of one Transition carry different ramp timing for the same property.') {
+      return refuse('unsupported-transition-property-ramp', 'composition.transitions', message)
+    }
+    return refuse('unsupported-transition-participants', 'composition.transitions', message)
   }
   const sceneIds = new Set(lowered.show.scenes.map(scene => scene.id))
   if (lowered.show.transitions.some(transition => transition.kind === 'routing' && !sceneIds.has(transition.afterSceneId))) {
@@ -419,13 +415,19 @@ function resolveShowV2CompileContext(
   })) {
     return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'A property track targeting a multi-key Clip requires the #1037 projection owner.')
   }
-  if (composition.transitions.some(transition => !transition.wholeOutput && transition.participants.length !== 1)) {
+  const isClipRampTarget = (ramp: ShowRecordV2['composition']['transitions'][number]['propertyRamps'][number]): boolean =>
+    ramp.target.kind === 'instance-time-scale' || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness')
+  if (composition.transitions.some(transition => !transition.wholeOutput && transition.participants.length !== 1 && !transition.propertyRamps.every(isClipRampTarget))) {
     return refuse('unsupported-transition-participants', 'composition.transitions', 'lowering requires one participant per Transition until shared-scope parity is proved.')
   }
   if (hasCoincidentPositiveTransitionWindows(record)) {
     return refuse('unsupported-transition-overlap', 'composition.transitions', 'lowering cannot compile coincident positive Transition windows without independent render targets.')
   }
-  if (composition.transitions.some(transition => transition.propertyRamps.some(ramp => !transition.wholeOutput || ramp.participantId !== undefined || (ramp.target.kind !== 'show-repeat-scale' && ramp.target.kind !== 'layout-occurrence-split-position')))) {
+  if (composition.transitions.some(transition => transition.propertyRamps.some(ramp => {
+    const scalar = ramp.target.kind === 'show-repeat-scale' || ramp.target.kind === 'layout-occurrence-split-position'
+    if (scalar) return !transition.wholeOutput || ramp.participantId !== undefined
+    return !isClipRampTarget(ramp) || transition.wholeOutput !== undefined
+  }))) {
     return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'lowering requires Transition property-ramp compiler evidence before compilation.')
   }
   if (participantWindowBlockedV2(record)) {
@@ -860,12 +862,12 @@ function lowerGlobalClipsToSections(
         // Any other missing hold has no representation without losing
         // behavior, and the typed-refusal net above carries it.
         if (transition.wholeOutput!.startMs === 0 && needsEmptyHold) {
-          lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: emptyHoldId, ...(transition.propertyRamps.length > 0 ? { propertyTransitions: scalarBoundaryRamps(transition) } : {}) })
+          lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: emptyHoldId, ...(scalarBoundaryDescriptors(transition) !== undefined ? { propertyTransitions: scalarBoundaryDescriptors(transition) } : {}) })
           continue
         }
         throw new Error('Whole-output Transition has no outgoing hold section.')
       }
-      lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: derivedScenes[sectionIndex].id, ...(transition.propertyRamps.length > 0 ? { propertyTransitions: scalarBoundaryRamps(transition) } : {}) })
+      lowered.transitions.push({ ...stripV2TransitionFields(transition), id: transition.id, kind: transition.kind, afterSceneId: derivedScenes[sectionIndex].id, ...(scalarBoundaryDescriptors(transition) !== undefined ? { propertyTransitions: scalarBoundaryDescriptors(transition) } : {}) })
     }
   }
   return { show: lowered, lookup }
@@ -1094,7 +1096,7 @@ function lowerContinuousToFlat(
     ...stripV2TransitionFields(window.transition),
     id: window.transition.id, kind: window.transition.kind,
     afterSceneId: scenes[sections.findIndex(section => section.endMs === window.startMs)].id,
-    ...(window.transition.propertyRamps.length > 0 ? { propertyTransitions: scalarBoundaryRamps(window.transition) } : {}),
+    ...(scalarBoundaryDescriptors(window.transition) !== undefined ? { propertyTransitions: scalarBoundaryDescriptors(window.transition) } : {}),
   })))
   return {
     show,
@@ -1257,25 +1259,58 @@ function stripV2PropertyTrackActivation(
   return v1Track
 }
 
-function attachExactWindowIncomingRampsV2(show: ShowRecord, record: ShowRecordV2, ramps: ExactWindowIncomingRampV2[]): void {
-  for (const ramp of ramps) {
-    const participant = record.composition.transitions.find(transition => transition.id === ramp.transitionId)?.participants[0]
-    const boundary = show.transitions.find(transition => transition.id === ramp.transitionId)
-    if (!boundary) throw new Error(`Exact-window incoming ramp has no lowered Transition "${ramp.transitionId}".`)
-    const afterIndex = show.scenes.findIndex(scene => scene.id === boundary.afterSceneId)
-    const nextScene = afterIndex >= 0 ? show.scenes[afterIndex + 1] : undefined
-    const zoneId = participant?.zoneId ?? show.zones[0]?.id
-    const incomingCell = zoneId !== undefined && nextScene !== undefined ? showCellAtSlot(show, zoneId, nextScene.id) : undefined
-    const incomingId = incomingCell?.id ?? participant?.toClipId
-    if (incomingId === undefined) throw new Error(`Exact-window incoming ramp has no incoming Clip for Transition "${ramp.transitionId}".`)
-    const existing = boundary.propertyTransitions?.[ramp.key]
-    boundary.propertyTransitions = {
-      ...boundary.propertyTransitions,
-      [ramp.key]: {
-        fromByCellId: { ...existing?.fromByCellId, [incomingId]: ramp.from },
-        durationMs: ramp.durationMs,
-        easing: structuredClone(ramp.easing),
-      },
+function scalarBoundaryDescriptors(transition: ShowRecordV2['composition']['transitions'][number]): ShowPropertyTransitions | undefined {
+  const scalarRamps = transition.propertyRamps.filter(ramp => ramp.target.kind === 'show-repeat-scale' || ramp.target.kind === 'layout-occurrence-split-position')
+  if (scalarRamps.length === 0) return undefined
+  return scalarBoundaryRamps({ ...transition, propertyRamps: scalarRamps })
+}
+
+function attachTransitionClipRampsV2(show: ShowRecord, record: ShowRecordV2): void {
+  const clipById = new Map(record.composition.clips.map(clip => [clip.id, clip]))
+  for (const transition of record.composition.transitions) {
+    if (transition.wholeOutput !== undefined) continue
+    const clipRamps = transition.propertyRamps.filter(ramp => ramp.target.kind === 'instance-time-scale' || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness'))
+    if (clipRamps.length === 0) continue
+    const boundary = show.transitions.find(candidate => candidate.id === transition.id)
+    if (!boundary) throw new Error(`Transition clip ramp has no lowered Transition "${transition.id}".`)
+    const byKey = new Map<'timeScale' | 'brightness', { durationMs: number; easing: ShowStructuredEasing; fromByCellId: Record<string, number> }>()
+    for (const ramp of clipRamps) {
+      const isSpeed = ramp.target.kind === 'instance-time-scale'
+      const key = isSpeed ? 'timeScale' as const : 'brightness' as const
+      const participant = ramp.participantId !== undefined
+        ? transition.participants.find(candidate => candidate.id === ramp.participantId)
+        : transition.participants.length === 1 ? transition.participants[0] : undefined
+      if (!participant) throw new Error(`Transition clip ramp names an unknown participant on Transition "${transition.id}".`)
+      const incoming = clipById.get(participant.toClipId)
+      if (!incoming) throw new Error(`Transition clip ramp has no incoming Clip for Transition "${transition.id}".`)
+      const durationMs = ramp.durationMs ?? transition.durationMs
+      const easing = structuredClone(ramp.easing ?? transition.easing)
+      const afterIndex = show.scenes.findIndex(scene => scene.id === boundary.afterSceneId)
+      const nextScene = afterIndex >= 0 ? show.scenes[afterIndex + 1] : undefined
+      const zoneId = participant.zoneId ?? show.zones[0]?.id
+      const incomingCell = zoneId !== undefined && nextScene !== undefined ? showCellAtSlot(show, zoneId, nextScene.id) : undefined
+      const incomingId = incomingCell?.id ?? participant.toClipId
+      if (incomingId === undefined) throw new Error(`Transition clip ramp has no incoming Clip for Transition "${transition.id}".`)
+      const existing = byKey.get(key)
+      if (!existing) {
+        byKey.set(key, { durationMs, easing, fromByCellId: { [incomingId]: ramp.from } })
+      } else {
+        if (existing.durationMs !== durationMs || JSON.stringify(existing.easing) !== JSON.stringify(easing)) {
+          throw new Error('Participants of one Transition carry different ramp timing for the same property.')
+        }
+        existing.fromByCellId[incomingId] = ramp.from
+      }
+    }
+    for (const [key, descriptor] of byKey) {
+      const existing = boundary.propertyTransitions?.[key]
+      boundary.propertyTransitions = {
+        ...boundary.propertyTransitions,
+        [key]: {
+          fromByCellId: { ...existing?.fromByCellId, ...descriptor.fromByCellId },
+          durationMs: descriptor.durationMs,
+          easing: structuredClone(descriptor.easing),
+        },
+      }
     }
   }
 }

@@ -7,13 +7,15 @@ import { nativeDimension } from './loadPattern'
 import { createFxShim, createShim } from './shim'
 import { buildShowEpeExport } from './showEpeExport'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
-import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
+import { createDefaultShow, showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { lowerShowCompositionV2ForCompile, prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
 import { continuingV1Show, convertibleV1Show, flatV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
+import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
+import { validateShowRecordV2 } from './showCompositionV2'
 import type { MapPoint } from './maps/types'
 import type { ShowRecord } from './personalContentRecords'
 
@@ -1799,30 +1801,7 @@ it('refuses an exact-window ramp on a whole-output Transition (#1080 class 2a)',
   expect(prepareShowV2ForCompile(record, class2aRefusalLookup(record)).status).toBe('refused')
 })
 
-it('refuses an exact-window incoming ramp on the looping transition route (#1080 class 2a repair)', () => {
-  const record = class2aRefusalRecord()
-  record.composition.executionModel = 'deterministic-loop'
-  const { startMs, endMs, incoming } = class2aWindow(record)
-  const base = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
-  record.composition.propertyTracks.push({
-    id: 'looping-brightness',
-    target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
-    activeStartMs: startMs,
-    activeDurationMs: endMs - startMs,
-    keyframes: [
-      { id: 'looping-brightness-k0', timeMs: startMs, value: 0.2, easing: { curve: 'linear' } },
-      { id: 'looping-brightness-k1', timeMs: endMs, value: base, easing: { curve: 'linear' } },
-    ],
-  })
-  const prepared = prepareShowV2ForCompile(record, class2aRefusalLookup(record))
-  expect(prepared.status).toBe('refused')
-  if (prepared.status !== 'refused') return
-  // DEVIATION from the brief (named unsupported-transition-property-track): with the
-  // partition discarded, today's clip-activation intersection check refuses first, since
-  // an exact-window incoming track ends exactly at its target Clip's startMs. This is the
-  // pre-slice-A refusal for this fixture; the P1 requirement is refusal, not ready.
-  expect(prepared.issues).toContainEqual(expect.objectContaining({ code: 'unsupported-track-activation' }))
-})
+
 
 it('refuses an exact-window incoming ramp on the participant Transition of a mixed record (#1080 class 2a repair)', () => {
   // Mixed whole-output/participant v1 construction after mixedBoundaryLayerShow
@@ -1900,4 +1879,140 @@ it('refuses a sub-100 ms exact-window incoming ramp v1 would lengthen (#1080 cla
   expect(prepared.status).toBe('refused')
   if (prepared.status !== 'refused') return
   expect(prepared.issues).toContainEqual(expect.objectContaining({ code: 'unsupported-transition-property-track' }))
+})
+
+describe('Transition speed and brightness ramps (#1091 B1)', () => {
+  function rampProbeV1() {
+    const show = createDefaultShow('ramp-probe', 'Ramp probe', 1)
+    show.scenes = [
+      { id: 'scene-1', name: 'Scene 1', durationMs: 4000 },
+      { id: 'scene-2', name: 'Scene 2', durationMs: 4000 },
+      { id: 'scene-3', name: 'Scene 3', durationMs: 4000 },
+    ]
+    const zoneId = show.zones[0].id
+    const patterns = ['TestPattern1D', 'CometLoom', 'CellularAutomata1D']
+    const adaptations = [
+      { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
+      { mirror: false, phase: 0, brightness: 0.5, timeScale: 2 },
+      { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
+    ]
+    show.cells = show.scenes.map((scene, index) => ({
+      id: `cell-${index + 1}`,
+      zoneId,
+      sceneId: scene.id,
+      sceneSpan: 1,
+      pattern: { kind: 'stock' as const, id: patterns[index] },
+      patternName: patterns[index],
+      adaptations: adaptations[index],
+      restartOnEntry: false,
+    }))
+    show.transitions = [
+      {
+        id: 'xfade',
+        afterSceneId: 'scene-1',
+        kind: 'crossfade',
+        durationMs: 1000,
+        easing: { curve: 'linear' },
+        crossfadePolicy: 'live-live',
+        propertyTransitions: {
+          timeScale: { fromByCellId: { 'cell-2': 1 }, durationMs: 400, easing: { curve: 'sine', direction: 'in-out' } },
+          brightness: { fromByCellId: { 'cell-2': 0.2 } },
+        },
+      },
+      { id: 'cut', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+    ]
+    return show
+  }
+
+  function probeLookup(show: ReturnType<typeof rampProbeV1>) {
+    return { byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[cell.pattern.id]])) }
+  }
+
+  function stockV2Lookup(record: { composition: { patternInstances: Array<{ id: string; pattern: { id: string } }> } }) {
+    return {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])),
+      stageDimension: 2 as const,
+    }
+  }
+
+  it('lowers a converted probe on the flat route with v1 normalized descriptors', () => {
+    const source = rampProbeV1()
+    const converted = convertShowRecordV1ToV2(source, probeLookup(source))
+    expect(converted.status, JSON.stringify(converted.status === 'refused' ? converted.issues : [])).toBe('converted')
+    if (converted.status !== 'converted') return
+    expect(validateShowRecordV2(converted.record)).toEqual([])
+    const v2Lookup = stockV2Lookup(converted.record)
+    const prepared = prepareShowV2ForCompile(converted.record, v2Lookup, { libraries: LIBRARIES })
+    expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+    if (prepared.status !== 'ready') return
+    expect(prepared.provenance.route).toBe('continuous-flat')
+    const lowered = lowerShowCompositionV2ForCompile(converted.record, stockV2Lookup(converted.record))
+    const boundary = lowered.show.transitions.find(transition => transition.id === 'xfade')!
+    const incomingId = Object.keys(boundary.propertyTransitions!.timeScale!.fromByCellId)[0]
+    expect(boundary.propertyTransitions).toEqual({
+      timeScale: { fromByCellId: { [incomingId]: 1 }, durationMs: 400, easing: { curve: 'sine', direction: 'in-out' } },
+      brightness: { fromByCellId: { [incomingId]: 0.2 }, durationMs: 1000, easing: { curve: 'linear' } },
+    })
+  })
+
+  it('refuses a Transition ramp off the flat route', () => {
+    const source = rampProbeV1()
+    const converted = convertShowRecordV1ToV2(source, probeLookup(source))
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const record = structuredClone(converted.record)
+    record.composition.executionModel = 'deterministic-loop'
+    const prepared = prepareShowV2ForCompile(record, stockV2Lookup(record), { libraries: LIBRARIES })
+    expect(prepared.status).toBe('refused')
+    if (prepared.status !== 'refused') return
+    expect(prepared.issues).toContainEqual(expect.objectContaining({
+      code: 'unsupported-transition-property-ramp',
+      message: 'A Transition speed or brightness ramp compiles only on the flat route.',
+    }))
+  })
+
+  it('refuses differing ramp timing across participants', () => {
+    const source = rampProbeV1()
+    const converted = convertShowRecordV1ToV2(source, probeLookup(source))
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const record = structuredClone(converted.record)
+    const transition = record.composition.transitions.find(candidate => candidate.id === 'xfade')!
+    const participant = transition.participants[0]
+    transition.participants.push({ ...structuredClone(participant), id: 'participant-2' })
+    const incoming = record.composition.clips.find(clip => clip.id === participant.toClipId)!
+    transition.propertyRamps = [
+      { participantId: participant.id, target: { kind: 'instance-time-scale', instanceId: incoming.instanceId }, from: 1, durationMs: 150 },
+      { participantId: 'participant-2', target: { kind: 'instance-time-scale', instanceId: incoming.instanceId }, from: 1.5, durationMs: 200 },
+    ]
+    expect(validateShowRecordV2(record)).toEqual([])
+    const prepared = prepareShowV2ForCompile(record, stockV2Lookup(record), { libraries: LIBRARIES })
+    expect(prepared.status).toBe('refused')
+    if (prepared.status !== 'refused') return
+    expect(prepared.issues).toContainEqual(expect.objectContaining({
+      code: 'unsupported-transition-property-ramp',
+      message: 'Participants of one Transition carry different ramp timing for the same property.',
+    }))
+  })
+
+  it('holds parity for a converted boundary speed and brightness ramp', async () => {
+    const source = rampProbeV1()
+    const lookup = probeLookup(source)
+    const converted = convertShowRecordV1ToV2(source, lookup)
+    expect(converted.status, JSON.stringify(converted.status === 'refused' ? converted.issues : [])).toBe('converted')
+    if (converted.status !== 'converted') return
+    const v2Lookup = stockV2Lookup(converted.record)
+    const prepared = prepareShowV2ForCompile(converted.record, v2Lookup, { libraries: LIBRARIES })
+    expect(prepared.status, JSON.stringify(prepared.status === 'refused' ? prepared.issues : [])).toBe('ready')
+    if (prepared.status !== 'ready') return
+    const v1 = compileShow(showRecordToCompileRecipe(source, lookup), LIBRARIES)
+    const v2 = compileShow(prepared.recipe, LIBRARIES)
+    const { flatMemberIdentityMappings, runtimeParity } = await import('../../scripts/show-v2-parity')
+    const mappings = flatMemberIdentityMappings(converted.report, v1, v2)
+    for (const fidelity of ['fast', 'fidelity'] as const) {
+      const parity = runtimeParity(v1, v2, source, converted.record, fidelity, mappings)
+      expect(parity.matched, JSON.stringify({ fidelity, firstMismatchMs: parity.firstMismatchMs, diff: parity.firstMismatchStateDifferences })).toBe(true)
+    }
+  })
 })

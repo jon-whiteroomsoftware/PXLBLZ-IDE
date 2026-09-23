@@ -393,15 +393,7 @@ it.each([
   expect(result.affectedTrackIds).toEqual([])
   expect(source).toEqual(prior)
 })
-it('retargets an outgoing Clip-owned ramp reference with its right split owner', () => {
-  const source = fixture()
-  source.composition.transitions[1].propertyRamps = [{ participantId: 'pair-out', target: { kind: 'clip-view', clipId: 'selected', property: 'brightness' }, from: 0.2, easing: { curve: 'linear' } }]
-  expect(validateShowRecordV2(source)).toEqual([])
-  const result = editShowClipTemporalV2(source, { kind: 'split', clipId: 'selected', atMs: 400, rightClipId: 'right' })
-  expect(result.status).toBe('changed')
-  if (result.status !== 'changed') return
-  expect(reopen(result.record).composition.transitions[1].propertyRamps).toEqual([{ participantId: 'pair-out', target: { kind: 'clip-view', clipId: 'right', property: 'brightness' }, from: 0.2, easing: { curve: 'linear' } }])
-})
+
 
 it('public Clip dispatch consumes the temporal transaction with connected edges and complete affected collections', () => {
   const source = fixture()

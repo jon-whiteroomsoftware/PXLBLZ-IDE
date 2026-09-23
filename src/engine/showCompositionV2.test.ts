@@ -340,3 +340,146 @@ describe('validateShowRecordV2', () => {
     expect(JSON.stringify(record)).toBe(before)
   })
 })
+
+describe('validateShowRecordV2 Transition speed and brightness ramps (#1091 B1)', () => {
+  function rampRecord(): ShowRecordV2 {
+    const record = minimalShowRecordV2()
+    const base = record.composition.clips[0]
+    const out = { ...structuredClone(base), id: 'out', durationMs: 400 }
+    const incoming = {
+      ...structuredClone(base),
+      id: 'in',
+      startMs: 600,
+      durationMs: 400,
+      appearance: { keys: [{ ...structuredClone(base.appearance.keys[0]), id: 'in:appearance:1', timeMs: 600 }] },
+    }
+    record.composition.clips = [out, incoming]
+    record.composition.showEndMs = 1000
+    record.composition.transitions = [{
+      id: 'xfade',
+      kind: 'crossfade',
+      durationMs: 200,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'snapshot-live',
+      participants: [{ id: 'p1', zoneId: 'zone', layerId: 'layer', fromClipId: 'out', toClipId: 'in' }],
+      propertyRamps: [],
+    }]
+    return record
+  }
+
+  it('accepts a Transition speed ramp and brightness ramp', () => {
+    const record = rampRecord()
+    record.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 1 },
+      { participantId: 'p1', target: { kind: 'clip-view', clipId: 'in', property: 'brightness' }, from: 0.2, durationMs: 150, easing: { curve: 'sine', direction: 'in-out' } },
+    ]
+    const before = JSON.stringify(record)
+    expect(validateShowRecordV2(record)).toEqual([])
+    expect(JSON.stringify(record)).toBe(before)
+  })
+
+  it('refuses a speed ramp on a whole-output Transition', () => {
+    const record = rampRecord()
+    record.composition.transitions[0].participants = []
+    record.composition.transitions[0].wholeOutput = { startMs: 400, fromClipIds: ['out'], toClipIds: ['in'] }
+    record.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 1 },
+    ]
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]', message: 'A Transition speed or brightness ramp belongs to a participant.' }),
+    ]))
+  })
+
+  it('refuses a ramp with a non-speed brightness target', () => {
+    const record = rampRecord()
+    record.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'clip-view', clipId: 'in', property: 'phase' }, from: 0.5 },
+    ]
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]', message: 'Transition property ramps animate only the incoming Clip\'s Animation speed or Brightness.' }),
+    ]))
+  })
+
+  it('refuses a ramp that does not resolve exactly one participant', () => {
+    const record = rampRecord()
+    record.composition.transitions[0].participants.push({ id: 'p2', zoneId: 'zone', layerId: 'layer', fromClipId: 'out', toClipId: 'in' })
+    record.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 1 },
+    ]
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]', message: 'Name the participant this ramp animates.' }),
+    ]))
+    const named = rampRecord()
+    named.composition.transitions[0].propertyRamps = [
+      { participantId: 'absent', target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 1 },
+    ]
+    expect(validateShowRecordV2(named)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]', message: 'Name the participant this ramp animates.' }),
+    ]))
+  })
+
+  it('refuses a ramp that names the wrong incoming Clip', () => {
+    const record = rampRecord()
+    record.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'clip-view', clipId: 'out', property: 'brightness' }, from: 0.2 },
+    ]
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]', message: 'A Transition ramp animates the incoming Clip of its participant.' }),
+    ]))
+  })
+
+  it('refuses two ramps for one participant and key', () => {
+    const record = rampRecord()
+    record.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 1 },
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 2 },
+    ]
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[1]', message: 'A Transition participant may have only one speed ramp and one brightness ramp.' }),
+    ]))
+  })
+
+  it('refuses a non-finite or out-of-range origin', () => {
+    const speed = rampRecord()
+    speed.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 5 },
+    ]
+    expect(validateShowRecordV2(speed)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]', message: 'Speed ramp origin must be between 0 and 4.' }),
+    ]))
+    const brightness = rampRecord()
+    brightness.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'clip-view', clipId: 'in', property: 'brightness' }, from: 2 },
+    ]
+    expect(validateShowRecordV2(brightness)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]', message: 'Brightness ramp origin must be between 0 and 1.' }),
+    ]))
+  })
+
+  it('refuses a duration outside the Transition window', () => {
+    const record = rampRecord()
+    record.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 1, durationMs: 50 },
+    ]
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]', message: 'Ramp duration must be between 100 and 200.' }),
+    ]))
+    const over = rampRecord()
+    over.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 1, durationMs: 300 },
+    ]
+    expect(validateShowRecordV2(over)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]' }),
+    ]))
+  })
+
+  it('refuses an invalid easing', () => {
+    const record = rampRecord()
+    record.composition.transitions[0].propertyRamps = [
+      { target: { kind: 'instance-time-scale', instanceId: 'instance' }, from: 1, easing: { curve: 'steps', steps: 0, position: 'end' } },
+    ]
+    expect(validateShowRecordV2(record)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'composition.transitions[0].propertyRamps[0]', message: 'Ramp easing must be valid.' }),
+    ]))
+  })
+})
