@@ -117,9 +117,11 @@ function addZone(record: ShowRecordV2, zone: ShowZone, refuse: Refuse): ShowZone
 
   const candidate = structuredClone(record)
   candidate.zones.push({ ...structuredClone(zone), name })
-  // v1's `appendZoneToLayout`: every definition routes the new Zone, or the
-  // whole Show stops preparing with `references missing zone`.
+  // v1's appendZoneToLayout: every definition that names its Zones routes the new one, or the
+  // whole Show stops preparing with "references missing zone". An entry-less definition already
+  // routes every Zone, so it stays entry-less (#1064 item 4; v1 narrows it, a recorded divergence).
   for (const layout of candidate.zoneLayouts) {
+    if (layout.zones.length === 0 && !layout.logical) continue
     const largestEnd = layout.zones.reduce(
       (largest, entry) => entry.ranges.reduce((value, range) => Math.max(value, range.end), largest),
       -1,

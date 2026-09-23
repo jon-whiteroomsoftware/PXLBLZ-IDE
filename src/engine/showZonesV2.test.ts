@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { commandFixtureV2 } from './showCommandsV2/fixtures'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import {
   parseProvisionalShowRecordV2,
   serializeProvisionalShowRecordV2,
   validateShowRecordV2,
   type ShowRecordV2,
 } from './showCompositionV2'
+import { showLayoutZoneIdAtTimeV2, validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { createInstallationShowOutputContract } from './showOutputContract'
 import { prepareShowStageV2 } from './showPreparedStageV2'
 import { editShowZoneV2 } from './showZonesV2'
@@ -103,6 +105,54 @@ describe('adding a Zone', () => {
       { zoneId: 'spare', ranges: [{ start: 16, end: 23 }] },
     ])
     // The second definition's largest assigned end is 15 as well.
+    expect(result.record.zoneLayouts[1].zones[2]).toEqual({ zoneId: 'spare', ranges: [{ start: 16, end: 23 }] })
+  })
+
+  it('leaves an entry-less definition entry-less so it keeps routing every Zone', () => {
+    const source = record()
+    source.composition.clips = []
+    source.composition.propertyTracks = []
+    source.zoneLayouts[0].zones = []
+    delete source.zoneLayouts[0].logical
+    expect(validateShowRecordV2(source)).toEqual([])
+    const result = editShowZoneV2(source, { kind: 'add', zone: spare })
+    if (result.status !== 'changed') throw new Error(`${result.status}: ${JSON.stringify(result)}`)
+    expect(result.record.zoneLayouts[0].zones).toEqual([])
+    expect(result.record.zoneLayouts[0].logical).toBeUndefined()
+    expect(showLayoutZoneIdAtTimeV2(result.record, 0, 'left')).toBe('left')
+    expect(showLayoutZoneIdAtTimeV2(result.record, 0, 'spare')).toBe('spare')
+    expect(showLayoutZoneIdAtTimeV2(result.record, 0)).toBe('left')
+  })
+
+  it('adds a Zone while Clips play in an old Zone routed by an entry-less definition', () => {
+    const source = record()
+    source.zoneLayouts[0].zones = []
+    delete source.zoneLayouts[0].logical
+    expect(validateShowRecordV2(source)).toEqual([])
+    const result = editShowZoneV2(source, { kind: 'add', zone: spare })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') throw new Error(JSON.stringify(result))
+    expect(result.record.zoneLayouts[0].zones).toEqual([])
+    expect(result.record.zoneLayouts[0].logical).toBeUndefined()
+    expect(validateShowLayoutAvailabilityV2(result.record)).toEqual([])
+    const prepared = prepareShowV2ForCompile(result.record, {
+      byCellId: {},
+      byPatternInstanceId: {
+        'inst-a': dependencies.patterns[0].src,
+        'inst-b': dependencies.patterns[0].src,
+      },
+    })
+    expect(prepared.status).toBe('ready')
+  })
+
+  it('still appends the new Zone to a definition that names its Zones', () => {
+    const source = installationRecord()
+    source.zoneLayouts[0].zones = []
+    expect(validateShowRecordV2(source)).toEqual([])
+    const result = editShowZoneV2(source, { kind: 'add', zone: spare })
+    if (result.status !== 'changed') throw new Error(result.status)
+    expect(result.record.zoneLayouts[0].zones).toEqual([])
+    expect(result.record.zoneLayouts[0].logical).toBeUndefined()
     expect(result.record.zoneLayouts[1].zones[2]).toEqual({ zoneId: 'spare', ranges: [{ start: 16, end: 23 }] })
   })
 
@@ -218,17 +268,18 @@ describe('removing a Zone', () => {
 })
 
 describe('the shared result check', () => {
-  it('refuses an addition that would leave an existing Clip unrouted', () => {
+  it('keeps an entry-less definition routing every Zone instead of refusing', () => {
     // A definition with no explicit Zone entries and no operator routes every
-    // Zone. Appending the new Zone's ranges makes it the only routed Zone,
-    // which v1 would have written silently; this owner refuses atomically.
+    // Zone. It stays entry-less across the add (#1064 item 4), so existing
+    // Clips keep their routing; the shared availability check still guards
+    // the result through the other definitions.
     const source = record()
     source.zoneLayouts[1] = { id: 'left-only', name: 'Left only', zones: [] }
     source.composition.layoutOccurrences[1].layoutId = 'left-only'
     expect(validateShowRecordV2(source)).toEqual([])
-    const refused = editShowZoneV2(source, { kind: 'add', zone: spare })
-    expect(refused).toMatchObject({ status: 'refused', code: 'zone-unavailable' })
-    expect(refused.record).toBe(source)
-    expect(refused.affectedLayoutDefinitionIds).toEqual([])
+    const result = editShowZoneV2(source, { kind: 'add', zone: spare })
+    if (result.status !== 'changed') throw new Error(`${result.status}: ${JSON.stringify(result)}`)
+    expect(result.record.zoneLayouts[1]).toEqual({ id: 'left-only', name: 'Left only', zones: [] })
+    expect(validateShowLayoutAvailabilityV2(result.record)).toEqual([])
   })
 })
