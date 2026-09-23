@@ -1881,3 +1881,23 @@ it('refuses an exact-window incoming ramp on the participant Transition of a mix
   })
   expect(prepareShowV2ForCompile(record, class2aRefusalLookup(record)).status).toBe('refused')
 })
+
+it('refuses a sub-100 ms exact-window incoming ramp v1 would lengthen (#1080 class 2 A)', () => {
+  const record = class2aRefusalRecord()
+  const { startMs, endMs, incoming } = class2aWindow(record)
+  const base = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
+  record.composition.propertyTracks.push({
+    id: 'short-brightness',
+    target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+    activeStartMs: startMs,
+    activeDurationMs: endMs - startMs,
+    keyframes: [
+      { id: 'short-brightness-k0', timeMs: startMs, value: 0.2, easing: { curve: 'linear' } },
+      { id: 'short-brightness-k1', timeMs: startMs + 50, value: base, easing: { curve: 'linear' } },
+    ],
+  })
+  const prepared = prepareShowV2ForCompile(record, class2aRefusalLookup(record))
+  expect(prepared.status).toBe('refused')
+  if (prepared.status !== 'refused') return
+  expect(prepared.issues).toContainEqual(expect.objectContaining({ code: 'unsupported-transition-property-track' }))
+})

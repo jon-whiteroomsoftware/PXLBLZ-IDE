@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { hasSectionScopedTrackActivationV2, participantWindowBlockedV2, promoteConvertedBoundariesToWholeOutputV2, scalarRampScopeBlockedV2 } from './showBoundaryScopeV2'
+import { exactWindowIncomingRampV2, hasSectionScopedTrackActivationV2, participantWindowBlockedV2, promoteConvertedBoundariesToWholeOutputV2, scalarRampScopeBlockedV2 } from './showBoundaryScopeV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { validateShowRecordV2, type ShowRecordV2, type ShowPropertyTrackV2 } from './showCompositionV2'
 import { addShowZone, createDefaultShow } from './showModel'
@@ -330,4 +330,26 @@ it('ignores an exact-window incoming ramp for promotion and window blocking (#10
   const promotion = promoteConvertedBoundariesToWholeOutputV2(record)
   expect(promotion.record).toBe(record)
   expect(promotion.promotedTransitionIds).toEqual([])
+})
+
+it('does not recognise a sub-100 ms exact-window ramp but keeps a 100 ms one (#1080 class 2 A)', () => {
+  const record = converted(false)
+  const transition = record.composition.transitions.find(candidate => candidate.wholeOutput === undefined && candidate.participants.length === 1)!
+  const from = record.composition.clips.find(clip => clip.id === transition.participants[0].fromClipId)!
+  const incoming = record.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+  const startMs = from.startMs + from.durationMs
+  const endMs = incoming.startMs
+  const base = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0].value.view.brightness
+  const trackFor = (id: string, secondTimeMs: number): ShowPropertyTrackV2 => ({
+    id,
+    target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' },
+    activeStartMs: startMs,
+    activeDurationMs: endMs - startMs,
+    keyframes: [
+      { id: `${id}-k0`, timeMs: startMs, value: 0.4, easing: { curve: 'linear' } },
+      { id: `${id}-k1`, timeMs: secondTimeMs, value: base, easing: { curve: 'linear' } },
+    ],
+  })
+  expect(exactWindowIncomingRampV2(record, trackFor('short-brightness', startMs + 50))).toBeUndefined()
+  expect(exactWindowIncomingRampV2(record, trackFor('floor-brightness', startMs + 100))?.durationMs).toBe(100)
 })

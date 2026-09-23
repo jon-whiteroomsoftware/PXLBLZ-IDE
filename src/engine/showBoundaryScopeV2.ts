@@ -44,6 +44,8 @@ export function exactWindowIncomingRampV2(record: ShowRecordV2, track: ShowPrope
     const firstAppearanceBrightness = [...incoming.appearance.keys].sort((left, right) => left.timeMs - right.timeMs)[0]?.value.view.brightness
     const base = key === 'timeScale' ? instanceTimeScale : firstAppearanceBrightness
     if (base === undefined || second.value !== base) continue
+    // Ramps shorter than clampPropertyDuration's 100 ms floor would lengthen in v1 normalization (#1080 class 2 A).
+    if (second.timeMs - first.timeMs < 100) continue
     return { transitionId: transition.id, key, from: first.value, durationMs: second.timeMs - first.timeMs, easing: first.easing ?? { curve: 'linear' as const } }
   }
   return undefined
