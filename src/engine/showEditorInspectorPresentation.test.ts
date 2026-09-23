@@ -13,6 +13,7 @@ import {
   projectShowEditorTimelineClipSummarySourcesV2,
   projectShowEditorZoneMapV2,
 } from './showEditorInspectorPresentation'
+import { projectResolvedShowClipSummary } from './showClipSummary'
 
 function record(): ShowRecordV2 {
   return {
@@ -290,6 +291,40 @@ describe('projectShowEditorInspectorPresentationV2', () => {
     expect(Object.keys(first.clipsById)).toEqual(['group-clip'])
     expect(source.composition.groupDefinitions[0].propertyTracks[0].keyframes[1].timeMs).toBe(1_500)
   })
+
+  it('keeps a Group Speed and control track on the definition-local slot id (#1075 G3 corrective)', () => {
+    const source = record()
+    source.composition.groupDefinitions[0]!.propertyTracks = [
+      ...source.composition.groupDefinitions[0]!.propertyTracks,
+      {
+        id: 'group-speed',
+        target: { kind: 'instance-time-scale', instanceId: 'group-slot' },
+        activeStartMs: 0,
+        activeDurationMs: 1_500,
+        keyframes: [
+          { id: 'group-speed-a', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+          { id: 'group-speed-b', timeMs: 1_500, value: 2, easing: { curve: 'linear' } },
+        ],
+      },
+      {
+        id: 'group-control',
+        target: { kind: 'instance-control', instanceId: 'group-slot', exportName: 'sliderSpeed' },
+        activeStartMs: 0,
+        activeDurationMs: 1_500,
+        keyframes: [
+          { id: 'group-control-a', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+          { id: 'group-control-b', timeMs: 1_500, value: 0.8, easing: { curve: 'linear' } },
+        ],
+      },
+    ]
+
+    const view = projectShowEditorInspectorPresentationV2(source, 4_200)
+    const tracks = view.groupsByOccurrenceId['group-use-a']!.clipsById['group-clip']!.animation.tracks
+    const speed = tracks.find(entry => entry.authored.id === 'group-speed')!
+    const control = tracks.find(entry => entry.authored.id === 'group-control')!
+    expect(speed.editor.target).toEqual({ kind: 'instance-time-scale', instanceId: 'group-slot' })
+    expect(control.editor.target).toEqual({ kind: 'instance-control', instanceId: 'group-slot', exportName: 'sliderSpeed' })
+  })
 })
 
 describe('projectShowEditorRoutingTransfersV2', () => {
@@ -480,6 +515,29 @@ describe('projectShowEditorTimelineClipSummarySourcesV2', () => {
       .toEqual([0.1, 0.6])
     expect(sources['group-use-b:group-clip']?.animation.tracks[0]?.keyframes.map(key => key.value))
       .toEqual([-0.1, 0.4])
+  })
+
+  it('keeps a Group Speed track in the animated-range caption overlay (#1075 G3 corrective)', () => {
+    const source = record()
+    source.composition.groupDefinitions[0]!.propertyTracks = [{
+      id: 'group-speed',
+      target: { kind: 'instance-time-scale', instanceId: 'group-slot' },
+      activeStartMs: 0,
+      activeDurationMs: 1_500,
+      keyframes: [
+        { id: 'group-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } },
+        { id: 'group-speed-b', timeMs: 1_500, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const sources = projectShowEditorTimelineClipSummarySourcesV2(source)
+    const summary = projectResolvedShowClipSummary(
+      sources['group-use-a:group-clip']!.facts,
+      {},
+      sources['group-use-a:group-clip']!.animation,
+    )
+    expect(sources['group-use-a:group-clip']!.animation.instanceId).toBe('group-slot')
+    expect(JSON.stringify(summary)).toContain('Animation speed')
   })
 })
 

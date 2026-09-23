@@ -345,11 +345,10 @@ function ordinaryAnimation(
 function groupEditorTarget(
   target: ShowPropertyTargetV2,
   clipId: string,
-  effectiveInstanceId: string,
 ): ShowPropertyAnimationTrack['target'] {
   const lowered = lowerPropertyTarget(target)
-  if (lowered.kind === 'instance-time-scale') return { ...lowered, instanceId: effectiveInstanceId }
-  if (lowered.kind === 'instance-control') return { ...lowered, instanceId: effectiveInstanceId }
+  if (lowered.kind === 'instance-time-scale') return lowered
+  if (lowered.kind === 'instance-control') return lowered
   if ('placementId' in lowered && lowered.placementId === clipId) return lowered
   // The caller filters ownership before conversion; retain the authored local
   // identity if a future target shape reaches this versioned reader.
@@ -363,7 +362,6 @@ function groupAnimation(
   occurrence: ShowGroupOccurrenceV2,
   child: ShowGroupDefinitionV2['clips'][number],
   owner: Extract<ShowEditorClipOwnerV2, { kind: 'group-clip' }>,
-  effectiveInstanceId: string,
 ): ShowEditorClipAnimationPresentationV2 {
   const tracks = definition.propertyTracks
     .filter(track => targetBelongsToClip(track.target, child.id, child.instanceId))
@@ -371,7 +369,7 @@ function groupAnimation(
       authored: structuredClone(track),
       editor: editorTrack(
         track,
-        groupEditorTarget(track.target, child.id, effectiveInstanceId),
+        groupEditorTarget(track.target, child.id),
         timeMs => occurrenceBoundaryAfter(occurrence, timeMs) - occurrence.startMs,
       ),
     }))
@@ -495,7 +493,7 @@ function groupOccurrencePresentation(
         globalStartMs,
         globalDurationMs: globalEndMs - globalStartMs,
       }),
-      animation: groupAnimation(record, definition, occurrence, child, owner, effectiveInstanceId),
+      animation: groupAnimation(record, definition, occurrence, child, owner),
     }
     return [[child.id, presentation] as const]
   }))
@@ -770,7 +768,7 @@ export function projectShowEditorTimelineClipSummarySourcesV2(
         instanceId: presentation.value.effectiveInstanceId,
         facts: translatedSummaryFacts(showEditorClipSummaryFactsV2(presentation.value), occurrence),
         animation: {
-          instanceId: presentation.value.effectiveInstanceId,
+          instanceId: presentation.value.instanceId,
           tracks: presentation.animation.tracks
             .map(track => translatedEditorTrack(track.editor, occurrence)),
         },

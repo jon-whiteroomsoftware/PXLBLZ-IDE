@@ -275,4 +275,17 @@ describe('group-child property animation hold inversion (#1075 G3)', () => {
       })
     }
   })
+
+  it('stores the default end key at the definition extent on a held occurrence (#1075 G3 corrective)', () => {
+    const record = propertyEditGroupRecord()
+    const plan = planShowV2GroupPropertyAnimationChange(record, 'occ-0', 'child', {
+      kind: 'add-track',
+      target: { kind: 'placement-opacity', placementId: 'child' },
+      initialValue: 0.5,
+    }, fixedIds())
+    if (plan.kind !== 'edit') throw new Error(`expected edit, got ${plan.kind}`)
+    expect(plan.intent.kind).toBe('add-track')
+    if (plan.intent.kind !== 'add-track') throw new Error('expected add-track')
+    expect(plan.intent.track.keyframes.map(key => key.timeMs)).toEqual([0, 400])
+  })
 })

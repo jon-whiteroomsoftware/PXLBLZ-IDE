@@ -10616,7 +10616,7 @@ function ContextualInspector({
             showEditorClipSummaryFactsV2(presented.value),
             controlLabels,
             {
-              instanceId: presented.value.effectiveInstanceId,
+              instanceId: presented.value.instanceId,
               tracks: presented.animation.tracks.map((track) => track.editor),
             },
           )}

@@ -4827,6 +4827,47 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     await expectUndoRedoExact(editor, before)
   })
 
+  it('reopens a Group Clip Speed animation for edit with an animated summary (#1075 G3 corrective)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-speed-reopen'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Animation speed' }))
+    await act(async () => {})
+    typeAndCommit('Animation speed animation to exact multiplier', '2')
+    await act(async () => {})
+
+    const created = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotPropertyEdit'])
+    const [stored] = created.record.composition.groupDefinitions[0]!.propertyTracks
+    expect(stored.target).toEqual({ kind: 'instance-time-scale', instanceId: 'slot' })
+    expect(stored.keyframes.map((key) => key.timeMs)).toEqual([0, 400])
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Animation speed animation' }), { key: 'Escape' })
+    await act(async () => {})
+
+    const editButton = screen.getByRole('button', { name: 'Edit Animation speed animation' })
+    expect(editButton.getAttribute('data-animated')).toBe('true')
+    expect(screen.getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Animation speed')
+
+    fireEvent.click(editButton)
+    await act(async () => {})
+    const callsBefore = admission.calls.length
+    typeAndCommit('Animation speed animation to exact multiplier', '3')
+    await act(async () => {})
+
+    expect(admission.calls).toHaveLength(callsBefore + 1)
+    expect(admission.calls[callsBefore].door).toBe('admitShowV2PilotPropertyEdit')
+    const updated = editor.state().record.composition.groupDefinitions[0]!.propertyTracks[0]!
+    expect(updated.keyframes[1]!.value).toBe(3)
+    expect(screen.getByRole('region', { name: 'Clip summary' })).toHaveTextContent('3x')
+  })
+
   it('makes no property door call on a two-key Group Clip animation (#1075 G3)', async () => {
     const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
     const record = propertyEditGroupRecord()

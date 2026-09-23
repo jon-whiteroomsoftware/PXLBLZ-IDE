@@ -177,17 +177,18 @@ function planGroupAddTrack(
   }
   const converted = convertPropertyTarget(target, new Map([[child.id, child.id]]))
   const extent = groupDuration(definition)
-  const sources = change.keyframes ?? [
-    { timeMs: 0, value: change.initialValue, easing: { curve: 'linear' as const } },
-    { timeMs: extent, value: change.initialValue, easing: { curve: 'linear' as const } },
-  ]
   const trackId = newId()
-  const keyframes = sources.map(source => ({
-    id: newId(),
-    timeMs: toRecordTime(source.timeMs),
-    value: source.value,
-    easing: structuredClone(source.easing),
-  }))
+  const keyframes = change.keyframes
+    ? change.keyframes.map(source => ({
+      id: newId(),
+      timeMs: toRecordTime(source.timeMs),
+      value: source.value,
+      easing: structuredClone(source.easing),
+    }))
+    : [
+      { id: newId(), timeMs: 0, value: change.initialValue, easing: { curve: 'linear' as const } },
+      { id: newId(), timeMs: extent, value: change.initialValue, easing: { curve: 'linear' as const } },
+    ]
   return {
     kind: 'edit',
     propertyOwner: { kind: 'group-definition', definitionId: definition.id },
