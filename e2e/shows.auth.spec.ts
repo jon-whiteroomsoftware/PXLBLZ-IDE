@@ -10,7 +10,7 @@ import { createShowWithOutputContract } from '../src/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
 import { showBackingIsV2 } from './support/showBacking'
 import { mergeShowListingsById } from '../src/test/showV2HarnessDecisions'
-import { listStoredShowsV2, storeSeededShowAsV2, storedShowV2RevisionMatchesAnchor, waitForV2BarrierSave } from './support/showBackingRecords'
+import { findStoredShowV2, listStoredShowsV2, storeSeededShowAsV2, storedShowV2RevisionMatchesAnchor, waitForV2BarrierSave } from './support/showBackingRecords'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -3820,6 +3820,52 @@ test.describe('lesson pill, Reading card and Live strip (#985)', () => {
     await expect.poll(() => chip.innerText()).toBe('(3)')
     expect(Math.abs((await strip.boundingBox())!.height - 2 * await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)))).toBeLessThanOrEqual(0.5)
   })
+})
+
+test('adds a Marker, renames it and inserts Time at the playhead (#1090)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/shows')
+  await createInstallationShow(page)
+
+  // A Marker from the ruler at the playhead, which the seeded Show opens at 0 s.
+  await page.getByRole('button', { name: 'Add Marker at playhead' }).click()
+  const marker = page.getByRole('button', { name: 'Marker 1 at 0 seconds' })
+  await expect(marker).toBeVisible()
+  await marker.click()
+  const details = page.getByRole('dialog', { name: 'Marker 1 details' })
+  await expect(details).toBeVisible()
+  const name = details.getByRole('textbox', { name: 'Marker name' })
+  await name.fill('Cue')
+  await name.press('Enter')
+  await expect(page.getByRole('button', { name: 'Cue at 0 seconds' })).toBeVisible()
+
+  // Add → Time inserts 2 s at the playhead.
+  await page.getByRole('button', { name: 'Add to Show' }).click()
+  await page.getByRole('menuitem', { name: 'Time' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Insert Time' })
+  await expect(dialog).toBeVisible()
+  const amount = dialog.getByRole('textbox', { name: 'Time to insert in seconds' })
+  await amount.fill('2')
+  await amount.press('Enter')
+  const insert = dialog.getByRole('button', { name: 'Insert' })
+  await expect(insert).toBeEnabled()
+  await insert.click()
+
+  // The Marker and the later Clip moved 2 s later.
+  await expect(page.getByRole('button', { name: 'Cue at 2 seconds' })).toBeVisible()
+  if (showBackingIsV2()) {
+    const id = new URL(page.url()).pathname.split('/').at(-1)!
+    await expect.poll(async () => {
+      const stored = await findStoredShowV2(page, id)
+      const cue = stored?.composition.markers.some((candidate) => candidate.name === 'Cue' && candidate.timeMs === 2000)
+      const laterClip = stored?.composition.clips.some((clip) => clip.startMs === 34000)
+      return cue === true && laterClip === true
+    }).toBe(true)
+    return
+  }
+  // The saved longer first Scene carries every later Clip 2 s later; the
+  // renamed Marker's new time is already proven by its visible label above.
+  await waitForCurrentShow(page, (show) => show.scenes[0]?.durationMs === 32000)
 })
 
 

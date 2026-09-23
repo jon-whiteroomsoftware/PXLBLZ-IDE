@@ -6924,3 +6924,258 @@ describe('v2 Add Clip (#1090 slice B)', () => {
     expectNoWrite(before, editor.state())
   })
 })
+// ── Slice C: Marker editing, Insert Time and Add Layer reach their v2 doors (#1090) ──
+// The ruler Marker source, the Marker lane gestures, Add → Time and Add →
+// Layer commit through the marker, insert-time and layer doors on a v2 row.
+// Every accepted edit keeps the tracer fences: exactly one history entry and
+// one save, record identity on refusal, exact Undo then Redo, and no legacy
+// owner invocation.
+
+/** The connected baseline plus one authored Marker the lane can work on. */
+function markerSliceCRecord(id: string): ShowRecordV2 {
+  const record = connectedV2Record(id)
+  record.composition.markers = [{ id: 'm1', timeMs: 5000, name: 'Alpha', color: '#f59e0b' }]
+  expect(validateShowRecordV2(record)).toEqual([])
+  return record
+}
+
+/** The marker-door submissions one gesture made, in order. */
+function markerSubmissions() {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotMarkerEdit')
+    .map((call) => ({ intent: call.request.intent, baseRevision: call.request.baseRevision }))
+}
+
+/** The insert-time-door submissions one gesture made, in order. */
+function insertTimeSubmissions() {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotInsertTime')
+    .map((call) => ({ intent: call.request.intent, baseRevision: call.request.baseRevision }))
+}
+
+/** The layer-door submissions one gesture made, in order. */
+function layerSubmissions() {
+  return admission.calls
+    .filter((call) => call.door === 'admitShowV2PilotLayerEdit')
+    .map((call) => ({ intent: call.request.intent, baseRevision: call.request.baseRevision }))
+}
+
+async function openInsertTimeDialog(): Promise<HTMLElement> {
+  fireEvent.click(screen.getByRole('button', { name: 'Add to Show' }))
+  await act(async () => {})
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Time' }))
+  await act(async () => {})
+  return screen.getByRole('dialog', { name: 'Insert Time' })
+}
+
+/** The marker surface rect: 200 px span the 20 s Show, so 1 px is 100 ms. */
+function mockMarkerSurface(): void {
+  vi.spyOn(screen.getByLabelText('Timeline Markers and Show End'), 'getBoundingClientRect').mockReturnValue({
+    left: 0, right: 200, top: 0, bottom: 40, width: 200, height: 40, x: 0, y: 0, toJSON: () => ({}),
+  })
+}
+
+describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
+  it('adds a Marker at the playhead from the ruler source through the marker door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('sliceC-marker-add'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 4023.6 }))
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    // The fractional playhead rounds exactly as the v1 surface normalises it.
+    // The converted baseline already carries its Scene-label chapter Marker,
+    // so the new Marker takes the next number, exactly as v1 counts.
+    const markerName = `Marker ${before.record.composition.markers.length + 1}`
+    const beforeIds = new Set(before.record.composition.markers.map((marker) => marker.id))
+    expect(markerSubmissions()).toEqual([{
+      intent: {
+        kind: 'add',
+        marker: { id: expect.any(String), timeMs: 4024, name: markerName, color: '#f59e0b' },
+      },
+      baseRevision: 0,
+    }])
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotMarkerEdit'])
+    const added = after.record.composition.markers.filter((marker) => !beforeIds.has(marker.id))
+    expect(added).toHaveLength(1)
+    expect(added[0]).toMatchObject({ timeMs: 4024, name: markerName, color: '#f59e0b' })
+    expect(screen.getByRole('button', { name: `${markerName} at 4.024 seconds` })).toBeInTheDocument()
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('moves a Marker through the marker door', async () => {
+    const editor = openV2EditorForRecord(markerSliceCRecord('sliceC-marker-move'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    mockMarkerSurface()
+    const before = editor.state()
+
+    // Alt escapes the grid and magnetism to raw milliseconds: x=80 is 8000 ms.
+    const button = screen.getByRole('button', { name: 'Alpha at 5 seconds' })
+    fireEvent.pointerDown(button, { pointerId: 1, clientX: 50 })
+    fireEvent.pointerUp(button, { pointerId: 1, clientX: 80, altKey: true })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(markerSubmissions()).toEqual([{
+      intent: { kind: 'move', markerId: 'm1', timeMs: 8000 },
+      baseRevision: 0,
+    }])
+    expect(after.record.composition.markers).toMatchObject([{ id: 'm1', timeMs: 8000, name: 'Alpha' }])
+    expect(screen.getByRole('button', { name: 'Alpha at 8 seconds' })).toBeInTheDocument()
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('renames a Marker through the marker door', async () => {
+    const editor = openV2EditorForRecord(markerSliceCRecord('sliceC-marker-rename'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha at 5 seconds' }))
+    await act(async () => {})
+    const dialog = screen.getByRole('dialog', { name: 'Alpha details' })
+    const name = within(dialog).getByRole('textbox', { name: 'Marker name' })
+    fireEvent.change(name, { target: { value: 'Beta' } })
+    fireEvent.keyDown(name, { key: 'Enter' })
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(markerSubmissions()).toEqual([{
+      intent: { kind: 'update', markerId: 'm1', patch: { name: 'Beta' } },
+      baseRevision: 0,
+    }])
+    expect(after.record.composition.markers).toMatchObject([{ id: 'm1', timeMs: 5000, name: 'Beta' }])
+    expect(screen.getByRole('button', { name: 'Beta at 5 seconds' })).toBeInTheDocument()
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('removes a Marker through the marker door', async () => {
+    const editor = openV2EditorForRecord(markerSliceCRecord('sliceC-marker-remove'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha at 5 seconds' }))
+    await act(async () => {})
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Alpha details' }))
+      .getByRole('button', { name: 'Delete Alpha' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(markerSubmissions()).toEqual([{
+      intent: { kind: 'remove', markerId: 'm1' },
+      baseRevision: 0,
+    }])
+    expect(after.record.composition.markers).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Alpha at 5 seconds' })).not.toBeInTheDocument()
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('refuses a move on a Marker id that does not exist with no write', async () => {
+    const editor = openV2EditorForRecord(markerSliceCRecord('sliceC-marker-refuse'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    mockMarkerSurface()
+    const button = screen.getByRole('button', { name: 'Alpha at 5 seconds' })
+    fireEvent.pointerDown(button, { pointerId: 1, clientX: 50 })
+    // The mounted handle outlives its Marker: a concurrent removal lands
+    // before release, so the committed move names a missing Marker. The store
+    // object is edited in place so no render unmounts the handle first.
+    editor.state().record.composition.markers = []
+    fireEvent.pointerUp(button, { pointerId: 1, clientX: 80, altKey: true })
+    await act(async () => {})
+
+    // The owner refuses the missing Marker, and the refusal persists nothing:
+    // no history entry, no save, no legacy touch. Record identity is vacuous
+    // here (the setup edits the live object), so it is not asserted.
+    const after = editor.state()
+    expect(markerSubmissions()).toEqual([{
+      intent: { kind: 'move', markerId: 'm1', timeMs: 8000 },
+      baseRevision: 0,
+    }])
+    expect(after.record.composition.markers).toEqual([])
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+    expect(legacy.calls).toEqual([])
+  })
+
+  it('inserts Time on a v2 Show at a free time through the insert-time door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('sliceC-insert'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 10000 }))
+    const before = editor.state()
+
+    const dialog = await openInsertTimeDialog()
+    expect(within(dialog).getByRole('button', { name: 'Insert' })).toBeEnabled()
+    const amount = within(dialog).getByRole('textbox', { name: 'Time to insert in seconds exact time' })
+    fireEvent.change(amount, { target: { value: '2' } })
+    fireEvent.keyDown(amount, { key: 'Enter' })
+    await act(async () => {})
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Insert Time' })).getByRole('button', { name: 'Insert' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(insertTimeSubmissions()).toEqual([{
+      intent: { atMs: 10000, durationMs: 2000 },
+      baseRevision: 0,
+    }])
+    // The Clip after the insertion point moves later by the duration, the
+    // joined pair before it is untouched, and Show End grows by it.
+    expect(authoredClip(after.record, 'overlay-a').startMs).toBe(14000)
+    expect(authoredClip(after.record, 'resize-b').startMs).toBe(7000)
+    expect(after.record.composition.showEndMs).toBe(22000)
+    expect(screen.queryByRole('dialog', { name: 'Insert Time' })).not.toBeInTheDocument()
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('disables Insert strictly inside a visual Transition window with the owner message', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('sliceC-insert-refuse'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    // The join-a-b crossfade owns (5000, 7000); 6000 is strictly inside it.
+    act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 6000 }))
+    const before = editor.state()
+
+    const dialog = await openInsertTimeDialog()
+    expect(within(dialog).getByRole('button', { name: 'Insert' })).toBeDisabled()
+    expect(within(dialog).getByText(/strictly inside visual Transition/)).toBeInTheDocument()
+    expectNoWrite(before, editor.state())
+  })
+
+  it('adds a Layer to the target Zone through the layer door', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('sliceC-layer'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Layer' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(layerSubmissions()).toEqual([{
+      intent: {
+        kind: 'add',
+        layer: { id: expect.any(String), zoneId: 'z1', name: 'Layer 2', rank: 2 },
+      },
+      baseRevision: 0,
+    }])
+    // The new Layer lands on top of the Zone stack, above the converted Main
+    // and Atmosphere Layers, with the v1 overlay number for its rank.
+    expect(after.record.composition.layers
+      .filter((layer) => layer.zoneId === 'z1')
+      .sort((left, right) => left.rank - right.rank)
+      .map((layer) => ({ name: layer.name, rank: layer.rank }))).toEqual([
+      { name: 'Main', rank: 0 },
+      { name: 'Atmosphere', rank: 1 },
+      { name: 'Layer 2', rank: 2 },
+    ])
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+})

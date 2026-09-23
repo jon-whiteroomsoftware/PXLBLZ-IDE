@@ -310,7 +310,9 @@ import {
   admitShowV2PilotClipSharingEdit,
   admitShowV2PilotClipTemporal,
   admitShowV2PilotCreateClip,
+  admitShowV2PilotInsertTime,
   admitShowV2PilotInstanceProperties,
+  admitShowV2PilotLayerEdit,
   admitShowV2PilotPropertyEdit,
   admitShowV2PilotSetShowEnd,
   admitShowV2PilotShowMetadata,
@@ -318,6 +320,7 @@ import {
   admitShowV2PilotZoneEdit,
   admitShowV2PilotLayoutDefinitionEdit,
   admitShowV2PilotLayoutOccurrenceEdit,
+  admitShowV2PilotMarkerEdit,
   type ShowV2PilotClipDeleteIntent,
   type ShowV2PilotClipSharingIntent,
   type ShowV2PilotGroupOccurrenceEditIntent,
@@ -340,6 +343,9 @@ import {
   type ShowV2GroupReplacementIntent,
 } from '@/engine/showV2GroupReplacementEditorModel'
 import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
+import { insertShowTimeV2, type ShowInsertTimeIntentV2 } from '@/engine/showTimelineV2'
+import type { ShowMarkerEditIntentV2 } from '@/engine/showMarkersV2'
+import type { ShowLayerEditIntentV2 } from '@/engine/showLayersV2'
 import { checkShowTimelineDuplicateGestureV2, planShowTimelineGestureV2, type ShowTimelineGestureV2 } from '@/engine/showTimelineGesturesV2'
 import {
   createShowV2IndependentIntent,
@@ -1828,6 +1834,61 @@ export function ShowEditor({
     const applied = await commitV2ClipSharing({ ...gesture, intent: planned.submission.intent })
     return applied ? selectClipId : null
   }, [captureV2Move, commitV2ClipSharing])
+  // Slice C connects Marker editing, Insert Time and Add Layer through the
+  // same prepared-capture plumbing: each helper returns the admission outcome
+  // so the calling handler maps applied/unchanged/refused exactly as the
+  // legacy chokepoint maps changed/noop/refused (#1090).
+  const commitV2MarkerEdit = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowMarkerEditIntentV2
+  }) => {
+    const outcome = await admitShowV2PilotMarkerEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
+  const commitV2InsertTime = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowInsertTimeIntentV2
+  }) => {
+    const outcome = await admitShowV2PilotInsertTime({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
+  const commitV2LayerEdit = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowLayerEditIntentV2
+  }) => {
+    const outcome = await admitShowV2PilotLayerEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
   const commitV2CreateGroup = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
@@ -4082,6 +4143,31 @@ export function ShowEditor({
                   })
                 }}
                 onAddCompositionLayer={async (zoneId) => {
+                  if (recordVersion === 2) {
+                    if (readOnly) return false
+                    const moved = captureV2Move()
+                    if (!moved) return false
+                    // Rank zero is the bottom Layer, so one more than the
+                    // highest rank in the Zone lands on top, exactly where the
+                    // v1 overlay lands with unshift (#1090).
+                    const rank = moved.capture.record.composition.layers.reduce(
+                      (highest, layer) => (layer.zoneId === zoneId ? Math.max(highest, layer.rank) : highest),
+                      -1,
+                    ) + 1
+                    const outcome = await commitV2LayerEdit({
+                      ...moved,
+                      intent: {
+                        kind: 'add',
+                        layer: {
+                          id: newPersonalContentId(),
+                          zoneId,
+                          name: `Layer ${rank}`,
+                          rank,
+                        },
+                      },
+                    })
+                    return outcome.status === 'applied'
+                  }
                   if (!legacyShow || !timelineComposition) return false
                   const nextComposition = addShowOverlayLayerAcrossTimeline(legacyShow, timelineComposition, {
                     zoneId,
@@ -4160,6 +4246,16 @@ export function ShowEditor({
                   setLayerTransitionTarget(target)
                 }}
                 onInsertTime={async (atMs, durationMs) => {
+                  if (recordVersion === 2) {
+                    if (readOnly) return false
+                    const moved = captureV2Move()
+                    if (!moved) return false
+                    const outcome = await commitV2InsertTime({
+                      ...moved,
+                      intent: { atMs, durationMs },
+                    })
+                    return outcome.status === 'applied'
+                  }
                   if (!legacyShow || !timelineComposition) return false
                   const basis = { ...legacyShow, composition: timelineComposition }
                   const plan = planShowTimeInsertion(basis, atMs, durationMs)
@@ -4175,6 +4271,25 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, next)
                 }}
                 onAddMarker={async (timeMs) => {
+                  if (recordVersion === 2) {
+                    if (readOnly) return false
+                    const moved = captureV2Move()
+                    if (!moved) return false
+                    const markerNumber = moved.capture.record.composition.markers.length + 1
+                    const outcome = await commitV2MarkerEdit({
+                      ...moved,
+                      intent: {
+                        kind: 'add',
+                        marker: {
+                          id: newPersonalContentId(),
+                          timeMs: Math.max(0, Math.round(timeMs)),
+                          name: `Marker ${markerNumber}`,
+                          color: '#f59e0b',
+                        },
+                      },
+                    })
+                    return outcome.status === 'applied' || outcome.status === 'unchanged'
+                  }
                   if (!legacyShow || !timelineComposition) return false
                   const basis = { ...legacyShow, composition: timelineComposition }
                   const markerNumber = (timelineComposition.markers?.length ?? 0) + 1
@@ -4189,6 +4304,16 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, result.record)
                 }}
                 onMoveMarker={async (markerId, timeMs) => {
+                  if (recordVersion === 2) {
+                    if (readOnly) return false
+                    const moved = captureV2Move()
+                    if (!moved) return false
+                    const outcome = await commitV2MarkerEdit({
+                      ...moved,
+                      intent: { kind: 'move', markerId, timeMs: Math.max(0, Math.round(timeMs)) },
+                    })
+                    return outcome.status === 'applied' || outcome.status === 'unchanged'
+                  }
                   if (!legacyShow || !timelineComposition) return false
                   const basis = { ...legacyShow, composition: timelineComposition }
                   const result = editShowMarkerFromUI(basis, { kind: 'move', markerId, timeMs })
@@ -4197,6 +4322,22 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, result.record)
                 }}
                 onUpdateMarker={async (markerId, patch) => {
+                  if (recordVersion === 2) {
+                    if (readOnly) return false
+                    const moved = captureV2Move()
+                    if (!moved) return false
+                    const outcome = await commitV2MarkerEdit({
+                      ...moved,
+                      intent: {
+                        kind: 'update',
+                        markerId,
+                        patch: patch.timeMs === undefined
+                          ? patch
+                          : { ...patch, timeMs: Math.max(0, Math.round(patch.timeMs)) },
+                      },
+                    })
+                    return outcome.status === 'applied' || outcome.status === 'unchanged'
+                  }
                   if (!legacyShow || !timelineComposition) return false
                   const basis = { ...legacyShow, composition: timelineComposition }
                   const result = editShowMarkerFromUI(basis, { kind: 'update', markerId, patch })
@@ -4205,6 +4346,16 @@ export function ShowEditor({
                   return tryUpdateShow(legacyShow.id, result.record)
                 }}
                 onRemoveMarker={async (markerId) => {
+                  if (recordVersion === 2) {
+                    if (readOnly) return false
+                    const moved = captureV2Move()
+                    if (!moved) return false
+                    const outcome = await commitV2MarkerEdit({
+                      ...moved,
+                      intent: { kind: 'remove', markerId },
+                    })
+                    return outcome.status === 'applied' || outcome.status === 'unchanged'
+                  }
                   if (!legacyShow || !timelineComposition) return false
                   const basis = { ...legacyShow, composition: timelineComposition }
                   const result = editShowMarkerFromUI(basis, { kind: 'remove', markerId })
@@ -6102,21 +6253,32 @@ function ShowTimelineWorkspace({
     : preferredAuthoringZoneId ?? timelineView.rows[0]?.zoneId
   const layerTargetZoneName = timelineView.rows.find((zone) => zone.zoneId === layerTargetZoneId)?.zoneName ?? 'Zone'
   const insertTimeDurationMs = Math.round(insertTimeSeconds * 1000)
-  const insertTimePlan = show
-    ? planShowTimeInsertion(
-        timelineComposition ? { ...show, composition: timelineComposition } : show,
-        insertTimeAtMs,
-        insertTimeDurationMs,
-      )
-    : { enabled: false as const, reason: 'That operation is not available at this time.' }
+  // The authored v2 backing the presented timeline draws. The palette
+  // recomputes its own plan from the same record when it opens.
+  const savedShowV2 = useShowStore((state) => state.showV2Pilots[showId])
+  // The dialog plans from whichever backing the workspace draws. On v2 the
+  // pure owner dry-runs the insertion, so a refused point explains itself with
+  // the owner's message and the v1-only fallback never shows (#1090).
+  const insertTimePlan = useMemo(() => {
+    if (recordVersion === 2) {
+      if (!savedShowV2) return { enabled: false as const, reason: 'No Show is open.' }
+      const result = insertShowTimeV2(savedShowV2, { atMs: insertTimeAtMs, durationMs: insertTimeDurationMs })
+      if (result.status === 'changed') return { enabled: true as const }
+      return { enabled: false as const, reason: result.message }
+    }
+    return show
+      ? planShowTimeInsertion(
+          timelineComposition ? { ...show, composition: timelineComposition } : show,
+          insertTimeAtMs,
+          insertTimeDurationMs,
+        )
+      : { enabled: false as const, reason: 'That operation is not available at this time.' }
+  }, [insertTimeAtMs, insertTimeDurationMs, recordVersion, savedShowV2, show, timelineComposition])
   const selectedTransitionClipId = selection.kind === 'clip'
     ? selection.clipId
     : selection.kind === 'group-clip'
       ? `${selection.occurrenceId}:${selection.placementId}`
       : null
-  // The authored v2 backing the presented timeline draws. The palette
-  // recomputes its own plan from the same record when it opens.
-  const savedShowV2 = useShowStore((state) => state.showV2Pilots[showId])
   const addTransitionPlan = useMemo(() => {
     // On v2 the Add menu resolves from the selected Clip through the v2
     // timeline presentation, reusing the G4b-2b and G4b-2c junction targets;
