@@ -14,6 +14,7 @@ import {
   ENTRY_POLICY_VALUES,
   EVALUATION_POLICY_VALUES,
   INSTANCE_PROPERTIES_FIELD,
+  INSTANCE_PROPERTIES_UPDATE_FIELD,
   TRANSITION_KIND_VALUES,
   ZONE_SAMPLE_MODE_VALUES,
 } from './support'
@@ -141,6 +142,7 @@ export const SHOW_AUTHORING_V2_JSON_SCHEMA = {
     AppearancePatch: fieldSchema(APPEARANCE_PATCH_FIELD),
     AperturePatch: fieldSchema(APERTURE_PATCH_FIELD),
     InstanceProperties: fieldSchema(INSTANCE_PROPERTIES_FIELD),
+    InstanceUpdateProperties: fieldSchema(INSTANCE_PROPERTIES_UPDATE_FIELD),
   },
   enums: {
     entryPolicy: ENTRY_POLICY_VALUES,

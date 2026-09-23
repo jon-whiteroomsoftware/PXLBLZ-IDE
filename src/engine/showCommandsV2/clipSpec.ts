@@ -24,6 +24,7 @@ import {
   EFFECT_SPEC_FIELD,
   ENTRY_POLICY_VALUES,
   INSTANCE_PROPERTIES_FIELD,
+  INSTANCE_PROPERTIES_UPDATE_FIELD,
   PATTERN_REFERENCE_FIELD,
   ZONE_SAMPLE_MODE_VALUES,
   adoptOwnerResults,
@@ -102,7 +103,7 @@ export const CLIP_PATCH_FIELD: ShowCommandV2Field = {
       },
       atLeastOne: ['opacity', 'view', 'transform', 'aperture', 'presentation', 'blink'],
     },
-    instance_properties: INSTANCE_PROPERTIES_FIELD,
+    instance_properties: INSTANCE_PROPERTIES_UPDATE_FIELD,
   },
 }
 

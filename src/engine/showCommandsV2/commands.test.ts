@@ -348,6 +348,62 @@ describe('v2 Clip commands', () => {
     // A sole user is already independent: an already-satisfied request is a no-op.
     expect(applyShowCommandV2(record, 'make_clip_pattern_independent', { clip_id: 'clip-c' }).status).toBe('unchanged')
   })
+
+  it('offers remove_controls only on update_clips (#1093)', () => {
+    const record = commandFixtureV2()
+    const targeted = structuredClone(record)
+    targeted.composition.patternInstances[0].controlTargets = { speed: 0.5 }
+    targeted.composition.propertyTracks.push({
+      id: 'speed-lane',
+      target: { kind: 'instance-control', instanceId: 'inst-a', exportName: 'speed' },
+      activeStartMs: 0,
+      activeDurationMs: 4_000,
+      keyframes: [
+        { id: 'speed-lane-start', timeMs: 0, value: 0.5, easing: { curve: 'linear' } },
+        { id: 'speed-lane-end', timeMs: 4_000, value: 0.8, easing: { curve: 'linear' } },
+      ],
+    })
+    expect(validateShowRecordV2(targeted)).toEqual([])
+
+    // update_clips still validates remove_controls and prunes the target and its lane.
+    const updated = changed(applyShowCommandV2(targeted, 'update_clips', {
+      updates: [{ clip_id: 'clip-a', instance_properties: { remove_controls: ['speed'] } }],
+    }, context))
+    expect(updated.record.composition.patternInstances[0]).not.toHaveProperty('controlTargets')
+    expect(updated.record.composition.propertyTracks.map(track => track.id)).toEqual(['track-a'])
+    expect(updated.changes[0].details.tracks).toContain('speed-lane')
+
+    // create_clips rejects remove_controls as an unknown property.
+    const created = applyShowCommandV2(record, 'create_clips', {
+      clips: [{
+        zone_id: 'left', layer_id: 'over', start_ms: 4_000, duration_ms: 1_000,
+        pattern: { kind: 'stock', id: 'TestPattern2D' },
+        instance_properties: { remove_controls: ['speed'] },
+      }],
+    }, context)
+    expect(created.status).toBe('refused')
+    if (created.status !== 'refused') return
+    expect(created.issues.map(issue => issue.code)).toContain('unknown-field')
+    // Holding only remove_controls also fails the create shape's atLeastOne check.
+    expect(created.issues.map(issue => issue.code)).toContain('empty-patch')
+    expect(created.record).toBe(record)
+
+    // create_layers rejects a Clip carrying remove_controls the same way.
+    const layered = applyShowCommandV2(record, 'create_layers', {
+      layers: [{
+        zone_id: 'right', name: 'Right base',
+        clips: [{
+          zone_id: 'right', start_ms: 0, duration_ms: 1_000,
+          pattern: { kind: 'stock', id: 'TestPattern2D' },
+          instance_properties: { remove_controls: ['speed'] },
+        }],
+      }],
+    }, context)
+    expect(layered.status).toBe('refused')
+    if (layered.status !== 'refused') return
+    expect(layered.issues.map(issue => issue.code)).toContain('unknown-field')
+    expect(layered.record).toBe(record)
+  })
 })
 
 describe('v2 Transition commands', () => {

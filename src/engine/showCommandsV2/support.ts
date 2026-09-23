@@ -369,7 +369,7 @@ export const INSTANCE_PROPERTIES_FIELD: ShowCommandV2Field = {
   kind: 'object',
   optional: true,
   description: 'Pattern-instance values; every Clip sharing the runtime is affected.',
-  atLeastOne: ['controls', 'remove_controls', 'time_scale', 'time_offset_ms', 'evaluation'],
+  atLeastOne: ['controls', 'time_scale', 'time_offset_ms', 'evaluation'],
   properties: {
     controls: {
       kind: 'record',
@@ -377,6 +377,18 @@ export const INSTANCE_PROPERTIES_FIELD: ShowCommandV2Field = {
       description: 'Slider values by export name, 0-1.',
       values: unitField('Control value, 0-1.'),
     },
+    time_scale: { kind: 'number', optional: true, minimum: 0, maximum: 8, description: 'Time scale, 0-8; zero freezes the clock.' },
+    time_offset_ms: { kind: 'integer', optional: true, minimum: -MAX_SAFE_MS, maximum: MAX_SAFE_MS, description: 'Clock offset ms.' },
+    evaluation: { kind: 'string', optional: true, enum: EVALUATION_POLICY_VALUES, description: 'Instance evaluation policy: live, one frozen entry frame, or a rolling quarter refresh.' },
+  },
+}
+
+/** Update-only instance properties: the shared shape plus remove_controls, which un-targets a control on an existing Clip. */
+export const INSTANCE_PROPERTIES_UPDATE_FIELD: ShowCommandV2Field = {
+  ...(INSTANCE_PROPERTIES_FIELD as Extract<ShowCommandV2Field, { kind: 'object' }>),
+  atLeastOne: [...(INSTANCE_PROPERTIES_FIELD as Extract<ShowCommandV2Field, { kind: 'object' }>).atLeastOne ?? [], 'remove_controls'],
+  properties: {
+    ...(INSTANCE_PROPERTIES_FIELD as Extract<ShowCommandV2Field, { kind: 'object' }>).properties,
     remove_controls: {
       kind: 'array',
       optional: true,
@@ -385,8 +397,5 @@ export const INSTANCE_PROPERTIES_FIELD: ShowCommandV2Field = {
       description: 'Control export names to un-target, pruning their animation lanes.',
       items: { kind: 'string', description: 'Control export name.' },
     },
-    time_scale: { kind: 'number', optional: true, minimum: 0, maximum: 8, description: 'Time scale, 0-8; zero freezes the clock.' },
-    time_offset_ms: { kind: 'integer', optional: true, minimum: -MAX_SAFE_MS, maximum: MAX_SAFE_MS, description: 'Clock offset ms.' },
-    evaluation: { kind: 'string', optional: true, enum: EVALUATION_POLICY_VALUES, description: 'Instance evaluation policy: live, one frozen entry frame, or a rolling quarter refresh.' },
   },
 }
