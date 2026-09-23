@@ -845,16 +845,21 @@ test('keeps the Shows header inside the center editor pane (#758)', async ({ pag
 })
 
 async function openStudioList(page: Page, name: 'Shows' | 'Patterns'): Promise<void> {
-  await page.getByRole('button', { name: `Open the ${name} list` }).click()
   const drawer = page.locator('[data-testid="studio-entity-drawer"][data-studio-drawer-owner="studio-entity-list"]')
-  await expect(drawer).toBeInViewport({ ratio: 1 })
-  // Leaving the edge tab arms the drawer's close timer until the pointer enters it.
-  await drawer.hover()
-  // A delayed pointer-leave close must settle before a row click starts.
-  const closeDeadline = Date.now() + 600
-  await expect.poll(async () => (
-    await drawer.getAttribute('data-drawer-mode') === 'open' && Date.now() >= closeDeadline
-  ), { intervals: [50], timeout: 2_000 }).toBe(true)
+  await expect(async () => {
+    if (await drawer.getAttribute('data-drawer-mode') !== 'open') {
+      await page.getByRole('button', { name: `Open the ${name} list` }).click()
+    }
+    await expect(drawer).toBeInViewport({ ratio: 1 })
+    // Enter the drawer, then observe the full pointer-leave close interval.
+    await drawer.hover()
+    const closeDeadline = Date.now() + 600
+    await expect.poll(async () => {
+      const mode = await drawer.getAttribute('data-drawer-mode')
+      if (mode !== 'open') throw new Error(`${name} drawer closed after hover`)
+      return Date.now() >= closeDeadline
+    }, { intervals: [50], timeout: 1_500 }).toBe(true)
+  }).toPass({ timeout: 10_000 })
 }
 
 test('Studio authoring keeps the rail and editor reachable at 390px (#622)', async ({ page }) => {
