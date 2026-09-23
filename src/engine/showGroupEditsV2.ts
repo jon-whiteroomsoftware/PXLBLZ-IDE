@@ -5,6 +5,7 @@ import {
   type ShowGroupOccurrenceV2,
   type ShowPropertyTargetV2,
   type ShowRecordV2,
+  type ShowTransitionV2,
 } from './showCompositionV2'
 import { groupDefinitionAsRecord, groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
@@ -12,6 +13,8 @@ import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlace
 import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2 } from './showClipAppearanceEditsV2'
 import { writeShowInstancePropertiesV2, type ShowInstancePropertyDependenciesV2 } from './showInstancePropertiesV2'
 import type { ShowV2ClipInspectorInstanceIntent } from './showV2ClipAppearancePlanning'
+import { editShowTransitionV2, type ShowTransitionEditIntentV2 } from './showTransitionsV2'
+import type { ShowLayerTransition } from './personalContentRecords'
 
 export interface ShowGroupUniqueIdentityPlanV2 {
   definitionId: string
@@ -79,6 +82,19 @@ export interface WriteShowGroupDefinitionInstancePropertiesIntentV2 {
   definitionId: string
   clipId: string
   properties: ShowV2ClipInspectorInstanceIntent['properties']
+}
+
+export interface InsertShowGroupDefinitionLayerTransitionIntentV2 {
+  kind: 'insert-definition-layer-transition'
+  definitionId: string
+  transition: Extract<ShowTransitionEditIntentV2, { kind: 'insert' }>['transition']
+}
+
+export interface ResizeShowGroupDefinitionLayerTransitionIntentV2 {
+  kind: 'resize-definition-layer-transition'
+  definitionId: string
+  transitionId: string
+  durationMs: number
 }
 
 export type ShowGroupEditRefusalV2 =
@@ -441,6 +457,133 @@ export function writeShowGroupDefinitionInstancePropertiesV2(
   if (targetIndex < 0) return refuseGroupEdit(record, 'invalid-intent', `Group definition Clip "${intent.clipId}" has no Pattern instance.`)
   targetDefinition.patternInstances[targetIndex] = structuredClone(edited)
   targetDefinition.propertyTracks = structuredClone(outcome.record.composition.propertyTracks)
+  const resultIssue = validateGroupEditResult(next)
+  if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  const restriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (restriction) return refuseGroupEdit(record, 'compiler-ineligible', restriction.message)
+  return {
+    status: 'changed',
+    record: next,
+    ...emptyGroupEditAffected(),
+    affectedGroupDefinitionIds: [definition.id],
+    affectedGroupOccurrenceIds: record.composition.groupOccurrences.filter(value => value.definitionId === definition.id).map(value => value.id),
+  }
+}
+
+function definitionTransitionFromAdapter(transition: ShowTransitionV2): ShowLayerTransition | null {
+  if (transition.wholeOutput) return null
+  if (!Array.isArray(transition.participants) || transition.participants.length !== 1) return null
+  const { participants, propertyRamps: _propertyRamps, wholeOutput: _wholeOutput, origin: _origin, ...settings } = transition as unknown as Record<string, unknown> & ShowTransitionV2
+  const participant = participants[0]
+  return { ...(settings as object), fromPlacementId: participant.fromClipId, toPlacementId: participant.toClipId } as ShowLayerTransition
+}
+
+function grownDefinitionAdapter(record: ShowRecordV2, definition: ShowGroupDefinitionV2, deltaMs: number): ShowRecordV2 {
+  const adapter = groupDefinitionAsRecord(record, definition)
+  if (deltaMs > 0) {
+    adapter.composition.showEndMs += deltaMs
+    const occurrence = adapter.composition.layoutOccurrences[0]
+    if (occurrence) occurrence.durationMs += deltaMs
+  }
+  return adapter
+}
+
+function applyAdapterDefinitionBack(next: ShowRecordV2, definitionId: string, adapterRecord: ShowRecordV2, oldExtentMs: number): string | null {
+  const target = next.composition.groupDefinitions.find(value => value.id === definitionId)
+  if (!target) return `Group definition "${definitionId}" does not exist.`
+  const adapterById = new Map(adapterRecord.composition.clips.map(clip => [clip.id, clip]))
+  for (const clip of target.clips) {
+    const adapterClip = adapterById.get(clip.id)
+    if (!adapterClip) return `Group definition Clip "${clip.id}" has no adapter owner.`
+    clip.startMs = adapterClip.startMs
+    clip.durationMs = adapterClip.durationMs
+    clip.appearance = structuredClone(adapterClip.appearance)
+  }
+  if (adapterRecord.composition.clips.length !== target.clips.length) return 'Group definition Clip set changed through the Transition owner.'
+  const mapped: ShowLayerTransition[] = []
+  for (const transition of adapterRecord.composition.transitions) {
+    const back = definitionTransitionFromAdapter(transition)
+    if (!back) return `Group definition Transition "${transition.id}" cannot be represented as a definition-local transition.`
+    mapped.push(back)
+  }
+  target.transitions = mapped
+  target.propertyTracks = structuredClone(adapterRecord.composition.propertyTracks)
+  const newExtentMs = Math.max(...target.clips.map(clip => clip.startMs + clip.durationMs))
+  // Definition tracks span the whole definition, as convertGroupDefinition assigns (#1075 G4a).
+  for (const track of target.propertyTracks) {
+    if (track.activeStartMs === 0 && track.activeDurationMs === oldExtentMs) {
+      track.activeStartMs = 0
+      track.activeDurationMs = newExtentMs
+    }
+  }
+  return null
+}
+
+/** Insert one definition-local Layer Transition through the ordinary Transition owner (#1075 G4a). */
+export function insertShowGroupDefinitionLayerTransitionV2(
+  record: ShowRecordV2,
+  intent: InsertShowGroupDefinitionLayerTransitionIntentV2,
+): ShowGroupEditResultV2 {
+  const preimage = validateGroupEditPreimage(record)
+  if (preimage) return preimage
+  if (!intent || typeof intent !== 'object' || intent.kind !== 'insert-definition-layer-transition'
+    || typeof intent.definitionId !== 'string' || !intent.definitionId.trim()
+    || !intent.transition || typeof intent.transition !== 'object') {
+    return refuseGroupEdit(record, 'invalid-intent', 'Give one Group definition Layer Transition insert with explicit definition and transition.')
+  }
+  const definition = record.composition.groupDefinitions.find(value => value.id === intent.definitionId)
+  if (!definition) return refuseGroupEdit(record, 'invalid-placement', `Group definition "${intent.definitionId}" does not exist.`)
+  const oldExtentMs = Math.max(...definition.clips.map(clip => clip.startMs + clip.durationMs))
+  const durationMs = (intent.transition as ShowTransitionV2).durationMs
+  const deltaMs = typeof durationMs === 'number' && Number.isSafeInteger(durationMs) && durationMs > 0 ? durationMs : 0
+  const adapter = grownDefinitionAdapter(record, definition, deltaMs)
+  const outcome = editShowTransitionV2(adapter, { kind: 'insert', transition: structuredClone(intent.transition) })
+  if (outcome.status === 'refused') return refuseGroupEdit(record, 'invalid-intent', outcome.message)
+  if (outcome.status === 'unchanged') return { status: 'unchanged', record, ...emptyGroupEditAffected() }
+  const next = structuredClone(record)
+  const issue = applyAdapterDefinitionBack(next, definition.id, outcome.record, oldExtentMs)
+  if (issue) return refuseGroupEdit(record, 'invalid-result', issue)
+  const resultIssue = validateGroupEditResult(next)
+  if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
+  const restriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (restriction) return refuseGroupEdit(record, 'compiler-ineligible', restriction.message)
+  return {
+    status: 'changed',
+    record: next,
+    ...emptyGroupEditAffected(),
+    affectedGroupDefinitionIds: [definition.id],
+    affectedGroupOccurrenceIds: record.composition.groupOccurrences.filter(value => value.definitionId === definition.id).map(value => value.id),
+  }
+}
+
+/** Resize or Reset one definition-local Layer Transition through the ordinary Transition owner (#1075 G4a). */
+export function resizeShowGroupDefinitionLayerTransitionV2(
+  record: ShowRecordV2,
+  intent: ResizeShowGroupDefinitionLayerTransitionIntentV2,
+): ShowGroupEditResultV2 {
+  const preimage = validateGroupEditPreimage(record)
+  if (preimage) return preimage
+  if (!intent || typeof intent !== 'object' || intent.kind !== 'resize-definition-layer-transition'
+    || typeof intent.definitionId !== 'string' || !intent.definitionId.trim()
+    || typeof intent.transitionId !== 'string' || !intent.transitionId.trim()
+    || typeof intent.durationMs !== 'number' || !Number.isSafeInteger(intent.durationMs) || intent.durationMs < 0) {
+    return refuseGroupEdit(record, 'invalid-intent', 'Give one Group definition Layer Transition resize with explicit transition and duration.')
+  }
+  const definition = record.composition.groupDefinitions.find(value => value.id === intent.definitionId)
+  if (!definition) return refuseGroupEdit(record, 'invalid-placement', `Group definition "${intent.definitionId}" does not exist.`)
+  const oldExtentMs = Math.max(...definition.clips.map(clip => clip.startMs + clip.durationMs))
+  const current = definition.transitions.find(transition => transition.id === intent.transitionId)
+  const deltaMs = current && intent.durationMs > current.durationMs ? intent.durationMs - current.durationMs : 0
+  const adapter = grownDefinitionAdapter(record, definition, deltaMs)
+  const ordinary = intent.durationMs === 0
+    ? { kind: 'reset-to-cut' as const, transitionId: intent.transitionId }
+    : { kind: 'resize-transition' as const, transitionId: intent.transitionId, durationMs: intent.durationMs }
+  const outcome = editShowTransitionV2(adapter, ordinary)
+  if (outcome.status === 'refused') return refuseGroupEdit(record, 'invalid-intent', outcome.message)
+  if (outcome.status === 'unchanged') return { status: 'unchanged', record, ...emptyGroupEditAffected() }
+  const next = structuredClone(record)
+  const issue = applyAdapterDefinitionBack(next, definition.id, outcome.record, oldExtentMs)
+  if (issue) return refuseGroupEdit(record, 'invalid-result', issue)
   const resultIssue = validateGroupEditResult(next)
   if (resultIssue) return refuseGroupEdit(record, 'invalid-result', resultIssue)
   const restriction = firstShowTransitionPlacementRestrictionV2(next)

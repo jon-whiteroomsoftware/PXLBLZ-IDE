@@ -18,7 +18,7 @@ import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2, type Sho
 import { editShowPropertyV2, type ShowPropertyTrackOwnerV2, type ShowPropertyEditIntentV2, type ShowPropertyEditResultV2 } from '@/engine/showPropertyEditsV2'
 import { createShowGroupFromSelectionV2, type CreateShowGroupFromSelectionIntentV2, type ShowGroupCreateResultV2 } from '@/engine/showGroupCreationV2'
 import type { ShowGroupEditAffectedV2 } from '@/engine/showGroupEditsV2'
-import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, setShowGroupDefinitionClipTimingV2, editShowGroupDefinitionClipAppearanceV2, writeShowGroupDefinitionInstancePropertiesV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type SetShowGroupDefinitionClipTimingIntentV2, type EditShowGroupDefinitionClipAppearanceIntentV2, type WriteShowGroupDefinitionInstancePropertiesIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
+import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, setShowGroupDefinitionClipTimingV2, editShowGroupDefinitionClipAppearanceV2, writeShowGroupDefinitionInstancePropertiesV2, insertShowGroupDefinitionLayerTransitionV2, resizeShowGroupDefinitionLayerTransitionV2, type MoveShowGroupOccurrenceIntentV2, type DuplicateShowGroupOccurrenceIntentV2, type MakeShowGroupUniqueIntentV2, type SetShowGroupDefinitionClipTimingIntentV2, type EditShowGroupDefinitionClipAppearanceIntentV2, type WriteShowGroupDefinitionInstancePropertiesIntentV2, type InsertShowGroupDefinitionLayerTransitionIntentV2, type ResizeShowGroupDefinitionLayerTransitionIntentV2, type UngroupShowGroupOccurrenceIntentV2, type DeleteShowGroupOccurrenceIntentV2, type ShowGroupEditResultV2 } from '@/engine/showGroupEditsV2'
 import { resolveCapturedShowPatternReplacementV2, type ShowV2ClipReplacementIntent } from '@/engine/showV2ClipReplacementModel'
 import { writeShowInstancePropertiesV2, type ShowInstancePropertiesResultV2, type ShowInstancePropertyDependenciesV2 } from '@/engine/showInstancePropertiesV2'
 import type { ShowClipEvaluationPolicy } from '@/engine/personalContentRecords'
@@ -627,7 +627,7 @@ export async function admitShowV2PilotInstanceProperties(request: ShowV2PilotIns
   }
   return { status: 'applied', settlement: outcome.settlement, ...effects }
 }
-export type ShowV2PilotGroupOccurrenceEditIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2 | EditShowGroupDefinitionClipAppearanceIntentV2 | WriteShowGroupDefinitionInstancePropertiesIntentV2
+export type ShowV2PilotGroupOccurrenceEditIntent = MoveShowGroupOccurrenceIntentV2 | DuplicateShowGroupOccurrenceIntentV2 | MakeShowGroupUniqueIntentV2 | UngroupShowGroupOccurrenceIntentV2 | DeleteShowGroupOccurrenceIntentV2 | SetShowGroupDefinitionClipTimingIntentV2 | EditShowGroupDefinitionClipAppearanceIntentV2 | WriteShowGroupDefinitionInstancePropertiesIntentV2 | InsertShowGroupDefinitionLayerTransitionIntentV2 | ResizeShowGroupDefinitionLayerTransitionIntentV2
 export type ShowV2PilotGroupOccurrenceEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowV2PilotGroupOccurrenceEditIntent }
 export type ShowV2PilotGroupOccurrenceEditOutcome = PilotOwnerOutcome<ShowGroupEditResultV2, ShowGroupEditAffectedV2>
 function groupOccurrenceOwnerResult(record: ShowRecordV2, intent: ShowV2PilotGroupOccurrenceEditIntent, capture: ShowV2PilotPreparedCapture): ShowGroupEditResultV2 {
@@ -640,6 +640,8 @@ function groupOccurrenceOwnerResult(record: ShowRecordV2, intent: ShowV2PilotGro
     case 'set-definition-clip-timing': return setShowGroupDefinitionClipTimingV2(record, intent)
     case 'edit-definition-clip-appearance': return editShowGroupDefinitionClipAppearanceV2(record, intent)
     case 'write-definition-instance-properties': return writeShowGroupDefinitionInstancePropertiesV2(record, intent, capturedPatternResolver(capture))
+    case 'insert-definition-layer-transition': return insertShowGroupDefinitionLayerTransitionV2(record, intent)
+    case 'resize-definition-layer-transition': return resizeShowGroupDefinitionLayerTransitionV2(record, intent)
   }
 }
 function validGroupOccurrenceIntent(intent: unknown): intent is ShowV2PilotGroupOccurrenceEditIntent {
@@ -667,6 +669,22 @@ function validGroupOccurrenceIntent(intent: unknown): intent is ShowV2PilotGroup
     if (!exactIntentFields(value, ['kind', 'definitionId', 'clipId', 'properties'])) return false
     if (!text(value.definitionId) || !text(value.clipId)) return false
     return validInstancePropertiesIntent({ clipId: value.clipId, properties: value.properties })
+  }
+  if (value.kind === 'insert-definition-layer-transition') {
+    if (!exactIntentFields(value, ['kind', 'definitionId', 'transition'])) return false
+    if (!text(value.definitionId)) return false
+    const transition = value.transition as Record<string, unknown>
+    if (!transition || typeof transition !== 'object' || Array.isArray(transition)) return false
+    const transitionText = (item: unknown): item is string => typeof item === 'string' && item.trim().length > 0
+    if (!transitionText(transition.id) || !transitionText(transition.kind) || transition.kind === 'cut') return false
+    if (typeof transition.durationMs !== 'number' || !Number.isSafeInteger(transition.durationMs) || (transition.durationMs as number) <= 0) return false
+    if (!Array.isArray(transition.participants) || !Array.isArray(transition.propertyRamps)) return false
+    return (transition.propertyRamps as unknown[]).length === 0
+  }
+  if (value.kind === 'resize-definition-layer-transition') {
+    if (!exactIntentFields(value, ['kind', 'definitionId', 'transitionId', 'durationMs'])) return false
+    if (!text(value.definitionId) || !text(value.transitionId)) return false
+    return typeof value.durationMs === 'number' && Number.isSafeInteger(value.durationMs) && (value.durationMs as number) >= 0
   }
   if (!text(value.occurrenceId)) return false
   if (value.kind === 'ungroup-occurrence' || value.kind === 'delete-occurrence') return exactIntentFields(value, ['kind', 'occurrenceId'])

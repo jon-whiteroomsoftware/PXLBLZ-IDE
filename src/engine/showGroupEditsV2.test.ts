@@ -16,8 +16,10 @@ import {
 import {
   duplicateShowGroupOccurrenceV2,
   editShowGroupDefinitionClipAppearanceV2,
+  insertShowGroupDefinitionLayerTransitionV2,
   makeShowGroupUniqueV2,
   moveShowGroupOccurrenceV2,
+  resizeShowGroupDefinitionLayerTransitionV2,
   setShowGroupDefinitionClipTimingV2,
   ungroupShowGroupOccurrenceV2,
   type ShowGroupEditResultV2,
@@ -29,6 +31,8 @@ import {
   completeShowGroupSelection,
   createShowGroupFromSelection,
   duplicateShowGroupOccurrence,
+  insertShowGroupLayerTransition,
+  resizeShowGroupLayerTransition,
   validateShowGroupSelection,
 } from './showGroupModel'
 import { updateShowGroupClipInspector } from './showGroupClipInspectorModel'
@@ -1535,4 +1539,261 @@ it('refuses an adapter appearance refusal without writing (#1075 G2b)', () => {
   expect(result.status).toBe('refused')
   expect(result.record).toBe(before)
   expect(before).toEqual(snapshot)
+})
+
+function g4aV1Before(withTrack = false): ShowRecord {
+  const source = convertibleV1Show()
+  source.scenes[0].durationMs = 30000
+  source.composition!.durationMs = 30000
+  source.composition!.scenes[0].zones[0].overlays = [{ id: 'ov1', name: 'ov', placements: [] }]
+  const inst = { ...structuredClone(source.composition!.patternInstances[0]), id: 'g-inst' }
+  source.composition!.groupDefinitions = [{
+    id: 'def-1',
+    name: 'D',
+    patternInstances: [inst],
+    placements: [
+      { id: 'g-a', instanceId: 'g-inst', layerOffset: 0, startMs: 0, durationMs: 4000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
+      { id: 'g-b', instanceId: 'g-inst', layerOffset: 0, startMs: 4000, durationMs: 3000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
+    ],
+    ...(withTrack ? {
+      propertyTracks: [{
+        id: 'trk',
+        target: { kind: 'placement-opacity', placementId: 'g-b' },
+        keyframes: [
+          { id: 'k1', timeMs: 4000, value: 0.2, easing: { curve: 'linear' } },
+          { id: 'k2', timeMs: 4500, value: 0.8, easing: { curve: 'linear' } },
+        ],
+      }],
+    } : {}),
+  }]
+  source.composition!.groupOccurrences = [
+    { id: 'occ-1', definitionId: 'def-1', sceneId: 'scene-a', zoneId: 'zone', startMs: 0, baseLayer: 1, translationX: 0, translationY: 0 },
+    { id: 'occ-2', definitionId: 'def-1', sceneId: 'scene-a', zoneId: 'zone', startMs: 10000, baseLayer: 1, translationX: 0, translationY: 0 },
+  ]
+  return source
+}
+
+function g4aV2Before(): ShowRecordV2 {
+  const converted = convertShowRecordV1ToV2(g4aV1Before(false))
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  return converted.record
+}
+
+function g4aInsertV2Transition(layerId: string) {
+  return {
+    id: 'lt-1',
+    kind: 'crossfade' as const,
+    durationMs: 1000,
+    easing: { curve: 'linear' as const },
+    crossfadePolicy: 'live-live' as const,
+    participants: [{ id: 'lt-1:participant', zoneId: 'definition-zone', layerId, fromClipId: 'g-a', toClipId: 'g-b' }],
+    propertyRamps: [] as const,
+  }
+}
+
+it('matches v1-then-convert for a definition Layer Transition insert (#1075 G4a)', () => {
+  const v1before = g4aV1Before(true)
+  const convertedBefore = convertShowRecordV1ToV2(v1before)
+  expect(convertedBefore.status).toBe('converted')
+  if (convertedBefore.status !== 'converted') return
+  const v2before = convertedBefore.record
+  const beforeSnapshot = structuredClone(v2before)
+  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
+  const v1afterComposition = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  expect(v1afterComposition.groupDefinitions![0].placements).toMatchObject([{ id: 'g-a' }, { id: 'g-b' }])
+  const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1afterComposition })
+  expect(oracle.status).toBe('converted')
+  if (oracle.status !== 'converted') return
+  const definition = v2before.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const result = insertShowGroupDefinitionLayerTransitionV2(v2before, {
+    kind: 'insert-definition-layer-transition', definitionId: 'def-1', transition: g4aInsertV2Transition(definition.layers[0].id) as never,
+  })
+  expect(result.status, result.status === 'refused' ? result.message : '').toBe('changed')
+  if (result.status !== 'changed') return
+  expect(v2before).toEqual(beforeSnapshot)
+  const edited = result.record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  expect(edited.clips.find(clip => clip.id === 'g-b')).toMatchObject({ startMs: 5000, durationMs: 3000 })
+  expect(edited.clips.find(clip => clip.id === 'g-a')).toMatchObject({ startMs: 0, durationMs: 4000 })
+  expect(edited.transitions).toHaveLength(1)
+  expect(edited.clips).toEqual(oracle.record.composition.groupDefinitions[0].clips)
+  expect(edited.transitions).toEqual(oracle.record.composition.groupDefinitions[0].transitions)
+  expect(edited.propertyTracks).toEqual(oracle.record.composition.groupDefinitions[0].propertyTracks)
+  expect(result.affectedGroupDefinitionIds).toEqual(['def-1'])
+  expect([...result.affectedGroupOccurrenceIds].sort()).toEqual(['occ-1', 'occ-2'])
+})
+
+it('matches v1-then-convert for a definition Layer Transition resize 1000 to 2500 (#1075 G4a)', () => {
+  const v1before = g4aV1Before(true)
+  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
+  const v1inserted = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const v1resized = resizeShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1inserted), { occurrenceId: 'occ-1', transitionId: 'lt-1', durationMs: 2500 })
+  expect(v1resized.groupDefinitions![0].placements.find(placement => placement.id === 'g-b')!.startMs).toBe(6500)
+  const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1resized })
+  expect(oracle.status).toBe('converted')
+  if (oracle.status !== 'converted') return
+  const convertedInserted = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1inserted })
+  expect(convertedInserted.status).toBe('converted')
+  if (convertedInserted.status !== 'converted') return
+  const result = resizeShowGroupDefinitionLayerTransitionV2(convertedInserted.record, {
+    kind: 'resize-definition-layer-transition', definitionId: 'def-1', transitionId: 'lt-1', durationMs: 2500,
+  })
+  expect(result.status, result.status === 'refused' ? result.message : '').toBe('changed')
+  if (result.status !== 'changed') return
+  const edited = result.record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  expect(edited.clips.find(clip => clip.id === 'g-b')).toMatchObject({ startMs: 6500, durationMs: 3000 })
+  expect(edited.clips).toEqual(oracle.record.composition.groupDefinitions[0].clips)
+  expect(edited.transitions).toEqual(oracle.record.composition.groupDefinitions[0].transitions)
+  expect(edited.propertyTracks).toEqual(oracle.record.composition.groupDefinitions[0].propertyTracks)
+})
+
+it('matches v1-then-convert for Reset to Cut on a definition Layer Transition (#1075 G4a)', () => {
+  const v1before = g4aV1Before(true)
+  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
+  const v1inserted = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const v1reset = resizeShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1inserted), { occurrenceId: 'occ-1', transitionId: 'lt-1', durationMs: 0 })
+  expect(v1reset.groupDefinitions![0].placements.find(placement => placement.id === 'g-b')!.startMs).toBe(4000)
+  const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1reset })
+  expect(oracle.status).toBe('converted')
+  if (oracle.status !== 'converted') return
+  const convertedInserted = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1inserted })
+  expect(convertedInserted.status).toBe('converted')
+  if (convertedInserted.status !== 'converted') return
+  const result = resizeShowGroupDefinitionLayerTransitionV2(convertedInserted.record, {
+    kind: 'resize-definition-layer-transition', definitionId: 'def-1', transitionId: 'lt-1', durationMs: 0,
+  })
+  expect(result.status, result.status === 'refused' ? result.message : '').toBe('changed')
+  if (result.status !== 'changed') return
+  const edited = result.record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  expect(edited.clips.find(clip => clip.id === 'g-b')).toMatchObject({ startMs: 4000, durationMs: 3000 })
+  expect(edited.transitions).toEqual([])
+  expect(edited.clips).toEqual(oracle.record.composition.groupDefinitions[0].clips)
+  expect(edited.transitions).toEqual(oracle.record.composition.groupDefinitions[0].transitions ?? [])
+  expect(edited.propertyTracks).toEqual(oracle.record.composition.groupDefinitions[0].propertyTracks ?? [])
+  expect(edited.propertyTracks.find(track => track.id === 'trk')).toMatchObject({ activeStartMs: 0, activeDurationMs: 7000 })
+})
+
+it('shifts every linked occurrence after a definition Layer Transition insert (#1075 G4a)', () => {
+  const v2before = g4aV2Before()
+  const definition = v2before.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const result = insertShowGroupDefinitionLayerTransitionV2(v2before, {
+    kind: 'insert-definition-layer-transition', definitionId: 'def-1', transition: g4aInsertV2Transition(definition.layers[0].id) as never,
+  })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  const materialized = materializeShowGroupsV2(result.record)
+  const first = materialized.composition.clips.find(clip => clip.id === 'occ-1:g-b')!
+  const second = materialized.composition.clips.find(clip => clip.id === 'occ-2:g-b')!
+  expect(first.startMs).toBe(5000)
+  expect(second.startMs).toBe(15000)
+  expect(materialized.composition.clips.find(clip => clip.id === 'occ-1:g-a')!.startMs).toBe(0)
+  expect(materialized.composition.clips.find(clip => clip.id === 'occ-2:g-a')!.startMs).toBe(10000)
+})
+
+it('refuses a definition Layer Transition growth that crosses its Layout interval or overlaps ordinary content (#1075 G4a)', () => {
+  const tightV1 = g4aV1Before(false)
+  tightV1.composition!.groupOccurrences![1].startMs = 23000
+  const convertedTight = convertShowRecordV1ToV2(tightV1)
+  expect(convertedTight.status).toBe('converted')
+  if (convertedTight.status !== 'converted') return
+  const tight = convertedTight.record
+  const tightDefinition = tight.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const tightSnapshot = structuredClone(tight)
+  const tightResult = insertShowGroupDefinitionLayerTransitionV2(tight, {
+    kind: 'insert-definition-layer-transition', definitionId: 'def-1', transition: g4aInsertV2Transition(tightDefinition.layers[0].id) as never,
+  })
+  expect(tightResult.status).toBe('refused')
+  if (tightResult.status !== 'refused') return
+  expect(tightResult.code).toBe('invalid-result')
+  expect(tightResult.record).toBe(tight)
+  expect(tight).toEqual(tightSnapshot)
+  const v2before = g4aV2Before()
+  const overlapped = structuredClone(v2before)
+  const occurrence = overlapped.composition.groupOccurrences.find(value => value.id === 'occ-2')!
+  const destinationLayerId = occurrence.layerBindings[0].layerId
+  const destinationZoneId = occurrence.zoneId
+  const template = overlapped.composition.clips[0]
+  overlapped.composition.clips.push({
+    ...structuredClone(template),
+    id: 'ordinary-after',
+    zoneId: destinationZoneId,
+    layerId: destinationLayerId,
+    startMs: 17000,
+    durationMs: 1000,
+    appearance: { keys: [{ ...structuredClone(template.appearance.keys[0]), id: 'ordinary-after:appearance:1', timeMs: 17000 }] },
+  })
+  expect(validateShowRecordV2(overlapped)).toEqual([])
+  const overlappedSnapshot = structuredClone(overlapped)
+  const overlappedDefinition = overlapped.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const overlappedResult = insertShowGroupDefinitionLayerTransitionV2(overlapped, {
+    kind: 'insert-definition-layer-transition', definitionId: 'def-1', transition: g4aInsertV2Transition(overlappedDefinition.layers[0].id) as never,
+  })
+  expect(overlappedResult.status).toBe('refused')
+  if (overlappedResult.status !== 'refused') return
+  expect(overlappedResult.code).toBe('invalid-result')
+  expect(overlappedResult.record).toBe(overlapped)
+  expect(overlapped).toEqual(overlappedSnapshot)
+})
+
+it('refuses unknown and non-adjacent definition Layer Transition endpoints without writing (#1075 G4a)', () => {
+  const v1before = g4aV1Before(false)
+  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
+  const v1inserted = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const convertedInserted = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1inserted })
+  expect(convertedInserted.status).toBe('converted')
+  if (convertedInserted.status !== 'converted') return
+  const inserted = convertedInserted.record
+  const unknownSnapshot = structuredClone(inserted)
+  const unknown = resizeShowGroupDefinitionLayerTransitionV2(inserted, {
+    kind: 'resize-definition-layer-transition', definitionId: 'def-1', transitionId: 'missing', durationMs: 2000,
+  })
+  expect(unknown.status).toBe('refused')
+  if (unknown.status !== 'refused') return
+  expect(unknown.code).toBe('invalid-intent')
+  expect(unknown.record).toBe(inserted)
+  expect(inserted).toEqual(unknownSnapshot)
+  const v2before = g4aV2Before()
+  const v2snapshot = structuredClone(v2before)
+  const definition = v2before.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const reversed = {
+    id: 'lt-bad',
+    kind: 'crossfade' as const,
+    durationMs: 500,
+    easing: { curve: 'linear' as const },
+    crossfadePolicy: 'live-live' as const,
+    participants: [{ id: 'lt-bad:participant', zoneId: 'definition-zone', layerId: definition.layers[0].id, fromClipId: 'g-b', toClipId: 'g-a' }],
+    propertyRamps: [] as const,
+  }
+  const nonAdjacent = insertShowGroupDefinitionLayerTransitionV2(v2before, {
+    kind: 'insert-definition-layer-transition', definitionId: 'def-1', transition: reversed as never,
+  })
+  expect(nonAdjacent.status).toBe('refused')
+  if (nonAdjacent.status !== 'refused') return
+  expect(nonAdjacent.code).toBe('invalid-intent')
+  expect(nonAdjacent.record).toBe(v2before)
+  expect(v2before).toEqual(v2snapshot)
+})
+
+it('shifts a definition-owned track on the to-Clip with the v1 keyframes (#1075 G4a)', () => {
+  const v1before = g4aV1Before(true)
+  const convertedBefore = convertShowRecordV1ToV2(v1before)
+  expect(convertedBefore.status).toBe('converted')
+  if (convertedBefore.status !== 'converted') return
+  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
+  const v1afterComposition = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1afterComposition })
+  expect(oracle.status).toBe('converted')
+  if (oracle.status !== 'converted') return
+  const oracleTrack = oracle.record.composition.groupDefinitions[0].propertyTracks.find(track => track.id === 'trk')!
+  expect(oracleTrack.keyframes.map(key => key.timeMs)).toEqual([5000, 5500])
+  const v2before = convertedBefore.record
+  const definition = v2before.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const result = insertShowGroupDefinitionLayerTransitionV2(v2before, {
+    kind: 'insert-definition-layer-transition', definitionId: 'def-1', transition: g4aInsertV2Transition(definition.layers[0].id) as never,
+  })
+  expect(result.status, result.status === 'refused' ? result.message : '').toBe('changed')
+  if (result.status !== 'changed') return
+  const edited = result.record.composition.groupDefinitions.find(value => value.id === 'def-1')!
+  const editedTrack = edited.propertyTracks.find(track => track.id === 'trk')!
+  expect(editedTrack).toEqual(oracleTrack)
+  expect(edited.propertyTracks).toEqual(oracle.record.composition.groupDefinitions[0].propertyTracks)
 })
