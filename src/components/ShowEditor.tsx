@@ -1386,6 +1386,37 @@ export function ShowEditor({
     transitionPaletteCandidateV2Ref.current = { source: base, key, record }
     return record
   }
+  // The v2 Stage reads showV2StageRecord(pilot, override) in App.tsx, so a Try
+  // with Pattern trial must be published as the Stage override: the timeline,
+  // inspector, Live strip, View code and the compiled artifact already read the
+  // projection, but the Stage would otherwise keep showing the stored Pattern.
+  // While the transition palette holds the override with its own live preview
+  // (the onPreviewItem path below that calls previewV2(candidate)), this
+  // effect stands down; when the palette ends and clears, the flag flips and a
+  // still-active trial is re-published. The ref guards the clear path so a
+  // palette candidate is never mistaken for this effect's publication.
+  const lessonStagePublishedV2Ref = useRef<ShowRecordV2 | null>(null)
+  const v2PalettePreviewActive = recordVersion === 2 && transitionPaletteId !== null
+  useEffect(() => {
+    if (recordVersion === 2 && !v2PalettePreviewActive) {
+      const store = useShowPreviewOverrideStore.getState()
+      if (lessonProjectionV2 && savedShowV2 && lessonProjectionV2 !== savedShowV2) {
+        lessonStagePublishedV2Ref.current = lessonProjectionV2
+        if (store.showV2 !== lessonProjectionV2) store.previewV2(lessonProjectionV2)
+      } else {
+        const published = lessonStagePublishedV2Ref.current
+        if (published && savedShowV2 && published.id === savedShowV2.id && store.showV2 === published) {
+          store.clear(savedShowV2.id)
+        }
+        lessonStagePublishedV2Ref.current = null
+      }
+    }
+    return () => {
+      const published = lessonStagePublishedV2Ref.current
+      const store = useShowPreviewOverrideStore.getState()
+      if (published && store.showV2 === published) store.clear(published.id)
+    }
+  }, [lessonProjectionV2, recordVersion, savedShowV2, v2PalettePreviewActive])
   const [layerTransitionTarget, setLayerTransitionTarget] = useState<ShowLayerTransitionTarget | null>(null)
   // A refused insertion used to return silently, so choosing a Transition did
   // nothing at all: no change, no error, no closed panel (#363).

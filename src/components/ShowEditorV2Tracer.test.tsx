@@ -21,7 +21,7 @@ import { controllerProfileInitialState, useControllerProfileStore } from '@/stor
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
-import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
+import { showPreviewOverrideInitialState, showV2StageRecord, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { useShowEditorViewStore } from '@/store/showEditorViewStore'
@@ -5204,6 +5204,69 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
     })
     expect(admission.calls).toEqual([])
     expect(editor.state().history).toEqual({ past: [], future: [] })
+  }, 20_000)
+
+  it('publishes the Try with Pattern projection as the v2 Stage override (#1066 L2 Stage)', async () => {
+    const { editor } = await renderLessonV2('stock-show-102-transitions-values')
+    const before = editor.state()
+    act(() => {
+      useShowEditorSessionStore.getState().setReferencePattern(editor.showId, 1, { kind: 'stock', id: 'Caustics' })
+    })
+    await act(async () => {})
+
+    const stored = useShowStore.getState().showV2Pilots[editor.showId]
+    const override = useShowPreviewOverrideStore.getState().showV2
+    expect(override).not.toBeNull()
+    if (!override) throw new Error('Expected the trial projection in the Stage override.')
+    expect(override).not.toBe(stored)
+    expect(override.id).toBe(stored.id)
+    expect(override.composition.patternInstances.find((instance) => instance.id === 'horizon')?.pattern)
+      .toEqual({ kind: 'stock', id: 'Caustics' })
+    expect(stored.composition.patternInstances.find((instance) => instance.id === 'horizon')?.pattern)
+      .toEqual({ kind: 'stock', id: 'EventHorizon' })
+    expect(showV2StageRecord(stored, override)).toBe(override)
+
+    const after = editor.state()
+    expectNoWrite(before, after)
+  }, 20_000)
+
+  it('clears the v2 Stage override on Try with Pattern Reset (#1066 L2 Stage)', async () => {
+    const user = userEvent.setup()
+    const { stock, editor } = await renderLessonV2('stock-show-102-transitions-values')
+    act(() => {
+      useShowEditorSessionStore.getState().setReferencePattern(editor.showId, 1, { kind: 'stock', id: 'Caustics' })
+    })
+    await act(async () => {})
+    expect(useShowPreviewOverrideStore.getState().showV2).not.toBeNull()
+    const before = editor.state()
+
+    const strip = screen.getByRole('region', { name: `${lessonStripTitle(stock)} live strip` })
+    await user.click(within(strip).getByRole('button', { name: 'Patterns (3)' }))
+    const chooser = screen.getByRole('dialog', { name: 'Try with Pattern' })
+    await user.click(within(chooser).getByRole('button', { name: 'Reset' }))
+    await act(async () => {})
+
+    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[editor.showId]).toBeUndefined()
+    const after = editor.state()
+    expectNoWrite(before, after)
+  }, 20_000)
+
+  it('clears the v2 Stage override when the editor unmounts with a trial active (#1066 L2 Stage)', async () => {
+    const { editor } = await renderLessonV2('stock-show-102-transitions-values')
+    act(() => {
+      useShowEditorSessionStore.getState().setReferencePattern(editor.showId, 1, { kind: 'stock', id: 'Caustics' })
+    })
+    await act(async () => {})
+    expect(useShowPreviewOverrideStore.getState().showV2).not.toBeNull()
+    const before = editor.state()
+
+    cleanup()
+    await act(async () => {})
+
+    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
+    const after = editor.state()
+    expectNoWrite(before, after)
   }, 20_000)
 
   it('compiles the projected record into View code with no write (#1066 L2)', async () => {
