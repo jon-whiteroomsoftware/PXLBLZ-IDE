@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-102-transitions-values",
+  "operation": "On the v2 backing at the L2 corrective tip: open built-in lesson 102, pause at the start, and in Try with Pattern set Pattern 2 (stored EventHorizon) to Caustics. Select the Caustics Clip; Clip Detail's Source pattern shows the trial Pattern (first capture). Pick EventHorizon there. The timeline Clip returns to EventHorizon, no Caustics Clip remains, the popover's Pattern 2 reads EventHorizon, and its Reset is disabled because no trial remains (second capture).",
+  "captures": [
+    ".wrsp/ui-proof/1066-l2c-trial.png",
+    ".wrsp/ui-proof/1066-l2c-restored.png"
+  ],
+  "capturedAtCommit": "8c7ad1b79c3f5691f6833f20a508c4f93349b848"
+}
