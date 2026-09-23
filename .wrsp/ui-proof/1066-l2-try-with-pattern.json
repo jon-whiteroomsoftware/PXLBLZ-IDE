@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1066",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-102-transitions-values?capture",
+  "operation": "On the v2 backing at the L2 Stage-repair tip: open built-in lesson 102, pause, seek to 9.0 s (inside Pattern 2's Clip). In Try with Pattern set Pattern 2 (stored EventHorizon) to Caustics. The timeline Clip becomes Caustics, and the Stage frame changes: canvas checksum 4014881833 (stored, stable across two reads) becomes 3318871344 (first capture, trial active). Press Reset: the timeline returns to EventHorizon (second capture). The third capture renders the canvas readback from the same run. After Reset the paused frame reads 120337806, which differs from both, while a reload at 9.0 s reads 4014881833 again. That residual difference after Reset is recorded as a follow-up; it is not the P1, which was the Stage ignoring the trial. The lesson block (8 tests) passes on v2 at this tip.",
+  "captures": [
+    ".wrsp/ui-proof/1066-l2-stage-trial.png",
+    ".wrsp/ui-proof/1066-l2-stage-reset.png",
+    ".wrsp/ui-proof/1066-l2-stage-readback.png"
+  ],
+  "capturedAtCommit": "ba621d269633f3674f16e740a4479fc21ce1bae5"
+}
