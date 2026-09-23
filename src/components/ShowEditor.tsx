@@ -301,6 +301,7 @@ import {
   admitShowV2PilotTransitionEdit,
   admitShowV2PilotClipEntryPolicy,
   admitShowV2PilotClipReplacementEdit,
+  admitShowV2PilotGroupReplacementEdit,
   admitShowV2PilotClipSharingEdit,
   admitShowV2PilotClipTemporal,
   admitShowV2PilotInstanceProperties,
@@ -327,6 +328,11 @@ import {
   previewShowV2ClipReplacement,
   type ShowV2ClipReplacementIntent,
 } from '@/engine/showV2ClipReplacementModel'
+import {
+  planShowV2GroupReplacementEdit,
+  previewShowV2GroupReplacement,
+  type ShowV2GroupReplacementIntent,
+} from '@/engine/showV2GroupReplacementEditorModel'
 import type { ShowClipTemporalIntentV2 } from '@/engine/showClipTemporalV2'
 import { checkShowTimelineDuplicateGestureV2, planShowTimelineGestureV2, type ShowTimelineGestureV2 } from '@/engine/showTimelineGesturesV2'
 import type { CreateShowGroupFromSelectionIntentV2 } from '@/engine/showGroupCreationV2'
@@ -2024,6 +2030,41 @@ export function ShowEditor({
     }
     return outcome
   }, [builtInSlotGroups, setReferencePattern, showId])
+  // A Group Clip Pattern change reaches the definition through the Group
+  // replacement door, shared by every linked occurrence (#1075 G2c).
+  const commitV2GroupReplacement = useCallback(async (input: {
+    capture: ShowV2PilotPreparedCapture
+    baseRevision: number
+    intent: ShowV2GroupReplacementIntent
+  }) => {
+    const outcome = await admitShowV2PilotGroupReplacementEdit({
+      showId,
+      baseRevision: input.baseRevision,
+      capture: input.capture,
+      intent: input.intent,
+      onAdopted: () => {},
+      isCurrent: () => editorAliveRef.current
+        && preparedV2CaptureRef.current === input.capture
+        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+    })
+    return outcome
+  }, [showId])
+  // The v2 Group Clip Pattern commit mirrors the ordinary Clip rule: a
+  // replacement whose preview reports any discarded control target returns
+  // false synchronously so the draft reverts and nothing is written (#1075 G2c).
+  const commitV2GroupClipPattern = useCallback((occurrenceId: string, clipId: string, ref: ShowPatternRef): boolean | Promise<void> => {
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return false
+    const definitionId = capture.record.composition.groupOccurrences.find((candidate) => candidate.id === occurrenceId)?.definitionId
+    if (!definitionId) return false
+    const preview = previewShowV2GroupReplacement(capture, definitionId, clipId, ref)
+    if (preview.status === 'refused' || preview.discardedControlTargets.length > 0) return false
+    const plan = planShowV2GroupReplacementEdit(capture, definitionId, clipId, ref, newPersonalContentId)
+    if (plan.status === 'refused') return false
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    return commitV2GroupReplacement({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+  }, [commitV2GroupReplacement, readOnly, recordVersion, savedShowV2, showId])
   // Slice 6 connects Show End through the same plumbing: one accepted write
   // is one history entry and one save. The drag preview never writes and the
   // commit never reads preview state, so a keyboard set with no drag still
@@ -4485,6 +4526,7 @@ export function ShowEditor({
                     updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
                   }}
                   onV2GroupOccurrenceRequest={requestV2GroupOccurrenceEdit}
+                  onUpdateGroupClipPatternV2={commitV2GroupClipPattern}
                   onUpdateControlTarget={(cell, exportName, value) => {
                     if (!legacyShow) return
                     void updateCellControlTarget(legacyShow.id, cell.id, exportName, value)
@@ -10615,6 +10657,7 @@ function ContextualInspector({
   onDeleteGroup,
   onUngroup,
   onV2GroupOccurrenceRequest,
+  onUpdateGroupClipPatternV2,
   onUpdateControlTarget,
   onUpdateRestartOnEntry,
   onSpanZones,
@@ -10676,6 +10719,7 @@ function ContextualInspector({
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
   onRemoveClipV2?: (clipId: string) => void
   onV2GroupOccurrenceRequest?: (request: ShowV2GroupOccurrenceRequest) => boolean | Promise<void>
+  onUpdateGroupClipPatternV2?: (occurrenceId: string, clipId: string, ref: ShowPatternRef) => boolean | Promise<void>
   onDuplicateGroup: (occurrenceId: string) => void
   onMakeGroupUnique: (occurrenceId: string) => void
   onTranslateGroup: (occurrenceId: string, translationX: number, translationY: number) => void
@@ -10797,7 +10841,8 @@ function ContextualInspector({
           // A Group Clip Start/Duration write reaches the definition-timing
           // owner through the group-occurrence door, and appearance and
           // instance values reach the definition through the same door
-          // (#1075 G2b); a Pattern change stays unconnected for G2c. The v2
+          // (#1075 G2b); a Pattern change reaches the definition through
+          // the Group replacement door (#1075 G2c). The v2
           // selection carries the occurrence plus the definition-local Clip id
           // (group-clip occurrenceId/placementId, the same encoding
           // onEnterGroupIsolation selects), and the presented Start is Show
@@ -10807,6 +10852,10 @@ function ContextualInspector({
             ? (patch) => onUpdateClipInspectorV2?.(selection.clipId, patch) ?? false
             : (patch) => {
               if (selection.kind !== 'group-clip') return false
+              if (Object.keys(patch).length === 1 && patch.pattern !== undefined) {
+                if (!onUpdateGroupClipPatternV2) return false
+                return onUpdateGroupClipPatternV2(selection.occurrenceId, selection.placementId, patch.pattern.ref) ?? false
+              }
               const hasTiming = patch.local?.startMs !== undefined || patch.local?.durationMs !== undefined
               if (hasTiming) {
                 if (Object.keys(patch).length !== 1 || !patch.local) return false

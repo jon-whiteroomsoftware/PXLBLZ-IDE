@@ -11,6 +11,10 @@ import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { completeShowGroupSelection, createShowGroupFromSelection, duplicateShowGroupOccurrence, validateShowGroupSelection } from './showGroupModel'
 import { updateShowGroupClipInspector } from './showGroupClipInspectorModel'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import { compileShow } from './showCompiler'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { LIBRARIES } from '../pixelblaze/libs'
 import { normalizeShowClipEffects } from './showEffects'
 import type { ShowClipEffect, ShowRecord } from './personalContentRecords'
 
@@ -505,4 +509,62 @@ it('refuses a Group-local Layer Transition insert across definition layers (#107
   }, () => 'unused')
   expect(plan.status).toBe('refused')
   expect(record).toEqual(before)
+})
+
+it('compares v1-then-convert with the v2 Group replacement owner for a same-controls Pattern (#1075 G2c)', async () => {
+  const { captureShowStageEditV2 } = await import('./showPreparedStageV2')
+  const { planShowV2GroupReplacementEdit } = await import('./showV2GroupReplacementEditorModel')
+  const { resolveCapturedShowPatternReplacementV2 } = await import('./showV2ClipReplacementModel')
+  const { replaceShowGroupDefinitionClipPatternV2 } = await import('./showGroupReplacementV2')
+  const before = g2bGroupedBefore()
+  const edited = updateShowGroupClipInspector(before, { occurrenceId: 'occ-1', placementId: 'clip-main' }, { pattern: { ref: { kind: 'stock', id: 'TestPattern2D' }, name: 'TestPattern2D' } })
+  expect(edited).not.toBe(before)
+  const convertedBefore = convertShowRecordV1ToV2(before)
+  expect(convertedBefore.status).toBe('converted')
+  if (convertedBefore.status !== 'converted') return
+  const definitionId = convertedBefore.record.composition.groupDefinitions[0]!.id
+  const deps = { patterns: [], maps: [], libraries: [], profiles: [], stageMap: null }
+  const capture = captureShowStageEditV2(convertedBefore.record, deps as never)
+  expect(capture.prepared.status).not.toBe('refused')
+  let serial = 0
+  const plan = planShowV2GroupReplacementEdit(capture as never, definitionId, 'clip-main', { kind: 'stock', id: 'TestPattern2D' }, () => `g2c-${++serial}`)
+  expect(plan.status).toBe('ready')
+  if (plan.status !== 'ready') return
+  const resolved = resolveCapturedShowPatternReplacementV2(capture as never, { kind: 'stock', id: 'TestPattern2D' })
+  expect(resolved.status).toBe('ready')
+  if (resolved.status !== 'ready') return
+  const { kind: _kind, patternReference: _reference, ...owned } = plan.intent as unknown as Record<string, unknown>
+  const applied = replaceShowGroupDefinitionClipPatternV2(structuredClone(convertedBefore.record), { ...owned, replacement: resolved.replacement } as never)
+  expect(applied.status).toBe('changed')
+  if (applied.status !== 'changed') return
+  // The v2 owner stores occurrence runtimes at top level where v1-then-convert stores none; that representation difference is accepted because both compile to the same bytes (#1075 G2c).
+  const editedNormalized = (() => {
+    const copy = structuredClone(edited) as unknown as Record<string, unknown>
+    const composition = copy.composition as Record<string, unknown>
+    if ('executionModel' in composition && composition.executionModel === undefined) delete composition.executionModel
+    return copy
+  })()
+  const reconverted = convertShowRecordV1ToV2(editedNormalized as unknown as ShowRecord)
+  expect(reconverted.status).toBe('converted')
+  if (reconverted.status !== 'converted') return
+  expect({ ...applied.record, updatedAt: 0 }.composition.groupDefinitions).toEqual({ ...reconverted.record, updatedAt: 0 }.composition.groupDefinitions)
+  // Same stock-pattern lookup construction as src/engine/showV2LayoutConversion.test.ts:136-142,
+  // unioned across both records so both occurrence runtimes resolve.
+  const lookup = {
+    byCellId: {},
+    byPatternInstanceId: Object.fromEntries(
+      [...applied.record.composition.patternInstances, ...reconverted.record.composition.patternInstances,
+        ...applied.record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances),
+        ...reconverted.record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)].map(
+        (instance) => [instance.id, DEMOS[instance.pattern.id]],
+      ),
+    ),
+  }
+  const preparedApplied = prepareShowV2ForCompile(applied.record, lookup)
+  expect(preparedApplied.status).toBe('ready')
+  if (preparedApplied.status !== 'ready') return
+  const preparedReconverted = prepareShowV2ForCompile(reconverted.record, lookup)
+  expect(preparedReconverted.status).toBe('ready')
+  if (preparedReconverted.status !== 'ready') return
+  expect(compileShow(preparedReconverted.recipe, LIBRARIES).code).toBe(compileShow(preparedApplied.recipe, LIBRARIES).code)
 })

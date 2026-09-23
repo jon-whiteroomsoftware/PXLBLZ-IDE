@@ -5359,11 +5359,46 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     expect(afterSecond.history.past).toHaveLength(2)
   })
 
-  it('leaves a Group Clip Pattern change unconnected with no door call (#1075 G2b)', async () => {
+  it('replaces a Group Clip Pattern through the group-replacement door (#1075 G2c)', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const { materializeShowGroupsV2 } = await import('@/engine/showGroupsV2')
+    const record = propertyEditGroupRecord()
+    record.id = 'tracer-group-clip-pattern-replace'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
+    showTab('Pattern')
+    const before = editor.state()
+    pickSourcePattern('TestPattern2D')
+    await act(async () => {})
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupReplacementEdit'])
+    expect(admission.calls).toHaveLength(1)
+    expect(after.record.composition.groupDefinitions[0]!.patternInstances[0]!.pattern).toEqual({ kind: 'stock', id: 'TestPattern2D' })
+    expect(after.record.composition.groupOccurrences).toHaveLength(2)
+    const effective = materializeShowGroupsV2(after.record)
+    const byId = new Map(effective.composition.patternInstances.map((instance) => [instance.id, instance]))
+    const materialized = effective.composition.clips.filter((clip) => clip.id.endsWith(':child'))
+    expect(materialized).toHaveLength(2)
+    for (const clip of materialized) {
+      expect(byId.get(clip.instanceId)?.pattern).toEqual({ kind: 'stock', id: 'TestPattern2D' })
+    }
+    expectOneEdit(before, after)
+  })
+
+  it('refuses a lossy Group Clip Pattern change with no write and keeps record identity (#1075 G2c)', async () => {
     const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
     const record = propertyEditGroupRecord()
-    record.id = 'tracer-group-clip-pattern'
-    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    record.id = 'tracer-group-clip-pattern-lossy'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) {
+      instance.pattern = { kind: 'stock', id: 'CometLoom' }
+      instance.patternName = 'CometLoom'
+      delete instance.controlTargets
+    }
+    record.composition.groupDefinitions[0]!.patternInstances[0]!.controlTargets = { sliderSpeed: 0.5 }
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
@@ -5376,7 +5411,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     const after = editor.state()
     expect(admission.calls).toEqual([])
     expect(after.record).toBe(before.record)
-    expect(after.record.composition.groupDefinitions[0]!.patternInstances[0]!.pattern).toEqual(before.record.composition.groupDefinitions[0]!.patternInstances[0]!.pattern)
+    expect(after.record.composition.groupDefinitions[0]!.patternInstances[0]!.pattern).toEqual({ kind: 'stock', id: 'CometLoom' })
   })
 
   it('makes no Group occurrence door call when read-only', async () => {
