@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1075",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-group-1790130369810",
+  "operation": "On the v2 backing at the G3 code tip: the case 2583 flow (marquee two Clips, Make Group, Duplicate the occurrence so 2 are linked, isolate the second occurrence at 5 s), select Group Clip Main pulse, press Animate Brightness and set the To value to 42%. The first capture is the editor after the edit. The second renders the stored v2 record (GET /api/shows) from the same run: no top-level track, and the Group definition now holds one clip-view brightness track on Main pulse, active 0+5000 with keys 0 ms = 1 and 5000 ms = 0.42, stored in definition-local time and shared by both occurrences. A first capture run timed out polling for the save; the rerun reads the record after a 1.5 s settle.",
+  "captures": [
+    ".wrsp/ui-proof/1075-g3-group-clip-animation.png",
+    ".wrsp/ui-proof/1075-g3-group-clip-animation-readback.png"
+  ],
+  "capturedAtCommit": "e5b2c5fe590197a9010bd79e2bf903d32ae964bb"
+}
