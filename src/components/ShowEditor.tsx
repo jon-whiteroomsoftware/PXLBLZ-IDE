@@ -2405,6 +2405,18 @@ export function ShowEditor({
       }
     }).then(() => {}, () => {})
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2GroupOccurrenceEdit, readOnly, selectTimeline, setSelection, showId])
+  const requestV2GroupOccurrenceEditApplied = useCallback((request: ShowV2GroupOccurrenceRequest): Promise<boolean> => {
+    if (readOnly) return Promise.resolve(false)
+    const capture = preparedV2CaptureRef.current
+    if (!capture || capture.prepared.status === 'refused') return Promise.resolve(false)
+    const plan = planShowV2GroupOccurrenceEdit(capture.record, request, newPersonalContentId)
+    if (plan.status !== 'ready') return Promise.resolve(false)
+    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+    return commitV2GroupOccurrenceEdit({ capture, baseRevision, intent: plan.intent }).then(
+      (applied) => applied,
+      () => false,
+    )
+  }, [commitV2GroupOccurrenceEdit, readOnly, showId])
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
     : activeShow?.targetControllerProfileId
@@ -4707,14 +4719,11 @@ export function ShowEditor({
                   const groupOccurrenceId = layerTransitionTarget.groupOccurrenceId
                   const groupTransitionId = layerTransitionTarget.groupTransitionId
                   if (groupOccurrenceId && groupTransitionId) {
-                    const requested = requestV2GroupOccurrenceEdit({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs })
-                    if (requested !== false) {
-                      const settledOccurrenceId = groupOccurrenceId
-                      const settledTransitionId = groupTransitionId
-                      void Promise.resolve(requested).then(() => {
-                        setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
-                      })
-                    }
+                    const settledOccurrenceId = groupOccurrenceId
+                    const settledTransitionId = groupTransitionId
+                    void requestV2GroupOccurrenceEditApplied({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs }).then((applied) => {
+                      if (applied) setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
+                    }).catch(() => {})
                     return
                   }
                   const transitionId = layerTransitionTarget.transitionId
@@ -4766,14 +4775,11 @@ export function ShowEditor({
                   const groupOccurrenceId = layerTransitionTarget.groupOccurrenceId
                   const groupTransitionId = layerTransitionTarget.groupTransitionId
                   if (groupOccurrenceId && groupTransitionId) {
-                    const requested = requestV2GroupOccurrenceEdit({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs: 0 })
-                    if (requested !== false) {
-                      const settledOccurrenceId = groupOccurrenceId
-                      const settledTransitionId = groupTransitionId
-                      void Promise.resolve(requested).then(() => {
-                        setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
-                      })
-                    }
+                    const settledOccurrenceId = groupOccurrenceId
+                    const settledTransitionId = groupTransitionId
+                    void requestV2GroupOccurrenceEditApplied({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs: 0 }).then((applied) => {
+                      if (applied) setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
+                    }).catch(() => {})
                     return
                   }
                   const transitionId = layerTransitionTarget.transitionId

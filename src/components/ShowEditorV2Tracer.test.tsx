@@ -27,6 +27,7 @@ import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore
 import { useShowEditorViewStore } from '@/store/showEditorViewStore'
 import { resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
+  getPersonalContentProvider,
   resetPersonalContentProvider,
   setPersonalContentProvider,
   type PersonalContentProvider,
@@ -1506,6 +1507,49 @@ describe('v2 Layer Transition popover (#1065)', () => {
     expectOneEdit(before, after)
     expect(screen.queryByRole('dialog', { name: 'Layer Transition Details' })).not.toBeInTheDocument()
     expect(after.record.composition.groupDefinitions.find((definition) => definition.id === definitionId)!.transitions).toEqual([])
+  })
+
+  it('keeps the popover open when the group-occurrence door rejects a Reset to Cut', async () => {
+    // The save-failure hook, as the `v2 save-failure notice` tracer does: a
+    // rejecting provider write forces the door to reject after a real
+    // submission, so a popover that closes on settle cannot pass.
+    const record = convertedGroupLocalTransition('tracer-group-local-reset-rejected')
+    const editor = openV2EditorForRecord(record)
+    const live = getPersonalContentProvider()
+    const failingWrite = vi.fn(async (_id: string, _next: ShowRecordV2) => {
+      throw new Error('Synthetic group transition save failure')
+    })
+    setPersonalContentProvider({
+      ...live,
+      id: 'tracer-group-reset-refusal',
+      replaceShowV2: failingWrite,
+    } as unknown as PersonalContentProvider)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    // v1 reaches a Group's internals only through isolation, and so does this.
+    const child = screen.getAllByRole('button', { name: 'Select Group Mandala pulse' })[0]
+    fireEvent.click(child, { detail: 2 })
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between SignalMandala and SignalMandala',
+    }))
+    await act(async () => {})
+    const popover = screen.getByRole('dialog', { name: 'Layer Transition Details' })
+    fireEvent.click(within(popover).getByRole('button', { name: 'Reset to Cut' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    const definitionId = before.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occurrence-first')!.definitionId
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-definition-layer-transition', definitionId, transitionId: 'group-pulse-join', durationMs: 0 },
+    ])
+    expect(failingWrite).toHaveBeenCalledTimes(1)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.record.composition).toEqual(before.record.composition)
+    expect(after.record.composition.groupDefinitions.find((definition) => definition.id === definitionId)!.transitions).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: 'Layer Transition Details' })).toBeInTheDocument()
   })
 
   it('retimes a Group-local Transition through the group-occurrence door inside Group isolation', async () => {
