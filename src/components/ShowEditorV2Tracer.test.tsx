@@ -7180,3 +7180,98 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
     await expectUndoRedoExact(editor, before)
   })
 })
+// ── Slice C corrective: Add Clip and Add Layer resolve their Zone from the Layout at the playhead (#1090) ──
+// Zones A (z1) and B (z2). Layout `full` provides A over 0–5 s; Layout
+// `narrow` provides only B over 5–10 s. Both Zones hold one empty Layer, so at
+// 6 s with nothing selected the Add menu must offer B, not A.
+/** Two Zones, two Layout definitions, two occurrences, empty Layers in both Zones. */
+function layoutZoneSliceCRecord(id: string): ShowRecordV2 {
+  const record = connectedV2Record(id)
+  record.zones = [
+    { id: 'z1', name: 'A', nominalPixelCount: 64 },
+    { id: 'z2', name: 'B', nominalPixelCount: 64 },
+  ]
+  record.zoneLayouts = [
+    { id: 'layout-full', name: 'Full', zones: [], logical: { kind: 'single', zoneIds: ['z1'] } },
+    { id: 'layout-narrow', name: 'Narrow', zones: [], logical: { kind: 'single', zoneIds: ['z2'] } },
+  ]
+  record.composition.showEndMs = 10_000
+  record.composition.layoutOccurrences = [
+    { id: 'occ-full', layoutId: 'layout-full', startMs: 0, durationMs: 5_000, parameters: {} },
+    { id: 'occ-narrow', layoutId: 'layout-narrow', startMs: 5_000, durationMs: 5_000, parameters: {} },
+  ]
+  record.composition.layers = [
+    { id: 'layer-a', zoneId: 'z1', name: 'Main', rank: 0 },
+    { id: 'layer-b', zoneId: 'z2', name: 'Main', rank: 0 },
+  ]
+  record.composition.clips = []
+  record.composition.transitions = []
+  record.composition.groupOccurrences = []
+  record.composition.groupDefinitions = []
+  record.composition.propertyTracks = []
+  record.composition.markers = []
+  expect(validateShowRecordV2(record)).toEqual([])
+  return record
+}
+
+describe('v2 Add Clip and Add Layer resolve the Zone from the Layout at the playhead (#1090 slice C corrective)', () => {
+  it('adds one Clip from the Add menu in Zone B at 6 s', async () => {
+    const user = userEvent.setup()
+    const editor = openV2EditorForRecord(layoutZoneSliceCRecord('sliceC-layout-clip'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 6_000 }))
+
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const command = screen.getByRole('menuitem', { name: 'Clip' })
+    expect(command).toBeEnabled()
+    await user.click(command)
+    const dialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
+    await user.click(within(dialog).getByRole('combobox', { name: 'Pattern for new Clip' }))
+    await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
+
+    await waitFor(() => {
+      expect(editor.state().record.composition.clips).toHaveLength(before.record.composition.clips.length + 1)
+    })
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotCreateClip'])
+    const beforeIds = new Set(before.record.composition.clips.map((clip) => clip.id))
+    const added = after.record.composition.clips.filter((clip) => !beforeIds.has(clip.id))
+    expect(added).toHaveLength(1)
+    expect(added[0].zoneId).toBe('z2')
+    expect(added[0].layerId).toBe('layer-b')
+    expect(added[0].startMs).toBe(6_000)
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+
+  it('adds a Layer in Zone B at 6 s', async () => {
+    const editor = openV2EditorForRecord(layoutZoneSliceCRecord('sliceC-layout-layer'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 6_000 }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Layer in B' }))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(layerSubmissions()).toEqual([{
+      intent: {
+        kind: 'add',
+        layer: { id: expect.any(String), zoneId: 'z2', name: 'Layer 1', rank: 1 },
+      },
+      baseRevision: 0,
+    }])
+    expect(after.record.composition.layers
+      .filter((layer) => layer.zoneId === 'z2')
+      .sort((left, right) => left.rank - right.rank)
+      .map((layer) => ({ name: layer.name, rank: layer.rank }))).toEqual([
+      { name: 'Main', rank: 0 },
+      { name: 'Layer 1', rank: 1 },
+    ])
+    expectOneEdit(before, after)
+    await expectUndoRedoExact(editor, before)
+  })
+})

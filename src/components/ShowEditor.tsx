@@ -439,6 +439,7 @@ import {
   showLayoutIntervalPercentBounds,
   showLayoutZoneIdAtTime,
 } from '@/engine/showLayoutIntervals'
+import { showLayoutZoneIdAtTimeV2 } from '@/engine/showLayoutIntervalsV2'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 import { createAgentEditorAdmission as createDiagnosticAgentAdmission } from '@/dev/agentEditorAdmission'
 import { installDiagnosticAgentSession } from '@/dev/installDiagnosticAgentSession'
@@ -6208,10 +6209,16 @@ function ShowTimelineWorkspace({
         ))?.id
       : null
   const preferredAuthoringZoneId = selectedCompositionZoneId ?? focusedZoneId
+  // The authored v2 backing the presented timeline draws. The palette
+  // recomputes its own plan from the same record when it opens.
+  const savedShowV2 = useShowStore((state) => state.showV2Pilots[showId])
   const addClipZoneId = addClipPointerContext?.zoneId
     ?? (show
       ? showLayoutZoneIdAtTime(show, addClipTimeMs, preferredAuthoringZoneId)
-      : preferredAuthoringZoneId ?? timelineView.rows[0]?.zoneId)
+      : recordVersion === 2 && savedShowV2
+        ? showLayoutZoneIdAtTimeV2(savedShowV2, addClipTimeMs, preferredAuthoringZoneId)
+          ?? preferredAuthoringZoneId ?? timelineView.rows[0]?.zoneId
+        : preferredAuthoringZoneId ?? timelineView.rows[0]?.zoneId)
   const v2AddClipRecord = recordVersion === 2 ? captureV2Move?.()?.capture.record ?? null : null
   const v2PointerLayerId = recordVersion === 2 ? addClipPointerContext?.layerId ?? null : null
   const v2ExactAddClipPlan = v2AddClipRecord && addClipPointerContext && v2PointerLayerId
@@ -6251,12 +6258,12 @@ function ShowTimelineWorkspace({
   const layerTargetTimeMs = transport.showId === showId ? transport.positionMs : 0
   const layerTargetZoneId = show
     ? showLayoutZoneIdAtTime(show, layerTargetTimeMs, preferredAuthoringZoneId)
-    : preferredAuthoringZoneId ?? timelineView.rows[0]?.zoneId
+    : recordVersion === 2 && savedShowV2
+      ? showLayoutZoneIdAtTimeV2(savedShowV2, layerTargetTimeMs, preferredAuthoringZoneId)
+        ?? preferredAuthoringZoneId ?? timelineView.rows[0]?.zoneId
+      : preferredAuthoringZoneId ?? timelineView.rows[0]?.zoneId
   const layerTargetZoneName = timelineView.rows.find((zone) => zone.zoneId === layerTargetZoneId)?.zoneName ?? 'Zone'
   const insertTimeDurationMs = Math.round(insertTimeSeconds * 1000)
-  // The authored v2 backing the presented timeline draws. The palette
-  // recomputes its own plan from the same record when it opens.
-  const savedShowV2 = useShowStore((state) => state.showV2Pilots[showId])
   // The dialog plans from whichever backing the workspace draws. On v2 the
   // pure owner dry-runs the insertion, so a refused point explains itself with
   // the owner's message and the v1-only fallback never shows (#1090).
