@@ -391,8 +391,15 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
   })
 })
 
-it.each(['cell-1', 'cell-2'])('plans and applies deletion of %s on a converted Clip value ramp carrier', cellId => {
+it.each([
+  ['outgoing', 'cell-1'],
+  ['incoming', 'cell-2'],
+] as const)('deleting the %s Clip removes its Transition speed and brightness ramps without a plan (#1091 C2)', (_side, cellId) => {
   const record = convertTransitionClipRampProbe()
+  expect(record.composition.transitions[0].propertyRamps.map(ramp => ramp.target.kind)).toEqual([
+    'instance-time-scale', 'clip-view',
+  ])
+  expect(record.composition.propertyTracks).toEqual([])
   const clip = record.composition.clips.find(candidate => candidate.logicalClipId === cellId || candidate.id.includes(cellId))!
   const plan = planShowV2ClipDelete(record, clip.id, { confirmed: true, allocate: () => 'unused' })
   expect(plan).toEqual({ kind: 'ready', intent: { kind: 'delete-clip', clipId: clip.id } })
@@ -401,5 +408,6 @@ it.each(['cell-1', 'cell-2'])('plans and applies deletion of %s on a converted C
   expect(result.status).toBe('changed')
   if (result.status !== 'changed') return
   expect(result.record.composition.transitions).toEqual([])
+  expect(result.record.composition.propertyTracks).toEqual([])
   expect(validateShowRecordV2(result.record)).toEqual([])
 })

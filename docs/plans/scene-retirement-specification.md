@@ -763,6 +763,7 @@ This table is the one list of the places where the v2 editor deliberately behave
 | Divergent overlay names convert by the survivor rule; the first Scene wins | #1068; this section |
 | Select, delete and animate on a split logical Clip act on one run (`<id>--run-<n>`), not the logical Clip | #1080 class 1 (Jon, 2026-09-22); this section |
 | Boundary speed and brightness ramps convert only on flat Shows, held on the Transition (#1091); a Transition speed or brightness ramp compiles only on the flat route | #1080 class 2 (A); this section |
+| Deleting a Clip removes its Transition, including a speed or brightness ramp; v1 keeps a fade from empty with the ramp | #1091 (Jon, 2026-09-23) |
 | A Transition inserted on a Cut takes room up to the next logical obstruction; chapter Markers and the v1 Scene end do not bound it | #1075 (Jon, 2026-09-22); this section |
 | "Different Zone Layouts" reads Layout occurrences, not Scenes; about 140 stock Cuts now report no free time | #1075 ruling; `showV2LayerTransitionInsertion.test.ts` |
 | Select, move and animate act on each `--layout-N` segment of a layout-split logical Clip; delete, the final-Clip count, Zone removal and `remove_clips` act on the logical Clip as v1 does, through the `logicalClipId` provenance field | #1068 gap 8 (ruling 1b); `show-v2-conversion-provenance.md` |

@@ -120,8 +120,8 @@ Settings edits may add, change, or remove them. Resizing their Transition keeps
 each ramp length, caps it to the new window, and uses the previous Transition
 duration when the ramp has no duration; the result has a minimum duration of
 `min(100, newDurationMs)` and omits `durationMs` when it equals the new window.
-Reset to Cut, incoming Clip deletion, and a permitted cross-Zone or cross-Layer
-detach remove these ramps with their Transition without a projection plan.
+Reset to Cut, deletion of either adjacent Clip, and a permitted cross-Zone or
+cross-Layer detach remove these ramps with their Transition without a projection plan.
 Clip edge resizing follows the same duration rule when it changes the window;
 closing the window drops the ramps. Planners skip Clip value ramps rather than
 projecting them. Other ramp kinds retain their owner and projection guards:
