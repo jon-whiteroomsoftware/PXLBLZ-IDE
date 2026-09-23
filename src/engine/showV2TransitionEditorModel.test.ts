@@ -22,6 +22,7 @@ import {
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
 import { getShowToolkitFamily } from './showVisualToolkit'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
+import { LIBRARIES } from '../pixelblaze/libs'
 import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 
@@ -566,6 +567,32 @@ describe('planShowV2BoundaryPaletteApply (#1066 slice 5b)', () => {
     const unchanged = planShowV2BoundaryPaletteApply(record, 'transition-scene-1', { ...changes, durationMs: boundary.durationMs }, () => 'unused')
     if (unchanged.status !== 'ready') throw new Error(JSON.stringify(unchanged))
     expect(editShowTransitionV2(record, unchanged.intent)).toMatchObject({ status: 'refused', code: 'compiler-ineligible' })
+  })
+
+  it('applies a directionless Wipe on a 1D Stage that prepares ready (#1077)', () => {
+    const source = createDefaultShow('wipe-1d-v2', 'Wipe 1D v2', 1)
+    const record = convertWithStock(source)
+    const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 1 })
+      .find((candidate) => candidate.key === 'transition:wipe:linear')!
+    expect(item.compatible).toBe(true)
+    const changes = showTransitionChangesForPresentation(item, undefined, 1)
+    expect(changes).not.toHaveProperty('direction')
+    const plan = planShowV2BoundaryPaletteApply(record, 'transition-scene-1', changes, () => 'unused')
+    expect(plan.status).toBe('ready')
+    if (plan.status !== 'ready') throw new Error(JSON.stringify(plan))
+    const edited = editShowTransitionV2(record, plan.intent)
+    expect(edited.status).toBe('changed')
+    if (edited.status !== 'changed') throw new Error(JSON.stringify(edited))
+    const transition = edited.record.composition.transitions.find((candidate) => candidate.id === 'transition-scene-1')!
+    expect(transition).not.toHaveProperty('direction')
+    const prepared = prepareShowV2ForCompile(edited.record, {
+      byCellId: {},
+      byPatternInstanceId: Object.fromEntries(edited.record.composition.patternInstances.map((instance) => [
+        instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)],
+      ])),
+      stageDimension: 1,
+    }, { libraries: LIBRARIES })
+    expect(prepared.status).toBe('ready')
   })
 
   it('plans a Cut choice as Reset to Cut', () => {

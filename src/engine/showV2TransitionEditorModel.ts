@@ -428,7 +428,7 @@ function kindSettings(
     .find(candidate => candidate.kind === 'transition' && candidate.key === kindKey && candidate.variantId !== 'cut')
   if (!item) return { status: 'refused', message: 'Choose a Transition kind for this Stage.' }
   if (!item.compatible) return { status: 'refused', message: item.compatibilityReason ?? 'This Transition kind is unavailable on this Stage.' }
-  const { durationMs: _durationMs, ...changes } = showTransitionChangesForPresentation(item)
+  const { durationMs: _durationMs, ...changes } = showTransitionChangesForPresentation(item, undefined, stageDimensions)
   if (changes.kind === undefined || changes.kind === 'cut' || changes.kind === 'routing') {
     return { status: 'refused', message: 'Cut is the absence of a Transition; choose a visual kind.' }
   }

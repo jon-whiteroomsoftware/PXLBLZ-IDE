@@ -1391,11 +1391,12 @@ export function ShowEditor({
     transitionId: string,
     item: ShowToolkitPresentationItem,
     presetId?: string,
+    stageDimensions: 1 | 2 | 3 = 2,
   ): ShowRecord => {
-    const key = `${transitionId}:${item.key}:${presetId ?? ''}`
+    const key = `${transitionId}:${item.key}:${presetId ?? ''}:${stageDimensions}`
     const cached = transitionPaletteCandidateRef.current
     if (cached?.key === key) return cached.show
-    const changed = replaceShowBoundaryTransition(show, transitionId, item, presetId)
+    const changed = replaceShowBoundaryTransition(show, transitionId, item, presetId, stageDimensions)
     transitionPaletteCandidateRef.current = { key, show: changed }
     return changed
   }
@@ -1409,13 +1410,14 @@ export function ShowEditor({
     transitionId: string,
     item: ShowToolkitPresentationItem,
     presetId?: string,
+    stageDimensions: 1 | 2 | 3 = 2,
   ): ShowRecordV2 | null => {
     const base = savedShowV2
     if (!base) return null
-    const key = `${transitionId}:${item.key}:${presetId ?? ''}`
+    const key = `${transitionId}:${item.key}:${presetId ?? ''}:${stageDimensions}`
     const cached = transitionPaletteCandidateV2Ref.current
     if (cached && cached.source === base && cached.key === key) return cached.record
-    const plan = planShowV2BoundaryPaletteApply(base, transitionId, showTransitionChangesForPresentation(item, presetId), newPersonalContentId)
+    const plan = planShowV2BoundaryPaletteApply(base, transitionId, showTransitionChangesForPresentation(item, presetId, stageDimensions), newPersonalContentId)
     let record: ShowRecordV2 | null = null
     if (plan.status === 'ready') {
       const edited = editShowTransitionV2(base, plan.intent)
@@ -2443,11 +2445,11 @@ export function ShowEditor({
   // Slice 5b connects the boundary palette's Apply through the same door: the
   // choice is planned exactly as v1 normalizes it, and a new duration retimes
   // the loop inside the same edit (#1066).
-  const commitV2BoundaryPaletteApply = useCallback((transitionId: string, item: ShowToolkitPresentationItem, presetId?: string): boolean => {
+  const commitV2BoundaryPaletteApply = useCallback((transitionId: string, item: ShowToolkitPresentationItem, presetId?: string, stageDimensions: 1 | 2 | 3 = 2): boolean => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
-    const plan = planShowV2BoundaryPaletteApply(capture.record, transitionId, showTransitionChangesForPresentation(item, presetId), newPersonalContentId)
+    const plan = planShowV2BoundaryPaletteApply(capture.record, transitionId, showTransitionChangesForPresentation(item, presetId, stageDimensions), newPersonalContentId)
     if (plan.status !== 'ready') return false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
@@ -4892,7 +4894,7 @@ export function ShowEditor({
               // (#1066 slice 5b).
               onPreviewItem={(item, presetId) => {
                 if (legacyShow) {
-                  const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId)
+                  const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
                   useShowPreviewOverrideStore.getState().preview(changed)
                   const boundary = projectShowTimeline(changed).boundaryTransitions
                     .find((entry) => entry.id === transitionPaletteId)
@@ -4905,7 +4907,7 @@ export function ShowEditor({
                   return
                 }
                 if (recordVersion !== 2 || !savedShowV2) return
-                const candidate = v2PaletteCandidate(transitionPaletteId, item, presetId)
+                const candidate = v2PaletteCandidate(transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
                 if (!candidate) {
                   useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
                   return
@@ -4932,11 +4934,11 @@ export function ShowEditor({
               }}
               onApplyItem={(item, presetId) => {
                 if (!legacyShow) {
-                  const applied = commitV2BoundaryPaletteApply(transitionPaletteId, item, presetId)
+                  const applied = commitV2BoundaryPaletteApply(transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
                   if (applied && savedShowV2) useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
                   return applied
                 }
-                const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId)
+                const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
                 const transition = changed.transitions?.find((entry) => entry.id === transitionPaletteId)
                 if (!transition) return false
                 const { id, afterSceneId: _afterSceneId, ...changes } = transition
@@ -5022,7 +5024,7 @@ export function ShowEditor({
                 if (!legacyShow || !timelineComposition || !layerTransitionPlan.enabled) return
                 const legacyJunction = layerTransitionTarget.legacy
                 if (!legacyJunction) return
-                const changes = showTransitionChangesForPresentation(item)
+                const changes = showTransitionChangesForPresentation(item, undefined, (stageDimension ?? 2) as 1 | 2 | 3)
                 const { kind, durationMs: _catalogueDuration, ...parameters } = changes
                 if (!kind || kind === 'cut' || kind === 'routing') return
                 const transition: ShowLayerTransition = {

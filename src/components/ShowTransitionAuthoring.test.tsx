@@ -281,6 +281,23 @@ describe('Show Transition authoring UI', () => {
     expect(duration).toHaveValue('2')
   })
 
+  it('offers Wipe direction presets on 2D Stages only (#1077)', () => {
+    for (const stageDimensions of [1, 2] as const) {
+      const owners = paletteOwners()
+      const { unmount } = render(
+        <ShowTransitionPalette paletteKey={`transition-1077-${stageDimensions}`} stageDimensions={stageDimensions} {...owners} />,
+      )
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search Transitions' }), { target: { value: 'wipe' } })
+      fireEvent.pointerEnter(screen.getByRole('button', { name: 'Use Linear Transition' }))
+      if (stageDimensions === 1) {
+        expect(screen.queryByRole('button', { name: 'East' })).not.toBeInTheDocument()
+      } else {
+        expect(screen.getByRole('button', { name: 'East' })).toBeInTheDocument()
+      }
+      unmount()
+    }
+  })
+
   it('authors Fade through color with the shared Color field and one picker commit (#609)', () => {
     const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
     const fade = catalogue.find((item) => item.key === 'transition:fade:through-color')!

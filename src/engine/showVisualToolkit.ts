@@ -537,12 +537,16 @@ export function resolveShowToolkitParameters(
   familyId: string,
   variantId: string,
   values: Record<string, ShowToolkitParameterValue>,
+  stageDimensions?: 1 | 2 | 3,
 ): ShowToolkitParameterDescriptor[] {
   const family = getShowToolkitFamily(kind, familyId)
   if (!family?.variants.some((variant) => variant.id === variantId)) return []
   return family.parameters.filter((parameter) => (
     (!parameter.variantIds || parameter.variantIds.includes(variantId))
     && (!parameter.when || values[parameter.when.parameterId] === parameter.when.equals)
+    && (stageDimensions === undefined
+      || !parameter.compatibility?.stageDimensions
+      || parameter.compatibility.stageDimensions.includes(stageDimensions))
   )).map((parameter) => {
     const constraints = parameter.constraintsByVariant?.[variantId]
     const options = parameter.optionsByVariant?.[variantId]
@@ -558,6 +562,27 @@ export function resolveShowToolkitParameters(
         : constraints?.defaultValue ?? parameter.defaultValue,
     }
   })
+}
+
+/**
+ * A preset is offered on a Stage only when every parameter it sets is
+ * compatible with that Stage's dimension (#1077). Unknown presets are never
+ * offered.
+ */
+export function showToolkitPresetCompatibleWithStage(
+  kind: ShowToolkitKind,
+  familyId: string,
+  variantId: string,
+  presetId: string,
+  stageDimensions: 1 | 2 | 3,
+): boolean {
+  const preset = getShowToolkitFamily(kind, familyId)?.variants
+    .find((variant) => variant.id === variantId)?.presets
+    ?.find((candidate) => candidate.id === presetId)
+  if (!preset) return false
+  const compatibleIds = new Set(resolveShowToolkitParameters(kind, familyId, variantId, {}, stageDimensions)
+    .map((parameter) => parameter.id))
+  return Object.keys(preset.values).every((parameterId) => compatibleIds.has(parameterId))
 }
 
 export function validateShowToolkitRegistry(

@@ -13,6 +13,7 @@ import {
   evaluateShowCostAtPixelCount,
   getShowToolkitFamily,
   resolveShowToolkitParameters,
+  showToolkitPresetCompatibleWithStage,
   validateShowToolkitRegistry,
 } from './showVisualToolkit'
 import {
@@ -483,4 +484,28 @@ describe('Show visual-toolkit contract', () => {
       })
     }
   })
+
+  it('drops stage-incompatible parameters when a Stage dimension is given (#1077)', () => {
+    expect(resolveShowToolkitParameters('transition', 'wipe', 'linear', {}).map((parameter) => parameter.id))
+      .toContain('direction')
+    expect(resolveShowToolkitParameters('transition', 'wipe', 'linear', {}, 2).map((parameter) => parameter.id))
+      .toContain('direction')
+    const oneDimensional = resolveShowToolkitParameters('transition', 'wipe', 'linear', {}, 1)
+      .map((parameter) => parameter.id)
+    expect(oneDimensional).not.toContain('direction')
+    expect(oneDimensional).toEqual(expect.arrayContaining(['durationMs', 'easing', 'feather', 'edgePolicy']))
+  })
+
+  it('offers a preset on a Stage only when every parameter it sets is compatible (#1077)', () => {
+    const directionPresets = getShowToolkitFamily('transition', 'wipe')?.variants
+      .find((variant) => variant.id === 'linear')?.presets?.map((preset) => preset.id) ?? []
+    expect(directionPresets).toHaveLength(8)
+    for (const presetId of directionPresets) {
+      expect(showToolkitPresetCompatibleWithStage('transition', 'wipe', 'linear', presetId, 2)).toBe(true)
+      expect(showToolkitPresetCompatibleWithStage('transition', 'wipe', 'linear', presetId, 1)).toBe(false)
+    }
+    expect(showToolkitPresetCompatibleWithStage('transition', 'fade', 'through-color', 'white', 1)).toBe(true)
+    expect(showToolkitPresetCompatibleWithStage('transition', 'fade', 'through-color', 'white', 2)).toBe(true)
+  })
+
 })

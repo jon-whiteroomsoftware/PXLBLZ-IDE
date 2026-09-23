@@ -35,9 +35,10 @@ export function replaceShowBoundaryTransition(
   transitionId: string,
   item: ShowToolkitPresentationItem,
   presetId?: string,
+  stageDimensions?: 1 | 2 | 3,
 ): ShowRecord {
   if (item.kind !== 'transition') throw new Error(`${item.key} is not a Transition.`)
-  const changes = showTransitionChangesForPresentation(item, presetId)
+  const changes = showTransitionChangesForPresentation(item, presetId, stageDimensions)
   return updateShowBoundaryTransition(show, transitionId, changes)
 }
 
@@ -45,13 +46,14 @@ export function replaceShowBoundaryTransition(
 export function showTransitionChangesForPresentation(
   item: ShowToolkitPresentationItem,
   presetId?: string,
+  stageDimensions?: 1 | 2 | 3,
 ): ShowTransitionChanges {
   if (item.kind !== 'transition') throw new Error(`${item.key} is not a Transition.`)
   const family = getShowToolkitFamily('transition', item.familyId)
   const variant = family?.variants.find((candidate) => candidate.id === item.variantId)
   if (!family || !variant) throw new Error(`Unsupported Show Transition ${item.key}.`)
   const preset = variant.presets?.find((candidate) => candidate.id === presetId)
-  const parameters = resolveShowToolkitParameters('transition', item.familyId, item.variantId, {})
+  const parameters = resolveShowToolkitParameters('transition', item.familyId, item.variantId, {}, stageDimensions)
   const values = {
     ...Object.fromEntries(parameters.map((parameter) => [parameter.id, parameter.defaultValue])),
     ...(preset?.values ?? {}),

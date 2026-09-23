@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultShow } from './showModel'
+import { DEMOS } from '../pixelblaze/stock/patterns'
+import { createDefaultShow, showRecordToCompileRecipe } from './showModel'
 import {
   replaceShowBoundaryTransition,
   showBoundaryTransitionParameterValue,
   showBoundaryTransitionParameters,
   showBoundaryTransitionPresentationKey,
+  showTransitionChangesForPresentation,
   updateShowBoundaryTransitionParameter,
 } from './showTransitionAuthoring'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
@@ -133,6 +135,31 @@ describe('Show Transition authoring adapter', () => {
     expect(crossfade.transitions![0]).toMatchObject({
       kind: 'crossfade',
       crossfadePolicy: 'snapshot-live',
+    })
+  })
+
+  it('authors a directionless linear Wipe on a 1D Stage that compiles (#1077)', () => {
+    const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 1 })
+      .find((candidate) => candidate.key === 'transition:wipe:linear')!
+    expect(item.compatible).toBe(true)
+    const changes = showTransitionChangesForPresentation(item, undefined, 1)
+    expect(changes).toMatchObject({ kind: 'wipe', wipeVariant: 'linear' })
+    expect(changes).not.toHaveProperty('direction')
+    const base = createDefaultShow('show-1077-wipe-1d', 'Wipe 1D', 1)
+    const show = replaceShowBoundaryTransition(base, base.transitions![0].id, item, undefined, 1)
+    expect(show.transitions![0]).not.toHaveProperty('direction')
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
+      stageDimension: 1,
+    })
+    expect(recipe.routeTransition).toMatchObject({ kind: 'wipe' })
+  })
+
+  it('keeps the 2D linear Wipe direction (#1077)', () => {
+    const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+      .find((candidate) => candidate.key === 'transition:wipe:linear')!
+    expect(showTransitionChangesForPresentation(item, undefined, 2)).toMatchObject({
+      kind: 'wipe', wipeVariant: 'linear', direction: 0,
     })
   })
 })

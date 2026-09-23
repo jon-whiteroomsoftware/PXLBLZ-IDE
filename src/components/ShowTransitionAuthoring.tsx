@@ -13,7 +13,7 @@ import {
   showBoundaryTransitionParameterValue,
   showBoundaryTransitionParameters,
 } from '@/engine/showTransitionAuthoring'
-import { SHOW_VISUAL_TOOLKIT_REGISTRY, type ShowToolkitParameterValue } from '@/engine/showVisualToolkit'
+import { SHOW_VISUAL_TOOLKIT_REGISTRY, showToolkitPresetCompatibleWithStage, type ShowToolkitParameterValue } from '@/engine/showVisualToolkit'
 import {
   buildShowToolkitPresentationCatalogue,
   filterShowToolkitPresentationCatalogue,
@@ -187,7 +187,9 @@ export function ShowTransitionPalette({
         {activeItem ? (
           <div className="flex min-w-0 items-center gap-2">
             <p className="min-w-0 flex-1 truncate text-[9px] text-zinc-400" title={activeItem.summary}>{activeItem.summary}</p>
-            {activeVariant?.presets?.map((preset) => (
+            {activeVariant?.presets?.filter((preset) => showToolkitPresetCompatibleWithStage(
+              activeItem.kind, activeItem.familyId, activeItem.variantId, preset.id, stageDimensions,
+            )).map((preset) => (
               <button
                 key={preset.id}
                 type="button"
