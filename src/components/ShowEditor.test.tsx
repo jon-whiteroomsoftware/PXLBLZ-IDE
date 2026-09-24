@@ -3983,7 +3983,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(editor.state().v2Writes).toBe(0)
   })
 
-  // v2 port blocked by #1111: the Scene-spanning cell converts to two Clips without a logicalClipId, so Delete removes one
   it('blocks deletion when the final flat Clip spans multiple projected placements (#63)', async () => {
     const user = userEvent.setup()
     const show = extendShowCell(
@@ -3994,27 +3993,26 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       'cell-1',
       2,
     )
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const editor = openV2EditorForRecord(convertForTest(show))
+    const before = structuredClone(editor.state().record)
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const firstProjectedPlacement = screen.getAllByRole('button', { name: 'Select TestPattern1D' })
       .find((button) => button.getAttribute('data-show-selection-key') === 'clip:placement-cell-1-scene-1')
     expect(firstProjectedPlacement).toBeDefined()
     await user.click(firstProjectedPlacement!)
 
-    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toHaveAttribute('aria-disabled', 'true')
     await user.keyboard('{Delete}')
 
     expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()
     expect(screen.getByRole('status', { name: 'Clip deletion unavailable' })).toHaveTextContent(
       'A Show must contain at least one Clip.',
     )
-    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)?.cells).toEqual(show.cells)
+    expect(editor.state().record).toEqual(before)
+    expect(editor.state().v2Writes).toBe(0)
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
   })
 
-  // v2 port blocked by #1111: the Zone-spanning cell converts to two Clips without a logicalClipId, so Delete removes one
   it('blocks deletion when the final flat Clip spans multiple projected Zones (#63)', async () => {
     const user = userEvent.setup()
     let show = removeShowClip(
@@ -4023,19 +4021,19 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     )
     show = addShowZone(show, { name: 'accent' })
     show = spanShowCellZones(show, 'cell-1', 2)
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const editor = openV2EditorForRecord(convertForTest(show))
+    const before = structuredClone(editor.state().record)
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const projectedPlacements = screen.getAllByRole('button', { name: 'Select TestPattern1D' })
     expect(projectedPlacements).toHaveLength(2)
     await user.click(projectedPlacements[0])
 
-    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toHaveAttribute('aria-disabled', 'true')
     await user.keyboard('{Delete}')
 
     expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()
-    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)?.cells).toEqual(show.cells)
+    expect(editor.state().record).toEqual(before)
+    expect(editor.state().v2Writes).toBe(0)
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
   })
 
