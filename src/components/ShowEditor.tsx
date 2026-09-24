@@ -490,6 +490,7 @@ import {
   projectShowEditorTransitionSettingsV2,
   type ShowEditorPropertyLaneV2,
   type ShowEditorTimeColumnV2,
+  type ShowEditorTimelineCommandSelectionV2,
 } from '@/engine/showEditorTimelinePresentation'
 import {
   projectShowEditorArtifactPatternUsesV2,
@@ -5717,22 +5718,25 @@ function ShowTimelineCommands({
   const showId = backing.recordVersion === 1 ? backing.show.id : backing.showId
   const positionMs = useShowTransportStore((state) => state.showId === showId ? state.positionMs : 0)
   const cloneClip = useShowStore((state) => state.cloneClip)
+  const splitSelectionV2 = useMemo<ShowEditorTimelineCommandSelectionV2>(() => selection.kind === 'clip'
+    ? { kind: 'clip', clipId: selection.clipId }
+    : selection.kind === 'multi'
+      ? {
+          kind: 'multi',
+          placementIds: selection.groupSelection.placementIds,
+          transitionIds: selection.groupSelection.transitionIds,
+        }
+      : selection.kind === 'group' || selection.kind === 'group-clip'
+        ? { kind: 'group' }
+        : { kind: 'other' }, [selection])
   const commandsV2 = useMemo(() => backing.recordVersion === 2
     ? projectShowEditorTimelineCommandsV2({
         view: timelineView,
-        selection: selection.kind === 'clip'
-          ? { kind: 'clip', clipId: selection.clipId }
-          : selection.kind === 'multi'
-            ? {
-                kind: 'multi',
-                placementIds: selection.groupSelection.placementIds,
-                transitionIds: selection.groupSelection.transitionIds,
-              }
-            : { kind: 'other' },
+        selection: splitSelectionV2,
         playheadMs: positionMs,
         isolatedGroupOccurrenceId,
       })
-    : null, [backing.recordVersion, isolatedGroupOccurrenceId, positionMs, selection, timelineView])
+    : null, [backing.recordVersion, isolatedGroupOccurrenceId, positionMs, splitSelectionV2, timelineView])
   const groupPlan = commandsV2
     ? { ...commandsV2.group, code: 'ready' as const }
     : composition && selection.kind === 'multi'
@@ -5863,7 +5867,7 @@ function ShowTimelineCommands({
               // before any owner runs. Success selects the new right Clip,
               // exactly as the v1 split selects its new placement.
               const target = resolveShowV2SplitTarget(timelineView, {
-                selectionClipId: selection.kind === 'clip' ? selection.clipId : null,
+                selection: splitSelectionV2,
                 playheadMs: positionMs,
                 isolatedGroupOccurrenceId,
               })
