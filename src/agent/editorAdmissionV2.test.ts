@@ -18,7 +18,7 @@ import { showInitialState, useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
 import { admitShowV2PilotSetShowEnd } from '@/store/showV2PreparedEditAdmission'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
-import { createAgentEditorAdmission } from './editorAdmission'
+import { createAgentEditorAdmission, type AgentAdmissionObserver } from './editorAdmission'
 import { createAgentPrivateAdmissionOwner } from './privateAdmissionOwner'
 
 const VOICE = 'export var t = 0\nexport function beforeRender(delta) { t += delta }\nexport function render2D(index, x, y) { rgb(x, y, t / 1000) }'
@@ -44,7 +44,7 @@ function baseRecord(id: string): ShowRecordV2 {
   return record
 }
 
-function setup(options: { failSave?: boolean; patterns?: typeof PATTERN[] } = {}) {
+function setup(options: { failSave?: boolean; patterns?: typeof PATTERN[]; observe?: AgentAdmissionObserver } = {}) {
   // Each setup owns a distinct Show identity: the store's durable v2 baseline
   // is module state keyed by Show id, and a reused id would let one test's
   // saved record become another test's rollback target.
@@ -74,7 +74,7 @@ function setup(options: { failSave?: boolean; patterns?: typeof PATTERN[] } = {}
     const current = useShowStore.getState().showV2Pilots[record.id]
     if (current && current !== capture.record) capture = captureOf(current)
   })
-  const admission = createAgentEditorAdmission(record.id, () => ({ playheadMs: 0 }), undefined, undefined, {
+  const admission = createAgentEditorAdmission(record.id, () => ({ playheadMs: 0 }), undefined, options.observe, {
     recordVersion: 2,
     capture: () => capture,
     isCurrentCapture: () => useShowStore.getState().showV2Pilots[record.id] === capture.record,
@@ -265,4 +265,24 @@ it('refuses a duplicate begin key and keeps one private operation', () => {
   expect(context.send({ kind: 'begin_edit', intent: 'First' }).code).toBe('begun')
   expect(context.send({ kind: 'begin_edit', intent: 'Again' }).code).toBe('finished')
   expect(context.send({ kind: 'begin_edit', intent: 'Other' }, 'second').code).toBe('busy')
+})
+
+it('admits an ordinary v2 delivery carrying the retry-resize hint and still refuses a retry', async () => {
+  const phases: string[] = []
+  const context = setup({ observe: (_request, phase) => { phases.push(phase) } })
+  const begun = context.admission.beginRequest('hint', 'Rename', [])!
+  const candidate = { ...structuredClone(begun.show), name: 'Agent name' }
+  // The harness bridge attaches this hint to every ordinary single-resize
+  // reply; on v2 it is ignored rather than read as a retry.
+  const hint = { clipId: 'clip-1', durationMs: 8000 }
+  expect(context.admission.applyShow(candidate, begun.request, hint)).toMatchObject({ status: 'applied' })
+  await vi.waitFor(() => expect(context.admission.readOutcome(begun.request)).toMatchObject({ status: 'applied', settlement: 'saved' }))
+  context.admission.readOutcome(begun.request)
+  expect(phases).toEqual(['admitted', 'adopted', 'settled'])
+  expect(context.current().name).toBe('Agent name')
+  // v2 offers no stable resize retry, so a Retry request is still refused.
+  const retry = context.admission.beginRequest('retry', 'Rename', [])!
+  const refused = context.admission.applyShow({ ...structuredClone(retry.show), name: 'Retry' }, { ...retry.request, retryOf: retry.request.operationId }, hint)
+  expect(refused.status).toBe('refused')
+  expect(context.current().name).toBe('Agent name')
 })

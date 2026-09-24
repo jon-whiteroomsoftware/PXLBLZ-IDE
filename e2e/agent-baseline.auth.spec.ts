@@ -33,6 +33,7 @@ import {
   personalLibraryPatternShow,
 } from '../src/agent-harness/baseline/fixtures'
 import type { ShowRecord } from '../src/engine/personalContentRecords'
+import type { ShowRecordV2 } from '../src/engine/showCompositionV2'
 import { createShowWithOutputContract } from '../src/engine/showModel'
 import { createInstallationShowOutputContract } from '../src/engine/showOutputContract'
 import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
@@ -126,12 +127,25 @@ interface PersistedShow {
   id: string
   name: string
   updatedAt: number
+  version?: number
+  zones?: Array<{ id: string }>
   scenes?: Array<{ id: string; durationMs: number }>
   cells?: Array<{ id: string; sceneId: string; adaptations?: { brightness?: number } }>
   composition?: {
     durationMs?: number
+    showEndMs?: number
     markers?: Array<{ name?: string; timeMs: number }>
-    scenes: Array<{ zones: Array<{ main: Array<{ id: string; startMs: number; durationMs: number; view?: { brightness?: number } }> }> }>
+    scenes?: Array<{ zones: Array<{ main: Array<{ id: string; startMs: number; durationMs: number; view?: { brightness?: number } }> }> }>
+    layers?: Array<{ id: string; zoneId: string; rank: number }>
+    clips?: Array<{
+      id: string
+      startMs: number
+      durationMs: number
+      layerId: string
+      zoneId: string
+      appearance?: { keys?: Array<{ value?: { view?: { brightness?: number } } }> }
+    }>
+    transitions?: Array<{ id: string }>
   } | null
 }
 
@@ -209,7 +223,11 @@ function watchShowWrites(page: Page): ShowWrite[] {
     } catch {
       body = null
     }
-    const firstMain = body?.composition?.scenes?.[0]?.zones?.[0]?.main?.[0]
+    // A version-2 save is PUT /api/shows/<id>?show-version=2 and a create is
+    // POST /api/shows?show-version=2 (src/engine/remotePersonalContentProvider.ts
+    // createShowV2/replaceShowV2). Read the same rank-0 first main as the
+    // record readers, Show End from composition.showEndMs, and the Marker count.
+    const firstMain = mainPlacements(body ?? undefined)[0]
     const write: ShowWrite = {
       method: request.method(),
       url: request.url(),
@@ -218,9 +236,9 @@ function watchShowWrites(page: Page): ShowWrite[] {
       updatedAt: body?.updatedAt ?? null,
       firstMainStartMs: firstMain?.startMs ?? null,
       firstMain: firstMain
-        ? { durationMs: firstMain.durationMs ?? null, brightness: firstMain.view?.brightness ?? null }
+        ? { durationMs: firstMain.durationMs, brightness: firstMain.brightness }
         : null,
-      compositionDurationMs: body?.composition?.durationMs ?? null,
+      compositionDurationMs: body?.composition?.showEndMs ?? body?.composition?.durationMs ?? null,
       markers: body?.composition?.markers?.length ?? null,
     }
     pending.set(request, write)
@@ -240,18 +258,47 @@ function watchShowWrites(page: Page): ShowWrite[] {
 /**
  * Seed one version-1 personal Show and open it with the Agent capability on.
  *
- * Every other sequence here posts its own version-1 fixture; this one used to
- * drive the creation flow, which since #1039 writes a version-2 record onto the
- * v2 editor. These reproductions are about the v1 editor's agent binding, so it
- * seeds the row it means, in the shape the flow's Installation defaults built.
+ * B2-only: its subject is the version-1 editor's agent binding and route
+ * gating, so it seeds the row it means, in the shape the flow's Installation
+ * defaults built. Every other sequence seeds version 2.
  */
-async function createPersonalShow(page: Page): Promise<string> {
+async function createPersonalShowV1(page: Page): Promise<string> {
   const show = createShowWithOutputContract(
     randomUUID(),
     'Untitled Show',
     createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 256 }),
   )
   const created = await page.context().request.post('/api/shows', { data: show })
+  expect(created.ok(), await created.text()).toBe(true)
+  await page.goto(`studio/shows/${show.id}?agent=1`)
+  await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}\\?agent=1$`))
+  await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+  return show.id
+}
+
+/**
+ * Seed one version-2 personal Show and open it with the Agent capability on.
+ *
+ * Builds the record through the product's own fresh-Show builder
+ * (src/engine/showCreationV2.ts createShowV2WithOutputContract) and creates
+ * it through the product's own create call (POST /api/shows?show-version=2,
+ * as src/engine/remotePersonalContentProvider.ts createShowV2 does). The
+ * builder runs inside the page: it reaches the v2 schema through ?raw, which
+ * the spec's own module loader cannot resolve (e2e/support/showBacking.ts
+ * runs its converter in the page for the same reason).
+ */
+async function createPersonalShowV2(page: Page): Promise<string> {
+  const id = randomUUID()
+  await page.goto('studio/shows')
+  const show = (await page.evaluate(async (showId: string) => {
+    const load = (path: string) => import(path)
+    const [{ createShowV2WithOutputContract }, { createInstallationShowOutputContract }] = await Promise.all([
+      load('/PXLBLZ-IDE/src/engine/showCreationV2.ts'),
+      load('/PXLBLZ-IDE/src/engine/showOutputContract.ts'),
+    ])
+    return createShowV2WithOutputContract(showId, 'Untitled Show', createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 256 }))
+  }, id)) as { id: string }
+  const created = await page.context().request.post('/api/shows?show-version=2', { data: show })
   expect(created.ok(), await created.text()).toBe(true)
   await page.goto(`studio/shows/${show.id}?agent=1`)
   await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}\\?agent=1$`))
@@ -311,21 +358,62 @@ async function readObservations(page: Page): Promise<Observation[]> {
   return page.evaluate(() => (window as unknown as { __pxlblzObservations?: { read: () => Observation[] } }).__pxlblzObservations?.read() ?? [])
 }
 
+/**
+ * The record the open editor holds. For a version-2 Show this is the v2
+ * record: getShow returns the route's own version
+ * (src/agent/editorAdmission.ts getShow resolves the bound record version).
+ */
 async function visibleRecord(page: Page): Promise<PersistedShow | undefined> {
   return page.evaluate(() => (window as unknown as { __pxlblzEditor?: { getShow: () => PersistedShow | undefined } }).__pxlblzEditor?.getShow())
 }
 
+/**
+ * The stored version-2 document for one Show. GET /api/shows?show-version=2
+ * returns the union of both versions' rows, so keep only version-2 records
+ * (e2e/support/showBackingRecords.ts listStoredShowsV2 filters that union
+ * with the product's own isShowRecordV2 the same way).
+ */
 async function durableShow(page: Page, id: string): Promise<PersistedShow | undefined> {
+  const response = await page.context().request.get('/api/shows?show-version=2')
+  expect(response.ok()).toBe(true)
+  const { shows } = (await response.json()) as { shows: PersistedShow[] }
+  return shows.filter((show) => show.version === 2).find((show) => show.id === id)
+}
+
+async function waitForDurable(page: Page, id: string, predicate: (show: PersistedShow) => boolean): Promise<void> {
+  let last: PersistedShow | undefined
+  try {
+    await expect.poll(async () => {
+      try {
+        const show = await durableShow(page, id)
+        last = show
+        return show ? predicate(show) : false
+      } catch {
+        return false
+      }
+    }).toBe(true)
+  } catch (error) {
+    throw new Error(`durable Show ${id} never satisfied the predicate (last: ${summarizeDurableShow(last)})`, { cause: error })
+  }
+}
+
+function summarizeDurableShow(show: PersistedShow | undefined): string {
+  if (!show) return 'missing'
+  const mains = mainPlacements(show).map((clip) => `${clip.id}@${clip.startMs}+${clip.durationMs}`).join(',')
+  return `mains=[${mains}] transitions=${show.composition?.transitions?.length ?? 0} layers=${show.composition?.layers?.length ?? 0}`
+}
+
+async function durableShowV1(page: Page, id: string): Promise<PersistedShow | undefined> {
   const response = await page.context().request.get('/api/shows')
   expect(response.ok()).toBe(true)
   const { shows } = (await response.json()) as { shows: PersistedShow[] }
   return shows.find((show) => show.id === id)
 }
 
-async function waitForDurable(page: Page, id: string, predicate: (show: PersistedShow) => boolean): Promise<void> {
+async function waitForDurableV1(page: Page, id: string, predicate: (show: PersistedShow) => boolean): Promise<void> {
   await expect.poll(async () => {
     try {
-      const show = await durableShow(page, id)
+      const show = await durableShowV1(page, id)
       return show ? predicate(show) : false
     } catch {
       return false
@@ -334,13 +422,41 @@ async function waitForDurable(page: Page, id: string, predicate: (show: Persiste
 }
 
 /**
- * Main placements of a record in timeline order, read from the composition
- * when the record carries one and from the flat cells otherwise (a Clip
- * delete through the legacy path can leave the record flat).
+ * Main Clips of a version-2 record in timeline order: the Clips on the rank-0
+ * Layer of the first Zone, sorted by startMs. Brightness is the Clip's held
+ * appearance, the first appearance key's value.view.brightness (each fresh
+ * Clip carries one held key with its view, src/engine/showCreationV2.ts).
  */
 function mainPlacements(show: PersistedShow | undefined): MainFacts[] {
+  if (!show?.composition?.clips) return []
+  const zoneId = show.zones?.[0]?.id
+  const mainLayerIds = new Set((show.composition.layers ?? [])
+    .filter((layer) => layer.rank === 0 && (zoneId === undefined || layer.zoneId === zoneId))
+    .map((layer) => layer.id))
+  return show.composition.clips
+    .filter((clip) => mainLayerIds.has(clip.layerId))
+    .map((clip) => ({
+      id: clip.id,
+      startMs: clip.startMs,
+      durationMs: clip.durationMs,
+      brightness: clip.appearance?.keys?.[0]?.value?.view?.brightness ?? 1,
+    }))
+    .sort((a, b) => a.startMs - b.startMs)
+}
+
+function firstMain(show: PersistedShow | undefined): MainFacts | undefined {
+  return mainPlacements(show)[0]
+}
+
+/**
+ * Main placements of a version-1 record in timeline order, read from the
+ * composition when the record carries one and from the flat cells otherwise
+ * (a Clip delete through the legacy path can leave the record flat).
+ * B2/D957-only: they seed version-1 rows.
+ */
+function mainPlacementsV1(show: PersistedShow | undefined): MainFacts[] {
   if (!show) return []
-  if (show.composition) {
+  if (show.composition?.scenes) {
     return show.composition.scenes.flatMap((scene) => (scene.zones[0]?.main ?? []).map((placement) => ({
       id: placement.id,
       startMs: placement.startMs,
@@ -365,8 +481,8 @@ function mainPlacements(show: PersistedShow | undefined): MainFacts[] {
   }).sort((a, b) => a.startMs - b.startMs)
 }
 
-function firstMain(show: PersistedShow | undefined): MainFacts | undefined {
-  return mainPlacements(show)[0]
+function firstMainV1(show: PersistedShow | undefined): MainFacts | undefined {
+  return mainPlacementsV1(show)[0]
 }
 
 /** Open the Clip's detail panel, read the fields the author sees, and close it. */
@@ -454,7 +570,8 @@ function phaseTimeline(request: OverlayRequest, observations: Observation[], wri
     validation?: { at: number; ms: number; ok: boolean }
     toolCalls?: Array<{ name: string; at: number; ms: number }>
   }
-  const candidateWrite = adopted ? writes.find((write) => write.method === 'PATCH' && write.at >= adopted.at) : undefined
+  // A version-2 save is PUT /api/shows/<id>?show-version=2 (see watchShowWrites).
+  const candidateWrite = adopted ? writes.find((write) => write.method === 'PUT' && write.at >= adopted.at) : undefined
   const delta = (from: number | null | undefined, to: number | null | undefined) =>
     typeof from === 'number' && typeof to === 'number' ? to - from : null
   return {
@@ -495,7 +612,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
 
   test('B2 gate: capability admission, query stability and route retirement preserve manual ownership', async ({ page }) => {
     test.setTimeout(90_000)
-    const showId = await createPersonalShow(page)
+    const showId = await createPersonalShowV1(page)
     await expect.poll(() => page.evaluate(() => (
       window as unknown as { __pxlblzEditor?: { sessionId: string } }
     ).__pxlblzEditor?.sessionId)).toBeTruthy()
@@ -509,7 +626,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       expect(await page.evaluate(() => (window as unknown as { __pxlblzEditor?: { sessionId: string } }).__pxlblzEditor?.sessionId)).toBe(sessionId)
     }
     await setClipBrightness(page, 'TestPattern1D', '75')
-    await waitForDurable(page, showId, show => firstMain(show)?.brightness === 0.75)
+    await waitForDurableV1(page, showId, show => firstMainV1(show)?.brightness === 0.75)
     await page.evaluate(() => window.history.replaceState(null, '', window.location.pathname + '?capture&agent=1&unrelated=kept'))
     await injectOverlay(page, bridge.url)
     const result = await page.evaluate(() => {
@@ -532,9 +649,9 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(result).toEqual({ same: true, queryStable: true, inactiveAway: true, old: { request: expect.any(Object), status: 'retired' }, changed: true })
     await expect(page.getByTestId('agent-chat-panel')).toHaveCount(1)
     expect(new URL(page.url()).searchParams.get('unrelated')).toBe('kept')
-    expect((await durableShow(page, showId))?.name).toBe('Untitled Show')
+    expect((await durableShowV1(page, showId))?.name).toBe('Untitled Show')
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await waitForDurable(page, showId, show => firstMain(show)?.brightness === 1)
+    await waitForDurableV1(page, showId, show => firstMainV1(show)?.brightness === 1)
   })
 
   test('D957: tucked drawer reports owned application and stale refusal with double attribution', async ({ page }) => {
@@ -578,7 +695,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect(ring).toHaveCount(1)
     expect(await ring.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('double')
     await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-tucked.png'), fullPage: false, animations: 'disabled' })
-    expect(firstMain(await durableShow(page, showId))?.durationMs).toBe(8000)
+    expect(firstMainV1(await durableShowV1(page, showId))?.durationMs).toBe(8000)
     await page.getByRole('button', { name: /^Open the Agent drawer/ }).click()
     await expect(page.getByTestId('agent-unread-count')).toHaveCount(0)
     await expect(page.locator(`[data-request-id="${id}"]`)).toHaveAttribute('data-outcome', 'saved')
@@ -589,10 +706,10 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await waitForAccepted(page, staleId)
     await page.getByRole('button', { name: 'Unpin the Agent drawer' }).click()
     await setClipBrightness(page, 'CometLoom', '75')
-    const manual = await durableShow(page, showId)
+    const manual = await durableShowV1(page, showId)
     const stale = await waitForDone(page, staleId)
     expect(stale.applied).toBe(false)
-    expect(await durableShow(page, showId)).toEqual(manual)
+    expect(await durableShowV1(page, showId)).toEqual(manual)
     await expect(page.locator('[data-agent-highlight="refused"]')).toHaveCount(1)
     await page.screenshot({ path: join(REPORT_DIR, 'D957-refused-tucked.png'), fullPage: false, animations: 'disabled' })
     await expect(page.getByTestId('agent-unread-count')).toHaveText('1')
@@ -604,7 +721,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
   test('A: a delayed reply refuses after a manual edit and preserves its durable record', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
-    const showId = await createPersonalShow(page)
+    const showId = await createPersonalShowV2(page)
     await injectOverlay(page, bridge.url)
     const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
     await waitForAccepted(page, requestId)
@@ -615,7 +732,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(request.applied).toBe(false)
     expect(await durableShow(page, showId)).toEqual(before)
     expect(await visibleClipFacts(page, 'TestPattern1D')).toEqual({ durationSeconds: '30', brightnessPercent: '75' })
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    expect(writes.filter(write => write.method === 'PUT')).toHaveLength(1)
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
     expect(await visibleClipFacts(page, 'TestPattern1D')).toEqual({ durationSeconds: '30', brightnessPercent: '100' })
     const observations = await readObservations(page)
@@ -627,13 +744,18 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
   test('B: a delayed reply cannot resurrect a deleted target or undo its restored manual movement', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
-    const showId = await createPersonalShow(page)
+    const showId = await createPersonalShowV2(page)
     await injectOverlay(page, bridge.url)
     const deleteId = await submitUtterance(page, RESIZE_UTTERANCE)
     await waitForAccepted(page, deleteId)
     const target = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
     await target.click()
     await page.keyboard.press('Delete')
+    // clip-1 carries native transition-1, so Delete only stages the
+    // connected-delete confirmation (src/engine/showV2ClipDeletePlanning.ts:63);
+    // confirming adopts the Clip plus Transition removal
+    // (src/engine/showTransitionsV2.ts:124-127).
+    await page.getByRole('button', { name: 'Remove Clip and Transition' }).click()
     await expect(target).toHaveCount(0)
     await waitForDurable(page, showId, show => mainPlacements(show).length === 1)
     const deleted = await durableShow(page, showId)
@@ -650,20 +772,24 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await waitForDurable(page, showId, show => firstMain(show)?.durationMs === 12_000)
     const moveId = await submitUtterance(page, MARKER_UTTERANCE)
     await waitForAccepted(page, moveId)
-    await dragClipToStart(page, 'TestPattern1D', 12_000, 15_000)
-    await waitForDurable(page, showId, show => firstMain(show)?.startMs === 15_000)
+    const movePreviewTime = await dragClipToStart(page, 'TestPattern1D', 12_000, 15_000)
+    const movedStartMs = Math.round(Number.parseFloat(movePreviewTime.trim().replace(/s$/, '').trim()) * 1_000)
+    expect(movedStartMs).toBeGreaterThan(0)
+    expect(movedStartMs).not.toBe(0)
+    // On v2 the joined Clip moves its connected component, and the pointer target from the Clip width is approximate, so B asserts the start the drag resolved to (its subject is that a stale reply cannot undo the manual move).
+    await waitForDurable(page, showId, show => firstMain(show)?.startMs === movedStartMs)
     const moved = await durableShow(page, showId)
     expect((await waitForDone(page, moveId)).applied).toBe(false)
     expect(await durableShow(page, showId)).toEqual(moved)
-    expect(await visibleClipStart(page, 'TestPattern1D')).toBe('15')
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(4)
+    expect(await visibleClipStart(page, 'TestPattern1D')).toBe(String(movedStartMs / 1_000))
+    expect(writes.filter(write => write.method === 'PUT')).toHaveLength(4)
     await page.screenshot({ path: join(REPORT_DIR, 'B-target-refused.png'), fullPage: true })
   })
 
   test('C: time inserted during inference is preserved when the reply refuses', async ({ page }) => {
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
-    const showId = await createPersonalShow(page)
+    const showId = await createPersonalShowV2(page)
     await injectOverlay(page, bridge.url)
     const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
     await waitForAccepted(page, requestId)
@@ -680,7 +806,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect((await waitForDone(page, requestId)).applied).toBe(false)
     expect(await durableShow(page, showId)).toEqual(inserted)
     expect(firstMain(await visibleRecord(page))?.startMs).toBe(5_000)
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    expect(writes.filter(write => write.method === 'PUT')).toHaveLength(1)
     await page.screenshot({ path: join(REPORT_DIR, 'C-insert-preserved.png'), fullPage: true })
   })
 
@@ -690,7 +816,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const other = personalBaseShow(`baseline-away-${Date.now().toString(36)}`)
     const seeded = await page.context().request.post('/api/shows', { data: other })
     expect(seeded.status(), await seeded.text()).toBe(201)
-    const showId = await createPersonalShow(page)
+    const showId = await createPersonalShowV2(page)
     const original = await durableShow(page, showId)
     await injectOverlay(page, bridge.url)
     const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
@@ -703,7 +829,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await page.waitForTimeout(BRIDGE_DELAY_MS + 1_000)
     expect(await overlayRequests(page)).toEqual([])
     expect(await durableShow(page, showId)).toEqual(original)
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(0)
+    expect(writes.filter(write => write.method === 'PUT')).toHaveLength(0)
     await injectOverlay(page, bridge.url)
     expect(await overlayRequests(page)).toEqual([])
     await expect(page.getByTestId('agent-chat-log')).not.toContainText(RESIZE_UTTERANCE)
@@ -716,7 +842,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     test('E: a later failed save restores the saved candidate and reopening keeps it', async ({ page }) => {
       test.setTimeout(90_000)
       const writes = watchShowWrites(page)
-      const showId = await createPersonalShow(page)
+      const showId = await createPersonalShowV2(page)
       await injectOverlay(page, bridge.url)
 
       // Establish an accepted durable candidate before the later failed save.
@@ -730,7 +856,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       // A later manual edit C whose save fails.
       let blockWrites = true
       await page.route('**/api/shows/**', (route) => {
-        if (blockWrites && route.request().method() === 'PATCH') return route.abort()
+        if (blockWrites && route.request().method() === 'PUT') return route.abort()
         return route.continue()
       })
       await setClipBrightness(page, 'TestPattern1D', '60', { expectValue: false })
@@ -1513,10 +1639,16 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
 
   test('F: a multi-operation reply lands as one history entry and one save', async ({ page }) => {
     test.setTimeout(90_000)
-    const showId = await createPersonalShow(page)
-    // Measure a plain Clip batch. The default crossfade protects its boundary
-    // against shortening; fixture setup is outside the measured request.
-    expect((await page.context().request.patch(`/api/shows/${showId}`, { data: { transitions: [] } })).ok()).toBe(true)
+    const showId = await createPersonalShowV2(page)
+    // Measure a plain Clip batch. A trailing resize ripples its connected
+    // component through the default crossfade instead of refusing
+    // (src/engine/showCommandsV2/clips.ts resize_clip), so fixture setup
+    // clears Transitions; setup is outside the measured request.
+    const seeded = (await durableShow(page, showId)) as unknown as ShowRecordV2
+    const cleared = await page.context().request.put(`/api/shows/${showId}?show-version=2`, {
+      data: { ...seeded, composition: { ...seeded.composition, transitions: [] } },
+    })
+    expect(cleared.ok(), await cleared.text()).toBe(true)
     await page.reload()
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
     const writes = watchShowWrites(page)
@@ -1530,9 +1662,9 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const visible = await visibleClipFacts(page, 'TestPattern1D')
     expect(visible).toEqual({ durationSeconds: '12', brightnessPercent: '50' })
     await waitForDurable(page, showId, (show) => firstMain(show)?.durationMs === 12_000 && firstMain(show)?.brightness === 0.5)
-    const patches = writes.filter((write) => write.method === 'PATCH')
-    expect(patches).toHaveLength(1)
-    expect(patches[0].firstMain).toEqual({ durationMs: 12_000, brightness: 0.5 })
+    const saves = writes.filter((write) => write.method === 'PUT')
+    expect(saves).toHaveLength(1)
+    expect(saves[0].firstMain).toEqual({ durationMs: 12_000, brightness: 0.5 })
 
     const after = await visibleRecord(page)
     expect(await durableShow(page, showId)).toEqual(after)
@@ -1545,10 +1677,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const observations = await readObservations(page)
     const tools = ((request.bridgeTiming ?? {}) as { toolCalls?: Array<{ name: string }> }).toolCalls?.map((call) => call.name)
     // The scripted agent re-reads the Show before each placeholder; the
-    // mutating calls are the two operations of the one committed turn.
-    expect(tools?.filter((name) => name !== 'describe_show')).toEqual(['resize_clip', 'set_clip_view'])
+    // mutating calls are the two operations of the one committed turn. The
+    // dimming is an update_clips held-appearance patch on v2
+    // (src/engine/showCommandsV2/clips.ts update_clips).
+    expect(tools?.filter((name) => name !== 'describe_show')).toEqual(['resize_clip', 'update_clips'])
     await page.screenshot({ path: join(REPORT_DIR, 'F-batch.png'), fullPage: true })
-    saveRecord('F-batch', { showId, before, after, measuredFrom, topology: 'plain Clips with Scene boundary Cut; setup excluded', request, writes, observations, visible, timeline: phaseTimeline(request, observations, writes) })
+    saveRecord('F-batch', { showId, before, after, measuredFrom, topology: 'plain Clips with no Transition; setup excluded', request, writes, observations, visible, timeline: phaseTimeline(request, observations, writes) })
   })
 
   test('G: a built-in Show draft accepts a reply in memory with no personal write', async ({ page }) => {
@@ -1585,7 +1719,18 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const pattern = await api.post('/api/patterns', { data: BASELINE_LIBRARY_PATTERN })
     expect(pattern.status(), await pattern.text()).toBe(201)
     const record = personalLibraryPatternShow(`baseline-library-${Date.now().toString(36)}`)
-    const created = await api.post('/api/shows', { data: record })
+    // Convert the fixture through the app's own converter
+    // (src/agent-harness/baseline/fixturesV2.ts convertBaselineRecord) and
+    // post the v2 result through the product's own create call. The converter
+    // runs inside the page for the same loader reason createPersonalShowV2
+    // names; the personal Pattern source travels in as an argument.
+    await page.goto('studio/shows')
+    const converted = (await page.evaluate(async (input) => {
+      const load = (path: string) => import(path)
+      const { convertBaselineRecord } = await load('/PXLBLZ-IDE/src/agent-harness/baseline/fixturesV2.ts')
+      return convertBaselineRecord(input.source, 'baseline H personal library', input.patterns)
+    }, { source: record, patterns: [BASELINE_LIBRARY_PATTERN] })) as ShowRecordV2
+    const created = await api.post('/api/shows?show-version=2', { data: converted })
     expect(created.status(), await created.text()).toBe(201)
     const writes = watchShowWrites(page)
 
@@ -1602,22 +1747,27 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
     await injectOverlay(page, bridge.url)
     const sent = page.waitForRequest(request => request.url() === `${bridge.url}/utterance` && request.method() === 'POST')
-    const before = await visibleRecord(page) as unknown as ShowRecord
-    expect(before.composition).toBeUndefined()
+    const before = await visibleRecord(page) as unknown as ShowRecordV2
+    // A v2-open editor holds the v2 record, composition included
+    // (src/agent/editorAdmission.ts getShow).
+    expect(before.composition).toBeDefined()
     const requestId = await submitUtterance(page, RESIZE_UTTERANCE)
-    const sentBody = (await sent).postDataJSON() as { show: ShowRecord }
+    const sentBody = (await sent).postDataJSON() as { show: ShowRecordV2 }
     const request = await waitForDone(page, requestId)
     expect(sentBody.show.composition).toBeDefined()
     expect(request.applied, JSON.stringify(request)).toBe(true)
     const visible = await visibleClipFacts(page, BASELINE_LIBRARY_PATTERN.name)
     expect(visible.durationSeconds).toBe('12')
     await waitForDurable(page, record.id, (show) => firstMain(show)?.durationMs === 12_000)
-    const current = await visibleRecord(page) as unknown as ShowRecord
+    const current = await visibleRecord(page) as unknown as ShowRecordV2
     const expected = structuredClone(sentBody.show)
-    expected.composition!.scenes[0].zones[0].main[0].durationMs = 12_000
+    // The resize lands on the same rank-0 first main the readers use. The
+    // converted record carries no Transition, so nothing ripples
+    // (src/engine/showCommandsV2/clips.ts resize_clip).
+    expected.composition.clips.find((clip) => clip.id === firstMain(expected as unknown as PersistedShow)?.id)!.durationMs = 12_000
     expect(current).toEqual({ ...expected, updatedAt: current.updatedAt })
     expect(await durableShow(page, record.id)).toEqual(current)
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    expect(writes.filter(write => write.method === 'PUT')).toHaveLength(1)
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Show actions' }).click()
     const downloaded = page.waitForEvent('download')

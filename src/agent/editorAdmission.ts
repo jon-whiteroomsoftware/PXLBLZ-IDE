@@ -351,7 +351,9 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
         // The Stage capture is the editor's own; without it there is nothing to
         // check this candidate against and nothing to adopt it into.
         if (!prepared) return store().invalidateShowEditCandidate(request) ?? invalid(request)
-        if (retryResize !== undefined || request.retryOf) return store().invalidateShowEditCandidate(request) ?? invalid(request)
+        // v2 has no stable resize retry: a Retry request (retryOf) is refused,
+        // and the retry-resize hint on an ordinary reply is ignored.
+        if (request.retryOf) return store().invalidateShowEditCandidate(request) ?? invalid(request)
         const existingV2 = store().readShowEditCandidate(sessionId, request.operationId)
         if (existingV2?.status === 'pending') observe(request, 'admitted')
         const receipt = store().deliverShowV2EditCandidate({
