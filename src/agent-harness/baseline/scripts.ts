@@ -103,6 +103,50 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
       { say: 'The requested twelve seconds do not fit. Available range: 0–8000 ms.', intent: 'refuse' },
     ],
   },
+  // Admission matrix rows RN–UI954 and MK951 (#1067 G3a), restored from the
+  // pre-#1039 catalogue on the version-2 commands. Layout intervals are
+  // addressed by the converted record's `layout-occurrence:<n>` ids; the v1
+  // `move_marker` step is an `update_marker` time patch, and the added Marker's
+  // id is the owner's `marker-<at_ms>` (src/engine/showCommandsV2/markers.ts:40).
+  { utterance: 'rename this Show Night Show', intent: '#954: Show and Layout authoring adopts once without device delivery.', script: [{ tool: 'rename_show', args: { name: 'Night Show', finish_turn_reply: { intent: 'apply', reply: 'Updated the Show.' } } }] },
+  { utterance: 'stage this Show on the plane map', intent: '#954: Show and Layout authoring adopts once without device delivery.', script: [{ tool: 'set_stage_map', args: { stage_map_id: 'plane', finish_turn_reply: { intent: 'apply', reply: 'Updated the Show.' } } }] },
+  { utterance: 'target the test controller profile without sending', intent: '#954: Show and Layout authoring adopts once without device delivery.', script: [{ tool: 'set_target_controller_profile', args: { profile_id: 'profile-test', finish_turn_reply: { intent: 'apply', reply: 'Updated the Show.' } } }] },
+  { utterance: 'name the Zone Front with 124 pixels and color abcdef', intent: '#954: Show and Layout authoring adopts once without device delivery.', script: [{ tool: 'update_zone', args: { zone_id: 'zone-1', name: 'Front', nominal_pixel_count: 124, color: '#abcdef', finish_turn_reply: { intent: 'apply', reply: 'Updated the Show.' } } }] },
+  { utterance: 'make the output portable with the plane map and 512 reference pixels', intent: '#954: Show and Layout authoring adopts once without device delivery.', script: [{ tool: 'set_output_contract', args: { kind: 'portable-2d', map_id: 'plane', pixel_count: 512, finish_turn_reply: { intent: 'apply', reply: 'Updated the Show.' } } }] },
+  { utterance: 'enable output Trails at half retention', intent: '#954: Show and Layout authoring adopts once without device delivery.', script: [{ tool: 'set_output_trails', args: { enabled: true, retention: 0.5, finish_turn_reply: { intent: 'apply', reply: 'Updated the Show.' } } }] },
+  { utterance: 'append a one second Layout interval', intent: '#954: Show and Layout authoring adopts once without device delivery.', script: [{ tool: 'add_layout_interval', args: { layout_id: 'layout-1', duration_ms: 1000, finish_turn_reply: { intent: 'apply', reply: 'Updated the Show.' } } }] },
+  { utterance: 'duplicate the first Layout interval empty', intent: '#954: Show and Layout authoring adopts once without device delivery.', script: [{ tool: 'duplicate_layout_interval', args: { interval_id: 'layout-occurrence:1', finish_turn_reply: { intent: 'apply', reply: 'Updated the Show.' } } }] },
+  { utterance: 'make the first Layout interval unique', intent: '#954: Show and Layout authoring adopts once without device delivery.', script: [{ tool: 'make_layout_interval_unique', args: { interval_id: 'layout-occurrence:1', finish_turn_reply: { intent: 'apply', reply: 'Updated the Show.' } } }] },
+  {
+    utterance: 'add move and update the marker',
+    intent: '#951: marker batch adopts once.',
+    script: [
+      { tool: 'add_marker', args: { at_ms: 1000, name: 'New', color: '#f59e0b' } },
+      { tool: 'update_marker', args: { marker_id: 'marker-1000', at_ms: 70000 } },
+      { tool: 'update_marker', args: { marker_id: 'marker-1000', at_ms: 9000, name: 'Final', color: '#38bdf8', finish_turn_reply: { intent: 'apply', reply: 'Added, moved and updated the marker.' } } },
+    ],
+  },
+  {
+    utterance: 'keep the final marker unchanged',
+    intent: '#951: wholly no-op marker batch does not adopt.',
+    script: [
+      { tool: 'update_marker', args: { marker_id: 'marker-1000', at_ms: 9000 } },
+      { tool: 'update_marker', args: { marker_id: 'marker-1000', name: 'Final', color: '#38bdf8', finish_turn_reply: { intent: 'apply', reply: 'The marker is already correct.' } } },
+    ],
+  },
+  {
+    utterance: 'remove the missing marker',
+    intent: '#951: missing removal refuses.',
+    script: [
+      { tool: 'remove_marker', args: { marker_id: 'absent' } },
+      { say: 'That marker does not exist.', intent: 'refuse' },
+    ],
+  },
+  {
+    utterance: 'remove the final marker',
+    intent: '#951: removal preserves all other content.',
+    script: [{ tool: 'remove_marker', args: { marker_id: 'marker-1000', finish_turn_reply: { intent: 'apply', reply: 'Removed the marker.' } } }],
+  },
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */

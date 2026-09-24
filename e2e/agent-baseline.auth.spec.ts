@@ -1790,16 +1790,30 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     record.id = `show-layout-954-${Date.now().toString(36)}`
     return record
   }
+  // UI954 needs a Zone Layout two intervals share: the v2 owner leaves an
+  // interval whose definition is used once unchanged
+  // (src/engine/showCommandsV2/layouts.ts:107). A routing cut after scene-1
+  // converts into a second `layout-1` interval, `layout-occurrence:2`.
+  const sharedLayoutShow954 = () => {
+    const record = admissionShow954()
+    record.transitions.push({ id: 'routing-scene-1', afterSceneId: 'scene-1', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-1' })
+    return record
+  }
+  // A row still pending its v2 re-authoring keeps its v1 expectation as the
+  // source for that slice; the loop registers it as fixme and never calls it.
+  const v1Facts = (facts: (before: ShowRecord) => ShowRecord) => facts as unknown as (before: ShowRecordV2) => ShowRecordV2
   const admissionCases: Array<{
     id: string
     command: string
     args: Record<string, unknown>
     utterance: string
     fixture: () => ShowRecord
-    expectedFacts: (before: ShowRecord) => ShowRecord
+    expectedFacts: (before: ShowRecordV2) => ShowRecordV2
     unchangedUtterances?: string[]
     staleCommand?: { command: string; args: Record<string, unknown> }
     toolbarSplit?: { atMs: number; clipId: string | null; accepted: boolean }
+    /** The G3 slice that re-authors this row on v2; the loop registers it as fixme until then. */
+    pendingV2?: string
   }> = [
     ...[
       { id: 'AE953', command: 'add_clip_effect', args: { clip_id: 'clip-ov', kind: 'opacity', parameters: { opacity: 0.6 } }, utterance: 'add an opacity Effect to the overlay Clip' },
@@ -1819,7 +1833,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         ]
         return record
       },
-      expectedFacts: (before: ShowRecord) => {
+      pendingV2: 'G3c',
+      expectedFacts: v1Facts((before: ShowRecord) => {
         const expected = structuredClone(before)
         const placement = expected.composition!.scenes[0].zones[0].overlays[0].placements[0]
         const effects = placement.effects!
@@ -1829,7 +1844,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         if (row.id === 'ME953') placement.effects = [effects[0], effects[2], effects[1]]
         if (row.id === 'RE953') effects.splice(1, 1)
         return expected
-      },
+      }),
     })),
     ...[
       { id: 'V953', command: 'set_clip_view', args: { clip_id: 'clip-ov', mirror: true, phase: 0.25, brightness: 0.5 }, utterance: 'dim and mirror the overlay Clip' },
@@ -1839,7 +1854,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     ].map(row => ({
       ...row,
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `${row.id.toLowerCase()}-${Date.now().toString(36)}`; return record },
-      expectedFacts: (before: ShowRecord) => {
+      pendingV2: 'G3c',
+      expectedFacts: v1Facts((before: ShowRecord) => {
         const expected = structuredClone(before)
         const composition = expected.composition!
         if (row.id === 'V953') composition.scenes[0].zones[0].overlays[0].placements[0].view = { mirror: true, phase: 0.25, brightness: 0.5 }
@@ -1847,7 +1863,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         if (row.id === 'T953') composition.patternInstances[0].time = { timeScale: 0.5, timeOffsetMs: 250 }
         if (row.id === 'E953') composition.patternInstances[0].evaluationPolicy = 'freeze-at-entry'
         return expected
-      },
+      }),
     })),
 
     ...[
@@ -1863,7 +1879,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         if (row.id === 'DK953') show.composition!.scenes[0].propertyTracks![0].keyframes.splice(1, 0, { id: 'middle', timeMs: 15000, value: 0.5, easing: { curve: 'linear' } })
         return show
       },
-      expectedFacts: (before: ShowRecord) => {
+      pendingV2: 'G3c',
+      expectedFacts: v1Facts((before: ShowRecord) => {
         const expected = structuredClone(before)
         const scene = expected.composition!.scenes[0]
         const track = scene.propertyTracks!.find(track => track.id === 'track-b')!
@@ -1873,50 +1890,50 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         if (row.id === 'DK953') track.keyframes = track.keyframes.filter(key => key.id !== 'middle')
         if (row.id === 'DPT953') scene.propertyTracks = scene.propertyTracks!.filter(track => track.id !== 'track-b')
         return expected
-      },
+      }),
     })),
 
     {
       id: 'ILT952', command: 'insert_layer_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500, easing: 'ease-in' },
       utterance: 'insert a fifteen hundred millisecond Layer crossfade with ease in',
       fixture: () => { const record = showLayerTransitionCommandFixture(); record.id = `layer-insert-952-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => {
+      pendingV2: 'G3d', expectedFacts: v1Facts(before => {
         const expected = structuredClone(before)
         expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.startMs = 11500
         for (const track of expected.composition!.scenes[0].propertyTracks ?? []) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs += 1500
         expected.composition!.transitions = [{ id: 'transition-1', fromPlacementId: 'clip-a', toPlacementId: 'clip-b', kind: 'crossfade', durationMs: 1500, easing: { curve: 'quadratic', direction: 'in' }, crossfadePolicy: 'snapshot-live' }]
         return expected
-      },
+      }),
     },
     {
       id: 'RLT952', command: 'resize_layer_transition', args: { transition_id: 'connected-transition', duration_ms: 1500 },
       utterance: 'make the overlay Layer Transition fifteen hundred milliseconds',
       fixture: () => { const record = showLayerTransitionCommandFixture(true, true); record.id = `layer-resize-952-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => {
+      pendingV2: 'G3d', expectedFacts: v1Facts(before => {
         const expected = structuredClone(before)
         expected.composition!.scenes[0].zones[0].overlays[0].placements.find(clip => clip.id === 'clip-b')!.startMs = 11500
         for (const track of expected.composition!.scenes[0].propertyTracks ?? []) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs += 500
         expected.composition!.transitions![0].durationMs = 1500
         return expected
-      },
+      }),
     },
     {
       id: 'RLC952', command: 'reset_layer_transition_to_cut', args: { transition_id: 'connected-transition' },
       utterance: 'reset the Layer Transition to Cut',
       fixture: () => { const record = showLayerTransitionCommandFixture(false, true); record.id = `layer-cut-952-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => {
+      pendingV2: 'G3d', expectedFacts: v1Facts(before => {
         const expected = structuredClone(before)
         expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.startMs = 10000
         for (const track of expected.composition!.scenes[0].propertyTracks ?? []) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs -= 1000
         expected.composition!.transitions = []
         return expected
-      },
+      }),
     },
     {
       id: 'CCR952', command: 'resize_clip', args: { clip_id: 'clip-b', duration_ms: 9000 },
       utterance: 'make the connected overlay Clip nine seconds',
       fixture: () => { const record = showLayerTransitionCommandFixture(true, true); record.id = `connected-resize-952-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => { const expected = structuredClone(before); expected.composition!.scenes[0].zones[0].overlays[0].placements.find(clip => clip.id === 'clip-b')!.durationMs = 9000; return expected },
+      pendingV2: 'G3b', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.composition!.scenes[0].zones[0].overlays[0].placements.find(clip => clip.id === 'clip-b')!.durationMs = 9000; return expected }),
     },
     {
       id: 'RN954', command: 'rename_show', args: { name: 'Night Show' },
@@ -1957,31 +1974,31 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       utterance: 'enable output Trails at half retention', fixture: admissionShow954,
       expectedFacts: before => ({ ...structuredClone(before), outputEffects: [{ id: 'trails', kind: 'trails', retention: 0.5 }] }),
     },
+    // v2 appends a Layout interval after Show End and extends Show End by its
+    // duration; no Scene, Boundary or empty Scene composition is authored
+    // (src/engine/showCommandsV2/layouts.ts:34, 60). The converted fixture's
+    // one interval is `layout-occurrence:1`, 0–62 000 ms.
     ...[
-      { id: 'AI954', command: 'add_layout_interval', args: { layout_id: 'layout-1', duration_ms: 1000 }, utterance: 'append a one second Layout interval', duration: 1000 },
-      { id: 'DI954', command: 'duplicate_layout_interval', args: { interval_id: 'layout-occurrence-scene-1' }, utterance: 'duplicate the first Layout interval empty', duration: 62000 },
-    ].map(({ duration, ...row }) => ({
+      { id: 'AI954', command: 'add_layout_interval', args: { layout_id: 'layout-1', duration_ms: 1000 }, utterance: 'append a one second Layout interval', occurrenceId: 'layout-interval-62000', duration: 1000 },
+      { id: 'DI954', command: 'duplicate_layout_interval', args: { interval_id: 'layout-occurrence:1' }, utterance: 'duplicate the first Layout interval empty', occurrenceId: 'layout-occurrence-1-copy', duration: 62000 },
+    ].map(({ occurrenceId, duration, ...row }) => ({
       ...row, fixture: admissionShow954,
-      expectedFacts: (before: ShowRecord) => {
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        expected.scenes.push({ id: 'scene-3', name: 'Layout interval', durationMs: duration })
-        expected.transitions.push(
-          { id: 'transition-scene-2', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
-          { id: 'routing-scene-2', afterSceneId: 'scene-2', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-1' },
-        )
-        expected.composition!.scenes.push({ sceneId: 'scene-3', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] })
+        expected.composition.showEndMs += duration
+        expected.composition.layoutOccurrences.push({ id: occurrenceId, layoutId: 'layout-1', startMs: 62000, durationMs: duration, parameters: {} })
         return expected
       },
     })),
     {
-      id: 'UI954', command: 'make_layout_interval_unique', args: { interval_id: 'layout-occurrence-scene-1' },
-      utterance: 'make the first Layout interval unique', fixture: admissionShow954,
+      // v2 clones only the Zone Layout definition; Zones and Clips stay shared
+      // (src/engine/showCommandsV2/layouts.ts:107), where v1 cloned the Zone.
+      id: 'UI954', command: 'make_layout_interval_unique', args: { interval_id: 'layout-occurrence:1' },
+      utterance: 'make the first Layout interval unique', fixture: sharedLayoutShow954,
       expectedFacts: before => {
         const expected = structuredClone(before)
-        expected.zones.push({ ...expected.zones[0], id: 'zone-1-copy' })
-        expected.routingLayouts.unshift({ id: 'layout-1-copy', name: 'Default copy', zones: [], logical: { kind: 'single', zoneIds: ['zone-1-copy'] } })
-        for (const cell of expected.cells) cell.zoneId = 'zone-1-copy'
-        for (const scene of expected.composition!.scenes) scene.zones[0].zoneId = 'zone-1-copy'
+        expected.zoneLayouts.push({ ...structuredClone(before.zoneLayouts[0]), id: 'layout-1-unique', name: 'Default copy' })
+        expected.composition.layoutOccurrences[0].layoutId = 'layout-1-unique'
         return expected
       },
     },
@@ -1989,25 +2006,25 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       id: 'BT952', command: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', variant: 'through-color', duration_ms: 1500 },
       utterance: 'make the Boundary fade through black over fifteen hundred milliseconds',
       fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-kind-952-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => { const expected = structuredClone(before); expected.transitions[0] = { id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'fade-color', durationMs: 1500, easing: { curve: 'linear' }, color: '#000000' }; return expected },
+      pendingV2: 'G3d', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.transitions[0] = { id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'fade-color', durationMs: 1500, easing: { curve: 'linear' }, color: '#000000' }; return expected }),
     },
     {
       id: 'BTT952', command: 'set_boundary_transition_timing', args: { transition_id: 'transition-scene-1', duration_ms: 1500, easing: 'ease-in' },
       utterance: 'set the Boundary to fifteen hundred milliseconds with ease in',
       fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-timing-952-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => { const expected = structuredClone(before); expected.transitions[0].durationMs = 1500; expected.transitions[0].easing = { curve: 'quadratic', direction: 'in' }; return expected },
+      pendingV2: 'G3d', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.transitions[0].durationMs = 1500; expected.transitions[0].easing = { curve: 'quadratic', direction: 'in' }; return expected }),
     },
     {
       id: 'BTP952', command: 'update_boundary_transition_parameter', args: { transition_id: 'transition-scene-1', parameter: 'easing', value: 'sine-in' },
       utterance: 'set the Boundary easing parameter to sine in',
       fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-parameter-952-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => { const expected = structuredClone(before); expected.transitions[0].easing = { curve: 'sine', direction: 'in' }; return expected },
+      pendingV2: 'G3d', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.transitions[0].easing = { curve: 'sine', direction: 'in' }; return expected }),
     },
     {
       id: 'BL952', command: 'set_boundary_layout', args: { transition_id: 'transition-scene-1', layout_id: 'layout-2' },
       utterance: 'switch to the second Layout at the Boundary',
       fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-layout-952-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => { const expected = structuredClone(before); expected.transitions.push({ id: 'routing-scene-1', afterSceneId: 'scene-1', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-2' }); return expected },
+      pendingV2: 'G3d', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.transitions.push({ id: 'routing-scene-1', afterSceneId: 'scene-1', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-2' }); return expected }),
     },
 
     {
@@ -2016,12 +2033,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       args: { zone_id: 'zone-1', start_ms: 29000, duration_ms: 1000, overlay_layer_index: 0, pattern_kind: 'stock', pattern_id: 'CometLoom' },
       utterance: 'add CometLoom to the overlay at twenty nine seconds',
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `add-951-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => {
+      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
         const expected = structuredClone(before)
         expected.composition!.patternInstances.unshift({ id: 'instance-1', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } })
         expected.composition!.scenes[0].zones[0].overlays[0].placements.push({ id: 'clip-1', instanceId: 'instance-1', startMs: 29000, durationMs: 1000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
         return expected
-      },
+      }),
     },
     {
       id: 'IC951',
@@ -2029,14 +2046,14 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       args: { clip_id: 'clip-c' },
       utterance: 'make the third Clip Pattern independent',
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `independent-951-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => {
+      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
         const expected = structuredClone(before)
         expected.composition!.patternInstances.unshift({ ...structuredClone(before.composition!.patternInstances.find(instance => instance.id === 'instance-a')!), id: 'instance-1' })
         expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-c')!.instanceId = 'instance-1'
         const original = before.composition!.scenes[0].propertyTracks!.find(track => track.id === 'track-inst')!
         expected.composition!.scenes[0].propertyTracks!.push({ ...structuredClone(original), id: 'track-inst-instance-1', target: { kind: 'instance-time-scale', instanceId: 'instance-1' }, keyframes: original.keyframes.map(keyframe => ({ ...structuredClone(keyframe), id: `${keyframe.id}-instance-1` })) })
         return expected
-      },
+      }),
     },
     {
       id: 'RJ951',
@@ -2044,13 +2061,13 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       args: { clip_id: 'clip-b', target_clip_id: 'clip-a' },
       utterance: 'rejoin the second Clip to the first Pattern instance',
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `rejoin-951-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => {
+      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
         const expected = structuredClone(before)
         expected.composition!.patternInstances = expected.composition!.patternInstances.filter(instance => instance.id !== 'instance-b')
         expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.instanceId = 'instance-a'
         expected.composition!.scenes[0].propertyTracks = expected.composition!.scenes[0].propertyTracks!.filter(track => track.id !== 'track-inst-b')
         return expected
-      },
+      }),
     },
     {
       id: 'IT951',
@@ -2058,12 +2075,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       args: { at_ms: 29000, duration_ms: 1000 },
       utterance: 'insert one second at twenty nine seconds',
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `insert-time-951-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => {
+      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
         const expected = structuredClone(before)
         expected.scenes[0].durationMs += 1000
         expected.composition!.durationMs = 63000
         return expected
-      },
+      }),
     },
     {
       id: 'SE951',
@@ -2071,12 +2088,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       args: { end_ms: 70000 },
       utterance: 'set Show End to seventy seconds',
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `show-end-951-${Date.now().toString(36)}`; return record },
-      expectedFacts: before => {
+      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
         const expected = structuredClone(before)
         expected.scenes[1].durationMs = 38000
         expected.composition!.durationMs = 70000
         return expected
-      },
+      }),
     },
     {
       id: 'M951',
@@ -2092,12 +2109,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.composition!.transitions = [{ id: 'move-ab', fromPlacementId: 'resize-a', toPlacementId: 'resize-b', kind: 'crossfade', durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' }, crossfadePolicy: 'live-live' }]
         return record
       },
-      expectedFacts: (before: ShowRecord) => {
+      pendingV2: 'G3b', expectedFacts: v1Facts((before: ShowRecord) => {
         const expected = structuredClone(before)
         expected.composition!.scenes[0].zones[0].main[0].startMs = 3000
         expected.composition!.scenes[0].zones[0].main[1].startMs = 6000
         return expected
-      },
+      }),
       unchangedUtterances: ['keep the connected second Clip at six seconds', 'move the connected second Clip to overlay zero']
     },
     {
@@ -2110,7 +2127,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `remove-951-${Date.now().toString(36)}`
         return record
       },
-      expectedFacts: (before: ShowRecord) => {
+      pendingV2: 'G3b', expectedFacts: v1Facts((before: ShowRecord) => {
         const expected = structuredClone(before)
         expected.composition!.scenes[0].zones[0].main.splice(1, 1)
         expected.composition!.patternInstances.splice(1, 1)
@@ -2118,7 +2135,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         expected.composition!.transitions = []
         delete expected.composition!.executionModel
         return expected
-      }
+      })
     },
     {
       id: 'SC951',
@@ -2130,7 +2147,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `split-951-${Date.now().toString(36)}`
         return record
       },
-      expectedFacts: splitFixtureExpected
+      pendingV2: 'G3b',
+      expectedFacts: v1Facts(splitFixtureExpected)
     },
     {
       id: 'DC951',
@@ -2142,12 +2160,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `duplicate-951-${Date.now().toString(36)}`
         return record
       },
-      expectedFacts: (before: ShowRecord) => {
+      pendingV2: 'G3b', expectedFacts: v1Facts((before: ShowRecord) => {
         const expected = structuredClone(before)
         expected.composition!.patternInstances.unshift({ ...structuredClone(before.composition!.patternInstances.find(instance => instance.id === 'instance-ov')!), id: 'instance-1' })
         expected.composition!.scenes[0].zones[0].overlays[0].placements.push({ id: 'clip-1', instanceId: 'instance-1', startMs: 8000, durationMs: 6000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
         return expected
-      }
+      })
     },
     {
       id: 'L951',
@@ -2160,13 +2178,13 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `layer-951-${Date.now().toString(36)}`
         return record
       },
-      expectedFacts: (before: ShowRecord) => {
+      pendingV2: 'G3b', expectedFacts: v1Facts((before: ShowRecord) => {
         const expected = structuredClone(before)
         expected.composition!.scenes[1].zones[0].overlays = [{ id: 'scene-2:zone-1:group-layer:1', name: 'Layer 1', placements: [] }]
         expected.composition!.scenes[0].zones[0].overlays.unshift({ id: 'layer-1', name: 'Layer 3', placements: [] })
         expected.composition!.scenes[1].zones[0].overlays.unshift({ id: 'layer-2', name: 'Layer 3', placements: [] })
         return expected
-      },
+      }),
       staleCommand: { command: 'add_clip', args: { zone_id: 'zone-1', overlay_layer_index: 0, start_ms: 0, duration_ms: 1000, pattern_kind: 'stock', pattern_id: 'CometLoom' } }
     },
     {
@@ -2179,9 +2197,12 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.composition!.markers = [{ id: 'marker-1', timeMs: 4000, name: 'Existing', color: '#ff8800' }]
         return record
       },
-      expectedFacts: (before: ShowRecord) => {
+      // The converted record also carries the scene-label chapter Marker; the
+      // added Marker's id is the owner's `marker-<at_ms>` of its add step,
+      // kept through the later time patches (src/engine/showCommandsV2/markers.ts:40).
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        expected.composition!.markers!.push({ id: 'marker-2', timeMs: 9000, name: 'Final', color: '#38bdf8' })
+        expected.composition.markers.push({ id: 'marker-1000', timeMs: 9000, name: 'Final', color: '#38bdf8' })
         return expected
       },
       unchangedUtterances: ['keep the final marker unchanged', 'remove the missing marker']
@@ -2206,7 +2227,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         }
         return record
       },
-      expectedFacts: (before: ShowRecord) => {
+      pendingV2: 'G3d', expectedFacts: v1Facts((before: ShowRecord) => {
         if (!toolbarSplit.accepted) return structuredClone(before)
         if (toolbarSplit.partition === 'Main') return splitFixtureExpected(before, TOOLBAR_SPLIT_ID)
         const expected = structuredClone(before)
@@ -2214,17 +2235,21 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         clips[0].durationMs = 3000
         clips.push({ id: TOOLBAR_SPLIT_ID, instanceId: 'instance-ov', startMs: 5000, durationMs: 3000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
         return expected
-      },
+      }),
     }))
   ]
 
   // The table owns operation facts; this sequence owns the live admission contract.
   for (const admission of admissionCases) {
-    test(`${admission.id}: ${admission.toolbarSplit ? 'toolbar Split matches selected Split or refuses without saving' : 'command admission saves once, reopens, undoes, refuses stale and deduplicates'}`, async ({ page }) => {
+    // Each row seeds its v1 fixture as a converted v2 Show and counts v2 saves
+    // (PUT /api/shows/<id>?show-version=2). A row still pending its v2
+    // re-authoring (G3b–G3d) is registered as fixme under the same title.
+    const register = admission.pendingV2 ? test.fixme : test
+    register(`${admission.id}: ${admission.toolbarSplit ? 'toolbar Split matches selected Split or refuses without saving' : 'command admission saves once, reopens, undoes, refuses stale and deduplicates'}`, async ({ page }) => {
       test.setTimeout(90000)
       await page.setViewportSize({ width: 1440, height: 900 })
       const record = admission.fixture()
-      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await seedConvertedShowV2(page, record, `baseline ${admission.id}`)
       await page.goto(`studio/shows/${record.id}?agent=1`)
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
       await expect.poll(() => page.evaluate(async () => {
@@ -2232,9 +2257,9 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         return (await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')).useEntityOrganizationStore.getState().loaded.libraries
       })).toBe(true)
       if (!admission.toolbarSplit) await injectOverlay(page, bridge.url)
-      const before = (await visibleRecord(page)) as unknown as ShowRecord
+      const before = (await visibleRecord(page)) as unknown as ShowRecordV2
       const writes = watchShowWrites(page)
-      const successfulSaves = () => writes.filter(write => write.method === 'PATCH' && write.status === 200).length
+      const successfulSaves = () => writes.filter(write => write.method === 'PUT' && write.status === 200).length
       let done: OverlayRequest | null = null
       if (admission.toolbarSplit) {
         await seekToolbarSplit(page, admission.toolbarSplit.atMs)
@@ -2284,19 +2309,16 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       }
       const accepted = admission.toolbarSplit?.accepted ?? true
       await expect.poll(successfulSaves).toBe(accepted ? 1 : 0)
-      const after = (await visibleRecord(page)) as unknown as ShowRecord
+      const after = (await visibleRecord(page)) as unknown as ShowRecordV2
       expect(after).toEqual({ ...admission.expectedFacts(before), updatedAt: after.updatedAt })
       expect(await durableShow(page, record.id)).toEqual(after)
-      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(accepted ? 1 : 0)
+      expect(writes.filter(write => write.method === 'PUT')).toHaveLength(accepted ? 1 : 0)
       await page.keyboard.press('Escape')
       await page.getByRole('button', { name: 'Show actions' }).click()
       const download = page.waitForEvent('download')
       await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
       const file = await download
-      const reopened = await page.evaluate(async bytes => {
-        const load = (path: string) => import(path)
-        return (await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')).parseShowFileBundle(new Uint8Array(bytes))
-      }, [...readFileSync((await file.path())!)])
+      const reopened = await reopenExport(page, (await file.path())!)
       expect(reopened.show).toEqual(after)
       saveRecord(`${admission.id}-export`, reopened)
       if (!accepted) {
@@ -2311,7 +2333,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         expect(outcome.changed, JSON.stringify(outcome)).toBe(false)
         expect(await visibleRecord(page)).toEqual(after)
         expect(await durableShow(page, record.id)).toEqual(after)
-        expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+        expect(writes.filter(write => write.method === 'PUT')).toHaveLength(1)
         saveRecord(`${admission.id}-${utterance.startsWith('keep') ? 'noop' : 'refusal'}`, outcome)
       }
       await page.screenshot({ path: join(REPORT_DIR, `${admission.id}-result.png`), fullPage: true })
@@ -2357,7 +2379,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         const selected = await visibleRecord(page)
         expect(selected).toEqual({ ...after, updatedAt: expect.any(Number) })
         expect(await durableShow(page, record.id)).toEqual(selected)
-        expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(saveCount)
+        expect(writes.filter(write => write.method === 'PUT')).toHaveLength(saveCount)
         await page.getByRole('button', { name: 'Undo Show edit' }).click()
         await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
         await expect.poll(successfulSaves).toBe(saveCount + 1)
@@ -2365,24 +2387,16 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         saveRecord(admission.id, { before, after, selected, writes, reopened })
         return
       }
-      // Capture before the real manual Add menu changes the Show revision.
+      // Capture before the real manual Add menu changes the Show revision. The
+      // v2 catalogue resolves Patterns through the editor's own captured bundle
+      // (src/agent/editorAdmission.ts captureCommandContext), as the bridge does.
       await page.evaluate(async ({ id, command, args }) => {
         const load = (path: string) => import(path)
-        const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-        const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord } }; __admissionPending?: unknown }
+        const { applyShowCommandV2 } = await load('/PXLBLZ-IDE/src/engine/showCommandsV2/registry.ts')
+        const win = window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecordV2 }; captureCommandContext: () => { commandContext: unknown } | undefined }; __admissionPending?: unknown }
         const captured = win.__pxlblzEditor.beginRequest(`${id}-stale`, command, [])
-        const { usePatternStore } = await load('/PXLBLZ-IDE/src/store/patternStore.ts')
-        const { useLibraryStore } = await load('/PXLBLZ-IDE/src/store/libraryStore.ts')
-        const { DEMOS, resolveStockPatternId } = await load('/PXLBLZ-IDE/src/pixelblaze/stock/patterns.ts')
-        const { LIBRARIES } = await load('/PXLBLZ-IDE/src/pixelblaze/libs.ts')
-        const patterns = structuredClone(usePatternStore.getState().userPatterns) as Array<{ id: string; src: string }>
-        const libraries = structuredClone(useLibraryStore.getState().userLibraries) as Array<{ name: string; src: string }>
-        const context = {
-          source: (ref: { kind: string; id: string }) => ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : patterns.find(pattern => pattern.id === ref.id)?.src,
-          libraries: { ...LIBRARIES, ...Object.fromEntries(libraries.map(library => [library.name, library.src])) },
-        }
-        const outcome = applyShowCommand(captured.show, command, args, context)
-        if (!outcome.ok) throw new Error(JSON.stringify(outcome))
+        const outcome = applyShowCommandV2(captured.show, command, args, win.__pxlblzEditor.captureCommandContext()!.commandContext)
+        if (outcome.status === 'refused') throw new Error(JSON.stringify(outcome))
         win.__admissionPending = { captured, candidate: outcome.record }
       }, { id: admission.id, ...(admission.staleCommand ?? { command: admission.command, args: admission.args }) })
       await page.getByRole('button', { name: 'Add to Show', exact: true }).click()
@@ -2396,30 +2410,20 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       expect(stale).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
       expect(await visibleRecord(page)).toEqual(manual)
       expect(await durableShow(page, record.id)).toEqual(manual)
-      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(saveCount)
+      expect(writes.filter(write => write.method === 'PUT')).toHaveLength(saveCount)
       const duplicate = await page.evaluate(async ({ id, command, args }) => {
         const load = (path: string) => import(path)
-        const { applyShowCommand } = await load('/PXLBLZ-IDE/src/engine/showCommands/registry.ts')
-        const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecord }; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
+        const { applyShowCommandV2 } = await load('/PXLBLZ-IDE/src/engine/showCommandsV2/registry.ts')
+        const api = (window as unknown as { __pxlblzEditor: { beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: ShowRecordV2 }; captureCommandContext: () => { commandContext: unknown } | undefined; applyShow: (show: unknown, request: unknown) => Promise<unknown> } }).__pxlblzEditor
         const captured = api.beginRequest(`${id}-duplicate`, command, [])
-        const { usePatternStore } = await load('/PXLBLZ-IDE/src/store/patternStore.ts')
-        const { useLibraryStore } = await load('/PXLBLZ-IDE/src/store/libraryStore.ts')
-        const { DEMOS, resolveStockPatternId } = await load('/PXLBLZ-IDE/src/pixelblaze/stock/patterns.ts')
-        const { LIBRARIES } = await load('/PXLBLZ-IDE/src/pixelblaze/libs.ts')
-        const patterns = structuredClone(usePatternStore.getState().userPatterns) as Array<{ id: string; src: string }>
-        const libraries = structuredClone(useLibraryStore.getState().userLibraries) as Array<{ name: string; src: string }>
-        const context = {
-          source: (ref: { kind: string; id: string }) => ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : patterns.find(pattern => pattern.id === ref.id)?.src,
-          libraries: { ...LIBRARIES, ...Object.fromEntries(libraries.map(library => [library.name, library.src])) },
-        }
-        const outcome = applyShowCommand(captured.show, command, args, context)
-        if (!outcome.ok) throw new Error(JSON.stringify(outcome))
+        const outcome = applyShowCommandV2(captured.show, command, args, api.captureCommandContext()!.commandContext)
+        if (outcome.status === 'refused') throw new Error(JSON.stringify(outcome))
         return { first: await api.applyShow(outcome.record, captured.request), second: await api.applyShow(outcome.record, captured.request) }
       }, { id: admission.id, command: admission.command, args: admission.args })
       expect(duplicate.first).toMatchObject({ status: 'applied' })
       expect(duplicate.second).toMatchObject({ status: 'applied' })
       await expect.poll(successfulSaves).toBe(++saveCount)
-      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(saveCount)
+      expect(writes.filter(write => write.method === 'PUT')).toHaveLength(saveCount)
       expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
       await page.getByRole('button', { name: 'Undo Show edit' }).click()
       await expect.poll(() => visibleRecord(page)).toEqual({ ...manual, updatedAt: expect.any(Number) })
