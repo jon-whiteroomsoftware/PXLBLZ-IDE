@@ -265,6 +265,7 @@ export function convertShowRecordV1ToV2(
     issues,
     report,
   )
+  linkFlatCellClips(clips, report)
   resolvePendingLayerNames(
     layers,
     pendingLayerNames,
@@ -755,6 +756,22 @@ function collectPlacements(
     })
     return [...main, ...overlays]
   }))
+}
+
+function linkFlatCellClips(clips: ShowClipV2[], report: ShowV1ToV2Report): void {
+  const clipById = new Map(clips.map(clip => [clip.id, clip]))
+  for (const mapping of report.flatProjectionMappings) {
+    const placementIds = new Set(mapping.placementIds)
+    const clipIds = new Set(report.clipMappings
+      .filter(clipMapping => clipMapping.sourcePlacementIds.some(id => placementIds.has(id)))
+      .map(clipMapping => clipMapping.clipId))
+    if (clipIds.size < 2) continue
+    // A spanning v1 cell is one Clip to the user, so its Scene and Zone parts share one logical identity, as layout splits do.
+    for (const id of clipIds) {
+      const clip = clipById.get(id)
+      if (clip) clip.logicalClipId = mapping.cellId
+    }
+  }
 }
 
 function convertClips(

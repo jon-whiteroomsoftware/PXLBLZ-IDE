@@ -3,7 +3,7 @@ import { continuingV1Show, convertibleV1Show, flatV1Show } from '../test/showV2T
 import { showRemoveClipFixture } from '../test/showRemoveClipFixture'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
-import { createDefaultShow, showRecordToCompileRecipe } from './showModel'
+import { createDefaultShow, showRecordToCompileRecipe, addShowZone, spanShowCellZones } from './showModel'
 import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
@@ -11,6 +11,8 @@ import { LIBRARIES } from '../pixelblaze/libs'
 import { stockShowById } from '../pixelblaze/stock/shows'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { auditShowV1ToV2Accounting, convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { showV2ClipCount } from './showV2ClipDeletePlanning'
+import { prepareShowStageV2, type ShowPreparedStageDependenciesV2 } from './showPreparedStageV2'
 
 describe('convertShowRecordV1ToV2', () => {
   it('converts global Clip and stable Layer identity without mutating or leaving source paths unaccounted', () => {
@@ -133,6 +135,49 @@ describe('convertShowRecordV1ToV2', () => {
       },
     })
     expect(JSON.stringify(source)).toBe(before)
+  })
+
+  it.each(['Scene', 'Zone'] as const)('links every %s-spanning flat Cell Clip without changing compiled output', (span) => {
+    let source = flatV1Show()
+    if (span === 'Zone') {
+      source.cells[0].sceneSpan = 1
+      source = addShowZone(source, { name: 'Accent' })
+      source = spanShowCellZones(source, source.cells[0].id, 2)
+    }
+    const cell = source.cells[0]
+    const result = convertShowRecordV1ToV2(source, { byCellId: { [cell.id]: 'source' } })
+
+    expect(result).toMatchObject({ status: 'converted' })
+    if (result.status !== 'converted') return
+    const placementIds = new Set(result.report.flatProjectionMappings.find(mapping => mapping.cellId === cell.id)!.placementIds)
+    const clipIds = new Set(result.report.clipMappings
+      .filter(mapping => mapping.sourcePlacementIds.some(id => placementIds.has(id)))
+      .map(mapping => mapping.clipId))
+    const linked = result.record.composition.clips.filter(clip => clipIds.has(clip.id))
+    expect(linked.length).toBeGreaterThanOrEqual(2)
+    expect(linked.every(clip => clip.logicalClipId === cell.id)).toBe(true)
+    expect(showV2ClipCount(result.record)).toBe(1)
+
+    const dependencies: ShowPreparedStageDependenciesV2 = { patterns: [], maps: [], libraries: [], profiles: [], stageMap: null }
+    const prepared = prepareShowStageV2(result.record, dependencies)
+    const unlinked = structuredClone(result.record)
+    for (const clip of unlinked.composition.clips) delete clip.logicalClipId
+    const preparedWithoutLinks = prepareShowStageV2(unlinked, dependencies)
+    expect(prepared.status).toBe('ready')
+    expect(preparedWithoutLinks.status).toBe('ready')
+    if (prepared.status !== 'ready' || preparedWithoutLinks.status !== 'ready') return
+    expect(prepared.bundle.artifact).toEqual(preparedWithoutLinks.bundle.artifact)
+  })
+
+  it('leaves a non-spanning flat Cell Clip without logical identity', () => {
+    const source = flatV1Show()
+    source.cells[0].sceneSpan = 1
+    const result = convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'source' } })
+
+    expect(result).toMatchObject({ status: 'converted' })
+    if (result.status !== 'converted') return
+    expect(result.record.composition.clips).toHaveLength(1)
+    expect(result.record.composition.clips[0].logicalClipId).toBeUndefined()
   })
 
   it('refuses a flat v1 repeat Cell with the retired sampling reason', () => {
