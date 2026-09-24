@@ -918,6 +918,86 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeVisible()
   })
 
+  test('deleting a Pattern\'s last Clip collects its runtime; re-adding creates a fresh one (#1100)', async ({ page }) => {
+    // Orphan collection is a v2 composition rule: v1 has no Pattern instances.
+    test.skip(!showBackingIsV2(), 'Pattern instances exist only on the v2 backing')
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+    const id = new URL(page.url()).pathname.split('/').at(-1)!
+    const stored = async () => (await findStoredShowV2(page, id))!.composition
+    const cometClips = (composition: Awaited<ReturnType<typeof stored>>) => composition.clips.filter((clip) =>
+      composition.patternInstances.find((instance) => instance.id === clip.instanceId)?.patternName === 'CometLoom')
+    const targetsInstance = (composition: Awaited<ReturnType<typeof stored>>, instanceId: string) => composition.propertyTracks
+      .some((track) => 'instanceId' in track.target && track.target.instanceId === instanceId)
+
+    const before = await stored()
+    expect(cometClips(before)).toHaveLength(1)
+    const oldInstanceId = cometClips(before)[0]!.instanceId
+    test.info().annotations.push({ type: 'old instance', description: `${oldInstanceId}; instance tracks: ${targetsInstance(before, oldInstanceId)}` })
+
+    const cometLoom = page.getByRole('button', { name: 'Select CometLoom', exact: true })
+    await expect(cometLoom).toBeVisible()
+    await cometLoom.click()
+    await page.keyboard.press('Delete')
+    await expect(cometLoom).toHaveCount(0)
+    await expect.poll(async () => {
+      const composition = await stored()
+      return {
+        clips: cometClips(composition).length,
+        instance: composition.patternInstances.some((instance) => instance.id === oldInstanceId),
+        tracks: targetsInstance(composition, oldInstanceId),
+      }
+    }).toEqual({ clips: 0, instance: false, tracks: false })
+
+    const playhead = page.getByRole('slider', { name: 'Show playhead' })
+    await playhead.focus()
+    // ArrowRight steps the playhead by one second.
+    for (let step = 0; step < 35; step++) await page.keyboard.press('ArrowRight')
+    await expect(playhead).toHaveValue('35000')
+    await page.getByRole('button', { name: 'Add to Show' }).click()
+    await page.getByRole('menuitem', { name: 'Clip', exact: true }).click()
+    const picker = page.getByRole('dialog', { name: 'Add Clip at playhead' }).getByRole('combobox', { name: 'Pattern for new Clip' })
+    await picker.click()
+    await picker.fill('CometLoom')
+    await page.getByRole('option', { name: 'CometLoom' }).click()
+    await expect(cometLoom).toBeVisible()
+
+    let freshInstanceId = ''
+    await expect.poll(async () => {
+      const clips = cometClips(await stored())
+      freshInstanceId = clips[0]?.instanceId ?? ''
+      return clips.length
+    }).toBe(1)
+    expect(freshInstanceId).not.toBe(oldInstanceId)
+    test.info().annotations.push({ type: 'fresh instance', description: freshInstanceId })
+    const fresh = (await stored()).patternInstances.find((instance) => instance.id === freshInstanceId)!
+    expect(fresh.time).toEqual({ timeScale: 1, timeOffsetMs: 0 })
+    expect(fresh.controlTargets ?? {}).toEqual({})
+
+    // Undo history is session-only (show-state-history-persistence.md), so
+    // both Undos run before the reload that proves what was stored.
+    const undo = page.getByRole('button', { name: 'Undo Show edit' })
+    await undo.click()
+    await expect.poll(async () => {
+      const composition = await stored()
+      return {
+        clips: cometClips(composition).length,
+        instance: composition.patternInstances.some((instance) => instance.id === freshInstanceId),
+      }
+    }).toEqual({ clips: 0, instance: false })
+    await expect(cometLoom).toHaveCount(0)
+
+    await undo.click()
+    await expect.poll(async () => cometClips(await stored()).map((clip) => clip.instanceId)).toEqual([oldInstanceId])
+    await expect(cometLoom).toHaveCount(1)
+
+    await page.reload()
+    await expect(cometLoom).toHaveCount(1)
+    const reloaded = await stored()
+    expect(cometClips(reloaded).map((clip) => clip.instanceId)).toEqual([oldInstanceId])
+    expect(reloaded.patternInstances.some((instance) => instance.id === freshInstanceId)).toBe(false)
+  })
+
   // Restored on the v2 backing (#1086): 5/5 on the host at 48373d37.
   test('reclaims Scene-boundary Transition time after resizing its Clip away (#695)', async ({ page }) => {
     await page.goto('studio/shows')
