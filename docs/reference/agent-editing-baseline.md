@@ -102,6 +102,8 @@ successful authoring does not claim Controller delivery readiness.
 | `npm run agent:smoke`, `npm run agent:corpus -- --fake` | Unchanged from the first slice: bridge path and corpus without an editor. | manual |
 | `npx vitest run src/agent-harness src/dev` | Bridge request-id and phase-clock tests, fixture-set coverage and record-hash pins, the observation log. | `npm test` |
 
+Sequences B5 and TR were deleted (#1067): their subject, the dev drawer's stable resize retry, is version-1-only by contract ([agent candidate application](contracts/agent-candidate-application.md)), so they have no version-2 form (Jon, 2026-09-23).
+
 The suite spawns `BRIDGE_AGENT=scripted npm run agent:bridge` on an ephemeral
 loopback port with `BRIDGE_DELAY_MS=2500`, loads the bridge's own `chat.js`
 into the editor tab, and types into that overlay. Nothing is mocked between

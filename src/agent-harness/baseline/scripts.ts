@@ -8,12 +8,10 @@
 //
 // The browser-sequence catalogue that used to live here named v1 commands
 // (`move_clip`, `set_clip_view`, `set_boundary_transition`, …) against Shows the
-// #945 browser spec seeds as v1 records. Those scripts are retired rather than
-// mechanically renamed: their arguments change shape under the v2 catalogue, and
-// writing scripts nothing exercises would be a guess recorded as evidence. They
-// return with the browser baseline's own re-authoring onto the v2 route, which
-// `docs/reference/agent-editing-baseline.md` records as outstanding. Every entry
-// below runs in this repository's offline suites.
+// #945 browser spec seeded as v1 records. Those scripts were retired rather than
+// mechanically renamed: their arguments change shape under the v2 catalogue.
+// They return one sequence at a time as the browser baseline is re-authored on
+// the v2 route (#1067), each exercised by its browser sequence.
 import { DICTATION_CASES } from '../experiment/cases.js'
 import type { ScriptStep } from '../experiment/corpus.js'
 
@@ -68,6 +66,58 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     utterance: 'set Show End to seventy seconds',
     intent: 'Show End admits once.',
     script: [{ tool: 'set_show_end', args: { end_ms: 70_000, finish_turn_reply: { intent: 'apply', reply: 'Set Show End to seventy seconds.' } } }],
+  },
+  // Browser sequences R, MR and PP (#1067), restored from the pre-#1039
+  // catalogue on the version-2 commands: moves are `update_clips` placement
+  // patches and resizes are `resize_clip`.
+  {
+    utterance: 'swap the two plain Clips through a private overlap',
+    intent: '#949 on v2: the first move overlaps the other Clip, which every v2 command refuses (Clips on one Zone and Layer cannot overlap); nothing is published.',
+    script: [
+      { tool: 'update_clips', args: { updates: [{ clip_id: '$clipAt:0', start_ms: 8000 }] } },
+      { tool: 'update_clips', args: { updates: [{ clip_id: '$clipAt:8000', start_ms: 0 }], finish_turn_reply: { intent: 'apply', reply: 'Swapped the two Clips.' } } },
+    ],
+  },
+  {
+    utterance: 'leave the private overlap incomplete',
+    intent: '#949: no private intermediate is published.',
+    script: [
+      { tool: 'update_clips', args: { updates: [{ clip_id: '$clipAt:0', start_ms: 8000 }] } },
+      { say: 'The private edit is incomplete.', intent: 'incomplete' },
+    ],
+  },
+  {
+    utterance: 'move the second Clip to sixteen seconds then make the first Clip twelve seconds',
+    intent: '#950: move B then resize A, with both intermediate records valid.',
+    script: [
+      { tool: 'update_clips', args: { updates: [{ clip_id: '$clipAt:8000', start_ms: 16_000 }] } },
+      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000, finish_turn_reply: { intent: 'apply', reply: 'Moved the second Clip to sixteen seconds and resized the first to twelve seconds.' } } },
+    ],
+  },
+  {
+    utterance: 'move the second Clip to sixteen seconds then try seventeen seconds for the first',
+    intent: '#950: refused resize must not publish the earlier private move.',
+    script: [
+      { tool: 'update_clips', args: { updates: [{ clip_id: '$clipAt:8000', start_ms: 16_000 }] } },
+      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 17_000 } },
+      { say: 'The first Clip cannot reach seventeen seconds. Neither edit was applied.', intent: 'refuse' },
+    ],
+  },
+  {
+    utterance: 'move the second Clip to sixteen seconds but leave the batch incomplete',
+    intent: '#950: incomplete typed completion must not publish a private move.',
+    script: [
+      { tool: 'update_clips', args: { updates: [{ clip_id: '$clipAt:8000', start_ms: 16_000 }] } },
+      { say: 'The batch is incomplete. No edit was applied.', intent: 'incomplete' },
+    ],
+  },
+  {
+    utterance: 'try twelve seconds with the next Clip at eight',
+    intent: '#950 fixture R: an unconnected neighbour refuses the overlapping resize (v2 ripples only a Transition-connected component) without authoring a candidate.',
+    script: [
+      { tool: 'resize_clip', args: { clip_id: '$clipAt:0', duration_ms: 12_000 } },
+      { say: 'The requested twelve seconds do not fit. Available range: 0–8000 ms.', intent: 'refuse' },
+    ],
   },
 ]
 
