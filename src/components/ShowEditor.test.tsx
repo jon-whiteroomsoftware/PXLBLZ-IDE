@@ -3854,7 +3854,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
-  // v2 port blocked by #1111: the playhead-snapped start resize is refused on release with no v2 write
   it('always snaps a Clip edge to the playhead across a hidden Scene boundary', async () => {
     const show = createDefaultShow('show-resize-playhead-snap', 'Resize to playhead', 1000)
     const zoneId = show.zones[0].id
@@ -3881,10 +3880,17 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         }],
       })),
     }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const editor = openV2EditorForRecord(convertForTest(show))
+    const before = structuredClone(editor.state().record)
+    const converted = before.composition.clips.find((candidate) => candidate.instanceId === 'instance-resize-playhead')!
+    const incoming = before.composition.transitions.filter((transition) => (
+      transition.participants.some((participant) => participant.toClipId === converted.id)
+      || transition.wholeOutput?.toClipIds.includes(converted.id)
+    ))
+    expect(converted).toMatchObject({ startMs: 32_000, durationMs: 5_000 })
+    expect(incoming).toHaveLength(1)
     useShowTransportStore.setState({
-      showId: show.id,
+      showId: editor.showId,
       durationMs: 62_000,
       positionMs: 29_000,
     })
@@ -3894,7 +3900,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       markerSnapEnabled: false,
     })
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
 
     const clip = screen.getByRole('button', { name: 'Select Playhead Trim' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -3912,19 +3918,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     fireEvent.pointerUp(window, { clientX: 291, pointerId: 1 })
 
-    await waitFor(() => {
-      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
-      expect(saved.composition?.scenes[0].zones[0].main).toContainEqual(expect.objectContaining({
-        id: 'placement-resize-playhead',
-        startMs: 29_000,
-        durationMs: 1_000,
-      }))
-      expect(saved.composition?.scenes[1].zones[0].main).toContainEqual(expect.objectContaining({
-        logicalClipId: 'placement-resize-playhead',
-        startMs: 0,
-        durationMs: 5_000,
-      }))
+    await waitFor(() => expect(editor.state().v2Writes).toBe(1))
+    const saved = editor.state().record
+    expect(saved.composition.clips.find((candidate) => candidate.id === converted.id)).toMatchObject({
+      startMs: 29_000,
+      durationMs: 8_000,
     })
+    expect(saved.composition.transitions.map((transition) => transition.id)).not.toContain(incoming[0].id)
+    expect(saved.composition.showEndMs).toBe(before.composition.showEndMs)
   })
 
   it('uses plain feedback without internal IDs for another boundary refusal (#1023)', async () => {
