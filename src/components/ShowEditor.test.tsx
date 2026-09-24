@@ -5858,20 +5858,12 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.queryByRole('group', { name: 'Animation speed lane for edge' })).not.toBeInTheDocument()
   })
 
-  // The delivery consumer needs the Studio route as well as the v2 editor row.
-  function V2DeliveryHarness({ showId }: { showId: string }) {
-    useLayoutEffect(() => {
-      useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: showId } } })
-    }, [showId])
-    return <><ShowEditor showId={showId} recordVersion={2} /><ControllerActionRow /></>
-  }
-
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('offers first-class Run and Save actions for the canonical generated Show (#429)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('offers first-class Run and Save actions for the canonical generated Show (#429)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-send', 'Opening Night', 1000)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -5888,7 +5880,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const provider = new ConnectedControllerProvider()
     setControllerProvider(provider)
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
 
     await user.click(screen.getByRole('button', { name: 'Run' }))
     expect(pushGeneratedArtifact).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -5951,8 +5943,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('keeps active Controller transforms in the source advisory when renderer pressure blocks delivery (#849)', () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('keeps active Controller transforms in the source advisory when renderer pressure blocks delivery (#849)', () => {
     const [, fixture] = buildShowCompositionFreezeCases()
     const show = structuredClone(fixture.show)
     for (const scene of show.composition.scenes) {
@@ -5977,6 +5969,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     profile.globalTransforms = profile.globalTransforms.map((transform) => (
       transform.type === 'power-cap' ? { ...transform, enabled: true, maxDuty: 0.25 } : transform
     ))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: fixture.patterns, patternsLoaded: true })
     useControllerProfileStore.setState({ profilesLoaded: true, profiles: [profile] })
     useControllerStore.setState({
       controllers: {
@@ -5988,9 +5982,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    const editor = openV2EditorForRecord(convertForTest(show, Object.fromEntries(fixture.patterns.map((pattern) => [pattern.id, pattern.src]))))
-    usePatternStore.setState({ userPatterns: fixture.patterns, patternsLoaded: true })
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
 
     expect(screen.getByText(/Output blocked: Peak: [5-9] Patterns per pixel \(limit 4\)\./)).toBeInTheDocument()
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(/Controller transforms \+[\d.]+ KB/)
@@ -6034,8 +6026,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByTestId('show-compile-bar')).not.toHaveTextContent('Controller transforms')
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('disables deployment while rebuilding an updated Show dependency, then sends the current source (#593, #851)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('disables deployment while rebuilding an updated Show dependency, then sends the current source (#593, #851)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-send-current', 'Current source', 1000)
     show.cells[0] = {
@@ -6056,7 +6048,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       updatedAt: 2,
     }
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    const editor = openV2EditorForRecord(convertForTest(show, { [oldPattern.id]: oldPattern.src }))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePatternStore.setState({ userPatterns: [oldPattern], patternsLoaded: true })
     useControllerStore.setState({
       controllers: {
@@ -6074,7 +6066,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const provider = new ConnectedControllerProvider()
     setControllerProvider(provider)
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     const run = screen.getByRole('button', { name: 'Run' })
     const save = screen.getByRole('button', { name: 'Save' })
     act(() => {
@@ -6102,14 +6094,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(source).not.toContain('0.1234567')
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('confirms a Controller renderer adaptation before sending the adapted Show (#429)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('confirms a Controller renderer adaptation before sending the adapted Show (#429)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-adapt', 'Spatial Show', 1000)
     show = { ...show, stageMapId: 'plane' }
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6122,7 +6114,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const provider = new ConnectedControllerProvider()
     setControllerProvider(provider)
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Run' }))
 
     expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
@@ -6135,8 +6127,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })))
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('retires a pending send confirmation when its prepared Show dependency changes (#851)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('retires a pending send confirmation when its prepared Show dependency changes (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-send-retire', 'Retire stale confirmation', 1000)
     show = { ...show, stageMapId: 'plane' }
@@ -6159,7 +6151,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       updatedAt: 2,
     }
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    const editor = openV2EditorForRecord(convertForTest(show, { [oldPattern.id]: oldPattern.src }))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePatternStore.setState({ userPatterns: [oldPattern], patternsLoaded: true })
     useControllerStore.setState({
       controllers: {
@@ -6172,7 +6164,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     const run = screen.getByRole('button', { name: 'Run' })
     await user.click(run)
     expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
@@ -6193,8 +6185,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(source).not.toContain('0.1234567')
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('does not submit a confirmed Save after preview generation outlives its prepared Show (#851)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('does not submit a confirmed Save after preview generation outlives its prepared Show (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-save-stale-preview', 'Stale preview Save', 1000)
     show = { ...show, stageMapId: 'plane' }
@@ -6220,7 +6212,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg')
       .mockReturnValue(new Promise((resolve) => { resolvePreview = resolve }))
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    const editor = openV2EditorForRecord(convertForTest(show, { [oldPattern.id]: oldPattern.src }))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePatternStore.setState({ userPatterns: [oldPattern], patternsLoaded: true })
     useControllerStore.setState({
       controllers: {
@@ -6234,7 +6226,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     setControllerProvider(new ConnectedControllerProvider())
 
     try {
-      render(<V2DeliveryHarness showId={editor.showId} />)
+      render(<ShowDeliveryHarness showId={show.id} />)
       await user.click(screen.getByRole('button', { name: 'Save' }))
       expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
@@ -6256,8 +6248,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('reports a confirmed Save whose Controller session changes during preview generation (#851)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('reports a confirmed Save whose Controller session changes during preview generation (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-save-session-preview', 'Session preview Save', 1000)
     show = { ...show, stageMapId: 'plane' }
@@ -6266,7 +6258,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg')
       .mockReturnValue(new Promise((resolve) => { resolvePreview = resolve }))
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6279,7 +6271,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     setControllerProvider(new ConnectedControllerProvider())
 
     try {
-      render(<V2DeliveryHarness showId={editor.showId} />)
+      render(<ShowDeliveryHarness showId={show.id} />)
       await user.click(screen.getByRole('button', { name: 'Save' }))
       const confirmedSave = user.click(screen.getByRole('button', { name: 'Send anyway' }))
       await waitFor(() => expect(previewJpeg).toHaveBeenCalledTimes(1))
@@ -6304,15 +6296,15 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('retires a pending send confirmation when the Controller session changes (#851)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('retires a pending send confirmation when the Controller session changes (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-session-retire', 'Retire Controller session', 1000)
     show = { ...show, stageMapId: 'plane' }
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
     const provider = new ConnectedControllerProvider()
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6324,7 +6316,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(provider)
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Run' }))
     expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
@@ -6335,15 +6327,15 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('keeps a pending send confirmation through a same-Controller status refresh (#851)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('keeps a pending send confirmation through a same-Controller status refresh (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-session-refresh', 'Keep Controller confirmation', 1000)
     show = { ...show, stageMapId: 'plane' }
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
     const provider = new ConnectedControllerProvider()
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6355,7 +6347,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(provider)
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Run' }))
     expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
@@ -6371,8 +6363,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('keeps deployment disabled with the Show compilation failure after rebuilding (#851)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('keeps deployment disabled with the Show compilation failure after rebuilding (#851)', async () => {
     const show = createDefaultShow('show-send-failure', 'Failed rebuild', 1000)
     show.cells[0] = {
       ...show.cells[0],
@@ -6391,7 +6383,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       src: 'export function render(index) { rgb(',
       updatedAt: 2,
     }
-    const editor = openV2EditorForRecord(convertForTest(show, { [validPattern.id]: validPattern.src }))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePatternStore.setState({ userPatterns: [validPattern], patternsLoaded: true })
     useControllerStore.setState({
       controllers: {
@@ -6409,7 +6401,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     const run = screen.getByRole('button', { name: 'Run' })
     act(() => usePatternStore.setState({ userPatterns: [brokenPattern] }))
 
@@ -6428,18 +6420,19 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('dismisses pending Controller delivery when navigating to another Show (#593)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('dismisses pending Controller delivery when navigating to another Show (#593)', async () => {
     const user = userEvent.setup()
     let firstShow = createDefaultShow('show-pending-first', 'Pending first', 1000)
     firstShow = { ...firstShow, stageMapId: 'plane' }
     firstShow = updateShowTransition(firstShow, firstShow.scenes[0].id, 'portal', 2000, 0.1)
     const secondShow = createDefaultShow('show-pending-second', 'Pending second', 1000)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    const editor = openV2EditorForRecord(convertForTest(firstShow))
-    useShowStore.setState((state) => ({
-      showV2Pilots: { ...state.showV2Pilots, [secondShow.id]: convertForTest(secondShow) },
-    }))
+    useShowStore.setState({
+      shows: [firstShow, secondShow],
+      activeShowId: firstShow.id,
+      showsLoaded: true,
+    })
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6451,25 +6444,25 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    const view = render(<V2DeliveryHarness showId={editor.showId} />)
+    const view = render(<ShowDeliveryHarness showId={firstShow.id} />)
     await user.click(screen.getByRole('button', { name: 'Run' }))
     expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
-    view.rerender(<V2DeliveryHarness showId={secondShow.id} />)
+    view.rerender(<ShowDeliveryHarness showId={secondShow.id} />)
 
     expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Send anyway' })).not.toBeInTheDocument()
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('dismisses pending Controller delivery when the active Controller changes (#593)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('dismisses pending Controller delivery when the active Controller changes (#593)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-pending-controller', 'Pending Controller', 1000)
     show = { ...show, stageMapId: 'plane' }
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6484,7 +6477,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Run' }))
     expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
 
@@ -6558,8 +6551,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('blocks a known-invalid Installation Controller target without changing its map (#437)', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('blocks a known-invalid Installation Controller target without changing its map (#437)', async () => {
     const user = userEvent.setup()
     const show = createShowWithOutputContract(
       'show-fixed',
@@ -6567,7 +6560,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
       1000,
     )
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerProfileStore.setState({
       profilesLoaded: true,
       profiles: [{
@@ -6601,7 +6594,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Run' }))
 
     expect(screen.getByTestId('controller-show-preflight-dialog')).toHaveTextContent(
@@ -6611,8 +6604,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(useControllerStore.getState().pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('does not reinterpret map push history as the live installed map', async () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('does not reinterpret map push history as the live installed map', async () => {
     const user = userEvent.setup()
     const show = createShowWithOutputContract(
       'show-live-map-truth',
@@ -6620,7 +6613,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
       1000,
     )
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerProfileStore.setState({
       profilesLoaded: true,
       profiles: [{
@@ -6658,7 +6651,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Run' }))
 
     const dialog = screen.getByTestId('controller-show-preflight-dialog')
@@ -6688,10 +6681,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(compileBar).not.toHaveTextContent(/arena|free|render target:|cache plan:|crossfade:|est\. \d+ fps|steady state|worst instant:/i)
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('surfaces a Controller rejection as a visible alert without hover (#849)', () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('surfaces a Controller rejection as a visible alert without hover (#849)', () => {
     const show = createDefaultShow('show-push-failure', 'Push failure', 1000)
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerStore.setState({
       artifactPushResult: {
         ok: false,
@@ -6702,7 +6695,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       saveArmed: false,
     })
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
 
     const alert = screen.getByRole('alert')
     expect(alert).toBeVisible()
@@ -6710,10 +6703,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByRole('button', { name: 'Dismiss Save failure' })).toBeInTheDocument()
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('does not attribute another Show failure to the open Show (#849)', () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('does not attribute another Show failure to the open Show (#849)', () => {
     const show = createDefaultShow('show-current', 'Current Show', 1000)
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerStore.setState({
       artifactPushResult: {
         ok: false,
@@ -6723,17 +6716,17 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       },
     })
 
-    render(<V2DeliveryHarness showId={editor.showId} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  // DEFECT: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
-  it.skip('keeps a Show push failure visible until dismissal (#849)', () => {
+  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  it('keeps a Show push failure visible until dismissal (#849)', () => {
     vi.useFakeTimers()
     try {
       const show = createDefaultShow('show-persistent-failure', 'Persistent failure', 1000)
-      const editor = openV2EditorForRecord(convertForTest(show))
+      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
       useControllerStore.setState({
         artifactPushResult: {
           ok: false,
@@ -6743,7 +6736,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         },
       })
 
-      render(<V2DeliveryHarness showId={editor.showId} />)
+      render(<ShowDeliveryHarness showId={show.id} />)
       act(() => vi.advanceTimersByTime(4_000))
 
       expect(screen.getByRole('alert')).toHaveTextContent('Run failed: activation timed out')
