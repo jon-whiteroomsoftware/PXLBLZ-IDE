@@ -105,6 +105,55 @@ function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   }
 }
 
+function memoryProviderV2(seed: ShowRecordV2[] = []) {
+  const stored = [...seed]
+  const deleted: string[] = []
+  const provider = {
+    id: 'memory-v2-test',
+    listShows: async () => [],
+    listShowDocumentsV2: async () => stored.map(record => structuredClone(record)),
+    createShowV2: async (record: ShowRecordV2) => { stored.push(structuredClone(record)) },
+    replaceShowV2: async (id: string, record: ShowRecordV2) => {
+      const index = stored.findIndex(candidate => candidate.id === id)
+      if (index < 0) throw new Error(`No stored v2 Show "${id}".`)
+      stored[index] = structuredClone(record)
+    },
+    deleteShow: async (id: string) => {
+      deleted.push(id)
+      const index = stored.findIndex(candidate => candidate.id === id)
+      if (index >= 0) stored.splice(index, 1)
+    },
+    setLastActive: async () => {},
+  } as unknown as PersonalContentProvider
+  setPersonalContentProvider(provider)
+  return { provider, stored, deleted }
+}
+
+function gateV2(enabled: boolean): void {
+  window.history.replaceState({}, '', enabled ? '/studio?show-v2-editor=1' : '/studio')
+}
+
+function v2ProviderForPort(seedV2: ShowRecordV2[] = []) {
+  const stored = [...seedV2.map((record) => structuredClone(record))]
+  const provider = {
+    id: 'memory-v2-port',
+    listShows: async () => [],
+    listShowDocumentsV2: async () => stored.map((record) => structuredClone(record)),
+    createShowV2: async (record: ShowRecordV2) => { stored.push(structuredClone(record)) },
+    replaceShowV2: async (id: string, record: ShowRecordV2) => {
+      const index = stored.findIndex((candidate) => candidate.id === id)
+      if (index < 0) throw new Error(`No stored v2 Show "${id}".`)
+      stored[index] = structuredClone(record)
+    },
+    deleteShow: async (id: string) => {
+      const index = stored.findIndex((candidate) => candidate.id === id)
+      if (index >= 0) stored.splice(index, 1)
+    },
+  } as unknown as PersonalContentProvider
+  setPersonalContentProvider(provider)
+  return { stored, provider: provider as unknown as PersonalContentProvider & { listShowDocumentsV2: () => Promise<ShowRecordV2[]>; replaceShowV2: (id: string, record: ShowRecordV2) => Promise<void> } }
+}
+
 function deferred(): {
   promise: Promise<void>
   resolve: () => void
@@ -142,6 +191,8 @@ beforeEach(() => {
   useShowStore.setState(showInitialState)
   useMapStore.setState(mapInitialState)
 })
+
+afterEach(() => gateV2(false))
 
 describe('showStore (#318)', () => {
   /* #1042 P2c-1a deletions (COVERED/REPRESENTATION): each deleted v1 test is covered by the cited v2 test.
@@ -903,27 +954,7 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().showV2Pilots[id].composition).toEqual(edited.record.composition)
   })
 
-function v2ProviderForPort(seedV2: ShowRecordV2[] = []) {
-  const stored = [...seedV2.map((record) => structuredClone(record))]
-  const provider = {
-    id: 'memory-v2-port',
-    listShows: async () => [],
-    listShowDocumentsV2: async () => stored.map((record) => structuredClone(record)),
-    createShowV2: async (record: ShowRecordV2) => { stored.push(structuredClone(record)) },
-    replaceShowV2: async (id: string, record: ShowRecordV2) => {
-      const index = stored.findIndex((candidate) => candidate.id === id)
-      if (index < 0) throw new Error(`No stored v2 Show "${id}".`)
-      stored[index] = structuredClone(record)
-    },
-    deleteShow: async (id: string) => {
-      const index = stored.findIndex((candidate) => candidate.id === id)
-      if (index >= 0) stored.splice(index, 1)
-    },
-  } as unknown as PersonalContentProvider
-  setPersonalContentProvider(provider)
-  return { stored, provider: provider as unknown as PersonalContentProvider & { listShowDocumentsV2: () => Promise<ShowRecordV2[]>; replaceShowV2: (id: string, record: ShowRecordV2) => Promise<void> } }
-}
-
+  /* COVERED: "undoes and redoes draft edits entirely in memory" — src/store/showV2LessonDraft.test.ts:64. */
   it('keeps Show creation provisional and restores the previously open Show on cancel (#434)', async () => {
     const previous = createDefaultShow('show-previous', 'Previous', 1)
     setPersonalContentProvider(memoryProvider([previous]))
@@ -945,27 +976,27 @@ function v2ProviderForPort(seedV2: ShowRecordV2[] = []) {
   })
 
   it('persists and reloads configured Shows only when final creation is requested (#434)', async () => {
-    const provider = memoryProvider()
-    setPersonalContentProvider(provider)
+    gateV2(true)
+    const { stored } = memoryProviderV2()
     const portable = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
 
-    expect(useShowStore.getState().shows).toEqual([])
-    const created = await useShowStore.getState().createNewShow({ name: 'Touring field', outputContract: portable })
+    expect(useShowStore.getState().showV2Rows).toEqual([])
+    const created = await useShowStore.getState().createNewShowV2({ name: 'Touring field', outputContract: portable })
+    expect(stored).toHaveLength(1)
     useShowStore.setState(showInitialState)
     await useShowStore.getState().loadShows()
+    await useShowStore.getState().openShowV2Pilot(created.id)
 
     expect(created).toMatchObject({
       name: 'Touring field',
       stageMapId: 'plane',
       outputContract: portable,
     })
-    expect(useShowStore.getState().shows).toEqual([expect.objectContaining({
-      id: created.id,
-      outputContract: portable,
-    })])
+    expect(useShowStore.getState().showV2Rows).toEqual([expect.objectContaining({ id: created.id })])
+    expect(useShowStore.getState().showV2Pilots[created.id]).toMatchObject({ outputContract: portable })
 
     const installation = createInstallationShowOutputContract({ outputMapId: 'custom-map', pixelCount: 240 })
-    const installed = await useShowStore.getState().createNewShow({ name: 'Lobby wall', outputContract: installation })
+    const installed = await useShowStore.getState().createNewShowV2({ name: 'Lobby wall', outputContract: installation })
     expect(installed).toMatchObject({
       stageMapId: 'custom-map',
       zones: [expect.objectContaining({ nominalPixelCount: 240 })],
@@ -973,6 +1004,7 @@ function v2ProviderForPort(seedV2: ShowRecordV2[] = []) {
     })
   })
 
+  // v2 port blocked by #TBD: loadShows leaves v2 rows in provider order instead of recency order.
   it('loads shows sorted by recency and opens one as active', async () => {
     const older = createDefaultShow('show-1', 'Older', 1)
     const newer = createDefaultShow('show-2', 'Newer', 2)
@@ -1493,11 +1525,8 @@ function v2ProviderForPort(seedV2: ShowRecordV2[] = []) {
   })
 
   it('seeds and persists a show stage map from controller imports', async () => {
-    const provider = memoryProvider()
-    const createShow = vi.spyOn(provider, 'createShow')
-    const createShowV2 = vi.fn(async (_record: ShowRecordV2) => {})
-    provider.createShowV2 = createShowV2
-    setPersonalContentProvider(provider)
+    const { provider, stored } = memoryProviderV2()
+    const createShowV2 = vi.spyOn(provider, 'createShowV2')
     useMapStore.setState({
       userMaps: [
         {
@@ -1552,16 +1581,14 @@ function v2ProviderForPort(seedV2: ShowRecordV2[] = []) {
     // #775: without a last known pixel count the contract falls back to 60.
     expect(seeded.outputContract).toMatchObject({ kind: 'installation', pixelCount: 60 })
     expect(createShowV2).toHaveBeenCalledExactlyOnceWith(seeded)
-    expect(createShow).not.toHaveBeenCalled()
+    expect(stored).toEqual([seeded])
     expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toContain(seeded.id)
-    expect(useShowStore.getState().shows).toEqual([])
+    expect(useShowStore.getState().showV2Pilots[seeded.id]).toEqual(seeded)
   })
 
   it('names a controller-seeded Show uniquely across v1 and v2 rows', async () => {
-    const provider = memoryProvider()
-    provider.createShowV2 = vi.fn(async (_record: ShowRecordV2) => {})
-    setPersonalContentProvider(provider)
-    await useShowStore.getState().createNewShow({
+    memoryProviderV2()
+    await useShowStore.getState().createNewShowV2({
       name: 'North Arch Show',
       outputContract: createPortableShowOutputContract({ referenceMapId: null, referencePixelCount: 60 }),
     })
@@ -1580,6 +1607,7 @@ function v2ProviderForPort(seedV2: ShowRecordV2[] = []) {
       updatedAt: 1,
     })
 
+    // patternName.ts:1 starts duplicate suffixes at 1 for the v2 row names.
     expect(seeded.name).toBe('North Arch Show 2')
   })
 })
@@ -1606,47 +1634,36 @@ describe('built-in Show session drafts (#363)', () => {
     expect(stockShowById(STOCK_ID)!.show.scenes).toHaveLength(base.scenes.length)
   })
 
-  it('undoes and redoes draft edits entirely in memory', async () => {
-    setPersonalContentProvider(memoryProvider())
-
-    await useShowStore.getState().addScene(STOCK_ID)
-    const edited = useShowStore.getState().stockShowDrafts[STOCK_ID]
-
-    expect(await useShowStore.getState().undoShow(STOCK_ID)).toBe(true)
-    expect(useShowStore.getState().stockShowDrafts[STOCK_ID].scenes).toHaveLength(edited.scenes.length - 1)
-    expect(await useShowStore.getState().redoShow(STOCK_ID)).toBe(true)
-    expect(useShowStore.getState().stockShowDrafts[STOCK_ID].scenes).toHaveLength(edited.scenes.length)
-  })
-
   it('keeps complete stock draft records and history paired across stale-stamped edits (#948)', async () => {
-    setPersonalContentProvider(memoryProvider())
+    memoryProviderV2()
     const now = vi.spyOn(Date, 'now')
-    const base = useShowStore.getState().resolveEditableShow(STOCK_ID)!
+    const base = stockShowV2ById(STOCK_ID)!
+    await useShowStore.getState().openShowV2Pilot(STOCK_ID)
 
     try {
       now.mockReturnValue(100)
-      await useShowStore.getState().updateShow(STOCK_ID, { ...base, name: 'Draft A', updatedAt: 0 })
+      await useShowStore.getState().updateShowV2Pilot(STOCK_ID, { ...base, name: 'Draft A', updatedAt: 0 })
       const draftA = { ...base, name: 'Draft A', updatedAt: base.updatedAt + 1 }
-      expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toEqual(draftA)
-      expect(useShowStore.getState().showHistories[STOCK_ID]).toEqual({ past: [base], future: [] })
+      expect(useShowStore.getState().showV2Pilots[STOCK_ID]).toEqual(draftA)
+      expect(useShowStore.getState().showV2Histories[STOCK_ID]).toEqual({ past: [base], future: [] })
 
       now.mockReturnValue(101)
-      await useShowStore.getState().updateShow(STOCK_ID, { ...draftA, name: 'Draft B', updatedAt: 0 })
+      await useShowStore.getState().updateShowV2Pilot(STOCK_ID, { ...draftA, name: 'Draft B', updatedAt: 0 })
       const draftB = { ...draftA, name: 'Draft B', updatedAt: draftA.updatedAt + 1 }
-      expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toEqual(draftB)
-      expect(useShowStore.getState().showHistories[STOCK_ID]).toEqual({ past: [base, draftA], future: [] })
+      expect(useShowStore.getState().showV2Pilots[STOCK_ID]).toEqual(draftB)
+      expect(useShowStore.getState().showV2Histories[STOCK_ID]).toEqual({ past: [base, draftA], future: [] })
 
       now.mockReturnValue(102)
-      await expect(useShowStore.getState().undoShow(STOCK_ID)).resolves.toBe(true)
+      await expect(useShowStore.getState().undoShowV2Pilot(STOCK_ID)).resolves.toBe(true)
       const undoneA = { ...draftA, updatedAt: draftB.updatedAt + 1 }
-      expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toEqual(undoneA)
-      expect(useShowStore.getState().showHistories[STOCK_ID]).toEqual({ past: [base], future: [draftB] })
+      expect(useShowStore.getState().showV2Pilots[STOCK_ID]).toEqual(undoneA)
+      expect(useShowStore.getState().showV2Histories[STOCK_ID]).toEqual({ past: [base], future: [draftB] })
 
       now.mockReturnValue(103)
-      await expect(useShowStore.getState().redoShow(STOCK_ID)).resolves.toBe(true)
+      await expect(useShowStore.getState().redoShowV2Pilot(STOCK_ID)).resolves.toBe(true)
       const redoneB = { ...draftB, updatedAt: undoneA.updatedAt + 1 }
-      expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toEqual(redoneB)
-      expect(useShowStore.getState().showHistories[STOCK_ID]).toEqual({ past: [base, undoneA], future: [] })
+      expect(useShowStore.getState().showV2Pilots[STOCK_ID]).toEqual(redoneB)
+      expect(useShowStore.getState().showV2Histories[STOCK_ID]).toEqual({ past: [base, undoneA], future: [] })
     } finally {
       now.mockRestore()
     }
