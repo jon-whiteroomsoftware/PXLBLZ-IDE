@@ -655,13 +655,14 @@ it.
 | `npm run test:e2e` (unauthenticated) | required runner evidence at pre-push |
 | `npm run test:e2e:auth-smoke` | required runner evidence at pre-push |
 | `npm run test:e2e:shows` | required runner evidence at pre-push |
-| `npm run test:e2e:shows:v1` | diagnostic of unconverted-row behavior, gates nothing |
 | `npm run test:e2e:auth-full` (every auth spec) | manual |
 
-The required Show suite runs on the v2 backing since #1067 activation.
-`show-boundary-deletion.auth.spec.ts` runs in that same required suite on the v1 backing because it covers the v1 editor, which still serves unconverted rows until #1042.
-`PXLBLZ_SHOW_BACKING=v1` runs the unmodified `e2e/shows.auth.spec.ts` against
-v1-stored rows as a diagnostic of unconverted-row behavior; it gates nothing.
+The required Show suite runs on the v2 backing since #1067 activation, and
+since #1042 every authenticated spec seeds and reads version-2 Shows only
+(`seedShowV2` in `e2e/support/showBackingRecords.ts`). The v1 backing, its
+`test:e2e:shows:v1` diagnostic and the #1065 editor-equivalence spec were
+retired with v1 authoring; `show-boundary-deletion.auth.spec.ts` now runs in
+the required suite on v2.
 The v2 Show suite runs two workers because each worker's authenticated account pool
 (64 accounts, 360 s reuse) cannot cover all 87 tests in one fast pass (#1088).
 

@@ -25,6 +25,7 @@ import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Page, Request } from '@playwright/test'
 import { expect, test } from './fixtures/authenticated'
+import { seedShowV2 } from './support/showBackingRecords'
 import {
   BASELINE_LIBRARY,
   BASELINE_LIBRARY_PATTERN,
@@ -34,8 +35,6 @@ import {
 } from '../src/agent-harness/baseline/fixtures'
 import type { ShowRecord } from '../src/engine/personalContentRecords'
 import type { ShowRecordV2 } from '../src/engine/showCompositionV2'
-import { createShowWithOutputContract } from '../src/engine/showModel'
-import { createInstallationShowOutputContract } from '../src/engine/showOutputContract'
 import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { showOverlayLayerFixture } from '../src/test/showOverlayLayerFixture'
 import { showSplitClipFixture } from '../src/test/showSplitClipFixture'
@@ -338,27 +337,6 @@ function captureCompleteWrites(showId: string): { completeWrites: unknown[]; cap
 }
 
 /**
- * Seed one version-1 personal Show and open it with the Agent capability on.
- *
- * B2-only: its subject is the version-1 editor's agent binding and route
- * gating, so it seeds the row it means, in the shape the flow's Installation
- * defaults built. Every other sequence seeds version 2.
- */
-async function createPersonalShowV1(page: Page): Promise<string> {
-  const show = createShowWithOutputContract(
-    randomUUID(),
-    'Untitled Show',
-    createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 256 }),
-  )
-  const created = await page.context().request.post('/api/shows', { data: show })
-  expect(created.ok(), await created.text()).toBe(true)
-  await page.goto(`studio/shows/${show.id}?agent=1`)
-  await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}\\?agent=1$`))
-  await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-  return show.id
-}
-
-/**
  * Seed one version-2 personal Show and open it with the Agent capability on.
  *
  * Builds the record through the product's own fresh-Show builder
@@ -390,22 +368,14 @@ async function createPersonalShowV2(page: Page): Promise<string> {
 
 /**
  * Seed one pinned legacy fixture as a version-2 personal Show, without
- * opening it. The record converts through the app's own converter
- * (src/agent-harness/baseline/fixturesV2.ts convertBaselineRecord) inside the
- * page, for the loader reason createPersonalShowV2 names, and is created
- * through the product's own create call (POST /api/shows?show-version=2).
+ * opening it, through the shared seeding helper
+ * (e2e/support/showBackingRecords.ts seedShowV2). The 2D Stage matches the
+ * harness's own fixture conversion
+ * (src/agent-harness/baseline/fixturesV2.ts convertBaselineRecord).
  */
 async function seedConvertedShowV2(page: Page, record: ShowRecord, label: string, edit?: (converted: ShowRecordV2) => void): Promise<ShowRecordV2> {
   await page.goto('studio/shows')
-  const converted = (await page.evaluate(async (input) => {
-    const load = (path: string) => import(path)
-    const { convertBaselineRecord } = await load('/PXLBLZ-IDE/src/agent-harness/baseline/fixturesV2.ts')
-    return convertBaselineRecord(input.source, input.label, [])
-  }, { source: record, label })) as ShowRecordV2
-  edit?.(converted)
-  const created = await page.context().request.post('/api/shows?show-version=2', { data: converted })
-  expect(created.status(), await created.text()).toBe(201)
-  return converted
+  return seedShowV2(page, record, label, { stageDimension: 2, edit })
 }
 
 /** A copy of a version-2 record with one Clip's duration replaced. */
@@ -535,24 +505,6 @@ function summarizeDurableShow(show: PersistedShow | undefined): string {
   return `mains=[${mains}] transitions=${show.composition?.transitions?.length ?? 0} layers=${show.composition?.layers?.length ?? 0}`
 }
 
-async function durableShowV1(page: Page, id: string): Promise<PersistedShow | undefined> {
-  const response = await page.context().request.get('/api/shows')
-  expect(response.ok()).toBe(true)
-  const { shows } = (await response.json()) as { shows: PersistedShow[] }
-  return shows.find((show) => show.id === id)
-}
-
-async function waitForDurableV1(page: Page, id: string, predicate: (show: PersistedShow) => boolean): Promise<void> {
-  await expect.poll(async () => {
-    try {
-      const show = await durableShowV1(page, id)
-      return show ? predicate(show) : false
-    } catch {
-      return false
-    }
-  }).toBe(true)
-}
-
 /**
  * Main Clips of a version-2 record in timeline order: the Clips on the rank-0
  * Layer of the first Zone, sorted by startMs. Brightness is the Clip's held
@@ -578,43 +530,6 @@ function mainPlacements(show: PersistedShow | undefined): MainFacts[] {
 
 function firstMain(show: PersistedShow | undefined): MainFacts | undefined {
   return mainPlacements(show)[0]
-}
-
-/**
- * Main placements of a version-1 record in timeline order, read from the
- * composition when the record carries one and from the flat cells otherwise
- * (a Clip delete through the legacy path can leave the record flat).
- * B2/D957-only: they seed version-1 rows.
- */
-function mainPlacementsV1(show: PersistedShow | undefined): MainFacts[] {
-  if (!show) return []
-  if (show.composition?.scenes) {
-    return show.composition.scenes.flatMap((scene) => (scene.zones[0]?.main ?? []).map((placement) => ({
-      id: placement.id,
-      startMs: placement.startMs,
-      durationMs: placement.durationMs,
-      brightness: placement.view?.brightness ?? 1,
-    })))
-  }
-  let cursor = 0
-  const starts = new Map<string, number>()
-  for (const scene of show.scenes ?? []) {
-    starts.set(scene.id, cursor)
-    cursor += scene.durationMs
-  }
-  return (show.cells ?? []).map((cell) => {
-    const scene = show.scenes?.find((candidate) => candidate.id === cell.sceneId)
-    return {
-      id: cell.id,
-      startMs: starts.get(cell.sceneId) ?? 0,
-      durationMs: scene?.durationMs ?? 0,
-      brightness: cell.adaptations?.brightness ?? 1,
-    }
-  }).sort((a, b) => a.startMs - b.startMs)
-}
-
-function firstMainV1(show: PersistedShow | undefined): MainFacts | undefined {
-  return mainPlacementsV1(show)[0]
 }
 
 /** Open the Clip's detail panel, read the fields the author sees, and close it. */
@@ -748,57 +663,13 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     writeFileSync(join(REPORT_DIR, 'bridge.log'), `${bridge.logLines.join('\n')}\n`)
   })
 
-  test('B2 gate: capability admission, query stability and route retirement preserve manual ownership', async ({ page }) => {
-    test.setTimeout(90_000)
-    const showId = await createPersonalShowV1(page)
-    await expect.poll(() => page.evaluate(() => (
-      window as unknown as { __pxlblzEditor?: { sessionId: string } }
-    ).__pxlblzEditor?.sessionId)).toBeTruthy()
-    const sessionId = await page.evaluate(() => (
-      window as unknown as { __pxlblzEditor: { sessionId: string } }
-    ).__pxlblzEditor.sessionId)
-    await expect(page.getByTestId('agent-chat-panel')).toHaveCount(1)
-    for (const search of ['', '?agent', '?agent=0', '?agent=true', '?agent=1&agent=0']) {
-      await page.evaluate(search => window.history.replaceState(null, '', window.location.pathname + search), search)
-      await expect(page.getByTestId('agent-chat-panel')).toHaveCount(1)
-      expect(await page.evaluate(() => (window as unknown as { __pxlblzEditor?: { sessionId: string } }).__pxlblzEditor?.sessionId)).toBe(sessionId)
-    }
-    await setClipBrightness(page, 'TestPattern1D', '75')
-    await waitForDurableV1(page, showId, show => firstMainV1(show)?.brightness === 0.75)
-    await page.evaluate(() => window.history.replaceState(null, '', window.location.pathname + '?capture&agent=1&unrelated=kept'))
-    await injectOverlay(page, bridge.url)
-    const result = await page.evaluate(() => {
-      const win = window as unknown as { __pxlblzEditor: { sessionId: string; beginRequest: (id: string, text: string, history: unknown[]) => { request: unknown; show: Record<string, unknown> }; applyShow: (show: unknown, request: unknown) => { status: string }; getEditorFocus: () => unknown }; __retained?: unknown }
-      const original = win.__pxlblzEditor
-      const captured = original.beginRequest('retained', 'rename', [])
-      window.history.replaceState(null, '', window.location.href)
-      const same = win.__pxlblzEditor === original
-      window.history.replaceState(null, '', window.location.pathname + '?capture&unrelated=kept')
-      window.history.replaceState(null, '', window.location.pathname + '?capture&agent=1&unrelated=kept')
-      const queryStable = win.__pxlblzEditor === original
-      const showPath = window.location.pathname
-      const patternsPath = showPath.replace(/\/shows\/[^/]+$/, '/patterns')
-      window.history.replaceState(null, '', `${patternsPath}?unrelated=kept`)
-      const inactiveAway = !win.__pxlblzEditor
-      const old = original.applyShow({ ...captured.show, name: 'Stale' }, captured.request)
-      window.history.replaceState(null, '', `${showPath}?capture&unrelated=kept`)
-      return { same, queryStable, inactiveAway, old, changed: win.__pxlblzEditor.sessionId !== original.sessionId }
-    })
-    expect(result).toEqual({ same: true, queryStable: true, inactiveAway: true, old: { request: expect.any(Object), status: 'retired' }, changed: true })
-    await expect(page.getByTestId('agent-chat-panel')).toHaveCount(1)
-    expect(new URL(page.url()).searchParams.get('unrelated')).toBe('kept')
-    expect((await durableShowV1(page, showId))?.name).toBe('Untitled Show')
-    await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await waitForDurableV1(page, showId, show => firstMainV1(show)?.brightness === 1)
-  })
-
   test('D957: tucked drawer reports owned application and stale refusal with double attribution', async ({ page }) => {
     test.setTimeout(90_000)
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     const record = resizeBoundaryShow(`drawer-957-${Date.now().toString(36)}`)
     record.composition!.scenes[0].zones[0].main[1].startMs = 16000
-    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+    await seedConvertedShowV2(page, record, 'baseline D957')
     const showId = record.id
     await page.goto(`studio/shows/${showId}?agent=1`)
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
@@ -811,8 +682,9 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     let releaseSave: () => void = () => {}
     const pendingSave = new Promise<void>(resolve => { releaseSave = resolve })
     page.once('close', releaseSave)
-    await page.route(new RegExp(`/api/shows/${showId}$`), async route => {
-      if (route.request().method() === 'PATCH') await pendingSave
+    // A version-2 save is PUT /api/shows/<id>?show-version=2 (see watchShowWrites).
+    await page.route(new RegExp(`/api/shows/${showId}\\?show-version=2$`), async route => {
+      if (route.request().method() === 'PUT') await pendingSave
       await route.continue()
     })
     const responsePromise = page.waitForResponse(response => response.url() === `${bridge.url}/utterance`)
@@ -833,21 +705,22 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect(ring).toHaveCount(1)
     expect(await ring.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('double')
     await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-tucked.png'), fullPage: false, animations: 'disabled' })
-    expect(firstMainV1(await durableShowV1(page, showId))?.durationMs).toBe(8000)
+    expect(firstMain(await durableShow(page, showId))?.durationMs).toBe(8000)
     await page.getByRole('button', { name: /^Open the Agent drawer/ }).click()
     await expect(page.getByTestId('agent-unread-count')).toHaveCount(0)
     await expect(page.locator(`[data-request-id="${id}"]`)).toHaveAttribute('data-outcome', 'saved')
-    await expect(page.locator(`[data-request-id="${id}"]`).getByTestId('agent-response')).toContainText('8 seconds')
+    // The v2 resize summary states the span in ms (src/engine/showCommandsV2/clips.ts:279).
+    await expect(page.locator(`[data-request-id="${id}"]`).getByTestId('agent-response')).toContainText('spans 0–8000 ms')
     await page.screenshot({ path: join(REPORT_DIR, 'D957-saved-open.png'), fullPage: false, animations: 'disabled' })
     await page.getByRole('button', { name: 'Pin the Agent drawer' }).click()
     const staleId = await submitUtterance(page, BATCH_UTTERANCE)
     await waitForAccepted(page, staleId)
     await page.getByRole('button', { name: 'Unpin the Agent drawer' }).click()
     await setClipBrightness(page, 'CometLoom', '75')
-    const manual = await durableShowV1(page, showId)
+    const manual = await durableShow(page, showId)
     const stale = await waitForDone(page, staleId)
     expect(stale.applied).toBe(false)
-    expect(await durableShowV1(page, showId)).toEqual(manual)
+    expect(await durableShow(page, showId)).toEqual(manual)
     await expect(page.locator('[data-agent-highlight="refused"]')).toHaveCount(1)
     await page.screenshot({ path: join(REPORT_DIR, 'D957-refused-tucked.png'), fullPage: false, animations: 'disabled' })
     await expect(page.getByTestId('agent-unread-count')).toHaveText('1')

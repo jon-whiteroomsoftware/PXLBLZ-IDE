@@ -1,26 +1,82 @@
 /**
- * Readback for the v2 run of the Show suite (#1066).
+ * Version-2 seeding and readback for the authenticated Show specs (#1066, #1042).
  *
  * Separate from `showBacking.ts` because these need the product's own record
  * types, which the Playwright configuration's typecheck project cannot load.
- * Only `e2e/shows.auth.spec.ts` imports this module.
  */
 import type { Page } from '@playwright/test'
 import type { ShowRecordV2 } from '../../src/engine/showCompositionV2'
 import { keepV2StoredRecords, selectV2BarrierAnchor, v2BarrierCaughtUp, v2RevisionAdvanced } from '../../src/test/showV2HarnessDecisions'
-import { ensureCurrentShowV2Binding, seededShowV2Stamp, showBackingIsV2, storeShowAsV2 } from './showBacking'
+import { ensureCurrentShowV2Binding, recordSeededShowV2, seededShowV2Stamp } from './showBacking'
 
-export { storeShowAsV2 as storeSeededShowAsV2 }
+export interface SeedShowV2Options {
+  /** The Stage dimension the converter validates against; the converter's default when omitted. */
+  stageDimension?: 1 | 2 | 3
+  /** Adjust the converted record before it is stored. */
+  edit?: (converted: ShowRecordV2) => void
+}
+
+type ConversionOutcome =
+  | { status: 'converted'; record: ShowRecordV2 }
+  | { status: 'refused'; issues: unknown[] }
+
+/**
+ * Store one version-1 fixture as a personal version-2 Show, without opening it.
+ *
+ * The record converts through the application's own converter
+ * (`convertShowRecordV1ToV2`), with stock Pattern sources for its cells and
+ * Pattern instances, inside the page: the converter reaches the v2 schema
+ * through `?raw`, which the spec's own module loader cannot resolve. The
+ * result is created through the product's own create call
+ * (`POST /api/shows?show-version=2`, as `createShowV2` does), and its revision
+ * becomes the save barriers' seeded anchor. A refused conversion or a failed
+ * create throws with the converter's issues or the response body.
+ */
+export async function seedShowV2(page: Page, record: object, label: string, options: SeedShowV2Options = {}): Promise<ShowRecordV2> {
+  if (!page.url().startsWith('http')) await page.goto('studio/shows')
+  const outcome = await page.evaluate(async ({ source, stageDimension }) => {
+    const load = (path: string) => import(/* @vite-ignore */ path)
+    const { convertShowRecordV1ToV2 } = await load('/PXLBLZ-IDE/src/engine/showRecordV1ToV2.ts')
+    const { DEMOS, resolveStockPatternId } = await load('/PXLBLZ-IDE/src/pixelblaze/stock/patterns.ts')
+    const stockSource = (pattern: { kind?: string; id?: string } | undefined): string | undefined => {
+      if (pattern?.kind !== 'stock' || pattern.id === undefined) return undefined
+      const resolved = resolveStockPatternId(pattern.id)
+      return Object.prototype.hasOwnProperty.call(DEMOS, resolved) ? DEMOS[resolved] : undefined
+    }
+    const sources = (entries: Array<{ id: string; pattern?: { kind?: string; id?: string } }>) => Object.fromEntries(
+      entries.flatMap((entry) => {
+        const found = stockSource(entry.pattern)
+        return found === undefined ? [] : [[entry.id, found]]
+      }),
+    )
+    const input = source as { cells?: []; composition?: { patternInstances?: [] } }
+    return convertShowRecordV1ToV2(source, {
+      byCellId: sources(input.cells ?? []),
+      byPatternInstanceId: sources(input.composition?.patternInstances ?? []),
+      ...(stageDimension === undefined ? {} : { stageDimension }),
+    })
+  }, { source: record, stageDimension: options.stageDimension }) as ConversionOutcome
+  if (outcome.status !== 'converted') {
+    throw new Error(`${label} did not convert to version 2: ${JSON.stringify(outcome.issues)}`)
+  }
+  const converted = outcome.record
+  options.edit?.(converted)
+  const created = await page.context().request.post('/api/shows?show-version=2', { data: converted })
+  if (!created.ok()) {
+    throw new Error(`${label} could not be stored as a version-2 Show: ${created.status()} ${await created.text()}`)
+  }
+  recordSeededShowV2(converted.id, Number(converted.updatedAt ?? 0))
+  return converted
+}
 
 /**
  * The stored v2 documents for this account.
  *
- * A row the v2 run converts, and any edit the editor saves through the
- * version-2 route, leaves the version-1 listing, so a readback helper that only
- * reads `/api/shows` would report the Show as deleted.
+ * A version-2 document, and any edit the editor saves through the version-2
+ * route, is absent from the version-1 listing, so a readback helper must read
+ * `/api/shows?show-version=2`.
  */
 export async function listStoredShowsV2(page: Page): Promise<ShowRecordV2[]> {
-  if (!showBackingIsV2()) return []
   // Prove the currently routed Show is on the v2 backing before reading
   // storage for it: an in-app navigation reaches a new Show without the goto
   // or reload wrappers, and the previous Show's proof must not satisfy it.

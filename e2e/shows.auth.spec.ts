@@ -8,9 +8,7 @@ import { squareWorkspaceShow } from './fixtures/showWorkspace'
 import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { createShowWithOutputContract } from '../src/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
-import { showBackingIsV2 } from './support/showBacking'
-import { mergeShowListingsById } from '../src/test/showV2HarnessDecisions'
-import { findStoredShowV2, listStoredShowsV2, storeSeededShowAsV2, storedShowV2RevisionMatchesAnchor, waitForV2BarrierSave } from './support/showBackingRecords'
+import { findStoredShowV2, listStoredShowsV2, seedShowV2, storedShowV2RevisionMatchesAnchor, waitForV2BarrierSave } from './support/showBackingRecords'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -157,8 +155,7 @@ test.describe('authenticated Show authoring', () => {
   test('clips the Show End diamond below the header when the timeline scrolls (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 })
     const show = squareWorkspaceShow(6)
-    const response = await page.context().request.post('/api/shows', { data: show })
-    expect(response.ok(), await response.text()).toBe(true)
+    await seedShowV2(page, show, 'Show End scroll clip')
     await page.goto(`studio/shows/${show.id}`)
 
     const showEnd = page.getByRole('button', { name: /Show End at/ })
@@ -919,8 +916,6 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('deleting a Pattern\'s last Clip collects its runtime; re-adding creates a fresh one (#1100)', async ({ page }) => {
-    // Orphan collection is a v2 composition rule: v1 has no Pattern instances.
-    test.skip(!showBackingIsV2(), 'Pattern instances exist only on the v2 backing')
     await page.goto('studio/shows')
     await createInstallationShow(page)
     const id = new URL(page.url()).pathname.split('/').at(-1)!
@@ -1132,13 +1127,8 @@ test.describe('authenticated Show authoring', () => {
         ],
       },
     }
-    const response = await page.context().request.post('/api/shows', { data: show })
-    expect(response.ok(), await response.text()).toBe(true)
     await page.setViewportSize({ width: 1440, height: 900 })
-    // The v2 run converts the seeded row in the page, which needs an origin to
-    // load the converter from.
-    await page.goto('studio/shows')
-    await storeSeededShowAsV2(page, show.id)
+    await seedShowV2(page, show, 'Clone sharing')
     await page.goto(`studio/shows/${id}`)
     const source = page.getByRole('button', { name: 'Select Clone Sharing Rings' })
     await expect(source).toHaveCount(1)
@@ -1146,12 +1136,9 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Clone selection' }).click()
     await expect(page.getByRole('button', { name: 'Select Clone Sharing Rings' })).toHaveCount(2)
     const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
-    // The v2 Clone is linked by contract while the v1 Clone mints an
-    // independent copy, so only the v2 run passes through the shared state.
-    if (showBackingIsV2()) {
-      await expect(panel.getByText('Shared by 2 Clips')).toBeVisible()
-      await panel.getByRole('button', { name: 'Make Pattern Independent' }).click()
-    }
+    // The v2 Clone is linked by contract, so it passes through the shared state.
+    await expect(panel.getByText('Shared by 2 Clips')).toBeVisible()
+    await panel.getByRole('button', { name: 'Make Pattern Independent' }).click()
     await expect(panel.getByText('Independent', { exact: true })).toBeVisible()
   })
 
@@ -1200,8 +1187,7 @@ test.describe('authenticated Show authoring', () => {
         ],
       },
     }
-    const response = await page.context().request.post('/api/shows', { data: show })
-    expect(response.ok(), await response.text()).toBe(true)
+    await seedShowV2(page, show, 'Option-drag duplicate')
 
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`studio/shows/${id}`)
@@ -1293,8 +1279,7 @@ test.describe('authenticated Show authoring', () => {
         ],
       },
     }
-    const response = await page.context().request.post('/api/shows', { data: show })
-    expect(response.ok(), await response.text()).toBe(true)
+    await seedShowV2(page, show, 'Drag modifier order')
 
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`studio/shows/${id}`)
@@ -1683,20 +1668,17 @@ test.describe('authenticated Show authoring', () => {
     page.on('console', (message) => {
       if (message.type() === 'error') seriousConsoleErrors.push(message.text())
     })
-    // The creation flow itself is version-agnostic and now produces a v2
-    // record, which since #1065 opens in this same editor. What follows is the
-    // v1 backing's own shape of these surfaces: its output summary, Show
-    // properties panel, Zone Map and Zone Layout routing mode, so this seeds
-    // the v1 row they belong to. Adding a Zone and a Layout definition's
-    // routing mode are owned on v2 as well (planShowV2ZoneAdd, and the
-    // logical branch of planShowV2LayoutUpdate, wired in ShowEditor.tsx).
+    // Seeds a Portable Show as a version-2 document and exercises its output
+    // summary, Show properties panel, Zone Map and Zone Layout routing mode.
+    // Adding a Zone and a Layout definition's routing mode are owned on v2
+    // (planShowV2ZoneAdd, and the logical branch of planShowV2LayoutUpdate,
+    // wired in ShowEditor.tsx).
     const portable = createShowWithOutputContract(
-      `v1-portable-${randomUUID()}`,
+      `portable-${randomUUID()}`,
       'Touring field',
       createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
     )
-    const created = await page.context().request.post('/api/shows', { data: portable })
-    expect(created.ok(), await created.text()).toBe(true)
+    await seedShowV2(page, portable, 'Portable output contract')
     await page.goto(`studio/shows/${portable.id}`)
 
     await expect(page).toHaveURL(new RegExp(`/studio/shows/${portable.id}$`))
@@ -1847,9 +1829,7 @@ test.describe('authenticated Show authoring', () => {
     await page.keyboard.press('Escape')
     await expect(page.getByText('No show selected')).toBeVisible()
 
-    const response = await page.context().request.get('/api/shows')
-    const { shows } = await response.json() as { shows: PersistedShow[] }
-    expect(shows).toEqual([])
+    expect(await listShows(page)).toEqual([])
   })
 
   test('empties the Shows Trash from inside the drawer only after confirmation (#793)', async ({ page }) => {
@@ -2390,15 +2370,13 @@ test.describe('authenticated Show authoring', () => {
       return shows[0]?.outputContract
     }).toMatchObject({ kind: 'installation', pixelCount: 4, outputMapId: map.id })
 
-    // The same contract on a row still stored as v1 reads back through the v1
-    // editor's Show properties, which the v2 route has no counterpart for.
+    // The same contract on a seeded Show reads back through Show properties.
     const legacy = createShowWithOutputContract(
-      `v1-measured-${randomUUID()}`,
+      `measured-${randomUUID()}`,
       'Measured legacy',
       createInstallationShowOutputContract({ outputMapId: map.id, pixelCount: 4 }),
     )
-    const seeded = await page.context().request.post('/api/shows', { data: legacy })
-    expect(seeded.ok(), await seeded.text()).toBe(true)
+    await seedShowV2(page, legacy, 'Measured contract')
     await page.goto(`studio/shows/${legacy.id}`)
     await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByText('4 px fixed')).toBeVisible()
@@ -2830,10 +2808,7 @@ test.describe('authenticated Show authoring', () => {
         ],
       },
     }
-    const response = await page.context().request.post('/api/shows', { data: show })
-    expect(response.ok(), await response.text()).toBe(true)
-    const listed = await page.context().request.get('/api/shows')
-    expect(listed.ok(), await listed.text()).toBe(true)
+    await seedShowV2(page, show, 'Main and overlay')
 
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`studio/shows/${id}`)
@@ -2908,9 +2883,7 @@ test.describe('authenticated Show authoring', () => {
     }
     await page.setViewportSize({ width: 1440, height: 900 })
     for (const count of [3, 6]) {
-      const show = squareWorkspaceShow(count)
-      const response = await page.context().request.post('/api/shows', { data: show })
-      expect(response.ok(), await response.text()).toBe(true)
+      await seedShowV2(page, squareWorkspaceShow(count), `workspace square ${count}`)
     }
     const pane = page.getByTestId('show-timeline-pane')
     const splitter = page.getByRole('separator', { name: 'Resize timeline and Stage' })
@@ -3050,7 +3023,7 @@ test.describe('authenticated Show authoring', () => {
       await page.setViewportSize({ width, height: 900 })
       const record = showRemoveClipFixture()
       record.id = `dialog-993-${width}-${Date.now().toString(36)}`
-      expect((await page.request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await seedShowV2(page, record, `connected-delete dialog ${width}`)
       await page.goto(`studio/shows/${record.id}`)
       const clip = page.locator('[data-show-selection-key="clip:clip-b"]')
       await clip.click()
@@ -3283,11 +3256,7 @@ async function createInstallationShow(page: Page): Promise<void> {
     'Untitled Show',
     createInstallationShowOutputContract(INSTALLATION_DEFAULTS),
   )
-  const created = await page.context().request.post('/api/shows', { data: show })
-  expect(created.ok(), await created.text()).toBe(true)
-  // The v2 run (#1066) stores the converted document under the same identity,
-  // so this row opens the existing editor on its v2 backing. No-op on v1.
-  await storeSeededShowAsV2(page, show.id)
+  await seedShowV2(page, show, 'Untitled Installation Show')
   await page.goto(`studio/shows/${show.id}`)
   await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}$`))
   await waitForUntitledShowEditor(page)
@@ -3334,21 +3303,9 @@ async function openZoneRail(page: Page): Promise<void> {
  */
 const INSTALLATION_DEFAULTS = { outputMapId: 'plane', pixelCount: 256 } as const
 
-/**
- * Every Show this account stores, whichever version backs the run (#1066).
- *
- * A row the v2 run converts, and any edit the editor saves through the
- * version-2 route, leaves the version-1 listing; reading only `/api/shows`
- * would report such a Show as deleted.
- */
+/** Every Show this account stores: its version-2 documents (#1066, #1042). */
 async function listShows(page: Page): Promise<PersistedShow[]> {
-  const response = await page.context().request.get('/api/shows')
-  expect(response.ok()).toBe(true)
-  const shows = ((await response.json()) as { shows: PersistedShow[] }).shows
-  // listStoredShowsV2 carries only genuinely v2-stored documents; the merge
-  // stays free of duplicates by id either way, so a row counted in one
-  // listing is never counted twice.
-  return mergeShowListingsById(shows, (await listStoredShowsV2(page)) as unknown as PersistedShow[])
+  return (await listStoredShowsV2(page)) as unknown as PersistedShow[]
 }
 
 async function personalContentCounts(page: Page): Promise<{ shows: number; patterns: number; maps: number }> {
@@ -3391,9 +3348,8 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
  * predicate holds.
  *
  * These predicates are save barriers written against the version-1 record
- * shape. On the v2 run (#1066) the stored document is a version-2 record and
- * nothing projects it back, so the predicate cannot be evaluated there; the
- * barrier waits for the version-2 save to reach storage instead and annotates
+ * shape. The stored document is a version-2 record (#1066, #1042) and nothing
+ * projects it back, so the predicate is documentary only; the barrier waits for the version-2 save to reach storage instead and annotates
  * the test, so the inventory never reads such a run as an unqualified pass.
  * What the save contains is left to the assertions that follow.
  *
@@ -3416,30 +3372,13 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
  * equal its pre-gesture anchor. Any other barrier reaching this function
  * still times out loudly rather than passing silently when no save follows.
  */
-async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) => boolean): Promise<void> {
+async function waitForCurrentShow(page: Page, _predicate: (show: PersistedShow) => boolean): Promise<void> {
   const id = new URL(page.url()).pathname.split('/').at(-1)
-  if (showBackingIsV2()) {
-    test.info().annotations.push({
-      type: 'show-backing-v2',
-      description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits for the stored revision to advance past its pre-gesture anchor',
-    })
-    await waitForV2BarrierSave(page, id!)
-    return
-  }
-  await expect.poll(async () => {
-    try {
-      const response = await page.context().request.get('/api/shows')
-      if (!response.ok()) return false
-      const { shows } = await response.json() as { shows: PersistedShow[] }
-      const show = shows.find((candidate) => candidate.id === id)
-      return show ? predicate(show) : false
-    } catch {
-      // A shared local Wrangler can reset one connection under parallel load.
-      // Treat that sample as not ready so expect.poll can retry; persistent
-      // transport or durability failures still exhaust the assertion timeout.
-      return false
-    }
-  }).toBe(true)
+  test.info().annotations.push({
+    type: 'show-backing-v2',
+    description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits for the stored revision to advance past its pre-gesture anchor',
+  })
+  await waitForV2BarrierSave(page, id!)
 }
 
 /**
@@ -3447,41 +3386,22 @@ async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) =
  *
  * The absence half of the save-barrier pair, adopted by the two test-body
  * sites that assert nothing was saved (spec:1494, the seeded Portable
- * readback; spec:2469, the popover-dismiss barrier). The v1 branch is exactly
- * `waitForCurrentShow`'s readback: poll `/api/shows` until the predicate
- * holds. The v2 run cannot evaluate the version-1 predicate against a
- * version-2 document, and no gesture before these barriers performs a save,
+ * readback; spec:2469, the popover-dismiss barrier). The version-1 predicate
+ * cannot be evaluated against a version-2 document, and no gesture before these barriers performs a save,
  * so it waits out a settle window and then requires the stored revision to
  * still equal its pre-gesture anchor, without updating the observed-save
  * stamp — a later save barrier still anchors where this read did. Annotates
  * the test so the inventory never reads such a run as an unqualified pass.
  */
-async function expectCurrentShowUnsaved(page: Page, predicate: (show: PersistedShow) => boolean): Promise<void> {
+async function expectCurrentShowUnsaved(page: Page, _predicate: (show: PersistedShow) => boolean): Promise<void> {
   const id = new URL(page.url()).pathname.split('/').at(-1)
-  if (showBackingIsV2()) {
-    test.info().annotations.push({
-      type: 'show-backing-v2',
-      description: 'absence barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits out a settle window and then asserts the stored revision still equals its pre-gesture anchor (no save)',
-    })
-    await page.waitForTimeout(1500)
-    const reading = await storedShowV2RevisionMatchesAnchor(page, id!)
-    expect(reading.unchanged, `The v2 run observed a version-2 save for Show ${id} where none was expected (anchor revision ${String(reading.anchor)}, stored revision ${String(reading.current)})`).toBe(true)
-    return
-  }
-  await expect.poll(async () => {
-    try {
-      const response = await page.context().request.get('/api/shows')
-      if (!response.ok()) return false
-      const { shows } = await response.json() as { shows: PersistedShow[] }
-      const show = shows.find((candidate) => candidate.id === id)
-      return show ? predicate(show) : false
-    } catch {
-      // A shared local Wrangler can reset one connection under parallel load.
-      // Treat that sample as not ready so expect.poll can retry; persistent
-      // transport or durability failures still exhaust the assertion timeout.
-      return false
-    }
-  }).toBe(true)
+  test.info().annotations.push({
+    type: 'show-backing-v2',
+    description: 'absence barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits out a settle window and then asserts the stored revision still equals its pre-gesture anchor (no save)',
+  })
+  await page.waitForTimeout(1500)
+  const reading = await storedShowV2RevisionMatchesAnchor(page, id!)
+  expect(reading.unchanged, `The v2 run observed a version-2 save for Show ${id} where none was expected (anchor revision ${String(reading.anchor)}, stored revision ${String(reading.current)})`).toBe(true)
 }
 
 async function showStageCanvasStats(page: Page): Promise<{ checksum: number; maxChannel: number }> {
@@ -3524,7 +3444,7 @@ function showEasingId(easing: string | { curve: string; direction?: string }): s
 
 function legacyShowFixture(id: string, name: string, ranges: Array<{ start: number; end: number }>) {
   const scenes = [
-    { id: 'scene-1', name: 'Scene 1', durationMs: 30_000, transitionOut: { kind: 'crossfade', durationMs: 2_000 } },
+    { id: 'scene-1', name: 'Scene 1', durationMs: 30_000 },
     { id: 'scene-2', name: 'Scene 2', durationMs: 30_000 },
   ]
   return {
@@ -3543,8 +3463,7 @@ function legacyShowFixture(id: string, name: string, ranges: Array<{ start: numb
       restartOnEntry: false,
     })),
     routingLayouts: [{ id: 'layout-1', name: 'Default', zones: [{ zoneId: 'zone-1', ranges }] }],
-    routingSwitches: [],
-    transitions: [{ id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'crossfade', durationMs: 2_000, easing: 'linear' }],
+    transitions: [{ id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'crossfade', durationMs: 2_000, easing: { curve: 'linear' } }],
     stageMapId: 'plane',
     updatedAt: Date.now(),
   }
@@ -3966,19 +3885,13 @@ test('adds a Marker, renames it and inserts Time at the playhead (#1090)', async
 
   // The Marker and the later Clip moved 2 s later.
   await expect(page.getByRole('button', { name: 'Cue at 2 seconds' })).toBeVisible()
-  if (showBackingIsV2()) {
-    const id = new URL(page.url()).pathname.split('/').at(-1)!
-    await expect.poll(async () => {
-      const stored = await findStoredShowV2(page, id)
-      const cue = stored?.composition.markers.some((candidate) => candidate.name === 'Cue' && candidate.timeMs === 2000)
-      const laterClip = stored?.composition.clips.some((clip) => clip.startMs === 34000)
-      return cue === true && laterClip === true
-    }).toBe(true)
-    return
-  }
-  // The saved longer first Scene carries every later Clip 2 s later; the
-  // renamed Marker's new time is already proven by its visible label above.
-  await waitForCurrentShow(page, (show) => show.scenes[0]?.durationMs === 32000)
+  const id = new URL(page.url()).pathname.split('/').at(-1)!
+  await expect.poll(async () => {
+    const stored = await findStoredShowV2(page, id)
+    const cue = stored?.composition.markers.some((candidate) => candidate.name === 'Cue' && candidate.timeMs === 2000)
+    const laterClip = stored?.composition.clips.some((clip) => clip.startMs === 34000)
+    return cue === true && laterClip === true
+  }).toBe(true)
 })
 
 

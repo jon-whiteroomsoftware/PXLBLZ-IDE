@@ -1,6 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
 import { authenticatedPlaywrightWorkerCount } from './scripts/authenticated-playwright-user'
-import { showBacking } from './e2e/support/showBacking'
 
 // Authenticated smoke owns its port. One worker-dev Vite process (#901)
 // serves UI, /api, and the suite's isolated D1 store; reusing another
@@ -30,12 +29,11 @@ export default defineConfig({
     // keep the cheaper retry-only trace.
     trace: process.env.PXLBLZ_E2E_TRACE === 'retain-on-failure' ? 'retain-on-failure' : 'on-first-retry',
   },
-  // One project per run. The required Show suite uses `PXLBLZ_SHOW_BACKING=v2`
-  // against v2-stored Shows (#1067). `PXLBLZ_SHOW_BACKING=v1` runs the
-  // unconverted-row diagnostic; its project name stays `chromium`.
+  // One project per run. Every authenticated Show spec seeds and reads
+  // version-2 Shows; the v1 backing was retired with v1 authoring (#1042).
   projects: [
     {
-      name: showBacking() === 'v2' ? 'chromium-shows-v2' : 'chromium',
+      name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
   ],

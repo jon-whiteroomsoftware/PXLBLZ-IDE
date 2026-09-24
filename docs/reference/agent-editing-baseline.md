@@ -96,12 +96,12 @@ successful authoring does not claim Controller delivery readiness.
 
 | Command | What it proves | CI |
 | --- | --- | --- |
-| `npm run test:e2e:agent-baseline` | Live editor cases, including #950 exact resize R: B2 exact gating plus A-D stale/session prevention and E-H retained recovery/adoption cases. Writes `reports/agent-harness/baseline/browser/<run>/` (captures, selected phase records and the bridge log). **Not green since the #1039 harness cutover** — see "Version-2 harness cutover" below. | explicit only; not a push gate |
+| `npm run test:e2e:agent-baseline` | Live editor cases, including #950 exact resize R: A-D stale/session prevention and E-H retained recovery/adoption cases. Writes `reports/agent-harness/baseline/browser/<run>/` (captures, selected phase records and the bridge log). **Not green since the #1039 harness cutover** — see "Version-2 harness cutover" below. | explicit only; not a push gate |
 | `npm run agent:baseline:fixtures` | Every baseline fixture converted to version 2, exported as `.pxlshow` and `.epe` at a fixed stamp, one scripted bridge turn, export again; compares hashes against `src/agent-harness/baseline/evidence/fixtures.json` and exits 1 on drift. `-- --write` re-records after a human has read the diff. | explicit only |
 | `npm run agent:smoke`, `npm run agent:corpus -- --fake` | Unchanged from the first slice: bridge path and corpus without an editor. | manual |
 | `npx vitest run src/agent-harness src/dev` | Bridge request-id and phase-clock tests, fixture-set coverage and record-hash pins, the observation log. | `npm test` |
 
-Sequences B5, TR and PP were deleted (#1067): B5 and TR's subject, the dev drawer's stable resize retry, is version-1-only by contract ([agent candidate application](contracts/agent-candidate-application.md)), and PP's private overlap cannot exist on a version-2 record (see "Private two-Clip rearrangement" above), so they have no version-2 form (Jon, 2026-09-23).
+Sequences B5, TR and PP were deleted (#1067): B5 and TR's subject, the dev drawer's stable resize retry, is version-1-only by contract ([agent candidate application](contracts/agent-candidate-application.md)), and PP's private overlap cannot exist on a version-2 record (see "Private two-Clip rearrangement" above), so they have no version-2 form (Jon, 2026-09-23). B2 was deleted in #1042: its subject, the version-1 editor's agent binding and route gating, retires with v1 authoring, so it has no version-2 form.
 
 The suite spawns `BRIDGE_AGENT=scripted npm run agent:bridge` on an ephemeral
 loopback port with `BRIDGE_DELAY_MS=2500`, loads the bridge's own `chat.js`
@@ -475,10 +475,11 @@ editor — and D957 fails at `data-outcome="applied"` for the same reason. This
 supersedes the note on `31485415` that sequence A's failure was pre-existing and
 unrelated: whatever it was before, its cause now is the bridge's version.
 
-**B2 keeps its seeded version-1 row.** Its subject is specifically the version-1
-editor's agent binding and route gating — that is why `31485415` seeded the row
-in the first place — and it passes unchanged. It stays version 1 until the
-version-1 editor itself retires in #1042.
+**B2 kept its seeded version-1 row** until #1042. Its subject was specifically
+the version-1 editor's agent binding and route gating — that is why `31485415`
+seeded the row in the first place — so it was deleted with v1 authoring in
+#1042 rather than ported. D957 now seeds version 2 through the shared
+`seedShowV2` helper (#1042).
 
 Converting the record inside the bridge was rejected: a v1-to-v2 translation
 layer inside the harness is exactly what the rewrite removed, and it would make

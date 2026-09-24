@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { Page } from '@playwright/test'
 import {
   ensureCurrentShowV2Binding,
@@ -42,18 +42,6 @@ function fakeBackingPage() {
     fireFramenavigated,
   }
 }
-
-let previousBacking: string | undefined
-
-beforeEach(() => {
-  previousBacking = process.env.PXLBLZ_SHOW_BACKING
-  process.env.PXLBLZ_SHOW_BACKING = 'v2'
-})
-
-afterEach(() => {
-  if (previousBacking === undefined) delete process.env.PXLBLZ_SHOW_BACKING
-  else process.env.PXLBLZ_SHOW_BACKING = previousBacking
-})
 
 describe('in-app navigation proof retirement', () => {
   it('does not reuse a stale proof when the same Show is re-opened in-app', async () => {

@@ -29,7 +29,6 @@ export function squareWorkspaceShow(laneCount: number) {
         ranges: [{ start: Math.floor(index * 1024 / laneCount), end: Math.floor((index + 1) * 1024 / laneCount) - 1 }],
       })),
     }],
-    routingSwitches: [],
     transitions: [],
     stageMapId: 'plane',
     outputContract: { version: 1, kind: 'installation', outputMapId: 'plane', pixelCount: 1024, resolution: 'fixed' },

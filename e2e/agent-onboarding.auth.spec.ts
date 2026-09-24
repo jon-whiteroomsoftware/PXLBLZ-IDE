@@ -1,11 +1,11 @@
 import { expect, test } from './fixtures/authenticated'
 import { squareWorkspaceShow } from './fixtures/showWorkspace'
+import { seedShowV2 } from './support/showBackingRecords'
 
 test('offers client-specific MCP setup on an ordinary editable Show URL at desktop and narrow widths (#1050)', async ({ page }) => {
   test.setTimeout(90_000)
   const show = { ...squareWorkspaceShow(1), id: 'agent-onboarding-1050', name: 'MCP onboarding proof' }
-  const created = await page.request.post('/api/shows', { data: show })
-  expect(created.ok(), await created.text()).toBe(true)
+  await seedShowV2(page, show, 'MCP onboarding proof')
 
   await page.addInitScript(() => {
     let clipboard = ''

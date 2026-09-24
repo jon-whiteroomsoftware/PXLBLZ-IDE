@@ -1,39 +1,19 @@
 /**
- * Which stored record version backs the Shows the browser suite opens (#1066).
+ * The v2 backing every authenticated Show spec runs on (#1066, #1042).
  *
- * `e2e/shows.auth.spec.ts` is the strongest available oracle for putting the
- * existing Show editor on the v2 backend. The required Show suite runs on v2
- * through ordinary Show URLs;
- * the unconverted-row diagnostic runs the same spec on v1. The backing is
- * chosen here and reached only through the authenticated fixture and that
- * spec's own seeding and readback helpers; no test body knows which run it is in.
+ * Specs seed version-2 documents (`seedShowV2` in `showBackingRecords.ts`, or
+ * a direct `POST /api/shows?show-version=2`), and this module proves each Show
+ * the page opens really bound a version-2 record before a readback helper
+ * evaluates storage for it. The v1 backing and its environment selector were
+ * retired with v1 authoring (#1042).
  *
- * `PXLBLZ_SHOW_BACKING=v2` selects the required v2 run
- * (`npm run test:e2e:shows`). `PXLBLZ_SHOW_BACKING=v1` selects the
- * unconverted-row diagnostic (`npm run test:e2e:shows:v1`). An unset
- * variable remains v1 for other authenticated suites.
- *
- * The v1 diagnostic gates nothing; the required v2 Show suite is named by
- * `wrsp.config.mjs`.
- *
- * This module imports nothing from `src`: `playwright.auth.config.ts` and
- * `e2e/fixtures/authenticated.ts` both load it, and they typecheck in a
- * project without the DOM library or Vite's asset modules. The converter runs
- * in the page instead, which is also where the equivalence oracle runs it
- * (#1065). The parts that need product types live in `showBackingRecords.ts`.
+ * This module imports nothing from `src` beyond the harness decisions:
+ * `playwright.auth.config.ts` and `e2e/fixtures/authenticated.ts` both load
+ * it, and they typecheck in a project without the DOM library or Vite's asset
+ * modules. The parts that need product types live in `showBackingRecords.ts`.
  */
 import type { APIRequestContext, Frame, Page } from '@playwright/test'
 import { isBindingProofFresh, isInAppProofFresh, routedShowIdFromUrl, type V2BindingProof } from '../../src/test/showV2HarnessDecisions'
-
-export type ShowBacking = 'v1' | 'v2'
-
-export function showBacking(): ShowBacking {
-  return process.env.PXLBLZ_SHOW_BACKING?.trim() === 'v2' ? 'v2' : 'v1'
-}
-
-export function showBackingIsV2(): boolean {
-  return showBacking() === 'v2'
-}
 
 /** The `updatedAt` each stored v2 document carried when this run wrote it. */
 const storedAsV2 = new Map<string, number>()
@@ -43,15 +23,19 @@ export function seededShowV2Stamp(id: string): number | undefined {
   return storedAsV2.get(id)
 }
 
+/** Record the revision a seeding helper just stored, so save barriers anchor at it. */
+export function recordSeededShowV2(id: string, updatedAt: number): void {
+  storedAsV2.set(id, updatedAt)
+}
+
 /**
  * Remove the version-2 documents this account holds.
  *
- * A row the v2 run converts leaves the version-1 listing, so the boundary's
+ * A version-2 document is absent from the version-1 listing, so the boundary's
  * ordinary cleanup would walk straight past it and the next test on a reused
  * account would collide with the row it is trying to create.
  */
 export async function removeStoredShowsV2(request: APIRequestContext): Promise<void> {
-  if (!showBackingIsV2()) return
   const response = await request.get('/api/shows?show-version=2')
   if (!response.ok()) throw new Error(`GET /api/shows?show-version=2 -> ${response.status()}: ${await response.text()}`)
   for (const record of ((await response.json()) as { shows: Array<{ id: string }> }).shows) {
@@ -71,16 +55,10 @@ interface V2BackingPageState {
 const backingPageStates = new WeakMap<Page, V2BackingPageState>()
 
 /**
- * Route every navigation this page makes through the v2 backing.
- *
- * A test body that seeds its own version-1 row inline cannot be changed, so the
- * run converts and stores that row here, on the way to it. Without that, the
- * editor would fall back to the store's own in-memory conversion, which calls
- * `convertShowRecordV1ToV2` with no Pattern sources and is refused with
- * `missing-source-dependency`, leaving no editor mounted at all.
+ * Prove every Show navigation this page makes binds a version-2 record.
  *
  * Built-in Shows open from their native v2 catalogue records on the ordinary
- * route, while personal v1 rows are stored as v2 before navigation. Every
+ * route, and personal Shows are seeded as version-2 documents. Every
  * navigation still needs its own proof: registrations are keyed
  * by navigation generation, so a repeat visit re-waits for the new document
  * instead of trusting the previous visit's entry, and `page.reload` is wrapped
@@ -91,7 +69,6 @@ const backingPageStates = new WeakMap<Page, V2BackingPageState>()
  * it last accepted for that Show before evaluating storage for it.
  */
 export function installShowBacking(page: Page): void {
-  if (!showBackingIsV2()) return
   const state: V2BackingPageState = { proofs: new Map(), navigationSequence: 0, lastGuardedShowId: null, acceptedSequence: new Map() }
   backingPageStates.set(page, state)
   page.on('request', (request) => {
@@ -123,10 +100,6 @@ export function installShowBacking(page: Page): void {
     const id = routedShowIdFromUrl(url)
     state.navigationSequence += 1
     const requiredSequence = state.navigationSequence
-    if (id !== null && !storedAsV2.has(id)) {
-      if (!page.url().startsWith('http')) await goto('studio/shows')
-      await storeShowAsV2(page, id)
-    }
     const response = await goto(url, options)
     if (id !== null) {
       await waitForV2Backing(page, id, state.proofs, requiredSequence)
@@ -177,7 +150,6 @@ function acceptBindingProof(state: V2BackingPageState, id: string): void {
  * arrived. A Show that never binds v2 still fails loudly.
  */
 export async function ensureCurrentShowV2Binding(page: Page, timeoutMs = 20_000): Promise<void> {
-  if (!showBackingIsV2()) return
   const state = backingPageStates.get(page)
   if (!state) return
   const id = routedShowIdFromUrl(page.url())
@@ -232,53 +204,4 @@ async function waitForV2Backing(
     `The v2 run opened ${id} but the editor never bound a version-2 record`
     + ` (last bound version: ${proofs.get(id)?.version ?? 'none'}).`,
   )
-}
-
-/**
- * Convert one personal version-1 row and store it as the version-2 document
- * under the same identity, the way the operator conversion does.
- *
- * Silent when the id is not a stored version-1 row: a built-in Show has no row
- * to replace, and the version-2 route replaces a stored row rather than
- * creating one. A refused conversion is also left alone, so the run reports
- * what the editor really does with that record instead of failing in seeding.
- */
-export async function storeShowAsV2(page: Page, id: string): Promise<void> {
-  if (!showBackingIsV2() || storedAsV2.has(id)) return
-  const listed = await page.context().request.get('/api/shows')
-  if (!listed.ok()) return
-  const persisted = ((await listed.json()) as { shows: Array<Record<string, unknown>> })
-    .shows.find(show => show.id === id)
-  if (!persisted) return
-  const converted = await convertInPage(page, persisted)
-  if (converted.status !== 'converted') return
-  const stored = await page.context().request.put(
-    `/api/shows/${encodeURIComponent(id)}?show-version=2`,
-    { data: converted.record },
-  )
-  if (!stored.ok()) {
-    throw new Error(`The v2 run could not store ${id} as a version-2 document: ${stored.status()} ${await stored.text()}`)
-  }
-  storedAsV2.set(id, Number(converted.record.updatedAt ?? 0))
-}
-
-type ConversionOutcome =
-  | { status: 'converted'; record: Record<string, unknown> }
-  | { status: 'refused'; issues: unknown[] }
-
-/** The application's own converter, reached the way the equivalence oracle reaches it. */
-async function convertInPage(page: Page, record: Record<string, unknown>): Promise<ConversionOutcome> {
-  return page.evaluate(async (source) => {
-    const load = (path: string) => import(/* @vite-ignore */ path)
-    const { convertShowRecordV1ToV2 } = await load('/PXLBLZ-IDE/src/engine/showRecordV1ToV2.ts')
-    const { DEMOS, resolveStockPatternId } = await load('/PXLBLZ-IDE/src/pixelblaze/stock/patterns.ts')
-    const byCellId: Record<string, string> = {}
-    for (const cell of (source.cells ?? []) as Array<Record<string, never>>) {
-      const pattern = cell.pattern as unknown as { kind: string; id: string } | undefined
-      if (pattern?.kind !== 'stock') continue
-      const patternSource = DEMOS[resolveStockPatternId(pattern.id)]
-      if (patternSource) byCellId[cell.id as unknown as string] = patternSource
-    }
-    return convertShowRecordV1ToV2(source, { byCellId })
-  }, record) as Promise<ConversionOutcome>
 }
