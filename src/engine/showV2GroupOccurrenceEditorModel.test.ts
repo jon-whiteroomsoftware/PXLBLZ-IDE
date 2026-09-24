@@ -157,10 +157,18 @@ it('refuses a held Group Clip Duration that ends at or before its start (#1075 G
   definition.transitions = []
   occurrence.holds = [{ id: 'hold-test', localTimeMs: 400, durationMs: 1000 }]
   const before = structuredClone(record)
-  const plan = planShowV2GroupOccurrenceEdit(record, {
+  // A zero Duration is invalid, not a hold: no code, so the panel shows the fallback (#1098).
+  const zero = planShowV2GroupOccurrenceEdit(record, {
     kind: 'set-child-timing', occurrenceId: occurrence.id, clipId: child.id, durationMs: 0,
   }, () => 'unused')
-  expect(plan).toEqual({ status: 'refused', code: 'ends-in-hold', message: "Duration must end after the Clip's start outside a hold." })
+  expect(zero).toEqual({ status: 'refused', message: 'Give a positive Duration for one Group Clip.' })
+  // A positive Show-time Duration never maps to a nonpositive local one: a
+  // Clip starting at a hold starts after it, and an end inside the hold lands
+  // on the hold's local time, so the Duration is accepted and ends there.
+  const held = planShowV2GroupOccurrenceEdit(record, {
+    kind: 'set-child-timing', occurrenceId: occurrence.id, clipId: child.id, durationMs: 900,
+  }, () => 'unused')
+  expect(held).toMatchObject({ status: 'ready', intent: { kind: 'set-definition-clip-timing', durationMs: 400 } })
   expect(record).toEqual(before)
 })
 

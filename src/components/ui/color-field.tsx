@@ -37,12 +37,15 @@ export function ColorField({
   const pickerRef = useRef<HTMLInputElement>(null)
   const pickerPreviewActiveRef = useRef(false)
   const onPreviewEndRef = useRef(onPreviewEnd)
-  // A refused commit, now or once it settles, restores the stored value (#1098).
-  const settleCommit = (result: FieldCommitResult, stored: string) => {
+  // The controlled value now, which a late refusal settles against (#1098).
+  const canonicalRef = useRef(canonicalValue)
+  // A refused commit, now or once it settles, restores the controlled value as
+  // it is then. A refocused field keeps its new draft, but the refused value
+  // leaves the committed ref, so Escape or blur cannot bring it back.
+  const settleCommit = (result: FieldCommitResult) => {
     const restore = () => {
-      if (exactFocusedRef.current) return
-      committedValueRef.current = stored
-      setDraft(stored)
+      committedValueRef.current = canonicalRef.current
+      if (!exactFocusedRef.current) setDraft(canonicalRef.current)
     }
     if (result === false) restore()
     else if (result instanceof Promise) void result.then((settled) => { if (settled === false) restore() }, () => {})
@@ -63,6 +66,7 @@ export function ColorField({
   }
 
   useEffect(() => {
+    canonicalRef.current = canonicalValue
     committedValueRef.current = canonicalValue
     if (exactFocusedRef.current) {
       return
@@ -81,7 +85,7 @@ export function ColorField({
       committedValueRef.current = parsed
       setDraft(parsed)
       endPickerPreview()
-      if (parsed !== canonicalValue) settleCommit(onChange(parsed), canonicalValue)
+      if (parsed !== canonicalValue) settleCommit(onChange(parsed))
     }
     picker.addEventListener('change', commit)
     return () => picker.removeEventListener('change', commit)
@@ -103,7 +107,7 @@ export function ColorField({
     committedValueRef.current = parsed
     setExactDirty(false)
     setDraft(parsed)
-    if (parsed !== canonicalValue) settleCommit(onChange(parsed), canonicalValue)
+    if (parsed !== canonicalValue) settleCommit(onChange(parsed))
   }
   const previewPicker = (event: FormEvent<HTMLInputElement>) => {
     const parsed = parseColorValue(event.currentTarget.value)

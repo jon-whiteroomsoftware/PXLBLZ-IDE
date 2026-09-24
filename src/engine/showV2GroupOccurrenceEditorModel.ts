@@ -90,6 +90,11 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
       if (hasDuration && (typeof request.durationMs !== 'number' || !Number.isFinite(request.durationMs))) {
         return { status: 'refused', message: 'Give a finite Duration for one Group Clip.' }
       }
+      // A Duration that rounds to zero or below is invalid, not a hold: it
+      // carries no code, so the panel shows the fallback (#1098).
+      if (hasDuration && Math.round(request.durationMs!) <= 0) {
+        return { status: 'refused', message: 'Give a positive Duration for one Group Clip.' }
+      }
       // The panel shows Show time, which is converted back the way Start is (#1075 G2a review).
       const localStart = hasStart ? Math.round(groupOccurrenceLocalTimeAtV2(occurrence, Math.round(request.startMs!))) : child.startMs
       let localDuration: number | undefined

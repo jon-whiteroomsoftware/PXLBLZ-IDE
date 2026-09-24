@@ -22,6 +22,33 @@ describe('ColorField refused commit (#1098)', () => {
     await act(async () => refuse(false))
     expect(exact).toHaveValue('#123456')
   })
+
+  it('settles a late refusal against the controlled value as it is then, not as it was at submission', async () => {
+    let refuse!: (accepted: false) => void
+    const onChange = () => new Promise<false>((resolve) => { refuse = resolve })
+    const { rerender } = render(<ColorField label="Target color" value="#123456" onChange={onChange} />)
+    const exact = screen.getByRole('textbox', { name: 'Target color exact value' })
+    fireEvent.change(exact, { target: { value: '#abcdef' } })
+    fireEvent.keyDown(exact, { key: 'Enter' })
+    // Another writer stores #00ff00 before the refusal settles.
+    rerender(<ColorField label="Target color" value="#00ff00" onChange={onChange} />)
+    await act(async () => refuse(false))
+    expect(exact).toHaveValue('#00ff00')
+  })
+
+  it('clears a late-refused value from the committed draft even when the field was refocused', async () => {
+    let refuse!: (accepted: false) => void
+    render(<ColorField label="Target color" value="#123456" onChange={() => new Promise<false>((resolve) => { refuse = resolve })} />)
+    const exact = screen.getByRole('textbox', { name: 'Target color exact value' })
+    fireEvent.change(exact, { target: { value: '#abcdef' } })
+    fireEvent.keyDown(exact, { key: 'Enter' })
+    fireEvent.focus(exact)
+    await act(async () => refuse(false))
+    // The refocused draft is left alone; cancelling it returns to the stored value.
+    expect(exact).toHaveValue('#abcdef')
+    fireEvent.keyDown(exact, { key: 'Escape' })
+    expect(exact).toHaveValue('#123456')
+  })
 })
 
 describe('ColorField', () => {

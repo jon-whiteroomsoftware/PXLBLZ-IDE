@@ -53,8 +53,11 @@ export function useNumberFieldDraft({ value, min, max, onChange, disabled = fals
   const refreshActivity = useFieldActivity(() => dirtyRef.current && !disabled)
   const focusedRef = useRef(false)
   const committedDraftRef = useRef(renderedValue)
+  // The controlled value now, which a late refusal settles against (#1098).
+  const renderedRef = useRef(renderedValue)
 
   useEffect(() => {
+    renderedRef.current = renderedValue
     if (!focusedRef.current) {
       committedDraftRef.current = renderedValue
       setDraft(renderedValue)
@@ -85,13 +88,12 @@ export function useNumberFieldDraft({ value, min, max, onChange, disabled = fals
     committedDraftRef.current = String(bounded)
     setDirty(false)
     setDraft(String(bounded))
-    // A refused commit, now or once it settles, restores the stored value; a
-    // later stored value still arrives through the sync effect above.
-    const stored = renderedValue
+    // A refused commit, now or once it settles, restores the controlled value
+    // as it is then. A refocused field keeps its new draft, but the refused
+    // value leaves the committed ref, so Escape or blur cannot bring it back.
     const restore = () => {
-      if (focusedRef.current) return
-      committedDraftRef.current = stored
-      setDraft(stored)
+      committedDraftRef.current = renderedRef.current
+      if (!focusedRef.current) setDraft(renderedRef.current)
     }
     try {
       if (bounded !== value) {
