@@ -29,6 +29,7 @@ export type ShowV2EditRefusalInput =
   // Panel refusals speak through the panel's alert line only.
   | { kind: 'multi-key-clip' }
   | { kind: 'group-no-layout' }
+  | { kind: 'group-no-layer-at-rank' }
   | { kind: 'group-ends-in-hold' }
   | { kind: 'group-restart-unsupported' }
   | { kind: 'transition-past-show-end' }
@@ -63,6 +64,7 @@ export function showV2EditRefusalCopy(refusal: ShowV2EditRefusalInput): ShowV2Re
     case 'stale': return STALE
     case 'multi-key-clip': return { label: null, status: "This Clip's Effects differ between its held segments; edit each segment instead." }
     case 'group-no-layout': return { label: null, status: 'No Zone Layout covers this start.' }
+    case 'group-no-layer-at-rank': return { label: null, status: 'No Layer at that rank in this Group.' }
     case 'group-ends-in-hold': return { label: null, status: 'This Duration would end inside a hold.' }
     case 'group-restart-unsupported': return { label: null, status: SHOW_V2_RESTART_UNAVAILABLE_REASON }
     case 'transition-past-show-end': return { label: null, status: 'This Transition would run past Show End.' }

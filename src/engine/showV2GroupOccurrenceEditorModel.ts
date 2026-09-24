@@ -207,3 +207,20 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
     return { status: 'ready', intent: { kind: 'make-unique', occurrenceId: occurrence.id, identities } }
   } catch (error) { return { status: 'refused', message: error instanceof Error ? error.message : 'Fresh Group identities conflict.' } }
 }
+
+/**
+ * The highest Base Layer the Group panel can place this occurrence on: the
+ * largest rank offset at which every definition Layer finds a Layer of the
+ * occurrence's Zone, the same rebinding the panel's Place request builds.
+ * `null` when the occurrence or its definition is gone (#1098).
+ */
+export function showV2GroupBaseLayerMax(record: ShowRecordV2, occurrenceId: string): number | null {
+  const occurrence = record.composition.groupOccurrences.find(value => value.id === occurrenceId)
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence?.definitionId)
+  if (!occurrence || !definition) return null
+  const ranks = new Set(record.composition.layers.filter(layer => layer.zoneId === occurrence.zoneId).map(layer => layer.rank))
+  for (let base = Math.max(-1, ...ranks); base >= 0; base -= 1) {
+    if (definition.layers.every(layer => ranks.has(base + layer.rank))) return base
+  }
+  return null
+}

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { DraftFieldActions } from './draft-field-actions'
+import type { FieldCommitResult } from './edit-refusal-line'
 import { useFieldActivity } from './field-activity'
 
 // The one simple numeric-entry contract for the app (#577, #656): this is a
@@ -42,7 +43,8 @@ export function useNumberFieldDraft({ value, min, max, onChange, disabled = fals
   min?: number
   max?: number
   disabled?: boolean
-  onChange: (value: number) => void
+  /** Return or resolve false when the owner refuses; the draft restores (#1098). */
+  onChange: (value: number) => FieldCommitResult
 }): NumberFieldDraft {
   const renderedValue = value == null ? '' : String(value)
   const [draft, setDraft] = useState(renderedValue)
@@ -83,8 +85,21 @@ export function useNumberFieldDraft({ value, min, max, onChange, disabled = fals
     committedDraftRef.current = String(bounded)
     setDirty(false)
     setDraft(String(bounded))
-    try { if (bounded !== value) onChange(bounded) }
-    finally { dirtyRef.current = false; refreshActivity() }
+    // A refused commit, now or once it settles, restores the stored value; a
+    // later stored value still arrives through the sync effect above.
+    const stored = renderedValue
+    const restore = () => {
+      if (focusedRef.current) return
+      committedDraftRef.current = stored
+      setDraft(stored)
+    }
+    try {
+      if (bounded !== value) {
+        const result = onChange(bounded)
+        if (result === false) restore()
+        else if (result instanceof Promise) void result.then((settled) => { if (settled === false) restore() }, () => {})
+      }
+    } finally { dirtyRef.current = false; refreshActivity() }
   }
 
   return {
@@ -151,7 +166,7 @@ export interface NumberFieldProps {
   align?: 'left' | 'right'
   disabled?: boolean
   variant?: 'inspector' | 'editor'
-  onChange: (value: number) => void
+  onChange: (value: number) => FieldCommitResult
 }
 
 export function NumberField({

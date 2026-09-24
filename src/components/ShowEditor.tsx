@@ -358,7 +358,7 @@ import {
 } from '@/engine/showV2ClipSharingEditorModel'
 import type { CreateShowGroupFromSelectionIntentV2 } from '@/engine/showGroupCreationV2'
 import { planShowV2GroupCreation } from '@/engine/showV2GroupCreationEditorModel'
-import { planShowV2GroupOccurrenceEdit, type ShowV2GroupOccurrenceRequest } from '@/engine/showV2GroupOccurrenceEditorModel'
+import { planShowV2GroupOccurrenceEdit, showV2GroupBaseLayerMax, type ShowV2GroupOccurrenceRequest } from '@/engine/showV2GroupOccurrenceEditorModel'
 import {
   planShowV2ClipMove,
   planShowV2ClipResize,
@@ -475,7 +475,7 @@ import {
   showV2TransitionRetimeRefusalInput,
   type ShowV2EditRefusalInput,
 } from '@/engine/showV2EditRefusalCopy'
-import { EditRefusalLine, useEditRefusal, type EditRefusal, type EditRefusalResult } from './ui/edit-refusal-line'
+import { EditRefusalLine, useEditRefusal, type EditRefusal, type EditRefusalResult, type FieldCommitResult } from './ui/edit-refusal-line'
 import { defaultGroupRuntimeIdV2, groupOccurrenceDuration, materializeShowGroupsV2 } from '@/engine/showGroupsV2'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import {
@@ -596,6 +596,8 @@ function isShowV2Refusal(result: ShowV2CommitResult): result is ShowV2CommitRefu
 function panelRefusal(input: ShowV2EditRefusalInput): EditRefusal {
   return { refused: true, message: showV2EditRefusalCopy(input).status }
 }
+/** An early return with no planner behind it: the Show is not editable here. */
+const PANEL_UNAVAILABLE: ShowV2EditRefusalInput = { kind: 'refused' }
 /**
  * The panel refusal for a settled commit, or nothing when it was not refused.
  * A raw admission outcome carries the same refused shape as a commit result.
@@ -2229,17 +2231,18 @@ export function ShowEditor({
   }, [showId])
   // The v2 Group Clip Pattern adapter confirms previewed control loss before
   // submitting the definition edit; cancellation writes nothing (#1069).
-  const commitV2GroupClipPattern = useCallback((occurrenceId: string, clipId: string, ref: ShowPatternRef): boolean | Promise<void> => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+  const commitV2GroupClipPattern = useCallback((occurrenceId: string, clipId: string, ref: ShowPatternRef): EditRefusalResult<boolean | void> => {
+    // Every refusal names a reason in the Group Clip inspector (#1098).
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
     const capture = preparedV2CaptureRef.current
-    if (!capture || capture.prepared.status === 'refused') return false
+    if (!capture || capture.prepared.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     const definitionId = capture.record.composition.groupOccurrences.find((candidate) => candidate.id === occurrenceId)?.definitionId
-    if (!definitionId) return false
+    if (!definitionId) return panelRefusal({ kind: 'stale' })
     const preview = previewShowV2GroupReplacement(capture, definitionId, clipId, ref)
-    if (preview.status === 'refused') return false
+    if (preview.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     if (preview.lostControls.length > 0) {
       const resolved = resolveCapturedShowPatternReplacementV2(capture, ref)
-      if (resolved.status === 'refused') return false
+      if (resolved.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
       const instanceId = materializeShowGroupsV2(capture.record).composition.clips.find((clip) => clip.id === `${occurrenceId}:${clipId}`)?.instanceId
       const controls = instanceId ? patternControlsByInstanceIdRef.current[instanceId] ?? [] : []
       const labels = new Map(controls.map((control) => [control.exportName, control.label]))
@@ -2248,9 +2251,9 @@ export function ShowEditor({
       return false
     }
     const plan = planShowV2GroupReplacementEdit(capture, definitionId, clipId, ref, newPersonalContentId)
-    if (plan.status === 'refused') return false
+    if (plan.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
-    return commitV2GroupReplacement({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+    return commitV2GroupReplacement({ capture, baseRevision, intent: plan.intent }).then(panelCommitRefusal, () => {})
   }, [commitV2GroupReplacement, readOnly, recordVersion, savedShowV2, showId])
   const confirmV2Replacement = useCallback(() => {
     const pending = pendingV2Replacement
@@ -2385,9 +2388,10 @@ export function ShowEditor({
     return outcome
   }, [showId])
   const commitV2ClipInspectorPatch = useCallback((clipId: string, patch: ShowClipInspectorPatch): EditRefusalResult<boolean | void> => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    // Every refusal, including these early returns, names a reason (#1098).
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
     const capture = preparedV2CaptureRef.current
-    if (!capture || capture.prepared.status === 'refused') return false
+    if (!capture || capture.prepared.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     // Inspector Start and Duration reuse the timeline drag's planners, as v1's
     // inspector reuses its move and resize (#1066).
     if (timelineViewV2 && Object.keys(patch).length === 1 && patch.local !== undefined) {
@@ -2463,10 +2467,10 @@ export function ShowEditor({
     }
     if (plan.kind === 'replacement') {
       const preview = previewShowV2ClipReplacement(capture, clipId, plan.reference)
-      if (preview.status === 'refused') return false
+      if (preview.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
       if (preview.lostControls.length > 0) {
         const resolved = resolveCapturedShowPatternReplacementV2(capture, plan.reference)
-        if (resolved.status === 'refused') return false
+        if (resolved.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
         const instanceId = capture.record.composition.clips.find((clip) => clip.id === clipId)?.instanceId
         const controls = instanceId ? patternControlsByInstanceIdRef.current[instanceId] ?? [] : []
         const labels = new Map(controls.map((control) => [control.exportName, control.label]))
@@ -2475,7 +2479,7 @@ export function ShowEditor({
         return false
       }
       const replacement = createShowV2ClipReplacementIntent(capture, clipId, plan.reference, newPersonalContentId)
-      if (replacement.status === 'refused') return false
+      if (replacement.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
       return commitV2ClipReplacement({ capture, baseRevision, intent: replacement.intent }).then(panelCommitRefusal, () => {})
     }
     const commit = plan.kind === 'appearance'
@@ -2492,29 +2496,35 @@ export function ShowEditor({
   // transition-edit door. Refused and no-op changes return synchronously so
   // the committing control reverts its draft, exactly as the Clip inspector
   // commit does (#1066).
-  const commitV2BoundaryTransitionChanges = useCallback((transitionId: string, changes: ShowTransitionChanges): EditRefusalResult => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+  const commitV2BoundaryTransitionChanges = useCallback((transitionId: string, changes: ShowTransitionChanges): EditRefusalResult<boolean | void> => {
+    // Every refusal, including these early returns, names a reason; a no-change
+    // value returns false so the field restores silently (#1098).
+    if (recordVersion !== 2 || !savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
     const capture = preparedV2CaptureRef.current
-    if (!capture || capture.prepared.status === 'refused') return
+    if (!capture || capture.prepared.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     const { durationMs, ...settingsChanges } = changes
-    let resized: Promise<EditRefusal | undefined> | undefined
+    let resized: Promise<EditRefusal | undefined> | EditRefusal | false | undefined
     if (durationMs !== undefined) {
       // Duration belongs to the resize owner, which the settings planner
       // refuses by design: a changed value commits through the same resize
       // door the Layer Transition popover uses, and an unchanged one commits
       // nothing (#1066).
       const current = capture.record.composition.transitions.find((candidate) => candidate.id === transitionId)
-      if (current && durationMs !== current.durationMs) {
+      if (!current) resized = panelRefusal({ kind: 'stale' })
+      else if (durationMs === current.durationMs) resized = false
+      else {
         const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+        // A retime shifts the Clips after it, as the popover's does, so a
+        // bounds refusal is the Show End.
         resized = commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } })
-          .then(panelCommitRefusal, () => undefined)
+          .then((result) => (isShowV2Refusal(result) ? panelRefusal(showV2TransitionRetimeRefusalInput(result)) : undefined), () => undefined)
       }
     }
     if (Object.keys(settingsChanges).length === 0) return resized
     const plan = planShowV2BoundaryTransitionChanges(capture.record, transitionId, settingsChanges)
     // A refused settings change names its reason in the panel (#1098).
     if (plan.status === 'refused') return panelRefusal(showV2BoundaryRefusalInput(plan.code))
-    if (plan.status !== 'ready') return resized
+    if (plan.status !== 'ready') return resized ?? false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     return commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then(panelCommitRefusal, () => undefined)
   }, [commitV2TransitionEdit, commitV2TransitionResize, readOnly, recordVersion, savedShowV2, showId])
@@ -2716,9 +2726,9 @@ export function ShowEditor({
     return true
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2ClipDelete, recordVersion, readOnly, reportClipFeedback, savedShowV2, showId])
   const requestV2GroupOccurrenceEdit = useCallback((request: ShowV2GroupOccurrenceRequest): EditRefusalResult<boolean | void> => {
-    if (readOnly) return false
+    if (readOnly) return panelRefusal(PANEL_UNAVAILABLE)
     const capture = preparedV2CaptureRef.current
-    if (!capture || capture.prepared.status === 'refused') return false
+    if (!capture || capture.prepared.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     const plan = planShowV2GroupOccurrenceEdit(capture.record, request, newPersonalContentId)
     if (plan.status !== 'ready') {
       // A refused plan names its reason in the panel; no-change stays silent (#1098).
@@ -2763,9 +2773,9 @@ export function ShowEditor({
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2GroupOccurrenceEdit, readOnly, selectTimeline, setSelection, showId])
   // Resolves true once applied, or with the refusal the calling panel names (#1098).
   const requestV2GroupOccurrenceEditApplied = useCallback((request: ShowV2GroupOccurrenceRequest): Promise<boolean | EditRefusal> => {
-    if (readOnly) return Promise.resolve(false)
+    if (readOnly) return Promise.resolve(panelRefusal(PANEL_UNAVAILABLE))
     const capture = preparedV2CaptureRef.current
-    if (!capture || capture.prepared.status === 'refused') return Promise.resolve(false)
+    if (!capture || capture.prepared.status === 'refused') return Promise.resolve(panelRefusal(PANEL_UNAVAILABLE))
     const plan = planShowV2GroupOccurrenceEdit(capture.record, request, newPersonalContentId)
     if (plan.status !== 'ready') {
       const input = showV2GroupRefusalInput(plan.code)
@@ -5306,9 +5316,10 @@ export function ShowEditor({
               anchor={layerTransitionTarget.anchor}
               onDurationChange={(durationMs) => {
                 if (recordVersion === 2) {
-                  if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+                  // Every refusal, including these early returns, names a reason (#1098).
+                  if (!savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
                   const capture = preparedV2CaptureRef.current
-                  if (!capture || capture.prepared.status === 'refused') return
+                  if (!capture || capture.prepared.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
                   const groupOccurrenceId = layerTransitionTarget.groupOccurrenceId
                   const groupTransitionId = layerTransitionTarget.groupTransitionId
                   // A refused retime or reset keeps the popover open and
@@ -5322,7 +5333,7 @@ export function ShowEditor({
                     }, () => undefined)
                   }
                   const transitionId = layerTransitionTarget.transitionId
-                  if (!transitionId) return
+                  if (!transitionId) return panelRefusal({ kind: 'stale' })
                   const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
                   if (durationMs === 0) {
                     const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
@@ -5365,9 +5376,10 @@ export function ShowEditor({
               }}
               onResetToCut={() => {
                 if (recordVersion === 2) {
-                  if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+                  // Every refusal, including these early returns, names a reason (#1098).
+                  if (!savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
                   const capture = preparedV2CaptureRef.current
-                  if (!capture || capture.prepared.status === 'refused') return
+                  if (!capture || capture.prepared.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
                   const groupOccurrenceId = layerTransitionTarget.groupOccurrenceId
                   const groupTransitionId = layerTransitionTarget.groupTransitionId
                   if (groupOccurrenceId && groupTransitionId) {
@@ -5379,7 +5391,7 @@ export function ShowEditor({
                     }, () => undefined)
                   }
                   const transitionId = layerTransitionTarget.transitionId
-                  if (!transitionId) return
+                  if (!transitionId) return panelRefusal({ kind: 'stale' })
                   const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
                   if (plan.status === 'refused') return panelRefusal(capture.record.composition.transitions.some((candidate) => candidate.id === transitionId) ? { kind: 'refused' } : { kind: 'stale' })
                   const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
@@ -11431,7 +11443,7 @@ function ContextualInspector({
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onUpdateClipInspectorV2?: (clipId: string, patch: ShowClipInspectorPatch) => EditRefusalResult<boolean | void>
-  onUpdateBoundaryTransitionV2?: (transitionId: string, changes: ShowTransitionChanges) => EditRefusalResult
+  onUpdateBoundaryTransitionV2?: (transitionId: string, changes: ShowTransitionChanges) => EditRefusalResult<boolean | void>
   onRemoveBoundaryTransitionV2?: (transitionId: string) => void
   onUpdateRoutingTransferV2?: (occurrenceId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
   onRemoveRoutingTransferV2?: (occurrenceId: string) => void
@@ -11449,7 +11461,7 @@ function ContextualInspector({
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
   onRemoveClipV2?: (clipId: string) => void
   onV2GroupOccurrenceRequest?: (request: ShowV2GroupOccurrenceRequest) => EditRefusalResult<boolean | void>
-  onUpdateGroupClipPatternV2?: (occurrenceId: string, clipId: string, ref: ShowPatternRef) => boolean | Promise<void>
+  onUpdateGroupClipPatternV2?: (occurrenceId: string, clipId: string, ref: ShowPatternRef) => EditRefusalResult<boolean | void>
   onDuplicateGroup: (occurrenceId: string) => void
   onMakeGroupUnique: (occurrenceId: string) => void
   onTranslateGroup: (occurrenceId: string, translationX: number, translationY: number) => void
@@ -11589,20 +11601,21 @@ function ContextualInspector({
           onPatch={selection.kind === 'clip'
             ? (patch) => onUpdateClipInspectorV2?.(selection.clipId, patch) ?? false
             : (patch) => {
-              if (selection.kind !== 'group-clip') return false
+              // Every refusal, including these early returns, names a reason (#1098).
+              if (selection.kind !== 'group-clip') return panelRefusal(PANEL_UNAVAILABLE)
               if (Object.keys(patch).length === 1 && patch.pattern !== undefined) {
-                if (!onUpdateGroupClipPatternV2) return false
+                if (!onUpdateGroupClipPatternV2) return panelRefusal(PANEL_UNAVAILABLE)
                 return onUpdateGroupClipPatternV2(selection.occurrenceId, selection.placementId, patch.pattern.ref) ?? false
               }
               const hasTiming = patch.local?.startMs !== undefined || patch.local?.durationMs !== undefined
               if (hasTiming) {
-                if (Object.keys(patch).length !== 1 || !patch.local) return false
+                if (Object.keys(patch).length !== 1 || !patch.local) return panelRefusal(PANEL_UNAVAILABLE)
                 const localKeys = Object.keys(patch.local)
                 const hasStart = patch.local.startMs !== undefined
                 const hasDuration = patch.local.durationMs !== undefined
-                if (!hasStart && !hasDuration) return false
-                if (!localKeys.every(key => key === 'startMs' || key === 'durationMs')) return false
-                if (!onV2GroupOccurrenceRequest) return false
+                if (!hasStart && !hasDuration) return panelRefusal(PANEL_UNAVAILABLE)
+                if (!localKeys.every(key => key === 'startMs' || key === 'durationMs')) return panelRefusal(PANEL_UNAVAILABLE)
+                if (!onV2GroupOccurrenceRequest) return panelRefusal(PANEL_UNAVAILABLE)
                 return onV2GroupOccurrenceRequest({
                   kind: 'set-child-timing',
                   occurrenceId: selection.occurrenceId,
@@ -11611,7 +11624,7 @@ function ContextualInspector({
                   ...(hasDuration ? { durationMs: patch.local.durationMs! } : {}),
                 }) ?? false
               }
-              if (!onV2GroupOccurrenceRequest) return false
+              if (!onV2GroupOccurrenceRequest) return panelRefusal(PANEL_UNAVAILABLE)
               return onV2GroupOccurrenceRequest({
                 kind: 'set-child-inspector-patch',
                 occurrenceId: selection.occurrenceId,
@@ -11715,12 +11728,17 @@ function ContextualInspector({
             translationY: group.translationY,
           }}
           linkedOccurrenceCount={group.linkedOccurrenceCount}
+          // The Base Layer field stops where the Place rebinding below still
+          // finds a Zone Layer for every definition Layer (#1098).
+          baseLayerMax={recordV2 ? showV2GroupBaseLayerMax(recordV2, selection.occurrenceId) ?? undefined : undefined}
           // Translate, Place and Delete reach the v2 occurrence owners through the same door as Duplicate (#1075 G1).
+          // Every refusal, including each early return below, names a
+          // reason in the panel (#1098).
           onDuplicate={() => {
-            if (!onV2GroupOccurrenceRequest) return
+            if (!onV2GroupOccurrenceRequest) return panelRefusal(PANEL_UNAVAILABLE)
             const occurrence = recordV2?.composition.groupOccurrences.find((candidate) => candidate.id === selection.occurrenceId)
             const definition = recordV2?.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)
-            if (!occurrence || !definition) return
+            if (!occurrence || !definition) return panelRefusal({ kind: 'stale' })
             return onV2GroupOccurrenceRequest({
               kind: 'duplicate-occurrence',
               occurrenceId: occurrence.id,
@@ -11733,12 +11751,12 @@ function ContextualInspector({
               },
             })
           }}
-          onMakeUnique={() => onV2GroupOccurrenceRequest?.({ kind: 'make-unique', occurrenceId: selection.occurrenceId })}
+          onMakeUnique={() => onV2GroupOccurrenceRequest?.({ kind: 'make-unique', occurrenceId: selection.occurrenceId }) ?? panelRefusal(PANEL_UNAVAILABLE)}
           onTranslate={(translationX, translationY) => {
-            if (!onV2GroupOccurrenceRequest) return
+            if (!onV2GroupOccurrenceRequest) return panelRefusal(PANEL_UNAVAILABLE)
             const occurrence = recordV2?.composition.groupOccurrences.find((candidate) => candidate.id === selection.occurrenceId)
             const definition = recordV2?.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)
-            if (!occurrence || !definition) return
+            if (!occurrence || !definition) return panelRefusal({ kind: 'stale' })
             return onV2GroupOccurrenceRequest({
               kind: 'move-occurrence',
               occurrenceId: occurrence.id,
@@ -11752,10 +11770,10 @@ function ContextualInspector({
             })
           }}
           onPlace={(patch) => {
-            if (!onV2GroupOccurrenceRequest) return
+            if (!onV2GroupOccurrenceRequest) return panelRefusal(PANEL_UNAVAILABLE)
             const occurrence = recordV2?.composition.groupOccurrences.find((candidate) => candidate.id === selection.occurrenceId)
             const definition = recordV2?.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)
-            if (!occurrence || !definition || !recordV2) return
+            if (!occurrence || !definition || !recordV2) return panelRefusal({ kind: 'stale' })
             let startMs = occurrence.startMs
             let layerBindings = structuredClone(occurrence.layerBindings)
             if (patch.startMs !== undefined) startMs = patch.startMs
@@ -11764,7 +11782,7 @@ function ContextualInspector({
               const rebound: typeof layerBindings = []
               for (const layer of definition.layers) {
                 const target = recordV2.composition.layers.find((candidate) => candidate.zoneId === occurrence.zoneId && candidate.rank === baseLayer + layer.rank)
-                if (!target) return
+                if (!target) return panelRefusal({ kind: 'group-no-layer-at-rank' })
                 rebound.push({ definitionLayerId: layer.id, layerId: target.id })
               }
               layerBindings = rebound
@@ -11782,7 +11800,7 @@ function ContextualInspector({
             })
           }}
           onDelete={() => onDeleteGroup(selection.occurrenceId)}
-          onUngroup={() => onV2GroupOccurrenceRequest?.({ kind: 'ungroup-occurrence', occurrenceId: selection.occurrenceId })}
+          onUngroup={() => onV2GroupOccurrenceRequest?.({ kind: 'ungroup-occurrence', occurrenceId: selection.occurrenceId }) ?? panelRefusal(PANEL_UNAVAILABLE)}
         />
       )
     }
@@ -12158,6 +12176,7 @@ interface ShowGroupInspectorValue {
 function GroupInspector({
   value,
   linkedOccurrenceCount,
+  baseLayerMax,
   onDuplicate,
   onMakeUnique,
   onTranslate,
@@ -12167,6 +12186,8 @@ function GroupInspector({
 }: {
   value: ShowGroupInspectorValue
   linkedOccurrenceCount: number
+  /** The highest Base Layer the Place rebinding accepts; unbounded when unknown. */
+  baseLayerMax?: number
   onDuplicate: () => EditRefusalResult<boolean | void>
   onMakeUnique: () => EditRefusalResult<boolean | void>
   onTranslate: (translationX: number, translationY: number) => EditRefusalResult<boolean | void>
@@ -12202,6 +12223,7 @@ function GroupInspector({
           label="Base Layer"
           value={value.baseLayer}
           min={0}
+          max={baseLayerMax}
           step={1}
           onChange={(baseLayer) => observeRefusal(() => onPlace({ baseLayer: Math.round(baseLayer) }))}
         />
@@ -12891,7 +12913,7 @@ function BoundaryTransitionInspector({
   /** Keyed by each side's `controlSourceId`: a ShowCell on v1, an instance on v2. */
   patternControlsBySourceId: Record<string, AutomatablePatternControl[]>
   /** A refusal names its reason in the panel's alert line (#1098). */
-  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => EditRefusalResult
+  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => EditRefusalResult<boolean | void>
   onPreviewSettings: (changes: ShowTransitionChanges) => void
   onPreviewEnd: () => void
   onOpenPalette: () => void
@@ -12909,10 +12931,11 @@ function BoundaryTransitionInspector({
   const transition = value.settings
   const { boundaryIdentity, destinations } = value
   // Each settings edit clears the refusal line, then shows its own (#1098).
+  // The observed result goes back to the field, so a refusal restores its draft.
   const [refusal, observeRefusal] = useEditRefusal()
-  const onUpdate = (transitionId: string, changes: ShowTransitionChanges): void => {
-    void observeRefusal(() => onUpdateProp(transitionId, changes))
-  }
+  const onUpdate = (transitionId: string, changes: ShowTransitionChanges): FieldCommitResult => (
+    observeRefusal(() => onUpdateProp(transitionId, changes))
+  )
   // A routing Transition keeps `RoutingTransferInspector` on both backings, so
   // it never reaches this panel; the guard states that rather than assuming it.
   if (transition.kind === 'routing') return null
@@ -12964,7 +12987,7 @@ function BoundaryTransitionInspector({
           onPreviewEnd={onPreviewEnd}
           onChange={(parameterId, parameterValue) => {
             const changes = showBoundaryTransitionParameterChanges(transition, transitionItem, parameterId, parameterValue, stageDimensions)
-            if (changes) onUpdate(transition.id, changes)
+            return changes ? onUpdate(transition.id, changes) : false
           }}
         />
       )}
@@ -13167,11 +13190,11 @@ function SampleRepeatTransitionEditor({
   transition: ShowTransitionSettingsCarrier
   fromTarget: number
   toTarget: number
-  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => void
+  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => FieldCommitResult
 }) {
   const descriptor = transition.propertyTransitions?.sample?.repeatScale
   const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>) => {
-    onUpdate(transition.id, {
+    return onUpdate(transition.id, {
       propertyTransitions: {
         ...(transition.propertyTransitions ?? {}),
         sample: {
@@ -13191,7 +13214,7 @@ function SampleRepeatTransitionEditor({
     delete sample.repeatScale
     if (Object.keys(sample).length > 0) propertyTransitions.sample = sample
     else delete propertyTransitions.sample
-    onUpdate(transition.id, {
+    return onUpdate(transition.id, {
       propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined,
     })
   }
@@ -13263,7 +13286,7 @@ function TransformTransitionEditor({
 }: {
   transition: ShowTransitionSettingsCarrier
   destinations: readonly ShowBoundaryTransitionDestinationValue[]
-  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => void
+  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => FieldCommitResult
 }) {
   const compatible = destinations.flatMap((destination) => {
     const outgoing = destination.outgoing
@@ -13294,7 +13317,7 @@ function TransformTransitionEditor({
     }
     if (Object.keys(transform).length > 0) propertyTransitions.transform = transform
     else delete propertyTransitions.transform
-    onUpdate(transition.id, {
+    return onUpdate(transition.id, {
       propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined,
     })
   }
@@ -13363,11 +13386,11 @@ function RoutingSplitTransitionEditor({
   transition: ShowTransitionSettingsCarrier
   fromTarget: number
   toTarget: number
-  onUpdate: (transitionId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
+  onUpdate: (transitionId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => FieldCommitResult
 }) {
   const descriptor = transition.propertyTransitions?.routing?.splitPosition
   const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>) => {
-    onUpdate(transition.id, {
+    return onUpdate(transition.id, {
       propertyTransitions: {
         ...(transition.propertyTransitions ?? {}),
         routing: {
@@ -13387,7 +13410,7 @@ function RoutingSplitTransitionEditor({
     delete routing.splitPosition
     if (Object.keys(routing).length > 0) propertyTransitions.routing = routing
     else delete propertyTransitions.routing
-    onUpdate(transition.id, {
+    return onUpdate(transition.id, {
       propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined,
     })
   }
@@ -13451,7 +13474,7 @@ function PropertyTransitionEditor({
   transition: ShowTransitionSettingsCarrier
   destinations: readonly ShowBoundaryTransitionDestinationValue[]
   clipValueRampsUnavailable: boolean
-  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => void
+  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => FieldCommitResult
   onUpdateDestinationAdaptations: (
     destinationId: string,
     changes: Partial<Record<ShowAutomatableProperty, number>>,
@@ -13460,28 +13483,28 @@ function PropertyTransitionEditor({
   const isTime = property === 'timeScale'
   const descriptor = transition.propertyTransitions?.[property]
   const title = isTime ? 'Animation speed' : 'Brightness'
-  const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>, fromByCellId = descriptor?.fromByCellId ?? {}) => {
-    if (clipValueRampsUnavailable) return
+  const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>, fromByCellId = descriptor?.fromByCellId ?? {}): FieldCommitResult => {
+    if (clipValueRampsUnavailable) return false
     const nextDescriptor = {
       fromByCellId,
       durationMs: changes.durationMs ?? descriptor?.durationMs ?? transition.durationMs,
       easing: changes.easing ?? descriptor?.easing ?? transition.easing,
     }
-    onUpdate(transition.id, {
+    return onUpdate(transition.id, {
       propertyTransitions: {
         ...(transition.propertyTransitions ?? {}),
         [property]: nextDescriptor,
       },
     })
   }
-  const removeCell = (cellId: string) => {
-    if (clipValueRampsUnavailable) return
+  const removeCell = (cellId: string): FieldCommitResult => {
+    if (clipValueRampsUnavailable) return false
     const fromByCellId = { ...(descriptor?.fromByCellId ?? {}) }
     delete fromByCellId[cellId]
     const propertyTransitions = { ...(transition.propertyTransitions ?? {}) }
     if (Object.keys(fromByCellId).length > 0) propertyTransitions[property] = { ...descriptor, fromByCellId }
     else delete propertyTransitions[property]
-    onUpdate(transition.id, { propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined })
+    return onUpdate(transition.id, { propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined })
   }
   return (
     <section
@@ -13502,7 +13525,7 @@ function PropertyTransitionEditor({
             max={Math.max(0.1, transition.durationMs / 1000)}
             step={0.1}
             ariaDisabled={clipValueRampsUnavailable}
-            onChange={(seconds) => { if (!clipValueRampsUnavailable) updateDescriptor({ durationMs: seconds * 1000 }) }}
+            onChange={(seconds) => updateDescriptor({ durationMs: seconds * 1000 })}
           />
           <label className="text-[10px] uppercase text-zinc-600">
             {title} easing
@@ -13524,9 +13547,9 @@ function PropertyTransitionEditor({
           const from = descriptor?.fromByCellId[destination.id]
           const outgoing = destination.outgoing
           const enabled = from !== undefined
-          const updateFrom = (value: number | undefined) => {
+          const updateFrom = (value: number | undefined): FieldCommitResult => {
             if (value === undefined) return removeCell(destination.id)
-            updateDescriptor({}, { ...(descriptor?.fromByCellId ?? {}), [destination.id]: value })
+            return updateDescriptor({}, { ...(descriptor?.fromByCellId ?? {}), [destination.id]: value })
           }
           const max = isTime ? 4 : 1
           const reasonId = `transition-${transition.id}-${property}-${destination.id}-unavailable`
@@ -13565,7 +13588,7 @@ function PropertyTransitionEditor({
                       max={max}
                       step={0.05}
                       ariaDisabled={clipValueRampsUnavailable}
-                      onChange={(value) => { if (!clipValueRampsUnavailable) updateFrom(value) }}
+                      onChange={(value) => updateFrom(value)}
                     />
                   ) : (
                     <PercentageField
@@ -13575,7 +13598,7 @@ function PropertyTransitionEditor({
                       max={1}
                       step={0.05}
                       ariaDisabled={clipValueRampsUnavailable}
-                      onChange={(value) => { if (!clipValueRampsUnavailable) updateFrom(value) }}
+                      onChange={(value) => updateFrom(value)}
                     />
                   )}
                   {isTime ? (
@@ -13624,7 +13647,7 @@ function PatternControlTransitionEditor({
   control: AutomatablePatternControl
   transition: ShowTransitionSettingsCarrier
   destinations: readonly ShowBoundaryTransitionDestinationValue[]
-  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => void
+  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => FieldCommitResult
   onUpdateDestinationControlTarget: (
     destinationId: string,
     exportName: string,
@@ -13633,7 +13656,7 @@ function PatternControlTransitionEditor({
 }) {
   const descriptor = transition.propertyTransitions?.controls?.[control.exportName]
   const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>, fromByCellId = descriptor?.fromByCellId ?? {}) => {
-    onUpdate(transition.id, {
+    return onUpdate(transition.id, {
       propertyTransitions: {
         ...(transition.propertyTransitions ?? {}),
         controls: {
@@ -13656,7 +13679,7 @@ function PatternControlTransitionEditor({
     const propertyTransitions = { ...(transition.propertyTransitions ?? {}) }
     if (Object.keys(controls).length > 0) propertyTransitions.controls = controls
     else delete propertyTransitions.controls
-    onUpdate(transition.id, { propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined })
+    return onUpdate(transition.id, { propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined })
   }
   return (
     <section className="col-span-2 border-t border-zinc-800/70 bg-transparent py-2" aria-label={`${control.label} control transition`}>

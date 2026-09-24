@@ -5,7 +5,7 @@ import { serializeProvisionalShowRecordV2, parseProvisionalShowRecordV2, type Sh
 import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, editShowGroupDefinitionClipAppearanceV2, setShowGroupDefinitionClipTimingV2, writeShowGroupDefinitionInstancePropertiesV2, insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
 import { insertShowGroupLayerTransition } from './showGroupModel'
 import { planShowV2GroupLayerTransitionInsertion } from './showV2LayerTransitionInsertion'
-import { buildShowV2GroupOccurrenceEditorModel, planShowV2GroupOccurrenceEdit } from './showV2GroupOccurrenceEditorModel'
+import { buildShowV2GroupOccurrenceEditorModel, planShowV2GroupOccurrenceEdit, showV2GroupBaseLayerMax } from './showV2GroupOccurrenceEditorModel'
 import { projectShowEditorInspectorPresentationV2 } from './showEditorInspectorPresentation'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { completeShowGroupSelection, createShowGroupFromSelection, duplicateShowGroupOccurrence, validateShowGroupSelection } from './showGroupModel'
@@ -630,4 +630,14 @@ it('compares v1-then-convert with the v2 Group replacement owner for a same-cont
   expect(preparedReconverted.status).toBe('ready')
   if (preparedReconverted.status !== 'ready') return
   expect(compileShow(preparedReconverted.recipe, LIBRARIES).code).toBe(compileShow(preparedApplied.recipe, LIBRARIES).code)
+})
+
+it('bounds the Base Layer at the highest rank offset where every definition Layer finds a Zone Layer (#1098)', () => {
+  const { record } = showV2GroupOccurrenceEditorFixture()
+  const occurrence = record.composition.groupOccurrences[0]!
+  const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
+  const zoneRanks = record.composition.layers.filter(layer => layer.zoneId === occurrence.zoneId).map(layer => layer.rank)
+  const top = Math.max(...definition.layers.map(layer => layer.rank))
+  expect(showV2GroupBaseLayerMax(record, occurrence.id)).toBe(Math.max(...zoneRanks) - top)
+  expect(showV2GroupBaseLayerMax(record, 'missing')).toBeNull()
 })

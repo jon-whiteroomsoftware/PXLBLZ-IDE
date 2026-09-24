@@ -8712,3 +8712,156 @@ describe('v2 panel refusal feedback (#1098)', () => {
     expect(screen.getByRole('textbox', { name: 'Duration seconds exact time' })).toHaveValue('2')
   })
 })
+
+// ── Refused panel field edits revert their draft (#1098 repair) ────────────
+// Every field that feeds a panel alert line receives the refusal as `false`,
+// so it shows the stored value again, and every refusal names a reason.
+
+async function openLastPropertyAnimationBoundary(id: string): Promise<{ editor: OpenV2Editor; record: ShowRecordV2 }> {
+  const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
+  const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+  const record = convertCorpus(structuredClone(stock.show) as ShowRecord)
+  record.id = id
+  const editor = openV2EditorForRecord(record)
+  render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+  const junctions = screen.getAllByRole('button', { name: 'Edit crossfade Transition between LineDancer2D and LineDancer2D' })
+  fireEvent.click(junctions[junctions.length - 1])
+  await act(async () => {})
+  return { editor, record }
+}
+
+async function gappedGroupRecord(id: string): Promise<ShowRecordV2> {
+  const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+  const record = propertyEditGroupRecord()
+  record.id = id
+  for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+  // Zone Layers at ranks 0, 1, 3 and 4: Base Layer 2 has no Layer, below the field's bound of 4.
+  const template = record.composition.layers.find((layer) => layer.zoneId === 'zone')!
+  record.composition.layers.push(
+    { ...structuredClone(template), id: 'layer:zone:gap-a', name: 'Gap A', rank: 3 },
+    { ...structuredClone(template), id: 'layer:zone:gap-b', name: 'Gap B', rank: 4 },
+  )
+  expect(validateShowRecordV2(record)).toEqual([])
+  return record
+}
+
+function groupPanel(): HTMLElement {
+  const panel = screen.getByRole('button', { name: 'Duplicate Group occurrence' }).closest<HTMLElement>('section')
+  if (!panel) throw new Error('No Group occurrence panel is open.')
+  return panel
+}
+
+describe('v2 refused panel field edits revert their draft (#1098)', () => {
+  it('restores a boundary Duration that would run past Show End and names it', async () => {
+    // A native whole-output boundary retimes by shifting the Clips after it.
+    // (A converted boundary instead grows Show End, so it never refuses here.)
+    const { record } = nativeWholeOutputBoundary('panel-revert-boundary-duration')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getByRole('button', { name: /Edit crossfade Transition between/ }))
+    await act(async () => {})
+    const before = editor.state()
+    const duration = within(boundaryPanel()).getByRole('textbox', { name: 'Duration (s) exact time' })
+    const stored = (duration as HTMLInputElement).value
+    expect(stored).toBe('2')
+
+    // The incoming Clip ends at Show End, so a 10 s Transition pushes it
+    // past Show End and the resize owner refuses.
+    fireEvent.change(duration, { target: { value: '10' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(editor.state().record).toBe(before.record)
+    expect(editor.state().v2Writes).toBe(0)
+    expectPanelRefusal('This Transition would run past Show End.', boundaryPanel())
+    expect(within(boundaryPanel()).getByRole('textbox', { name: 'Duration (s) exact time' })).toHaveValue(stored)
+  })
+
+  it('restores a boundary sub-editor field whose commit another writer overtook', async () => {
+    const { editor } = await openLastPropertyAnimationBoundary('panel-revert-boundary-repeat')
+    const before = editor.state()
+    const field = within(boundaryPanel()).getByRole('textbox', { name: 'Repeat scale duration seconds exact time' })
+    const stored = (field as HTMLInputElement).value
+    admission.beforeDoor = () => useShowStore.setState({ showRevisions: { [editor.showId]: before.revision + 1 } })
+
+    fireEvent.change(field, { target: { value: '1' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionEdit'])
+    expect(editor.state().record).toBe(before.record)
+    expectPanelRefusal('The Show changed; try again.', boundaryPanel())
+    expect(within(boundaryPanel()).getByRole('textbox', { name: 'Repeat scale duration seconds exact time' })).toHaveValue(stored)
+  })
+
+  it('bounds Base Layer at the rebinding limit, and names and restores a rank with no Layer below it', async () => {
+    const record = await gappedGroupRecord('panel-revert-base-layer')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!)
+    await act(async () => {})
+    const before = editor.state()
+    const field = within(groupPanel()).getByRole('textbox', { name: 'Base Layer' })
+    expect(field).toHaveValue('1')
+
+    fireEvent.change(field, { target: { value: '2' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await act(async () => {})
+
+    expectNoWrite(before, editor.state())
+    expectPanelRefusal('No Layer at that rank in this Group.', groupPanel())
+    expect(within(groupPanel()).getByRole('textbox', { name: 'Base Layer' })).toHaveValue('1')
+
+    // Beyond the bound the field clamps to the highest rank the rebinding accepts.
+    fireEvent.change(field, { target: { value: '99' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await act(async () => {})
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(editor.state().record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')!.layerBindings)
+      .toEqual([{ definitionLayerId: 'local-layer', layerId: 'layer:zone:gap-b' }])
+    expect(panelRefusalLines('No Layer at that rank in this Group.')).toEqual([])
+  })
+
+  it('restores a Group offset whose commit another writer overtook', async () => {
+    const record = await gappedGroupRecord('panel-revert-group-offset')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!)
+    await act(async () => {})
+    const before = editor.state()
+    const field = within(groupPanel()).getByRole('textbox', { name: 'X offset' })
+    const stored = (field as HTMLInputElement).value
+    admission.beforeDoor = () => useShowStore.setState({ showRevisions: { [editor.showId]: before.revision + 1 } })
+
+    fireEvent.change(field, { target: { value: '0.25' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(editor.state().record).toBe(before.record)
+    expectPanelRefusal('The Show changed; try again.', groupPanel())
+    expect(within(groupPanel()).getByRole('textbox', { name: 'X offset' })).toHaveValue(stored)
+  })
+
+  it('names a Group Clip Pattern change that another writer overtook', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'panel-revert-group-clip-pattern'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
+    await act(async () => {})
+    showTab('Pattern')
+    const before = editor.state()
+    admission.beforeDoor = () => useShowStore.setState({ showRevisions: { [editor.showId]: before.revision + 1 } })
+
+    pickSourcePattern('TestPattern2D')
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupReplacementEdit'])
+    expect(editor.state().record).toBe(before.record)
+    expectPanelRefusal('The Show changed; try again.', clipDetail())
+  })
+})

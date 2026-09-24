@@ -1,7 +1,28 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ColorField } from './color-field'
+
+describe('ColorField refused commit (#1098)', () => {
+  it('restores the stored value when the owner refuses now', () => {
+    render(<ColorField label="Target color" value="#123456" onChange={() => false} />)
+    const exact = screen.getByRole('textbox', { name: 'Target color exact value' })
+    fireEvent.change(exact, { target: { value: '#abcdef' } })
+    fireEvent.keyDown(exact, { key: 'Enter' })
+    expect(exact).toHaveValue('#123456')
+  })
+
+  it('restores the stored value when the owner refuses after the commit settles', async () => {
+    let refuse!: (accepted: false) => void
+    render(<ColorField label="Target color" value="#123456" onChange={() => new Promise<false>((resolve) => { refuse = resolve })} />)
+    const exact = screen.getByRole('textbox', { name: 'Target color exact value' })
+    fireEvent.change(exact, { target: { value: '#abcdef' } })
+    fireEvent.keyDown(exact, { key: 'Enter' })
+    expect(exact).toHaveValue('#abcdef')
+    await act(async () => refuse(false))
+    expect(exact).toHaveValue('#123456')
+  })
+})
 
 describe('ColorField', () => {
   it('applies a canonical exact value once and cancels valid drafts on blur (#751)', async () => {

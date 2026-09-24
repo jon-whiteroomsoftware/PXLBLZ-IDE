@@ -7,6 +7,12 @@ import { useCallback, useState } from 'react'
  */
 export interface EditRefusal { refused: true; message: string }
 
+/**
+ * What a field hands its owner's commit back: `false`, now or once the commit
+ * settles, means refused, and the field restores its draft (#1098).
+ */
+export type FieldCommitResult = boolean | void | Promise<boolean | void>
+
 /** What a panel commit may return: its ordinary result, or a refusal. */
 export type EditRefusalResult<T = void> = T | EditRefusal | Promise<T | EditRefusal>
 

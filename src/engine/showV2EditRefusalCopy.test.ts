@@ -31,6 +31,7 @@ const TABLE: Array<[ShowV2EditRefusalInput, string | null, string]> = [
   [{ kind: 'stale' }, 'Show changed', 'The Show changed; try again.'],
   [{ kind: 'multi-key-clip' }, null, "This Clip's Effects differ between its held segments; edit each segment instead."],
   [{ kind: 'group-no-layout' }, null, 'No Zone Layout covers this start.'],
+  [{ kind: 'group-no-layer-at-rank' }, null, 'No Layer at that rank in this Group.'],
   [{ kind: 'group-ends-in-hold' }, null, 'This Duration would end inside a hold.'],
   [{ kind: 'group-restart-unsupported' }, null, "This Pattern's state can't be reset."],
   [{ kind: 'transition-past-show-end' }, null, 'This Transition would run past Show End.'],

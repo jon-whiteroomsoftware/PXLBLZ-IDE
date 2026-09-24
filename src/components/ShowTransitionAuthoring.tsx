@@ -9,6 +9,7 @@ import { AngleField } from '@/components/ui/angle-field'
 import { anglePresentationKind } from '@/engine/anglePresentation'
 import { TimeField } from '@/components/ui/time-field'
 import { ColorField } from '@/components/ui/color-field'
+import type { FieldCommitResult } from '@/components/ui/edit-refusal-line'
 import {
   showBoundaryTransitionParameterValue,
   showBoundaryTransitionParameters,
@@ -229,7 +230,8 @@ export function ShowTransitionParameters({
   omitParameterIds?: readonly string[]
   onPreview?: (parameterId: string, value: ShowToolkitParameterValue) => void
   onPreviewEnd?: () => void
-  onChange: (parameterId: string, value: ShowToolkitParameterValue) => void
+  /** Each field receives this result, so a refused value restores its draft (#1098). */
+  onChange: (parameterId: string, value: ShowToolkitParameterValue) => FieldCommitResult
 }) {
   const parameters = showBoundaryTransitionParameters(item, transition, stageDimensions)
     .filter((parameter) => !omitParameterIds?.includes(parameter.id))

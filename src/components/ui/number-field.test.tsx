@@ -1,7 +1,28 @@
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { NumberField } from './number-field'
+
+describe('NumberField refused commit (#1098)', () => {
+  it('restores the stored value when the owner refuses now', () => {
+    render(<NumberField label="Base Layer" value={1} onChange={() => false} />)
+    const field = screen.getByRole('textbox', { name: 'Base Layer' })
+    fireEvent.change(field, { target: { value: '2' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(field).toHaveValue('1')
+  })
+
+  it('restores the stored value when the owner refuses after the commit settles', async () => {
+    let refuse!: (accepted: false) => void
+    render(<NumberField label="X offset" value={0} onChange={() => new Promise<false>((resolve) => { refuse = resolve })} />)
+    const field = screen.getByRole('textbox', { name: 'X offset' })
+    fireEvent.change(field, { target: { value: '0.25' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(field).toHaveValue('0.25')
+    await act(async () => refuse(false))
+    expect(field).toHaveValue('0')
+  })
+})
 
 describe('NumberField accessibility contract (#656)', () => {
   it('exposes one labelled numeric textbox without native spin controls', () => {
