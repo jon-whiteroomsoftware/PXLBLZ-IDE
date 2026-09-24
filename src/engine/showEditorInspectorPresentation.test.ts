@@ -4,6 +4,7 @@ import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import type { ShowRecord } from './personalContentRecords'
 import { formatShowBoundaryIdentity, showBoundaryClipIdentity } from './showClipIdentity'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { createDefaultShow } from './showModel'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { convertTransitionClipRampProbe, transitionClipRampProbeV1 } from '../test/showV2TransitionClipRampFixture'
@@ -540,6 +541,91 @@ describe('projectShowEditorTimelineClipSummarySourcesV2', () => {
     )
     expect(sources['group-use-a:group-clip']!.animation.instanceId).toBe('group-slot')
     expect(JSON.stringify(summary)).toContain('Animation speed')
+  })
+})
+
+describe('Transition Clip-value ramp summary tracks (#1111-D)', () => {
+  function convertDefault(show: ShowRecord): ShowRecordV2 {
+    const result = convertShowRecordV1ToV2(show, {
+      byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]!])),
+    })
+    if (result.status !== 'converted') throw new Error(JSON.stringify(result.issues))
+    expect(validateShowRecordV2(result.record)).toEqual([])
+    return result.record
+  }
+
+  function rampedShow(): ShowRecord {
+    const show = createDefaultShow('show-ramp-summary', 'Ramp summary', 1000)
+    show.transitions = [{
+      ...show.transitions![0]!,
+      propertyTransitions: {
+        timeScale: {
+          fromByCellId: { [show.cells[1]!.id]: 0.5 },
+          durationMs: 1_000,
+          easing: { curve: 'linear' },
+        },
+      },
+    }]
+    return show
+  }
+
+  it('carries a boundary speed ramp as a summary track on the incoming Clip only', () => {
+    const source = convertDefault(rampedShow())
+    const transition = source.composition.transitions[0]!
+    const incomingClipId = transition.participants[0]!.toClipId
+    const incoming = source.composition.clips.find(clip => clip.id === incomingClipId)!
+    const presentation = projectShowEditorInspectorPresentationV2(source, incoming.startMs)
+
+    const animation = presentation.clipsById[incomingClipId]!.animation
+    expect(animation.tracks).toEqual([])
+    expect(animation.rampSummaryTracks).toHaveLength(1)
+    expect(animation.rampSummaryTracks[0]).toMatchObject({
+      id: `transition-ramp:${transition.id}:0`,
+      target: { kind: 'instance-time-scale', instanceId: incoming.instanceId },
+    })
+    expect(animation.rampSummaryTracks[0]!.keyframes.map(key => key.value)).toEqual([0.5, 1])
+
+    for (const clip of source.composition.clips.filter(candidate => candidate.id !== incomingClipId)) {
+      expect(projectShowEditorInspectorPresentationV2(source, clip.startMs)
+        .clipsById[clip.id]!.animation.rampSummaryTracks).toEqual([])
+    }
+
+    const sources = projectShowEditorTimelineClipSummarySourcesV2(source)
+    const summary = projectResolvedShowClipSummary(sources[incomingClipId]!.facts, {}, sources[incomingClipId]!.animation)
+    expect(summary.flatMap(section => section.items).find(item => item.label === 'Animation speed'))
+      .toMatchObject({ animated: true })
+  })
+
+  it('admits the ramp by incoming endpoint when the Clip follows the Transition after a gap', () => {
+    const source = convertDefault(rampedShow())
+    const incomingClipId = source.composition.transitions[0]!.participants[0]!.toClipId
+    const incoming = source.composition.clips.find(clip => clip.id === incomingClipId)!
+    incoming.startMs += 5_000
+
+    const presentation = projectShowEditorInspectorPresentationV2(source, incoming.startMs)
+    expect(presentation.clipsById[incomingClipId]!.animation.rampSummaryTracks).toHaveLength(1)
+  })
+
+  it('gives no summary track to a Clip that is only the Transition\'s outgoing endpoint', () => {
+    const source = convertDefault(rampedShow())
+    const transition = source.composition.transitions[0]!
+    const outgoing = source.composition.clips.find(clip => clip.id === transition.participants[0]!.fromClipId)!
+    const ramp = transition.propertyRamps[0]!
+    if (ramp.target.kind !== 'instance-time-scale') throw new Error('expected a speed ramp')
+    ramp.target.instanceId = outgoing.instanceId
+
+    for (const clip of source.composition.clips) {
+      expect(projectShowEditorInspectorPresentationV2(source, clip.startMs)
+        .clipsById[clip.id]!.animation.rampSummaryTracks).toEqual([])
+    }
+  })
+
+  it('has no summary tracks for a record without ramps', () => {
+    const source = convertDefault(createDefaultShow('show-no-ramp', 'No ramp', 1000))
+    for (const clip of source.composition.clips) {
+      expect(projectShowEditorInspectorPresentationV2(source, clip.startMs)
+        .clipsById[clip.id]!.animation.rampSummaryTracks).toEqual([])
+    }
   })
 })
 

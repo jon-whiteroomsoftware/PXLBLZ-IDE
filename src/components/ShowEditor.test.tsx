@@ -2717,31 +2717,32 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
   })
 
-  // v2 port blocked by #1111: converted boundary speed ramp shows the timeline Clip summary as defaults, not animated
-  it('keeps compatibility Clip animation summaries aligned between timeline and Detail (#599 review)', async () => {
+  it('keeps compatibility Clip animation summaries aligned between timeline and Detail for a boundary speed ramp (#599 review, #1111-D)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-compatibility-clip-summary', 'Compatibility Clip summary', 1000)
+    // A v1 boundary ramp's `fromByCellId` is keyed by the incoming Cell (#1111-D).
     show.transitions = [{
       ...show.transitions![0],
       propertyTransitions: {
         timeScale: {
-          fromByCellId: { [show.cells[0].id]: 0.5 },
+          fromByCellId: { [show.cells[1].id]: 0.5 },
           durationMs: 1_000,
           easing: { curve: 'linear' },
         },
       },
     }]
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
 
-    const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
-    expect(within(clip).getByText('animated')).toBeInTheDocument()
+    const clip = screen.getByRole('button', { name: 'Select CometLoom' })
+    expect(within(clip).getByText('.5–1x')).toBeInTheDocument()
+    expect(within(clip).getByTitle('Animation speed 0.5–1x')).toBeInTheDocument()
 
     await user.click(clip)
 
     expect(within(screen.getByRole('dialog', { name: 'Entity Detail Panel' }))
-      .getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Animation speedanimated')
+      .getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Animation speed0.5–1x')
   })
 
   it('previews, restores and applies a boundary Transition from the Change palette (#1065)', async () => {

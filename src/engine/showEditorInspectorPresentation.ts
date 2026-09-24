@@ -17,6 +17,8 @@ import {
   occurrenceBoundaryAfter,
   occurrenceBoundaryBefore,
 } from './showGroupsV2'
+import { normalizePersistedShowEasing } from './showEasing'
+import { transitionEndpoints } from './showTransitionsV2'
 import { normalizeShowClipEvaluationPolicy } from './showClipInspectorModel'
 import { normalizeShowClipEffects } from './showEffects'
 import { normalizeShowClipTransform } from './showClipTransform'
@@ -111,6 +113,11 @@ export interface ShowEditorPropertyTrackPresentationV2 {
 export interface ShowEditorClipAnimationPresentationV2 {
   owner: ShowEditorClipOwnerV2
   tracks: ShowEditorPropertyTrackPresentationV2[]
+  /**
+   * Transition Clip-value ramps on this Clip's instance, shaped as tracks for
+   * the Clip summary only; never edited (#1111-D).
+   */
+  rampSummaryTracks: readonly ShowPropertyAnimationTrack[]
   storageDurationMs: number
   showTimeOffsetMs: number
   instanceUseCount: number
@@ -338,10 +345,53 @@ function ordinaryAnimation(
   return {
     owner: structuredClone(owner),
     tracks,
+    rampSummaryTracks: transitionRampSummaryTracks(record, clip, appearance),
     storageDurationMs: appearance.spanEndMs - appearance.spanStartMs,
     showTimeOffsetMs: appearance.spanStartMs,
     instanceUseCount: effectiveInstanceUseCount(record, clip.instanceId),
   }
+}
+
+/**
+ * A Transition's Clip-value ramps on this Clip, as read-only summary tracks.
+ * A ramp belongs to the Clip through the Transition's incoming endpoints, not
+ * by time overlap: a converted boundary Transition sits in the gap before it.
+ * The window opens at the Transition's start and runs for the ramp's own
+ * duration, defaulting to the Transition's, exactly as the compiler reads it
+ * (`showModel.ts:2742`, `durationMs ?? boundary.durationMs`; the compiler
+ * clamps elapsed time over that duration at `showCompiler.ts:4378`).
+ * The ramp runs from its authored `from` to the Clip's own value at the end.
+ */
+function transitionRampSummaryTracks(
+  record: ShowRecordV2,
+  clip: ShowClipV2,
+  appearance: HeldAppearance,
+): ShowPropertyAnimationTrack[] {
+  const instance = record.composition.patternInstances.find(candidate => candidate.id === clip.instanceId)
+  return record.composition.transitions.flatMap((transition) => {
+    const startMs = transitionPresentation(record, transition).startMs
+    const transitionEasing = normalizePersistedShowEasing(transition.easing)
+    return transition.propertyRamps.flatMap((ramp, index): ShowPropertyAnimationTrack[] => {
+      if (!isShowTransitionClipValueRampV2(ramp)) return []
+      if (!transitionEndpoints(transition).to.includes(clip.id)) return []
+      if (!targetBelongsToClip(ramp.target, clip.id, clip.instanceId)) return []
+      const endMs = startMs + (ramp.durationMs ?? transition.durationMs)
+      // Keys may fall before the Clip (negative times); the summary reads only target and values.
+      const to = ramp.target.kind === 'instance-time-scale'
+        ? instance?.time.timeScale
+        : heldAppearance(clip, endMs).value.view.brightness
+      if (to === undefined) return []
+      const id = `transition-ramp:${transition.id}:${index}`
+      return [{
+        id,
+        target: lowerPropertyTarget(ramp.target),
+        keyframes: [
+          { id: `${id}:from`, timeMs: startMs - appearance.spanStartMs, value: ramp.from, easing: structuredClone(ramp.easing ?? transitionEasing) },
+          { id: `${id}:to`, timeMs: endMs - appearance.spanStartMs, value: to, easing: { curve: 'linear' } },
+        ],
+      }]
+    })
+  })
 }
 
 function groupEditorTarget(
@@ -378,6 +428,7 @@ function groupAnimation(
   return {
     owner: structuredClone(owner),
     tracks,
+    rampSummaryTracks: [],
     storageDurationMs: groupOccurrenceDuration(definition, occurrence),
     showTimeOffsetMs: occurrence.startMs,
     instanceUseCount: definitionLinkedInstanceUseCount(record, definition, child.instanceId),
@@ -750,7 +801,10 @@ export function projectShowEditorTimelineClipSummarySourcesV2(
       facts: showEditorClipSummaryFactsV2(presentation.value),
       animation: {
         instanceId: presentation.value.effectiveInstanceId,
-        tracks: presentation.animation.tracks.map(track => track.editor),
+        tracks: [
+          ...presentation.animation.tracks.map(track => track.editor),
+          ...presentation.animation.rampSummaryTracks,
+        ],
       },
     }] as const)
   }

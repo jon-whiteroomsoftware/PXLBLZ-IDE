@@ -11602,7 +11602,10 @@ function ContextualInspector({
             controlLabels,
             {
               instanceId: presented.value.instanceId,
-              tracks: presented.animation.tracks.map((track) => track.editor),
+              tracks: [
+                ...presented.animation.tracks.map((track) => track.editor),
+                ...presented.animation.rampSummaryTracks,
+              ],
             },
           )}
           transformEnabled={transformEnabled}
