@@ -173,7 +173,7 @@ decided by the projection section above. Full accepted behaviour lives in the
 
 ## Ordinary Clip deletion adoption (#1038)
 
-The pilot's explicit ordinary selection can call `admitShowV2PilotClipDelete` with exactly `{kind:'delete-clip',clipId}`. Materialized Group children are not deletion targets. The wrapper delegates to the existing Transition owner: attached visual Transitions and Clip-owned tracks are removed atomically; Property-ramp carrier refusal is preserved. Dormant instance setup, unrelated Group owners, survivor positions and Show End remain unchanged.
+The pilot's explicit ordinary selection can call `admitShowV2PilotClipDelete` with exactly `{kind:'delete-clip',clipId}`. Materialized Group children are not deletion targets. The wrapper delegates to the existing Transition owner: attached visual Transitions and Clip-owned tracks are removed atomically; Property-ramp carrier refusal is preserved. Deleting the last Clip on an instance collects the instance and its instance tracks (spec §6; Jon, 2026-09-23, #1100). Unrelated Group owners, survivor positions and Show End remain unchanged.
 
 The prepared gate admits ready→empty only when this deletion's complete structurally valid candidate has zero effective Clips. This is the explicit editable/saveable empty Show capability, with preview/export unavailable until Add Clip creates content. No arbitrary preparation failure is bypassed. All fourteen affected collections are returned; removed appearance/property key reports are scoped to captured owners explicitly removed by the pure owner, whose removedIds report stays unchanged.
 

@@ -9,6 +9,8 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from './showTransitionsV2'
+import { collectOrphanedShowInstanceV2 } from './showClipsV2'
+import { commandFixtureV2 } from './showCommandsV2/fixtures'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { resizeShowLayerTransition, resetShowLayerTransitionToCut } from './showLayerTransitionAuthoring'
 import { createDefaultShow, removeShowBoundaryTransition, removeShowClip } from './showModel'
@@ -274,7 +276,7 @@ describe('v2 Transition ownership', () => {
     const deleted = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'in' })
     expect(deleted).toMatchObject({
       status: 'changed', affectedClipIds: ['in'], affectedTransitionIds: ['transition-crossfade'],
-      removedIds: ['in', 'transition-crossfade'],
+      removedIds: ['in', 'in-instance', 'transition-crossfade'],
     })
     if (deleted.status !== 'changed') return
     expect(source).toEqual(before)
@@ -283,6 +285,8 @@ describe('v2 Transition ownership', () => {
     expect(deleted.record.composition.transitions).toEqual([])
 
     const readded = reopen(deleted.record)
+    // The delete collected the orphaned instance (#1100); the re-add brings its own.
+    readded.composition.patternInstances.push(structuredClone(source.composition.patternInstances.find(instance => instance.id === 'in-instance')!))
     readded.composition.clips.push({
       ...structuredClone(source.composition.clips.find(clip => clip.id === 'in')!),
       id: 'replacement',
@@ -1078,5 +1082,121 @@ describe('#1091 B2 Transition Clip value ramp ownership', () => {
     const deletedV1 = removeShowClip(v1, 'cell-2')
     expect(deletedV1.transitions.flatMap(candidate => Object.values(candidate.propertyTransitions ?? {})).some(descriptor =>
       descriptor && 'fromByCellId' in descriptor && 'cell-2' in descriptor.fromByCellId)).toBe(false)
+  })
+})
+
+describe('v2 Clip removal collects the Pattern instance it orphans (#1100)', () => {
+  const ramp = (id: string, target: ShowRecordV2['composition']['propertyTracks'][number]['target']) => ({
+    id, target, activeStartMs: 1_000, activeDurationMs: 2_000,
+    keyframes: [
+      { id: `${id}:start`, timeMs: 1_000, value: 1, easing: { curve: 'linear' as const } },
+      { id: `${id}:end`, timeMs: 3_000, value: 0.5, easing: { curve: 'linear' as const } },
+    ],
+  })
+  function instanceTrackShow(): ShowRecordV2 {
+    const record = commandFixtureV2()
+    record.composition.patternInstances.push({ ...structuredClone(record.composition.patternInstances[1]), id: 'inst-orphan' })
+    record.composition.propertyTracks.push(
+      ramp('b-clock', { kind: 'instance-time-scale', instanceId: 'inst-b' }),
+      ramp('b-control', { kind: 'instance-control', instanceId: 'inst-b', exportName: 'sliderSpeed' }),
+      ramp('a-clock', { kind: 'instance-time-scale', instanceId: 'inst-a' }),
+      ramp('orphan-clock', { kind: 'instance-time-scale', instanceId: 'inst-orphan' }),
+    )
+    expect(validateShowRecordV2(record)).toEqual([])
+    return record
+  }
+  const instanceIds = (record: ShowRecordV2) => record.composition.patternInstances.map(instance => instance.id)
+  const trackIds = (record: ShowRecordV2) => record.composition.propertyTracks.map(track => track.id)
+
+  it('removes the sole Clip\'s instance and its instance-targeted tracks, reporting them', () => {
+    const source = instanceTrackShow()
+    const before = structuredClone(source)
+    const deleted = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'clip-c' })
+    expect(deleted.status).toBe('changed')
+    if (deleted.status !== 'changed') return
+    expect(source).toEqual(before)
+    expect(instanceIds(deleted.record)).toEqual(['inst-a', 'inst-orphan'])
+    expect(trackIds(deleted.record)).toEqual(['track-a', 'a-clock', 'orphan-clock'])
+    expect(deleted.removedIds).toEqual([
+      'b-clock', 'b-clock:end', 'b-clock:start', 'b-control', 'b-control:end', 'b-control:start', 'clip-c', 'inst-b',
+    ])
+    expect(deleted.affectedTrackIds).toEqual(['b-clock', 'b-control'])
+    expect(validateShowRecordV2(reopen(deleted.record))).toEqual([])
+  })
+
+  it('keeps an instance another Clip still uses, and its tracks', () => {
+    const deleted = editShowTransitionV2(instanceTrackShow(), { kind: 'delete-clip', clipId: 'clip-a' })
+    expect(deleted.status).toBe('changed')
+    if (deleted.status !== 'changed') return
+    expect(instanceIds(deleted.record)).toEqual(['inst-a', 'inst-b', 'inst-orphan'])
+    expect(trackIds(deleted.record)).toEqual(['b-clock', 'b-control', 'a-clock', 'orphan-clock'])
+    expect(deleted.removedIds).toEqual(['clip-a', 'track-a'])
+  })
+
+  it('keeps an instance a Group occurrence still binds', () => {
+    const source = instanceTrackShow()
+    const base = source.composition.clips.find(clip => clip.id === 'clip-c')!
+    const { zoneId: _zoneId, ...groupBase } = base
+    source.composition.groupDefinitions = [{
+      id: 'group', name: 'Bound group',
+      patternInstances: [{ ...structuredClone(source.composition.patternInstances[1]), id: 'slot' }],
+      layers: [{ id: 'group-layer', name: 'Group Layer', rank: 0 }],
+      clips: [{
+        ...structuredClone(groupBase), id: 'group-child', instanceId: 'slot', layerId: 'group-layer', startMs: 0, durationMs: 100,
+        appearance: { keys: [{ ...structuredClone(base.appearance.keys[0]), id: 'group:key', timeMs: 0 }] },
+      }],
+      transitions: [], propertyTracks: [],
+    }]
+    source.composition.groupOccurrences = [{
+      id: 'group-use', definitionId: 'group', layoutOccurrenceId: 'interval-2', zoneId: 'left', startMs: 6_000,
+      translationX: 0, translationY: 0, instanceBindings: { slot: 'inst-b' }, holds: [],
+      layerBindings: [{ definitionLayerId: 'group-layer', layerId: 'over' }],
+    }]
+    expect(validateShowRecordV2(source)).toEqual([])
+    const deleted = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'clip-c' })
+    expect(deleted.status).toBe('changed')
+    if (deleted.status !== 'changed') return
+    expect(instanceIds(deleted.record)).toContain('inst-b')
+    expect(trackIds(deleted.record)).toEqual(['track-a', 'b-clock', 'b-control', 'a-clock', 'orphan-clock'])
+    expect(deleted.removedIds).toEqual(['clip-c'])
+  })
+
+  it('keeps an instance a surviving Transition ramp still names', () => {
+    const record = instanceTrackShow()
+    record.composition.clips = record.composition.clips.filter(clip => clip.id !== 'clip-c')
+    record.composition.transitions = [{
+      id: 'ramp-carrier', durationMs: 0, participants: [], propertyRamps: [{ target: { kind: 'instance-time-scale', instanceId: 'inst-b' } }],
+    } as unknown as ShowTransitionV2]
+    const before = structuredClone(record)
+    expect(collectOrphanedShowInstanceV2(record, 'inst-b')).toEqual({ removed: false, removedTrackIds: [], removedKeyframeIds: [] })
+    expect(record).toEqual(before)
+    record.composition.transitions = []
+    expect(collectOrphanedShowInstanceV2(record, 'inst-b')).toEqual({
+      removed: true, removedTrackIds: ['b-clock', 'b-control'],
+      removedKeyframeIds: ['b-clock:start', 'b-clock:end', 'b-control:start', 'b-control:end'],
+    })
+    expect(instanceIds(record)).toEqual(['inst-a', 'inst-orphan'])
+  })
+
+  it('leaves a pre-existing orphan instance and its track unchanged', () => {
+    const deleted = editShowTransitionV2(instanceTrackShow(), { kind: 'delete-clip', clipId: 'clip-c' })
+    expect(deleted.status).toBe('changed')
+    if (deleted.status !== 'changed') return
+    expect(deleted.record.composition.patternInstances.find(instance => instance.id === 'inst-orphan'))
+      .toEqual(instanceTrackShow().composition.patternInstances.find(instance => instance.id === 'inst-orphan'))
+    expect(trackIds(deleted.record)).toContain('orphan-clock')
+  })
+
+  it('forfeits the deterministic-loop stamp only when an instance is removed', () => {
+    const source = instanceTrackShow()
+    source.composition.executionModel = 'deterministic-loop'
+    const collected = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'clip-c' })
+    expect(collected.status).toBe('changed')
+    if (collected.status !== 'changed') return
+    expect(collected.record.composition.executionModel).toBe('continuous')
+    const kept = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'clip-a' })
+    expect(kept.status).toBe('changed')
+    if (kept.status !== 'changed') return
+    expect(kept.record.composition.executionModel).toBe('deterministic-loop')
   })
 })

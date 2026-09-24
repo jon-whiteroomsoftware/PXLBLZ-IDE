@@ -38,15 +38,17 @@ it.each(['fast','fidelity'] as const)('deletion preserves surviving held shared 
  for(const atMs of [0,100,200,300,400,500,600,900]){const actual=a.replay.advanceTo(atMs,{stepMs:100,forceFullIntermediateRender:true}),wanted=b.replay.advanceTo(atMs,{stepMs:100,forceFullIntermediateRender:true});expect(actual.frame).toEqual(wanted.frame);expect(actual.exports).toEqual(wanted.exports);expect(Object.keys(actual.exports).length).toBeGreaterThan(0)}
  expect(original).toEqual(before)
 })
-it.each(['fast','fidelity'] as const)('empty delete/re-add reuses dormant runtime without reviving appearance or Clip animation (%s)',fidelity=>{
+it.each(['fast','fidelity'] as const)('empty delete collects its instance; re-add sets up a fresh default runtime without reviving appearance or Clip animation (%s)',fidelity=>{
  const original=propertyEditRecord();original.composition.patternInstances[0].pattern={kind:'user',id:'voice'};original.composition.patternInstances[0].controlTargets={sliderGain:.4};original.composition.clips[0].appearance.keys[0].value.opacity=.25
  original.composition.propertyTracks=[{id:'deleted-animation',target:{kind:'clip-view',clipId:'clip',property:'brightness'},activeStartMs:0,activeDurationMs:1000,keyframes:[{id:'deleted-key',timeMs:0,value:.2,easing:{curve:'linear'}},{id:'deleted-last',timeMs:1000,value:.8,easing:{curve:'linear'}}]}]
  const deleted=editShowTransitionV2(original,{kind:'delete-clip',clipId:'clip'});expect(deleted.status,JSON.stringify(deleted)).toBe('changed');if(deleted.status!=='changed')throw Error('delete')
+ expect(deleted.record.composition.patternInstances).toEqual([]);expect(deleted.removedIds).toContain('instance')
  const reopened=parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(deleted.record));expect(reopened.status).toBe('opened');if(reopened.status!=='opened')throw Error('empty reopen')
  const old=original.composition.clips[0],clip={id:'new-clip',zoneId:old.zoneId,layerId:old.layerId,startMs:0,durationMs:1000,zoneSampleMode:old.zoneSampleMode,entryPolicy:'continue' as const,appearance:{keys:[{id:'new-appearance',timeMs:0,value:{opacity:1,view:{mirror:false,phase:0,brightness:1},effects:[]}}]}}
- const added=createShowClipV2(reopened.record,{kind:'create-clip',patternReference:{kind:'user',id:'voice'},runtime:{kind:'existing'},clip});expect(added.status,JSON.stringify(added)).toBe('changed');if(added.status!=='changed')throw Error('add')
- const expected=structuredClone(deleted.record);expected.composition.clips=[{...clip,instanceId:'instance'}]
- expect(added.record).toEqual(expected);expect(added.record.composition.propertyTracks).toEqual([]);expect(added.record.composition.patternInstances).toEqual(original.composition.patternInstances)
+ const fresh={id:'fresh-instance',pattern:{kind:'user' as const,id:'voice'},patternName:original.composition.patternInstances[0].patternName,time:{timeScale:1,timeOffsetMs:0},controlTargets:{}}
+ const added=createShowClipV2(reopened.record,{kind:'create-clip',patternReference:{kind:'user',id:'voice'},runtime:{kind:'first',instance:fresh},clip});expect(added.status,JSON.stringify(added)).toBe('changed');if(added.status!=='changed')throw Error('add')
+ const expected=structuredClone(deleted.record);expected.composition.clips=[{...clip,instanceId:'fresh-instance'}];expected.composition.patternInstances=[fresh]
+ expect(added.record).toEqual(expected);expect(added.record.composition.propertyTracks).toEqual([]);expect(added.record.composition.patternInstances).toEqual([fresh])
  const a=runtime(added.record,fidelity),b=runtime(expected,fidelity);expect(a.artifact.summary.clips).toHaveLength(1)
  for(const atMs of [0,100,200,500,900]){const actual=a.replay.advanceTo(atMs,{stepMs:100,forceFullIntermediateRender:true}),wanted=b.replay.advanceTo(atMs,{stepMs:100,forceFullIntermediateRender:true});expect(actual.frame).toEqual(wanted.frame);expect(actual.exports).toEqual(wanted.exports)}
 })

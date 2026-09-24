@@ -85,7 +85,7 @@ describe('v2 Transition Property-ramp carriers survive Clip deletion', () => {
       affectedClipIds: ['out'],
       affectedTransitionIds: ['boundary'],
       affectedTrackIds: ['repeat-track'],
-      removedIds: ['boundary', 'out'],
+      removedIds: ['boundary', 'out', 'out-instance'],
     })
     if (deleted.status !== 'changed') return
     const reopened = reopen(deleted.record)
@@ -119,7 +119,7 @@ describe('v2 Transition Property-ramp carriers survive Clip deletion', () => {
       affectedClipIds: ['in'],
       affectedTransitionIds: ['transition-crossfade'],
       affectedTrackIds: [],
-      removedIds: ['in', 'transition-crossfade'],
+      removedIds: ['in', 'in-instance', 'transition-crossfade'],
     })
     if (deleted.status !== 'changed') return
     const reopened = reopen(deleted.record)

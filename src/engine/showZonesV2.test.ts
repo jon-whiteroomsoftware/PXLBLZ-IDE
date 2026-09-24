@@ -209,7 +209,7 @@ describe('removing a Zone', () => {
     expect(result.affectedLayerIds).toEqual(['base', 'over'])
     expect(result.affectedLayoutDefinitionIds).toEqual(['both', 'left-only'])
     expect(result.affectedTransitionIds).toEqual(['cross'])
-    expect(result.removedIds).toEqual(['base', 'clip-a', 'clip-b', 'clip-c', 'cross', 'left', 'over', 'track-a'])
+    expect(result.removedIds).toEqual(['base', 'clip-a', 'clip-b', 'clip-c', 'cross', 'inst-b', 'left', 'over', 'track-a'])
   })
 
   it('keeps the ranges of a definition whose operator did not name the Zone', () => {

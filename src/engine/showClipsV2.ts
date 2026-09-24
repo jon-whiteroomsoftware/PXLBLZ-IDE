@@ -286,18 +286,11 @@ function editShowClipIdentityV2(
     edited.instanceId = target.id
     affectedInstanceIds = [target.id, source.id]
     retargetIncomingSpeedRamp()
-    const remainsBound = groupRuntimeBindings(next).some(binding => binding.runtimeId === source.id)
-    const remainsRampTarget = next.composition.transitions.some(transition => transition.propertyRamps.some(ramp => (
-      'instanceId' in ramp.target && ramp.target.instanceId === source.id
-    )))
-    if (effectiveShowInstanceUseCountV2(next, source.id) === 0 && !remainsBound && !remainsRampTarget) {
-      const removedTracks = next.composition.propertyTracks.filter(track => 'instanceId' in track.target && track.target.instanceId === source.id)
-      affectedTrackIds = removedTracks.map(track => track.id)
-      affectedKeyframeIds = removedTracks.flatMap(track => track.keyframes.map(key => key.id))
-      next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !affectedTrackIds.includes(track.id))
-      next.composition.patternInstances = next.composition.patternInstances.filter(instance => instance.id !== source.id)
+    const collected = collectOrphanedShowInstanceV2(next, source.id)
+    if (collected.removed) {
+      affectedTrackIds = collected.removedTrackIds
+      affectedKeyframeIds = collected.removedKeyframeIds
       removedIds = [source.id, ...affectedTrackIds, ...affectedKeyframeIds]
-      next.composition.executionModel = 'continuous'
     }
   }
   const invalid = validateShowRecordV2(next)[0]
@@ -305,6 +298,27 @@ function editShowClipIdentityV2(
   const restriction = firstShowTransitionPlacementRestrictionV2(next)
   if (restriction) return refuse(`${restriction.rule}: ${restriction.message}`, 'compiler-ineligible')
   return { status: 'changed', record: next, affectedClipIds: [clip.id], affectedTrackIds, affectedInstanceIds, affectedKeyframeIds, removedIds }
+}
+
+/** Remove `instanceId` and its instance-targeted tracks when nothing references it any more (spec §6). */
+export function collectOrphanedShowInstanceV2(
+  next: ShowRecordV2,
+  instanceId: string,
+): { removedTrackIds: string[]; removedKeyframeIds: string[]; removed: boolean } {
+  const remainsBound = groupRuntimeBindings(next).some(binding => binding.runtimeId === instanceId)
+  const remainsRampTarget = next.composition.transitions.some(transition => transition.propertyRamps.some(ramp => (
+    'instanceId' in ramp.target && ramp.target.instanceId === instanceId
+  )))
+  if (effectiveShowInstanceUseCountV2(next, instanceId) !== 0 || remainsBound || remainsRampTarget) {
+    return { removedTrackIds: [], removedKeyframeIds: [], removed: false }
+  }
+  const removedTracks = next.composition.propertyTracks.filter(track => 'instanceId' in track.target && track.target.instanceId === instanceId)
+  const removedTrackIds = removedTracks.map(track => track.id)
+  const removedKeyframeIds = removedTracks.flatMap(track => track.keyframes.map(key => key.id))
+  next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !removedTrackIds.includes(track.id))
+  next.composition.patternInstances = next.composition.patternInstances.filter(instance => instance.id !== instanceId)
+  next.composition.executionModel = 'continuous'
+  return { removedTrackIds, removedKeyframeIds, removed: true }
 }
 
 function independentPlanIssue(record: ShowRecordV2, raw: unknown): string | null {

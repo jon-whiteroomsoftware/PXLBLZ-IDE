@@ -3,6 +3,7 @@ import { transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
 import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from './showTransitionsV2'
+import { createShowClipV2 } from './showClipCreationV2'
 import {
   parseProvisionalShowRecordV2,
   serializeProvisionalShowRecordV2,
@@ -201,13 +202,19 @@ describe('v2 Transition route completion partitions', () => {
     expect(deleted.status).toBe('changed')
     if (deleted.status !== 'changed') return
     const template = source.composition.clips.find(clip => clip.id === 'in')!
+    const collected = source.composition.patternInstances.find(instance => instance.id === template.instanceId)!
+    expect(deleted.record.composition.patternInstances.map(instance => instance.id)).not.toContain(collected.id)
 
     for (const [startMs, expectedJunctions] of [[400, 1], [401, 0]] as const) {
-      const readded = reopen(deleted.record)
-      readded.composition.clips.push({
-        ...structuredClone(template), id: 'replacement', startMs,
-        appearance: { keys: [{ ...structuredClone(template.appearance.keys[0]), id: 'replacement:1', timeMs: startMs }] },
+      // The collected instance returns only through first-runtime setup, with default time and controls (#1100).
+      const { instanceId: _collectedId, ...clip } = structuredClone(template)
+      const created = createShowClipV2(reopen(deleted.record), {
+        kind: 'create-clip', patternReference: collected.pattern,
+        runtime: { kind: 'first', instance: { ...structuredClone(collected), id: 'replacement-instance', time: { timeScale: 1, timeOffsetMs: 0 }, controlTargets: {} } },
+        clip: { ...clip, id: 'replacement', startMs, appearance: { keys: [{ ...structuredClone(template.appearance.keys[0]), id: 'replacement:1', timeMs: startMs }] } },
       })
+      expect(created.status, JSON.stringify(created)).toBe('changed')
+      const readded = created.record
       expect(validateShowRecordV2(readded)).toEqual([])
       expect(readded.composition.transitions).toEqual([])
       expect(projectShowTransitionJunctionsV2(reopen(readded))).toHaveLength(expectedJunctions)

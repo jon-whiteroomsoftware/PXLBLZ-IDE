@@ -223,7 +223,7 @@ const removeClips: ShowCommandV2Descriptor = {
   name: 'remove_clips',
   family: 'clips',
   description: 'Remove Clips by identity. Each Clip\'s own tracks and every Transition record naming it are removed; surviving Clip positions and Show End stay fixed, so the vacated window becomes visible blank time. Removing the final content leaves a valid empty Show that stays editable and saveable.',
-  touches: ['/composition/clips', '/composition/transitions', '/composition/propertyTracks'],
+  touches: ['/composition/clips', '/composition/transitions', '/composition/propertyTracks', '/composition/patternInstances'],
   fields: {
     clip_ids: {
       kind: 'array',

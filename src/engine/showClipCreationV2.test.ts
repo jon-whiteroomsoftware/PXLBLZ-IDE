@@ -469,7 +469,7 @@ it('an invalid preimage cannot be laundered into a fresh valid placement', () =>
   emptyAffected(result)
 })
 
-it.each(['fast', 'fidelity'] as const)('empty add→delete→readd preserves independent authored %s output without resurrecting effects', fidelity => {
+it.each(['fast', 'fidelity'] as const)('empty add→delete collects the runtime; first-runtime readd yields fresh default %s output without resurrecting effects', fidelity => {
   const empty = emptyFixture()
   expect(isValidatedEmptyShowV2(empty)).toBe(true)
   const requested = intent(empty)
@@ -491,12 +491,18 @@ it.each(['fast', 'fidelity'] as const)('empty add→delete→readd preserves ind
   expect(deleted.status, JSON.stringify(deleted)).toBe('changed')
   expect(isValidatedEmptyShowV2(reopen(deleted.record))).toBe(true)
   expect(deleted.record.composition.propertyTracks).toEqual([])
+  expect(deleted.record.composition.patternInstances).toEqual([])
+  expect(deleted.removedIds).toContain('new-runtime')
+  const fresh = { id: 'readded-runtime', pattern: { kind: 'stock' as const, id: 'TestPattern1D' }, patternName: 'TestPattern1D', time: { timeScale: 1, timeOffsetMs: 0 }, controlTargets: {} }
   const again = intent(deleted.record)
-  again.runtime = { kind: 'existing' }
+  again.runtime = { kind: 'first', instance: fresh }
   const readded = createShowClipV2(deleted.record, again)
   expect(readded.status).toBe('changed')
-  expect(reopen(readded.record)).toEqual(expected)
-  compareDelivered(readded.record, expected, fidelity)
+  const expectedReadd = structuredClone(expected)
+  expectedReadd.composition.patternInstances = [fresh]
+  expectedReadd.composition.clips[0].instanceId = 'readded-runtime'
+  expect(reopen(readded.record)).toEqual(expectedReadd)
+  compareDelivered(readded.record, expectedReadd, fidelity)
 })
 
 it.each(['fast', 'fidelity'] as const)('Group-default sharing, nonlinear animation and Restart remain one %s runtime after creation', fidelity => {

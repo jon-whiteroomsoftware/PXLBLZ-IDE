@@ -2231,8 +2231,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `remove-951-${Date.now().toString(36)}`
         return record
       },
-      // Spec §6 collects the orphaned instance-b and its instance tracks; v2 keeps them (#1100).
-      pendingV2: 'defect: #1100 v2 removal keeps the orphaned instance and its instance tracks',
+      // Spec §6 collects the orphaned instance-b and its instance tracks (#1100).
       expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
         const composition = expected.composition

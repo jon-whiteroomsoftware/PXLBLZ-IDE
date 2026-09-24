@@ -9,6 +9,7 @@ import {
   type ShowTransitionV2,
 } from './showCompositionV2'
 import { effectiveShowInstanceUseCountV2, groupOccurrenceDuration } from './showGroupsV2'
+import { collectOrphanedShowInstanceV2 } from './showClipsV2'
 import { showLayoutOccurrenceAtTimeV2, validateClipLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import {
   editShowClipPropertyTracksV2,
@@ -152,6 +153,15 @@ export function editShowTransitionV2(
     next.composition.clips = next.composition.clips.filter(candidate => !removedClipIdSet.has(candidate.id))
     next.composition.transitions = next.composition.transitions.filter(transition => !removedTransitionIds.includes(transition.id))
     next.composition.propertyTracks = next.composition.propertyTracks.filter(track => !removedTrackIds.includes(track.id))
+    // Collect only the instances the removed Clips used; a pre-existing orphan stays (#1100).
+    const collectedIds: string[] = []
+    const collectedTrackIds: string[] = []
+    for (const instanceId of new Set(record.composition.clips.filter(candidate => removedClipIdSet.has(candidate.id)).map(candidate => candidate.instanceId))) {
+      const collected = collectOrphanedShowInstanceV2(next, instanceId)
+      if (!collected.removed) continue
+      collectedIds.push(instanceId, ...collected.removedTrackIds, ...collected.removedKeyframeIds)
+      collectedTrackIds.push(...collected.removedTrackIds)
+    }
     const issue = validateShowRecordV2(next)[0]
     if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
     const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
@@ -160,9 +170,9 @@ export function editShowTransitionV2(
       status: 'changed', record: next,
       affectedClipIds: removedClipIds,
       affectedTransitionIds: removedTransitionIds.sort(),
-      affectedTrackIds: [...new Set([...projectedTrackIds, ...removedTrackIds])].sort(),
+      affectedTrackIds: [...new Set([...projectedTrackIds, ...removedTrackIds, ...collectedTrackIds])].sort(),
       affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [],
-      removedIds: [...removedClipIds, ...removedTransitionIds, ...removedTrackIds].sort(),
+      removedIds: [...removedClipIds, ...removedTransitionIds, ...removedTrackIds, ...collectedIds].sort(),
     }
   }
 

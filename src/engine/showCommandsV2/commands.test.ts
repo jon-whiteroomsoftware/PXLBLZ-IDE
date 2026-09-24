@@ -855,6 +855,25 @@ describe('v2 command addressing, no-op policy and parity', () => {
     expect(commandRefusal.issues[0].message).toContain(ownerRefusal.message)
   })
 
+  it('remove_clips collects the orphaned instance and its tracks exactly as delete-clip does (#1100)', () => {
+    const record = commandFixtureV2()
+    record.composition.propertyTracks.push({
+      id: 'b-clock', target: { kind: 'instance-time-scale', instanceId: 'inst-b' }, activeStartMs: 1_000, activeDurationMs: 2_000,
+      keyframes: [
+        { id: 'b-clock:start', timeMs: 1_000, value: 1, easing: { curve: 'linear' } },
+        { id: 'b-clock:end', timeMs: 3_000, value: 0.5, easing: { curve: 'linear' } },
+      ],
+    })
+    const viaCommand = changed(applyShowCommandV2(record, 'remove_clips', { clip_ids: ['clip-c'] }))
+    const viaOwner = editShowTransitionV2(record, { kind: 'delete-clip', clipId: 'clip-c' })
+    expect(viaOwner.status).toBe('changed')
+    if (viaOwner.status !== 'changed') return
+    expect(viaCommand.record).toEqual(viaOwner.record)
+    expect(viaCommand.record.composition.patternInstances.map(instance => instance.id)).toEqual(['inst-a'])
+    expect(viaCommand.record.composition.propertyTracks.map(track => track.id)).toEqual(['track-a'])
+    expect(viaCommand.changes[0].details.removed).toEqual(['b-clock', 'b-clock:end', 'b-clock:start', 'clip-c', 'inst-b'])
+  })
+
   it('validates descriptor shape before any owner runs', () => {
     const record = commandFixtureV2()
     const cases: Array<[string, Record<string, unknown>, string]> = [
