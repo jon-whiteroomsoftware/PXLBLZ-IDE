@@ -633,6 +633,39 @@ describe('App smoke test', () => {
     expect(window.location.pathname).toBe(`/studio/patterns/${pattern.id}`)
   })
 
+  it('reopens a remembered personal v2 Show from the Shows place (#1116)', async () => {
+    const first = createDefaultShow('remembered-v2-first', 'First personal Show', 1)
+    const second = createDefaultShow('remembered-v2-second', 'Second personal Show', 2)
+    setStudioLocation(`/studio/shows/${second.id}`)
+    seedSignedInWorkspace()
+    seedStoredV2Shows([first, second])
+    render(<App />)
+
+    await waitFor(() => expect(useStudioPlaceStore.getState().remembered.shows).toBe(second.id))
+    await choosePlace('Patterns')
+    await choosePlace('Shows')
+
+    expect(window.location.pathname).toBe(`/studio/shows/${second.id}`)
+  })
+
+  it('falls back to the first v2 row when the remembered Show is gone (#1116)', async () => {
+    const first = createDefaultShow('fallback-v2-first', 'First personal Show', 1)
+    const second = createDefaultShow('fallback-v2-second', 'Second personal Show', 2)
+    setStudioLocation(`/studio/shows/${second.id}`)
+    seedSignedInWorkspace()
+    seedStoredV2Shows([first, second])
+    render(<App />)
+
+    await waitFor(() => expect(useStudioPlaceStore.getState().remembered.shows).toBe(second.id))
+    await choosePlace('Patterns')
+    act(() => useShowStore.setState((state) => ({
+      showV2Rows: state.showV2Rows.filter((row) => row.id !== second.id),
+    })))
+    await choosePlace('Shows')
+
+    expect(window.location.pathname).toBe(`/studio/shows/${first.id}`)
+  })
+
   it.each([null, 'IridescentFibers'] as const)(
     'keeps the routed demo remembered across personal Pattern hydration from demo state %s (#965)',
     async (activeDemoName) => {

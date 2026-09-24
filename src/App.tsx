@@ -1086,9 +1086,11 @@ function StudioApp() {
     const id = place === 'patterns'
       ? (userPatterns.some((pattern) => pattern.id === remembered) || (remembered ? Boolean(DEMOS[remembered]) : false) ? remembered : null)
       : place === 'shows'
-        ? (shows.some((show) => show.id === remembered) || (remembered ? Boolean(stockShowById(remembered)) : false)
+        ? (shows.some((show) => show.id === remembered)
+            || showV2Rows.some((row) => row.id === remembered)
+            || (remembered ? Boolean(stockShowById(remembered) ?? stockShowV2ById(remembered)) : false)
             ? remembered
-            : (shows[0]?.id ?? null))
+            : (showV2Rows[0]?.id ?? shows[0]?.id ?? null))
         : place === 'maps'
           ? (userMaps.some((map) => map.id === remembered) || STOCK_MAP_ITEMS.some((map) => map.id === remembered) ? remembered : null)
           : place === 'controllers'
@@ -1116,6 +1118,7 @@ function StudioApp() {
     rememberedPlaces,
     route.kind,
     shows,
+    showV2Rows,
     studioWelcomeAcknowledged,
     toggleApi,
     toggleDocs,
