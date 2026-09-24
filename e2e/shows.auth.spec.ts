@@ -930,10 +930,37 @@ test.describe('authenticated Show authoring', () => {
     const targetsInstance = (composition: Awaited<ReturnType<typeof stored>>, instanceId: string) => composition.propertyTracks
       .some((track) => 'instanceId' in track.target && track.target.instanceId === instanceId)
 
-    const before = await stored()
-    expect(cometClips(before)).toHaveLength(1)
-    const oldInstanceId = cometClips(before)[0]!.instanceId
-    test.info().annotations.push({ type: 'old instance', description: `${oldInstanceId}; instance tracks: ${targetsInstance(before, oldInstanceId)}` })
+    const seeded = (await findStoredShowV2(page, id))!
+    expect(cometClips(seeded.composition)).toHaveLength(1)
+    const oldClip = cometClips(seeded.composition)[0]!
+    const oldInstanceId = oldClip.instanceId
+    // The seeded Show owns no instance track, so give CometLoom's instance one
+    // for the collection to remove. Shape copied from the `clock` track in
+    // e2e/fixtures/showV2ClipTiming.json. The keyframes sit inside the Clip's
+    // span but after its entry crossfade: an activation boundary inside that
+    // Transition window is one the compiler refuses.
+    const trackId = 'comet-speed-1100'
+    const activeStartMs = oldClip.startMs + 5000
+    const activeDurationMs = 5000
+    expect(activeStartMs + activeDurationMs).toBeLessThan(oldClip.startMs + oldClip.durationMs)
+    seeded.composition.propertyTracks.push({
+      id: trackId,
+      target: { kind: 'instance-time-scale', instanceId: oldInstanceId },
+      activeStartMs,
+      activeDurationMs,
+      keyframes: [
+        { id: `${trackId}-first`, timeMs: activeStartMs, value: 2, easing: { curve: 'quadratic', direction: 'in' } },
+        { id: `${trackId}-last`, timeMs: activeStartMs + activeDurationMs, value: 4, easing: { curve: 'linear' } },
+      ],
+    })
+    const put = await page.context().request.put(`/api/shows/${encodeURIComponent(id)}?show-version=2`, { data: seeded })
+    expect(put.ok(), await put.text()).toBe(true)
+    await page.reload()
+    await waitForUntitledShowEditor(page)
+    const hasTrack = async () => (await stored()).propertyTracks.some((track) => track.id === trackId)
+    expect(await hasTrack()).toBe(true)
+    expect(targetsInstance(await stored(), oldInstanceId)).toBe(true)
+    test.info().annotations.push({ type: 'old instance', description: `${oldInstanceId}; instance track: ${trackId}` })
 
     const cometLoom = page.getByRole('button', { name: 'Select CometLoom', exact: true })
     await expect(cometLoom).toBeVisible()
@@ -946,8 +973,9 @@ test.describe('authenticated Show authoring', () => {
         clips: cometClips(composition).length,
         instance: composition.patternInstances.some((instance) => instance.id === oldInstanceId),
         tracks: targetsInstance(composition, oldInstanceId),
+        seededTrack: composition.propertyTracks.some((track) => track.id === trackId),
       }
-    }).toEqual({ clips: 0, instance: false, tracks: false })
+    }).toEqual({ clips: 0, instance: false, tracks: false, seededTrack: false })
 
     const playhead = page.getByRole('slider', { name: 'Show playhead' })
     await playhead.focus()
@@ -989,6 +1017,7 @@ test.describe('authenticated Show authoring', () => {
 
     await undo.click()
     await expect.poll(async () => cometClips(await stored()).map((clip) => clip.instanceId)).toEqual([oldInstanceId])
+    await expect.poll(hasTrack).toBe(true)
     await expect(cometLoom).toHaveCount(1)
 
     await page.reload()
@@ -3261,6 +3290,11 @@ async function createInstallationShow(page: Page): Promise<void> {
   await storeSeededShowAsV2(page, show.id)
   await page.goto(`studio/shows/${show.id}`)
   await expect(page).toHaveURL(new RegExp(`/studio/shows/${show.id}$`))
+  await waitForUntitledShowEditor(page)
+}
+
+/** The opened Untitled Show is loaded and its timeline has stopped resizing. */
+async function waitForUntitledShowEditor(page: Page): Promise<void> {
   // The row is loaded, not merely routed: the Zone rail toggle is keyed by the
   // open Show's id, so a click before the editor holds this Show lands nowhere.
   await expect(page.getByRole('button', { name: 'Rename show Untitled Show' })).toBeVisible()
