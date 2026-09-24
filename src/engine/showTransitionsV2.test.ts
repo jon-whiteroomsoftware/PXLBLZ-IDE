@@ -8,7 +8,7 @@ import { createFastReplayRuntime } from './fastReplay'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
-import { editShowTransitionV2, projectShowTransitionJunctionsV2 } from './showTransitionsV2'
+import { convertedBoundaryRepairSpecV2, editShowTransitionV2, projectShowTransitionJunctionsV2 } from './showTransitionsV2'
 import { collectOrphanedShowInstanceV2 } from './showClipsV2'
 import { commandFixtureV2 } from './showCommandsV2/fixtures'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
@@ -667,13 +667,83 @@ describe('v2 Transition ownership', () => {
       ['out', 0, 400], ['in', 650, 350],
     ])
     expect(leading.record.composition.transitions[0].durationMs).toBe(250)
+  })
 
-    const reset = editShowTransitionV2(source, { kind: 'resize-leading', clipId: 'in', startMs: 400 })
-    expect(reset).toMatchObject({ status: 'changed', removedIds: ['transition-crossfade'] })
-    if (reset.status !== 'changed') return
-    expect(reset.record.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([
-      ['out', 0, 400], ['in', 400, 400],
-    ])
+  /**
+   * A leading resize that closes the incoming window extends the Clip and
+   * removes the Transition in one edit, without ripple (Jon, 2026-09-24,
+   * #1111-C). The exact-zero case replaces the Reset-delegation assertion
+   * formerly in 'updates settings and applies connected trailing and leading
+   * Clip resize rules'.
+   */
+  describe('leading resize through the incoming Transition (#1111-C)', () => {
+    function expectExtendedInPlace(source: ShowRecordV2, clipId: string, startMs: number, transitionId: string) {
+      const before = source.composition.clips.find(clip => clip.id === clipId)!
+      const result = editShowTransitionV2(source, { kind: 'resize-leading', clipId, startMs })
+      expect(result).toMatchObject({ status: 'changed', affectedClipIds: [clipId], affectedTransitionIds: [], removedIds: [transitionId] })
+      if (result.status !== 'changed') return
+      const next = result.record
+      expect(next.composition.clips.find(clip => clip.id === clipId)).toMatchObject({
+        startMs, durationMs: before.startMs + before.durationMs - startMs,
+      })
+      expect(next.composition.transitions.map(transition => transition.id)).not.toContain(transitionId)
+      expect(next.composition.clips.filter(clip => clip.id !== clipId))
+        .toEqual(source.composition.clips.filter(clip => clip.id !== clipId))
+      expect(next.composition.showEndMs).toBe(source.composition.showEndMs)
+      expect(next.composition.layoutOccurrences).toEqual(source.composition.layoutOccurrences)
+      expect(validateShowRecordV2(next)).toEqual([])
+    }
+
+    /**
+     * The default Show's converted Scene boundary in its whole-output form,
+     * with the outgoing Clip on the overlay Layer so the incoming Clip's
+     * extension range on the main Layer is free.
+     */
+    function convertedFreeRangeBoundaryShow(): ShowRecordV2 {
+      const show = createDefaultShow('show-leading-extend', 'Leading extend', 1)
+      const converted = convertShowRecordV1ToV2(show, {
+        byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
+      })
+      if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+      const record = converted.record
+      const [outgoing, incoming] = record.composition.clips
+      const boundary = record.composition.transitions[0]
+      record.composition.layers.push({ id: 'layer:overlay', zoneId: outgoing.zoneId, name: 'Overlay', rank: 1 })
+      outgoing.layerId = 'layer:overlay'
+      boundary.participants = []
+      boundary.wholeOutput = { startMs: outgoing.startMs + outgoing.durationMs, fromClipIds: [outgoing.id], toClipIds: [incoming.id] }
+      expect(validateShowRecordV2(record)).toEqual([])
+      return record
+    }
+
+    it('extends through a negative window on a free range (ordinary Transition)', () => {
+      const source = crossZoneWholeOutputShow()
+      expectExtendedInPlace(source, 'in', 300, 'whole')
+    })
+
+    it('extends to exactly the window start and removes the Transition without Reset ripple', () => {
+      const source = convertedTransitionShow()
+      expectExtendedInPlace(source, 'in', 400, 'transition-crossfade')
+    })
+
+    it('refuses a negative window whose range the outgoing Clip occupies, writing nothing', () => {
+      const source = convertedTransitionShow()
+      const before = structuredClone(source)
+      const result = editShowTransitionV2(source, { kind: 'resize-leading', clipId: 'in', startMs: 300 })
+      expect(result).toMatchObject({ status: 'refused', code: 'invalid-result' })
+      expect(result.record).toBe(source)
+      expect(source).toEqual(before)
+    })
+
+    it('extends through a converted ready Scene-boundary Transition and removes it', () => {
+      const source = convertedFreeRangeBoundaryShow()
+      const boundary = source.composition.transitions[0]
+      expect(boundary.origin).toBe('converted-boundary-transition')
+      expect(convertedBoundaryRepairSpecV2(source, boundary.id).status).toBe('ready')
+      const clip = source.composition.clips[1]
+      expect(boundary.durationMs + 29_000 - clip.startMs).toBeLessThan(0)
+      expectExtendedInPlace(source, clip.id, 29_000, boundary.id)
+    })
   })
 
   /**

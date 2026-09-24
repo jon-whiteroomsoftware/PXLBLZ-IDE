@@ -908,28 +908,16 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   if (endpoints.to.length !== 1) return refusedResult(record, 'invalid-topology', 'Resize cannot split a multi-contributor Transition window.')
   const boundary = convertedBoundaryRepairSpecV2(record, transition.id)
   if (boundary.status === 'ramp-carrier') return refusedResult(record, 'unsupported-property-carrier', `Transition "${boundary.transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
+  const durationMs = transition.durationMs + startMs - clip.startMs
+  // A zero or negative incoming window extends the Clip and removes the
+  // Transition in place, with no ripple (Jon, 2026-09-24, #1111-C).
+  if (durationMs <= 0) return extendLeadingThroughTransitionV2(record, clip, startMs, transition)
   if (boundary.status === 'ready') {
     if (startMs < clip.startMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${boundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
     return resizeConvertedBoundaryEdge(record, clip, startMs, oldEndMs, boundary.repair)
   }
-  const durationMs = transition.durationMs + startMs - clip.startMs
-  if (durationMs < 0) return refusedResult(record, 'invalid-intent', 'Leading resize cannot create a negative Transition duration.')
-  if (durationMs === 0) return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })
-  const trackEdit = editShowClipPropertyTracksV2(record, clip, {
-    kind: startMs > clip.startMs ? 'trim' : 'extend',
-    startMs,
-    endMs: oldEndMs,
-  })
   const next = structuredClone(record)
-  next.composition.propertyTracks = trackEdit.propertyTracks
-  const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
-  edited.startMs = startMs
-  edited.durationMs = oldEndMs - startMs
-  const held = [...clip.appearance.keys].reverse().find(key => key.timeMs <= startMs) ?? clip.appearance.keys[0]
-  edited.appearance.keys = [
-    { ...structuredClone(held), timeMs: startMs },
-    ...structuredClone(clip.appearance.keys.filter(key => key !== held && key.timeMs > startMs && key.timeMs < oldEndMs)),
-  ]
+  const trackEdit = applyLeadingClipEdit(record, next, clip, startMs)
   next.composition.transitions = next.composition.transitions.map(candidate => candidate.id === transition.id
     ? { ...candidate, durationMs, propertyRamps: retimeShowTransitionRampsV2(candidate, durationMs) }
     : candidate)
@@ -943,6 +931,59 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
     status: 'changed', record: next, affectedClipIds: [clip.id], affectedTransitionIds: [transition.id],
     affectedTrackIds: trackEdit.affectedTrackIds.sort(),
     affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
+  }
+}
+
+/**
+ * Move the selected Clip's start to `startMs` with its end fixed, writing the
+ * Property tracks and appearance keys into `next`. Returns the track edit.
+ */
+function applyLeadingClipEdit(record: ShowRecordV2, next: ShowRecordV2, clip: ShowClipV2, startMs: number) {
+  const oldEndMs = clip.startMs + clip.durationMs
+  const trackEdit = editShowClipPropertyTracksV2(record, clip, {
+    kind: startMs > clip.startMs ? 'trim' : 'extend',
+    startMs,
+    endMs: oldEndMs,
+  })
+  next.composition.propertyTracks = trackEdit.propertyTracks
+  const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
+  edited.startMs = startMs
+  edited.durationMs = oldEndMs - startMs
+  const held = [...clip.appearance.keys].reverse().find(key => key.timeMs <= startMs) ?? clip.appearance.keys[0]
+  edited.appearance.keys = [
+    { ...structuredClone(held), timeMs: startMs },
+    ...structuredClone(clip.appearance.keys.filter(key => key !== held && key.timeMs > startMs && key.timeMs < oldEndMs)),
+  ]
+  return trackEdit
+}
+
+/**
+ * A leading resize whose incoming window closes (duration <= 0) extends the
+ * Clip to the requested start and removes the Transition, its Property ramps
+ * and contributor sets in the same edit. Nothing else moves: no ripple, and
+ * Show End stays fixed. Only the validator can refuse (Jon, 2026-09-24,
+ * #1111-C).
+ */
+function extendLeadingThroughTransitionV2(
+  record: ShowRecordV2,
+  clip: ShowClipV2,
+  startMs: number,
+  transition: ShowTransitionV2,
+): ShowTransitionEditResultV2 {
+  const endpoints = transitionEndpoints(transition)
+  const next = structuredClone(record)
+  next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== transition.id)
+  const trackEdit = applyLeadingClipEdit(record, next, clip, startMs)
+  const issue = validateShowRecordV2(next)[0]
+  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
+  if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
+  const unavailable = firstUnavailableContributor(next, [...new Set([clip.id, ...endpoints.all])])
+  if (unavailable) return refusedResult(record, 'unsupported-layout', unavailable)
+  return {
+    status: 'changed', record: next, affectedClipIds: [clip.id], affectedTransitionIds: [],
+    affectedTrackIds: trackEdit.affectedTrackIds.sort(),
+    affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [transition.id],
   }
 }
 
