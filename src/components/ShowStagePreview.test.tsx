@@ -1,10 +1,14 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { resolveShowStagePreviewInput, ShowStagePreview } from './ShowStagePreview'
+import { ShowStagePreview } from './ShowStagePreview'
 import { addShowZone, createDefaultShow, createShowWithOutputContract } from '@/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
-import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
+import { resetPersonalContentProvider } from '@/engine/personalContentProvider'
 import type { ControllerProfile } from '@/engine/controllerProfile'
-import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
+import type { MapRecord, PatternRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import { projectShowEditorStagePresentationV2, type ShowEditorStagePresentationV2 } from '@/engine/showEditorStagePresentation'
+import { captureShowStageEditV2, type ShowPreparedStageDependenciesV2 } from '@/engine/showPreparedStageV2'
+import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
@@ -14,46 +18,12 @@ import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
-import { stockShowById } from '@/pixelblaze/stock/shows'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
+import { convertForTest } from '@/test/showEditorV2Harness'
 import * as fastReplay from '@/engine/fastReplay'
 import * as rendererModule from '@/engine/renderer'
 import * as fastReplayCheckpoints from '@/engine/fastReplayCheckpoints'
-
-function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
-  const patterns = new Map<string, PatternRecord>()
-  const maps = new Map<string, MapRecord>()
-  const mixins = new Map<string, MixinRecord>()
-  const shows = new Map(seedShows.map((show) => [show.id, show]))
-  const controllers = new Map<string, ControllerProfile>()
-  return {
-    id: 'memory-test',
-    listPatterns: async () => [...patterns.values()],
-    createPattern: async (record) => { patterns.set(record.id, record) },
-    updatePattern: async (id, changes) => { patterns.set(id, { ...patterns.get(id)!, ...changes }) },
-    deletePattern: async (id) => { patterns.delete(id) },
-    listMaps: async () => [...maps.values()],
-    createMap: async (record) => { maps.set(record.id, record) },
-    updateMap: async (id, changes) => { maps.set(id, { ...maps.get(id)!, ...changes }) },
-    deleteMap: async (id) => { maps.delete(id) },
-    listMixins: async () => [...mixins.values()],
-    createMixin: async (record) => { mixins.set(record.id, record) },
-    updateMixin: async (id, changes) => { mixins.set(id, { ...mixins.get(id)!, ...changes }) },
-    deleteMixin: async (id) => { mixins.delete(id) },
-    listShows: async () => [...shows.values()],
-    createShow: async (record) => { shows.set(record.id, record) },
-    updateShow: async (id, changes) => { shows.set(id, { ...shows.get(id)!, ...changes }) },
-    deleteShow: async (id) => { shows.delete(id) },
-    listControllerProfiles: async () => [...controllers.values()],
-    createControllerProfile: async (profile) => { controllers.set(profile.id, profile) },
-    updateControllerProfile: async (id, changes) => { controllers.set(id, { ...controllers.get(id)!, ...changes }) },
-    deleteControllerProfile: async (id) => { controllers.delete(id) },
-    getLastActive: async () => undefined,
-    setLastActive: async () => {},
-    getDemoOverrides: async () => undefined,
-    setDemoOverrides: async () => {},
-  }
-}
 
 const importedMap: MapRecord = {
   id: 'map-1',
@@ -63,6 +33,28 @@ const importedMap: MapRecord = {
   params: {},
   points: [[0, 0], [1, 0], [0, 1], [1, 1]],
   updatedAt: 1,
+}
+
+/**
+ * The app's Stage projection for one open v2 Show (`src/App.tsx:910-927`).
+ * Dependencies default to the Pattern, Library, map and Controller-profile
+ * stores the test seeded; a dependency change re-projects, as the app does.
+ */
+function editorStage(
+  record: ShowRecordV2,
+  deps: Partial<Omit<ShowPreparedStageDependenciesV2, 'stageMap'>> = {},
+): ShowEditorStagePresentationV2 {
+  const patterns = deps.patterns ?? usePatternStore.getState().userPatterns
+  const libraries = deps.libraries ?? useLibraryStore.getState().userLibraries
+  const maps = deps.maps ?? useMapStore.getState().userMaps
+  const profiles = deps.profiles ?? useControllerProfileStore.getState().profiles
+  return projectShowEditorStagePresentationV2(captureShowStageEditV2(record, {
+    patterns,
+    libraries,
+    maps,
+    profiles,
+    stageMap: resolveShowV2StageMap(record.stageMapId, maps),
+  }))
 }
 
 beforeEach(() => {
@@ -80,17 +72,34 @@ beforeEach(() => {
 })
 
 describe('ShowStagePreview (#339)', () => {
+  /*
+   * Moved to the editor-v2 Stage for #1042 Phase 2 (coverage map
+   * `test-results-keep/1042-p2-coverage.md`).
+   * COVERED, deleted here:
+   * - "draws session-only Zone and selected-clip diagnostics above the Stage
+   *   without changing playback (#491)": `e2e/shows.auth.spec.ts:3898` "Stage
+   *   outlines follow selection and Zone Layout navigation (#983)".
+   * - "draws and removes the selected transformed Clip content bounds (#791)":
+   *   `e2e/shows.auth.spec.ts:3898` "Stage outlines follow selection and Zone
+   *   Layout navigation (#983)".
+   * REPRESENTATION, deleted here: "does not defer a same-Show Pattern-source
+   * change behind an older snapshot (#710)" and "detects an immediate
+   * Pattern-source change in a composition instance (#710)" asserted only
+   * `resolveShowStagePreviewInput`, the legacy input's deferral. The editor-v2
+   * Stage takes one projected presentation; the rebuild itself stays covered by
+   * "rebuilds a running same-Show preview immediately when its Pattern changes".
+   */
   it('lays out the desktop Stage as an aspect-true strip with folded Zone coverage and icon toggles (#967)', async () => {
     const onPreviewAspectChange = vi.fn()
     let show = createDefaultShow('show-stage-strip', 'Stage strip', 1000)
     show = addShowZone(show, { name: 'Wings', nominalPixelCount: 4 })
     show.stageMapId = importedMap.id
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
 
     render(
       <ShowStagePreview
-        showId={show.id}
+        kind="editor-v2"
+        stage={editorStage(convertForTest(show))}
         presentation="strip"
         onPreviewAspectChange={onPreviewAspectChange}
       />,
@@ -119,33 +128,6 @@ describe('ShowStagePreview (#339)', () => {
     expect(zoneToggle).toHaveClass('text-amber-200')
   })
 
-  it('does not defer a same-Show Pattern-source change behind an older snapshot (#710)', () => {
-    const deferred = createDefaultShow('show-pattern-source-change', 'Deferred Show', 1000)
-    const nonPatternEdit = { ...deferred, name: 'Resolved Show' }
-    const resolved = structuredClone(deferred)
-    resolved.cells[0] = {
-      ...resolved.cells[0],
-      pattern: { kind: 'stock', id: 'ZippyZaps' },
-      patternName: 'ZippyZaps',
-    }
-
-    expect(resolveShowStagePreviewInput(deferred.id, resolved, deferred)).toBe(resolved)
-    expect(resolveShowStagePreviewInput(deferred.id, nonPatternEdit, deferred)).toBe(deferred)
-  })
-
-  it('detects an immediate Pattern-source change in a composition instance (#710)', () => {
-    const deferred = structuredClone(stockShowById('stock-show-302-installation-composition')!.show)
-    const resolved = structuredClone(deferred)
-    const instance = resolved.composition!.patternInstances[0]
-    resolved.composition!.patternInstances[0] = {
-      ...instance,
-      pattern: { kind: 'stock', id: 'ZippyZaps' },
-      patternName: 'ZippyZaps',
-    }
-
-    expect(resolveShowStagePreviewInput(deferred.id, resolved, deferred)).toBe(resolved)
-  })
-
   it.each([
     ['plane', 'pane'], ['plane', 'strip'], ['cube', 'pane'], ['cube', 'strip'],
   ] as const)('repaints every paused %s %s resize immediately without changing simulation state (#63)', (stageMapId, presentation) => {
@@ -162,9 +144,8 @@ describe('ShowStagePreview (#339)', () => {
     try {
       const show = createDefaultShow('show-incremental-resize', 'Incremental resize', 1000)
       show.stageMapId = stageMapId
-      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-      render(<ShowStagePreview showId={show.id} presentation={presentation} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} presentation={presentation} />)
       expect(createRuntime).toHaveBeenCalledTimes(1)
       const runtime = createRuntime.mock.results[0]!.value
       const renderer = createRenderer.mock.results[0]!.value
@@ -193,9 +174,8 @@ describe('ShowStagePreview (#339)', () => {
 
   it('omits the redundant Zone solo inventory for a healthy single-zone Show', () => {
     const show = createDefaultShow('show-single-zone', 'Single zone', 1000)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
 
     expect(screen.getByLabelText('Show stage')).toHaveTextContent('60 px')
     expect(screen.queryByRole('region', { name: 'Zones' })).not.toBeInTheDocument()
@@ -204,15 +184,14 @@ describe('ShowStagePreview (#339)', () => {
   it('does not own workspace playback when the Stage mounts or changes Show identity', () => {
     const first = createDefaultShow('show-first', 'First Show', 1000)
     const second = createDefaultShow('show-second', 'Second Show', 1000)
-    useShowStore.setState({ shows: [first, second], activeShowId: first.id, showsLoaded: true })
     usePreviewStore.setState({ ...previewInitialState, isRunning: true })
 
-    const { rerender } = render(<ShowStagePreview showId={first.id} />)
+    const { rerender } = render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(first))} />)
 
     expect(usePreviewStore.getState().isRunning).toBe(true)
     expect(screen.getByRole('button', { name: 'Pause Show preview' })).toBeInTheDocument()
 
-    rerender(<ShowStagePreview showId={second.id} />)
+    rerender(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(second))} />)
 
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
@@ -225,18 +204,19 @@ describe('ShowStagePreview (#339)', () => {
       pattern: { kind: 'stock', id: 'ZippyZaps' },
       patternName: 'ZippyZaps',
     }
+    const record = convertForTest(show)
     usePreviewStore.setState({ ...previewInitialState, isRunning: true })
     const transport = useShowTransportStore.getState()
-    transport.openShow(show.id, 62_000)
-    transport.setPosition(show.id, 3_000)
+    transport.openShow(record.id, 62_000)
+    transport.setPosition(record.id, 3_000)
     const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
 
     try {
-      const { rerender } = render(<ShowStagePreview showId={show.id} showOverride={show} />)
+      const { rerender } = render(<ShowStagePreview kind="editor-v2" stage={editorStage(record)} />)
       expect(createRuntime).toHaveBeenCalledTimes(1)
       const initialCode = createRuntime.mock.calls[0]![0].code
 
-      rerender(<ShowStagePreview showId={show.id} showOverride={switched} />)
+      rerender(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(switched))} />)
 
       expect(createRuntime).toHaveBeenCalledTimes(2)
       expect(createRuntime.mock.calls[1]![0].code).not.toBe(initialCode)
@@ -249,9 +229,8 @@ describe('ShowStagePreview (#339)', () => {
 
   it('puts the primary playback control at the right edge of the preview status row', () => {
     const show = createDefaultShow('show-preview-transport', 'Preview transport', 1000)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
 
     const statusRow = screen.getByText(/show paused · Fast/i).parentElement!
     const playback = within(statusRow).getByRole('button', { name: 'Play Show preview' })
@@ -270,10 +249,9 @@ describe('ShowStagePreview (#339)', () => {
   it('keeps Zone isolation independent from playback and reserves a stable reset control', () => {
     const show = createDefaultShow('show-zone-isolation', 'Zone isolation', 1000)
     show.zones.push({ ...show.zones[0], id: 'accent', name: 'accent', color: '#f97316' })
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePreviewStore.setState({ ...previewInitialState, isRunning: true })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
     act(() => usePreviewStore.setState({ isRunning: true }))
 
     const showAll = screen.getByRole('button', { name: 'Show all zones' })
@@ -292,9 +270,8 @@ describe('ShowStagePreview (#339)', () => {
     vi.useFakeTimers()
     try {
       const show = createDefaultShow('show-seek-badge', 'Seek badge', 1000)
-      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
       act(() => {
         useShowTransportStore.setState({
           seekStatus: 'rebuilding',
@@ -314,15 +291,14 @@ describe('ShowStagePreview (#339)', () => {
   })
 
   it('rebuilds an accurate Fast frame for the current seek request (#414)', async () => {
-    const show = createDefaultShow('show-1', 'Opening wash', 1000)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const record = convertForTest(createDefaultShow('show-1', 'Opening wash', 1000))
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(record)} />)
 
     act(() => {
       const transport = useShowTransportStore.getState()
-      transport.openShow(show.id, 62_000)
-      transport.requestSeek(show.id, 0)
+      transport.openShow(record.id, 62_000)
+      transport.requestSeek(record.id, 0)
     })
 
     await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
@@ -330,19 +306,18 @@ describe('ShowStagePreview (#339)', () => {
   })
 
   it('restores a crossed seek region into the existing runtime without recompiling (#842)', async () => {
-    const show = createDefaultShow('show-checkpoint-seek', 'Checkpoint seek', 1000)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const record = convertForTest(createDefaultShow('show-checkpoint-seek', 'Checkpoint seek', 1000))
     const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
 
     try {
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(record)} />)
       expect(createRuntime).toHaveBeenCalledTimes(1)
 
-      act(() => useShowTransportStore.getState().requestSeek(show.id, 4_500))
+      act(() => useShowTransportStore.getState().requestSeek(record.id, 4_500))
       await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
       expect(createRuntime).toHaveBeenCalledTimes(2)
 
-      act(() => useShowTransportStore.getState().requestSeek(show.id, 3_500))
+      act(() => useShowTransportStore.getState().requestSeek(record.id, 3_500))
       await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
       expect(createRuntime).toHaveBeenCalledTimes(2)
       expect(useShowTransportStore.getState().positionMs).toBe(3_500)
@@ -357,9 +332,8 @@ describe('ShowStagePreview (#339)', () => {
       .mockResolvedValue({ status: 'populated', resumedFromMs: null })
     try {
       const show = createDefaultShow('show-prewarm-idle', 'Pre-warm idle', 1000)
-      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-      const view = render(<ShowStagePreview showId={show.id} />)
+      const view = render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
       expect(prewarm).not.toHaveBeenCalled()
 
       act(() => vi.advanceTimersByTime(399))
@@ -397,7 +371,7 @@ describe('ShowStagePreview (#339)', () => {
         patternName: 'ZippyZaps',
       }
 
-      const view = render(<ShowStagePreview showId={show.id} showOverride={show} />)
+      const view = render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
       await act(async () => {
         vi.advanceTimersByTime(416)
         await Promise.resolve()
@@ -406,7 +380,7 @@ describe('ShowStagePreview (#339)', () => {
       const first = prewarm.mock.calls[0]![0]
       expect(first.isCurrent()).toBe(true)
 
-      view.rerender(<ShowStagePreview showId={show.id} showOverride={edited} />)
+      view.rerender(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(edited))} />)
       expect(first.isCurrent()).toBe(false)
       expect(prewarm).toHaveBeenCalledTimes(1)
       act(() => vi.advanceTimersByTime(399))
@@ -431,10 +405,9 @@ describe('ShowStagePreview (#339)', () => {
       .mockResolvedValue({ status: 'populated', resumedFromMs: null })
     try {
       const show = createDefaultShow('show-prewarm-playback', 'Pre-warm playback', 1000)
-      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
       usePreviewStore.setState({ ...previewInitialState, isRunning: true })
 
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
       act(() => vi.advanceTimersByTime(2_000))
       expect(prewarm).not.toHaveBeenCalled()
 
@@ -451,8 +424,7 @@ describe('ShowStagePreview (#339)', () => {
   })
 
   it('detaches the runtime while a warm seek reconstructs it (#842 P2)', async () => {
-    const show = createDefaultShow('show-detached-seek', 'Detached seek', 1000)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const record = convertForTest(createDefaultShow('show-detached-seek', 'Detached seek', 1000))
     const strayTicks: unknown[][] = []
     const original = fastReplay.createFastReplayRuntime
     const spy = vi.spyOn(fastReplay, 'createFastReplayRuntime').mockImplementation((prepared, options) => {
@@ -468,11 +440,11 @@ describe('ShowStagePreview (#339)', () => {
     })
 
     try {
-      render(<ShowStagePreview showId={show.id} />)
-      act(() => useShowTransportStore.getState().requestSeek(show.id, 4_500))
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(record)} />)
+      act(() => useShowTransportStore.getState().requestSeek(record.id, 4_500))
       await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
 
-      act(() => useShowTransportStore.getState().requestSeek(show.id, 30_000))
+      act(() => useShowTransportStore.getState().requestSeek(record.id, 30_000))
       await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('rebuilding'))
       act(() => usePreviewStore.getState().setBrightness(0.5))
       await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'), { timeout: 20_000 })
@@ -487,11 +459,9 @@ describe('ShowStagePreview (#339)', () => {
   it('shows the saved Stage as read-only output context (#434)', () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1000)
     show.stageMapId = 'map-1'
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
 
     expect(screen.getByLabelText('Show stage')).toHaveTextContent('North Arch map')
     expect(screen.queryByRole('combobox', { name: 'Show stage' })).not.toBeInTheDocument()
@@ -528,13 +498,12 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       controls: {},
       updatedAt: 1,
     }
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true })
     useMapStore.setState({ userMaps: [stageMap], mapsLoaded: true })
     const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
 
     try {
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show, { [pattern.id]: pattern.src }))} />)
 
       expect(createRuntime).toHaveBeenCalled()
       expect(createRuntime.mock.calls[0]?.[0]).toMatchObject({
@@ -571,12 +540,11 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       controls: {},
       updatedAt: 1,
     }
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true })
     const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
 
     try {
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show, { [pattern.id]: pattern.src }))} />)
 
       expect(screen.getByLabelText('Show stage')).toHaveTextContent('Zone strips - generic')
       expect(createRuntime).toHaveBeenCalled()
@@ -612,12 +580,11 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       controls: {},
       updatedAt: 1,
     }
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true })
     const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
 
     try {
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show, { [pattern.id]: pattern.src }))} />)
 
       expect(screen.getByLabelText('Show stage')).toHaveTextContent('Zone strips - generic')
       expect(createRuntime).toHaveBeenCalled()
@@ -636,40 +603,18 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     }
   })
 
-  it('draws session-only Zone and selected-clip diagnostics above the Stage without changing playback (#491)', () => {
-    const show = createDefaultShow('show-diagnostics', 'Diagnostics', 1000)
-    show.stageMapId = 'map-1'
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-    useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
-    usePreviewStore.setState({ ...previewInitialState, isRunning: true })
-    useShowEditorSessionStore.setState({
-      diagnosticFocus: { showId: show.id, sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'cell-1' },
-    })
-
-    render(<ShowStagePreview showId={show.id} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show Zone outlines' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Show Selected Clip outline' }))
-    expect(screen.getByTestId('show-stage-zone-outlines')).toBeInTheDocument()
-    expect(screen.getByTestId('show-stage-clip-outline')).toBeInTheDocument()
-    expect(Number(screen.getByTestId('show-stage-zone-outlines').querySelector('rect')!.getAttribute('stroke-width'))).toBeGreaterThanOrEqual(1)
-    expect(Number(screen.getByTestId('show-stage-clip-outline').querySelector('polygon')!.getAttribute('stroke-width'))).toBeGreaterThanOrEqual(1)
-    expect(useShowEditorSessionStore.getState().diagnostics).toMatchObject({ zoneOutlines: true, clipOutlines: true })
-    expect(usePreviewStore.getState().isRunning).toBe(true)
-  })
-
   it('follows full surface, stripes, Grid and back without rebuilding the runtime (#983)', () => {
-    const show = structuredClone(stockShowById('stock-show-showcase-zone-layouts-stripes-grid')!.show)
-    const grid = show.composition!.scenes.find(scene => scene.sceneId === 'grid')!
-    const ember = grid.zones[1]
+    // The native v2 stock record (`src/pixelblaze/stock/showsV2.ts:65`): Ember
+    // is `zone-2`, and its Grid Clip is `clip-grid-ember`. The v2 focus names
+    // an authored Clip rather than a Scene placement.
+    const show = structuredClone(stockShowV2ById('stock-show-showcase-zone-layouts-stripes-grid')!)
     const authoredBefore = structuredClone(show)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useShowEditorSessionStore.setState({
       diagnostics: { ...showEditorSessionInitialState.diagnostics, zoneOutlines: true, clipOutlines: true },
-      diagnosticFocus: { showId: show.id, sceneId: 'grid', zoneId: ember.zoneId, placementId: ember.main[0].id },
+      diagnosticFocus: { recordVersion: 2, showId: show.id, zoneId: 'zone-2', clipId: 'clip-grid-ember', occurrenceId: null },
     })
     const runtime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(show)} />)
     const initializations = runtime.mock.calls.length
     const rects = () => Array.from(screen.getByTestId('show-stage-zone-outlines').querySelectorAll('rect'))
     expect(rects()).toHaveLength(1)
@@ -691,37 +636,12 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     expect(screen.getByTestId('show-stage-clip-outline')).toBeInTheDocument()
     expect(useShowTransportStore.getState().positionMs).toBe(14_000)
     expect(usePreviewStore.getState().isRunning).toBe(false)
-    expect(useShowStore.getState().shows[0]).toEqual(authoredBefore)
+    expect(show).toEqual(authoredBefore)
     act(() => useShowTransportStore.getState().setPosition(show.id, 0))
     expect(rects()).toHaveLength(1)
     expect(screen.queryByTestId('show-stage-clip-outline')).not.toBeInTheDocument()
     expect(runtime.mock.calls).toHaveLength(initializations)
     runtime.mockRestore()
-  })
-
-  it('draws and removes the selected transformed Clip content bounds (#791)', () => {
-    const show = createDefaultShow('show-transformed-clip-outline', 'Transformed outline', 1000)
-    show.stageMapId = 'map-1'
-    show.cells[0] = {
-      ...show.cells[0],
-      transform: { positionX: 0.1, positionY: -0.15, rotation: 0.125, scaleX: 0.5, scaleY: 0.25 },
-    }
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-    useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
-    useShowEditorSessionStore.setState({
-      diagnosticFocus: { showId: show.id, sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'cell-1' },
-    })
-
-    render(<ShowStagePreview showId={show.id} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Show Selected Clip outline' }))
-
-    const outline = screen.getByTestId('show-stage-clip-outline')
-    const polygon = outline.querySelector('polygon')
-    expect(polygon).toBeInTheDocument()
-    expect(polygon).toHaveAttribute('points', '0.5116,0.0848 0.8652,0.4384 0.6884,0.6152 0.3348,0.2616')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Hide Selected Clip outline' }))
-    expect(screen.queryByTestId('show-stage-clip-outline')).not.toBeInTheDocument()
   })
 
   it('names an Installation output map once without presenting a faux input (#484)', () => {
@@ -731,10 +651,9 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       createInstallationShowOutputContract({ outputMapId: 'map-1', pixelCount: 4 }),
       1000,
     )
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
 
     const stage = screen.getByLabelText('Show stage')
     expect(stage).toHaveTextContent(/Output map.*North Arch map.*4 px/)
@@ -745,7 +664,6 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
     const createRenderer = vi.spyOn(rendererModule, 'createRenderer')
     const show = createDefaultShow('show-stage-comfort', 'Stage comfort', 1000)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePreviewStore.setState({
       ...previewInitialState,
       isRunning: false,
@@ -755,7 +673,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       diffusionSticky: 0.2,
     })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
 
     const lightSize = screen.getByRole('slider', { name: 'Light size' })
     const diffusion = screen.getByRole('slider', { name: 'Diffusion' })
@@ -786,9 +704,8 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
 
   it('switches the actual Show renderer without exposing Pattern-only controls (#484)', async () => {
     const show = createDefaultShow('show-stage-renderer', 'Stage renderer', 1000)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
 
     expect(screen.queryByRole('button', { name: 'Speed' })).not.toBeInTheDocument()
     expect(screen.queryByText('elapsed')).not.toBeInTheDocument()
@@ -810,10 +727,9 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     vi.stubGlobal('cancelAnimationFrame', (id: number) => { callbacks.delete(id) })
     try {
       const show = createDefaultShow('show-stage-fps', 'Stage FPS', 1000)
-      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
       usePreviewStore.setState({ ...previewInitialState, isRunning: true })
 
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
       act(() => usePreviewStore.getState().setRunning(true))
       await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
 
@@ -846,14 +762,13 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     })
     vi.stubGlobal('cancelAnimationFrame', (id: number) => { callbacks.delete(id) })
     try {
-      const show = createDefaultShow('show-scene-playback', 'Scene playback', 1000)
-      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+      const record = convertForTest(createDefaultShow('show-scene-playback', 'Scene playback', 1000))
       const transport = useShowTransportStore.getState()
-      transport.openShow(show.id, 62_000)
-      transport.setPosition(show.id, 90)
-      transport.setPlaybackWindow(show.id, { startMs: 0, endMs: 100 })
+      transport.openShow(record.id, 62_000)
+      transport.setPosition(record.id, 90)
+      transport.setPlaybackWindow(record.id, { startMs: 0, endMs: 100 })
 
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(record)} />)
       act(() => usePreviewStore.getState().setRunning(true))
       await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
 
@@ -890,12 +805,12 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       const show = createDefaultShow('show-global-loop', 'Global loop', 1000)
       show.scenes = show.scenes.map((scene) => ({ ...scene, durationMs: 50 }))
       show.transitions = []
-      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+      const record = convertForTest(show)
       const transport = useShowTransportStore.getState()
-      transport.openShow(show.id, 100)
-      transport.setPosition(show.id, 90)
+      transport.openShow(record.id, 100)
+      transport.setPosition(record.id, 90)
 
-      render(<ShowStagePreview showId={show.id} />)
+      render(<ShowStagePreview kind="editor-v2" stage={editorStage(record)} />)
       act(() => usePreviewStore.getState().setRunning(true))
       await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
 
@@ -930,7 +845,6 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       1000,
     )
     show.routingLayouts[0].zones[0].ranges = [{ start: 0, end: 5 }]
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerProfileStore.setState({
       profilesLoaded: true,
       profiles: [{
@@ -945,7 +859,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       }],
     })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
 
     expect(screen.getByText('8 px')).toBeInTheDocument()
     const zones = screen.getByRole('region', { name: 'Zones' })
@@ -962,7 +876,6 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       createPortableShowOutputContract({ referenceMapId: 'wide', referencePixelCount: 1536 }),
       1000,
     )
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerProfileStore.setState({
       profilesLoaded: true,
       profiles: [{
@@ -977,7 +890,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       }],
     })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
 
     expect(screen.getAllByText('1536 px')).toHaveLength(1)
     expect(screen.getByLabelText('Show stage')).toHaveTextContent('Wide 2:1')
@@ -986,9 +899,8 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
 
   it('falls back to strips when the saved stage map is missing', () => {
     const show = { ...createDefaultShow('show-1', 'Opening wash', 1000), stageMapId: 'missing-map' }
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    render(<ShowStagePreview showId={show.id} />)
+    render(<ShowStagePreview kind="editor-v2" stage={editorStage(convertForTest(show))} />)
 
     expect(screen.getByText(/saved stage map is gone/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Show stage')).toHaveTextContent('Zone strips - generic')
@@ -1000,19 +912,22 @@ it('renders current personal Library source and rebuilds after its saved edit (#
   const show = createDefaultShow('library-preview-955', 'Library preview', 1)
   show.cells[0].pattern = { kind: 'user', id: 'library-pattern-955' }
   show.cells[0].patternName = 'Library Pattern'
-  useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-  usePatternStore.setState({ userPatterns: [{ id: 'library-pattern-955', name: 'Library Pattern', src: 'export function render(index) { Personal.paint(index) }', controls: {}, updatedAt: 1 }] })
+  const pattern = { id: 'library-pattern-955', name: 'Library Pattern', src: 'export function render(index) { Personal.paint(index) }', controls: {}, updatedAt: 1 }
+  usePatternStore.setState({ userPatterns: [pattern] })
   const library = { id: 'library-955', name: 'Personal', src: 'function paint(index) { rgb(0.25,0,0) }', updatedAt: 1 }
   useLibraryStore.setState({ userLibraries: [library] })
+  const record = convertForTest(show, { [pattern.id]: pattern.src })
+  const recordBefore = structuredClone(record)
   const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
   try {
-    render(<ShowStagePreview showId={show.id} />)
+    const view = render(<ShowStagePreview kind="editor-v2" stage={editorStage(record)} />)
     expect(createRuntime).toHaveBeenCalledTimes(1)
     expect(Array.from(createRuntime.mock.results[0].value.renderCurrentFrame().frame.slice(0, 3))).toEqual([0.25, 0, 0])
     act(() => useLibraryStore.setState({ userLibraries: [{ ...library, src: 'function paint(index) { rgb(0,0.75,0) }', updatedAt: 2 }] }))
+    view.rerender(<ShowStagePreview kind="editor-v2" stage={editorStage(record)} />)
     expect(createRuntime).toHaveBeenCalledTimes(2)
     expect(Array.from(createRuntime.mock.results[1].value.renderCurrentFrame().frame.slice(0, 3))).toEqual([0, 0.75, 0])
-    expect(useShowStore.getState().shows[0]).toBe(show)
+    expect(record).toEqual(recordBefore)
   } finally { createRuntime.mockRestore() }
 })
 
@@ -1025,14 +940,15 @@ it.each(['Show', 'Pattern', 'Library', 'map', 'profile', 'output', 'preview over
     useMapStore.setState({ userMaps: [importedMap] })
     const pattern = { id: 'delayed-pattern', name: 'Personal Pattern', src: 'export function render(index) { Personal.paint(index) }', controls: {}, updatedAt: 1 }
     const library = { id: 'delayed-library', name: 'Personal', src: 'function paint(index) { rgb(0.25,0,0) }', updatedAt: 1 }
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePatternStore.setState({ userPatterns: [pattern] })
     useLibraryStore.setState({ userLibraries: [library] })
     const profile: ControllerProfile = { id: 'stage-profile', name: 'Stage profile', board: { kind: 'pixelblaze-v3-standard' }, inputs: [], globalTransforms: [], patternBindings: [], lastKnownPixelCount: 60, updatedAt: 1 }
     useControllerProfileStore.setState({ profiles: [profile] })
+    const sources = { [pattern.id]: pattern.src }
+    const record = convertForTest(show, sources)
     const transport = useShowTransportStore.getState()
-    transport.openShow(show.id, 62000)
-    transport.setPosition(show.id, 1000)
+    transport.openShow(record.id, 62000)
+    transport.setPosition(record.id, 1000)
     const original = fastReplayCheckpoints.reconstructFastReplayWithCheckpoints
     const completions: Array<() => Promise<void>> = []
     const reconstruction = vi.spyOn(fastReplayCheckpoints, 'reconstructFastReplayWithCheckpoints').mockImplementation((options) => new Promise((resolve, reject) => {
@@ -1047,23 +963,38 @@ it.each(['Show', 'Pattern', 'Library', 'map', 'profile', 'output', 'preview over
     const paint = vi.fn()
     const renderer = vi.spyOn(rendererModule, 'createRenderer').mockImplementation((...args) => ({ ...realRenderer(...args), paint }))
     try {
-      const view = render(<ShowStagePreview showId={show.id} />)
+      const view = render(<ShowStagePreview kind="editor-v2" stage={editorStage(record)} />)
       expect(completions).toHaveLength(1)
       const changed = structuredClone(show)
       changed.cells[0].adaptations.brightness = 0.5
+      // In v2 the app re-projects the Stage on every dependency change and
+      // passes a new `stage` (`src/App.tsx:908-944`); a preview override is a
+      // changed candidate record, and navigation is a record with another id.
+      const reproject = (next: ShowRecordV2) => view.rerender(<ShowStagePreview kind="editor-v2" stage={editorStage(next)} />)
       act(() => {
         switch (dependency) {
-          case 'Show': useShowStore.setState({ shows: [changed] }); break
-          case 'Pattern': usePatternStore.setState({ userPatterns: [{ ...pattern, src: 'export function render(index) { rgb(0,0.75,0) }', updatedAt: 2 }] }); break
-          case 'Library': useLibraryStore.setState({ userLibraries: [{ ...library, src: 'function paint(index) { rgb(0,0.75,0) }', updatedAt: 2 }] }); break
-          case 'map': useMapStore.setState({ userMaps: [{ ...importedMap, points: [[0, 0], [0.5, 0.5], [1, 1]], updatedAt: 2 }] }); break
-          case 'profile': useControllerProfileStore.setState({ profiles: [{ ...profile, lastKnownPixelCount: 120, updatedAt: 2 }] }); break
-          case 'output': useShowStore.setState({ shows: [{ ...show, outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 8 }) }] }); break
-          case 'preview override': useShowPreviewOverrideStore.getState().preview(changed); break
+          case 'Show': reproject(convertForTest(changed, sources)); break
+          case 'Pattern':
+            usePatternStore.setState({ userPatterns: [{ ...pattern, src: 'export function render(index) { rgb(0,0.75,0) }', updatedAt: 2 }] })
+            reproject(record)
+            break
+          case 'Library':
+            useLibraryStore.setState({ userLibraries: [{ ...library, src: 'function paint(index) { rgb(0,0.75,0) }', updatedAt: 2 }] })
+            reproject(record)
+            break
+          case 'map':
+            useMapStore.setState({ userMaps: [{ ...importedMap, points: [[0, 0], [0.5, 0.5], [1, 1]], updatedAt: 2 }] })
+            reproject(record)
+            break
+          case 'profile':
+            useControllerProfileStore.setState({ profiles: [{ ...profile, lastKnownPixelCount: 120, updatedAt: 2 }] })
+            reproject(record)
+            break
+          case 'output': reproject(convertForTest({ ...show, outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 8 }) }, sources)); break
+          case 'preview override': reproject(convertForTest(changed, sources)); break
           case 'navigation': {
             changed.id = 'next-stage-955'
-            useShowStore.setState({ shows: [show, changed] })
-            view.rerender(<ShowStagePreview showId={changed.id} />)
+            reproject(convertForTest(changed, sources))
             break
           }
           case 'unmount': view.unmount(); break
