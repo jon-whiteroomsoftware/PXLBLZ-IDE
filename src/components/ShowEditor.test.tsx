@@ -49,7 +49,6 @@ import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/stor
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
-import { createPropertySlotQualificationShow } from '@/engine/showPatternSlotTestFixture'
 import { showSplitClipFixture } from '@/test/showSplitClipFixture'
 import { convertForTest, openV2EditorForRecord } from '@/test/showEditorV2Harness'
 import { boundaryClipDeletionFixture, boundaryDeletionPlacement } from '@/test/showBoundaryClipDeletionFixture'
@@ -63,7 +62,6 @@ vi.mock('@/engine/showVmResourceLedger', async (importOriginal) => {
   return { ...actual, SHOW_ARTIFACT_BUDGET_BYTES: 30_000 }
 })
 import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
-import * as showModel from '@/engine/showModel'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
 import { appendShowLayoutInterval } from '@/engine/showLayoutIntervals'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
