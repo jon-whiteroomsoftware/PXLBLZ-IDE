@@ -8275,6 +8275,23 @@ function expectClipRefusal(clipId: string, label: string, status: string): void 
   expect(timelineStatus()).toHaveTextContent(status)
 }
 
+/**
+ * Counts Details re-anchors from now on. A successful Clip drop re-anchors any
+ * open Details to the Clip's element through the one lookup that queries
+ * every `[data-show-selection-key]`; a refused drop must never reach it.
+ */
+function watchDetailReanchors(): () => number {
+  const query = vi.spyOn(document, 'querySelectorAll')
+  const from = query.mock.calls.length
+  return () => query.mock.calls.slice(from).filter(([selector]) => selector === '[data-show-selection-key]').length
+}
+
+/** Lets the drop's settlement and the re-anchor's zero-delay timer run. */
+async function settleDrop(): Promise<void> {
+  await act(async () => {})
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)) })
+}
+
 /** The rendered main lane, sized so one pixel is `showEndMs / 200` ms. */
 function sizedMainLane(): HTMLElement {
   const lane = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')
@@ -8290,6 +8307,22 @@ function sizedMainLane(): HTMLElement {
 }
 
 describe('v2 timeline refusal feedback (#1098)', () => {
+  it('re-anchors Details after an applied open-lane move (oracle control)', async () => {
+    const editor = openV2Editor('refusal-reanchor-control')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const surface = dragSurface('resize-a')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('main'), 'dragover', DROP_X)
+    const reanchors = watchDetailReanchors()
+    surface.fire(surface.lane('main'), 'drop', DROP_X)
+    await settleDrop()
+
+    expect(authoredClip(editor.state().record, 'resize-a').startMs).toBe(SETTLED_START_MS)
+    expect(reanchors()).toBeGreaterThan(0)
+    expect(timelineStatus()).toBeNull()
+  })
+
   it('names an occupied-range move drop on the dragged Clip and writes nothing', async () => {
     const editor = openV2Editor('refusal-move-occupied')
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
@@ -8302,9 +8335,12 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     surface.fire(surface.lane('main'), 'dragover', 85)
     // During the drag the move previews and nothing is said yet.
     expect(timelineStatus()).toBeNull()
+    const reanchors = watchDetailReanchors()
     surface.fire(surface.lane('main'), 'drop', 85)
-    await act(async () => {})
+    await settleDrop()
 
+    // The refusal is not a success: Details are not re-anchored.
+    expect(reanchors()).toBe(0)
     const after = editor.state()
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(after.record).toBe(before.record)
@@ -8320,12 +8356,17 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     const before = editor.state()
     const surface = dragSurface('resize-a')
 
+    const selectionBefore = useShowEditorViewStore.getState().selection
     surface.fire(surface.clip, 'dragstart', 0, true)
     surface.fire(surface.lane('main'), 'dragover', 85, true)
     expect(timelineStatus()).toBeNull()
+    const reanchors = watchDetailReanchors()
     surface.fire(surface.lane('main'), 'drop', 85, true)
-    await act(async () => {})
+    await settleDrop()
 
+    // A refused copy selects nothing new and re-anchors nothing.
+    expect(useShowEditorViewStore.getState().selection).toEqual(selectionBefore)
+    expect(reanchors()).toBe(0)
     const after = editor.state()
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipSharingEdit'])
     expect(after.record).toBe(before.record)
@@ -8467,9 +8508,11 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     surface.fire(surface.lane('main'), 'dragover', DROP_X)
     // Another writer advances the revision while the drag is held.
     act(() => useShowStore.setState({ showRevisions: { [editor.showId]: before.revision + 1 } }))
+    const reanchors = watchDetailReanchors()
     surface.fire(surface.lane('main'), 'drop', DROP_X)
-    await act(async () => {})
+    await settleDrop()
 
+    expect(reanchors()).toBe(0)
     const after = editor.state()
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
     expect(after.record).toBe(before.record)

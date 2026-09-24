@@ -581,6 +581,10 @@ type ShowV2CommitRefusal = {
   issueCode?: ShowCompositionV2ValidationCode
 }
 type ShowV2CommitResult = boolean | ShowV2CommitRefusal
+/** Tells a refused commit from success (`true`) and no change (`false`). */
+function isShowV2Refusal(result: ShowV2CommitResult): result is ShowV2CommitRefusal {
+  return typeof result === 'object' && result !== null && result.status === 'refused'
+}
 type ReportClipFeedback = (selectionKey: string | null, copy: ClipFeedbackCopy) => void
 
 const CLIP_DELETE_STATUS_NAME = 'Clip deletion unavailable'
@@ -1899,9 +1903,8 @@ export function ShowEditor({
     if (planned.status !== 'ready' || planned.submission.owner !== 'clip-sharing') return null
     const selectClipId = planned.selectAfterId ?? planned.submission.intent.identities.clipId
     const applied = await commitV2ClipSharing({ ...gesture, intent: planned.submission.intent })
-    if (applied === true) return selectClipId
-    if (applied) refuse(showV2CommitRefusalInput(applied))
-    return null
+    if (isShowV2Refusal(applied)) return refuse(showV2CommitRefusalInput(applied))
+    return applied ? selectClipId : null
   }, [captureV2Move, commitV2ClipSharing, reportClipFeedback])
   // Slice C connects Marker editing, Insert Time and Add Layer through the
   // same prepared-capture plumbing: each helper returns the admission outcome
@@ -5289,7 +5292,7 @@ export function ShowEditor({
                     return
                   }
                   void commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } }).then((applied) => {
-                    if (applied === true) setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
+                    if (!isShowV2Refusal(applied) && applied) setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
                   }).catch(() => {})
                   return
                 }
@@ -5819,8 +5822,8 @@ function ShowTimelineCommands({
               }
               if (gesturePlan.kind !== 'temporal') return
               void onCommitV2ClipTemporal?.({ ...gesture, intent: gesturePlan.intent }).then((applied) => {
-                if (applied === true) onSelect({ kind: 'clip', clipId: rightClipId })
-                else if (applied) reportSplitRefusal(showV2CommitRefusalInput(applied))
+                if (isShowV2Refusal(applied)) reportSplitRefusal(showV2CommitRefusalInput(applied))
+                else if (applied) onSelect({ kind: 'clip', clipId: rightClipId })
               }).catch(() => {})
               return
             }
@@ -6962,7 +6965,7 @@ function ShowTimelineWorkspace({
   }
   // Settles one commit result to changed/unchanged, reporting a refusal.
   const settleV2Commit = (clipId: string, result: ShowV2CommitResult): boolean => {
-    if (typeof result === 'boolean') return result
+    if (!isShowV2Refusal(result)) return result
     reportV2Refusal(clipId, showV2CommitRefusalInput(result))
     return false
   }
@@ -7032,7 +7035,8 @@ function ShowTimelineWorkspace({
     // the commit plans it once, on drop, and a refused plan settles as no
     // change exactly as a refused commit does.
     let pendingSelectClipId: string | null = null
-    const commit = activePlan.recordVersion === 2
+    // Changed or not, never a refusal: a v2 result settles first (#1098).
+    const commit: Promise<boolean> = activePlan.recordVersion === 2
       ? (() => {
           if (activePlan.plan.kind !== 'clip-sharing-pending') {
             return activePlan.mode === 'move' && activePlan.moveRequest
@@ -8740,7 +8744,8 @@ function ShowTimelineWorkspace({
                   draggedClip.settling = true
                   // A v2 duplicate selects the planner's fresh Clip on success.
                   let collapsedDuplicateSelectClipId: string | null = null
-                  const commit = recordVersion === 2
+                  // Changed or not, never a refusal: a v2 result settles first (#1098).
+                  const commit: Promise<boolean> = recordVersion === 2
                     ? (() => {
                         if (!clip || clip.groupOccurrenceId) return Promise.resolve(false)
                         // A collapsed Zone drop lands on its bottom Layer; the
