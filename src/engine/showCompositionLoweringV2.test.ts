@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { Worker } from 'node:worker_threads'
 import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
@@ -15,7 +16,10 @@ import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
 import { continuingV1Show, convertibleV1Show, flatV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
-import { validateShowRecordV2 } from './showCompositionV2'
+import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
+import { applyShowCommandV2 } from './showCommandsV2/registry'
+import { materializeShowGroupsV2 } from './showGroupsV2'
+import { showAnimationCommandFixture } from '../test/showAnimationCommandFixture'
 import type { MapPoint } from './maps/types'
 import type { ShowRecord } from './personalContentRecords'
 
@@ -2032,5 +2036,133 @@ describe('Transition speed and brightness ramps (#1091 B1)', () => {
       const parity = runtimeParity(v1, v2, source, converted.record, fidelity, mappings)
       expect(parity.matched, JSON.stringify({ fidelity, firstMismatchMs: parity.firstMismatchMs, diff: parity.firstMismatchStateDifferences })).toBe(true)
     }
+  })
+})
+
+describe('section restriction beside a whole-output Transition (#1103)', () => {
+  const source = 'export var speed = 0.5; export function sliderSpeed(value) { speed = value } export function render2D(index, x, y) { rgb(x, y, speed) }'
+  const lookupFor = (record: ShowRecordV2) => ({
+    byCellId: {},
+    byPatternInstanceId: Object.fromEntries(materializeShowGroupsV2(record).composition.patternInstances.map(instance => [instance.id, source])),
+    stageDimension: 2 as const,
+  })
+  const animationRecord = () => {
+    const converted = convertShowRecordV1ToV2(showAnimationCommandFixture())
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    return converted.record
+  }
+  const sceneTracks = (record: ShowRecordV2) => Object.fromEntries(
+    lowerShowCompositionV2ForCompile(record, lookupFor(record)).show.composition!.scenes.map(scene => [
+      scene.sceneId,
+      Object.fromEntries((scene.propertyTracks ?? []).map(track => [track.id, track.keyframes.map(key => key.timeMs)])),
+    ]),
+  )
+  const generatedHash = (record: ShowRecordV2) => {
+    const prepared = prepareShowV2ForCompile(record, lookupFor(record), { libraries: LIBRARIES })
+    if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared.issues))
+    return createHash('sha256').update(compileShow(prepared.recipe, LIBRARIES).code).digest('hex')
+  }
+
+  it('holds a Clip-targeted track cut before the outgoing whole-output Transition at its section end', () => {
+    const record = animationRecord()
+    // Only the Clip-targeted track-b remains; instance tracks keep their refusal.
+    record.composition.propertyTracks = record.composition.propertyTracks.filter(track => 'clipId' in track.target)
+    const added = applyShowCommandV2(record, 'add_property_tracks', {
+      tracks: [{ target: { kind: 'view-phase', clip_id: 'clip-a' }, initial_value: 0.3 }],
+    })
+    expect(added.status).toBe('changed')
+    const prepared = prepareShowV2ForCompile(added.record, lookupFor(added.record), { libraries: LIBRARIES })
+    expect(prepared.status === 'refused' ? prepared.issues : prepared.status).toBe('ready')
+    const tracks = sceneTracks(added.record)
+    // v2-section:1 is [10000, 30000); the Transition window [30000, 32000) holds.
+    expect(tracks['v2-section:1']).toEqual({ 'track-b@v2-section:1': [0, 2000, 9000, 20000] })
+    // Pieces that already fit keep today's contribution restriction.
+    expect(tracks['v2-section:0']).toEqual({ 'track-view-phase': [0, 10000] })
+  })
+
+  it('holds a Clip-targeted track ramping across the incoming whole-output Transition at its section start', () => {
+    const record = animationRecord()
+    const clipB = record.composition.clips.find(clip => clip.id === 'clip-b')!
+    record.composition.clips.push({
+      ...structuredClone(clipB), id: 'clip-d', startMs: 50000, durationMs: 10000,
+      appearance: { keys: clipB.appearance.keys.map(key => ({ ...structuredClone(key), id: `clip-d:${key.id}`, timeMs: 50000 })) },
+    })
+    record.composition.propertyTracks.push({
+      id: 'track-d', target: { kind: 'clip-view', clipId: 'clip-d', property: 'brightness' }, activeStartMs: 0, activeDurationMs: 62000,
+      keyframes: [
+        { id: 'track-d-first', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+        { id: 'track-d-last', timeMs: 62000, value: 1, easing: { curve: 'linear' } },
+      ],
+    })
+    expect(validateShowRecordV2(record)).toEqual([])
+    const prepared = prepareShowV2ForCompile(record, lookupFor(record), { libraries: LIBRARIES })
+    expect(prepared.status === 'refused' ? prepared.issues : prepared.status).toBe('ready')
+    // v2-section:2 is [32000, 62000), after the Transition window [30000, 32000).
+    expect(sceneTracks(record)['v2-section:2']).toEqual({ 'track-d@v2-section:2': [0, 30000] })
+  })
+
+  // instance-a runs clip-a and clip-c before the window [30000, 32000); the
+  // shared variant also runs clip-d after it. The compiler applies both
+  // Scenes' assignments to the one runtime during the window, so every
+  // instance track keeps the refusal it had before #1103.
+  type Tracks = ShowRecordV2['composition']['propertyTracks']
+  const linear = { curve: 'linear' as const }
+  const control = { kind: 'instance-control' as const, instanceId: 'instance-a', exportName: 'sliderSpeed' }
+  const controlTrack = (keyframes: Tracks[number]['keyframes']): Tracks => [{ id: 'track-control', target: control, activeStartMs: 0, activeDurationMs: 62000, keyframes }]
+  const instanceRecord = (shared: boolean, tracks: Tracks) => {
+    const record = animationRecord()
+    const clipA = record.composition.clips.find(clip => clip.id === 'clip-a')!
+    if (shared) {
+      record.composition.clips.push({
+        ...structuredClone(clipA), id: 'clip-d', startMs: 50000, durationMs: 10000,
+        appearance: { keys: clipA.appearance.keys.map(key => ({ ...structuredClone(key), id: `clip-d:${key.id}`, timeMs: 50000 })) },
+      })
+    }
+    record.composition.propertyTracks.push(...tracks)
+    expect(validateShowRecordV2(record)).toEqual([])
+    return record
+  }
+  const ramp = controlTrack([
+    { id: 'track-control-first', timeMs: 0, value: 0.2, easing: linear },
+    { id: 'track-control-last', timeMs: 62000, value: 0.8, easing: linear },
+  ])
+
+  it.each([
+    ['a one-sided ramp', false, ramp, 1],
+    ['a shared ramp', true, ramp, 1],
+    // Equal values at 30000 and 32000, but the curve segment from 30000 dips between them.
+    ['a curve segment between equal window ends', true, controlTrack([
+      { id: 'track-control-first', timeMs: 0, value: 0.5, easing: linear },
+      { id: 'track-control-curve', timeMs: 30000, value: 0.5, easing: linear, curveSegment: { baseValue: 0.2, deltaValue: 0.6, easing: linear, sourceDurationMs: 4000, elapsedOffsetMs: 0 } },
+      { id: 'track-control-last', timeMs: 34000, value: 0.5, easing: linear },
+    ]), 2],
+    ['a constant track', true, controlTrack([
+      { id: 'track-control-first', timeMs: 0, value: 0.2, easing: linear },
+      { id: 'track-control-settled', timeMs: 20000, value: 0.8, easing: linear },
+    ]), 2],
+    // Two tracks on one shared control hand off at the window's end.
+    ['a two-track handoff', true, [
+      { id: 'track-control', target: control, activeStartMs: 0, activeDurationMs: 32000, keyframes: [
+        { id: 'track-control-first', timeMs: 0, value: 0.2, easing: linear },
+        { id: 'track-control-last', timeMs: 32000, value: 0.2, easing: linear },
+      ] },
+      { id: 'track-control-after', target: control, activeStartMs: 32000, activeDurationMs: 30000, keyframes: [
+        { id: 'track-control-after-first', timeMs: 32000, value: 0.8, easing: linear },
+        { id: 'track-control-after-last', timeMs: 62000, value: 0.8, easing: linear },
+      ] },
+    ] as Tracks, 1],
+  ] as const)('still refuses an instance track with %s, as before the hold', (_name, shared, tracks, keyIndex) => {
+    const record = instanceRecord(shared, structuredClone(tracks) as Tracks)
+    // Recorded on the lowering before #1103.
+    expect(prepareShowV2ForCompile(record, lookupFor(record), { libraries: LIBRARIES })).toEqual({ status: 'refused', issues: [{
+      code: 'compiler-ineligible',
+      path: `compileRecipe.composition.scenes[0].propertyTracks[3].keyframes[${keyIndex}].timeMs`,
+      message: 'Keyframe time must stay inside its Scene.',
+    }] })
+  })
+
+  it('keeps the generated source of a record whose pieces already fit', () => {
+    // Pinned on the code before #1103; the retained-exact path keeps these bytes.
+    expect(generatedHash(animationRecord())).toBe('d9e47d72dfbf825418f1185135204992b56de22b0a8d401a30da0a77bbb8949d')
   })
 })

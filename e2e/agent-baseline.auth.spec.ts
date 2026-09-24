@@ -1951,7 +1951,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     // spanned its Scene to 30 000 ms. AK953's key takes the owner's
     // `<track>-key-<at>-<n>` identity (src/engine/showCommandsV2/animation.ts:324).
     // The owner accepts APT953's track, but the bridge's delivery validation
-    // refuses the commit: lowering places keys of the untouched track-b,
+    // refuses the commit: lowering holds the Clip-targeted track-b at its
+    // section end (#1103), but places keys of the untouched instance tracks
     // track-inst and track-inst-b outside compiled Scene 2.
     ...[
       {
@@ -2111,9 +2112,10 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     // occurrence and Show End move by the delta and the Layout interval
     // shortens with it (src/engine/showTransitionsV2.ts:333-365, 606), where
     // the v1 record changed only the Boundary. The owner accepts that resize,
-    // but the bridge's delivery validation refuses the commit: track-b,
-    // track-inst and track-inst-b keep their activation to 32 000 ms, and
-    // lowering places their keys outside the shortened compiled Scene 1.
+    // but the bridge's delivery validation refuses the commit: the instance
+    // tracks track-inst and track-inst-b keep their activation to 32 000 ms,
+    // and lowering places their keys outside the shortened compiled Scene 1;
+    // only the Clip-targeted track-b holds at the section end (#1103).
     ...[
       {
         id: 'BT952', command: 'update_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', parameters: { color: '#000000' } },

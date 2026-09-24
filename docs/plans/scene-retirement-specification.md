@@ -784,6 +784,7 @@ This table is the one list of the places where the v2 editor deliberately behave
 | Edit refusals show their reason in the surface's existing error slot instead of emulating v1 ("UI honesty replaces emulation") | Jon, 2026-09-22 |
 | Restart resets the shared Pattern instance in place and is unavailable, with its reason shown, for a Pattern whose state the Restart planner cannot reset; v1 gave the Clip a fresh runtime, so any Pattern could restart | #1091 (Jon, 2026-09-23); §3 Restart |
 | Repeat-per-zone Clip sampling is retired: v2 Clips sample across Zones as one canvas (span) or independently; a v1 Show using repeat does not convert | #1094 (Jon, 2026-09-23) |
+| A Clip-targeted Property track cut by a derived section beside a whole-output Transition holds its section-edge value through that Transition window; v2 records can author animation there that v1 Scenes could not. An instance track (instance-control or instance-time-scale) that would need the same hold still refuses preparation: the compiler applies both Scenes' assignments to one runtime during the window. That is a compiler limitation. | #1103 (Jon, 2026-09-23) |
 
 ## 11. Work allocation and integration order
 

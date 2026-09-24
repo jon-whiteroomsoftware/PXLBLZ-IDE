@@ -508,9 +508,15 @@ it.each(['participants', 'whole-output'] as const)('Split retains existing typed
   const edited = editShowClipTemporalV2(source, { kind: 'split', clipId: 'selected', atMs: 400, rightClipId: 'right' })
   expect(edited.status).toBe('changed')
   const lookup = { byCellId: {}, byPatternInstanceId: { instance: sourceCode }, stageDimension: 2 as const }
-  const code = topology === 'participants' ? 'unsupported-transition-property-track' : 'compiler-ineligible'
+  const code = 'unsupported-transition-property-track'
   for (const record of [source, reopen(edited.record)]) {
     const prepared = prepareShowV2ForCompile(record, lookup, { libraries: LIBRARIES })
+    // A whole-output window no longer limits preparation: section lowering
+    // holds the restricted track at its section edge through it (#1103).
+    if (topology === 'whole-output') {
+      expect(prepared.status === 'refused' ? prepared.issues : prepared.status).toBe('ready')
+      continue
+    }
     expect(prepared.status).toBe('refused')
     if (prepared.status !== 'refused') throw new Error('Unexpected admission')
     expect(prepared.issues.length).toBeGreaterThan(0)
