@@ -306,6 +306,41 @@ async function createPersonalShowV2(page: Page): Promise<string> {
   return show.id
 }
 
+/**
+ * Seed one pinned legacy fixture as a version-2 personal Show, without
+ * opening it. The record converts through the app's own converter
+ * (src/agent-harness/baseline/fixturesV2.ts convertBaselineRecord) inside the
+ * page, for the loader reason createPersonalShowV2 names, and is created
+ * through the product's own create call (POST /api/shows?show-version=2).
+ */
+async function seedConvertedShowV2(page: Page, record: ShowRecord, label: string): Promise<ShowRecordV2> {
+  await page.goto('studio/shows')
+  const converted = (await page.evaluate(async (input) => {
+    const load = (path: string) => import(path)
+    const { convertBaselineRecord } = await load('/PXLBLZ-IDE/src/agent-harness/baseline/fixturesV2.ts')
+    return convertBaselineRecord(input.source, input.label, [])
+  }, { source: record, label })) as ShowRecordV2
+  const created = await page.context().request.post('/api/shows?show-version=2', { data: converted })
+  expect(created.status(), await created.text()).toBe(201)
+  return converted
+}
+
+/** A copy of a version-2 record with one Clip's duration replaced. */
+function withClipDuration<T extends PersistedShow | undefined>(show: T, clipId: string, durationMs: number): T {
+  const next = structuredClone(show)!
+  next.composition!.clips!.find(clip => clip.id === clipId)!.durationMs = durationMs
+  return next
+}
+
+/** Reopen an exported Show file through the product import's v2 opt-in (src/components/PatternList.tsx:304-306). */
+async function reopenExport(page: Page, path: string): Promise<{ show: unknown }> {
+  return page.evaluate(async bytes => {
+    const load = (path: string) => import(path)
+    const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
+    return parseShowFileBundle(new Uint8Array(bytes), { acceptV2: true })
+  }, [...readFileSync(path)])
+}
+
 async function injectOverlay(page: Page, bridgeUrl: string): Promise<void> {
   await page.evaluate((src) => new Promise<void>((done, fail) => {
     const script = document.createElement('script')
@@ -905,7 +940,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     test.setTimeout(90000)
     for (const action of ['cancel', 'release'] as const) {
       const record = resizeBoundaryShow(`wait-${action}-${Date.now().toString(36)}`)
-      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await seedConvertedShowV2(page, record, `baseline W ${action}`)
       await page.goto(`studio/shows/${record.id}?agent=1`)
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
       await expect.poll(() => page.evaluate(async () => {
@@ -940,7 +975,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       if (action === 'release') {
         await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 8000)
         expect(await durableShow(page, record.id)).toEqual(await visibleRecord(page))
-        expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+        expect(writes.filter(write => write.method === 'PUT')).toHaveLength(1)
       } else {
         expect(await visibleRecord(page)).toEqual(before)
         expect(await durableShow(page, record.id)).toEqual(durableBefore)
@@ -955,7 +990,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     for (const action of ['draft-cancel', 'manual-commit', 'agent-cancel', 'focus-only'] as const) {
       await page.setViewportSize({ width: action === 'agent-cancel' ? 800 : 1440, height: 900 })
       const record = resizeBoundaryShow(`field-${action}-${Date.now().toString(36)}`)
-      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await seedConvertedShowV2(page, record, `baseline FA ${action}`)
       await page.goto(`studio/shows/${record.id}?agent=1`)
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
       await expect.poll(() => page.evaluate(async () => {
@@ -1010,21 +1045,16 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       } else {
         await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === (adopted ? 8000 : 7000))
         const current = await visibleRecord(page)
-        const expected = structuredClone(before!)
-        expected.composition!.scenes[0].zones[0].main[0].durationMs = adopted ? 8000 : 7000
+        const expected = withClipDuration(before, firstMain(before)!.id, adopted ? 8000 : 7000)
         expect(current).toEqual({ ...expected, updatedAt: current!.updatedAt })
         expect(await durableShow(page, record.id)).toEqual(current)
-        expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+        expect(writes.filter(write => write.method === 'PUT')).toHaveLength(1)
         await page.keyboard.press('Escape')
         await page.getByRole('button', { name: 'Show actions' }).click()
         const download = page.waitForEvent('download')
         await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
         const file = await download
-        const reopened = await page.evaluate(async bytes => {
-          const load = (path: string) => import(path)
-          const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-          return parseShowFileBundle(new Uint8Array(bytes))
-        }, [...readFileSync((await file.path())!)])
+        const reopened = await reopenExport(page, (await file.path())!)
         expect(reopened.show).toEqual(current)
         await page.getByRole('button', { name: 'Undo Show edit' }).click()
         await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 4000)
@@ -1044,7 +1074,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.composition!.scenes[0].zones[0].main[1].startMs = 8000
         record.composition!.scenes[0].zones[0].main[1].durationMs = 12000
       }
-      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await seedConvertedShowV2(page, record, `baseline FC957 ${width} ${anchor}`)
       await page.goto(`studio/shows/${record.id}?agent=1`)
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
       await expect.poll(() => page.evaluate(async () => {
@@ -1088,7 +1118,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     for (const action of ['resize-cancel', 'resize-commit', 'end-commit'] as const) {
       await page.setViewportSize({ width: action === 'end-commit' ? 800 : 1440, height: 900 })
       const record = resizeBoundaryShow(`gesture-${action}-${Date.now().toString(36)}`)
-      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await seedConvertedShowV2(page, record, `baseline GA ${action}`)
       await page.goto(`studio/shows/${record.id}?agent=1`)
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
       await expect.poll(() => page.evaluate(async () => {
@@ -1138,25 +1168,26 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       await page.keyboard.up('Alt')
       const done = await waitForDone(page, id)
       expect(done.applied).toBe(action === 'resize-cancel')
-      await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
+      await expect.poll(() => writes.filter(write => write.method === 'PUT' && write.status === 200).length).toBe(1)
       const current = await visibleRecord(page)
-      const expected = structuredClone(before!)
+      let expected = structuredClone(before!)
       if (action === 'end-commit') {
-        expected.composition!.durationMs = 18000
-        expected.scenes![0].durationMs = 18000
-      } else expected.composition!.scenes[0].zones[0].main[0].durationMs = action === 'resize-cancel' ? 8000 : 7000
+        // Show End is composition.showEndMs on a version-2 record, and the
+        // retained final Layout interval is truncated to it where v1 shortened
+        // the Scene (src/engine/showCommandsV2/show.ts set_show_end;
+        // src/engine/showV2ShowLevelPlanning.ts planShowV2SetShowEnd).
+        const v2Expected = expected as unknown as ShowRecordV2
+        v2Expected.composition.showEndMs = 18000
+        v2Expected.composition.layoutOccurrences.at(-1)!.durationMs = 18000 - v2Expected.composition.layoutOccurrences.at(-1)!.startMs
+      } else expected = withClipDuration(before, firstMain(before)!.id, action === 'resize-cancel' ? 8000 : 7000)
       expect(current).toEqual({ ...expected, updatedAt: current!.updatedAt })
       expect(await durableShow(page, record.id)).toEqual(current)
-      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+      expect(writes.filter(write => write.method === 'PUT')).toHaveLength(1)
       await page.getByRole('button', { name: 'Show actions' }).click()
       const download = page.waitForEvent('download')
       await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
       const file = await download
-      const reopened = await page.evaluate(async bytes => {
-        const load = (path: string) => import(path)
-        const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-        return parseShowFileBundle(new Uint8Array(bytes))
-      }, [...readFileSync((await file.path())!)])
+      const reopened = await reopenExport(page, (await file.path())!)
       expect(reopened.show).toEqual(current)
       await page.screenshot({ path: join(REPORT_DIR, `GA-${action}-saved.png`), fullPage: true })
       await page.getByRole('button', { name: 'Undo Show edit' }).click()
@@ -1823,7 +1854,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         { id: 'move', kind: 'translate', x: 0.2, y: 0 },
         { id: 'turn', kind: 'rotate', turns: 0.1 },
       ]
-      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await seedConvertedShowV2(page, record, `baseline DA ${action}`)
       await page.goto(`studio/shows/${record.id}?agent=1`)
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
       await expect.poll(() => page.evaluate(async () => {
@@ -1835,7 +1866,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       const detail = page.getByRole('dialog', { name: 'Entity Detail Panel' })
       await detail.getByRole('tab', { name: action.startsWith('placement') ? /^Place/ : /^Effects/ }).click({ timeout: 15000 })
       await injectOverlay(page, bridge.url)
-      const before = await visibleRecord(page) as unknown as ShowRecord
+      const before = await visibleRecord(page) as unknown as ShowRecordV2
       const durableBefore = await durableShow(page, record.id)
       const writes = watchShowWrites(page)
       const id = await submitUtterance(page, 'make the first Clip exactly eight seconds')
@@ -1867,30 +1898,30 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       await transfer.dispose()
       const done = await waitForDone(page, id)
       expect(done.applied).toBe(action.endsWith('cancel'))
-      await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(1)
-      const current = await visibleRecord(page) as unknown as ShowRecord
+      await expect.poll(() => writes.filter(write => write.method === 'PUT' && write.status === 200).length).toBe(1)
+      const current = await visibleRecord(page) as unknown as ShowRecordV2
       const expected = structuredClone(before)
-      const expectedClip = expected.composition!.scenes[0].zones[0].main[0]
+      // A version-2 Clip holds its transform and Effects on its held
+      // appearance key (src/engine/showCompositionV2.ts ShowClipAppearanceValueV2).
+      const firstId = firstMain(before as unknown as PersistedShow)!.id
+      const expectedClip = expected.composition.clips.find(clip => clip.id === firstId)!
+      const expectedHeld = expectedClip.appearance.keys[0].value
       if (action.endsWith('cancel')) expectedClip.durationMs = 8000
       else if (placement) {
-        const transform = current.composition!.scenes[0].zones[0].main[0].transform!
+        const transform = current.composition.clips.find(clip => clip.id === firstId)!.appearance.keys[0].value.transform!
         expect(transform.positionX).toBeGreaterThan(0)
-        expectedClip.transform = transform
-      } else expectedClip.effects = [expectedClip.effects![1], expectedClip.effects![0]]
+        expectedHeld.transform = transform
+      } else expectedHeld.effects = [expectedHeld.effects![1], expectedHeld.effects![0]]
       expect(current).toEqual({ ...expected, updatedAt: current.updatedAt })
       expect(await durableShow(page, record.id)).toEqual(current)
-      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+      expect(writes.filter(write => write.method === 'PUT')).toHaveLength(1)
       await page.screenshot({ path: join(REPORT_DIR, `DA-${action}-saved.png`), fullPage: true })
       await page.keyboard.press('Escape')
       await page.getByRole('button', { name: 'Show actions' }).click({ timeout: 15000 })
       const downloaded = page.waitForEvent('download')
       await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
       const file = await downloaded
-      const reopened = await page.evaluate(async bytes => {
-        const load = (path: string) => import(path)
-        const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-        return parseShowFileBundle(new Uint8Array(bytes))
-      }, [...readFileSync((await file.path())!)])
+      const reopened = await reopenExport(page, (await file.path())!)
       expect(reopened.show).toEqual(current)
       await page.getByRole('button', { name: 'Undo Show edit' }).click()
       await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
@@ -1919,7 +1950,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         { zoneId: 'z1', ranges: [{ start: 0, end: 1 }] },
         { zoneId: 'z2', ranges: [action === 'clean' ? { start: 0, end: 4 } : { start: 3, end: 3 }] },
       ] }]
-      expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+      await seedConvertedShowV2(page, record, `baseline SA ${action}`)
       await page.goto(`studio/shows/${record.id}?agent=1`)
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
       await expect.poll(() => page.evaluate(async () => {
@@ -1928,13 +1959,20 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         return p.usePatternStore.getState().patternsLoaded && l.useLibraryStore.getState().librariesLoaded && m.useMapStore.getState().mapsLoaded
       })).toBe(true)
       await injectOverlay(page, bridge.url)
+      if (action === 'clear-cancel') {
+        // At 720 px the v2 editor's open Agent drawer covers the Zone rail
+        // toggle, so tuck it the way GA and FC957 do before reaching the Zone.
+        await page.getByRole('button', { name: 'Agent menu', exact: true }).focus()
+        await page.keyboard.press('Escape')
+        await expect(page.getByRole('complementary', { name: 'Agent drawer' })).toBeHidden()
+      }
       const open = page.getByRole('button', { name: 'Open Zones', exact: true })
       if (await open.count()) await open.click()
       await page.getByRole('button', { name: 'Open zone Main properties' }).click()
       await page.getByRole('button', { name: 'Select Main LEDs on output map' }).click()
       const surface = page.getByRole('img', { name: 'Select LEDs for zone Main' })
       await expect(surface).toBeVisible()
-      const before = await visibleRecord(page) as unknown as ShowRecord
+      const before = await visibleRecord(page) as unknown as ShowRecordV2
       const durableBefore = await durableShow(page, record.id)
       const writes = watchShowWrites(page)
       let done: unknown
@@ -1944,12 +1982,14 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         await surface.focus()
         done = await page.evaluate(() => {
           const editor = (window as unknown as { __pxlblzEditor: {
-            beginRequest: (id: string, utterance: string, history: unknown[]) => { show: ShowRecord; request: unknown }
-            applyShow: (show: ShowRecord, request: unknown) => unknown
+            beginRequest: (id: string, utterance: string, history: unknown[]) => { show: ShowRecordV2; request: unknown }
+            applyShow: (show: ShowRecordV2, request: unknown) => unknown
           } }).__pxlblzEditor
           const captured = editor.beginRequest('clean-spatial', 'Change physical indexes', [])
           const candidate = structuredClone(captured.show)
-          candidate.routingLayouts[0].zones[0].ranges = [{ start: 1, end: 2 }]
+          // A version-2 record keeps physical ranges in zoneLayouts
+          // (src/engine/showCompositionV2.ts ShowRecordV2).
+          candidate.zoneLayouts[0].zones[0].ranges = [{ start: 1, end: 2 }]
           return editor.applyShow(candidate, captured.request)
         })
         expect(done).toMatchObject({ status: 'applied' })
@@ -1976,16 +2016,19 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         done = await waitForDone(page, id)
         expect((done as OverlayRequest).applied).toBe(action !== 'save')
       }
-      const writeCount = action === 'clean' ? 2 : 1
-      await expect.poll(() => writes.filter(write => write.method === 'PATCH' && write.status === 200).length).toBe(writeCount)
-      const current = await visibleRecord(page) as unknown as ShowRecord
-      const expected = structuredClone(before)
-      if (action === 'clean') expected.routingLayouts[0].zones[0].ranges = [{ start: 1, end: 2 }]
-      else if (action === 'save') expected.routingLayouts[0].zones[0].ranges = [{ start: 1, end: 1 }]
-      else expected.composition!.scenes[0].zones[0].main[0].durationMs = 8000
+      // v1 saved the clean-updated ranges again as a second write and history
+      // entry; v2 plans a Save of unchanged ranges as a no-op
+      // (src/engine/showV2ZonePlanning.ts:153), so the candidate is the one write.
+      const writeCount = 1
+      await expect.poll(() => writes.filter(write => write.method === 'PUT' && write.status === 200).length).toBe(writeCount)
+      const current = await visibleRecord(page) as unknown as ShowRecordV2
+      let expected = structuredClone(before)
+      if (action === 'clean') expected.zoneLayouts[0].zones[0].ranges = [{ start: 1, end: 2 }]
+      else if (action === 'save') expected.zoneLayouts[0].zones[0].ranges = [{ start: 1, end: 1 }]
+      else expected = withClipDuration(before as unknown as PersistedShow, firstMain(before as unknown as PersistedShow)!.id, 8000) as unknown as ShowRecordV2
       expect(current).toEqual({ ...expected, updatedAt: current.updatedAt })
       expect(await durableShow(page, record.id)).toEqual(current)
-      expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(writeCount)
+      expect(writes.filter(write => write.method === 'PUT')).toHaveLength(writeCount)
       await page.keyboard.press('Escape')
       await page.getByRole('button', { name: 'Show actions' }).click()
       const delivery = page.getByRole('menuitem', { name: 'Download .epe', exact: true })
@@ -1993,14 +2036,9 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       const downloaded = page.waitForEvent('download')
       await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
       const file = await downloaded
-      const reopened = await page.evaluate(async bytes => {
-        const load = (path: string) => import(path)
-        const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-        return parseShowFileBundle(new Uint8Array(bytes))
-      }, [...readFileSync((await file.path())!)])
+      const reopened = await reopenExport(page, (await file.path())!)
       expect(reopened.show).toEqual(current)
       await page.screenshot({ path: join(REPORT_DIR, `SA-${action}-saved.png`), fullPage: true })
-      if (action === 'clean') await page.getByRole('button', { name: 'Undo Show edit' }).click()
       await page.getByRole('button', { name: 'Undo Show edit' }).click()
       await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
       await expect(page.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
