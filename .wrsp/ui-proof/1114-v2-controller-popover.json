@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1114",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Opened the built-in v2 Show, connected a fake Controller, and opened its Controller popover with Run enabled for that Show.",
+  "captures": [".wrsp/ui-proof/1114-v2-controller-popover.png"],
+  "capturedAtCommit": "2a9df0759b5adb46ee5b5e5575df72d654b430e3"
+}
