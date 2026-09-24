@@ -157,6 +157,7 @@ test('the place control reaches every Studio and reference workspace (#965)', as
 test('the Studio entity drawer overlays without reflow and preserves Preview Space (#966)', async ({ page }) => {
   test.setTimeout(45_000)
   await page.setViewportSize({ width: 1440, height: 900 })
+  await page.clock.install()
   await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
   const layout = page.getByTestId('studio-drawer-layout')
@@ -233,11 +234,19 @@ test('the Studio entity drawer overlays without reflow and preserves Preview Spa
   await expect(drawer).toBeHidden()
   await edgeTab.click()
   await drawer.hover()
+  // Pause the page clock so leaving and re-entering happen 300 ms apart in
+  // page time, inside the 600 ms close grace, however slow the round trips.
+  // pauseAt cannot move backwards, and the evaluate round trip can take over
+  // a second under load, so aim 5 s ahead: the pointer is still inside the
+  // drawer, so no close timer is armed and the skipped page time is harmless.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 5_000))
   await timelineToolbar.hover()
-  await expect(page.getByTestId('studio-drawer-close-progress')).toHaveCount(0)
+  await page.clock.runFor(300)
   await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
   await drawer.hover()
-  await expect(page.getByTestId('studio-drawer-close-progress')).toHaveCount(0)
+  await page.clock.resume()
+  await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+  await page.waitForTimeout(800)
   await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
   await timelineToolbar.hover()
   await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked', { timeout: 2_000 })
