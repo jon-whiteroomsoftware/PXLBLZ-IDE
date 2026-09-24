@@ -128,6 +128,7 @@ export async function installFakeControllerHelper(
       }
       if (message.type === 'compile') {
         if (fixture.address && message.address !== fixture.address) return
+        writes.push({ compileSource: message.patternSrc })
         emit({
           type: 'compile-result',
           reqId: message.reqId,
@@ -138,6 +139,11 @@ export async function installFakeControllerHelper(
       }
       if (message.type !== 'send') return
       const payload = message.payload as { text?: string; binary?: string } | undefined
+      if (payload?.binary && typeof message.connId === 'string') {
+        // Type 1 is putSourceCode: the saved PBP carrying the source.
+        if (atob(payload.binary).charCodeAt(0) === 1) writes.push({ save: true })
+        return
+      }
       if (!payload?.text || typeof message.connId !== 'string') return
       if (fixture.address && !connections.has(message.connId)) return
       const command = JSON.parse(payload.text) as Record<string, unknown>

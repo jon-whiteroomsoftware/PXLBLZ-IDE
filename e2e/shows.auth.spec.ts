@@ -11,6 +11,51 @@ import { createInstallationShowOutputContract, createPortableShowOutputContract 
 import { findStoredShowV2, listStoredShowsV2, seedShowV2, storedShowV2RevisionMatchesAnchor, waitForV2BarrierSave } from './support/showBackingRecords'
 
 test.describe('authenticated Show authoring', () => {
+  test('sends a v2 Show from the Controller popover and delivers its artifact (#1114)', async ({ page }) => {
+    await installFakeControllerHelper(page, {
+      address: '192.168.8.237',
+      programs: [],
+      activeProgramId: 'none',
+      deviceName: 'Show bench',
+      boardType: 'pb32',
+      mac: '34:94:54:ee:d4:37',
+      pixelCount: 64,
+    })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Connect a Controller' }).click()
+    await page.getByRole('textbox', { name: 'Controller IP address' }).fill('192.168.8.237')
+    await page.getByTestId('controller-go').click()
+    const controllerPill = page.getByTestId('controller-pill')
+    await expect(controllerPill).toHaveAttribute('data-phase', 'live')
+    await controllerPill.click()
+
+    const actionRow = page.getByTestId('controller-action-row')
+    await expect(actionRow).toContainText('101 Clips, Cuts, and Blank Time')
+    const run = actionRow.getByRole('button', { name: 'Run', exact: true })
+    await expect(run).toBeEnabled()
+    await run.click()
+    await expect.poll(() => page.evaluate(() => {
+      const writes = (window as typeof window & {
+        __fakeControllerWrites?: Array<Record<string, unknown>>
+      }).__fakeControllerWrites ?? []
+      return writes.some((write) => typeof write.compileSource === 'string'
+        && write.compileSource.includes('Compiled PXLBLZ Show: 101 Clips, Cuts, and Blank Time'))
+    })).toBe(true)
+
+    const save = actionRow.getByRole('button', { name: 'Save', exact: true })
+    await expect(save).toBeEnabled()
+    await save.click()
+    await expect.poll(() => page.evaluate(() => {
+      const writes = (window as typeof window & {
+        __fakeControllerWrites?: Array<Record<string, unknown>>
+      }).__fakeControllerWrites ?? []
+      return writes.some((write) => write.save === true)
+    })).toBe(true)
+  })
+
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-reference-property-animation')
