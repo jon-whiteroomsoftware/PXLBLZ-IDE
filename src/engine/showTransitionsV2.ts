@@ -57,8 +57,10 @@ export type ShowTransitionEditRefusalV2 =
 
 interface ShowTransitionEditAffectedV2 {
   affectedClipIds: string[]
+  affectedInstanceIds: string[]
   affectedTransitionIds: string[]
   affectedTrackIds: string[]
+  affectedKeyframeIds: string[]
   affectedLayoutOccurrenceIds: string[]
   affectedMarkerIds: string[]
   affectedGroupOccurrenceIds: string[]
@@ -105,7 +107,7 @@ export function editShowTransitionV2(
 ): ShowTransitionEditResultV2 {
   const empty = (): ShowTransitionEditAffectedV2 => ({
     affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [],
-    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
+    affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   })
   const refuse = (code: ShowTransitionEditRefusalV2, message: string): ShowTransitionEditResultV2 => ({
     status: 'refused', record, code, message, ...empty(),
@@ -156,11 +158,15 @@ export function editShowTransitionV2(
     // Collect only the instances the removed Clips used; a pre-existing orphan stays (#1100).
     const collectedIds: string[] = []
     const collectedTrackIds: string[] = []
+    const collectedInstanceIds: string[] = []
+    const collectedKeyframeIds: string[] = []
     for (const instanceId of new Set(record.composition.clips.filter(candidate => removedClipIdSet.has(candidate.id)).map(candidate => candidate.instanceId))) {
       const collected = collectOrphanedShowInstanceV2(next, instanceId)
       if (!collected.removed) continue
       collectedIds.push(instanceId, ...collected.removedTrackIds, ...collected.removedKeyframeIds)
       collectedTrackIds.push(...collected.removedTrackIds)
+      collectedInstanceIds.push(instanceId)
+      collectedKeyframeIds.push(...collected.removedKeyframeIds)
     }
     const issue = validateShowRecordV2(next)[0]
     if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
@@ -171,6 +177,7 @@ export function editShowTransitionV2(
       affectedClipIds: removedClipIds,
       affectedTransitionIds: removedTransitionIds.sort(),
       affectedTrackIds: [...new Set([...projectedTrackIds, ...removedTrackIds, ...collectedTrackIds])].sort(),
+      affectedInstanceIds: collectedInstanceIds.sort(), affectedKeyframeIds: collectedKeyframeIds.sort(),
       affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [],
       removedIds: [...removedClipIds, ...removedTransitionIds, ...removedTrackIds, ...collectedIds].sort(),
     }
@@ -237,7 +244,7 @@ export function editShowTransitionV2(
     return {
       status: 'changed', record: promotion.record, affectedClipIds: [],
       affectedTransitionIds: [...new Set([current.id, ...promotion.promotedTransitionIds])].sort(),
-      affectedTrackIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
+      affectedTrackIds: [], affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
     }
   }
 
@@ -736,6 +743,7 @@ function resetConvertedBoundaryToCut(record: ShowRecordV2, repair: ConvertedBoun
     affectedClipIds: [...moved].sort(),
     affectedTransitionIds: [...new Set([repair.transitionId, ...affectedTransitionIdsFor(record, moved)])].sort(),
     affectedTrackIds: committed.applied.shiftedTrackIds,
+    affectedInstanceIds: [], affectedKeyframeIds: [],
     affectedLayoutOccurrenceIds: [...new Set([...committed.applied.shortenedLayoutOccurrenceIds, ...committed.applied.shiftedLayoutOccurrenceIds])].sort(),
     affectedMarkerIds: committed.applied.shiftedMarkerIds,
     affectedGroupOccurrenceIds: committed.applied.shiftedGroupOccurrenceIds,
@@ -787,6 +795,7 @@ function resizeConvertedBoundaryEdge(
     affectedClipIds: [...moved].sort(),
     affectedTransitionIds: [...new Set([repair.transitionId, ...affectedTransitionIdsFor(record, moved)])].sort(),
     affectedTrackIds: [...new Set([...trackEdit.affectedTrackIds, ...committed.applied.shiftedTrackIds])].sort(),
+    affectedInstanceIds: [], affectedKeyframeIds: [],
     affectedLayoutOccurrenceIds: [...new Set([...committed.applied.shortenedLayoutOccurrenceIds, ...committed.applied.shiftedLayoutOccurrenceIds])].sort(),
     affectedMarkerIds: committed.applied.shiftedMarkerIds,
     affectedGroupOccurrenceIds: committed.applied.shiftedGroupOccurrenceIds,
@@ -844,7 +853,7 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
     affectedClipIds: [clip.id, ...affectedClipIds].sort(),
     affectedTransitionIds: affectedTransitionIdsFor(record, new Set([clip.id, ...affectedClipIds])),
     affectedTrackIds: [...new Set([...trackEdit.affectedTrackIds, ...shiftedTrackIds])].sort(),
-    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
+    affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
 }
 
@@ -929,14 +938,14 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   return {
     status: 'changed', record: next, affectedClipIds: [clip.id], affectedTransitionIds: [transition.id],
     affectedTrackIds: trackEdit.affectedTrackIds.sort(),
-    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
+    affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
 }
 
 function unchangedResult(record: ShowRecordV2): ShowTransitionEditResultV2 {
   return {
     status: 'unchanged', record, affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [],
-    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
+    affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
 }
 
@@ -987,7 +996,7 @@ function commitShift(
     affectedClipIds: [...moved].sort(),
     affectedTransitionIds,
     affectedTrackIds: affectedTrackIds.sort(),
-    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [],
+    affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [],
     removedIds: [...removedIds].sort(),
   }
 }
@@ -1035,7 +1044,7 @@ function refusedResult(
   return {
     status: 'refused', record, code, message,
     affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [],
-    affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
+    affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
 }
 

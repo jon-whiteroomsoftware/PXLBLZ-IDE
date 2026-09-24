@@ -1,5 +1,4 @@
 [
-  "/composition/executionModel",
   "/composition/groupDefinitions/*/clips/*/appearance/keys/*/timeMs",
   "/composition/groupDefinitions/*/clips/*/appearance/keys/*/value/aperture",
   "/composition/groupDefinitions/*/clips/*/appearance/keys/*/value/blink",

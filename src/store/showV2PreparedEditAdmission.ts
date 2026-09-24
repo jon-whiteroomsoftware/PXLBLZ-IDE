@@ -734,12 +734,16 @@ export async function admitShowV2PilotClipDelete(request: ShowV2PilotClipDeleteR
   if ('result' in outcome && outcome.result.status === 'changed') {
     const result = outcome.result
     effects.affectedClipIds = result.affectedClipIds
+    effects.affectedInstanceIds = result.affectedInstanceIds
     effects.affectedTransitionIds = result.affectedTransitionIds
     effects.affectedTrackIds = result.affectedTrackIds
     effects.removedIds = result.removedIds
     // Only keys owned by the explicitly reported removed Clip/track owners.
     effects.affectedAppearanceKeyIds = result.affectedClipIds.filter(id => result.removedIds.includes(id)).flatMap(id => request.capture.record.composition.clips.find(clip => clip.id === id)?.appearance.keys.map(key => key.id) ?? [])
-    effects.affectedPropertyKeyIds = result.affectedTrackIds.filter(id => result.removedIds.includes(id)).flatMap(id => request.capture.record.composition.propertyTracks.find(track => track.id === id)?.keyframes.map(key => key.id) ?? [])
+    effects.affectedPropertyKeyIds = [...new Set([
+      ...result.affectedTrackIds.filter(id => result.removedIds.includes(id)).flatMap(id => request.capture.record.composition.propertyTracks.find(track => track.id === id)?.keyframes.map(key => key.id) ?? []),
+      ...result.affectedKeyframeIds,
+    ])]
   }
   return presentOwnerOutcome(outcome, effects)
 }
@@ -921,10 +925,10 @@ function zoneEffects(result?: ShowZoneEditResultV2): ShowZoneEditAffectedV2 {
   return result ? {
     affectedZoneIds: result.affectedZoneIds, affectedLayerIds: result.affectedLayerIds, affectedClipIds: result.affectedClipIds,
     affectedInstanceIds: result.affectedInstanceIds, affectedTransitionIds: result.affectedTransitionIds, affectedTrackIds: result.affectedTrackIds,
-    affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, removedIds: result.removedIds,
+    affectedKeyframeIds: result.affectedKeyframeIds, affectedLayoutDefinitionIds: result.affectedLayoutDefinitionIds, affectedGroupOccurrenceIds: result.affectedGroupOccurrenceIds, removedIds: result.removedIds,
   } : {
     affectedZoneIds: [], affectedLayerIds: [], affectedClipIds: [], affectedInstanceIds: [], affectedTransitionIds: [],
-    affectedTrackIds: [], affectedLayoutDefinitionIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
+    affectedTrackIds: [], affectedKeyframeIds: [], affectedLayoutDefinitionIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
 }
 export type ShowV2PilotZoneEditRequest = ShowV2PilotPreparedEditContext & { intent: ShowZoneEditIntentV2 }

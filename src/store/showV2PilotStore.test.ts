@@ -466,10 +466,15 @@ describe('opt-in v2 Show route adoption', () => {
     if (!originalOut || !originalIn) throw new Error('fixture clips unavailable')
     const deleted = editShowTransitionV2(opened.record, { kind: 'delete-clip', clipId: originalIn.id })
     if (deleted.status !== 'changed') throw new Error(JSON.stringify(deleted))
+    // Deleting the final Clip collected its instance (#1100); the re-add brings a fresh one.
+    const originalInstance = opened.record.composition.patternInstances.find(instance => instance.id === originalIn.instanceId)!
+    expect(deleted.affectedInstanceIds).toEqual([originalIn.instanceId])
     const readded = structuredClone(deleted.record)
+    readded.composition.patternInstances.push({ ...structuredClone(originalInstance), id: 'replacement-instance' })
     readded.composition.clips.push({
       ...originalIn,
       id: 'replacement',
+      instanceId: 'replacement-instance',
       startMs: originalOut.startMs + originalOut.durationMs,
       appearance: { keys: originalIn.appearance.keys.map((key, index) => ({
         ...key,

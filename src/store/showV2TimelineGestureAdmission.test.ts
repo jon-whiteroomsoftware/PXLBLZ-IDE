@@ -279,7 +279,11 @@ describe('v2 timeline gestures through the closed admission', () => {
             }],
           },
         },
-        runtime: { kind: 'existing', instanceId: 'in-instance' },
+        // Deleting the final Clip collected in-instance (#1100); a re-add mints a fresh runtime.
+        runtime: {
+          kind: 'first',
+          instance: { id: `${clipId}-instance`, pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 }, controlTargets: {} },
+        },
       }
       expect(await admitShowV2PilotCreateClip({ ...active, intent })).toMatchObject({ status: 'applied' })
       return readSaved()

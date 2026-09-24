@@ -872,6 +872,8 @@ describe('v2 command addressing, no-op policy and parity', () => {
     expect(viaCommand.record.composition.patternInstances.map(instance => instance.id)).toEqual(['inst-a'])
     expect(viaCommand.record.composition.propertyTracks.map(track => track.id)).toEqual(['track-a'])
     expect(viaCommand.changes[0].details.removed).toEqual(['b-clock', 'b-clock:end', 'b-clock:start', 'clip-c', 'inst-b'])
+    expect(viaCommand.changes[0].details.instances).toEqual(['inst-b'])
+    expect(viaCommand.changes[0].details.propertyKeys).toEqual(['b-clock:end', 'b-clock:start'])
   })
 
   it('validates descriptor shape before any owner runs', () => {

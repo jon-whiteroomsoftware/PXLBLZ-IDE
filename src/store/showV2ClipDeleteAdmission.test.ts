@@ -21,11 +21,11 @@ function setup(group=false, supplied?:ShowRecordV2){
 }
 const empty={affectedClipIds:[],affectedInstanceIds:[],affectedTransitionIds:[],affectedTrackIds:[],affectedLayoutDefinitionIds:[],affectedLayoutOccurrenceIds:[],affectedGroupDefinitionIds:[],affectedGroupOccurrenceIds:[],affectedLayerIds:[],affectedMarkerIds:[],affectedAppearanceKeyIds:[],affectedPropertyKeyIds:[],removedIds:[],discardedControlTargets:[]}
 function effects(value:object){return Object.fromEntries(Object.entries(value).filter(([key])=>key in empty))}
-it('deletes final ordinary content through validated empty admission and reports exactly fourteen collections',async()=>{
+it('deletes final ordinary content through validated empty admission, collects its orphaned instance and reports exactly fourteen collections (#1100)',async()=>{
  const {record,write,context,saved}=setup();const request=context();expect(request.capture.prepared.status).toBe('ready')
  const result=await admitShowV2PilotClipDelete({...request,intent:{kind:'delete-clip',clipId:'clip'}})
- expect(result).toMatchObject({status:'applied',settlement:'saved'});expect(effects(result)).toEqual({...empty,affectedClipIds:['clip'],affectedTrackIds:['animation'],affectedAppearanceKeyIds:record.composition.clips[0].appearance.keys.map(k=>k.id),affectedPropertyKeyIds:['left','right'],removedIds:['animation','clip']})
- expect(write).toHaveBeenCalledTimes(1);expect(saved().composition.clips).toEqual([]);expect(saved().composition.patternInstances).toEqual(record.composition.patternInstances);expect(saved().composition.showEndMs).toBe(record.composition.showEndMs);expect(context().capture.prepared.status).toBe('empty');expect(request.onAdopted).toHaveBeenCalledTimes(1)
+ expect(result).toMatchObject({status:'applied',settlement:'saved'});const instanceId=record.composition.patternInstances[0].id;expect(effects(result)).toEqual({...empty,affectedClipIds:['clip'],affectedInstanceIds:[instanceId],affectedTrackIds:['animation'],affectedAppearanceKeyIds:record.composition.clips[0].appearance.keys.map(k=>k.id),affectedPropertyKeyIds:['left','right'],removedIds:['animation','clip',instanceId].sort()})
+ expect(write).toHaveBeenCalledTimes(1);expect(saved().composition.clips).toEqual([]);expect(saved().composition.patternInstances).toEqual([]);expect(saved().composition.showEndMs).toBe(record.composition.showEndMs);expect(context().capture.prepared.status).toBe('empty');expect(request.onAdopted).toHaveBeenCalledTimes(1)
  expect(await useShowStore.getState().undoShowV2Pilot(record.id)).toBe(true);expect({...saved(),updatedAt:record.updatedAt}).toEqual(record);expect(await useShowStore.getState().redoShowV2Pilot(record.id)).toBe(true);expect(saved().composition.clips).toEqual([])
 })
 it('preserves shared held Group uses, definitions, runtime payloads and positions',async()=>{
@@ -42,14 +42,14 @@ it('failed deletion rolls back content/history and allows one explicit retry',as
  expect(useShowStore.getState().showV2Pilots[record.id]).toEqual(record);expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([]);expect((await admitShowV2PilotClipDelete({...context(),intent:{kind:'delete-clip',clipId:'clip'}})).status).toBe('applied');expect(write).toHaveBeenCalledTimes(2);expect(saved().composition.clips).toEqual([])
 })
 
-it.each([false,true])('deletes attached Transition with or without its Clip value ramp (%s)',async ramp=>{
+it.each([false,true])('deletes attached Transition with or without its Clip value ramp and collects the orphaned instance (%s)',async ramp=>{
  const converted=convertShowRecordV1ToV2(transitionV1Show('crossfade'));if(converted.status!=='converted')throw Error('fixture')
  const source=converted.record;source.composition.patternInstances.forEach(instance=>{instance.pattern={kind:'user',id:'voice'};instance.controlTargets={sliderGain:.4}})
  const track=propertyEditTrack({kind:'clip-view',clipId:'in',property:'brightness'});track.activeStartMs=600;track.activeDurationMs=400;track.keyframes[0].timeMs=600;source.composition.propertyTracks=[track]
  if(ramp)source.composition.transitions[0].propertyRamps=[{participantId:source.composition.transitions[0].participants[0].id,target:{kind:'clip-view',clipId:'in',property:'brightness'},from:.2,easing:{curve:'linear'}}]
  const {record,context,write,saved}=setup(false,source);expect(context().capture.inputCapture?.status).toBe('qualified')
  const result=await admitShowV2PilotClipDelete({...context(),intent:{kind:'delete-clip',clipId:'in'}})
- expect(result).toMatchObject({status:'applied',affectedTransitionIds:['transition-crossfade'],affectedTrackIds:['animation'],affectedPropertyKeyIds:['left','right']});expect(saved().composition.transitions).toEqual([]);expect(saved().composition.clips).toEqual([record.composition.clips[0]]);expect(saved().composition.patternInstances).toEqual(record.composition.patternInstances);expect(write).toHaveBeenCalledTimes(1)
+ expect(result).toMatchObject({status:'applied',affectedInstanceIds:['in-instance'],affectedTransitionIds:['transition-crossfade'],affectedTrackIds:['animation'],affectedPropertyKeyIds:['left','right']});expect(saved().composition.transitions).toEqual([]);expect(saved().composition.clips).toEqual([record.composition.clips[0]]);expect(saved().composition.patternInstances).toEqual(record.composition.patternInstances.filter(instance=>instance.id!=='in-instance'));expect(write).toHaveBeenCalledTimes(1)
 })
 it('retained duplicate deletion request is stale after first adoption and writes once',async()=>{
  const {context,write}=setup();const request={...context(),intent:{kind:'delete-clip' as const,clipId:'clip'}};expect((await admitShowV2PilotClipDelete(request)).status).toBe('applied');expect(await admitShowV2PilotClipDelete(request)).toMatchObject({status:'refused',code:'stale-edit'});expect(write).toHaveBeenCalledTimes(1)

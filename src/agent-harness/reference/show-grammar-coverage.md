@@ -17,7 +17,7 @@ when this file drifts from the generator.
 | layouts | 9 | 9 | 100% |
 | markers | 4 | 4 | 100% |
 | record | 1 | 1 | 100% |
-| show | 8 | 6 | 75% |
+| show | 8 | 7 | 87.5% |
 | transitions | 60 | 60 | 100% |
 
 Unreachable paths: none.
@@ -46,7 +46,6 @@ preserve declared Show structure; arbitrary scratch paths and final-only-valid
 sequences are outside the generic contract. Generic-operation use is logged per
 session; frequent use of a path here is the signal to add a specific operation.
 
-- `/composition/executionModel`
 - `/composition/groupDefinitions/*/clips/*/appearance/keys/*/timeMs`
 - `/composition/groupDefinitions/*/clips/*/appearance/keys/*/value/aperture`
 - `/composition/groupDefinitions/*/clips/*/appearance/keys/*/value/blink`

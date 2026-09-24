@@ -744,7 +744,7 @@ Production MCP keeps the v1 catalogue above until the coordinated cutover in
 | layers | `remove_layer` | `/composition/layers`, `/composition/clips/*/layerId`, `/composition/transitions/*/participants/*/layerId`, `/composition/groupOccurrences/*/layerBindings/*/layerId` |
 | clips | `create_clips` | `/composition/clips`, `/composition/patternInstances` |
 | clips | `update_clips` | `/composition/clips`, `/composition/patternInstances`, `/composition/transitions`, `/composition/propertyTracks` |
-| clips | `remove_clips` | `/composition/clips`, `/composition/transitions`, `/composition/propertyTracks` |
+| clips | `remove_clips` | `/composition/clips`, `/composition/transitions`, `/composition/propertyTracks`, `/composition/patternInstances`, `/composition/executionModel` |
 | clips | `resize_clip` | `/composition/clips`, `/composition/transitions`, `/composition/propertyTracks` |
 | clips | `split_clip` | `/composition/clips`, `/composition/transitions`, `/composition/propertyTracks` |
 | clips | `duplicate_clip` | `/composition/clips`, `/composition/patternInstances`, `/composition/propertyTracks` |

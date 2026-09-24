@@ -51,6 +51,7 @@ export interface ShowZoneEditAffectedV2 {
   affectedInstanceIds: string[]
   affectedTransitionIds: string[]
   affectedTrackIds: string[]
+  affectedKeyframeIds: string[]
   affectedLayoutDefinitionIds: string[]
   affectedGroupOccurrenceIds: string[]
   removedIds: string[]
@@ -71,6 +72,7 @@ function emptyAffected(): ShowZoneEditAffectedV2 {
     affectedInstanceIds: [],
     affectedTransitionIds: [],
     affectedTrackIds: [],
+    affectedKeyframeIds: [],
     affectedLayoutDefinitionIds: [],
     affectedGroupOccurrenceIds: [],
     removedIds: [],
@@ -224,6 +226,8 @@ function removeZone(
     affected.affectedClipIds.push(...outcome.affectedClipIds)
     affected.affectedTransitionIds.push(...outcome.affectedTransitionIds)
     affected.affectedTrackIds.push(...outcome.affectedTrackIds)
+    affected.affectedInstanceIds.push(...outcome.affectedInstanceIds)
+    affected.affectedKeyframeIds.push(...outcome.affectedKeyframeIds)
     for (const id of outcome.removedIds) removedIds.add(id)
   }
 
@@ -259,6 +263,7 @@ function removeZone(
     affectedInstanceIds: [...new Set(affected.affectedInstanceIds)].sort(),
     affectedTransitionIds: [...new Set(affected.affectedTransitionIds)].sort(),
     affectedTrackIds: [...new Set(affected.affectedTrackIds)].sort(),
+    affectedKeyframeIds: [...new Set(affected.affectedKeyframeIds)].sort(),
     affectedLayoutDefinitionIds: [...new Set(affected.affectedLayoutDefinitionIds)].sort(),
     affectedGroupOccurrenceIds: [...new Set(affected.affectedGroupOccurrenceIds)].sort(),
     removedIds: [...removedIds].sort(),
