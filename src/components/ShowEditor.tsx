@@ -372,6 +372,7 @@ import {
 } from '@/engine/showV2ClipTemporalPlanning'
 import {
   planShowV2ClipDelete,
+  showV2ClipCount,
   showV2ConnectedTransitionIds,
 } from '@/engine/showV2ClipDeletePlanning'
 import {
@@ -11517,15 +11518,8 @@ function ContextualInspector({
     recordV2 ? projectShowEditorRoutingTransfersV2(recordV2) : null
   ), [recordV2])
   const canRemoveClip = show ? showRecordClipCount(show) > 1 : false
-  // The same count `showRecordClipCount` makes on a v1 composition, read from
-  // the authored v2 record: ordinary Clips plus one child per Group occurrence.
-  const canRemoveClipV2 = recordV2
-    ? recordV2.composition.clips.length
-      + recordV2.composition.groupOccurrences.reduce((count, occurrence) => count + (
-          recordV2.composition.groupDefinitions
-            .find((definition) => definition.id === occurrence.definitionId)?.clips.length ?? 0
-        ), 0) > 1
-    : false
+  // The button asks the delete owner's count, so a spanning Clip's parts count once (§10, #1111-E).
+  const canRemoveClipV2 = recordV2 ? showV2ClipCount(recordV2) > 1 : false
   const compositionTimelineClips = compositionShow?.composition
     ? projectShowUnifiedTimeline(compositionShow, compositionShow.composition).zones.flatMap((zone) => (
         zone.layers.flatMap((layer) => layer.clips)

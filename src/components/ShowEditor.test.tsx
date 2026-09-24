@@ -4002,6 +4002,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(firstProjectedPlacement).toBeDefined()
     await user.click(firstProjectedPlacement!)
 
+    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toHaveAttribute('aria-disabled', 'true')
     await user.keyboard('{Delete}')
 
     expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()
@@ -4029,6 +4030,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(projectedPlacements).toHaveLength(2)
     await user.click(projectedPlacements[0])
 
+    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toHaveAttribute('aria-disabled', 'true')
     await user.keyboard('{Delete}')
 
     expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()
