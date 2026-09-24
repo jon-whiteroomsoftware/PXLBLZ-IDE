@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import { posix, relative, resolve } from 'node:path'
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { checkBaselines } from '../../scripts/show-v2-baselines'
 
@@ -55,19 +56,14 @@ const PINNED_DIGESTS: Record<string, string> = {
   'fixtures/stock-draft.json': '748fe7d6dbf8b33e50339a2e772721c6e25ceb1c9bd84509281a5dfd088a4503',
 }
 
-/** Module specifiers of static, side-effect, re-export and dynamic imports. */
-const IMPORT_PATTERNS = [
-  /^\s*(?:import|export)\b[^'"]*?\bfrom\s*['"]([^'"]+)['"]/gm,
-  /^\s*import\s*['"]([^'"]+)['"]/gm,
-  /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-]
-
 /**
  * Repo-relative module paths that `text`, read as `file`, imports directly,
- * with the extension, a trailing slash and a trailing `/index` stripped.
+ * with the extension, a trailing slash and a trailing `/index` stripped. The
+ * TypeScript scanner reports static, type-only, side-effect, re-export and
+ * literal dynamic imports, and skips strings and comments.
  */
 function importedPaths(text: string, file: string): string[] {
-  const specifiers = IMPORT_PATTERNS.flatMap(pattern => [...text.matchAll(pattern)].map(match => match[1]))
+  const specifiers = ts.preProcessFile(text, true, true).importedFiles.map(reference => reference.fileName)
   return specifiers.flatMap(specifier => {
     if (specifier.startsWith('@/')) return [`src/${specifier.slice(2)}`]
     if (specifier.startsWith('src/')) return [specifier]
@@ -85,13 +81,9 @@ function forbidden(path: string): boolean {
     || FORBIDDEN_DIRECTORIES.some(directory => path === directory.replace(/\/$/, '') || path.startsWith(directory))
 }
 
-/**
- * The forbidden paths a synthetic source, read as a file in `src/engine/`,
- * imports. Synthetic dynamic imports spell the call `IMPORT(`: this file is
- * itself guarded, and a literal call inside a string would flag it.
- */
+/** The forbidden paths a synthetic source, read as a file in `src/engine/`, imports. */
 function flagged(source: string): string[] {
-  return importedPaths(source.replace(/IMPORT\(/g, 'import('), 'src/engine/synthetic.ts').filter(forbidden)
+  return importedPaths(source, 'src/engine/synthetic.ts').filter(forbidden)
 }
 
 describe('#1042 v2 baselines', () => {
@@ -116,7 +108,7 @@ describe('#1042 v2 baselines', () => {
     ['a side-effect import', "import './showClipInvariant'", 'src/engine/showClipInvariant'],
     ['a re-export', "export { a } from './showClipInvariant'", 'src/engine/showClipInvariant'],
     ['a star re-export', "export * from '@/engine/showClipInvariant'", 'src/engine/showClipInvariant'],
-    ['a dynamic import', "const m = await IMPORT('./showClipInvariant')", 'src/engine/showClipInvariant'],
+    ['a dynamic import', "const m = await import('./showClipInvariant')", 'src/engine/showClipInvariant'],
     ['an alias directory import', "import { c } from '@/engine/showCommands'", 'src/engine/showCommands'],
     ['an alias directory index import', "import { c } from '@/engine/showCommands/index'", 'src/engine/showCommands'],
     ['a root-relative directory import', "import { c } from 'src/engine/showCommands'", 'src/engine/showCommands'],
@@ -124,7 +116,10 @@ describe('#1042 v2 baselines', () => {
     ['a relative directory import with a slash', "import { c } from './showCommands/'", 'src/engine/showCommands'],
     ['a relative directory index import', "import { c } from '../engine/showCommands/index.ts'", 'src/engine/showCommands'],
     ['a directory submodule import', "import { c } from './showCommands/catalog'", 'src/engine/showCommands/catalog'],
-    ['a dynamic directory import', "void IMPORT('@/engine/showCommands')", 'src/engine/showCommands'],
+    ['a dynamic directory import', "void import('@/engine/showCommands')", 'src/engine/showCommands'],
+    ['a dynamic import with attributes', "void import('./showCommands', { with: { type: 'json' } })", 'src/engine/showCommands'],
+    ['an import with a comment before the specifier', "import { c } from /* v1 */ './showClipInvariant'", 'src/engine/showClipInvariant'],
+    ['a type-only directory import', "import type { X } from '@/engine/showCommands'", 'src/engine/showCommands'],
   ])('the guard flags %s', (_form, source, path) => {
     expect(flagged(source)).toEqual([path])
   })
@@ -132,7 +127,7 @@ describe('#1042 v2 baselines', () => {
   it.each([
     ['the v2 catalogue', "import { c } from '@/engine/showCommandsV2'"],
     ['the v2 catalogue index', "import { c } from './showCommandsV2/index'"],
-    ['a v2 dynamic import', "void IMPORT('./showCommandsV2')"],
+    ['a v2 dynamic import', "void import('./showCommandsV2')"],
     ['a package', "import { describe } from 'vitest'"],
   ])('the guard allows %s', (_form, source) => {
     expect(flagged(source)).toEqual([])
