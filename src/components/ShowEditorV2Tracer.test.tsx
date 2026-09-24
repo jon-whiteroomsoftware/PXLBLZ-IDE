@@ -55,6 +55,7 @@ import { compileLibraries } from '@/engine/libraries'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import type { ShowPatternRef } from '@/engine/personalContentRecords'
 import type { ShowPatternSlotGroup } from '@/engine/showReferenceShow'
+import { convertForTest, openV2EditorForRecord, type EditorState, type OpenV2Editor } from '@/test/showEditorV2Harness'
 
 vi.mock('@/components/PixelblazeCodeEditor', () => ({
   PixelblazeCodeEditor: ({ value }: { value: string }) => <pre data-testid="v2-viewcode-source">{value}</pre>,
@@ -292,71 +293,9 @@ function v2TracerRecord(id: string): ShowRecordV2 {
   return converted.record
 }
 
-interface EditorState {
-  record: ShowRecordV2
-  history: { past: ShowRecordV2[]; future: ShowRecordV2[] }
-  revision: number
-  v2Writes: number
-  legacyWrites: number
-  legacyShows: readonly ShowRecord[]
-  legacyHistories: Record<string, unknown>
-}
-
-interface OpenV2Editor {
-  readonly showId: string
-  state(): EditorState
-}
-
-/**
- * Opens one v2 pilot on a provider that records both persistence doors. The
- * legacy door is spied separately from the v2 door so an unconnected write that
- * silently reaches a legacy owner is a failure, not an invisible no-op.
- */
+/** The shared harness (`@/test/showEditorV2Harness`) opened on the tracer record. */
 function openV2Editor(id: string): OpenV2Editor {
   return openV2EditorForRecord(v2TracerRecord(id))
-}
-
-/** The same pilot harness, opened on an already-authored v2 record. */
-function openV2EditorForRecord(record: ShowRecordV2): OpenV2Editor {
-  const v2Writes = vi.fn(async (_id: string, _next: ShowRecordV2) => {})
-  const legacyWrites = vi.fn(async () => {})
-  setPersonalContentProvider({
-    id: 'tracer-guard-provider',
-    listPatterns: async () => [],
-    listMaps: async () => [],
-    listMixins: async () => [],
-    listShows: async () => [],
-    listControllerProfiles: async () => [],
-    createShow: legacyWrites,
-    updateShow: legacyWrites,
-    deleteShow: legacyWrites,
-    replaceShowV2: v2Writes,
-    getLastActive: async () => undefined,
-    setLastActive: async () => {},
-  } as unknown as PersonalContentProvider)
-  useShowStore.setState({
-    shows: [],
-    showsLoaded: true,
-    activeShowId: null,
-    showV2Pilots: { [record.id]: record },
-    showV2Histories: { [record.id]: { past: [], future: [] } },
-    showRevisions: { [record.id]: 0 },
-  })
-  return {
-    showId: record.id,
-    state: () => {
-      const store = useShowStore.getState()
-      return {
-        record: store.showV2Pilots[record.id],
-        history: store.showV2Histories[record.id],
-        revision: store.showRevisions[record.id] ?? 0,
-        v2Writes: v2Writes.mock.calls.length,
-        legacyWrites: legacyWrites.mock.calls.length,
-        legacyShows: store.shows,
-        legacyHistories: store.showHistories,
-      }
-    },
-  }
 }
 
 /**
@@ -1183,26 +1122,6 @@ function corpusSource(key: string): ShowRecord {
 }
 
 /**
- * The real converter on a real v1 corpus Show, with the exact Pattern source
- * each Clip needs - the same dependencies the reviewed equivalence oracle
- * supplies. Every fixture below is an admitted record, asserted against the
- * domain validator rather than hand-written to match the projection.
- */
-function convertCorpus(source: ShowRecord): ShowRecordV2 {
-  const result = convertShowRecordV1ToV2(source, {
-    byCellId: Object.fromEntries(source.cells.map((cell) => {
-      if (cell.pattern.kind !== 'stock') throw new Error(`${source.id}: non-stock flat dependency`)
-      const patternSource = DEMOS[resolveStockPatternId(cell.pattern.id)]
-      if (!patternSource) throw new Error(`${source.id}: missing stock source ${cell.pattern.id}`)
-      return [cell.id, patternSource]
-    })),
-  })
-  if (result.status !== 'converted') throw new Error(`${source.id} refused: ${JSON.stringify(result.issues)}`)
-  expect(validateShowRecordV2(result.record), `${source.id} converted`).toEqual([])
-  return result.record
-}
-
-/**
  * The committed `fresh` Show exactly as it stands: a single Zone pair whose
  * boundary Transition the converter lands at Layer *participant* scope, because
  * nothing at that boundary needs whole-output ownership. The drawn junction is
@@ -1212,7 +1131,7 @@ function convertCorpus(source: ShowRecord): ShowRecordV2 {
 function convertedFreshBoundary(id: string): { source: ShowRecord; record: ShowRecordV2 } {
   const source = corpusSource('fresh')
   source.id = id
-  const record = convertCorpus(source)
+  const record = convertForTest(source)
   const transition = record.composition.transitions[0]
   expect(transition.origin).toBe('converted-boundary-transition')
   expect(transition.wholeOutput).toBeUndefined()
@@ -1248,7 +1167,7 @@ function convertedAdvancedBoundary(id: string): { source: ShowRecord; record: Sh
     transform: { positionX: -0.5, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1 },
     controlTargets: { sliderSpeed: 0.2 },
   }
-  const record = convertCorpus(source)
+  const record = convertForTest(source)
   expect(record.composition.transitions[0].wholeOutput).toBeDefined()
   return { source, record }
 }
@@ -1280,7 +1199,7 @@ function nativeWholeOutputBoundary(id: string): { source: ShowRecord; record: Sh
     easing: { curve: 'linear' },
     crossfadePolicy: 'snapshot-live',
   }]
-  const record = convertCorpus(source)
+  const record = convertForTest(source)
   for (const transition of record.composition.transitions) delete transition.origin
   expect(validateShowRecordV2(record), 'native whole-output record').toEqual([])
   return { source, record }
@@ -1290,7 +1209,7 @@ function nativeWholeOutputBoundary(id: string): { source: ShowRecord; record: Sh
 function convertedLayerTransitions(id: string): ShowRecordV2 {
   const source = corpusSource('stock-lesson')
   source.id = id
-  return convertCorpus(source)
+  return convertForTest(source)
 }
 
 /**
@@ -1317,7 +1236,7 @@ function convertedGroupLocalTransition(id: string): ShowRecordV2 {
     crossfadePolicy: 'live-live',
   }]
   source.composition!.groupOccurrences = [source.composition!.groupOccurrences![0]]
-  return convertCorpus(source)
+  return convertForTest(source)
 }
 
 function boundaryPanel(): HTMLElement {
@@ -2399,7 +2318,7 @@ describe('v2 time grid columns (#1065)', () => {
   for (const key of ['fresh', 'installation-layouts', 'groups-animation', 'stock-lesson'] as const) {
     it(`lays ${key} out in the same grid tracks on both backings`, () => {
       const source = corpusSource(key)
-      const record = convertCorpus(source)
+      const record = convertForTest(source)
 
       const v1Style = renderV1(source)
       const v2Style = renderV2(record)
@@ -5354,7 +5273,7 @@ describe('v2 boundary scalar ramp edits (#1066 slice 9c2a)', () => {
   it('turns Animate split position on through the transition-edit door', async () => {
     const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
-    const record = convertCorpus(structuredClone(stock.show) as ShowRecord)
+    const record = convertForTest(structuredClone(stock.show) as ShowRecord)
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
@@ -5392,7 +5311,7 @@ describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
   }
 
   function renderBoth(source: ShowRecord): { v1: string[] | null; v2: string[] | null; v1Grid: string | null; v2Grid: string | null } {
-    const record = convertCorpus(source)
+    const record = convertForTest(source)
     useShowStore.setState({ shows: [source], showsLoaded: true, activeShowId: source.id, showV2Pilots: {}, showV2Histories: {}, showRevisions: {} })
     render(<ShowEditor showId={source.id} />)
     const v1 = laneCells()
@@ -5423,7 +5342,7 @@ describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
     render(<ShowEditor showId={source.id} />)
     const v1 = buttons()
     cleanup()
-    const editor = openV2EditorForRecord(convertCorpus(source))
+    const editor = openV2EditorForRecord(convertForTest(source))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const v2 = buttons()
 
@@ -5472,7 +5391,7 @@ describe('v2 fixes A (#1066)', () => {
   it('previews a Show End drag in the time grid without writing before release', async () => {
     const source = corpusSource('fresh')
     source.id = 'fixa-show-end-preview'
-    const record = convertCorpus(source)
+    const record = convertForTest(source)
     const savedEndMs = record.composition.showEndMs
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
@@ -5617,7 +5536,7 @@ describe('v2 fixes A (#1066)', () => {
   it('surfaces invalid Installation coverage in the tray banner until repaired', async () => {
     const source = corpusSource('installation-layouts')
     source.id = 'fixa-coverage-banner'
-    const record = convertCorpus(source)
+    const record = convertForTest(source)
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     await act(async () => {})
@@ -6430,7 +6349,7 @@ describe('v2 split-position lane buttons (#1066 L2332)', () => {
   function splitFreshRecord(id: string): ShowRecordV2 {
     const source = corpusSource('fresh')
     source.id = id
-    const base = convertCorpus(source)
+    const base = convertForTest(source)
     const zoned = editShowZoneV2(base, {
       kind: 'add', zone: { id: 'z2', name: 'Second', nominalPixelCount: 64 },
     })
@@ -6485,7 +6404,7 @@ describe('v2 split-position lane buttons (#1066 L2332)', () => {
   it('renders no split button when no Layout is a moving split', async () => {
     const source = corpusSource('installation-layouts')
     source.id = 'split-lane-no-split'
-    const record = convertCorpus(source)
+    const record = convertForTest(source)
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     await act(async () => {})
@@ -7272,7 +7191,7 @@ describe('v2 View code and Download .epe (#1066)', () => {
   function freshV2Record(id: string): ShowRecordV2 {
     const source = corpusSource('fresh')
     source.id = id
-    return convertCorpus(source)
+    return convertForTest(source)
   }
 
   function expectedV2Source(stored: ShowRecordV2): string {
@@ -8669,7 +8588,7 @@ describe('v2 panel refusal feedback (#1098)', () => {
   it('names a boundary Split Position animation whose end no Layout covers', async () => {
     const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
-    const record = convertCorpus(structuredClone(stock.show) as ShowRecord)
+    const record = convertForTest(structuredClone(stock.show) as ShowRecord)
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const before = editor.state()
@@ -8720,7 +8639,7 @@ describe('v2 panel refusal feedback (#1098)', () => {
 async function openLastPropertyAnimationBoundary(id: string): Promise<{ editor: OpenV2Editor; record: ShowRecordV2 }> {
   const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
   const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
-  const record = convertCorpus(structuredClone(stock.show) as ShowRecord)
+  const record = convertForTest(structuredClone(stock.show) as ShowRecord)
   record.id = id
   const editor = openV2EditorForRecord(record)
   render(<ShowEditor showId={editor.showId} recordVersion={2} />)
@@ -8882,7 +8801,7 @@ describe('v2 Group Transition popover refusal per occurrence (#1098)', () => {
       id: 'group-pulse-join', fromPlacementId: definition.placements[0].id, toPlacementId: definition.placements[1].id,
       kind: 'crossfade', durationMs: 1_000, easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
     }]
-    const record = convertCorpus(source)
+    const record = convertForTest(source)
     expect(record.composition.groupOccurrences.map((occurrence) => occurrence.id)).toEqual(['occurrence-first', 'occurrence-second'])
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
