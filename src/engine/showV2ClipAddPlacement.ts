@@ -18,8 +18,12 @@ export interface ShowV2ClipAddPlanReady {
   extendsShowEnd: boolean
 }
 
+/** Why a Clip cannot start here; the timeline maps it to user copy (#1098). */
+export type ShowV2ClipAddRefusalCode = 'invalid-time' | 'inside-transition' | 'no-layout' | 'occupied' | 'no-room'
+
 export interface ShowV2ClipAddPlanRefused {
   enabled: false
+  code: ShowV2ClipAddRefusalCode
   reason: string
 }
 
@@ -61,30 +65,30 @@ function layoutProvidesZone(record: ShowRecordV2, layoutId: string, zoneId: stri
 
 export function planShowV2ClipAtTime(record: ShowRecordV2, input: ShowV2ClipAddLocation): ShowV2ClipAddPlan {
   if (!Number.isFinite(input.globalTimeMs)) {
-    return { enabled: false, reason: 'Choose a time inside the Show.' }
+    return { enabled: false, code: 'invalid-time', reason: 'Choose a time inside the Show.' }
   }
   const startMs = Math.round(input.globalTimeMs)
   const showEndMs = record.composition.showEndMs
   if (startMs < 0 || startMs > showEndMs) {
-    return { enabled: false, reason: 'Choose a time before Show End.' }
+    return { enabled: false, code: 'invalid-time', reason: 'Choose a time before Show End.' }
   }
   const windows = visualWindows(record)
   if (windows.some((window) => startMs >= window.startMs && startMs < window.endMs)) {
-    return { enabled: false, reason: 'A Clip cannot begin inside a Transition.' }
+    return { enabled: false, code: 'inside-transition', reason: 'A Clip cannot begin inside a Transition.' }
   }
   const layer = record.composition.layers.find(
     (candidate) => candidate.id === input.layerId && candidate.zoneId === input.zoneId,
   )
   const occurrence = layoutOccurrenceCovering(record, startMs)
   if (!layer || !occurrence || !layoutProvidesZone(record, occurrence.layoutId, input.zoneId)) {
-    return { enabled: false, reason: 'The selected Zone has no Layer at the playhead.' }
+    return { enabled: false, code: 'no-layout', reason: 'The selected Zone has no Layer at the playhead.' }
   }
   const effective = record.composition.groupOccurrences.length > 0 ? materializeShowGroupsV2(record) : record
   const layerClips = effective.composition.clips.filter(
     (clip) => clip.zoneId === input.zoneId && clip.layerId === input.layerId,
   )
   if (layerClips.some((clip) => startMs >= clip.startMs && startMs < clip.startMs + clip.durationMs)) {
-    return { enabled: false, reason: 'The selected Layer already has a Clip at the playhead.' }
+    return { enabled: false, code: 'occupied', reason: 'The selected Layer already has a Clip at the playhead.' }
   }
   const defaultDurationMs = Math.max(1, Math.round(input.defaultDurationMs ?? 5_000))
   if (startMs === showEndMs) {
@@ -98,7 +102,7 @@ export function planShowV2ClipAtTime(record: ShowRecordV2, input: ShowV2ClipAddL
     .reduce((nearest, window) => Math.min(nearest, window.startMs), Number.POSITIVE_INFINITY)
   const roomMs = Math.min(nextClipStartMs, nextWindowStartMs, occurrence.startMs + occurrence.durationMs, showEndMs) - startMs
   if (roomMs < 1) {
-    return { enabled: false, reason: 'There is no empty time on the selected Layer.' }
+    return { enabled: false, code: 'no-room', reason: 'There is no empty time on the selected Layer.' }
   }
   return { enabled: true, zoneId: input.zoneId, layerId: input.layerId, startMs, durationMs: Math.min(defaultDurationMs, roomMs), extendsShowEnd: false }
 }

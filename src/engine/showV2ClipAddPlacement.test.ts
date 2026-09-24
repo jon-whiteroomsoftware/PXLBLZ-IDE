@@ -169,51 +169,51 @@ describe('planShowV2ClipAtTime', () => {
 
   it('refuses past Show End with the past-end message (#1091)', () => {
     const plan = planShowV2ClipAtTime(emptyLongRecord(), { zoneId: 'zone', layerId: MAIN, globalTimeMs: 20_001 })
-    expect(plan).toEqual({ enabled: false, reason: 'Choose a time before Show End.' })
+    expect(plan).toEqual({ enabled: false, code: 'invalid-time', reason: 'Choose a time before Show End.' })
   })
 
   it('refuses at Show End when the last Layout occurrence provides another Zone (#1091)', () => {
     const plan = planShowV2ClipAtTime(splitAvailabilityRecord(), { zoneId: 'zone', layerId: MAIN, globalTimeMs: 10_000 })
-    expect(plan).toEqual({ enabled: false, reason: 'The selected Zone has no Layer at the playhead.' })
+    expect(plan).toEqual({ enabled: false, code: 'no-layout', reason: 'The selected Zone has no Layer at the playhead.' })
   })
 
   it('refuses inside a visual Transition window', () => {
     const plan = planShowV2ClipAtTime(transitionRecord(), { zoneId: 'zone', layerId: MAIN, globalTimeMs: 3_500 })
-    expect(plan).toEqual({ enabled: false, reason: 'A Clip cannot begin inside a Transition.' })
+    expect(plan).toEqual({ enabled: false, code: 'inside-transition', reason: 'A Clip cannot begin inside a Transition.' })
   })
 
   it('refuses on an occupied Layer', () => {
     const record = emptyLongRecord()
     record.composition.clips = [authoredClip('cover', MAIN, 0, 1_000)]
     const plan = planShowV2ClipAtTime(record, { zoneId: 'zone', layerId: MAIN, globalTimeMs: 500 })
-    expect(plan).toEqual({ enabled: false, reason: 'The selected Layer already has a Clip at the playhead.' })
+    expect(plan).toEqual({ enabled: false, code: 'occupied', reason: 'The selected Layer already has a Clip at the playhead.' })
   })
 
   it('refuses on a Layer covered by a Group Clip', () => {
     const free = planShowV2ClipAtTime(groupRecord(), { zoneId: 'zone', layerId: 'group-layer', globalTimeMs: 100 })
     expect(free.enabled).toBe(true)
     const covered = planShowV2ClipAtTime(groupRecord(), { zoneId: 'zone', layerId: 'group-layer', globalTimeMs: 250 })
-    expect(covered).toEqual({ enabled: false, reason: 'The selected Layer already has a Clip at the playhead.' })
+    expect(covered).toEqual({ enabled: false, code: 'occupied', reason: 'The selected Layer already has a Clip at the playhead.' })
   })
 
   it('refuses when the Zone is unavailable at the playhead', () => {
     const plan = planShowV2ClipAtTime(splitAvailabilityRecord(), { zoneId: 'zone', layerId: MAIN, globalTimeMs: 6_000 })
-    expect(plan).toEqual({ enabled: false, reason: 'The selected Zone has no Layer at the playhead.' })
+    expect(plan).toEqual({ enabled: false, code: 'no-layout', reason: 'The selected Zone has no Layer at the playhead.' })
   })
 
   it('refuses when the Layer is not in the Zone', () => {
     const plan = planShowV2ClipAtTime(emptyLongRecord(), { zoneId: 'zone', layerId: 'elsewhere', globalTimeMs: 1_000 })
-    expect(plan).toEqual({ enabled: false, reason: 'The selected Zone has no Layer at the playhead.' })
+    expect(plan).toEqual({ enabled: false, code: 'no-layout', reason: 'The selected Zone has no Layer at the playhead.' })
   })
 
   it('refuses non-finite and negative times', () => {
     const record = emptyLongRecord()
     expect(planShowV2ClipAtTime(record, { zoneId: 'zone', layerId: MAIN, globalTimeMs: Number.NaN }))
-      .toEqual({ enabled: false, reason: 'Choose a time inside the Show.' })
+      .toEqual({ enabled: false, code: 'invalid-time', reason: 'Choose a time inside the Show.' })
     expect(planShowV2ClipAtTime(record, { zoneId: 'zone', layerId: MAIN, globalTimeMs: -5 }))
-      .toEqual({ enabled: false, reason: 'Choose a time before Show End.' })
+      .toEqual({ enabled: false, code: 'invalid-time', reason: 'Choose a time before Show End.' })
     expect(planShowV2ClipAtTime(record, { zoneId: 'zone', layerId: MAIN, globalTimeMs: 20_001 }))
-      .toEqual({ enabled: false, reason: 'Choose a time before Show End.' })
+      .toEqual({ enabled: false, code: 'invalid-time', reason: 'Choose a time before Show End.' })
   })
 })
 

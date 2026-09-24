@@ -7,6 +7,7 @@ import { validateShowRecordV2 } from '@/engine/showCompositionV2'
 import { editShowTransitionV2, type ShowTransitionEditIntentV2 } from '@/engine/showTransitionsV2'
 import { editShowZoneV2 } from '@/engine/showZonesV2'
 import { editShowLayerV2 } from '@/engine/showLayersV2'
+import { visualWindows } from '@/engine/showTimelineV2'
 import { showBoundaryClipIdentity } from '@/engine/showClipIdentity'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
@@ -2776,6 +2777,8 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     expect(authoredClip(after.record, clipId).startMs).toBe(32_000)
     expect(after.record.composition.transitions).toHaveLength(1)
     expect(after.record.composition.transitions[0].durationMs).toBe(2_000)
+    // The release names the refusal on the resized Clip (#1098).
+    expectClipRefusal(clipId, 'Joined to a Transition', 'Resize the Transition to change this edge.')
   })
 
   it('keeps the connected form away from a natively authored join', async () => {
@@ -8255,5 +8258,165 @@ describe('v2 restart availability (#1091)', () => {
     const box = screen.getByRole('checkbox', { name: 'Restart Pattern on entry' })
     expect(box).toBeEnabled()
     expect(screen.queryByText("This Pattern's state can't be reset.")).not.toBeInTheDocument()
+  })
+})
+
+// ── Timeline refusal feedback (#1098) ───────────────────────────────────────
+// A refused v2 timeline gesture names its reason on release or drop: the red
+// label on the anchoring Clip and the timeline's screen-reader status line.
+
+function timelineStatus(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-show-timeline-focus] > [role="status"]')
+}
+
+function expectClipRefusal(clipId: string, label: string, status: string): void {
+  expect(within(clipButton(clipId)).getByTestId('show-clip-delete-blocked')).toHaveTextContent(label)
+  expect(screen.getAllByTestId('show-clip-delete-blocked')).toHaveLength(1)
+  expect(timelineStatus()).toHaveTextContent(status)
+}
+
+/** The rendered main lane, sized so one pixel is `showEndMs / 200` ms. */
+function sizedMainLane(): HTMLElement {
+  const lane = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')
+  if (!lane) throw new Error('No main Layer lane is rendered.')
+  vi.spyOn(lane, 'getBoundingClientRect').mockReturnValue({
+    left: 0, right: LANE_WIDTH_PX, top: 0, bottom: 40, width: LANE_WIDTH_PX, height: 40, x: 0, y: 0, toJSON() {},
+  })
+  Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', {
+    configurable: true,
+    value: LANE_WIDTH_PX,
+  })
+  return lane
+}
+
+describe('v2 timeline refusal feedback (#1098)', () => {
+  it('names an occupied-range move drop on the dragged Clip and writes nothing', async () => {
+    const editor = openV2Editor('refusal-move-occupied')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+    expect(timelineStatus()).toBeNull()
+
+    // x=85 asks for 8500 ms: resize-a (4 s) would cover resize-b (8000-10000).
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('main'), 'dragover', 85)
+    // During the drag the move previews and nothing is said yet.
+    expect(timelineStatus()).toBeNull()
+    surface.fire(surface.lane('main'), 'drop', 85)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+    expectClipRefusal('resize-a', 'Space taken', 'Clips on one Layer cannot overlap.')
+  })
+
+  it('names an occupied-range Alt duplicate on the dragged Clip and writes nothing', async () => {
+    const editor = openV2Editor('refusal-duplicate-occupied')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+
+    surface.fire(surface.clip, 'dragstart', 0, true)
+    surface.fire(surface.lane('main'), 'dragover', 85, true)
+    expect(timelineStatus()).toBeNull()
+    surface.fire(surface.lane('main'), 'drop', 85, true)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipSharingEdit'])
+    expect(after.record).toBe(before.record)
+    expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length)
+    expect(after.v2Writes).toBe(0)
+    expectClipRefusal('resize-a', 'Space taken', 'Clips on one Layer cannot overlap.')
+  })
+
+  it('names a move into a Zone no Layout covers', async () => {
+    const record = twoZoneV2Record('refusal-zone-unavailable')
+    // From 10 s a second Layout routes only the first Zone, so the second
+    // Zone has no Layout there.
+    const [layout] = record.zoneLayouts
+    record.zoneLayouts = [...record.zoneLayouts, { ...structuredClone(layout), id: 'first-only', name: 'First only', zones: [], logical: { kind: 'single', zoneIds: ['z1'] } }]
+    const [occurrence] = record.composition.layoutOccurrences
+    record.composition.layoutOccurrences = [
+      { ...structuredClone(occurrence), startMs: 0, durationMs: 10_000 },
+      { ...structuredClone(occurrence), id: 'first-only-occurrence', layoutId: 'first-only', startMs: 10_000, durationMs: record.composition.showEndMs - 10_000 },
+    ]
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = zoneDropSurface('overlay-a')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.zoneLane('z2', 'main'), 'dragover', 110)
+    surface.fire(surface.zoneLane('z2', 'main'), 'drop', 110)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(after.record).toBe(before.record)
+    expect(after.v2Writes).toBe(0)
+    expectClipRefusal('overlay-a', 'No Zone Layout', 'No Zone Layout covers this time.')
+  })
+
+  it('names a Split whose playhead rounds onto the Clip edge', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('refusal-split-edge'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    // 0.3 ms inside resize-b's start: the capability sees an interior
+    // playhead, and the planner rounds it onto the edge.
+    await selectClipAt(editor.showId, 'CometLoom', 1, 7_000.3)
+    const before = editor.state()
+
+    fireEvent.click(timelineCommand('Split at playhead'))
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.record).toBe(before.record)
+    expect(after.v2Writes).toBe(0)
+    expectClipRefusal('resize-b', 'Playhead at the edge', 'Move the playhead inside the Clip to split it.')
+  })
+
+  it('names a double-click add inside a Transition in the status only', async () => {
+    const record = connectedV2Record('refusal-add-transition')
+    const [window] = visualWindows(record)
+    expect(window).toBeDefined()
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const lane = sizedMainLane()
+    const midMs = (window.startMs + window.endMs) / 2
+    const clientX = midMs / record.composition.showEndMs * LANE_WIDTH_PX
+
+    fireEvent.doubleClick(lane, { clientX, altKey: true })
+    await act(async () => {})
+
+    expectNoWrite(before, editor.state())
+    expect(timelineStatus()).toHaveTextContent('A Clip cannot start inside a Transition.')
+    expect(screen.queryByTestId('show-clip-delete-blocked')).not.toBeInTheDocument()
+  })
+
+  it('names a move commit whose capture went stale as a changed Show', async () => {
+    const editor = openV2Editor('refusal-move-stale')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('main'), 'dragover', DROP_X)
+    // Another writer advances the revision while the drag is held.
+    act(() => useShowStore.setState({ showRevisions: { [editor.showId]: before.revision + 1 } }))
+    surface.fire(surface.lane('main'), 'drop', DROP_X)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(after.record).toBe(before.record)
+    expect(after.v2Writes).toBe(0)
+    expectClipRefusal('resize-a', 'Show changed', 'The Show changed; try again.')
   })
 })

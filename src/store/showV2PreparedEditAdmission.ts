@@ -1,7 +1,7 @@
 import { editShowClipV2, type ShowClipEditIntentV2, type ShowClipEditResultV2 } from '@/engine/showClipsV2'
 import { editShowMarkerV2, type ShowMarkerEditIntentV2 } from '@/engine/showMarkersV2'
 import { prepareShowStageV2, prepareShowStageFromCapturedInputsV2, type ShowPreparedStageInputCaptureResultV2, type ShowPreparedStageDependenciesV2, type ShowPreparedStageResultV2 } from '@/engine/showPreparedStageV2'
-import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import type { ShowCompositionV2ValidationCode, ShowRecordV2 } from '@/engine/showCompositionV2'
 import { getPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
 import { isValidatedEmptyShowV2 } from '@/engine/showMarkerRouteModel'
 import { useShowStore } from './showStore'
@@ -333,12 +333,14 @@ type PilotOwnerOutcome<R, E> =
   | ({ status: 'applied'; settlement: 'saved' | 'superseded' } & E)
   | ({ status: 'unchanged' } & E)
   | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & E)
-  | ({ status: 'refused'; source: 'owner'; code: OwnerRefusal<R>; message: string } & E)
+  | ({ status: 'refused'; source: 'owner'; code: OwnerRefusal<R>; message: string; issueCode?: ShowCompositionV2ValidationCode } & E)
 function presentOwnerOutcome<R extends { status: string }, E>(outcome: CheckedOutcome<R>, effects: E): PilotOwnerOutcome<R, E> {
   if (outcome.status === 'refused') {
     if (outcome.source === 'admission') return { ...outcome, ...effects }
     if (outcome.result.status !== 'refused' || !('code' in outcome.result) || !('message' in outcome.result)) throw new Error('Invalid typed owner refusal.')
-    return { status: 'refused', source: 'owner', code: outcome.result.code as OwnerRefusal<R>, message: String(outcome.result.message), ...effects }
+    // A validator refusal forwards its issue code so the editor can name it (#1098).
+    const issueCode = 'issueCode' in outcome.result ? outcome.result.issueCode as ShowCompositionV2ValidationCode | undefined : undefined
+    return { status: 'refused', source: 'owner', code: outcome.result.code as OwnerRefusal<R>, message: String(outcome.result.message), ...(issueCode ? { issueCode } : {}), ...effects }
   }
   return outcome.status === 'unchanged' ? { status: 'unchanged', ...effects } : { status: 'applied', settlement: outcome.settlement, ...effects }
 }

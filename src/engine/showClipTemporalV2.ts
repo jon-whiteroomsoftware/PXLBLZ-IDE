@@ -1,4 +1,4 @@
-import { isShowTransitionClipValueRampV2, retimeShowTransitionRampsV2, validateShowRecordV2, type ShowClipV2, type ShowRecordV2 } from './showCompositionV2'
+import { isShowTransitionClipValueRampV2, retimeShowTransitionRampsV2, validateShowRecordV2, type ShowClipV2, type ShowCompositionV2ValidationCode, type ShowRecordV2 } from './showCompositionV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { editShowClipPropertyTracksV2, projectShowTransitionPropertyRampsV2, type ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
@@ -15,7 +15,8 @@ export type ShowClipTemporalIntentV2 =
 export type ShowClipTemporalRefusalV2 = 'invalid-record' | 'missing-clip' | 'missing-target' | 'invalid-intent' | 'invalid-topology' | 'zone-unavailable' | 'unsupported-property-carrier' | 'compiler-ineligible' | 'invalid-result'
 export type ShowClipTemporalResultV2 = (
   | { status: 'changed' | 'unchanged'; record: ShowRecordV2 }
-  | { status: 'refused'; record: ShowRecordV2; code: ShowClipTemporalRefusalV2; message: string }
+  /** `issueCode` names the validator issue behind an `invalid-result` refusal. */
+  | { status: 'refused'; record: ShowRecordV2; code: ShowClipTemporalRefusalV2; message: string; issueCode?: ShowCompositionV2ValidationCode }
 ) & ShowTimelineEditAffectedV2
 
 function emptyAffected(): ShowTimelineEditAffectedV2 {
@@ -63,7 +64,7 @@ function replaceOwnedTracks(next: ShowRecordV2, propertyTracks: ShowRecordV2['co
 
 /** One pure temporal transaction. Dispatch, adoption, history and persistence stay caller-owned. */
 export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTemporalIntentV2): ShowClipTemporalResultV2 {
-  const refuse = (code: ShowClipTemporalRefusalV2, message: string): ShowClipTemporalResultV2 => ({ status: 'refused', record, code, message, ...emptyAffected() })
+  const refuse = (code: ShowClipTemporalRefusalV2, message: string, issueCode?: ShowCompositionV2ValidationCode): ShowClipTemporalResultV2 => ({ status: 'refused', record, code, message, ...(issueCode ? { issueCode } : {}), ...emptyAffected() })
   if (!validIntent(intent)) return refuse('invalid-intent', 'Temporal intent must use the exact operation fields and an explicit Clip identity.')
   const invalid = validateShowRecordV2(record)[0]
   if (invalid) return refuse('invalid-record', `${invalid.path}: ${invalid.message}`)
@@ -270,7 +271,7 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
   // Projected boundary animation retains its preimage global times through Reset and ripple.
   next.composition.propertyTracks.push(...projectionTracks)
   const issue = validateShowRecordV2(next)[0]
-  if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`)
+  if (issue) return refuse('invalid-result', `${issue.path}: ${issue.message}`, issue.code)
   const availability = validateShowLayoutAvailabilityV2(next)[0]
   // Re-placement reports its own routing code; the time-only edges keep theirs.
   if (availability) return refuse(intent.kind === 'replace-placement' ? 'zone-unavailable' : 'invalid-result', `Zone is unavailable for "${availability.entityId}".`)

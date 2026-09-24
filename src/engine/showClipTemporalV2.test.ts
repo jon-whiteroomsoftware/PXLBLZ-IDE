@@ -612,3 +612,10 @@ it('resizes the leading edge against a whole-output Transition carrying a show-r
   expect(result.record.composition.transitions[0]).toMatchObject({ durationMs: 150, wholeOutput: { startMs: 100 }, propertyRamps: boundary.propertyRamps })
   expect(validateShowRecordV2(result.record)).toEqual([])
 })
+
+it('names the validator overlap issue when a move lands on an occupied same-Layer range (#1098)', () => {
+  const source = fixture()
+  source.composition.transitions = []
+  const result = editShowClipTemporalV2(source, { kind: 'move', clipId: 'after', startMs: 300 })
+  expect(result).toMatchObject({ status: 'refused', code: 'invalid-result', issueCode: 'overlap' })
+})

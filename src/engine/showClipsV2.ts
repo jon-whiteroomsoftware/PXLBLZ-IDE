@@ -1,4 +1,4 @@
-import { validateShowRecordV2, type ShowClipV2, type ShowPropertyTargetV2, type ShowRecordV2 } from './showCompositionV2'
+import { validateShowRecordV2, type ShowClipV2, type ShowCompositionV2ValidationCode, type ShowPropertyTargetV2, type ShowRecordV2 } from './showCompositionV2'
 import type { PatternMetadata } from './loadPattern'
 import type { ShowPatternRef } from './personalContentRecords'
 import { materializeShowGroupsV2, effectiveShowInstanceUseCountV2, groupRuntimeBindings } from './showGroupsV2'
@@ -59,7 +59,8 @@ export type ShowClipEditRefusalV2 = 'invalid-record' | 'missing-clip' | 'invalid
 export type ShowClipEditResultV2 = ShowClipIdentityAffectedV2 & (
   | { status: 'changed'; record: ShowRecordV2; affectedClipIds: string[]; affectedTrackIds: string[] }
   | { status: 'unchanged'; record: ShowRecordV2; affectedClipIds: []; affectedTrackIds: [] }
-  | { status: 'refused'; record: ShowRecordV2; code: ShowClipEditRefusalV2; message: string; affectedClipIds: []; affectedTrackIds: [] }
+  /** `issueCode` names the validator issue behind an `invalid-result` refusal. */
+  | { status: 'refused'; record: ShowRecordV2; code: ShowClipEditRefusalV2; message: string; issueCode?: ShowCompositionV2ValidationCode; affectedClipIds: []; affectedTrackIds: [] }
 )
 
 /** Additive v2 engine owner. Adoption, history and saving remain caller-owned. */
@@ -222,7 +223,7 @@ function duplicateShowClipV2(
   })
   next.composition.propertyTracks.push(...copies)
   const resultIssue = validateShowRecordV2(next)[0]
-  if (resultIssue) return refuse('invalid-result', `${resultIssue.path}: ${resultIssue.message}`)
+  if (resultIssue) return { ...refuse('invalid-result', `${resultIssue.path}: ${resultIssue.message}`), issueCode: resultIssue.code } as ShowClipEditResultV2
   const availabilityIssue = validateClipLayoutAvailabilityV2(next, [plan.clipId])[0]
   if (availabilityIssue) {
     return refuse(

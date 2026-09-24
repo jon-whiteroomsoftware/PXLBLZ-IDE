@@ -365,6 +365,7 @@ import {
   planShowV2ManualClipResize,
   resolveShowV2SplitTarget,
   type ShowV2ClipTemporalPlan,
+  type ShowV2ClipTemporalRefusal,
 } from '@/engine/showV2ClipTemporalPlanning'
 import {
   planShowV2ClipDelete,
@@ -459,7 +460,14 @@ import { previewShowClipResize, resizeShowClipManually } from '@/engine/showManu
 import { FieldActivityContext, createFieldActivityScope, useFieldActivity } from './ui/field-activity'
 import { captureShowStageEditV2, showV2ClipRestartAvailabilityV2, type ShowPreparedStageEditCaptureV2 } from '@/engine/showPreparedStageV2'
 import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
-import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import type { ShowCompositionV2ValidationCode, ShowRecordV2 } from '@/engine/showCompositionV2'
+import {
+  showV2AddRefusalInput,
+  showV2CommitRefusalInput,
+  showV2EditRefusalCopy,
+  showV2PlannerRefusalInput,
+  type ShowV2EditRefusalInput,
+} from '@/engine/showV2EditRefusalCopy'
 import { defaultGroupRuntimeIdV2, groupOccurrenceDuration, materializeShowGroupsV2 } from '@/engine/showGroupsV2'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import {
@@ -546,34 +554,56 @@ const ZONE_RAIL_OPEN_PX = 108
 const ZONE_RAIL_MICRO_PX = 32
 
 
-type BlockedDeleteFeedback = {
-  selectionKey: string
+// One transient timeline feedback: a refused delete or a refused v2 edit
+// (#1098). `selectionKey` names the Clip whose red label shows `label`; a
+// refusal with no Clip to anchor (`null`) speaks only through the timeline's
+// status line. `statusName` names that line for a refused delete.
+type ClipFeedback = {
+  selectionKey: string | null
   token: number
-  label: string
+  label: string | null
   status: string
+  statusName?: string
 }
 
-type BlockedDeleteCopy = Pick<BlockedDeleteFeedback, 'label' | 'status'>
+type ClipFeedbackCopy = Pick<ClipFeedback, 'label' | 'status' | 'statusName'>
 type ShowClipDeletionRefusal = Extract<ShowClipDeletionResult, { status: 'refused' }>
 
-const LAST_CLIP_DELETE_FEEDBACK: BlockedDeleteCopy = {
+// A v2 timeline commit resolves `true` when the edit applied, `false` when it
+// changed nothing, or with the refusal, which the caller maps to user copy (#1098).
+type ShowV2CommitRefusal = {
+  status: 'refused'
+  source: string
+  code: string
+  message: string
+  issueCode?: ShowCompositionV2ValidationCode
+}
+type ShowV2CommitResult = boolean | ShowV2CommitRefusal
+type ReportClipFeedback = (selectionKey: string | null, copy: ClipFeedbackCopy) => void
+
+const CLIP_DELETE_STATUS_NAME = 'Clip deletion unavailable'
+
+const LAST_CLIP_DELETE_FEEDBACK: ClipFeedbackCopy = {
   label: 'Keep one Clip',
   status: 'A Show must contain at least one Clip.',
+  statusName: CLIP_DELETE_STATUS_NAME,
 }
 
-const UNAVAILABLE_CLIP_DELETE_FEEDBACK: BlockedDeleteCopy = {
+const UNAVAILABLE_CLIP_DELETE_FEEDBACK: ClipFeedbackCopy = {
   label: 'Cannot delete this Clip.',
   status: 'Cannot delete this Clip.',
+  statusName: CLIP_DELETE_STATUS_NAME,
 }
 
 function blockedDeleteCopyForRefusal(
   show: ShowRecord,
   refusal: ShowClipDeletionRefusal,
-): BlockedDeleteCopy {
+): ClipFeedbackCopy {
   if (refusal.reason === 'cross-boundary-shared-instance') {
     return {
       label: 'Cannot delete: shared animation state',
       status: 'Cannot delete: shared animation state',
+      statusName: CLIP_DELETE_STATUS_NAME,
     }
   }
   const blockedIds = new Set(refusal.details ?? [])
@@ -585,11 +615,13 @@ function blockedDeleteCopyForRefusal(
     return {
       label: 'Cannot delete while Trails is enabled.',
       status: 'Cannot delete while Trails is enabled.',
+      statusName: CLIP_DELETE_STATUS_NAME,
     }
   }
   return {
     label: 'Cannot delete this Clip.',
     status: 'Cannot delete this Clip.',
+    statusName: CLIP_DELETE_STATUS_NAME,
   }
 }
 
@@ -1384,13 +1416,13 @@ export function ShowEditor({
   const [pendingV2ControlRemoval, setPendingV2ControlRemoval] = useState<PendingV2ControlRemoval | null>(null)
   const [pendingV2HeldSegmentOverwrite, setPendingV2HeldSegmentOverwrite] = useState<PendingV2HeldSegmentOverwrite | null>(null)
   const patternControlsByInstanceIdRef = useRef<Record<string, AutomatablePatternControl[]>>({})
-  const [blockedDeleteFeedback, setBlockedDeleteFeedback] = useState<BlockedDeleteFeedback | null>(null)
-  const blockedDeleteFeedbackSequenceRef = useRef(0)
-  const reportBlockedDelete = useCallback((selectionKey: string, copy: BlockedDeleteCopy) => {
-    blockedDeleteFeedbackSequenceRef.current += 1
-    setBlockedDeleteFeedback({
+  const [clipFeedback, setClipFeedback] = useState<ClipFeedback | null>(null)
+  const clipFeedbackSequenceRef = useRef(0)
+  const reportClipFeedback = useCallback((selectionKey: string | null, copy: ClipFeedbackCopy) => {
+    clipFeedbackSequenceRef.current += 1
+    setClipFeedback({
       selectionKey,
-      token: blockedDeleteFeedbackSequenceRef.current,
+      token: clipFeedbackSequenceRef.current,
       ...copy,
     })
   }, [])
@@ -1591,7 +1623,7 @@ export function ShowEditor({
     setPendingV2Replacement(null)
     setPendingV2ControlRemoval(null)
     setPendingV2HeldSegmentOverwrite(null)
-    setBlockedDeleteFeedback(null)
+    setClipFeedback(null)
     setIsolatedGroupOccurrenceId(null)
     pendingDeliveryRef.current = null
     setPendingSendMode(null)
@@ -1810,7 +1842,7 @@ export function ShowEditor({
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
     intent: ShowClipTemporalIntentV2
-  }) => {
+  }): Promise<ShowV2CommitResult> => {
     const outcome = await admitShowV2PilotClipTemporal({
       showId,
       baseRevision: input.baseRevision,
@@ -1821,13 +1853,13 @@ export function ShowEditor({
         && preparedV2CaptureRef.current === input.capture
         && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
     })
-    return outcome.status === 'applied'
+    return outcome.status === 'refused' ? outcome : outcome.status === 'applied'
   }, [showId])
   const commitV2ClipSharing = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
     intent: ShowV2PilotClipSharingIntent
-  }) => {
+  }): Promise<ShowV2CommitResult> => {
     const outcome = await admitShowV2PilotClipSharingEdit({
       showId,
       baseRevision: input.baseRevision,
@@ -1838,7 +1870,7 @@ export function ShowEditor({
         && preparedV2CaptureRef.current === input.capture
         && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
     })
-    return outcome.status === 'applied'
+    return outcome.status === 'refused' ? outcome : outcome.status === 'applied'
   }, [showId])
   // Toolbar Clone on a v2 backing: a linked duplicate immediately after the
   // source Clip on its own Layer, committed through the clip-sharing door
@@ -1848,7 +1880,12 @@ export function ShowEditor({
     const gesture = captureV2Move()
     if (!gesture) return null
     const clip = gesture.capture.record.composition.clips.find((candidate) => candidate.id === clipId)
-    if (!clip) return null
+    // A Clone refusal names itself on the Clone target (#1098).
+    const refuse = (input: ShowV2EditRefusalInput) => {
+      reportClipFeedback(`clip:${clipId}`, showV2EditRefusalCopy(input))
+      return null
+    }
+    if (!clip) return refuse({ kind: 'stale' })
     const planned = planShowTimelineGestureV2(gesture.capture, {
       kind: 'duplicate',
       clipId,
@@ -1856,11 +1893,14 @@ export function ShowEditor({
       zoneId: clip.zoneId,
       layerId: clip.layerId,
     }, newPersonalContentId)
+    if (planned.status === 'refused') return refuse({ kind: 'overlap' })
     if (planned.status !== 'ready' || planned.submission.owner !== 'clip-sharing') return null
     const selectClipId = planned.selectAfterId ?? planned.submission.intent.identities.clipId
     const applied = await commitV2ClipSharing({ ...gesture, intent: planned.submission.intent })
-    return applied ? selectClipId : null
-  }, [captureV2Move, commitV2ClipSharing])
+    if (applied === true) return selectClipId
+    if (applied) refuse(showV2CommitRefusalInput(applied))
+    return null
+  }, [captureV2Move, commitV2ClipSharing, reportClipFeedback])
   // Slice C connects Marker editing, Insert Time and Add Layer through the
   // same prepared-capture plumbing: each helper returns the admission outcome
   // so the calling handler maps applied/unchanged/refused exactly as the
@@ -1954,7 +1994,7 @@ export function ShowEditor({
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
     intent: ShowV2PilotTransitionResizeIntent
-  }) => {
+  }): Promise<ShowV2CommitResult> => {
     const outcome = await admitShowV2PilotTransitionResize({
       showId,
       baseRevision: input.baseRevision,
@@ -1965,7 +2005,7 @@ export function ShowEditor({
         && preparedV2CaptureRef.current === input.capture
         && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
     })
-    return outcome.status === 'applied'
+    return outcome.status === 'refused' ? outcome : outcome.status === 'applied'
   }, [showId])
   const commitV2LayoutOccurrenceEdit = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
@@ -2610,7 +2650,7 @@ export function ShowEditor({
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') {
-      reportBlockedDelete(`clip:${clipId}`, UNAVAILABLE_CLIP_DELETE_FEEDBACK)
+      reportClipFeedback(`clip:${clipId}`, UNAVAILABLE_CLIP_DELETE_FEEDBACK)
       return true
     }
     const plan = planShowV2ClipDelete(capture.record, clipId, {
@@ -2618,7 +2658,7 @@ export function ShowEditor({
       allocate: newPersonalContentId,
     })
     if (plan.kind === 'refuse') {
-      reportBlockedDelete(
+      reportClipFeedback(
         `clip:${clipId}`,
         plan.reason === 'final-clip' ? LAST_CLIP_DELETE_FEEDBACK : UNAVAILABLE_CLIP_DELETE_FEEDBACK,
       )
@@ -2635,11 +2675,11 @@ export function ShowEditor({
         closeDetailPanel()
         closePinnedDetailForSelection(selection)
       } else if (outcome.status === 'refused') {
-        reportBlockedDelete(`clip:${clipId}`, UNAVAILABLE_CLIP_DELETE_FEEDBACK)
+        reportClipFeedback(`clip:${clipId}`, UNAVAILABLE_CLIP_DELETE_FEEDBACK)
       }
     }).catch(() => {})
     return true
-  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2ClipDelete, recordVersion, readOnly, reportBlockedDelete, savedShowV2, showId])
+  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2ClipDelete, recordVersion, readOnly, reportClipFeedback, savedShowV2, showId])
   const requestV2GroupOccurrenceEdit = useCallback((request: ShowV2GroupOccurrenceRequest): boolean | Promise<void> => {
     if (readOnly) return false
     const capture = preparedV2CaptureRef.current
@@ -2712,11 +2752,11 @@ export function ShowEditor({
     if (recordVersion === 2) return requestDeleteClipV2(targetSelection.clipId, connectedDeletionConfirmed)
     if (recordVersion !== 1 || !activeShow || readOnly) return false
     if (showRecordClipCount(activeShow) <= 1) {
-      reportBlockedDelete(showSelectionKey(targetSelection), LAST_CLIP_DELETE_FEEDBACK)
+      reportClipFeedback(showSelectionKey(targetSelection), LAST_CLIP_DELETE_FEEDBACK)
       return true
     }
     if (!composition || !owner) {
-      reportBlockedDelete(showSelectionKey(targetSelection), UNAVAILABLE_CLIP_DELETE_FEEDBACK)
+      reportClipFeedback(showSelectionKey(targetSelection), UNAVAILABLE_CLIP_DELETE_FEEDBACK)
       return true
     }
     if (
@@ -2728,7 +2768,7 @@ export function ShowEditor({
     }
     const deletion = deleteShowClipInShow(activeShow, composition, owner)
     if (deletion.status !== 'applied') {
-      reportBlockedDelete(
+      reportClipFeedback(
         blockedDeleteSelectionKey(composition, owner),
         blockedDeleteCopyForRefusal(activeShow, deletion),
       )
@@ -2738,7 +2778,7 @@ export function ShowEditor({
     closePinnedDetailForSelection(targetSelection)
     updateShowInBackground(activeShow.id, { ...deletion.record, updatedAt: Date.now() })
     return true
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, reportBlockedDelete, requestDeleteClipV2, updateShowInBackground])
+  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, reportClipFeedback, requestDeleteClipV2, updateShowInBackground])
 
   const requestDeleteSelection = useCallback((
     targetSelection: ShowSelection,
@@ -2804,10 +2844,10 @@ export function ShowEditor({
     return false
   }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, removeBoundaryTransition, removeZone, requestDeleteClip, requestDeleteClipV2, requestV2GroupOccurrenceEdit, setSelection, updateShowInBackground])
   useEffect(() => {
-    if (!blockedDeleteFeedback) return
-    const timeout = window.setTimeout(() => setBlockedDeleteFeedback(null), 1100)
+    if (!clipFeedback) return
+    const timeout = window.setTimeout(() => setClipFeedback(null), 1100)
     return () => window.clearTimeout(timeout)
-  }, [blockedDeleteFeedback])
+  }, [clipFeedback])
 
   useEffect(() => registerShowEscapeLayer({
     rank: SHOW_ESCAPE_LAYER_RANK.editorSurfaces,
@@ -4123,15 +4163,15 @@ export function ShowEditor({
             className="select-none outline-none [&_input]:select-text [&_textarea]:select-text"
             onFocusCapture={rememberTimelineFocus}
           >
-            {blockedDeleteFeedback && (
+            {clipFeedback && (
               <span
-                key={blockedDeleteFeedback.token}
+                key={clipFeedback.token}
                 role="status"
-                aria-label="Clip deletion unavailable"
+                aria-label={clipFeedback.statusName}
                 aria-live="polite"
                 className="sr-only"
               >
-                {blockedDeleteFeedback.status}
+                {clipFeedback.status}
               </span>
             )}
             <ShowTimelineWorkspace
@@ -4159,7 +4199,7 @@ export function ShowEditor({
                 patternControlsByCellId={patternControlsByCellId}
                 patternControlsByInstanceId={patternControlsByInstanceId}
                 selection={selection}
-                blockedDeleteFeedback={blockedDeleteFeedback}
+                clipFeedback={clipFeedback}
                 isolatedGroupOccurrenceId={isolatedGroupOccurrenceId}
                 onSelect={selectTimeline}
                 onEnterGroupIsolation={(occurrenceId, placementId, anchor) => {
@@ -4354,6 +4394,7 @@ export function ShowEditor({
                   return placementId
                 }}
                 onDuplicateCompositionClipV2={duplicateClipAfterV2}
+                onClipFeedback={reportClipFeedback}
                 onResizeCompositionClip={async ({
                   owner,
                   globalStartMs,
@@ -5246,7 +5287,7 @@ export function ShowEditor({
                     return
                   }
                   void commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } }).then((applied) => {
-                    if (applied) setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
+                    if (applied === true) setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
                   }).catch(() => {})
                   return
                 }
@@ -5576,6 +5617,7 @@ function ShowTimelineCommands({
   onSplitCompositionClip,
   onDuplicateCompositionClip,
   onDuplicateCompositionClipV2,
+  onClipFeedback,
   captureV2ClipEdit,
   onCommitV2ClipTemporal,
 }: {
@@ -5593,12 +5635,14 @@ function ShowTimelineCommands({
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
   onDuplicateCompositionClipV2?: (clipId: string) => Promise<string | null>
+  /** Shows a refused v2 edit's reason on its Clip and in the timeline status (#1098). */
+  onClipFeedback?: ReportClipFeedback
   captureV2ClipEdit?: () => { capture: ShowV2PilotPreparedCapture; baseRevision: number } | null
   onCommitV2ClipTemporal?: (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
     intent: ShowClipTemporalIntentV2
-  }) => Promise<boolean>
+  }) => Promise<ShowV2CommitResult>
 }) {
   const show = backing.recordVersion === 1 ? backing.show : null
   const composition = backing.recordVersion === 1 ? backing.composition : null
@@ -5763,9 +5807,18 @@ function ShowTimelineCommands({
                 atMs: Math.round(positionMs),
                 rightClipId,
               })
+              // A refused Split names its reason on the target Clip (#1098).
+              const reportSplitRefusal = (input: ShowV2EditRefusalInput | null) => {
+                if (input) onClipFeedback?.(`clip:${target}`, showV2EditRefusalCopy(input))
+              }
+              if (gesturePlan.kind === 'refuse') {
+                reportSplitRefusal(showV2PlannerRefusalInput('split', gesturePlan.reason))
+                return
+              }
               if (gesturePlan.kind !== 'temporal') return
               void onCommitV2ClipTemporal?.({ ...gesture, intent: gesturePlan.intent }).then((applied) => {
-                if (applied) onSelect({ kind: 'clip', clipId: rightClipId })
+                if (applied === true) onSelect({ kind: 'clip', clipId: rightClipId })
+                else if (applied) reportSplitRefusal(showV2CommitRefusalInput(applied))
               }).catch(() => {})
               return
             }
@@ -6055,7 +6108,7 @@ function ShowTimelineWorkspace({
   patternControlsByCellId,
   patternControlsByInstanceId,
   selection,
-  blockedDeleteFeedback,
+  clipFeedback,
   isolatedGroupOccurrenceId,
   onSelect,
   onEnterGroupIsolation,
@@ -6073,6 +6126,7 @@ function ShowTimelineWorkspace({
   onSplitCompositionClip,
   onDuplicateCompositionClip,
   onDuplicateCompositionClipV2,
+  onClipFeedback,
   onResizeCompositionClip,
   onOpenLayerTransition,
   onInsertTime,
@@ -6132,7 +6186,7 @@ function ShowTimelineWorkspace({
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
-  blockedDeleteFeedback: BlockedDeleteFeedback | null
+  clipFeedback: ClipFeedback | null
   isolatedGroupOccurrenceId: string | null
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
   onEnterGroupIsolation: (occurrenceId: string, placementId: string, anchor: HTMLElement) => void
@@ -6165,6 +6219,8 @@ function ShowTimelineWorkspace({
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
   onDuplicateCompositionClipV2?: (clipId: string) => Promise<string | null>
+  /** Shows a refused v2 edit's reason on its Clip and in the timeline status (#1098). */
+  onClipFeedback?: ReportClipFeedback
   onResizeCompositionClip: (input: {
     owner: ShowTimelineClipOwner,
     globalStartMs: number,
@@ -6191,17 +6247,17 @@ function ShowTimelineWorkspace({
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
     intent: ShowClipTemporalIntentV2
-  }) => Promise<boolean>
+  }) => Promise<ShowV2CommitResult>
   onCommitV2ClipSharing?: (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
     intent: ShowV2PilotClipSharingIntent
-  }) => Promise<boolean>
+  }) => Promise<ShowV2CommitResult>
   onCommitV2TransitionResize?: (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
     intent: ShowV2PilotTransitionResizeIntent
-  }) => Promise<boolean>
+  }) => Promise<ShowV2CommitResult>
 }) {
   const [showEndPreviewMs, setShowEndPreviewMs] = useState<number | null>(null)
   const [markerFeedback, setMarkerFeedback] = useState<TimelineMarkerFeedback | null>(null)
@@ -6872,12 +6928,25 @@ function ShowTimelineWorkspace({
     onDirectManipulationChange(false)
     refreshMoveActivity()
   }
+  // A refused v2 gesture names its reason once, on release or drop (#1098):
+  // on the anchoring Clip when there is one, otherwise in the status only.
+  const reportV2Refusal = (clipId: string | null, input: ShowV2EditRefusalInput | null) => {
+    if (!input) return
+    const copy = showV2EditRefusalCopy(input)
+    onClipFeedback?.(clipId === null ? null : `clip:${clipId}`, clipId === null ? { ...copy, label: null } : copy)
+  }
+  // Settles one commit result to changed/unchanged, reporting a refusal.
+  const settleV2Commit = (clipId: string, result: ShowV2CommitResult): boolean => {
+    if (typeof result === 'boolean') return result
+    reportV2Refusal(clipId, showV2CommitRefusalInput(result))
+    return false
+  }
   // One switch for every v2 Clip drop commit: the planner's door decides
   // which admission runs. A refused plan or a lost capture commits nothing.
   const commitV2ClipPlan = (
     capture: { capture: ShowV2PilotPreparedCapture; baseRevision: number } | undefined,
     plan: ShowV2ClipDropPlan,
-  ): Promise<boolean> => {
+  ): Promise<ShowV2CommitResult> => {
     if (!capture || plan.kind === 'refuse' || plan.kind === 'clip-sharing-pending') return Promise.resolve(false)
     if (plan.kind === 'clip-sharing') {
       return onCommitV2ClipSharing?.({ ...capture, intent: plan.intent }) ?? Promise.resolve(false)
@@ -6890,7 +6959,7 @@ function ShowTimelineWorkspace({
     capture: { capture: ShowV2PilotPreparedCapture; baseRevision: number } | undefined,
     request: { clipId: string; zoneId: string; layerId: string; startMs: number },
     plan: ShowV2ClipDropPlan,
-  ): Promise<boolean> => {
+  ): Promise<ShowV2CommitResult> => {
     if (capture && plan.kind === 'temporal' && plan.intent.kind === 'replace-placement') {
       const record = capture.capture.record
       const outcome = editShowClipTemporalV2(record, plan.intent)
@@ -6912,9 +6981,12 @@ function ShowTimelineWorkspace({
     const capture = captureV2Move?.()
     if (!capture) return
     const plan = planShowV2ClipMove(timelineView, pending.plan)
-    if (plan.kind === 'refuse') return
-    void commitV2ClipPlan(capture, plan).then((changed) => {
-      if (changed) onReanchorDetails({ kind: 'clip', clipId: pending.plan.clipId })
+    if (plan.kind === 'refuse') {
+      reportV2Refusal(pending.plan.clipId, showV2PlannerRefusalInput('move', plan.reason))
+      return
+    }
+    void commitV2ClipPlan(capture, plan).then((result) => {
+      if (settleV2Commit(pending.plan.clipId, result)) onReanchorDetails({ kind: 'clip', clipId: pending.plan.clipId })
     }).catch(() => {})
   }
   const commitCompositionClipMove = (targetKey: string) => {
@@ -6944,6 +7016,7 @@ function ShowTimelineWorkspace({
           const resolved = draggedClip.v2Move
             ? planShowTimelineGestureV2(draggedClip.v2Move.capture, activePlan.plan.gesture, newPersonalContentId)
             : null
+          if (resolved?.status === 'refused') reportV2Refusal(draggedClip.clipId, { kind: 'overlap' })
           if (!resolved || resolved.status !== 'ready' || resolved.submission.owner !== 'clip-sharing') return Promise.resolve(false)
           const selectClipId = resolved.selectAfterId ?? resolved.submission.intent.identities.clipId
           pendingSelectClipId = selectClipId
@@ -6952,7 +7025,7 @@ function ShowTimelineWorkspace({
             intent: resolved.submission.intent,
             selectClipId,
           })
-        })()
+        })().then((result) => settleV2Commit(draggedClip.clipId, result))
       : activePlan.mode === 'duplicate'
         ? onDuplicateCompositionClipAtTarget({
             sourceComposition: activePlan.sourceComposition,
@@ -7357,6 +7430,8 @@ function ShowTimelineWorkspace({
       const durationMs = edge === 'start' ? clip.endMs - boundaryMs : boundaryMs - clip.startMs
       return { startMs: Math.round(startMs), durationMs: Math.max(1, Math.round(durationMs)) }
     }
+    // The last planner refusal, named once the pointer is released (#1098).
+    let lastResizeRefusal: ShowV2ClipTemporalRefusal | null = null
     const plan = (pointer: PointerEvent) => {
       const next = resolve(pointer)
       // Alt already shaped the snapped interval above and reaches the planner
@@ -7372,7 +7447,11 @@ function ShowTimelineWorkspace({
         startMs: edge === 'start' ? next.startMs : clip.startMs,
         endMs: edge === 'start' ? clip.endMs : next.startMs + next.durationMs,
       })
-      if (gesturePlan.kind === 'refuse') return null
+      if (gesturePlan.kind === 'refuse') {
+        lastResizeRefusal = gesturePlan.reason
+        return null
+      }
+      lastResizeRefusal = null
       return {
         preview: { clipId: clip.id, startMs, durationMs: Math.max(1, endMs - startMs) },
         plan: gesturePlan,
@@ -7411,6 +7490,7 @@ function ShowTimelineWorkspace({
         if (suppressResizeClipClickRef.current === clip.id) suppressResizeClipClickRef.current = null
       }, 0)
       if (!activePlan) {
+        reportV2Refusal(clip.id, lastResizeRefusal ? showV2PlannerRefusalInput('resize', lastResizeRefusal) : null)
         settle()
         return
       }
@@ -7418,7 +7498,9 @@ function ShowTimelineWorkspace({
       setResizePreview(activePlan.preview)
       // Selection and any open Details remain suppressed until the exact
       // painted resize plan has committed.
-      void commitV2ClipPlan(activePlan.capture, activePlan.plan).catch(() => {}).finally(settle)
+      void commitV2ClipPlan(activePlan.capture, activePlan.plan)
+        .then((result) => { settleV2Commit(clip.id, result) })
+        .catch(() => {}).finally(settle)
     }
     const cancel = (pointer: PointerEvent) => {
       if (pointer.pointerId !== pointerId || resizeGestureRef.current !== detach) return
@@ -7937,6 +8019,7 @@ function ShowTimelineWorkspace({
             onSplitCompositionClip={onSplitCompositionClip}
             onDuplicateCompositionClip={onDuplicateCompositionClip}
             onDuplicateCompositionClipV2={onDuplicateCompositionClipV2}
+            onClipFeedback={onClipFeedback}
             captureV2ClipEdit={captureV2ClipEdit}
             onCommitV2ClipTemporal={onCommitV2ClipTemporal}
           />
@@ -8656,6 +8739,7 @@ function ShowTimelineWorkspace({
                               }, newPersonalContentId)
                             : null
                           if (!duplicatePlan || duplicatePlan.status !== 'ready' || duplicatePlan.submission.owner !== 'clip-sharing') {
+                            if (duplicatePlan?.status === 'refused') reportV2Refusal(clip.id, { kind: 'overlap' })
                             return Promise.resolve(false)
                           }
                           collapsedDuplicateSelectClipId = duplicatePlan.selectAfterId
@@ -8673,8 +8757,10 @@ function ShowTimelineWorkspace({
                           layerId: targetLayer.id,
                           startMs: globalStartMs,
                         }
-                        return requestV2ClipMove(draggedClip.v2Move, request, planShowV2ClipMove(timelineView, request))
-                      })()
+                        const movePlan = planShowV2ClipMove(timelineView, request)
+                        if (movePlan.kind === 'refuse') reportV2Refusal(clip.id, showV2PlannerRefusalInput('move', movePlan.reason))
+                        return requestV2ClipMove(draggedClip.v2Move, request, movePlan)
+                      })().then((result) => settleV2Commit(draggedClip.clipId, result))
                     : draggedClip.mode === 'duplicate' && timelineComposition && plannedComposition
                       ? onDuplicateCompositionClipAtTarget({
                           sourceComposition: timelineComposition,
@@ -8783,7 +8869,11 @@ function ShowTimelineWorkspace({
                         v2Plan = v2RawPlan
                       }
                     }
-                    if (!v2Plan.enabled) return
+                    if (!v2Plan.enabled) {
+                      // No Clip anchors a refused add: the status alone says why (#1098).
+                      reportV2Refusal(null, showV2AddRefusalInput(v2Plan.code))
+                      return
+                    }
                     event.preventDefault()
                     event.stopPropagation()
                     setAddMenuOpen(false)
@@ -9013,7 +9103,7 @@ function ShowTimelineWorkspace({
                   const clipSelectionKey = insideIsolatedGroup && groupPlacementId
                     ? `group-clip:${group!.id}:${groupPlacementId}`
                     : group ? `group:${group.id}` : `clip:${clip.id}`
-                  const deleteBlocked = blockedDeleteFeedback?.selectionKey === clipSelectionKey
+                  const deleteBlocked = clipFeedback?.selectionKey === clipSelectionKey
                   const beginClipDrag = (clipElement: HTMLElement, clientX: number, altKey: boolean) => {
                     const rect = clipElement.getBoundingClientRect()
                     const fraction = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)))
@@ -9219,13 +9309,13 @@ function ShowTimelineWorkspace({
                     >
                       {deleteBlocked && (
                         <span
-                          key={blockedDeleteFeedback.token}
+                          key={clipFeedback.token}
                           aria-hidden
                           data-testid="show-clip-delete-blocked"
                           className="show-clip-delete-blocked pointer-events-none absolute -inset-[2px] z-30 flex items-center justify-center rounded-[7px]"
                         >
                           <span className="show-clip-delete-blocked-label rounded border border-red-300/70 bg-red-950/95 px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-red-100 shadow-sm">
-                            {blockedDeleteFeedback.label}
+                            {clipFeedback.label}
                           </span>
                         </span>
                       )}
