@@ -80,7 +80,11 @@ vi.mock('@/components/PixelblazeCodeEditor', () => ({
  * reached and with which intent. The real implementations still run: this is an
  * observation seam, not a stub, so a recorded call is a real submission.
  */
-const admission = vi.hoisted(() => ({ calls: [] as Array<{ door: string; request: Record<string, unknown> }> }))
+// `beforeDoor` lets a race test land another writer between a panel's plan and its door (#1098).
+const admission = vi.hoisted(() => ({
+  calls: [] as Array<{ door: string; request: Record<string, unknown> }>,
+  beforeDoor: null as null | (() => void),
+}))
 vi.mock('@/store/showV2PreparedEditAdmission', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/store/showV2PreparedEditAdmission')>()
   const observed: Record<string, unknown> = { ...actual }
@@ -88,6 +92,7 @@ vi.mock('@/store/showV2PreparedEditAdmission', async (importOriginal) => {
     if (typeof value !== 'function' || !door.startsWith('admit')) continue
     observed[door] = (request: Record<string, unknown>) => {
       admission.calls.push({ door, request })
+      admission.beforeDoor?.()
       return (value as (input: unknown) => unknown)(request)
     }
   }
@@ -144,6 +149,23 @@ vi.mock('@/engine/showV2ShowLevelPlanning', async (importOriginal) => {
     }
   }
   return observed
+})
+
+/**
+ * The boundary settings planner. A valid record tiles Show End with Layout
+ * occurrences, so no rendered boundary ends outside one; a test that needs the
+ * planner's own no-Layout refusal narrows the record the real planner reads.
+ */
+const boundaryPlanner = vi.hoisted(() => ({ narrow: null as null | ((record: ShowRecordV2) => ShowRecordV2) }))
+vi.mock('@/engine/showV2TransitionEditorModel', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/engine/showV2TransitionEditorModel')>()
+  return {
+    ...actual,
+    planShowV2BoundaryTransitionChanges: (
+      record: ShowRecordV2,
+      ...rest: Parameters<typeof actual.planShowV2BoundaryTransitionChanges> extends [unknown, ...infer R] ? R : never
+    ) => actual.planShowV2BoundaryTransitionChanges(boundaryPlanner.narrow ? boundaryPlanner.narrow(record) : record, ...rest),
+  }
 })
 
 /**
@@ -437,8 +459,10 @@ function timelineCommand(name: 'Split at playhead' | 'Clone selection'): HTMLEle
 
 beforeEach(() => {
   admission.calls.length = 0
+  admission.beforeDoor = null
   planned.calls.length = 0
   plannedShowLevel.calls.length = 0
+  boundaryPlanner.narrow = null
   compatibilityProfiles.calls.length = 0
   legacy.calls.length = 0
   resetPersonalContentProvider()
@@ -8518,5 +8542,173 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     expect(after.record).toBe(before.record)
     expect(after.v2Writes).toBe(0)
     expectClipRefusal('resize-a', 'Show changed', 'The Show changed; try again.')
+  })
+})
+
+// ── Panel refusal feedback (#1098) ──────────────────────────────────────────
+// A refused panel edit names its reason in one inline alert line, the panel's
+// last element, which clears on the panel's next edit.
+
+function panelRefusalLines(text: string): HTMLElement[] {
+  return screen.queryAllByRole('alert').filter((line) => line.textContent === text)
+}
+
+function expectPanelRefusal(text: string, panel: HTMLElement): void {
+  const lines = panelRefusalLines(text)
+  expect(lines).toHaveLength(1)
+  expect(panel.contains(lines[0])).toBe(true)
+  expect(lines[0].nextElementSibling).toBeNull()
+}
+
+function clipDetail(): HTMLElement {
+  const detail = document.querySelector<HTMLElement>('[data-entity-family="clip"]')
+  if (!detail) throw new Error('No Clip detail is open.')
+  return detail
+}
+
+describe('v2 panel refusal feedback (#1098)', () => {
+  it('names an inspector Duration that overlaps the next Clip, restores the field, and clears on the next accepted edit', async () => {
+    const editor = openV2Editor('panel-refusal-overlap')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('CometLoom', 0)
+    const before = editor.state()
+    expect(authoredClip(before.record, 'resize-a').durationMs).toBe(4_000)
+
+    // resize-a would run 0-9000 over resize-b at 8000-10000.
+    typeAndCommit('Duration seconds exact time', '9')
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.v2Writes).toBe(0)
+    expectPanelRefusal('Clips on one Layer cannot overlap.', clipDetail())
+    expect(screen.getByRole('textbox', { name: 'Duration seconds exact time' })).toHaveValue('4')
+
+    typeAndCommit('Duration seconds exact time', '5')
+    await act(async () => {})
+
+    expect(authoredClip(editor.state().record, 'resize-a').durationMs).toBe(5_000)
+    expect(panelRefusalLines('Clips on one Layer cannot overlap.')).toEqual([])
+  })
+
+  it('names a whole-Clip Effect change on a Clip whose held segments differ', async () => {
+    const record = connectedV2Record('panel-refusal-multi-key')
+    const clip = record.composition.clips.find((candidate) => candidate.id === 'overlay-a')!
+    const first = clip.appearance.keys[0]
+    clip.appearance.keys = [0, 1].map((index) => ({
+      ...structuredClone(first), id: `overlay-appearance-${index}`, timeMs: first.timeMs + index * 500,
+      value: {
+        ...structuredClone(first.value),
+        effects: index === 0 ? [] : [{ id: 'held-ripple', kind: 'ripple', amount: 0.1, frequency: 3, phase: 0.2, centerX: 0.5, centerY: 0.5 }],
+      },
+    }))
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    showTab('Effects')
+    const before = editor.state()
+
+    await addEffectThroughPalette('Ripple')
+
+    expectNoWrite(before, editor.state())
+    expectPanelRefusal("This Clip's Effects differ between its held segments; edit each segment instead.", clipDetail())
+  })
+
+  it('names a Group occurrence Start that no Layout covers and restores the field', async () => {
+    const { propertyEditGroupRecord } = await import('@/test/showV2PropertyEditsFixture')
+    const record = propertyEditGroupRecord()
+    record.id = 'panel-refusal-group-start'
+    for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!)
+    await act(async () => {})
+    const before = editor.state()
+    const field = screen.getByRole('textbox', { name: 'Start seconds exact time' })
+    const stored = (field as HTMLInputElement).value
+
+    // Layout occurrences end at Show End, so a Group starting there has none.
+    typeAndCommit('Start seconds exact time', String(record.composition.showEndMs / 1_000))
+    await act(async () => {})
+
+    expectNoWrite(before, editor.state())
+    const panel = field.closest<HTMLElement>('section') ?? document.body
+    expectPanelRefusal('No Zone Layout covers this start.', panel)
+    expect(screen.getByRole('textbox', { name: 'Start seconds exact time' })).toHaveValue(stored)
+  })
+
+  it('names a Layer Transition retime past Show End and keeps the popover open', async () => {
+    const record = convertedLayerTransitions('panel-refusal-retime')
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit wipe Transition between EventHorizon and SignalMandala',
+    }))
+    await act(async () => {})
+    const popover = screen.getByRole('dialog', { name: 'Layer Transition Details' })
+    const duration = within(popover).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' })
+    const stored = (duration as HTMLInputElement).value
+
+    // SignalMandala ends under a second before Show End.
+    fireEvent.change(duration, { target: { value: '3' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(editor.state().record).toBe(before.record)
+    expect(editor.state().v2Writes).toBe(0)
+    const open = screen.getByRole('dialog', { name: 'Layer Transition Details' })
+    expectPanelRefusal('This Transition would run past Show End.', open)
+    expect(within(open).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' })).toHaveValue(stored)
+  })
+
+  it('names a boundary Split Position animation whose end no Layout covers', async () => {
+    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const record = convertCorpus(structuredClone(stock.show) as ShowRecord)
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const junctions = screen.getAllByRole('button', { name: 'Edit crossfade Transition between LineDancer2D and LineDancer2D' })
+    fireEvent.click(junctions[junctions.length - 1])
+    await act(async () => {})
+    // A valid record tiles Show End, so the planner reads a record without
+    // the occurrence that covers this boundary's end.
+    boundaryPlanner.narrow = (current) => ({
+      ...current,
+      composition: {
+        ...current.composition,
+        layoutOccurrences: current.composition.layoutOccurrences.filter((occurrence) => occurrence.id !== 'layout-occurrence:4'),
+      },
+    })
+
+    fireEvent.click(within(boundaryPanel()).getByRole('checkbox', { name: 'Animate split position' }))
+    await act(async () => {})
+
+    expectNoWrite(before, editor.state())
+    expectPanelRefusal("No Zone Layout covers this Transition's end.", boundaryPanel())
+    expect(within(boundaryPanel()).getByRole('checkbox', { name: 'Animate split position' })).not.toBeChecked()
+  })
+
+  it('names an inspector commit that another writer overtook as a changed Show', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('panel-refusal-race'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await selectClipByName('TestPattern1D', 0)
+    const before = editor.state()
+    // Another writer lands between the inspector's plan and its door.
+    admission.beforeDoor = () => useShowStore.setState({ showRevisions: { [editor.showId]: before.revision + 1 } })
+
+    typeAndCommit('Duration seconds exact time', '3')
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    expect(editor.state().record).toBe(before.record)
+    expect(editor.state().v2Writes).toBe(0)
+    expectPanelRefusal('The Show changed; try again.', clipDetail())
+    expect(screen.getByRole('textbox', { name: 'Duration seconds exact time' })).toHaveValue('2')
   })
 })

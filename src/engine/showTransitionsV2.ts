@@ -4,6 +4,7 @@ import {
   retimeShowTransitionRampsV2,
   validateShowRecordV2,
   type ShowClipV2,
+  type ShowCompositionV2ValidationCode,
   type ShowPropertyTrackV2,
   type ShowRecordV2,
   type ShowTransitionV2,
@@ -70,7 +71,8 @@ interface ShowTransitionEditAffectedV2 {
 export type ShowTransitionEditResultV2 =
   | ({ status: 'changed'; record: ShowRecordV2 } & ShowTransitionEditAffectedV2)
   | ({ status: 'unchanged'; record: ShowRecordV2 } & ShowTransitionEditAffectedV2)
-  | ({ status: 'refused'; record: ShowRecordV2; code: ShowTransitionEditRefusalV2; message: string } & ShowTransitionEditAffectedV2)
+  /** `issueCode` names the validator issue behind an `invalid-result` refusal. */
+  | ({ status: 'refused'; record: ShowRecordV2; code: ShowTransitionEditRefusalV2; message: string; issueCode?: ShowCompositionV2ValidationCode } & ShowTransitionEditAffectedV2)
 
 /** Project selectable Cut junctions without minting persisted identity. */
 export function projectShowTransitionJunctionsV2(record: ShowRecordV2): ShowDerivedCutJunctionV2[] {
@@ -971,7 +973,7 @@ function commitShift(
   }
   shiftWholeOutputWindows(record, next, moved, deltaMs, new Set(replacementById.keys()))
   const issue = validateShowRecordV2(next)[0]
-  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  if (issue) return { ...refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`), issueCode: issue.code } as ShowTransitionEditResultV2
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const contributionAffected = new Set(moved)

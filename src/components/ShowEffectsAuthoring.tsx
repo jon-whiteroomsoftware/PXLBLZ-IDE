@@ -334,7 +334,7 @@ export function ShowEffectStack({
   effects: readonly ShowClipEffect[]
   mirror?: boolean
   animationPlacementId?: string
-  onChange: (effects: ShowClipEffect[]) => boolean | void | Promise<void>
+  onChange: (effects: ShowClipEffect[]) => boolean | void | Promise<boolean | void>
   onPreview?: (effects: ShowClipEffect[]) => void
   onPreviewEnd?: () => void
   onMirrorChange?: (mirror: boolean) => void

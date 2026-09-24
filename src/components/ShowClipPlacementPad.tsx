@@ -192,7 +192,7 @@ export interface ShowClipPlacementPadProps {
   grid?: number
   onGridChange?: (grid: number) => void
   /** Commits a value. Called once per gesture, not once per pointer move. */
-  onChange: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => boolean | void | Promise<void>
+  onChange: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => boolean | void | Promise<boolean | void>
   /** Continuous feedback during a gesture. Falls back to onChange when absent. */
   onPreview?: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => void
   onPreviewEnd?: () => void

@@ -463,13 +463,19 @@ import { captureShowStageEditV2, showV2ClipRestartAvailabilityV2, type ShowPrepa
 import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
 import type { ShowCompositionV2ValidationCode, ShowRecordV2 } from '@/engine/showCompositionV2'
 import {
+  SHOW_V2_RESTART_UNAVAILABLE_REASON,
   showV2AddRefusalInput,
+  showV2BoundaryRefusalInput,
   showV2CommitRefusalInput,
   showV2DuplicateRefusalInput,
   showV2EditRefusalCopy,
+  showV2GroupRefusalInput,
+  showV2InspectorRefusalInput,
   showV2PlannerRefusalInput,
+  showV2TransitionRetimeRefusalInput,
   type ShowV2EditRefusalInput,
 } from '@/engine/showV2EditRefusalCopy'
+import { EditRefusalLine, useEditRefusal, type EditRefusal, type EditRefusalResult } from './ui/edit-refusal-line'
 import { defaultGroupRuntimeIdV2, groupOccurrenceDuration, materializeShowGroupsV2 } from '@/engine/showGroupsV2'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import {
@@ -584,6 +590,19 @@ type ShowV2CommitResult = boolean | ShowV2CommitRefusal
 /** Tells a refused commit from success (`true`) and no change (`false`). */
 function isShowV2Refusal(result: ShowV2CommitResult): result is ShowV2CommitRefusal {
   return typeof result === 'object' && result !== null && result.status === 'refused'
+}
+
+// A refused panel edit names its reason in the panel's alert line (#1098).
+function panelRefusal(input: ShowV2EditRefusalInput): EditRefusal {
+  return { refused: true, message: showV2EditRefusalCopy(input).status }
+}
+/**
+ * The panel refusal for a settled commit, or nothing when it was not refused.
+ * A raw admission outcome carries the same refused shape as a commit result.
+ */
+function panelCommitRefusal(result: ShowV2CommitResult | { status: string }): EditRefusal | undefined {
+  const settled = result as ShowV2CommitResult
+  return isShowV2Refusal(settled) ? panelRefusal(showV2CommitRefusalInput(settled)) : undefined
 }
 type ReportClipFeedback = (selectionKey: string | null, copy: ClipFeedbackCopy) => void
 
@@ -1982,7 +2001,7 @@ export function ShowEditor({
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
     intent: ShowV2PilotGroupOccurrenceEditIntent
-  }) => {
+  }): Promise<ShowV2CommitResult> => {
     const outcome = await admitShowV2PilotGroupOccurrenceEdit({
       showId,
       baseRevision: input.baseRevision,
@@ -1993,7 +2012,7 @@ export function ShowEditor({
         && preparedV2CaptureRef.current === input.capture
         && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
     })
-    return outcome.status === 'applied'
+    return outcome.status === 'refused' ? outcome : outcome.status === 'applied'
   }, [showId])
   const commitV2TransitionResize = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
@@ -2365,7 +2384,7 @@ export function ShowEditor({
     })
     return outcome
   }, [showId])
-  const commitV2ClipInspectorPatch = useCallback((clipId: string, patch: ShowClipInspectorPatch): boolean | Promise<void> => {
+  const commitV2ClipInspectorPatch = useCallback((clipId: string, patch: ShowClipInspectorPatch): EditRefusalResult<boolean | void> => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
@@ -2388,12 +2407,19 @@ export function ShowEditor({
           const temporalPlan = hasDuration
             ? planShowV2ClipResize(timelineViewV2, { clipId, edge: 'trailing', startMs: placed.startMs, endMs: placed.startMs + Math.round(patch.local.durationMs!) })
             : planShowV2ClipMove(timelineViewV2, { clipId, zoneId: placed.zoneId, layerId: placed.layerId, startMs: Math.round(patch.local.startMs!) })
-          if (temporalPlan.kind === 'refuse') return false
+          if (temporalPlan.kind === 'refuse') {
+            // A no-change value reverts silently; any other refusal names itself (#1098).
+            const input = showV2PlannerRefusalInput(hasDuration ? 'resize' : 'move', temporalPlan.reason)
+            return input ? panelRefusal(input) : false
+          }
           const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
           const temporalCommit = temporalPlan.kind === 'transition-resize'
             ? commitV2TransitionResize({ capture, baseRevision, intent: temporalPlan.intent })
             : commitV2ClipTemporal({ capture, baseRevision, intent: temporalPlan.intent })
-          return temporalCommit.then(() => {}, () => {})
+          return temporalCommit.then(
+            panelCommitRefusal,
+            () => {},
+          )
         }
       }
     }
@@ -2401,7 +2427,7 @@ export function ShowEditor({
     const inspectorControls = inspectorInstanceId ? patternControlsByInstanceIdRef.current[inspectorInstanceId] ?? [] : []
     const plan = planShowV2ClipInspectorPatch(capture.record, clipId, patch,
       { controlLabels: Object.fromEntries(inspectorControls.map((control) => [control.exportName, control.label])) })
-    if (plan.kind === 'refuse') return false
+    if (plan.kind === 'refuse') return panelRefusal(showV2InspectorRefusalInput(plan.reason))
     if (plan.kind === 'no-op') {
       // Re-picking the stored Pattern ends the slot's trial and writes nothing (#1066 L2).
       if (Object.keys(patch).length === 1 && patch.pattern !== undefined) {
@@ -2433,7 +2459,7 @@ export function ShowEditor({
       return false
     }
     if (plan.kind === 'entry-policy') {
-      return commitV2ClipEntryPolicy({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
+      return commitV2ClipEntryPolicy({ capture, baseRevision, intent: plan.intent }).then(panelCommitRefusal, () => {})
     }
     if (plan.kind === 'replacement') {
       const preview = previewShowV2ClipReplacement(capture, clipId, plan.reference)
@@ -2450,7 +2476,7 @@ export function ShowEditor({
       }
       const replacement = createShowV2ClipReplacementIntent(capture, clipId, plan.reference, newPersonalContentId)
       if (replacement.status === 'refused') return false
-      return commitV2ClipReplacement({ capture, baseRevision, intent: replacement.intent }).then(() => {}, () => {})
+      return commitV2ClipReplacement({ capture, baseRevision, intent: replacement.intent }).then(panelCommitRefusal, () => {})
     }
     const commit = plan.kind === 'appearance'
       ? commitV2ClipAppearance({ capture, baseRevision, intent: plan.intent })
@@ -2458,19 +2484,20 @@ export function ShowEditor({
     // The async settlement is observed through the re-projected record, not
     // the return: every caller only distinguishes a synchronous false (revert
     // the draft) from anything else (keep the draft), exactly as the legacy
-    // chokepoint's contract reads.
-    return commit.then(() => {}, () => {})
+    // chokepoint's contract reads. A refusal settles with its reason (#1098).
+    return commit.then(panelCommitRefusal, () => {})
   }, [builtInSlotGroups, commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2ClipTemporal, commitV2InstanceProperties, commitV2TransitionResize, readOnly, recordVersion, savedShowV2, setReferencePattern, showId, timelineViewV2])
   // Slice 5a connects the boundary Transition settings writes (the Transition
   // parameter editor and the Crossfade source select) through the
   // transition-edit door. Refused and no-op changes return synchronously so
   // the committing control reverts its draft, exactly as the Clip inspector
   // commit does (#1066).
-  const commitV2BoundaryTransitionChanges = useCallback((transitionId: string, changes: ShowTransitionChanges): void => {
+  const commitV2BoundaryTransitionChanges = useCallback((transitionId: string, changes: ShowTransitionChanges): EditRefusalResult => {
     if (recordVersion !== 2 || !savedShowV2 || readOnly) return
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return
     const { durationMs, ...settingsChanges } = changes
+    let resized: Promise<EditRefusal | undefined> | undefined
     if (durationMs !== undefined) {
       // Duration belongs to the resize owner, which the settings planner
       // refuses by design: a changed value commits through the same resize
@@ -2479,14 +2506,17 @@ export function ShowEditor({
       const current = capture.record.composition.transitions.find((candidate) => candidate.id === transitionId)
       if (current && durationMs !== current.durationMs) {
         const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
-        void commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } })
+        resized = commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } })
+          .then(panelCommitRefusal, () => undefined)
       }
     }
-    if (Object.keys(settingsChanges).length === 0) return
+    if (Object.keys(settingsChanges).length === 0) return resized
     const plan = planShowV2BoundaryTransitionChanges(capture.record, transitionId, settingsChanges)
-    if (plan.status !== 'ready') return
+    // A refused settings change names its reason in the panel (#1098).
+    if (plan.status === 'refused') return panelRefusal(showV2BoundaryRefusalInput(plan.code))
+    if (plan.status !== 'ready') return resized
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
-    void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
+    return commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then(panelCommitRefusal, () => undefined)
   }, [commitV2TransitionEdit, commitV2TransitionResize, readOnly, recordVersion, savedShowV2, showId])
   // Slice 5d connects the boundary Transition Remove through the same door:
   // v1 turns the boundary into a Cut, which on this backing is the owner's
@@ -2685,12 +2715,16 @@ export function ShowEditor({
     }).catch(() => {})
     return true
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2ClipDelete, recordVersion, readOnly, reportClipFeedback, savedShowV2, showId])
-  const requestV2GroupOccurrenceEdit = useCallback((request: ShowV2GroupOccurrenceRequest): boolean | Promise<void> => {
+  const requestV2GroupOccurrenceEdit = useCallback((request: ShowV2GroupOccurrenceRequest): EditRefusalResult<boolean | void> => {
     if (readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2GroupOccurrenceEdit(capture.record, request, newPersonalContentId)
-    if (plan.status !== 'ready') return false
+    if (plan.status !== 'ready') {
+      // A refused plan names its reason in the panel; no-change stays silent (#1098).
+      const input = showV2GroupRefusalInput(plan.code)
+      return input ? panelRefusal(input) : false
+    }
     if (request.kind === 'set-child-inspector-patch' && (plan.overwritesHeldSegments ?? 0) > 1) {
       setPendingV2HeldSegmentOverwrite({ kind: 'group-clip', occurrenceId: request.occurrenceId, clipId: request.clipId,
         patch: request.patch, segmentCount: plan.overwritesHeldSegments! })
@@ -2712,7 +2746,8 @@ export function ShowEditor({
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     const intent = plan.intent
     return commitV2GroupOccurrenceEdit({ capture, baseRevision, intent }).then((applied) => {
-      if (!applied) return
+      if (isShowV2Refusal(applied)) return panelRefusal(showV2CommitRefusalInput(applied))
+      if (!applied) return undefined
       if (intent.kind === 'duplicate-occurrence') {
         selectTimeline({ kind: 'group', occurrenceId: intent.newOccurrenceId })
       } else if (intent.kind === 'ungroup-occurrence') {
@@ -2723,17 +2758,22 @@ export function ShowEditor({
         closePinnedDetailForSelection({ kind: 'group', occurrenceId: intent.occurrenceId })
         setSelection({ kind: 'show' })
       }
-    }).then(() => {}, () => {})
+      return undefined
+    }, () => undefined)
   }, [closeDetailPanel, closePinnedDetailForSelection, commitV2GroupOccurrenceEdit, readOnly, selectTimeline, setSelection, showId])
-  const requestV2GroupOccurrenceEditApplied = useCallback((request: ShowV2GroupOccurrenceRequest): Promise<boolean> => {
+  // Resolves true once applied, or with the refusal the calling panel names (#1098).
+  const requestV2GroupOccurrenceEditApplied = useCallback((request: ShowV2GroupOccurrenceRequest): Promise<boolean | EditRefusal> => {
     if (readOnly) return Promise.resolve(false)
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return Promise.resolve(false)
     const plan = planShowV2GroupOccurrenceEdit(capture.record, request, newPersonalContentId)
-    if (plan.status !== 'ready') return Promise.resolve(false)
+    if (plan.status !== 'ready') {
+      const input = showV2GroupRefusalInput(plan.code)
+      return Promise.resolve(input ? panelRefusal(input) : false)
+    }
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     return commitV2GroupOccurrenceEdit({ capture, baseRevision, intent: plan.intent }).then(
-      (applied) => applied,
+      (applied) => (isShowV2Refusal(applied) ? panelRefusal(showV2CommitRefusalInput(applied)) : applied),
       () => false,
     )
   }, [commitV2GroupOccurrenceEdit, readOnly, showId])
@@ -5204,7 +5244,7 @@ export function ShowEditor({
                     kindKey: groupItem.key,
                     durationMs: groupDurationMs,
                   }).then((applied) => {
-                    if (applied) {
+                    if (applied === true) {
                       setLayerTransitionApplyError(null)
                       setLayerTransitionTarget(null)
                     } else {
@@ -5259,6 +5299,7 @@ export function ShowEditor({
           )}
           {layerTransitionTarget?.settings && layerTransitionTarget.settings.kind !== 'cut' && (
             <ShowLayerTransitionEditor
+              key={layerTransitionTarget.transitionId ?? layerTransitionTarget.groupTransitionId}
               transition={layerTransitionTarget.settings}
               fromName={layerTransitionTarget.fromName}
               toName={layerTransitionTarget.toName}
@@ -5270,31 +5311,34 @@ export function ShowEditor({
                   if (!capture || capture.prepared.status === 'refused') return
                   const groupOccurrenceId = layerTransitionTarget.groupOccurrenceId
                   const groupTransitionId = layerTransitionTarget.groupTransitionId
+                  // A refused retime or reset keeps the popover open and
+                  // names its reason there (#1098).
                   if (groupOccurrenceId && groupTransitionId) {
                     const settledOccurrenceId = groupOccurrenceId
                     const settledTransitionId = groupTransitionId
-                    void requestV2GroupOccurrenceEditApplied({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs }).then((applied) => {
-                      if (applied) setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
-                    }).catch(() => {})
-                    return
+                    return requestV2GroupOccurrenceEditApplied({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs }).then((applied) => {
+                      if (applied === true) setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
+                      return typeof applied === 'object' ? applied : undefined
+                    }, () => undefined)
                   }
                   const transitionId = layerTransitionTarget.transitionId
                   if (!transitionId) return
                   const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
                   if (durationMs === 0) {
                     const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
-                    if (plan.status === 'refused') return
+                    if (plan.status === 'refused') return panelRefusal(capture.record.composition.transitions.some((candidate) => candidate.id === transitionId) ? { kind: 'refused' } : { kind: 'stale' })
                     // Close only once the door applied the edit, as v1 keeps
                     // its popover open when the owner changed nothing (#1066).
-                    void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then((outcome) => {
+                    return commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then((outcome) => {
                       if (outcome.status === 'applied') setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
-                    }).catch(() => {})
-                    return
+                      return panelCommitRefusal(outcome)
+                    }, () => undefined)
                   }
-                  void commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } }).then((applied) => {
-                    if (!isShowV2Refusal(applied) && applied) setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
-                  }).catch(() => {})
-                  return
+                  return commitV2TransitionResize({ capture, baseRevision, intent: { kind: 'resize-transition', transitionId, durationMs } }).then((applied) => {
+                    if (isShowV2Refusal(applied)) return panelRefusal(showV2TransitionRetimeRefusalInput(applied))
+                    if (applied) setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
+                    return undefined
+                  }, () => undefined)
                 }
                 // Layer Transition resize is not connected for the v2 backing
                 // in this tracer; it resolves here before any legacy owner.
@@ -5329,20 +5373,20 @@ export function ShowEditor({
                   if (groupOccurrenceId && groupTransitionId) {
                     const settledOccurrenceId = groupOccurrenceId
                     const settledTransitionId = groupTransitionId
-                    void requestV2GroupOccurrenceEditApplied({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs: 0 }).then((applied) => {
-                      if (applied) setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
-                    }).catch(() => {})
-                    return
+                    return requestV2GroupOccurrenceEditApplied({ kind: 'resize-definition-layer-transition', occurrenceId: groupOccurrenceId, transitionId: groupTransitionId, durationMs: 0 }).then((applied) => {
+                      if (applied === true) setLayerTransitionTarget((current) => (current?.groupOccurrenceId === settledOccurrenceId && current?.groupTransitionId === settledTransitionId ? null : current))
+                      return typeof applied === 'object' ? applied : undefined
+                    }, () => undefined)
                   }
                   const transitionId = layerTransitionTarget.transitionId
                   if (!transitionId) return
                   const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
-                  if (plan.status === 'refused') return
+                  if (plan.status === 'refused') return panelRefusal(capture.record.composition.transitions.some((candidate) => candidate.id === transitionId) ? { kind: 'refused' } : { kind: 'stale' })
                   const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
-                  void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then((outcome) => {
+                  return commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then((outcome) => {
                     if (outcome.status === 'applied') setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
-                  }).catch(() => {})
-                  return
+                    return panelCommitRefusal(outcome)
+                  }, () => undefined)
                 }
                 // Reset to Cut is unconnected for the v2 backing, exactly as
                 // resize is: the control stays offered and changes nothing.
@@ -11386,8 +11430,8 @@ function ContextualInspector({
   onRemoveClip: (clip: ShowCell) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
-  onUpdateClipInspectorV2?: (clipId: string, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
-  onUpdateBoundaryTransitionV2?: (transitionId: string, changes: ShowTransitionChanges) => void
+  onUpdateClipInspectorV2?: (clipId: string, patch: ShowClipInspectorPatch) => EditRefusalResult<boolean | void>
+  onUpdateBoundaryTransitionV2?: (transitionId: string, changes: ShowTransitionChanges) => EditRefusalResult
   onRemoveBoundaryTransitionV2?: (transitionId: string) => void
   onUpdateRoutingTransferV2?: (occurrenceId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
   onRemoveRoutingTransferV2?: (occurrenceId: string) => void
@@ -11404,7 +11448,7 @@ function ContextualInspector({
   onRejoinPatternV2?: (clipId: string, targetInstanceId: string) => void
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
   onRemoveClipV2?: (clipId: string) => void
-  onV2GroupOccurrenceRequest?: (request: ShowV2GroupOccurrenceRequest) => boolean | Promise<void>
+  onV2GroupOccurrenceRequest?: (request: ShowV2GroupOccurrenceRequest) => EditRefusalResult<boolean | void>
   onUpdateGroupClipPatternV2?: (occurrenceId: string, clipId: string, ref: ShowPatternRef) => boolean | Promise<void>
   onDuplicateGroup: (occurrenceId: string) => void
   onMakeGroupUnique: (occurrenceId: string) => void
@@ -11660,6 +11704,7 @@ function ContextualInspector({
     if (group) {
       return (
         <GroupInspector
+          key={selection.occurrenceId}
           value={{
             name: group.name,
             clipCount: group.clipCount,
@@ -11676,7 +11721,7 @@ function ContextualInspector({
             const occurrence = recordV2?.composition.groupOccurrences.find((candidate) => candidate.id === selection.occurrenceId)
             const definition = recordV2?.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)
             if (!occurrence || !definition) return
-            onV2GroupOccurrenceRequest({
+            return onV2GroupOccurrenceRequest({
               kind: 'duplicate-occurrence',
               occurrenceId: occurrence.id,
               placement: {
@@ -11694,7 +11739,7 @@ function ContextualInspector({
             const occurrence = recordV2?.composition.groupOccurrences.find((candidate) => candidate.id === selection.occurrenceId)
             const definition = recordV2?.composition.groupDefinitions.find((candidate) => candidate.id === occurrence?.definitionId)
             if (!occurrence || !definition) return
-            onV2GroupOccurrenceRequest({
+            return onV2GroupOccurrenceRequest({
               kind: 'move-occurrence',
               occurrenceId: occurrence.id,
               placement: {
@@ -11724,7 +11769,7 @@ function ContextualInspector({
               }
               layerBindings = rebound
             }
-            onV2GroupOccurrenceRequest({
+            return onV2GroupOccurrenceRequest({
               kind: 'move-occurrence',
               occurrenceId: occurrence.id,
               placement: {
@@ -11976,6 +12021,7 @@ function ContextualInspector({
     if (boundary) {
       return (
         <BoundaryTransitionInspector
+          key={selection.transitionId}
           value={boundary}
           stageDimensions={stageDimensions}
           // A v2 side names its Pattern instance, which is what automatable
@@ -12121,13 +12167,15 @@ function GroupInspector({
 }: {
   value: ShowGroupInspectorValue
   linkedOccurrenceCount: number
-  onDuplicate: () => void
-  onMakeUnique: () => void
-  onTranslate: (translationX: number, translationY: number) => void
-  onPlace: (patch: { startMs?: number; baseLayer?: number }) => void
+  onDuplicate: () => EditRefusalResult<boolean | void>
+  onMakeUnique: () => EditRefusalResult<boolean | void>
+  onTranslate: (translationX: number, translationY: number) => EditRefusalResult<boolean | void>
+  onPlace: (patch: { startMs?: number; baseLayer?: number }) => EditRefusalResult<boolean | void>
   onDelete: () => void
-  onUngroup: () => void
+  onUngroup: () => EditRefusalResult<boolean | void>
 }) {
+  // Each occurrence edit clears the refusal line, then shows its own (#1098).
+  const [refusal, observeRefusal] = useEditRefusal()
   return (
     <InspectorPanel
       family="Group"
@@ -12148,39 +12196,40 @@ function GroupInspector({
           min={0}
           max={Number.MAX_SAFE_INTEGER}
           step={0.001}
-          onChange={(startSeconds) => onPlace({ startMs: Math.round(startSeconds * 1_000) })}
+          onChange={(startSeconds) => observeRefusal(() => onPlace({ startMs: Math.round(startSeconds * 1_000) }))}
         />
         <NumberField
           label="Base Layer"
           value={value.baseLayer}
           min={0}
           step={1}
-          onChange={(baseLayer) => onPlace({ baseLayer: Math.round(baseLayer) })}
+          onChange={(baseLayer) => observeRefusal(() => onPlace({ baseLayer: Math.round(baseLayer) }))}
         />
         <NumberField
           label="X offset"
           value={value.translationX}
           step={0.01}
-          onChange={(translationX) => onTranslate(translationX, value.translationY)}
+          onChange={(translationX) => observeRefusal(() => onTranslate(translationX, value.translationY))}
         />
         <NumberField
           label="Y offset"
           value={value.translationY}
           step={0.01}
-          onChange={(translationY) => onTranslate(value.translationX, translationY)}
+          onChange={(translationY) => observeRefusal(() => onTranslate(value.translationX, translationY))}
         />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-zinc-800/80 pt-2">
-        <Button size="xs" variant="ghost" aria-label="Duplicate Group occurrence" onClick={onDuplicate}>
+        <Button size="xs" variant="ghost" aria-label="Duplicate Group occurrence" onClick={() => { void observeRefusal(onDuplicate) }}>
           <Copy size={12} aria-hidden /> Duplicate
         </Button>
-        <Button size="xs" variant="ghost" aria-label="Make Group unique" disabled={linkedOccurrenceCount < 2} onClick={onMakeUnique}>
+        <Button size="xs" variant="ghost" aria-label="Make Group unique" disabled={linkedOccurrenceCount < 2} onClick={() => { void observeRefusal(onMakeUnique) }}>
           <WandSparkles size={12} aria-hidden /> Make Unique
         </Button>
-        <Button size="xs" variant="ghost" aria-label="Ungroup occurrence" onClick={onUngroup}>
+        <Button size="xs" variant="ghost" aria-label="Ungroup occurrence" onClick={() => { void observeRefusal(onUngroup) }}>
           <Layers3 size={12} aria-hidden /> Ungroup
         </Button>
       </div>
+      <EditRefusalLine message={refusal} />
     </InspectorPanel>
   )
 }
@@ -12219,7 +12268,7 @@ function CompositionClipInspector({
   stageDimensions: 1 | 2 | 3
   instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
   preparedCaptureV2?: ShowPreparedStageEditCaptureV2 | null
-  onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
+  onPatch: (patch: ShowClipInspectorPatch) => EditRefusalResult<boolean | void>
   propertyAnimationContext?: Omit<ShowPropertyAnimationEditorContext, 'storageOwner'> | ShowPropertyAnimationEditorContext | null
   onPropertyAnimationChange?: (change: ShowPropertyAnimationChange) => boolean | void
   onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
@@ -12271,7 +12320,7 @@ function CompositionClipInspector({
     if (!preparedCaptureV2 || !v2ClipId) return { available: true } as const
     return showV2ClipRestartAvailabilityV2(preparedCaptureV2, v2ClipId)
   }, [preparedCaptureV2, v2ClipId])
-  const restartUnavailableReason = restartAvailability.available ? undefined : "This Pattern's state can't be reset."
+  const restartUnavailableReason = restartAvailability.available ? undefined : SHOW_V2_RESTART_UNAVAILABLE_REASON
   const closeAnimationOverview = (restoreSummaryFocus: boolean) => {
     setAnimationOverviewOpen(false)
     if (restoreSummaryFocus) {
@@ -12829,7 +12878,7 @@ function BoundaryTransitionInspector({
   value,
   stageDimensions,
   patternControlsBySourceId,
-  onUpdate,
+  onUpdate: onUpdateProp,
   onPreviewSettings,
   onPreviewEnd,
   onOpenPalette,
@@ -12841,7 +12890,8 @@ function BoundaryTransitionInspector({
   stageDimensions: 1 | 2 | 3
   /** Keyed by each side's `controlSourceId`: a ShowCell on v1, an instance on v2. */
   patternControlsBySourceId: Record<string, AutomatablePatternControl[]>
-  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => void
+  /** A refusal names its reason in the panel's alert line (#1098). */
+  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => EditRefusalResult
   onPreviewSettings: (changes: ShowTransitionChanges) => void
   onPreviewEnd: () => void
   onOpenPalette: () => void
@@ -12858,6 +12908,11 @@ function BoundaryTransitionInspector({
 }) {
   const transition = value.settings
   const { boundaryIdentity, destinations } = value
+  // Each settings edit clears the refusal line, then shows its own (#1098).
+  const [refusal, observeRefusal] = useEditRefusal()
+  const onUpdate = (transitionId: string, changes: ShowTransitionChanges): void => {
+    void observeRefusal(() => onUpdateProp(transitionId, changes))
+  }
   // A routing Transition keeps `RoutingTransferInspector` on both backings, so
   // it never reaches this panel; the guard states that rather than assuming it.
   if (transition.kind === 'routing') return null
@@ -12993,6 +13048,7 @@ function BoundaryTransitionInspector({
           ))}
         </div>
       </details>
+      <EditRefusalLine message={refusal} />
     </InspectorPanel>
   )
 }

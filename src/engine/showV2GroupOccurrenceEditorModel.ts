@@ -30,6 +30,10 @@ export function buildShowV2GroupOccurrenceEditorModel(record: ShowRecordV2) {
   }
 }
 
+/** Names the refusals the Group panels explain to the user (#1098); the rest carry none. */
+export type ShowV2GroupOccurrenceRefusalCode = 'missing-entity' | 'no-layout' | 'ends-in-hold' | 'entry-policy-unsupported' | 'multi-key-clip' | 'no-change'
+type GroupRefused = { status: 'refused'; message: string; code?: ShowV2GroupOccurrenceRefusalCode }
+
 type GroupInsertKindSettings = Omit<ShowTransitionV2, 'id' | 'durationMs' | 'participants' | 'wholeOutput' | 'propertyRamps'> & { easing?: ShowTransitionV2['easing'] }
 
 /**
@@ -55,9 +59,9 @@ function groupInsertKindSettings(
 
 /** Plans only explicit placement/identities. Existing pure owners validate choreography. */
 export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: ShowV2GroupOccurrenceRequest, allocate: () => string):
-  { status: 'ready'; intent: ShowV2GroupOccurrenceIntent; removedControls?: ShowV2RemovedControlTarget[]; overwritesHeldSegments?: number } | { status: 'refused'; message: string } {
+  { status: 'ready'; intent: ShowV2GroupOccurrenceIntent; removedControls?: ShowV2RemovedControlTarget[]; overwritesHeldSegments?: number } | GroupRefused {
   const occurrence = record.composition.groupOccurrences.find(value => value.id === request.occurrenceId)
-  if (!occurrence) return { status: 'refused', message: 'Select an existing Group occurrence.' }
+  if (!occurrence) return { status: 'refused', code: 'missing-entity', message: 'Select an existing Group occurrence.' }
   const definition = record.composition.groupDefinitions.find(value => value.id === occurrence.definitionId)!
   try {
     const fresh = (reserved: Set<string>) => {
@@ -68,7 +72,7 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
     if (request.kind === 'move-occurrence' || request.kind === 'duplicate-occurrence') {
       const placement = request.placement
       const layout = record.composition.layoutOccurrences.find(value => placement.startMs >= value.startMs && placement.startMs < value.startMs + value.durationMs)
-      if (!layout) return { status: 'refused', message: 'The requested start needs an existing Layout occurrence.' }
+      if (!layout) return { status: 'refused', code: 'no-layout', message: 'The requested start needs an existing Layout occurrence.' }
       const common = { ...structuredClone(placement), layoutOccurrenceId: layout.id, occurrenceId: occurrence.id }
       return { status: 'ready', intent: request.kind === 'move-occurrence'
         ? { kind: 'move-occurrence', ...common }
@@ -76,7 +80,7 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
     }
     if (request.kind === 'set-child-timing') {
       const child = definition.clips.find(value => value.id === request.clipId)
-      if (!child) return { status: 'refused', message: 'Select an existing Group Clip.' }
+      if (!child) return { status: 'refused', code: 'missing-entity', message: 'Select an existing Group Clip.' }
       const hasStart = request.startMs !== undefined
       const hasDuration = request.durationMs !== undefined
       if (!hasStart && !hasDuration) return { status: 'refused', message: 'Give a Start and/or Duration for one Group Clip.' }
@@ -94,7 +98,7 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
         const localEnd = groupOccurrenceLocalTimeAtV2(occurrence, showStart + Math.round(request.durationMs!))
         localDuration = localEnd - localStart
         if (!Number.isSafeInteger(localDuration) || localDuration <= 0) {
-          return { status: 'refused', message: "Duration must end after the Clip's start outside a hold." }
+          return { status: 'refused', code: 'ends-in-hold', message: "Duration must end after the Clip's start outside a hold." }
         }
       }
       const intent: SetShowGroupDefinitionClipTimingIntentV2 = {
@@ -108,7 +112,7 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
     }
     if (request.kind === 'set-child-inspector-patch') {
       const child = definition.clips.find(value => value.id === request.clipId)
-      if (!child) return { status: 'refused', message: 'Select an existing Group Clip.' }
+      if (!child) return { status: 'refused', code: 'missing-entity', message: 'Select an existing Group Clip.' }
       const plan = planShowV2ClipInspectorPatch(groupDefinitionAsRecord(record, definition), request.clipId, request.patch)
       if (plan.kind === 'appearance') {
         const intent: EditShowGroupDefinitionClipAppearanceIntentV2 = {
@@ -128,18 +132,21 @@ export function planShowV2GroupOccurrenceEdit(record: ShowRecordV2, request: Sho
         return { status: 'ready', intent, removedControls: plan.removedControls }
       }
       if (plan.kind === 'replacement') return { status: 'refused', message: 'Changing a Group Clip\'s Pattern is not connected yet.' }
-      if (plan.kind === 'refuse') return { status: 'refused', message: plan.message }
-      if (plan.kind === 'entry-policy') return { status: 'refused', message: 'Changing a Group Clip\'s entry policy is not connected yet.' }
-      return { status: 'refused', message: 'No change.' }
+      if (plan.kind === 'refuse') {
+        const code = plan.reason === 'missing-clip' ? 'missing-entity' : plan.reason === 'multi-key-clip' ? 'multi-key-clip' : undefined
+        return { status: 'refused', ...(code ? { code } : {}), message: plan.message }
+      }
+      if (plan.kind === 'entry-policy') return { status: 'refused', code: 'entry-policy-unsupported', message: 'Changing a Group Clip\'s entry policy is not connected yet.' }
+      return { status: 'refused', code: 'no-change', message: 'No change.' }
     }
     if (request.kind === 'resize-definition-layer-transition') {
       const transition = definition.transitions.find(value => value.id === request.transitionId)
-      if (!transition) return { status: 'refused', message: 'Select an existing Group Transition.' }
+      if (!transition) return { status: 'refused', code: 'missing-entity', message: 'Select an existing Group Transition.' }
       if (typeof request.durationMs !== 'number' || !Number.isFinite(request.durationMs) || request.durationMs < 0) {
         return { status: 'refused', message: 'Give a finite Duration for one Group Transition.' }
       }
       const durationMs = Math.round(request.durationMs)
-      if (durationMs === transition.durationMs) return { status: 'refused', message: 'No change.' }
+      if (durationMs === transition.durationMs) return { status: 'refused', code: 'no-change', message: 'No change.' }
       const intent: ResizeShowGroupDefinitionLayerTransitionIntentV2 = {
         kind: 'resize-definition-layer-transition',
         definitionId: definition.id,

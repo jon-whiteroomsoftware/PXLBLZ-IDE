@@ -284,7 +284,7 @@ export function planShowV2TransitionEdit(
 export type ShowV2BoundaryChangesPlan =
   | { status: 'ready'; intent: Extract<ShowTransitionEditIntentV2, { kind: 'update-transition' }> }
   | { status: 'no-op' }
-  | { status: 'refused'; code: 'missing-transition' | 'unsupported-field'; message: string }
+  | { status: 'refused'; code: 'missing-transition' | 'missing-clip' | 'no-layout' | 'unsupported-field'; message: string }
 
 const BOUNDARY_SETTINGS_REFUSED_FIELDS = ['kind', 'durationMs', 'layoutId', 'routingDirection'] as const
 
@@ -329,7 +329,7 @@ export function planShowV2BoundaryTransitionChanges(
     const participant = current.participants[0]
     const destination = participant && record.composition.clips.find(clip => clip.id === participant.toClipId)
     if (editsClipValueRamp && !destination) {
-      return { status: 'refused', code: 'unsupported-field', message: 'The incoming Clip for this Transition participant is missing.' }
+      return { status: 'refused', code: 'missing-clip', message: 'The incoming Clip for this Transition participant is missing.' }
     }
     const clipValueRamp = (property: 'timeScale' | 'brightness') => {
       const raw = propertyTransitions?.[property]
@@ -353,7 +353,7 @@ export function planShowV2BoundaryTransitionChanges(
       occurrence.startMs <= boundaryEndMs && occurrence.startMs + occurrence.durationMs > boundaryEndMs
     ))
     if (splitPosition && !incoming) {
-      return { status: 'refused', code: 'unsupported-field', message: 'No Layout occurrence covers the end of this boundary, so its split position cannot animate.' }
+      return { status: 'refused', code: 'no-layout', message: 'No Layout occurrence covers the end of this boundary, so its split position cannot animate.' }
     }
     const replacedClipValues = new Set<'timeScale' | 'brightness'>()
     const retainedRamps = current.propertyRamps.filter(ramp => !isShowScalarRampTargetV2(ramp.target)).flatMap(ramp => {

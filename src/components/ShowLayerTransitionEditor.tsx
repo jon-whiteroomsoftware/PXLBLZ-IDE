@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { RotateCcw, X, Zap } from 'lucide-react'
 import type { ShowTransitionKind } from '@/engine/personalContentRecords'
 import { TimeField } from '@/components/ui/time-field'
+import { EditRefusalLine, useEditRefusal, type EditRefusalResult } from '@/components/ui/edit-refusal-line'
 
 export function ShowLayerTransitionEditor({
   transition,
@@ -22,14 +23,16 @@ export function ShowLayerTransitionEditor({
   fromName: string
   toName: string
   anchor: HTMLElement
-  onDurationChange: (durationMs: number) => void
-  onResetToCut: () => void
+  /** A refusal keeps the popover open and names its reason there (#1098). */
+  onDurationChange: (durationMs: number) => EditRefusalResult
+  onResetToCut: () => EditRefusalResult
   onClose: () => void
 }) {
   const rect = anchor.getBoundingClientRect()
   const left = Math.max(8, Math.min(window.innerWidth - 288, rect.left))
   const top = Math.min(window.innerHeight - 180, rect.bottom + 6)
   const seconds = transition.durationMs / 1_000
+  const [refusal, observeRefusal] = useEditRefusal()
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -71,15 +74,16 @@ export function ShowLayerTransitionEditor({
           max={Number.MAX_SAFE_INTEGER}
           step={0.001}
           variant="editor"
-          onChange={(next) => onDurationChange(Math.round(next * 1_000))}
+          onChange={(next) => observeRefusal(() => onDurationChange(Math.round(next * 1_000)))}
         />
       </div>
       <footer className="flex items-center border-t border-zinc-800 px-2.5 py-2">
-        <button type="button" onClick={onResetToCut} className="ml-auto flex h-7 items-center gap-1.5 rounded px-2 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-amber-200">
+        <button type="button" onClick={() => { void observeRefusal(onResetToCut) }} className="ml-auto flex h-7 items-center gap-1.5 rounded px-2 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-amber-200">
           <RotateCcw size={13} aria-hidden />
           Reset to Cut
         </button>
       </footer>
+      <EditRefusalLine message={refusal} />
     </section>,
     document.body,
   )

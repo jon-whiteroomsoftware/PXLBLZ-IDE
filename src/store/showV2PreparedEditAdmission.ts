@@ -69,7 +69,7 @@ export type ShowV2PilotTransitionResizeOutcome =
   | ({ status: 'applied'; settlement: 'saved' | 'superseded' } & ResizeAffected)
   | ({ status: 'unchanged' } & ResizeEmpty)
   | ({ status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string } & ResizeEmpty)
-  | ({ status: 'refused'; source: 'transition'; code: ShowTransitionEditRefusalV2; message: string } & ResizeEmpty)
+  | ({ status: 'refused'; source: 'transition'; code: ShowTransitionEditRefusalV2; message: string; issueCode?: ShowCompositionV2ValidationCode } & ResizeEmpty)
 type Command =
   | { owner: 'layout-occurrence'; intent: ShowV2PilotLayoutOccurrenceIntent }
   | { owner: 'delete-clip'; intent: ShowV2PilotClipDeleteIntent }
@@ -257,7 +257,9 @@ export async function admitShowV2PilotTransitionResize(request: ShowV2PilotTrans
   if (outcome.status === 'refused') {
     if (outcome.source === 'admission') return { ...outcome, ...resizeEmpty() }
     if (outcome.result.status !== 'refused') throw new Error('Invalid Transition owner result.')
-    return { status: 'refused', source: 'transition', code: outcome.result.code, message: outcome.result.message, ...resizeEmpty() }
+    // A validator refusal forwards its issue code so the editor can name it (#1098).
+    const issueCode = 'issueCode' in outcome.result ? outcome.result.issueCode : undefined
+    return { status: 'refused', source: 'transition', code: outcome.result.code, message: outcome.result.message, ...(issueCode ? { issueCode } : {}), ...resizeEmpty() }
   }
   if (outcome.status === 'unchanged') return { status: 'unchanged', ...resizeEmpty() }
   const { affectedClipIds, affectedTransitionIds, affectedTrackIds, removedIds } = outcome.result

@@ -73,8 +73,11 @@ export interface BoundedNumberFieldProps {
   commitOnBlur?: boolean
   onPreview?: (value: number) => void
   onPreviewEnd?: () => void
-  /** Return false synchronously when the controlled owner refuses the commit. */
-  onChange: (value: number) => boolean | void | Promise<void>
+  /**
+   * Return false synchronously when the controlled owner refuses the commit,
+   * or resolve false when the owner refuses it later (#1098).
+   */
+  onChange: (value: number) => boolean | void | Promise<boolean | void>
 }
 
 // Specialized numeric fields deliberately expose one formatted exact textbox
@@ -209,6 +212,22 @@ export function BoundedNumberField({
       Object.is(next, value) ? [] : [...current, next]
     ))
   }
+  // A commit the owner refuses after the fact leaves the pending list, so the
+  // draft returns to the stored value (#1098).
+  const acceptCommit = (next: number, result: ReturnType<typeof onChange>) => {
+    if (result === false) return false
+    recordPendingCommit(next)
+    if (result instanceof Promise) {
+      void result.then((settled) => {
+        if (settled !== false) return
+        setPendingCommits((current) => {
+          const index = current.lastIndexOf(next)
+          return index < 0 ? current : [...current.slice(0, index), ...current.slice(index + 1)]
+        })
+      }, () => {})
+    }
+    return true
+  }
   const revert = () => {
     focusedRef.current = false
     dirtyRef.current = false
@@ -233,9 +252,7 @@ export function BoundedNumberField({
     setDraft(formatDraft(bounded))
     try {
       if (bounded !== interactionValue) {
-        const accepted = onChange(bounded) !== false
-        if (accepted) recordPendingCommit(bounded)
-        else setDraft(formatDraft(interactionValue))
+        if (!acceptCommit(bounded, onChange(bounded))) setDraft(formatDraft(interactionValue))
       }
     } finally { dirtyRef.current = false; refreshActivity() }
   }
@@ -297,15 +314,13 @@ export function BoundedNumberField({
         return
       }
       if (next !== startValue) {
-        const accepted = onChange(next) !== false
-        if (!accepted) {
+        if (!acceptCommit(next, onChange(next))) {
           const boundedStartValue = clampPercentageValue(startValue, sliderMin, sliderMax)
           sliderValueRef.current = boundedStartValue
           setSliderValue(boundedStartValue)
           setDraft(formatDraft(startValue))
           return
         }
-        recordPendingCommit(next)
       }
       sliderValueRef.current = next
       setSliderValue(next)

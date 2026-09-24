@@ -2,6 +2,9 @@ import type { ShowCompositionV2ValidationCode } from './showCompositionV2'
 import type { ShowV2ClipAddRefusalCode } from './showV2ClipAddPlacement'
 import type { ShowV2ClipTemporalRefusal } from './showV2ClipTemporalPlanning'
 import type { ShowV2DuplicateRefusalCode } from './showV2ClipSharingEditorModel'
+import type { ShowV2ClipInspectorRefusal } from './showV2ClipAppearancePlanning'
+import type { ShowV2GroupOccurrenceRefusalCode } from './showV2GroupOccurrenceEditorModel'
+import type { ShowV2BoundaryChangesPlan } from './showV2TransitionEditorModel'
 
 /**
  * User copy for a refused v2 timeline edit (#1098). `label` is the short red
@@ -23,10 +26,20 @@ export type ShowV2EditRefusalInput =
   | { kind: 'undeliverable' }
   | { kind: 'refused' }
   | { kind: 'stale' }
+  // Panel refusals speak through the panel's alert line only.
+  | { kind: 'multi-key-clip' }
+  | { kind: 'group-no-layout' }
+  | { kind: 'group-ends-in-hold' }
+  | { kind: 'group-restart-unsupported' }
+  | { kind: 'transition-past-show-end' }
+  | { kind: 'split-end-no-layout' }
 
 const SPACE_TAKEN: ShowV2RefusalCopy = { label: 'Space taken', status: 'Clips on one Layer cannot overlap.' }
 const REFUSED: ShowV2RefusalCopy = { label: 'Edit refused', status: "This edit isn't possible here." }
 const STALE: ShowV2RefusalCopy = { label: 'Show changed', status: 'The Show changed; try again.' }
+
+/** The ordinary Clip's Restart reason, which a Group Clip's refused Restart also names. */
+export const SHOW_V2_RESTART_UNAVAILABLE_REASON = "This Pattern's state can't be reset."
 
 const ADD_STATUS: Record<Exclude<ShowV2ClipAddRefusalCode, 'invalid-time'>, string> = {
   'inside-transition': 'A Clip cannot start inside a Transition.',
@@ -48,6 +61,12 @@ export function showV2EditRefusalCopy(refusal: ShowV2EditRefusalInput): ShowV2Re
     case 'zone-unavailable': return { label: 'No Zone Layout', status: 'No Zone Layout covers this time.' }
     case 'undeliverable': return { label: "Can't deliver this", status: 'This edit would make the Show undeliverable.' }
     case 'stale': return STALE
+    case 'multi-key-clip': return { label: null, status: "This Clip's Effects differ between its held segments; edit each segment instead." }
+    case 'group-no-layout': return { label: null, status: 'No Zone Layout covers this start.' }
+    case 'group-ends-in-hold': return { label: null, status: 'This Duration would end inside a hold.' }
+    case 'group-restart-unsupported': return { label: null, status: SHOW_V2_RESTART_UNAVAILABLE_REASON }
+    case 'transition-past-show-end': return { label: null, status: 'This Transition would run past Show End.' }
+    case 'split-end-no-layout': return { label: null, status: "No Zone Layout covers this Transition's end." }
     default: return REFUSED
   }
 }
@@ -106,4 +125,40 @@ export function showV2DuplicateRefusalInput(code: ShowV2DuplicateRefusalCode | u
 /** The input for a refused double-click add, which has no Clip to label. */
 export function showV2AddRefusalInput(code: ShowV2ClipAddRefusalCode): ShowV2EditRefusalInput {
   return code === 'invalid-time' ? { kind: 'refused' } : { kind: 'add', code }
+}
+
+/** The input for a refused Clip inspector patch; a Clip gone from under the inspector is a race. */
+export function showV2InspectorRefusalInput(reason: ShowV2ClipInspectorRefusal): ShowV2EditRefusalInput {
+  if (reason === 'missing-clip') return { kind: 'stale' }
+  if (reason === 'multi-key-clip') return { kind: 'multi-key-clip' }
+  return { kind: 'refused' }
+}
+
+/** The input for a refused Group occurrence plan, or `null` for a silent no-change. */
+export function showV2GroupRefusalInput(code: ShowV2GroupOccurrenceRefusalCode | undefined): ShowV2EditRefusalInput | null {
+  switch (code) {
+    case 'no-change': return null
+    case 'missing-entity': return { kind: 'stale' }
+    case 'no-layout': return { kind: 'group-no-layout' }
+    case 'ends-in-hold': return { kind: 'group-ends-in-hold' }
+    case 'entry-policy-unsupported': return { kind: 'group-restart-unsupported' }
+    case 'multi-key-clip': return { kind: 'multi-key-clip' }
+    default: return { kind: 'refused' }
+  }
+}
+
+/** The input for a refused boundary Transition settings plan. */
+export function showV2BoundaryRefusalInput(code: Extract<ShowV2BoundaryChangesPlan, { status: 'refused' }>['code']): ShowV2EditRefusalInput {
+  if (code === 'missing-transition' || code === 'missing-clip') return { kind: 'stale' }
+  if (code === 'no-layout') return { kind: 'split-end-no-layout' }
+  return { kind: 'refused' }
+}
+
+/**
+ * The input for a refused Layer Transition retime. A retime only shifts the
+ * Clips after it, so the validator's bounds issue is the Show End.
+ */
+export function showV2TransitionRetimeRefusalInput(refusal: Parameters<typeof showV2CommitRefusalInput>[0]): ShowV2EditRefusalInput {
+  if (refusal.source !== 'admission' && refusal.issueCode === 'out-of-bounds') return { kind: 'transition-past-show-end' }
+  return showV2CommitRefusalInput(refusal)
 }

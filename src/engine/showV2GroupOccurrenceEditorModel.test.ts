@@ -160,7 +160,7 @@ it('refuses a held Group Clip Duration that ends at or before its start (#1075 G
   const plan = planShowV2GroupOccurrenceEdit(record, {
     kind: 'set-child-timing', occurrenceId: occurrence.id, clipId: child.id, durationMs: 0,
   }, () => 'unused')
-  expect(plan).toEqual({ status: 'refused', message: "Duration must end after the Clip's start outside a hold." })
+  expect(plan).toEqual({ status: 'refused', code: 'ends-in-hold', message: "Duration must end after the Clip's start outside a hold." })
   expect(record).toEqual(before)
 })
 
@@ -442,7 +442,7 @@ it('keeps an unchanged Group-local Layer Transition duration a no-op (#1075 G4b-
   const plan = planShowV2GroupOccurrenceEdit(record, {
     kind: 'resize-definition-layer-transition', occurrenceId: occurrence.id, transitionId: transition.id, durationMs: transition.durationMs,
   }, () => 'unused')
-  expect(plan).toEqual({ status: 'refused', message: 'No change.' })
+  expect(plan).toEqual({ status: 'refused', code: 'no-change', message: 'No change.' })
   expect(record).toEqual(before)
 })
 

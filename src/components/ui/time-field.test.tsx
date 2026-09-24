@@ -1,10 +1,32 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { TimeField } from './time-field'
 
 describe('TimeField (#614)', () => {
+  it('restores the stored value when the owner refuses a commit after the fact (#1098)', async () => {
+    let refuse!: (accepted: false) => void
+    render(
+      <TimeField
+        label="Duration"
+        value={2}
+        min={0}
+        max={30}
+        step={0.001}
+        onChange={() => new Promise<false>((resolve) => { refuse = resolve })}
+      />,
+    )
+    const exact = screen.getByRole('textbox', { name: 'Duration exact time' })
+
+    fireEvent.change(exact, { target: { value: '9' } })
+    fireEvent.keyDown(exact, { key: 'Enter' })
+    expect(exact).toHaveValue('9')
+    await act(async () => refuse(false))
+
+    expect(exact).toHaveValue('2')
+  })
+
   it('keeps the field label unique while describing its auxiliary time controls (#656)', () => {
     render(
       <TimeField

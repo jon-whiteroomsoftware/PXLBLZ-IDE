@@ -42,6 +42,7 @@ import type { ShowClipSummaryDestination } from '@/engine/showClipSummary'
 import type { ShowEditorClipValueV2 } from '@/engine/showEditorInspectorPresentation'
 import { useShowEntityDetailPanelHeight } from './ShowEntityDetailPanel'
 import { DisabledReasonTip } from './ui/disabled-reason'
+import { EditRefusalLine, useEditRefusal, type EditRefusalResult } from './ui/edit-refusal-line'
 
 export interface ShowClipEntityDetailProps {
   value: ShowClipInspectorValue | ShowEditorClipValueV2
@@ -60,7 +61,8 @@ export interface ShowClipEntityDetailProps {
   panelKey?: string
   transformEnabled?: boolean
   stageDimensions?: 1 | 2 | 3
-  onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
+  /** A refusal names its reason in the panel's alert line (#1098). */
+  onPatch: (patch: ShowClipInspectorPatch) => EditRefusalResult<boolean | void>
   onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
   onPreviewEnd?: () => void
   onPatternCommit?: () => void
@@ -118,7 +120,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   panelKey = 'transient',
   transformEnabled = true,
   stageDimensions = transformEnabled ? 2 : 1,
-  onPatch,
+  onPatch: onPatchProp,
   onPreviewPatch,
   onPreviewEnd,
   onPatternCommit,
@@ -134,6 +136,9 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const showOpacity = capabilities.placementOpacity && value.local !== undefined
   const headerFieldCount = 1 + (localTiming ? 2 : 0) + (showOpacity ? 1 : 0)
   const controlTargets = value.simulation.controlTargets
+  // Every edit clears the refusal line, then shows its own refusal (#1098).
+  const [refusal, observeRefusal] = useEditRefusal()
+  const onPatch = (patch: ShowClipInspectorPatch) => observeRefusal(() => onPatchProp(patch))
   const [placementFocus, setPlacementFocus] = useState<PlacementFocus>('content')
   const [placementGrid, setPlacementGrid] = useState(3)
   const [placementPreview, setPlacementPreview] = useState<PlacementPreviewPatch | null>(null)
@@ -1033,6 +1038,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
         </>}
         </div>
       </div>
+      <EditRefusalLine message={refusal} />
     </section>
   )
 })
@@ -1091,7 +1097,7 @@ function ClipPlacementGeometry({
   readOnly: boolean
   onPreviewPatch?: ShowClipEntityDetailProps['onPreviewPatch']
   onPreviewEnd?: ShowClipEntityDetailProps['onPreviewEnd']
-  onPatch: ShowClipEntityDetailProps['onPatch']
+  onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<boolean | void>
 }) {
   const content = focus === 'content'
   const positionPresentation = useMemo(() => resolvePlacementPositionPresentation(grid), [grid])

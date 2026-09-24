@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SHOW_V2_RESTART_UNAVAILABLE_REASON,
   showV2AddRefusalInput,
+  showV2BoundaryRefusalInput,
   showV2CommitRefusalInput,
   showV2DuplicateRefusalInput,
   showV2EditRefusalCopy,
+  showV2GroupRefusalInput,
+  showV2InspectorRefusalInput,
   showV2PlannerRefusalInput,
+  showV2TransitionRetimeRefusalInput,
   type ShowV2EditRefusalInput,
 } from './showV2EditRefusalCopy'
 
@@ -24,6 +29,12 @@ const TABLE: Array<[ShowV2EditRefusalInput, string | null, string]> = [
   [{ kind: 'undeliverable' }, "Can't deliver this", 'This edit would make the Show undeliverable.'],
   [{ kind: 'refused' }, 'Edit refused', "This edit isn't possible here."],
   [{ kind: 'stale' }, 'Show changed', 'The Show changed; try again.'],
+  [{ kind: 'multi-key-clip' }, null, "This Clip's Effects differ between its held segments; edit each segment instead."],
+  [{ kind: 'group-no-layout' }, null, 'No Zone Layout covers this start.'],
+  [{ kind: 'group-ends-in-hold' }, null, 'This Duration would end inside a hold.'],
+  [{ kind: 'group-restart-unsupported' }, null, "This Pattern's state can't be reset."],
+  [{ kind: 'transition-past-show-end' }, null, 'This Transition would run past Show End.'],
+  [{ kind: 'split-end-no-layout' }, null, "No Zone Layout covers this Transition's end."],
 ]
 
 describe('showV2EditRefusalCopy', () => {
@@ -80,5 +91,28 @@ describe('refusal inputs', () => {
     expect(showV2DuplicateRefusalInput('invalid-destination')).toEqual({ kind: 'refused' })
     expect(showV2DuplicateRefusalInput('missing-clip')).toEqual({ kind: 'refused' })
     expect(showV2DuplicateRefusalInput(undefined)).toEqual({ kind: 'refused' })
+  })
+
+  it('names each reachable panel refusal, treats a vanished entity as a race and keeps no-change silent', () => {
+    expect(showV2InspectorRefusalInput('multi-key-clip')).toEqual({ kind: 'multi-key-clip' })
+    expect(showV2InspectorRefusalInput('missing-clip')).toEqual({ kind: 'stale' })
+    expect(showV2InspectorRefusalInput('ambiguous-effects')).toEqual({ kind: 'refused' })
+    expect(showV2GroupRefusalInput('no-change')).toBeNull()
+    expect(showV2GroupRefusalInput('missing-entity')).toEqual({ kind: 'stale' })
+    expect(showV2GroupRefusalInput('no-layout')).toEqual({ kind: 'group-no-layout' })
+    expect(showV2GroupRefusalInput('ends-in-hold')).toEqual({ kind: 'group-ends-in-hold' })
+    expect(showV2GroupRefusalInput('entry-policy-unsupported')).toEqual({ kind: 'group-restart-unsupported' })
+    expect(showV2GroupRefusalInput('multi-key-clip')).toEqual({ kind: 'multi-key-clip' })
+    expect(showV2GroupRefusalInput(undefined)).toEqual({ kind: 'refused' })
+    expect(showV2BoundaryRefusalInput('no-layout')).toEqual({ kind: 'split-end-no-layout' })
+    expect(showV2BoundaryRefusalInput('missing-transition')).toEqual({ kind: 'stale' })
+    expect(showV2BoundaryRefusalInput('missing-clip')).toEqual({ kind: 'stale' })
+    expect(showV2BoundaryRefusalInput('unsupported-field')).toEqual({ kind: 'refused' })
+    expect(showV2TransitionRetimeRefusalInput({ source: 'transition', code: 'invalid-result', issueCode: 'out-of-bounds' })).toEqual({ kind: 'transition-past-show-end' })
+    expect(showV2TransitionRetimeRefusalInput({ source: 'admission', code: 'stale-edit' })).toEqual({ kind: 'stale' })
+  })
+
+  it('gives a Group Clip Restart the ordinary Clip Restart reason', () => {
+    expect(showV2EditRefusalCopy({ kind: 'group-restart-unsupported' }).status).toBe(SHOW_V2_RESTART_UNAVAILABLE_REASON)
   })
 })
