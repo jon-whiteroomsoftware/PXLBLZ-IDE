@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1098",
+  "route": "/PXLBLZ-IDE/studio/shows/b9544842-9ff9-4975-846d-ccff9b87d410",
+  "operation": "Existing Show editor on the v2 backing at 1440x900 with reduced motion, after the refused-panel-field repair. Both Shows are fresh Installation Shows seeded through /api/shows and stored as v2. Capture 1 (Show 28d6190d-a484-4b0a-b009-e8bb19422781, route /PXLBLZ-IDE/studio/shows/28d6190d-a484-4b0a-b009-e8bb19422781) has two adjacent Clips on one Layer and no Transition: TestPattern1D 0-30 s and CometLoom 30-60 s on layer:zone-1:main. With TestPattern1D selected, 45 is typed into the Clip inspector's Duration. The clip-temporal owner refuses the overlap. The Entity Detail Panel's last element is a role=alert line reading 'Clips on one Layer cannot overlap.', and the field shows 30 again. The stored record is unchanged: updatedAt 1790228249001 before and after, and both Clips keep the same start, duration and Layer. Capture 2 is the review's P1 case (Show b9544842-9ff9-4975-846d-ccff9b87d410). TestPattern1D spans 0-60 s and CometLoom 62-92 s, ending at Show End 92 s, joined by a native whole-output 2 s crossfade boundary (conversion provenance removed, so a retime shifts the Clips after it). The boundary Transition panel's Duration (s) is set to 10. The transition-resize owner refuses because CometLoom would run past Show End. The panel's last element is a role=alert line reading 'This Transition would run past Show End.', and the Duration field shows 2 again, not the refused 10. The stored record is unchanged: updatedAt 1790228248991 before and after, Transition durationMs 2000, and showEndMs 92000 before and after.",
+  "captures": [
+    ".wrsp/ui-proof/1098b-r3-inspector.png",
+    ".wrsp/ui-proof/1098b-r3-boundary-duration.png"
+  ],
+  "capturedAtCommit": "c0b35ebd04715d6913c10064041ddb01123c8ec3"
+}
