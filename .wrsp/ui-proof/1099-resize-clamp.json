@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1099",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1099-mueujuky",
+  "operation": "Existing Show editor on the v2 backing at 1440x900, a resizeBoundaryShow record converted to v2 and seeded through POST /api/shows?show-version=2: resize-a (CometLoom) 0-4000 ms and resize-b 8000-10000 ms on the same Zone and Layer, with no Transition. With Alt held, the 'Resize CometLoom end' handle is dragged 0.4 of the lane width (1072.9 px) to the right, aiming at about 12 s. While the mouse is still down, resize-a's right edge is at 747.9 px and resize-b's left edge is at 747.9 px (0 px apart, no overlap), and the resize readout reads 0-8s (capture 1). After release the stored v2 record holds resize-a startMs 0, durationMs 8000 (was 0/4000) and resize-b unchanged at 8000/2000 (capture 2). Capture 3 is the readback of these values; the stored record was read from GET /api/shows?show-version=2, while the single-Show GET /api/shows/<id>?show-version=2 returned 405. Before #1099 the same drag previewed 0-12 s over the neighbour and saved nothing.",
+  "captures": [
+    ".wrsp/ui-proof/1099-drag.png",
+    ".wrsp/ui-proof/1099-released.png",
+    ".wrsp/ui-proof/1099-readback.png"
+  ],
+  "capturedAtCommit": "ef363b2d4108723c2afd5edb1e9f78bd1849c5ab"
+}
