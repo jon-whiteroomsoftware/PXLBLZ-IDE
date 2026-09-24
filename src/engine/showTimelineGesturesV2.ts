@@ -1,5 +1,6 @@
-import type { ShowClipEditIntentV2 } from './showClipsV2'
+import type { ShowClipEditIntentV2, ShowClipEditRefusalV2 } from './showClipsV2'
 import { editShowClipV2 } from './showClipsV2'
+import type { ShowCompositionV2ValidationCode } from './showCompositionV2'
 import type { ShowClipTemporalIntentV2 } from './showClipTemporalV2'
 import type { ShowTimelineItemView, ShowTimelineViewModel } from './showTimelineViewModel'
 import {
@@ -160,7 +161,7 @@ export function planShowTimelineGestureV2(
 export function checkShowTimelineDuplicateGestureV2(
   capture: ShowV2ClipSharingCapture,
   gesture: Extract<ShowTimelineGestureV2, { kind: 'duplicate' }>,
-): { status: 'ready' } | { status: 'refused'; message: string; code: ShowV2DuplicateRefusalCode } {
+): { status: 'ready' } | { status: 'refused'; message: string; code: ShowV2DuplicateRefusalCode; ownerRefusal?: { code: ShowClipEditRefusalV2; issueCode?: ShowCompositionV2ValidationCode } } {
   const clip = capture.record.composition.clips.find(candidate => candidate.id === gesture.clipId)
   if (!clip) {
     return { status: 'refused', message: 'Choose one ordinary Clip. A Group Clip use is edited through its Group occurrence.', code: 'missing-clip' }
@@ -179,7 +180,7 @@ export function checkShowTimelineDuplicateGestureV2(
   }
   const result = editShowClipV2(capture.record, planned.submission.intent)
   return result.status === 'refused'
-    ? { status: 'refused', message: result.message, code: 'owner-refused' }
+    ? { status: 'refused', message: result.message, code: 'owner-refused', ownerRefusal: { code: result.code, ...(result.issueCode ? { issueCode: result.issueCode } : {}) } }
     : { status: 'ready' }
 }
 

@@ -116,12 +116,13 @@ export function showV2PlannerRefusalInput(
 }
 
 /**
- * The input for a refused duplicate plan (Alt-duplicate or Clone). Only a copy
- * that would run past Show End has its own copy; every other duplicate
- * refusal takes the fallback.
+ * The input for a refused duplicate plan (Alt-duplicate or Clone). Owner
+ * refusals use the same copy as a refused commit; draft refusals name a copy
+ * past Show End or take the fallback.
  */
-export function showV2DuplicateRefusalInput(code: ShowV2DuplicateRefusalCode | undefined): ShowV2EditRefusalInput {
-  return code === 'past-show-end' ? { kind: 'past-show-end' } : { kind: 'refused' }
+export function showV2DuplicateRefusalInput(refusal: { code?: ShowV2DuplicateRefusalCode; ownerRefusal?: { code: string; issueCode?: ShowCompositionV2ValidationCode } } | undefined): ShowV2EditRefusalInput {
+  if (refusal?.ownerRefusal) return showV2CommitRefusalInput({ source: 'owner', ...refusal.ownerRefusal })
+  return refusal?.code === 'past-show-end' ? { kind: 'past-show-end' } : { kind: 'refused' }
 }
 
 /** The input for a refused double-click add, which has no Clip to label. */

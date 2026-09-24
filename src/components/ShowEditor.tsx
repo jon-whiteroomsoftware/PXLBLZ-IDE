@@ -356,7 +356,6 @@ import { checkShowTimelineDuplicateGestureV2, planShowTimelineGestureV2, type Sh
 import {
   createShowV2IndependentIntent,
   createShowV2RejoinIntent,
-  type ShowV2DuplicateRefusalCode,
 } from '@/engine/showV2ClipSharingEditorModel'
 import type { CreateShowGroupFromSelectionIntentV2 } from '@/engine/showGroupCreationV2'
 import { planShowV2GroupCreation } from '@/engine/showV2GroupCreationEditorModel'
@@ -1926,7 +1925,7 @@ export function ShowEditor({
       zoneId: clip.zoneId,
       layerId: clip.layerId,
     }, newPersonalContentId)
-    if (planned.status === 'refused') return refuse(showV2DuplicateRefusalInput(planned.code))
+    if (planned.status === 'refused') return refuse(showV2DuplicateRefusalInput(planned))
     if (planned.status !== 'ready' || planned.submission.owner !== 'clip-sharing') return null
     const selectClipId = planned.selectAfterId ?? planned.submission.intent.identities.clipId
     const applied = await commitV2ClipSharing({ ...gesture, intent: planned.submission.intent })
@@ -6466,7 +6465,7 @@ function ShowTimelineWorkspace({
   // The last Alt-duplicate preview the check refused, kept for the gesture so
   // its release or drop can name the reason (#1098). The preview itself
   // clears, so the drop finds no plan to commit.
-  const duplicatePreviewRefusalRef = useRef<{ clipId: string; targetKey: string; code: ShowV2DuplicateRefusalCode } | null>(null)
+  const duplicatePreviewRefusalRef = useRef<(Extract<ReturnType<typeof checkShowTimelineDuplicateGestureV2>, { status: 'refused' }> & { clipId: string; targetKey: string }) | null>(null)
   const activeMoveLayerRef = useRef<{
     element: HTMLElement
     layer: ShowTimelineLayerView
@@ -6864,7 +6863,7 @@ function ShowTimelineWorkspace({
         if (!duplicateCheck || duplicateCheck.status !== 'ready') {
           if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
           duplicatePreviewRefusalRef.current = duplicateCheck
-            ? { clipId: clip.id, targetKey: input.targetKey, code: duplicateCheck.code }
+            ? { ...duplicateCheck, clipId: clip.id, targetKey: input.targetKey }
             : null
           movePlanRef.current = null
           setMovePreview(null)
@@ -7030,7 +7029,7 @@ function ShowTimelineWorkspace({
     const held = draggedClip.v2Move
     const current = captureV2Move?.()
     const stale = !held || !current || current.capture !== held.capture || current.baseRevision !== held.baseRevision
-    reportV2Refusal(refusal.clipId, stale ? { kind: 'stale' } : showV2DuplicateRefusalInput(refusal.code))
+    reportV2Refusal(refusal.clipId, stale ? { kind: 'stale' } : showV2DuplicateRefusalInput(refusal))
   }
   const resetCompositionClipMove = () => {
     if (draggingCompositionClipRef.current?.settling) return
@@ -7134,7 +7133,7 @@ function ShowTimelineWorkspace({
           const resolved = draggedClip.v2Move
             ? planShowTimelineGestureV2(draggedClip.v2Move.capture, activePlan.plan.gesture, newPersonalContentId)
             : null
-          if (resolved?.status === 'refused') reportV2Refusal(draggedClip.clipId, showV2DuplicateRefusalInput(resolved.code))
+          if (resolved?.status === 'refused') reportV2Refusal(draggedClip.clipId, showV2DuplicateRefusalInput(resolved))
           if (!resolved || resolved.status !== 'ready' || resolved.submission.owner !== 'clip-sharing') return Promise.resolve(false)
           const selectClipId = resolved.selectAfterId ?? resolved.submission.intent.identities.clipId
           pendingSelectClipId = selectClipId
@@ -8858,7 +8857,7 @@ function ShowTimelineWorkspace({
                               }, newPersonalContentId)
                             : null
                           if (!duplicatePlan || duplicatePlan.status !== 'ready' || duplicatePlan.submission.owner !== 'clip-sharing') {
-                            if (duplicatePlan?.status === 'refused') reportV2Refusal(clip.id, showV2DuplicateRefusalInput(duplicatePlan.code))
+                            if (duplicatePlan?.status === 'refused') reportV2Refusal(clip.id, showV2DuplicateRefusalInput(duplicatePlan))
                             return Promise.resolve(false)
                           }
                           collapsedDuplicateSelectClipId = duplicatePlan.selectAfterId

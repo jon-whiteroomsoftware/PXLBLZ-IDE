@@ -87,10 +87,11 @@ describe('refusal inputs', () => {
     expect(showV2AddRefusalInput('inside-transition')).toEqual({ kind: 'add', code: 'inside-transition' })
   })
 
-  it('maps a duplicate refusal by its code: past Show End, else the fallback', () => {
-    expect(showV2DuplicateRefusalInput('past-show-end')).toEqual({ kind: 'past-show-end' })
-    expect(showV2DuplicateRefusalInput('invalid-destination')).toEqual({ kind: 'refused' })
-    expect(showV2DuplicateRefusalInput('missing-clip')).toEqual({ kind: 'refused' })
+  it('maps a duplicate refusal by its owner issue or draft code', () => {
+    expect(showV2DuplicateRefusalInput({ code: 'owner-refused', ownerRefusal: { code: 'invalid-result', issueCode: 'overlap' } })).toEqual({ kind: 'overlap' })
+    expect(showV2DuplicateRefusalInput({ code: 'past-show-end' })).toEqual({ kind: 'past-show-end' })
+    expect(showV2DuplicateRefusalInput({ code: 'invalid-destination' })).toEqual({ kind: 'refused' })
+    expect(showV2DuplicateRefusalInput({ code: 'missing-clip' })).toEqual({ kind: 'refused' })
     expect(showV2DuplicateRefusalInput(undefined)).toEqual({ kind: 'refused' })
   })
 

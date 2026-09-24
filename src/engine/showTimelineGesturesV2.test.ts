@@ -252,7 +252,7 @@ describe('v2 timeline gesture adapters', () => {
     } as const
 
     expect(checkShowTimelineDuplicateGestureV2(held, overlapping)).toMatchObject({
-      status: 'refused', code: 'owner-refused', message: expect.stringContaining('overlap'),
+      status: 'refused', code: 'owner-refused', ownerRefusal: { issueCode: 'overlap' }, message: expect.stringContaining('overlap'),
     })
     expect(held.record).toBe(record)
 

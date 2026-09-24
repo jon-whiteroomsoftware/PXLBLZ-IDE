@@ -8177,16 +8177,15 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     const selectionBefore = useShowEditorViewStore.getState().selection
     surface.fire(surface.clip, 'dragstart', 0, true)
     surface.fire(surface.lane('main'), 'dragover', 85, true)
-    expect(timelineStatus()).toBeNull()
     const reanchors = watchDetailReanchors()
     surface.fire(surface.lane('main'), 'drop', 85, true)
     await settleDrop()
 
-    // A refused copy selects nothing new and re-anchors nothing.
+    // The preview refuses the copy (#1111-B3), selecting nothing new and re-anchoring nothing.
     expect(useShowEditorViewStore.getState().selection).toEqual(selectionBefore)
     expect(reanchors()).toBe(0)
     const after = editor.state()
-    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipSharingEdit'])
+    expect(admission.calls.map((call) => call.door)).toEqual([])
     expect(after.record).toBe(before.record)
     expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length)
     expect(after.v2Writes).toBe(0)
