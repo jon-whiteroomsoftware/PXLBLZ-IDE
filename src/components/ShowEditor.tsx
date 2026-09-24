@@ -96,6 +96,7 @@ import {
 } from '@/engine/showPropertyLaneProjection'
 import { installationCoverageBlockingMessage, resolveShowZonePixelCount, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { validateInstallationCoverageV2 } from '@/engine/showInstallationCoverageV2'
+import { showV2DeliveryRefusal } from '@/engine/showV2RouteDelivery'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { declaredPatternSliderNames, bundledPatternSliderNames, resolveBundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
@@ -1213,7 +1214,7 @@ function ShowLiveNarration({ showId, narrationAt }: { showId: string; narrationA
 }
 
 interface ShowDeliverySnapshot {
-  show: ShowRecord
+  show: { id: string; name: string }
   controllerIp: string | null
   controllerSession: GeneratedArtifactControllerSession
   artifact: NonNullable<CompiledShowState['artifact']>
@@ -3003,18 +3004,20 @@ export function ShowEditor({
       ? deferredArtifactCompilationInput
       : null
   const compiledShow = effectiveArtifactCompilationInput?.show ?? null
+  const deliveredShow: { id: string; name: string } | null = recordVersion === 2 ? lessonProjectionV2 : compiledShow
   // The authored-v2 artifact comes from the same closed preparation the Stage
   // reads, so the Source code readout and its diagnostics describe one compile
   // rather than a second editor-local one (#1065).
   const compiled = useMemo<CompiledShowState>(() => {
     if (recordVersion === 2) {
       const prepared = presentationV2Capture?.prepared
-      // The tray banner and its View code/Download gating read artifactBlocker
-      // exactly as on v1, so the v2 Installation coverage verdict surfaces
-      // there while artifact and error stay as prepared (#1066).
-      const artifactBlocker = savedShowV2
-        ? installationCoverageBlockingMessage(validateInstallationCoverageV2(savedShowV2)) ?? undefined
-        : undefined
+      // A prepared v2 Show uses the same ordered delivery refusals as the
+      // route artifact builder. Before preparation, coverage can still surface.
+      const artifactBlocker = prepared?.status === 'ready'
+        ? showV2DeliveryRefusal(prepared.bundle) ?? undefined
+        : savedShowV2
+          ? installationCoverageBlockingMessage(validateInstallationCoverageV2(savedShowV2)) ?? undefined
+          : undefined
       if (prepared?.status === 'ready') return { artifact: prepared.bundle.artifact, error: null, artifactBlocker }
       return { artifact: null, error: prepared?.status === 'refused' ? prepared.message : null, artifactBlocker }
     }
@@ -3507,14 +3510,14 @@ export function ShowEditor({
     if (
       !artifactCompilationReady
       || !deliveryControllerSession
-      || !compiledShow
+      || !deliveredShow
       || !compiled.artifact
       || compiled.artifactBlocker
       || compilePressure?.status === 'blocked'
       || !preparedControllerArtifact.value
     ) return null
     return {
-      show: compiledShow,
+      show: { id: deliveredShow.id, name: deliveredShow.name },
       controllerIp: activeIp,
       controllerSession: deliveryControllerSession,
       artifact: compiled.artifact,
@@ -3525,7 +3528,7 @@ export function ShowEditor({
     artifactCompilationReady,
     compiled.artifact,
     compiled.artifactBlocker,
-    compiledShow,
+    deliveredShow,
     compilePressure?.status,
     deliveryControllerSession,
     preparedControllerArtifact.value,
@@ -3802,8 +3805,8 @@ export function ShowEditor({
     pendingDeliveryRef.current = null
     setPendingSendMode(null)
   }
-  useShowControllerDelivery(activeShow ? {
-    subject: { kind: 'show', id: showId, name: activeShow.name, deliveryBlocker, runAlreadyPushed: alreadySent('run'), saveAlreadyPushed: alreadySent('save') },
+  useShowControllerDelivery(deliveredShow ? {
+    subject: { kind: 'show', id: showId, name: deliveredShow.name, deliveryBlocker, runAlreadyPushed: alreadySent('run'), saveAlreadyPushed: alreadySent('save') },
     mode: showSendMode,
     pushing: controllerPushing || preparingSave,
     succeeded: !!showControllerPushResult?.ok,
