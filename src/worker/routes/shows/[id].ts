@@ -1,8 +1,8 @@
 import { readSessionFromRequest } from '../../../cloudflare/auth'
 import { readProtectedJson, type D1ResourceProtectionDatabaseLike } from '../../../cloudflare/resourceProtection'
-import { deleteD1Show, replaceD1ShowV2, updateD1Show, type D1DatabaseShowsLike } from '../../../cloudflare/shows'
-import type { ShowRecord } from '../../../engine/personalContentRecords'
+import { deleteD1Show, replaceD1ShowV2, type D1DatabaseShowsLike } from '../../../cloudflare/shows'
 import type { ShowRecordV2 } from '../../../engine/showCompositionV2'
+import { showV1RetiredResponse } from './showV1Retired'
 
 interface WorkerRouteContext {
   request: Request
@@ -31,14 +31,7 @@ export async function onRequestPatch(context: WorkerRouteContext): Promise<Respo
   const session = await readSessionFromRequest(context.request, context.env.SESSION_SECRET)
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
   if (!context.env.PXLBLZ_DB) return Response.json({ error: 'D1 database is not configured' }, { status: 503 })
-
-  const changes = await readProtectedJson<Partial<Omit<ShowRecord, 'id'>>>(
-    context.request,
-    context.env.PXLBLZ_DB,
-    session.userId,
-  )
-  await updateD1Show(context.env.PXLBLZ_DB, session.userId, context.params.id, changes)
-  return Response.json({ ok: true })
+  return showV1RetiredResponse()
 }
 
 export async function onRequestDelete(context: WorkerRouteContext): Promise<Response> {

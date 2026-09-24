@@ -77,6 +77,7 @@ import { STOCK_SHOWS, type StockShow } from '@/pixelblaze/stock/shows'
 import { parseShowFileBundle } from '@/engine/showFileBundle'
 import { applyShowImportPlan, planShowImport, ShowImportPlanError, type ShowImportPlan } from '@/engine/showImportPlan'
 import { applyShowImportPlanV2, planShowImportV2, type ShowImportPlanV2 } from '@/engine/showImportPlanV2'
+import { convertAppliedShowImportV1 } from '@/engine/showImportV1Conversion'
 import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
 import { searchEntityOrganization } from '@/engine/entityOrganization'
 
@@ -137,8 +138,6 @@ export function PatternList({
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
   const removeShow = useShowStore((s) => s.removeShow)
-  const duplicateShow = useShowStore((s) => s.duplicateShow)
-  const addImportedShow = useShowStore((s) => s.addImportedShow)
   const addImportedShowV2 = useShowStore((s) => s.addImportedShowV2)
   const patternOrganization = useEntityOrganizationStore((s) => s.organizations.patterns)
   const showOrganization = useEntityOrganizationStore((s) => s.organizations.shows)
@@ -359,7 +358,18 @@ export function PatternList({
         openShowV2Route(applied.show.id)
         return
       }
+      // A version-1 file stores a version-2 record (#1042): the applied Show
+      // converts before anything is written, against the Patterns and Maps the
+      // import is about to create and the workspace's own.
       const applied = applyShowImportPlan(plan as ShowImportPlan)
+      const converted = convertAppliedShowImportV1(applied, {
+        patterns: usePatternStore.getState().userPatterns,
+        maps: useMapStore.getState().userMaps,
+      })
+      // A refusal reports its first issue in the import dialog's error state.
+      if (converted.status === 'refused') {
+        throw new Error(converted.issues[0]?.message ?? 'This Show could not be converted to version 2.')
+      }
       for (const pattern of applied.newPatterns) {
         await addPattern(pattern)
         createdPatterns.push(pattern.id)
@@ -368,10 +378,10 @@ export function PatternList({
         await addMap(map)
         createdMaps.push(map.id)
       }
-      await addImportedShow(applied.show)
+      await addImportedShowV2(converted.record)
       createdShow = true
       setShowImportDialog(null)
-      openUserShow(applied.show)
+      openShowV2Route(converted.record.id)
     } catch (cause) {
       const plannedShowId = plan.show.id
       if (createdShow) await useShowStore.getState().removeShow(plannedShowId).catch(() => {})
@@ -886,15 +896,9 @@ export function PatternList({
   }
 
   async function handleDuplicateShow(id: string) {
-    // One rail action, two stored versions: a v2 row copies through its own
-    // owner and opens on the same route (#1039).
-    if (useShowStore.getState().showV2Rows.some((row) => row.id === id)) {
-      const copy = await duplicateShowV2Row(id)
-      if (copy) openShowV2Route(copy.id)
-      return
-    }
-    const copy = await duplicateShow(id)
-    if (copy) openUserShow(copy)
+    // Personal Shows are stored as v2 only (#1042).
+    const copy = await duplicateShowV2Row(id)
+    if (copy) openShowV2Route(copy.id)
   }
 
   /** A stored v2 row opens on the same route; the gate decides what renders. */

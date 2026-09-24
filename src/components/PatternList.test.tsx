@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PatternList } from './PatternList'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
@@ -21,6 +21,12 @@ import { showInitialState, useShowStore } from '@/store/showStore'
 import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { stampArtifact } from '@/engine/artifactStamp'
 import { createDefaultShow } from '@/engine/showModel'
+import { buildShowFileBundle } from '@/engine/showFileBundle'
+import { gzipSync } from 'node:zlib'
+import { Blob as NodeBlob } from 'node:buffer'
+import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
+import type { ShowRecord } from '@/engine/personalContentRecords'
+import { convertibleV1Show } from '@/test/showV2TracerFixture'
 import { createShowV2WithOutputContract } from '@/engine/showCreationV2'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
@@ -719,17 +725,19 @@ describe('PatternList', () => {
     expect(await screen.findByText('Sign in')).toBeInTheDocument()
   })
 
-  it('restores the last-active Show without requiring a query parameter', async () => {
+  it('does not restore a last-active Show still stored as v1 (#1042)', async () => {
+    // The v1 list is retired: an unconverted row never loads, so a last-active
+    // pointer at it opens nothing rather than a v1 editor.
     const show = createDefaultShow('saved-show', 'Saved Show', 1000)
     mockShows = [show]
     mockLastActive = { type: 'show', id: show.id }
 
     render(<PatternList />)
 
-    await waitFor(() => {
-      expect(useShowStore.getState().activeShowId).toBe(show.id)
-    })
-    expect(usePatternStore.getState().activeDemoName).toBeNull()
+    await waitFor(() => expect(useShowStore.getState().showsLoaded).toBe(true))
+    expect(useShowStore.getState().shows).toEqual([])
+    expect(useShowStore.getState().activeShowId).toBeNull()
+    expect(requests.some((request) => request.url === '/api/shows')).toBe(false)
   })
 
   it('lists built-in patterns in a collapsible Patterns section and opens them read-only', async () => {
@@ -1255,10 +1263,12 @@ describe('PatternList', () => {
      */
     describe('routed v2 row selection (#1064)', () => {
       async function renderRailWithRows() {
-        mockShows = [createDefaultShow('v1-stale', 'Stale v1', 1)]
         mockShowsV2 = [createShowV2WithOutputContract('v2-open', 'Open v2', V2_CONTRACT, 1)]
         await renderShowsRail()
         await screen.findByText('Open v2')
+        // No v1 row loads since #1042; the retained v1 rail selection is seeded
+        // directly until Phase 2 removes it.
+        act(() => useShowStore.setState({ shows: [createDefaultShow('v1-stale', 'Stale v1', 1)] }))
         await screen.findByText('Stale v1')
       }
 
@@ -1395,5 +1405,109 @@ describe('PatternList', () => {
       }]))
       expect(showOrganizationWrites()).toEqual([])
     })
+  })
+})
+
+/**
+ * A version-1 `.pxlshow` stores a version-2 record (#1042): the applied Show
+ * converts before anything is written, is created through the v2 route and
+ * opens there; a refusal reports its first issue and leaves nothing behind.
+ */
+describe('version-1 Show file import (#1042)', () => {
+  const BUNDLED_PATTERN: PatternRecord = {
+    id: 'bundled-pattern',
+    name: 'Bundled Pattern',
+    src: DEMOS.TestPattern1D,
+    controls: {},
+    updatedAt: 1,
+  }
+
+  function v1ShowUsingBundledPattern(): ShowRecord {
+    const show = convertibleV1Show()
+    show.id = 'imported-v1'
+    show.name = 'Imported v1'
+    show.composition!.patternInstances[0] = {
+      ...show.composition!.patternInstances[0],
+      pattern: { kind: 'user', id: BUNDLED_PATTERN.id },
+      patternName: BUNDLED_PATTERN.name,
+    }
+    return show
+  }
+
+  async function importV1Bundle(show: ShowRecord) {
+    const user = userEvent.setup()
+    const { bundle } = buildShowFileBundle(show, { patterns: [BUNDLED_PATTERN], maps: [] }, { appVersion: 'test' })
+    const bytes = gzipSync(JSON.stringify(bundle))
+    // jsdom's Blob has no stream(); the importer decompresses through one.
+    vi.stubGlobal('Blob', NodeBlob)
+    render(<PatternList />)
+    await switchRailMode('Shows')
+    await user.click(await screen.findByRole('button', { name: 'Add show' }))
+    await user.click(await screen.findByRole('button', { name: 'Import Show file…' }))
+    const file = { name: 'imported-v1.pxlshow', arrayBuffer: async () => Uint8Array.from(bytes).buffer }
+    fireEvent.change(screen.getByTestId('show-file-input'), { target: { files: [file] } })
+    const dialog = await screen.findByRole('alertdialog', { name: /Import/ })
+    requests = []
+    await user.click(within(dialog).getByRole('button', { name: 'Import Show' }))
+    return dialog
+  }
+
+  const writes = () => requests
+    .filter(({ init }) => init?.method !== undefined)
+    .map(({ url, init }) => [url, init!.method])
+
+  it('converts the applied Show to a stored v2 record and opens it on the v2 route', async () => {
+    const dialog = await importV1Bundle(v1ShowUsingBundledPattern())
+
+    await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    await waitFor(() => expect(mockShowsV2).toHaveLength(1))
+    const [stored] = mockShowsV2
+    expect(stored).toMatchObject({ version: 2, name: 'Imported v1' })
+    const pattern = requests.find(({ url, init }) => url === '/api/patterns' && init?.method === 'POST')
+    const createdPatternId = (JSON.parse(String(pattern!.init!.body)) as PatternRecord).id
+    expect(stored.composition.patternInstances.map((instance) => instance.pattern))
+      .toEqual([{ kind: 'user', id: createdPatternId }])
+    expect(writes()).not.toContainEqual(['/api/shows', 'POST'])
+    expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toEqual([stored.id])
+    expect(useShowStore.getState().shows).toEqual([])
+    expect(window.location.pathname).toBe(`/studio/shows/${stored.id}`)
+  })
+
+  it('reports a conversion refusal by its first issue and writes nothing', async () => {
+    // A boundary Transition that carries Pattern controls: the planner accepts
+    // the file, and the v1-to-v2 conversion refuses that carrier.
+    const show = createDefaultShow('imported-v1', 'Imported v1', 1)
+    show.scenes = [
+      { id: 'scene-1', name: 'Scene 1', durationMs: 4000 },
+      { id: 'scene-2', name: 'Scene 2', durationMs: 4000 },
+    ]
+    show.cells = show.scenes.map((scene, index) => ({
+      id: `cell-${index + 1}`,
+      zoneId: show.zones[0].id,
+      sceneId: scene.id,
+      sceneSpan: 1,
+      pattern: { kind: 'user' as const, id: BUNDLED_PATTERN.id },
+      patternName: BUNDLED_PATTERN.name,
+      adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
+      restartOnEntry: false,
+      controlTargets: { speed: 0.5 },
+    }))
+    show.transitions = [{
+      id: 'xfade', afterSceneId: 'scene-1', kind: 'crossfade', durationMs: 2000,
+      easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
+      propertyTransitions: { controls: { speed: { fromByCellId: { 'cell-2': 0.5 } } } },
+    }]
+    const expected = convertShowRecordV1ToV2(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, BUNDLED_PATTERN.src])),
+    })
+    if (expected.status !== 'refused') throw new Error('The fixture must refuse conversion.')
+
+    const dialog = await importV1Bundle(show)
+
+    expect(await within(dialog).findByText(expected.issues[0].message)).toBeInTheDocument()
+    expect(writes()).toEqual([])
+    expect(mockShowsV2).toEqual([])
+    expect(useShowStore.getState().showV2Rows).toEqual([])
+    expect(usePatternStore.getState().userPatterns.map((pattern) => pattern.name)).not.toContain(BUNDLED_PATTERN.name)
   })
 })

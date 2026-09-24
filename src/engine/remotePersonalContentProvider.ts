@@ -8,7 +8,7 @@ import {
   type PersonalContentProvider,
 } from './personalContentProvider'
 import type { Settings } from './settings'
-import type { LibraryRecord, MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
+import type { LibraryRecord, MapRecord, MixinRecord, PatternRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
 import type { EntityOrganizationV1 } from './entityOrganization'
 import type { ShowRecordV2 } from './showCompositionV2'
@@ -118,39 +118,11 @@ export function createRemotePersonalContentProvider(
         method: 'DELETE',
       })
     },
-    listShows: async () => {
-      const body = await requestJson<{ shows: ShowRecord[] }>(fetcher, '/api/shows')
-      return body.shows
-    },
-    createShow: async (record) => {
-      await requestJson(fetcher, '/api/shows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record),
-      })
-    },
-    updateShow: async (id, changes) => {
-      // A patch that carries targetControllerProfileId as undefined means
-      // "clear it": JSON would drop the key and the D1 update would skip the
-      // column, resurrecting the stale id on reload. Translate the clear to
-      // an explicit wire-level null here, keeping the typed provider
-      // contract (string | undefined) intact for every other provider.
-      const wireChanges = {
-        ...changes,
-        ...('targetControllerProfileId' in changes && changes.targetControllerProfileId === undefined
-          ? { targetControllerProfileId: null } : {}),
-        // Full-record replacement (including Undo) explicitly supplies undefined
-        // for absent Effects. Preserve that clear across JSON; sparse omission
-        // still leaves the remote column unchanged.
-        ...(Object.prototype.hasOwnProperty.call(changes, 'outputEffects') && changes.outputEffects === undefined
-          ? { outputEffects: [] } : {}),
-      }
-      await requestJson(fetcher, `/api/shows/${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(wireChanges),
-      })
-    },
+    // The Worker refuses v1 Show reads and writes with 410 (#1042). No UI path
+    // reaches these; a stray call fails loudly instead of reading a 410 body.
+    listShows: showV1Retired,
+    createShow: showV1Retired,
+    updateShow: showV1Retired,
     deleteShow: async (id) => {
       await requestJson(fetcher, `/api/shows/${encodeURIComponent(id)}`, {
         method: 'DELETE',
@@ -231,4 +203,16 @@ async function requestJson<T = unknown>(
     throw new Error(`Remote personal content request failed: ${response.status}`)
   }
   return await response.json() as T
+}
+
+/** The retired v1 Show methods' refusal (#1042); hydration treats it as no v1 rows. */
+export class ShowV1RetiredError extends Error {
+  constructor() {
+    super('show-v1-retired: Show version 1 records are no longer read or written; convert them with the operator migration.')
+    this.name = 'ShowV1RetiredError'
+  }
+}
+
+function showV1Retired(): Promise<never> {
+  return Promise.reject(new ShowV1RetiredError())
 }

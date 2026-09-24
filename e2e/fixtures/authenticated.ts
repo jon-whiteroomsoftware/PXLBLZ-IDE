@@ -183,8 +183,9 @@ function trackAgentRegistrations(page: Page): {
 }
 
 export async function removeSyntheticContent(request: APIRequestContext): Promise<void> {
-  // Shows are swept through the version-2 list, which returns every stored
-  // Show whatever its version; DELETE /api/shows/:id serves both (#1042).
+  // Shows are swept through the version-2 list; DELETE /api/shows/:id serves
+  // any stored row. Since #1042 Phase 1b that list holds version-2 rows only,
+  // and the version-1 list answers 410; no test seeds a version-1 row.
   await removeStoredShowsV2(request)
   for (const resource of ['patterns', 'maps', 'mixins', 'libraries', 'controllers'] as const) {
     const response = await request.get(`/api/${resource}`)

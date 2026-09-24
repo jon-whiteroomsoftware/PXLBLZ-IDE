@@ -909,15 +909,18 @@ behaviors are proved and which residuals are still carried.
 
 **Which record backs the open editor.** `SHOW_V2_ROUTE_DEFAULT` is `true`, so
 version 2 is the ordinary Show path: a fresh Show is authored as a
-`ShowRecordV2`, the Show list reads stored version-2 documents beside whatever
-is still version 1, `.pxlshow` import accepts either version, and an unbound MCP
+`ShowRecordV2`, the Show list reads stored version-2 documents only,
+`.pxlshow` import accepts either version and stores a version-1 file as a
+converted version-2 record, and an unbound MCP
 connection is described the v2 catalogue. There is one editor and no route gate:
 since #1065 a stored version-2 document opens in the same `ShowEditor` every
 other Show opens in, ungated. What follows the Show's stored version is the
 *record* that editor reads, because nothing in the application converts a stored
-row: a version-2 document backs the editor with its converted pilot record, and
-a row still stored as version 1 keeps its version-1 record, its command
-vocabulary and its behavior until the operator conversion below rewrites it.
+row: a version-2 document backs the editor with its converted pilot record. Since
+#1042 Phase 1b a row still stored as version 1 is not read at all: the Worker
+answers the v1 list, a v1 create and every PATCH with 410 `show-v1-retired`,
+the row's route shows "Show not found", and it waits for the operator conversion
+below (#1105).
 A built-in Show opens on its native version-2 catalogue record as a session-only
 lesson draft that writes nothing (#1067). Until #1066 connects
 the remaining edits, a version-2 record in that editor has only the ordinary
@@ -962,7 +965,9 @@ pass, its interruption and resume, its idempotent repeat and its rollback.
 Layers, Groups, Markers, explicit Show End, and Property animation; the
 record's Scenes, Zones, boundary Transitions, and routing layouts remain the
 compiler substrate. `showModel.ts` owns creation, normalization, projection,
-split, and mutation; `showStore` persists through `/api/shows` with per-Show
+split, and mutation. Until #1042 Phase 2 deletes it, the retained v1 half of
+`showStore` persists through a provider whose remote `listShows`, `createShow`
+and `updateShow` now throw `show-v1-retired`; it keeps per-Show
 write queues, optimistic updates, and in-memory undo/redo snapshot stacks.
 The store assigns every accepted replacement a monotonic single-client
 `updatedAt` ordering stamp and applies one supersession-aware recovery policy
@@ -985,6 +990,12 @@ instances, Stage maps, and output-contract maps together, then normalizes and
 validates the complete Show. The imported Show always receives a fresh ID and
 persists its original Show ID, app version, export time, and import time in
 `importMetadata`; D1 stores that sidecar in `personal_shows.import_metadata_json`.
+Since #1042 Phase 1b a version-1 file stores a version-2 record: the applied
+Show converts through `convertAppliedShowImportV1`
+(`src/engine/showImportV1Conversion.ts`), which resolves Pattern sources and the
+Stage dimension exactly as the operator migration does, against the Patterns and
+Maps the import creates and the workspace's own. Conversion runs before any
+write; a refusal shows its first issue in the import dialog and writes nothing.
 
 ![Show authoring model: direct timeline entities and routing pass through an internal compatibility representation, then compile into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 

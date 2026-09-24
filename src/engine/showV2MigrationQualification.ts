@@ -16,7 +16,8 @@ import type { ShowRecordV2 } from './showCompositionV2'
 import { isShowRecordV2, type ShowDocument } from './showDocument'
 import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } from './showFileBundle'
 import { applyShowImportPlanV2, planShowImportV2 } from './showImportPlanV2'
-import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef } from './personalContentRecords'
+import type { LibraryRecord, MapRecord, PatternRecord, ShowPatternRef, ShowRecord } from './personalContentRecords'
+import type { ShowCompileRecipeSourceLookup } from './showModel'
 import type { ShowV2MigrationQualification } from './showV2Migration'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
@@ -124,6 +125,35 @@ function sourceLookup(record: ShowRecordV2, patterns: readonly PatternRecord[], 
     return source === undefined ? [] : [[instance.id, source]]
   }))
   return { byCellId: {}, byPatternInstanceId, stageDimension: resolveShowStageDimensionV2(record.stageMapId, maps) }
+}
+
+/**
+ * The source lookup a version-1 Show converts against, resolved exactly as the
+ * operator migration resolves a stored row (#1042): every flat Cell and
+ * composition Pattern instance by its exact source, and the Stage dimension
+ * from the Show's own Stage map. An unresolvable reference contributes nothing,
+ * so conversion refuses by name instead of converting against a guess.
+ */
+export function showV1ConversionSources(
+  show: ShowRecord,
+  patterns: readonly PatternRecord[],
+  maps: readonly MapRecord[],
+): ShowCompileRecipeSourceLookup {
+  const instances = [
+    ...(show.composition?.patternInstances ?? []),
+    ...(show.composition?.groupDefinitions ?? []).flatMap(definition => definition.patternInstances),
+  ]
+  return {
+    byCellId: Object.fromEntries(show.cells.flatMap(cell => {
+      const source = exactPatternSource(cell.pattern, patterns)
+      return source === undefined ? [] : [[cell.id, source]]
+    })),
+    byPatternInstanceId: Object.fromEntries(instances.flatMap(instance => {
+      const source = exactPatternSource(instance.pattern, patterns)
+      return source === undefined ? [] : [[instance.id, source]]
+    })),
+    stageDimension: resolveShowStageDimensionV2(show.stageMapId, maps),
+  }
 }
 
 function exactPatternSource(reference: ShowPatternRef, patterns: readonly PatternRecord[]): string | undefined {

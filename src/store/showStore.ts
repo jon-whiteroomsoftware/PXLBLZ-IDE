@@ -36,6 +36,7 @@ import {
   reconcileShowExecutionModelOnCastReturn,
 } from '@/engine/showModel'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
+import { ShowV1RetiredError } from '@/engine/remotePersonalContentProvider'
 import type {
   ShowCell,
   ShowCellAdaptations,
@@ -191,6 +192,7 @@ interface ShowState {
   beginResolvedShowResize: (sessionId: string, intent: ResolvedShowResizeIntent) => ShowEditReceipt
   admitResolvedShowResize: (request: ShowEditRequest) => ShowInputWaitReceipt
   rejectResolvedShowResize: (request: ShowEditRequest) => ShowEditReceipt
+  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
   shows: ShowRecord[]
   showsLoaded: boolean
   activeShowId: string | null
@@ -220,6 +222,7 @@ interface ShowState {
   redoShowV2Pilot: (showId: string) => Promise<boolean>
   reloadShowV2Pilot: (showId: string) => Promise<ShowRecordV2 | null>
   loadShows: () => Promise<void>
+  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
   createNewShow: (input: { name?: string; outputContract: ShowOutputContract }) => Promise<ShowRecord>
   createShowFromController: (profile: ControllerProfile) => Promise<ShowRecordV2>
   beginShowCreation: () => void
@@ -232,7 +235,9 @@ interface ShowState {
    * a session that belongs to the row being deselected (#1039).
    */
   clearActiveShowSelection: () => void
+  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
   addShow: (record: ShowRecord) => Promise<void>
+  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
   addImportedShow: (record: ShowRecord) => Promise<void>
   renameShow: (id: string, name: string) => Promise<void>
   removeShow: (id: string) => Promise<void>
@@ -242,6 +247,7 @@ interface ShowState {
    * projection (built-in Pattern-slot selections) pass it as sourceRecord so
    * the copy keeps what the user sees. Resolves null when the source is
    * unknown or the create fails.
+   * @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2
    */
   duplicateShow: (sourceId: string, sourceRecord?: ShowRecord) => Promise<ShowRecord | null>
   /**
@@ -803,7 +809,12 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     const listProvider = getPersonalContentProvider()
     const listGeneration = showV2WorkspaceGeneration
     const hydration = (async () => {
-    const shows = (await listProvider.listShows())
+    // The remote provider refuses the retired v1 list (#1042); a workspace
+    // then holds no v1 rows and hydrates from the v2 list alone.
+    const shows = (await listProvider.listShows().catch((error: unknown) => {
+      if (error instanceof ShowV1RetiredError) return []
+      throw error
+    }))
       .map(normalizeShowRecord)
     // The v2 rows the list offers beside them. They are a separate read
     // because `shows` stays v1-typed until #1039, and the gate keeps the
@@ -1553,6 +1564,7 @@ function withoutComposition(show: ShowRecord): ShowRecord {
   return flat
 }
 
+/** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
 async function persistShowRecord(next: ShowRecord): Promise<void> {
   await queueShowPersistence(next.id, () => (
     getPersonalContentProvider().updateShow(next.id, showPersistenceChanges(next))

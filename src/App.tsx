@@ -151,7 +151,7 @@ import { useStudioPlaceStore } from '@/store/studioPlaceStore'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 import { AgentDrawerWorkspace } from '@/components/agent/AgentDrawer'
-import { isShowV2RouteEnabled, opensOnShowV2Route } from '@/engine/showV2RouteGate'
+import { opensOnShowV2Route } from '@/engine/showV2RouteGate'
 
 function Splitter({
   onDrag,
@@ -369,12 +369,10 @@ export default function App() {
 
 function StudioApp() {
   // #1056 rebuilt the ordinary editor route on `ShowRecordV2`; #1039 made it
-  // the production default. `showV2RouteEnabled` answers for the workspace -
-  // fresh Shows, the Show list and `.pxlshow` import - and
-  // `routedShowOpensOnV2` answers per Show, because a row still stored as v1
-  // keeps the v1 editor until the operator conversion rewrites it
-  // (specification section 10: no migration on read).
-  const showV2RouteEnabled = isShowV2RouteEnabled()
+  // the production default and #1042 the only one. `routedShowOpensOnV2`
+  // answers per Show: a row still stored as v1 is not opened at all; it waits
+  // for the operator conversion (#1105; specification section 10: no
+  // migration on read) and routes to the missing-Show message meanwhile.
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
@@ -430,12 +428,11 @@ function StudioApp() {
   const openShow = useShowStore((s) => s.openShow)
   const openShowV2Pilot = useShowStore((s) => s.openShowV2Pilot)
   const clearActiveShowSelection = useShowStore((s) => s.clearActiveShowSelection)
-  // Which editor holds one routed Show (#1039). A stored version-2 document
-  // opens on the v2 route; a row still stored as v1 - and every built-in Show,
-  // which has no stored document at all - keeps the v1 editor until the
-  // operator conversion rewrites it. The agent binding the open editor
-  // registers carries the same answer, so a Show's editor and its commands are
-  // never different versions.
+  // Which record backs one routed Show (#1039). A stored version-2 document or
+  // a native v2 built-in opens on the v2 backing; an unconverted v1 row is not
+  // opened (#1042). The agent binding the open editor registers carries the
+  // same answer, so a Show's editor and its commands are never different
+  // versions.
   const routedShowOpensOnV2 = useCallback(
     (showId: string) => opensOnShowV2Route({
       storedV2: showV2Rows.some((row) => row.id === showId),
@@ -446,7 +443,6 @@ function StudioApp() {
   const renameShow = useShowStore((s) => s.renameShow)
   const renameShowV2Pilot = useShowStore((s) => s.renameShowV2Pilot)
   const showCreation = useShowStore((s) => s.showCreation)
-  const createNewShow = useShowStore((s) => s.createNewShow)
   const createNewShowV2 = useShowStore((s) => s.createNewShowV2)
   const cancelShowCreation = useShowStore((s) => s.cancelShowCreation)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
@@ -654,14 +650,14 @@ function StudioApp() {
       if (stockShowById(entityId)) {
         if (activeShowId !== null) void openShow(null)
       } else if (routedShowOpensOnV2(entityId)) {
-        // A stored v2 row is held outside the v1 Show store; leaving another
-        // v1 row active would keep the rail on it and let the URL sync steer
-        // back to it (#1039). A row stored both ways keeps its own id, and the
-        // v2 route's edit session is never retired from here.
+        // A stored v2 row is held outside the v1 Show selection; leaving a
+        // selection active would keep the rail on it and let the URL sync
+        // steer back to it (#1039). The v2 route's edit session is never
+        // retired from here.
         if (activeShowId !== null && activeShowId !== entityId) clearActiveShowSelection()
-      } else if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
+      }
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, routedShowOpensOnV2, activeShowId, activeLibraryName, userPatterns, openShow, clearActiveShowSelection])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, routedShowOpensOnV2, activeShowId, activeLibraryName, userPatterns, openShow, clearActiveShowSelection])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -890,9 +886,9 @@ function StudioApp() {
   const v2EditorShowId = routedStockV2Id ?? (
     routedShowId !== null && routedShowOpensOnV2(routedShowId) ? routedShowId : null
   )
-  const activeShow = v2EditorShowId !== null ? undefined : routedStockShowOverride ?? (
-    activeShowId ? shows.find((show) => show.id === activeShowId) : undefined
-  )
+  // Only a built-in without a native v2 record still backs the editor with v1;
+  // an unconverted stored v1 row is never opened (#1042).
+  const activeShow = v2EditorShowId !== null ? undefined : routedStockShowOverride
   // A routed v2 row hydrates through the Show store's own open action, which
   // owns the stored read, conversion fallback, history seed and save queue. The
   // editor only ever mounts on that adopted pilot record (#1065).
@@ -1028,9 +1024,9 @@ function StudioApp() {
       : routeEntity.kind === 'controllers'
         ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
       : routeEntity.kind === 'shows'
-        // A v2 row is absent from the v1 list until #1039 couples them, so the
-        // opt-in v2 surfaces resolve the Show themselves.
-        ? v2EditorShowId === null && showsLoaded && !shows.some((show) => show.id === routeEntity.id) && !stockShowById(routeEntity.id)
+        // Stored v2 rows and built-ins resolve; an unconverted v1 row waits
+        // for the operator conversion (#1042, #1105) and reads as missing.
+        ? v2EditorShowId === null && showsLoaded && !stockShowById(routeEntity.id)
         : true)
   const invalidDocRoute = route.kind === 'docs' && route.docId !== null && !isDocId(route.docId)
   const activeApiReference = route.kind === 'api-reference'
@@ -1573,21 +1569,13 @@ function StudioApp() {
                     maps={showCreationMaps}
                     onCancel={cancelShowCreation}
                     onCreate={async (input) => {
-                      // Behind the gate a fresh Show is authored natively as v2,
-                      // in the same two-Clip two-sided Crossfade shape (#1056
-                      // slice 6); the v1 route keeps its own builder.
-                      if (showV2RouteEnabled) {
-                        const createdV2 = await createNewShowV2(input)
-                        // A v2 record is not in the v1 list, so the route holds
-                        // no ordinary active Show; this also ends the creation flow.
-                        void openShow(null)
-                        navigate({ kind: 'studio', entity: { kind: 'shows', id: createdV2.id } })
-                        studioDrawerRef.current?.closeAfterEntitySelection()
-                        return
-                      }
-                      const created = await createNewShow(input)
-                      void openShow(created.id)
-                      navigate({ kind: 'studio', entity: { kind: 'shows', id: created.id } })
+                      // A fresh Show is authored natively as v2, in the same
+                      // two-Clip two-sided Crossfade shape (#1056 slice 6).
+                      const createdV2 = await createNewShowV2(input)
+                      // A v2 record holds no v1 selection; this also ends the
+                      // creation flow.
+                      void openShow(null)
+                      navigate({ kind: 'studio', entity: { kind: 'shows', id: createdV2.id } })
                       studioDrawerRef.current?.closeAfterEntitySelection()
                     }}
                   />

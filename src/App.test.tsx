@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest'
 import { useEffect } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -41,6 +41,8 @@ import { studioOperationInitialState, useStudioOperationStore } from '@/store/st
 import { EMPTY_REMEMBERED_STUDIO_PLACES, useStudioPlaceStore } from '@/store/studioPlaceStore'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
+import { showV1ConversionSources } from '@/engine/showV2MigrationQualification'
+import type { ShowRecord } from '@/engine/personalContentRecords'
 import { transitionV1Show } from '@/test/showV2TracerFixture'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
@@ -163,6 +165,27 @@ function stubRemotePatterns(patterns: PatternRecord[] = []) {
   }))
   void initializePersonalContentProvider({ mode: 'remote-api' })
   return created
+}
+
+/**
+ * Seed personal Shows the way a workspace now holds them: as stored v2 rows
+ * with their open v2 working copies (#1042). The editor never opens a v1 row.
+ */
+function seedStoredV2Shows(shows: ShowRecord[]): ShowRecordV2[] {
+  const records = shows.map((show) => {
+    const converted = convertShowRecordV1ToV2(show, showV1ConversionSources(show, [], []))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    return converted.record
+  })
+  useShowStore.setState({
+    shows: [],
+    showsLoaded: true,
+    activeShowId: null,
+    showV2Rows: records.map((record) => ({ id: record.id, name: record.name, updatedAt: record.updatedAt })),
+    showV2Pilots: Object.fromEntries(records.map((record) => [record.id, record])),
+    showV2Histories: Object.fromEntries(records.map((record) => [record.id, { past: [], future: [] }])),
+  })
+  return records
 }
 
 function seedSignedInWorkspace() {
@@ -334,11 +357,10 @@ describe('App smoke test', () => {
     expect(showEditorRecordVersions).not.toContain(1)
   })
 
-  it('leaves a row still stored as v1 on the v1 editor after the flip (#1039)', () => {
-    // Specification section 10 forbids migrating a row on read, so an
-    // unconverted row keeps the editor that matches what storage holds. The
-    // agent binding that editor registers declares the same version, so its
-    // commands never disagree with it.
+  it('never opens a row still stored as v1; it reads as a missing Show (#1042)', () => {
+    // Specification section 10 forbids migrating a row on read, and #1042
+    // closed the v1 editor route: an unconverted row waits for the operator
+    // conversion (#1105) and gets the ordinary missing-Show message.
     const source = { ...transitionV1Show('crossfade'), id: 'unconverted-v1-row', name: 'Unconverted' }
     setStudioLocation(`/studio/shows/${source.id}`)
     seedSignedInWorkspace()
@@ -353,8 +375,8 @@ describe('App smoke test', () => {
     render(<App />)
 
     expect(useShowStore.getState().showV2Pilots[source.id]).toBeUndefined()
-    expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument()
-    expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('show-editor-scroll')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Show not found').length).toBeGreaterThan(0)
   })
 
   it('clears the active v1 Show when a stored v2 row is routed (#1039)', async () => {
@@ -824,7 +846,10 @@ describe('routing (#308)', () => {
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
     setStudioLocation('/studio/shows/show-header')
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id, renameShow })
+    seedStoredV2Shows([show])
+    const renameShowV2Pilot = useShowStore.getState().renameShowV2Pilot
+    useShowStore.setState({ renameShowV2Pilot: renameShow })
+    onTestFinished(() => useShowStore.setState({ renameShowV2Pilot }))
 
     render(<App />)
 
@@ -1030,7 +1055,7 @@ describe('routing (#308)', () => {
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
     setStudioLocation('/studio/shows/show-header')
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    seedStoredV2Shows([show])
 
     render(<App />)
 
@@ -1057,7 +1082,7 @@ describe('routing (#308)', () => {
     const show = createDefaultShow('show-resize-stage', 'Resize Stage', 1000)
     setStudioLocation('/studio/shows/show-resize-stage')
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    seedStoredV2Shows([show])
     render(<App />)
     const stage = within(screen.getByTestId('show-stage-strip')).getByLabelText('Show stage')
     for (const width of [980, 900, 640, 1200]) {
@@ -1083,7 +1108,7 @@ describe('routing (#308)', () => {
     const show = createDefaultShow('show-narrow-playback', 'Narrow playback', 1000)
     setStudioLocation('/studio/shows/show-narrow-playback')
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    seedStoredV2Shows([show])
 
     render(<App />)
 
@@ -1138,11 +1163,11 @@ describe('routing (#308)', () => {
     const show = createDefaultShow('show-narrow-inherited-playback', 'Inherited playback', 1000)
     setStudioLocation()
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: null })
+    seedStoredV2Shows([show])
 
     render(<App />)
     act(() => usePreviewStore.setState({ isRunning: true }))
-    await choosePlace('Shows')
+    act(() => useRouterStore.getState().navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } }))
     await waitFor(() => expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument())
 
     expect(Boolean(within(screen.getByTestId('show-stage-strip')).queryByLabelText('Show stage'))).toBe(hasStage)
@@ -1159,18 +1184,17 @@ describe('routing (#308)', () => {
     const second = createDefaultShow('show-switch-second', 'Second transition Show', 1000)
     setStudioLocation(`/studio/shows/${first.id}`)
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [first, second], showsLoaded: true, activeShowId: first.id })
+    seedStoredV2Shows([first, second])
 
     render(<App />)
     act(() => usePreviewStore.setState({ isRunning: true }))
     act(() => {
-      void useShowStore.getState().openShow(second.id)
       useRouterStore.getState().navigate({
         kind: 'studio',
         entity: { kind: 'shows', id: second.id },
       })
     })
-    await waitFor(() => expect(useShowStore.getState().activeShowId).toBe(second.id))
+    await waitFor(() => expect(useShowTransportStore.getState().showId).toBe(second.id))
 
     expect(usePreviewStore.getState().isRunning).toBe(false)
     expect(useShowTransportStore.getState()).toMatchObject({
@@ -1186,7 +1210,7 @@ describe('routing (#308)', () => {
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
     setStudioLocation('/studio/shows/show-workspace-owner')
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    seedStoredV2Shows([show])
 
     render(<App />)
 
@@ -1217,7 +1241,7 @@ describe('routing (#308)', () => {
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
     setStudioLocation('/studio/shows/show-space-owner')
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    seedStoredV2Shows([show])
 
     render(<App />)
 
@@ -1311,7 +1335,7 @@ describe('routing (#308)', () => {
     const show = createDefaultShow('show-space-once', 'One toggle', 1000)
     setStudioLocation(`/studio/shows/${show.id}`)
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    seedStoredV2Shows([show])
 
     render(<App />)
 

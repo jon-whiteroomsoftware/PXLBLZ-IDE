@@ -2,7 +2,7 @@ import {
   createRemotePersonalContentProvider,
 } from './remotePersonalContentProvider'
 import type { ControllerProfile } from './controllerProfile'
-import type { LibraryRecord, PatternRecord, ShowRecord } from './personalContentRecords'
+import type { LibraryRecord, PatternRecord } from './personalContentRecords'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
 import type { EntityOrganizationV1 } from './entityOrganization'
@@ -209,46 +209,41 @@ describe('remote personal content provider', () => {
     expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'RenamedLib', updatedAt: 2 }))
   })
 
-  it('performs show CRUD through the authenticated API', async () => {
+  it('reads and creates Shows only through the version-2 endpoints and deletes by id (#1042)', async () => {
+    const converted = convertShowRecordV1ToV2(convertibleV1Show())
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
     const requests: Array<{ url: string; init?: RequestInit }> = []
-    const show: ShowRecord = {
-      id: 'show-1',
-      name: 'Opening wash',
-      scenes: [],
-      zones: [],
-      cells: [],
-      routingLayouts: [],
-      transitions: [],
-      outputContract: {
-        version: 1,
-        kind: 'portable-2d',
-        referenceMapId: null,
-        referencePixelCount: 60,
-        compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
-      },
-      updatedAt: 1,
-    }
-    const fetcher: typeof fetch = async (url, init) => {
+    const provider = createRemotePersonalContentProvider({ fetcher: async (url, init) => {
       requests.push({ url: String(url), init })
-      if (String(url) === '/api/shows' && init?.method === undefined) {
-        return Response.json({ shows: [show] })
-      }
-      return Response.json({ ok: true })
-    }
-    const provider = createRemotePersonalContentProvider({ fetcher })
+      return init?.method === undefined
+        ? Response.json({ shows: [converted.record] })
+        : Response.json({ ok: true })
+    } })
 
-    await expect(provider.listShows()).resolves.toEqual([show])
-    await provider.createShow(show)
-    await provider.updateShow('show-1', { name: 'Renamed', updatedAt: 2 })
-    await provider.deleteShow('show-1')
+    await expect(provider.listShowDocumentsV2!()).resolves.toEqual([converted.record])
+    await provider.createShowV2!(converted.record)
+    await provider.deleteShow(converted.record.id)
 
-    expect(requests.map((r) => [r.url, r.init?.method ?? 'GET'])).toEqual([
-      ['/api/shows', 'GET'],
-      ['/api/shows', 'POST'],
-      ['/api/shows/show-1', 'PATCH'],
-      ['/api/shows/show-1', 'DELETE'],
+    expect(requests.map(item => [item.url, item.init?.method ?? 'GET'])).toEqual([
+      ['/api/shows?show-version=2', 'GET'],
+      ['/api/shows?show-version=2', 'POST'],
+      [`/api/shows/${converted.record.id}`, 'DELETE'],
     ])
-    expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', updatedAt: 2 }))
+    expect(requests[1].init?.body).toBe(JSON.stringify(converted.record))
+  })
+
+  it('fails the retired v1 Show methods loudly without calling the Worker (#1042)', async () => {
+    const requests: string[] = []
+    const provider = createRemotePersonalContentProvider({ fetcher: async (url) => {
+      requests.push(String(url))
+      return Response.json({ ok: true })
+    } })
+    const show = convertibleV1Show()
+
+    await expect(provider.listShows()).rejects.toThrow('show-v1-retired')
+    await expect(provider.createShow(show)).rejects.toThrow('show-v1-retired')
+    await expect(provider.updateShow(show.id, { name: 'Renamed' })).rejects.toThrow('show-v1-retired')
+    expect(requests).toEqual([])
   })
 
   it('uses explicit endpoints for v2 readback and full-record replacement', async () => {
@@ -269,29 +264,6 @@ describe('remote personal content provider', () => {
       [`/api/shows/${converted.record.id}?show-version=2`, 'PUT'],
     ])
     expect(requests[1].init?.body).toBe(JSON.stringify(converted.record))
-  })
-
-  it('encodes explicit output-effect clearing without changing sparse Show patches (#954)', async () => {
-    const requests: unknown[] = []
-    const provider = createRemotePersonalContentProvider({
-      fetcher: async (_url, init) => {
-        requests.push(JSON.parse(String(init?.body)))
-        return Response.json({ ok: true })
-      },
-    })
-    const effects = [{ id: 'trails', kind: 'trails' as const, retention: 0.5 }]
-    await provider.updateShow('show-1', { name: 'Sparse' })
-    await provider.updateShow('show-1', { outputEffects: undefined })
-    await provider.updateShow('show-1', { outputEffects: [] })
-    await provider.updateShow('show-1', { outputEffects: effects })
-    await provider.updateShow('show-1', { outputEffects: undefined, targetControllerProfileId: undefined })
-    expect(requests).toEqual([
-      { name: 'Sparse' },
-      { outputEffects: [] },
-      { outputEffects: [] },
-      { outputEffects: effects },
-      { outputEffects: [], targetControllerProfileId: null },
-    ])
   })
 
   it('raises a clear error when the API rejects the request', async () => {

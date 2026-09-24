@@ -205,17 +205,27 @@ write cannot recreate the deleted provider record.
 This is the complete V2 ownership inventory. The internal request API checks
 store revisions; existing manual replacement callers retain their original API.
 
-- Personal creation: `createNewShow`, `createShowFromController`,
-  `addImportedShow`, and `duplicateShow` converge on `addShow` and provider
-  `createShow`. Creation waits for an in-flight hydration before writing.
-- Personal replacement: `updateShow` and every convenience editor action,
-  `undoShow`, `redoShow`, and `retryShowSaveFailure` converge on the store's one
-  adoption/settlement policy and the per-Show provider `updateShow` queue.
+- Personal creation: `createNewShowV2`, `createShowFromController`, `.pxlshow`
+  import of either version, and `duplicateShowV2Row` converge on
+  `addImportedShowV2` and provider `createShowV2`. Creation waits for an
+  in-flight hydration before writing. Since #1042 Phase 1b the v1 creators
+  (`createNewShow`, `addShow`, `addImportedShow`, `duplicateShow`) and provider
+  `createShow` are unreachable from the UI; the remote provider's `createShow`
+  throws `show-v1-retired`. Phase 2 deletes them.
+- Personal replacement (version 1): `updateShow` and every convenience editor
+  action, `undoShow`, `redoShow`, and `retryShowSaveFailure` converge on the
+  store's one adoption/settlement policy and the per-Show provider `updateShow`
+  queue. No personal version-1 record reaches the store since #1042 Phase 1b,
+  and the remote provider's `updateShow` throws `show-v1-retired` instead of
+  calling the retired PATCH route.
 - Personal deletion: `removeShow` adds provider `deleteShow` to that same
   per-Show queue before clearing all local state for the identity.
 - Reload: `loadShows` obtains provider `listShows`, normalizes each record,
   reconciles queued local replacements by ordering stamp, resets incompatible
-  histories, and replaces the durable-baseline inventory.
+  histories, and replaces the durable-baseline inventory. Since #1042 Phase 1b
+  the remote provider refuses `listShows` with `ShowV1RetiredError`, which
+  hydration reads as no version-1 rows; the version-1 half of this path runs
+  only against test providers until Phase 2 deletes it.
 - Stock draft write/reset: `updateShow`, `undoShow`, and `redoShow` change only
   the in-memory draft/history pair; `resetStockShowDraft` removes both and
   exposes the pristine stock fixture again. Provider methods are never called.
@@ -248,12 +258,13 @@ move together ask it: fresh-Show creation, the Show list, the store's
 version-2 listing and `.pxlshow` import. `opensOnShowV2Route` then answers per
 routed Show, and that is what keeps specification section 10's two rules
 compatible. A stored version-2 document opens on the version-2 editor. A row
-storage still holds as version 1 - and every built-in Show, which has no stored
-document - keeps the version-1 editor, because section 10 forbids migrating a
-row on read: nothing in the application rewrites a stored row, and
-`npm run show:v2-migrate` is the only writer that converts one. So for any one
-Show the editor, its history, its save queue and its command catalogue are the
-same version in either state, and no mixed window exists.
+storage still holds as version 1 is not opened at all since #1042 Phase 1b: the
+Worker refuses the version-1 list and version-1 writes with 410
+`show-v1-retired`, and the row's route shows the ordinary missing-Show message.
+Section 10 forbids migrating a row on read, so nothing in the application
+rewrites it; `npm run show:v2-migrate` is the only writer that converts one
+(#1105). So for any one Show the editor, its history, its save queue and its
+command catalogue are one version, and no mixed window exists.
 
 The development-only `show-v2-editor=1` preview opens an unconverted row on the
 version-2 editor by converting it in memory. It writes nothing - no provider
@@ -265,11 +276,9 @@ identity, name and stamp only - which `loadShows` fills from
 `listShowDocumentsV2`, discarding a listing whose workspace or provider changed
 while it was read, and answering a failed listing with no rows rather than a
 failed workspace load. `listShowDocumentsV2` reads `/api/shows?show-version=2`,
-which means "do not skip the rows the version-1 list hides" and therefore
-answers with both stored versions; the provider filters it to actual version-2
-records, which is what makes the per-record route answer correct. The Show
-list offers both kinds, renames, duplicates and trashes either, and marks the
-selected row `v1` when storage still holds it that way.
+which answers with stored version-2 records only; a row without `record_json`
+is never listed (#1042). The provider still filters the answer to actual
+version-2 records. The Show list renames, duplicates and trashes those rows.
 
 `createNewShowV2(input)` authors a fresh Show natively as version 2 through
 [`createShowV2WithOutputContract`](../../../src/engine/showCreationV2.ts) -
@@ -329,8 +338,9 @@ Stage and the artifacts would be. Other nonempty compiler or pilot
 preview refusals remain refusals, and no placeholder runtime is created.
 
 The remote provider addresses the explicit v2 collection with
-`show-version=2`; D1 stores the complete closed record in `record_json` and
-excludes that row from ordinary version-1 reads. Worker admission uses the same
+`show-version=2`; D1 stores the complete closed record in `record_json`. The
+version-1 reads and writes (`GET` and `POST /api/shows` without the parameter,
+and every `PATCH`) answer 410 `show-v1-retired` since #1042 Phase 1b. Worker admission uses the same
 domain validator after a Cloudflare-compatible structural-schema interpreter,
 because Workers prohibit AJV's runtime code generation. Migration records keep
 the source row and hash before compare-and-swap replacement, reopen written

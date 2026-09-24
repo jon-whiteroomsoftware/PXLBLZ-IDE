@@ -49,15 +49,15 @@ The existing timeline still has v1 branches for Scene-local grid geometry, Layou
 
 ## Which record backs the open editor
 
-`ShowEditor` is the routed editor for both versions. `opensOnShowV2Route` selects backing per record; `SHOW_V2_ROUTE_DEFAULT` enables the v2 path for fresh Shows, v2 list rows and v2 bundle imports. It does not convert a stored v1 row on read. See `src/engine/showV2RouteGate.ts:1-92` and `src/App.tsx:888-951`.
+`ShowEditor` is the routed editor. `opensOnShowV2Route` selects backing per record; `SHOW_V2_ROUTE_DEFAULT` enables the v2 path for fresh Shows, v2 list rows and `.pxlshow` imports of either version. Since #1042 Phase 1b a stored v1 row is neither converted on read nor opened: the Worker refuses the v1 list and v1 writes with 410 `show-v1-retired`, and the row waits in D1 for the operator conversion (`npm run show:v2-migrate`, #1105). See `src/engine/showV2RouteGate.ts:1-92`, `src/App.tsx` (`v2EditorShowId`, `activeShow`) and `src/worker/routes/shows/showV1Retired.ts`.
 
 | Routed Show | Editor backing |
 | --- | --- |
 | Stored v2 row | Its v2 pilot, loaded through `openShowV2Pilot` (`src/App.tsx:894-905`; `src/store/showStore.ts:1127-1152`). |
 | Built-in Show | Its native v2 catalogue record, cloned into a session-only lesson draft. `loadShows` retains that draft and its history across a workspace reload (`src/store/showStore.ts:785-800`; `src/store/showStore.ts:1097-1115`). |
-| Unconverted stored v1 row | Its v1 record until the operator conversion in specification §10; v1 authoring remains until #1042 (`src/engine/showV2RouteGate.ts:20-33`; `src/App.tsx:431-445`). |
+| Unconverted stored v1 row | None. The row is not listed or opened; its route shows the ordinary "Show not found" message until the operator conversion in specification §10 rewrites it (#1105). The v1 editor branches that remain in `ShowEditor` are unreachable from the UI and are deleted in #1042 Phase 2. |
 
-The route supplies `recordVersion={activeShowV2Pilot ? 2 : 1}`. The agent admission binding declares that version, reads the corresponding record, and reports it through `read_show`; its commands therefore follow the editor backing. See `src/App.tsx:945-951`, `src/agent/editorAdmission.ts:100-123`, and `src/agent/editorAdmission.ts:267-272`.
+The route supplies `recordVersion={activeShowV2Pilot ? 2 : 1}`; version 1 remains only for a built-in Show with no native v2 record. The agent admission binding declares that version, reads the corresponding record, and reports it through `read_show`; its commands therefore follow the editor backing. See `src/App.tsx:945-951`, `src/agent/editorAdmission.ts:100-123`, and `src/agent/editorAdmission.ts:267-272`.
 
 `?show-v2-editor=1` still has one development use: an unconverted row can be projected into a v2 backing in memory for the open session. It writes nothing, and a production build ignores the parameter. See `src/engine/showV2RouteGate.ts:46-92`.
 

@@ -1,6 +1,7 @@
 /**
  * Author "Teaser 01: Coronal Mass Ejection" as a personal Show and save it
- * through the local dev API.
+ * through the local dev API as a stored v2 row (#1042): the authored v1 record
+ * converts here, against the CME Pattern's exact source, before any write.
  *
  * One CME Clip on one Layer. A single 36s gesture: half-speed intro, rotation
  * eases in, speed and rotation accelerate together to a crescendo of on-beat
@@ -40,6 +41,7 @@ import type {
   ShowStructuredEasing,
 } from '../../src/engine/personalContentRecords'
 import { createSessionToken, sessionCookieName } from '../../src/cloudflare/auth'
+import { convertShowRecordV1ToV2 } from '../../src/engine/showRecordV1ToV2'
 import { readDevVarsFile } from '../dev-runtime-auth'
 
 const SHOW_ID = 'teaser-cme-01'
@@ -268,23 +270,28 @@ async function main(): Promise<void> {
   fs.writeFileSync(path.join(outDir, 'cme-teaser.generated.js'), compiled.artifact.code)
   console.log('Wrote scripts/promo/out/cme-teaser.show.json and cme-teaser.generated.js')
 
+  // Every Clip plays the one CME Pattern, so its source is the whole lookup.
+  const conversion = convertShowRecordV1ToV2(record, {
+    byCellId: Object.fromEntries(record.cells.map((cell) => [cell.id, cmePattern.src])),
+    byPatternInstanceId: Object.fromEntries(composition.patternInstances.map((instance) => [instance.id, cmePattern.src])),
+    stageDimension: 2,
+  })
+  if (conversion.status === 'refused') {
+    throw new Error(`Conversion to a v2 Show refused: ${JSON.stringify(conversion.issues, null, 2)}`)
+  }
+  console.log('Converted to a v2 Show record.')
+
   if (dry) return
 
-  const listing = await fetch(`${API_BASE}/api/shows`, { headers: { cookie } })
-  if (!listing.ok) throw new Error(`GET /api/shows failed: ${listing.status}`)
+  const listing = await fetch(`${API_BASE}/api/shows?show-version=2`, { headers: { cookie } })
+  if (!listing.ok) throw new Error(`GET /api/shows?show-version=2 failed: ${listing.status}`)
   const { shows } = await listing.json() as { shows: Array<{ id: string }> }
   const exists = shows.some((candidate) => candidate.id === SHOW_ID)
-  const response = exists
-    ? await fetch(`${API_BASE}/api/shows/${SHOW_ID}`, {
-        method: 'PATCH',
-        headers: { cookie, 'content-type': 'application/json' },
-        body: JSON.stringify(record),
-      })
-    : await fetch(`${API_BASE}/api/shows`, {
-        method: 'POST',
-        headers: { cookie, 'content-type': 'application/json' },
-        body: JSON.stringify(record),
-      })
+  const response = await fetch(`${API_BASE}/api/shows${exists ? `/${SHOW_ID}` : ''}?show-version=2`, {
+    method: exists ? 'PUT' : 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify(conversion.record),
+  })
   if (!response.ok) throw new Error(`Save failed: ${response.status} ${await response.text()}`)
   console.log(`${exists ? 'Updated' : 'Created'} Show ${SHOW_ID}`)
 }

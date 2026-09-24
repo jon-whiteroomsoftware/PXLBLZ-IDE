@@ -663,7 +663,10 @@ per-test cleanup, seeds and reads version-2 Shows only (`seedShowV2` and
 `listStoredShowsV2` in `e2e/support/showBackingRecords.ts`,
 `removeStoredShowsV2` in `e2e/support/showBacking.ts`). Every e2e
 `/api/shows` call carries `?show-version=2` except `DELETE /api/shows/:id`,
-which serves both shapes. The v1 backing, its
+which serves both shapes. Since #1042 Phase 1b the Worker enforces this:
+`GET` and `POST /api/shows` without the parameter, and every `PATCH`, answer
+410 `show-v1-retired`, so an e2e call that drops the parameter fails loudly.
+The v1 backing, its
 `test:e2e:shows:v1` diagnostic and the #1065 editor-equivalence spec were
 retired with v1 authoring; `show-boundary-deletion.auth.spec.ts` now runs in
 the required suite on v2.

@@ -248,8 +248,9 @@ describe('personal-storage API protection (#407)', () => {
       ['PATCH', '/api/mixins/x1'],
       ['POST', '/api/libraries'],
       ['PATCH', '/api/libraries/l1'],
-      ['POST', '/api/shows'],
-      ['PATCH', '/api/shows/s1'],
+      // Show writes are v2 only; the retired v1 POST and PATCH answer 410 unread (#1042).
+      ['POST', '/api/shows?show-version=2'],
+      ['PUT', '/api/shows/s1?show-version=2'],
       ['POST', '/api/controllers'],
       ['PATCH', '/api/controllers/c1'],
       ['PUT', '/api/settings/lastActive'],

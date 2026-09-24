@@ -50,8 +50,11 @@ export interface PersonalContentProvider {
   createLibrary?(record: LibraryRecord): Promise<void>
   updateLibrary?(id: string, changes: Partial<Omit<LibraryRecord, 'id'>>): Promise<void>
   deleteLibrary?(id: string): Promise<void>
+  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
   listShows(): Promise<ShowRecord[]>
+  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
   createShow(record: ShowRecord): Promise<void>
+  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
   updateShow(id: string, changes: Partial<Omit<ShowRecord, 'id'>>): Promise<void>
   deleteShow(id: string): Promise<void>
   /** Explicit #1044 pilot boundary. Ordinary Show methods remain v1-only. */

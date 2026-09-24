@@ -80,10 +80,6 @@ export interface D1ShowListResult {
   unreadableShows: D1UnreadableShow[]
 }
 
-export interface ListD1ShowsOptions {
-  includeV2?: boolean
-}
-
 export function showRecordFromRow(row: D1ShowRow): ShowDocument {
   if (row.record_json) return cloneValidShowRecordV2ForWorker(parseJson<unknown>(row.record_json, null))
   const outputContract = requireShowOutputContract(
@@ -118,10 +114,14 @@ export function showRecordFromRow(row: D1ShowRow): ShowDocument {
   return composition ? { ...show, composition } : show
 }
 
-export async function listD1Shows(
+/**
+ * The stored version-2 Shows (#1042). A row without `record_json` is an
+ * unconverted version-1 row: the product no longer reads it, and it waits for
+ * the operator conversion (#1105), which reads the table directly.
+ */
+export async function listD1ShowsV2(
   db: D1DatabaseShowsLike,
   userId: string,
-  options: ListD1ShowsOptions = {},
 ): Promise<D1ShowListResult> {
   const { results } = await db
     .prepare(`
@@ -137,7 +137,7 @@ export async function listD1Shows(
   const shows: ShowDocument[] = []
   const unreadableShows: D1UnreadableShow[] = []
   for (const row of results) {
-    if (row.record_json && !options.includeV2) continue
+    if (!row.record_json) continue
     try {
       shows.push(showRecordFromRow(row))
     } catch (error) {
@@ -296,60 +296,11 @@ export async function createD1Show(
     .run()
 }
 
-export async function updateD1Show(
-  db: D1DatabaseShowsLike,
-  userId: string,
-  id: string,
-  changes: Partial<Omit<ShowRecord, 'id'>>,
-): Promise<void> {
-  const assignments: string[] = []
-  const values: unknown[] = []
-  const outputContract = changes.outputContract === undefined
-    ? undefined
-    : requireWritableShowOutputContract(changes.outputContract, id)
-  const composition = await normalizeCompositionUpdate(db, userId, id, changes)
-  addAssignment(assignments, values, 'name', changes.name)
-  addAssignment(assignments, values, 'scenes_json', changes.scenes, true)
-  addAssignment(assignments, values, 'zones_json', changes.zones, true)
-  addAssignment(assignments, values, 'cells_json', changes.cells, true)
-  addAssignment(assignments, values, 'routing_layouts_json', changes.routingLayouts, true)
-  addAssignment(assignments, values, 'transitions_json', changes.transitions, true)
-  addAssignment(assignments, values, 'composition_json', composition, true)
-  addAssignment(assignments, values, 'output_effects_json', changes.outputEffects, true)
-  addAssignment(assignments, values, 'target_controller_profile_id', changes.targetControllerProfileId)
-  addAssignment(assignments, values, 'stage_map_id', changes.stageMapId)
-  addAssignment(assignments, values, 'output_contract_json', outputContract, true)
-  addAssignment(assignments, values, 'updated_at', changes.updatedAt)
-  addAssignment(assignments, values, 'import_metadata_json', changes.importMetadata, true)
-  if (assignments.length === 0) return
-
-  await db
-    .prepare(`
-      UPDATE personal_shows
-      SET ${assignments.join(', ')}
-      WHERE user_id = ? AND id = ?
-    `)
-    .bind(...values, userId, id)
-    .run()
-}
-
 export async function deleteD1Show(db: D1DatabaseShowsLike, userId: string, id: string): Promise<void> {
   await db
     .prepare('DELETE FROM personal_shows WHERE user_id = ? AND id = ?')
     .bind(userId, id)
     .run()
-}
-
-function addAssignment(
-  assignments: string[],
-  values: unknown[],
-  column: string,
-  value: unknown,
-  json = false,
-): void {
-  if (value === undefined) return
-  assignments.push(`${column} = ?`)
-  values.push(json && value !== null ? JSON.stringify(value) : value)
 }
 
 function parseJson<T>(value: string, fallback: T): T {
@@ -384,42 +335,6 @@ function requireValidComposition(
     const normalized = normalizeShowComposition(show, value)
     if (validateShowComposition(show, normalized).length > 0) throw unsupportedCompositionError()
     return normalized
-  } catch (error) {
-    if (error instanceof PersonalStorageGuardError) throw error
-    throw unsupportedCompositionError()
-  }
-}
-
-async function normalizeCompositionUpdate(
-  db: D1DatabaseShowsLike,
-  userId: string,
-  id: string,
-  changes: Partial<Omit<ShowRecord, 'id'>>,
-): Promise<ShowCompositionV1 | null | undefined> {
-  if (changes.composition === undefined || changes.composition === null) return changes.composition
-  if (!isCompositionV1Envelope(changes.composition)) throw unsupportedCompositionError()
-  try {
-    if (validateShowCompositionTimelineMetadata(changes.composition).length > 0) throw unsupportedCompositionError()
-    if (changes.scenes !== undefined && !isShowSceneArray(changes.scenes)) throw unsupportedCompositionError()
-    if (changes.zones !== undefined && !isShowZoneArray(changes.zones)) throw unsupportedCompositionError()
-    let scenes: unknown = changes.scenes
-    let zones: unknown = changes.zones
-    if (scenes === undefined || zones === undefined) {
-      const { results } = await db
-        .prepare(`
-          SELECT scenes_json, zones_json
-          FROM personal_shows
-          WHERE user_id = ? AND id = ?
-        `)
-        .bind(userId, id)
-        .all<Pick<D1ShowRow, 'scenes_json' | 'zones_json'>>()
-      const stored = results[0]
-      if (!stored) throw unsupportedCompositionError()
-      if (scenes === undefined) scenes = parseJson<unknown>(stored.scenes_json, null)
-      if (zones === undefined) zones = parseJson<unknown>(stored.zones_json, null)
-    }
-    if (!isShowSceneArray(scenes) || !isShowZoneArray(zones)) throw unsupportedCompositionError()
-    return requireValidComposition({ scenes, zones }, changes.composition)
   } catch (error) {
     if (error instanceof PersonalStorageGuardError) throw error
     throw unsupportedCompositionError()
