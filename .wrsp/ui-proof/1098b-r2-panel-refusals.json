@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1098",
+  "route": "/PXLBLZ-IDE/studio/shows/e4a48286-fcdd-41ba-9f60-f30d0b2f2bac",
+  "operation": "Existing Show editor on the v2 backing at 1440x900 with reduced motion, at the slice B code rebased onto the landed timeline slice (276303dd). A fresh Installation Show was seeded through /api/shows with its boundary Transition removed and stored as v2: two adjacent Clips on one Layer and no Transition (TestPattern1D 0-30 s, CometLoom 30-60 s, layer:zone-1:main). With TestPattern1D selected, 45 was typed into the Clip inspector's Duration field. That would cover CometLoom, so the clip-temporal owner refuses the overlap. The Entity Detail Panel shows one role=alert line as its last element, reading 'Clips on one Layer cannot overlap.', and the Duration field is restored to 30. 1.5 s later the stored v2 record is unchanged: updatedAt 1790225522183 before and after, and both Clips keep the same start, duration and Layer (0/30000 and 30000/30000 on layer:zone-1:main). The capture shows the panel with the alert line and the restored field.",
+  "captures": [
+    ".wrsp/ui-proof/1098b-r2-inspector.png"
+  ],
+  "capturedAtCommit": "dbf803a2abca73c84f6e7db4b67c27a99c45aad3"
+}
