@@ -59,19 +59,6 @@ async function createInstallationShow(page: Page): Promise<string> {
   return show.id
 }
 
-async function expectFeedbackFitsClip(page: Page, clipId: string): Promise<void> {
-  const clip = page.locator(`[data-show-selection-key="clip:${clipId}"]`)
-  const feedback = clip.getByTestId('show-clip-delete-blocked')
-  const label = feedback.locator('.show-clip-delete-blocked-label')
-  const boxes = await Promise.all([feedback.boundingBox(), label.boundingBox()])
-  expect(boxes[0]).not.toBeNull()
-  expect(boxes[1]).not.toBeNull()
-  expect(boxes[1]!.x).toBeGreaterThanOrEqual(boxes[0]!.x - 1)
-  expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y - 1)
-  expect(boxes[1]!.x + boxes[1]!.width).toBeLessThanOrEqual(boxes[0]!.x + boxes[0]!.width + 1)
-  expect(boxes[1]!.y + boxes[1]!.height).toBeLessThanOrEqual(boxes[0]!.y + boxes[0]!.height + 1)
-}
-
 test('repairs a fresh Show deletion and lets a replacement move into the former Transition (#1028)', async ({ page }) => {
   const errors: string[] = []
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
@@ -201,71 +188,76 @@ test('deletes both starter Clips, exposes the former Transition time, and Clones
   expect(errors).toEqual([])
 })
 
-// #1042 BRIEF GAP: the two refusals below are v1-only (ShowEditor.tsx
-// blockedDeleteCopyForRefusal reads a v1 ShowRecord). The v2 owner deletes a
-// converted boundary Clip and keeps survivor time instead
-// (src/engine/showConvertedBoundaryRepairV2.test.ts 'deletes either boundary
-// Clip preserving survivor time and Show End'), and no v2 test covers this
-// refusal copy, so these stay fixme on v2 seeding until the coordinator
-// chooses between retiring them and specifying a v2 refusal.
-test.fixme('reports shared animation state through the existing Clip feedback without saving (#1023)', async ({ page }) => {
+/** The stored record with its save stamp masked: each save, Undo's included, writes a new `updatedAt`. */
+function withoutStamp(show: ShowRecordV2): Omit<ShowRecordV2, 'updatedAt'> {
+  const { updatedAt: _updatedAt, ...rest } = show
+  return rest
+}
+
+/**
+ * Delete starter-b through `deleteClip`, then prove the v2 owner's result: the
+ * Clip leaves the stored record, every surviving Clip keeps its time and Show
+ * End stays put (src/engine/showConvertedBoundaryRepairV2.test.ts 'deletes
+ * either boundary Clip preserving survivor time and Show End'), and one Undo
+ * restores the stored record exactly, save stamp aside.
+ */
+async function expectPermittedBoundaryDelete(
+  page: Page,
+  showId: string,
+  deleteClip: () => Promise<void>,
+  capture: string,
+): Promise<void> {
+  const before = await savedShow(page, showId)
+  const writes: string[] = []
+  page.on('request', (request) => {
+    if (isShowV2Save(request, showId)) writes.push(request.method())
+  })
+  const errors: string[] = []
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
+
+  await page.goto(`studio/shows/${showId}`)
+  await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+  await deleteClip()
+
+  await expect.poll(async () => clipOf(await savedShow(page, showId), 'starter-b')).toBeUndefined()
+  const deleted = await savedShow(page, showId)
+  expect(deleted.composition.clips).toEqual(before.composition.clips.filter((clip) => clip.id !== 'starter-b'))
+  expect(deleted.composition.showEndMs).toBe(before.composition.showEndMs)
+  await expect(page.locator('[data-show-selection-key="clip:starter-b"]')).toHaveCount(0)
+  await expect(page.getByTestId('show-clip-delete-blocked')).toHaveCount(0)
+  await captureIssue1023(page, capture)
+  expect(writes).toEqual(['PUT'])
+
+  await page.getByRole('button', { name: 'Undo Show edit' }).click()
+  await expect.poll(async () => withoutStamp(await savedShow(page, showId))).toEqual(withoutStamp(before))
+  await expect(page.locator('[data-show-selection-key="clip:starter-b"]')).toHaveCount(1)
+  expect(writes).toEqual(['PUT', 'PUT'])
+  expect(errors).toEqual([])
+}
+
+// v2 permits this delete: docs/plans/scene-retirement-specification.md §10 line 772 (#1068 gap 6).
+test('v2 permits deleting a boundary Clip whose instance is shared across the boundary, and Undo restores it (#1023)', async ({ page }) => {
   const show = boundaryClipDeletionFixture('boundary-delete-shared-1023')
   show.composition!.scenes[1].zones[0].overlays[0].placements.push({
     ...boundaryDeletionPlacement('shared-later', 1_000, 1_000, 'instance-starter-a'),
     opacity: 1,
   })
   await seedShowV2(page, show, 'boundary delete shared state')
-  const before = await savedShow(page, show.id)
-  const writes: string[] = []
-  page.on('request', (request) => {
-    if (isShowV2Save(request, show.id)) writes.push(request.method())
-  })
-  const errors: string[] = []
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
-
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto(`studio/shows/${show.id}`)
-  await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-  const clip = page.locator('[data-show-selection-key="clip:starter-b"]')
-  await clip.click()
-  await page.keyboard.press('Delete')
-
-  await expect(clip.getByText('Cannot delete: shared animation state')).toBeVisible()
-  await expect(page.getByRole('status', { name: 'Clip deletion unavailable' }))
-    .toHaveText('Cannot delete: shared animation state')
-  await expect(clip).toBeFocused()
-  await expectFeedbackFitsClip(page, 'starter-b')
-  await captureIssue1023(page, '1023-shared-state-delete-refusal-desktop.png')
-  expect(await savedShow(page, show.id)).toEqual(before)
-  expect(writes).toEqual([])
-  expect(errors).toEqual([])
+  await expectPermittedBoundaryDelete(page, show.id, async () => {
+    await page.locator('[data-show-selection-key="clip:starter-b"]').click()
+    await page.keyboard.press('Delete')
+  }, '1023-shared-state-delete-permitted-desktop.png')
 })
 
-test.fixme('reports actual Trails state through the existing Clip feedback at narrow width without saving (#1023)', async ({ page }) => {
+// v2 permits this delete: docs/plans/scene-retirement-specification.md §10 line 772 (#1068 gap 6).
+test('v2 permits deleting a boundary Clip while Trails is armed at narrow width, and Undo restores it (#1023)', async ({ page }) => {
   const show = boundaryClipDeletionFixture('boundary-delete-trails-1023')
   show.outputEffects = [{ id: 'trails', kind: 'trails', retention: 0.8 }]
   await seedShowV2(page, show, 'boundary delete Trails')
-  const before = await savedShow(page, show.id)
-  const writes: string[] = []
-  page.on('request', (request) => {
-    if (isShowV2Save(request, show.id)) writes.push(request.method())
-  })
-  const errors: string[] = []
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
-
   await page.setViewportSize({ width: 900, height: 900 })
-  await page.goto(`studio/shows/${show.id}`)
-  await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-  const clip = page.locator('[data-show-selection-key="clip:starter-b"]')
-  await clip.click()
-  await page.getByRole('button', { name: 'Delete clip starter-b' }).click()
-
-  await expect(clip.getByText('Cannot delete while Trails is enabled.')).toBeVisible()
-  await expect(page.getByRole('status', { name: 'Clip deletion unavailable' }))
-    .toHaveText('Cannot delete while Trails is enabled.')
-  await expectFeedbackFitsClip(page, 'starter-b')
-  await captureIssue1023(page, '1023-trails-delete-refusal-narrow.png')
-  expect(await savedShow(page, show.id)).toEqual(before)
-  expect(writes).toEqual([])
-  expect(errors).toEqual([])
+  await expectPermittedBoundaryDelete(page, show.id, async () => {
+    await page.locator('[data-show-selection-key="clip:starter-b"]').click()
+    await page.getByRole('button', { name: 'Delete clip starter-b' }).click()
+  }, '1023-trails-delete-permitted-narrow.png')
 })
