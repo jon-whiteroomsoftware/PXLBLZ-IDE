@@ -3196,7 +3196,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
           overlays: [],
         }],
       })),
-      markers: [{ id: 'marker-short-snap-target', timeMs: 29_000, name: 'Short snap target' }],
+      markers: [{ id: 'marker-short-snap-target', timeMs: 28_000, name: 'Short snap target' }],
     }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowEditorSessionStore.setState({
@@ -3229,21 +3229,21 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     fireEvent(clip, dragEvent('dragstart', 20))
 
-    // At 28.2 seconds, the Clip end is the nearer edge and snaps to 29.
-    fireEvent(layer, dragEvent('dragover', 282))
+    // At 27.2 seconds, the Clip end is the nearer edge and snaps to 28.
+    // The detents stay clear of the converted boundary window, which the owner refuses to meet (#1111).
+    fireEvent(layer, dragEvent('dragover', 272))
     expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
-      left: `${28_000 / 62_000 * 100}%`,
+      left: `${27_000 / 62_000 * 100}%`,
     })
 
     // The one-second Clip is narrower than the 16 px release radius. Its old
     // end detent must not mask the newly acquired start-edge snap.
-    fireEvent(layer, dragEvent('dragover', 289))
+    fireEvent(layer, dragEvent('dragover', 279))
     expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
-      left: `${29_000 / 62_000 * 100}%`,
+      left: `${28_000 / 62_000 * 100}%`,
     })
   })
 
-  // v2 port blocked by #1111: a move outline shows over an obstructed position where the drop makes no v2 write
   it('only shows a Clip move outline for a position that can be committed', async () => {
     const show = createDefaultShow('show-clip-valid-drop-preview', 'Valid Clip drop preview', 1000)
     const zoneId = show.zones[0].id
@@ -3283,15 +3283,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         }],
       })),
     }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const editor = openV2EditorForRecord(convertForTest(show))
     useShowEditorSessionStore.setState({
       snapEnabled: false,
       markersVisible: false,
       markerSnapEnabled: false,
     })
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
 
     const clip = screen.getByRole('button', { name: 'Select Drop Contract' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -3332,8 +3331,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     fireEvent(clip, dragEvent('dragend', 30))
 
     await waitFor(() => {
-      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
-      expect(saved.composition?.scenes[0].zones[0].main[0].startMs).toBe(3_000)
+      const saved = editor.state().record.composition.clips.find((candidate) => candidate.id === 'placement-valid-drop-preview')
+      expect(saved?.startMs).toBe(3_000)
     })
   })
 

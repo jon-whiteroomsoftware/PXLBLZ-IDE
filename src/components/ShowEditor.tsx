@@ -6924,6 +6924,17 @@ function ShowTimelineWorkspace({
         setMovePreview(null)
         return
       }
+      // Ask the owner the question the drop will ask, so the preview never
+      // paints a position the owner refuses (§10 UI honesty, #1111-B).
+      if (gesturePlan.kind === 'temporal' && draggingCompositionClipRef.current?.v2Move) {
+        const ownerResult = editShowClipTemporalV2(draggingCompositionClipRef.current.v2Move.capture.record, gesturePlan.intent)
+        if (ownerResult.status === 'refused') {
+          if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
+          movePlanRef.current = null
+          setMovePreview(null)
+          return
+        }
+      }
       movePlanRef.current = {
         recordVersion: 2,
         preview: nextPreview,
