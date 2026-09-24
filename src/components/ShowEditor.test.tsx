@@ -2746,21 +2746,19 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       .getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Animation speedanimated')
   })
 
-  // v2 port blocked by #1111: applying Star from the Change palette on the converted boundary makes no v2 write and shows no refusal
   it('previews, restores and applies a boundary Transition from the Change palette (#1065)', async () => {
     const user = userEvent.setup()
-    const show = createDefaultShow('show-boundary-palette', 'Boundary palette', 1000)
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const show = { ...createDefaultShow('show-boundary-palette', 'Boundary palette', 1000), stageMapId: 'plane' }
+    const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.getState().openShow(show.id, 62_000)
     useShowTransportStore.getState().setPosition(show.id, 5_000)
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     await user.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
     }))
     // The inspector's own Change button is the palette's entry point, and the
-    // palette is v1's, opened on v1's record.
+    // palette is opened on the v2 record.
     await user.click(within(screen.getByRole('region', { name: 'Transition properties' }))
       .getByRole('button', { name: /Change$/ }))
     const palette = screen.getByRole('dialog', { name: 'Choose Transition' })
@@ -2768,25 +2766,25 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     // Hovering previews the candidate on the Stage and seeks into the boundary.
     fireEvent.pointerEnter(star)
-    const previewed = useShowPreviewOverrideStore.getState().show
-    expect(previewed?.transitions?.[0]).toMatchObject({ kind: 'portal', shape: 'star' })
+    const previewed = useShowPreviewOverrideStore.getState().showV2?.composition.transitions[0]
+    expect(previewed).toMatchObject({ kind: 'portal', shape: 'star' })
     expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
     // Leaving restores both the Stage and the position the palette opened at.
     fireEvent.pointerLeave(star)
-    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
     expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(5_000)
 
     fireEvent.pointerEnter(star)
     // The applied candidate is the record the Stage previewed, not a second
     // computation of it: the same snapshot the palette hovered is persisted.
-    const hovered = useShowPreviewOverrideStore.getState().show
+    const hovered = useShowPreviewOverrideStore.getState().showV2?.composition.transitions[0]
     await user.click(star)
 
     await waitFor(() => {
-      const saved = useShowStore.getState().shows[0]
-      expect(saved.transitions?.[0]).toEqual(hovered?.transitions?.[0])
+      expect(editor.state().record.composition.transitions[0]).toEqual(hovered)
     })
-    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(editor.state().v2Writes).toBe(1)
+    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
     // Applying keeps the boundary position rather than restoring, as v1 does.
     expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
     expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
