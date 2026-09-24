@@ -67,25 +67,9 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     intent: 'Show End admits once.',
     script: [{ tool: 'set_show_end', args: { end_ms: 70_000, finish_turn_reply: { intent: 'apply', reply: 'Set Show End to seventy seconds.' } } }],
   },
-  // Browser sequences R, MR and PP (#1067), restored from the pre-#1039
+  // Browser sequences R and MR (#1067), restored from the pre-#1039
   // catalogue on the version-2 commands: moves are `update_clips` placement
   // patches and resizes are `resize_clip`.
-  {
-    utterance: 'swap the two plain Clips through a private overlap',
-    intent: '#949 on v2: the first move overlaps the other Clip, which every v2 command refuses (Clips on one Zone and Layer cannot overlap); nothing is published.',
-    script: [
-      { tool: 'update_clips', args: { updates: [{ clip_id: '$clipAt:0', start_ms: 8000 }] } },
-      { tool: 'update_clips', args: { updates: [{ clip_id: '$clipAt:8000', start_ms: 0 }], finish_turn_reply: { intent: 'apply', reply: 'Swapped the two Clips.' } } },
-    ],
-  },
-  {
-    utterance: 'leave the private overlap incomplete',
-    intent: '#949: no private intermediate is published.',
-    script: [
-      { tool: 'update_clips', args: { updates: [{ clip_id: '$clipAt:0', start_ms: 8000 }] } },
-      { say: 'The private edit is incomplete.', intent: 'incomplete' },
-    ],
-  },
   {
     utterance: 'move the second Clip to sixteen seconds then make the first Clip twelve seconds',
     intent: '#950: move B then resize A, with both intermediate records valid.',

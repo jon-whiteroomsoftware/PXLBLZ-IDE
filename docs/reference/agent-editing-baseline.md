@@ -63,12 +63,11 @@ and synthetic-provider observations, not Controller hardware proof.
 
 ## Private two-Clip rearrangement (#949)
 
-Sequence PP now qualifies a finite private two-plain-Clip swap: one complete
-saved record, real export/reopen and Undo, incomplete discard, and stale
-delivery preserving manual work. [Private-pair evidence](evidence/issue-949-private-pair/README.md)
-records the committed source and consumer results. Historical fixture hashes
-remain unchanged; broader temporary compositions and canonical move parity
-remain outside this qualification.
+Sequence PP qualified a finite private two-plain-Clip swap on version-1
+records; [private-pair evidence](evidence/issue-949-private-pair/README.md)
+remains as history. PP was deleted in #1067, because a version-2 record never
+holds a same-Layer overlap (`src/engine/showCompositionV2.ts:497`), so the
+private swap has no version-2 form (Jon, 2026-09-23).
 
 ## Diagnostic waiting protocol (#949)
 
@@ -102,7 +101,7 @@ successful authoring does not claim Controller delivery readiness.
 | `npm run agent:smoke`, `npm run agent:corpus -- --fake` | Unchanged from the first slice: bridge path and corpus without an editor. | manual |
 | `npx vitest run src/agent-harness src/dev` | Bridge request-id and phase-clock tests, fixture-set coverage and record-hash pins, the observation log. | `npm test` |
 
-Sequences B5 and TR were deleted (#1067): their subject, the dev drawer's stable resize retry, is version-1-only by contract ([agent candidate application](contracts/agent-candidate-application.md)), so they have no version-2 form (Jon, 2026-09-23).
+Sequences B5, TR and PP were deleted (#1067): B5 and TR's subject, the dev drawer's stable resize retry, is version-1-only by contract ([agent candidate application](contracts/agent-candidate-application.md)), and PP's private overlap cannot exist on a version-2 record (see "Private two-Clip rearrangement" above), so they have no version-2 form (Jon, 2026-09-23).
 
 The suite spawns `BRIDGE_AGENT=scripted npm run agent:bridge` on an ephemeral
 loopback port with `BRIDGE_DELAY_MS=2500`, loads the bridge's own `chat.js`
