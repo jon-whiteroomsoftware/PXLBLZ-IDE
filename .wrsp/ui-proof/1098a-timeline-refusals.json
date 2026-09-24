@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1098",
+  "route": "/PXLBLZ-IDE/studio/shows/fdf8c7d4-f59d-42f5-9c70-2237bb540da7",
+  "operation": "Existing Show editor on the v2 backing at 1440x900 with reduced motion, fresh Installation Shows seeded through /api/shows and stored as v2. Capture 1: a Show with two Clips on one Layer and no Transition (TestPattern1D 0-30 s, CometLoom 30-60 s, layer:zone-1:main); CometLoom is dragged and dropped a quarter of the way in, over TestPattern1D. The clip-temporal owner refuses the overlap, CometLoom shows the red 'Space taken' label, and the timeline role=status reads 'Clips on one Layer cannot overlap.'. 1.5 s later the stored v2 record is unchanged: updatedAt 1790220129957 before and after, both Clips at the same start, duration and Layer. Capture 2 (Show 26193495-486e-4c61-b58e-efc4acfe4ac4): the default Installation Show with its converted crossfade Transition (30000-31999 ms), plus a second empty Layer added through Add > Layer because the Transition's own control covers its Layer. A double-click on that Layer at 31000 ms refuses the add: the timeline role=status reads 'A Clip cannot start inside a Transition.', no Clip label appears, no add dialog opens, and the stored record's updatedAt is unchanged. That status line is screen-reader only; the proof script removed its sr-only class for the capture alone and drew it bottom-left.",
+  "captures": [
+    ".wrsp/ui-proof/1098a-occupied.png",
+    ".wrsp/ui-proof/1098a-add-transition.png"
+  ],
+  "capturedAtCommit": "c666950ddf5ecd52d97289e02da5c3a1049c15cd"
+}
