@@ -362,6 +362,7 @@ import {
   planShowV2ClipMove,
   planShowV2ClipResize,
   planShowV2ClipSplit,
+  planShowV2ManualClipResize,
   resolveShowV2SplitTarget,
   type ShowV2ClipTemporalPlan,
 } from '@/engine/showV2ClipTemporalPlanning'
@@ -7363,14 +7364,13 @@ function ShowTimelineWorkspace({
       // from a converted Scene-boundary Transition plans the connected form
       // that commits the #1068 repair, while a resize into the boundary and an
       // unabsorbable reclaim refuse before any preview. Every other edge plans
-      // its connected or temporal form.
-      const startMs = edge === 'start' ? next.startMs : clip.startMs
-      const endMs = edge === 'start' ? clip.endMs : next.startMs + next.durationMs
-      const gesturePlan = planShowV2ClipResize(timelineView, {
+      // its connected or temporal form. A free edge stops at the nearest
+      // same-Layer Clip, as v1 does (#1099); preview and commit share it.
+      const { startMs, endMs, plan: gesturePlan } = planShowV2ManualClipResize(timelineView, {
         clipId: clip.id,
         edge: edge === 'start' ? 'leading' : 'trailing',
-        startMs,
-        endMs,
+        startMs: edge === 'start' ? next.startMs : clip.startMs,
+        endMs: edge === 'start' ? clip.endMs : next.startMs + next.durationMs,
       })
       if (gesturePlan.kind === 'refuse') return null
       return {

@@ -9,6 +9,7 @@ import {
   planShowV2ClipMove,
   planShowV2ClipResize,
   planShowV2ClipSplit,
+  planShowV2ManualClipResize,
   resolveShowV2SplitTarget,
 } from './showV2ClipTemporalPlanning'
 
@@ -244,6 +245,62 @@ describe('planShowV2ClipResize', () => {
       .toEqual({ kind: 'refuse', reason: 'outside-clip' })
     expect(planShowV2ClipResize(view, { clipId: 'missing', edge: 'trailing', startMs: 0, endMs: 10 }))
       .toEqual({ kind: 'refuse', reason: 'missing-clip' })
+  })
+})
+
+/** `resizeBoundaryShow` on one Layer: free `ra` 0-4000 and free `rb` 8000-10000. */
+function resizeBoundaryView(): ShowTimelineViewModel {
+  const view = fixture()
+  view.rows = [{
+    zoneId: 'z1', zoneName: 'Zone 1', nominalPixelCount: 16, pixelCount: 16, composed: true,
+    layers: [layer('l1', 'z1', [item('ra', 'z1', 'l1', 0, 4000), item('rb', 'z1', 'l1', 8000, 2000)])],
+    groups: [],
+  }]
+  view.transitions = []
+  return view
+}
+
+describe('planShowV2ManualClipResize (#1099)', () => {
+  it('clamps a trailing drag past an unconnected neighbour at its start, as v1 does', () => {
+    expect(planShowV2ManualClipResize(resizeBoundaryView(), { clipId: 'ra', edge: 'trailing', startMs: 0, endMs: 12000 }))
+      .toEqual({
+        startMs: 0,
+        endMs: 8000,
+        plan: { kind: 'temporal', intent: { kind: 'extend', clipId: 'ra', startMs: 0, endMs: 8000 } },
+      })
+  })
+
+  it('clamps a leading drag past an unconnected previous neighbour at its end', () => {
+    expect(planShowV2ManualClipResize(resizeBoundaryView(), { clipId: 'rb', edge: 'leading', startMs: 1000, endMs: 10000 }))
+      .toEqual({
+        startMs: 4000,
+        endMs: 10000,
+        plan: { kind: 'temporal', intent: { kind: 'extend', clipId: 'rb', startMs: 4000, endMs: 10000 } },
+      })
+  })
+
+  it('refuses a drag that clamps back to the unchanged edge as a no-change', () => {
+    // `c` ends at 14000 exactly where unconnected `h` starts on the same Layer.
+    expect(planShowV2ManualClipResize(fixture(), { clipId: 'c', edge: 'trailing', startMs: 12000, endMs: 15000 }))
+      .toEqual({ startMs: 12000, endMs: 14000, plan: { kind: 'refuse', reason: 'no-change' } })
+  })
+
+  it('allows exact adjacency: the end may equal the neighbour start', () => {
+    expect(planShowV2ManualClipResize(resizeBoundaryView(), { clipId: 'ra', edge: 'trailing', startMs: 0, endMs: 8000 }))
+      .toEqual({
+        startMs: 0,
+        endMs: 8000,
+        plan: { kind: 'temporal', intent: { kind: 'extend', clipId: 'ra', startMs: 0, endMs: 8000 } },
+      })
+  })
+
+  it('keeps a Transition-connected edge on the connected ripple resize, unclamped', () => {
+    expect(planShowV2ManualClipResize(fixture(), { clipId: 'a', edge: 'trailing', startMs: 0, endMs: 6000 }))
+      .toEqual({
+        startMs: 0,
+        endMs: 6000,
+        plan: { kind: 'transition-resize', intent: { kind: 'resize-trailing', clipId: 'a', endMs: 6000 } },
+      })
   })
 })
 

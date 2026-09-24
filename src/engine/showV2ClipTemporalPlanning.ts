@@ -346,6 +346,42 @@ export function planShowV2ClipResize(
   return refuse('outside-clip')
 }
 
+/**
+ * Plan a pointer drag of one Clip edge (#1099). A free edge stops at the
+ * nearest same-Layer obstruction - the next Clip's start for a trailing edge,
+ * the previous Clip's end for a leading edge - as v1's exact resize bounds a
+ * manual drag by its `no-space` available range (`resizeShowClipExactly`).
+ * Exact adjacency is allowed. A Transition-joined edge keeps the connected
+ * ripple form unclamped. The returned interval is the one to preview; a drag
+ * that clamps back to the unchanged edge plans `no-change`. Typed exact
+ * resizes keep `planShowV2ClipResize`, which never clamps.
+ */
+export function planShowV2ManualClipResize(
+  view: ShowTimelineViewModel,
+  input: { clipId: string; edge: 'leading' | 'trailing'; startMs: number; endMs: number },
+): { startMs: number; endMs: number; plan: ShowV2ClipTemporalPlan } {
+  let { startMs, endMs } = input
+  const found = findItem(view, input.clipId)
+  if (found && !found.item.groupOccurrenceId && edgeTransitions(view, input.clipId, input.edge).length === 0) {
+    const { item } = found
+    const itemEndMs = item.startMs + item.durationMs
+    const siblings = view.rows
+      .filter((row) => row.zoneId === item.zoneId)
+      .flatMap((row) => row.layers.filter((candidate) => candidate.id === item.layerId))
+      .flatMap((candidate) => candidate.items)
+      .filter((candidate) => candidate.id !== item.id)
+    if (input.edge === 'trailing' && endMs > itemEndMs) {
+      endMs = siblings.filter((other) => other.startMs >= itemEndMs)
+        .reduce((bound, other) => Math.min(bound, other.startMs), endMs)
+    }
+    if (input.edge === 'leading' && startMs < item.startMs) {
+      startMs = siblings.filter((other) => other.startMs + other.durationMs <= item.startMs)
+        .reduce((bound, other) => Math.max(bound, other.startMs + other.durationMs), startMs)
+    }
+  }
+  return { startMs, endMs, plan: planShowV2ClipResize(view, { ...input, startMs, endMs }) }
+}
+
 /** Plan a split at an interior time with a caller-minted fresh right identity. */
 export function planShowV2ClipSplit(
   view: ShowTimelineViewModel,

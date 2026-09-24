@@ -1228,20 +1228,21 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
   test('R: canonical exact resize accepts the boundary, preserves no-op, and refuses excess', async ({ page }) => {
     test.setTimeout(90000)
     const record = resizeBoundaryShow(`resize-r-${Date.now().toString(36)}`)
-    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+    await seedConvertedShowV2(page, record, 'baseline R')
     const writes = watchShowWrites(page)
+    const saves = () => writes.filter(write => write.method === 'PUT')
     await page.goto(`studio/shows/${record.id}?agent=1`)
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
     await expect.poll(() => page.evaluate(async () => {
       const load = (path: string) => import(path)
-      const [{ usePatternStore }, { useLibraryStore }, { useMapStore }] = await Promise.all([
-        load('/PXLBLZ-IDE/src/store/patternStore.ts'), load('/PXLBLZ-IDE/src/store/libraryStore.ts'), load('/PXLBLZ-IDE/src/store/mapStore.ts'),
-      ])
-      return usePatternStore.getState().patternsLoaded && useLibraryStore.getState().librariesLoaded && useMapStore.getState().mapsLoaded
+      const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
+      return useEntityOrganizationStore.getState().loaded.libraries
     })).toBe(true)
     await injectOverlay(page, bridge.url)
     const before = await visibleRecord(page)
-    // Pair real manual entry points with the scripted canonical operation.
+    // Pair real manual entry points with the scripted canonical operation. The
+    // drag aims at 12 s; the free trailing edge stops at the unconnected
+    // `resize-b` start, 8000 ms, exactly as v1 bounds it (#1099).
     const handle = page.getByRole('separator', { name: 'Resize CometLoom end' }).first()
     const lane = page.locator('[data-show-layer-kind="main"]').first()
     const rect = (await lane.boundingBox())!
@@ -1251,13 +1252,14 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await page.mouse.down()
     await page.mouse.move(edge.x + edge.width / 2 + rect.width * 0.4, edge.y + edge.height / 2)
     expect(await visibleRecord(page)).toEqual(before)
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(0)
+    expect(saves()).toHaveLength(0)
     await page.screenshot({ path: join(REPORT_DIR, 'R-manual-preview.png'), fullPage: true })
     await page.mouse.up()
     await page.keyboard.up('Alt')
     await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 8000)
     const pointerAfter = await visibleRecord(page)
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(1)
+    expect(pointerAfter).toEqual({ ...withClipDuration(before, 'resize-a', 8000), updatedAt: pointerAfter!.updatedAt })
+    expect(saves()).toHaveLength(1)
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
     await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 4000)
     expect(await visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
@@ -1281,24 +1283,16 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     expect(accepted.applied, JSON.stringify(accepted)).toBe(true)
     await waitForDurable(page, record.id, show => firstMain(show)?.durationMs === 8000)
     const after = await visibleRecord(page)
-    const expected = structuredClone(before!)
-    expected.composition!.scenes[0].zones[0].main[0].durationMs = 8000
-    expect(after).toEqual({ ...expected, updatedAt: after!.updatedAt })
+    expect(after).toEqual({ ...withClipDuration(before, 'resize-a', 8000), updatedAt: after!.updatedAt })
     const durable = await durableShow(page, record.id)
     expect(durable).toEqual(after)
     expect(pointerAfter).toEqual({ ...after, updatedAt: pointerAfter!.updatedAt })
-    const inspectorExpected = structuredClone(after!)
-    inspectorExpected.composition!.scenes[0].zones[0].main[0].durationMs = 7999
-    expect(inspectorAfter).toEqual({ ...inspectorExpected, updatedAt: inspectorAfter!.updatedAt })
+    expect(inspectorAfter).toEqual({ ...withClipDuration(after, 'resize-a', 7999), updatedAt: inspectorAfter!.updatedAt })
     await page.getByRole('button', { name: 'Show actions' }).click()
     const downloadPending = page.waitForEvent('download')
     await page.getByRole('menuitem', { name: 'Export Show file…' }).click()
     const downloaded = await downloadPending
-    const reopened = await page.evaluate(async bytes => {
-      const load = (path: string) => import(path)
-      const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-      return parseShowFileBundle(new Uint8Array(bytes))
-    }, [...readFileSync((await downloaded.path())!)])
+    const reopened = await reopenExport(page, (await downloaded.path())!)
     expect(reopened.show).toEqual(after)
     await page.screenshot({ path: join(REPORT_DIR, 'R-exact-boundary.png'), fullPage: true })
     const noop = await waitForDone(page, await submitUtterance(page, 'make the first Clip exactly eight seconds'))
@@ -1308,11 +1302,13 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const refused = await waitForDone(page, await submitUtterance(page, 'try twelve seconds with the next Clip at eight'))
     expect(refused.changed).toBe(false)
     const refusedTools = (refused.bridgeTiming as { toolCalls: Array<{ name: string; isError?: boolean; issue?: string }> }).toolCalls
-    expect(refusedTools.find(tool => tool.name === 'resize_clip')).toMatchObject({ isError: true, issue: 'The same-Layer range at this start is 0–8000 ms.' })
+    // An unconnected neighbour refuses the overlapping v2 resize: no Transition
+    // ripples it (src/engine/showCompositionV2.ts:497).
+    expect(refusedTools.find(tool => tool.name === 'resize_clip')).toMatchObject({ isError: true })
     await expect(page.getByText('The requested twelve seconds do not fit. Available range: 0–8000 ms.', { exact: false })).toBeVisible()
     expect(await visibleRecord(page)).toEqual(after)
     expect(await durableShow(page, record.id)).toEqual(durable)
-    expect(writes.filter(write => write.method === 'PATCH')).toHaveLength(5)
+    expect(saves()).toHaveLength(5)
     await page.screenshot({ path: join(REPORT_DIR, 'R-noop-refused.png'), fullPage: true })
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
     expect(await visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })
