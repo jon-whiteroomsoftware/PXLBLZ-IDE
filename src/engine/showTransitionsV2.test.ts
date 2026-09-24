@@ -735,6 +735,17 @@ describe('v2 Transition ownership', () => {
       expect(source).toEqual(before)
     })
 
+    it('refuses a closure whose Transition carries a scalar Property ramp, writing nothing (#1111-C2)', () => {
+      const source = crossZoneWholeOutputShow()
+      source.composition.transitions[0].propertyRamps = [{ target: { kind: 'show-repeat-scale' }, from: 2, easing: { curve: 'linear' } }]
+      expect(validateShowRecordV2(source)).toEqual([])
+      const before = structuredClone(source)
+      const result = editShowTransitionV2(source, { kind: 'resize-leading', clipId: 'in', startMs: 300 })
+      expect(result).toMatchObject({ status: 'refused', code: 'unsupported-property-carrier', removedIds: [] })
+      expect(result.record).toBe(source)
+      expect(source).toEqual(before)
+    })
+
     it('extends through a converted ready Scene-boundary Transition and removes it', () => {
       const source = convertedFreeRangeBoundaryShow()
       const boundary = source.composition.transitions[0]

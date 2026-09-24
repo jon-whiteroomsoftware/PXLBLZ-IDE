@@ -15,6 +15,7 @@ import { createDefaultShow } from './showModel'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { editShowClipTemporalV2 } from './showClipTemporalV2'
+import { convertedBoundaryRepairSpecV2 } from './showTransitionsV2'
 
 it('refuses a clip-edge resize against a converted Property ramp carrier (#1061)', () => {
   const show = createDefaultShow('converted-clip-edge', 'Converted clip edge', 1)
@@ -167,15 +168,55 @@ it('refuses complete contribution loss in a fixed Layout even when nominal selec
   expect(source).toEqual(prior)
 })
 
-it('delegates a zero incoming duration to Reset without leaving a dormant Transition', () => {
+it('extends a zero incoming duration in place, removing the Transition without ripple (#1111-C2)', () => {
   const source = fixture()
   const result = editShowClipTemporalV2(source, { kind: 'extend', clipId: 'selected', startMs: 100, endMs: 600 })
   expect(result.status).toBe('changed')
   if (result.status !== 'changed') return
   const next = reopen(result.record)
   expect(next.composition.transitions.map(transition => transition.id)).toEqual(['outgoing'])
-  expect(next.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([['before', 0, 100], ['selected', 100, 400], ['after', 600, 300]])
+  expect(next.composition.clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([['before', 0, 100], ['selected', 100, 500], ['after', 700, 300]])
+  expect(next.composition.showEndMs).toBe(source.composition.showEndMs)
   expect(result.removedIds).toContain('incoming')
+})
+
+it('refuses a negative incoming closure into an occupied range only by the validator (#1111-C2)', () => {
+  const source = fixture()
+  const prior = structuredClone(source)
+  const result = editShowClipTemporalV2(source, { kind: 'extend', clipId: 'selected', startMs: 99, endMs: 600 })
+  expect(result).toMatchObject({ status: 'refused', code: 'invalid-result', issueCode: 'overlap', affectedClipIds: [] })
+  expect(result.record).toBe(source)
+  expect(source).toEqual(prior)
+})
+
+it('extends a negative closure through a converted ready boundary and removes it with no shift (#1111-C2)', () => {
+  const show = createDefaultShow('temporal-leading-extend', 'Temporal leading extend', 1)
+  const converted = convertShowRecordV1ToV2(show, {
+    byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
+  })
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const source = converted.record
+  const [outgoing, incoming] = source.composition.clips
+  const boundary = source.composition.transitions[0]
+  // The outgoing Clip moves to an overlay Layer so the extension range is free.
+  source.composition.layers.push({ id: 'layer:overlay', zoneId: outgoing.zoneId, name: 'Overlay', rank: 1 })
+  outgoing.layerId = 'layer:overlay'
+  boundary.participants = []
+  boundary.wholeOutput = { startMs: outgoing.startMs + outgoing.durationMs, fromClipIds: [outgoing.id], toClipIds: [incoming.id] }
+  expect(validateShowRecordV2(source)).toEqual([])
+  expect(convertedBoundaryRepairSpecV2(source, boundary.id).status).toBe('ready')
+  const endMs = incoming.startMs + incoming.durationMs
+  const startMs = boundary.wholeOutput.startMs - 1_000
+  const result = editShowClipTemporalV2(source, { kind: 'extend', clipId: incoming.id, startMs, endMs })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  const next = reopen(result.record)
+  expect(next.composition.transitions.map(transition => transition.id)).not.toContain(boundary.id)
+  expect(result.removedIds).toContain(boundary.id)
+  expect(next.composition.clips.find(clip => clip.id === incoming.id)).toMatchObject({ startMs, durationMs: endMs - startMs })
+  expect(next.composition.clips.filter(clip => clip.id !== incoming.id)).toEqual(source.composition.clips.filter(clip => clip.id !== incoming.id))
+  expect(next.composition.showEndMs).toBe(source.composition.showEndMs)
+  expect(next.composition.layoutOccurrences).toEqual(source.composition.layoutOccurrences)
 })
 
 const sourceCode = 'export var calls = 0; export var elapsed = 0; export var randomValue = 0; export function beforeRender(delta) { calls++; elapsed += delta; randomValue = random(1) } export function render2D(index, x, y) { rgb(elapsed / 2000, randomValue, 0) }'
@@ -270,7 +311,7 @@ it('retargets exact whole-output outgoing membership on split without changing c
   expect(next.composition.transitions[0]).toEqual(source.composition.transitions[0])
   expect(next.composition.transitions[1]).toEqual({ ...source.composition.transitions[1], wholeOutput: { startMs: 600, fromClipIds: ['right'], toClipIds: ['after'] } })
 })
-it('preserves explicit projection requirements for a prepared scalar-ramp zero Reset', () => {
+it('preserves explicit projection requirements for a prepared scalar-ramp zero closure', () => {
   const source = scalarRampFixture()
   expect(playback(source, 'fast').artifact.code.length).toBeGreaterThan(0)
   const prior = structuredClone(source)
@@ -287,7 +328,6 @@ it.each([
   { kind: 'move', clipId: 'selected', startMs: Number.MAX_SAFE_INTEGER },
   { kind: 'trim', clipId: 'selected', startMs: 100, endMs: 550 },
   { kind: 'extend', clipId: 'selected', startMs: 250, endMs: 600 },
-  { kind: 'extend', clipId: 'selected', startMs: 99, endMs: 600 },
 ])('refuses strict invalid temporal input atomically ($kind)', raw => {
   const source = fixture()
   const prior = structuredClone(source)
@@ -334,20 +374,21 @@ function scalarRampFixture(): ShowRecordV2 {
   return source
 }
 const rampProjections = [{ rampIndex: 0, trackId: 'retained-ramp', startKeyId: 'ramp:first', endKeyId: 'ramp:last', activeEndMs: 600, toValue: 4 }]
-it.each(['fast', 'fidelity'] as const)('projects a prepared zero Reset and simultaneous trailing edge without moving retained scalar animation in %s', fidelity => {
+it.each(['fast', 'fidelity'] as const)('projects a prepared zero closure and simultaneous trailing edge without moving retained scalar animation in %s', fidelity => {
   const source = scalarRampFixture()
   expect(playback(source, fidelity).artifact.code.length).toBeGreaterThan(0)
   const edited = editShowClipTemporalV2(source, { kind: 'extend', clipId: 'selected', startMs: 100, endMs: 650, propertyRampProjections: rampProjections })
   expect(edited.status).toBe('changed')
   if (edited.status !== 'changed') return
+  // The closure extends in place; only the trailing edge's +50 ripples.
   const expected = structuredClone(source)
   expected.composition.transitions.shift()
-  expected.composition.transitions[0].wholeOutput!.startMs = 550
+  expected.composition.transitions[0].wholeOutput!.startMs = 650
   expected.composition.clips[1].startMs = 100
-  expected.composition.clips[1].durationMs = 450
+  expected.composition.clips[1].durationMs = 550
   expected.composition.clips[1].appearance.keys[0].timeMs = 100
-  expected.composition.clips[2].startMs = 650
-  expected.composition.clips[2].appearance.keys[0].timeMs = 650
+  expected.composition.clips[2].startMs = 750
+  expected.composition.clips[2].appearance.keys[0].timeMs = 750
   expected.composition.propertyTracks = [{ id: 'retained-ramp', target: { kind: 'show-repeat-scale' }, activeStartMs: 100, activeDurationMs: 500, keyframes: [
     { id: 'ramp:first', timeMs: 100, value: 2, easing: { curve: 'linear' } }, { id: 'ramp:last', timeMs: 200, value: 4, easing: { curve: 'linear' } },
   ] }]
@@ -422,16 +463,19 @@ it('public Clip dispatch consumes the temporal transaction with connected edges 
   expect(editShowClipV2(source, intent)).toEqual(editShowClipTemporalV2(source, intent))
 })
 
-it('public temporal resize forwards the complete explicit zero Reset projection plan', () => {
+it('public temporal resize forwards the complete explicit zero closure projection plan', () => {
   const source = scalarRampFixture()
   const intent = { kind: 'extend' as const, clipId: 'selected', startMs: 100, endMs: 650, propertyRampProjections: rampProjections }
-  expect(editShowClipV2(source, intent)).toEqual(editShowClipTemporalV2(source, intent))
+  const forwarded = editShowClipV2(source, intent)
+  expect(forwarded).toEqual(editShowClipTemporalV2(source, intent))
+  expect(forwarded.status).toBe('changed')
+  expect(forwarded.record.composition.clips[1]).toMatchObject({ startMs: 100, durationMs: 550 })
   const outside = { ...intent, propertyRampProjections: [{ ...rampProjections[0], toValue: 8.00000001 }] }
   const refused = editShowClipV2(source, outside)
   expect(refused.status).toBe('refused');expect(refused.record).toBe(source);expect(refused.affectedClipIds).toEqual([])
 })
 
-it.each([0.99999999, 8.00000001])('prepared zero Reset refuses outside source endpoint%s through public dispatch', outside => {
+it.each([0.99999999, 8.00000001])('prepared zero closure refuses outside source endpoint%s through public dispatch', outside => {
   const source = scalarRampFixture()
   source.composition.transitions[0].propertyRamps[0].from = outside
   expect(playback(source, 'fast').artifact.code.length).toBeGreaterThan(0)

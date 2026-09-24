@@ -257,7 +257,7 @@ const removeClips: ShowCommandV2Descriptor = {
 const resizeClip: ShowCommandV2Descriptor = {
   name: 'resize_clip',
   family: 'clips',
-  description: 'Resize one Clip. A trailing resize (end_ms or duration_ms) moves its end and ripples connected successors by the end delta while preserving Transition durations. A leading resize (start_ms) keeps the end fixed and changes an incoming Transition\'s duration by the same delta; a zero result removes that Transition instead, and a negative duration refuses.',
+  description: 'Resize one Clip. A trailing resize (end_ms or duration_ms) moves its end and ripples connected successors by the end delta while preserving Transition durations. A leading resize (start_ms) keeps the end fixed and changes an incoming Transition\'s duration by the same delta. When start_ms reaches or passes the Transition\'s window start, the Clip extends to start_ms and that Transition is removed; nothing else moves. An occupied range refuses.',
   touches: ['/composition/clips', '/composition/transitions', '/composition/propertyTracks'],
   exactlyOne: ['end_ms', 'duration_ms', 'start_ms'],
   fields: {

@@ -388,6 +388,15 @@ describe('planShowV2ClipResize across conversion provenance (#1068)', () => {
       .toEqual({ kind: 'refuse', reason: 'boundary-extend-unsupported' })
   })
 
+  it('plans a leading drag to or past a converted boundary window start as a closure (#1111-C2)', () => {
+    expect(planShowV2ClipResize(fixture(), { clipId: 'f', edge: 'leading', startMs: 16000, endMs: 20000 }))
+      .toEqual({ kind: 'transition-resize', intent: { kind: 'resize-leading', clipId: 'f', startMs: 16000 } })
+    expect(planShowV2ClipResize(fixture(), { clipId: 'f', edge: 'leading', startMs: 15500, endMs: 20500 }))
+      .toEqual({ kind: 'temporal', intent: { kind: 'extend', clipId: 'f', startMs: 15500, endMs: 20500 } })
+    expect(planShowV2ClipResize(fixture(), { clipId: 'f', edge: 'leading', startMs: 16001, endMs: 20000 }))
+      .toEqual({ kind: 'refuse', reason: 'boundary-extend-unsupported' })
+  })
+
   it('refuses a two-edge extend that grows into a converted boundary instead of planning a temporal extend', () => {
     expect(planShowV2ClipResize(fixture(), { clipId: 'f', edge: 'leading', startMs: 17500, endMs: 20500 }))
       .toEqual({ kind: 'refuse', reason: 'boundary-extend-unsupported' })

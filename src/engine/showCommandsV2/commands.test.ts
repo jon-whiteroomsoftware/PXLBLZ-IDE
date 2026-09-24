@@ -498,6 +498,32 @@ describe('v2 Transition commands', () => {
     expect(reinserted.record.composition.transitions[0].kind).toBe('wipe')
   })
 
+  it('extends a leading resize_clip through its incoming Transition with no ripple (#1111-C)', () => {
+    const inserted = changed(applyShowCommandV2(commandFixtureV2(), 'insert_transition', {
+      from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 500, kind: 'crossfade',
+    }))
+    const before = inserted.record
+    const extended = changed(applyShowCommandV2(before, 'resize_clip', { clip_id: 'clip-b', start_ms: 4_000 }))
+    expect(extended.record.composition.transitions).toEqual([])
+    const clipB = extended.record.composition.clips.find(clip => clip.id === 'clip-b')!
+    expect([clipB.startMs, clipB.startMs + clipB.durationMs]).toEqual([4_000, 8_500])
+    expect(extended.record.composition.showEndMs).toBe(before.composition.showEndMs)
+    for (const id of ['clip-a', 'clip-c']) {
+      expect(extended.record.composition.clips.find(clip => clip.id === id)).toEqual(before.composition.clips.find(clip => clip.id === id))
+    }
+  })
+
+  it('refuses a leading resize_clip past its Transition into an occupied range and names it (#1111-C)', () => {
+    const inserted = changed(applyShowCommandV2(commandFixtureV2(), 'insert_transition', {
+      from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 500, kind: 'crossfade',
+    }))
+    const refused = applyShowCommandV2(inserted.record, 'resize_clip', { clip_id: 'clip-b', start_ms: 3_900 })
+    expect(refused.status).toBe('refused')
+    if (refused.status !== 'refused') return
+    expect(refused.record).toBe(inserted.record)
+    expect(refused.issues[0].message).toMatch(/overlap/i)
+  })
+
   it('refuses a non-junction pair with the exact-adjacency remedy', () => {
     const record = commandFixtureV2()
     const gapped = changed(applyShowCommandV2(record, 'resize_clip', { clip_id: 'clip-a', end_ms: 3_999 }))

@@ -312,7 +312,7 @@ export function editShowTransitionV2(
     if (intent.kind === 'reset-to-cut' && intent.propertyRampProjections) {
       return resetTransitionWithProjectedPropertyRamps(record, transition, intent.propertyRampProjections)
     }
-    return refuse('unsupported-property-carrier', `Transition "${transition.id}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
+    return refuse('unsupported-property-carrier', rampCarrierRefusalMessageV2(transition.id))
   }
   if (intent.kind === 'resize-transition' && intent.durationMs === 0) {
     return editShowTransitionV2(record, { kind: 'reset-to-cut', transitionId: transition.id })
@@ -424,6 +424,11 @@ export interface ConvertedBoundaryRepairSpecOptionsV2 {
   multiContributor?: boolean
   /** Resizing retains the carrier and retimes its ramps; removal callers omit this. */
   retimeRampCarrier?: boolean
+}
+
+/** The refusal every edit gives a scalar Property ramp carrier it cannot project. */
+export function rampCarrierRefusalMessageV2(transitionId: string): string {
+  return `Transition "${transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`
 }
 
 export function convertedBoundaryRepairSpecV2(
@@ -818,7 +823,7 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
   const endpoints = transitionEndpoints(transition)
   if (endpoints.from.length !== 1) return refusedResult(record, 'invalid-topology', 'Resize cannot split a multi-contributor Transition window.')
   const boundary = convertedBoundaryRepairSpecV2(record, transition.id)
-  if (boundary.status === 'ramp-carrier') return refusedResult(record, 'unsupported-property-carrier', `Transition "${boundary.transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
+  if (boundary.status === 'ramp-carrier') return refusedResult(record, 'unsupported-property-carrier', rampCarrierRefusalMessageV2(boundary.transitionId))
   if (boundary.status === 'ready') {
     if (endMs > oldEndMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${boundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
     return resizeConvertedBoundaryEdge(record, clip, clip.startMs, endMs, boundary.repair)
@@ -907,7 +912,7 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   const endpoints = transitionEndpoints(transition)
   if (endpoints.to.length !== 1) return refusedResult(record, 'invalid-topology', 'Resize cannot split a multi-contributor Transition window.')
   const boundary = convertedBoundaryRepairSpecV2(record, transition.id)
-  if (boundary.status === 'ramp-carrier') return refusedResult(record, 'unsupported-property-carrier', `Transition "${boundary.transitionId}" carries Property ramps. Reset it with an explicit projection plan; its ramp window cannot be resized.`)
+  if (boundary.status === 'ramp-carrier') return refusedResult(record, 'unsupported-property-carrier', rampCarrierRefusalMessageV2(boundary.transitionId))
   const durationMs = transition.durationMs + startMs - clip.startMs
   // A zero or negative incoming window extends the Clip and removes the
   // Transition in place, with no ripple (Jon, 2026-09-24, #1111-C).
@@ -961,8 +966,9 @@ function applyLeadingClipEdit(record: ShowRecordV2, next: ShowRecordV2, clip: Sh
  * A leading resize whose incoming window closes (duration <= 0) extends the
  * Clip to the requested start and removes the Transition, its Property ramps
  * and contributor sets in the same edit. Nothing else moves: no ripple, and
- * Show End stays fixed. Only the validator can refuse (Jon, 2026-09-24,
- * #1111-C).
+ * Show End stays fixed. Clip-value ramps go with the Transition; a scalar
+ * Property ramp needs a projection plan this intent cannot carry, so it
+ * refuses. Otherwise only the validator can refuse (Jon, 2026-09-24, #1111-C).
  */
 function extendLeadingThroughTransitionV2(
   record: ShowRecordV2,
@@ -970,6 +976,9 @@ function extendLeadingThroughTransitionV2(
   startMs: number,
   transition: ShowTransitionV2,
 ): ShowTransitionEditResultV2 {
+  if (!transition.propertyRamps.every(isShowTransitionClipValueRampV2)) {
+    return refusedResult(record, 'unsupported-property-carrier', rampCarrierRefusalMessageV2(transition.id))
+  }
   const endpoints = transitionEndpoints(transition)
   const next = structuredClone(record)
   next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== transition.id)

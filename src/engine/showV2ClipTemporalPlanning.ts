@@ -281,7 +281,9 @@ export function planShowV2ClipResize(
   const trailing = edgeTransitions(view, input.clipId, 'trailing')
   if (leadingChanged && !trailingChanged && leading.length > 0) {
     const shape = convertedBoundaryRepairShape(view, item, 'leading')
-    if (shape) {
+    // A start at or before the window start closes the boundary like any
+    // Transition: the Clip extends and the boundary goes (#1111-C).
+    if (shape && input.startMs > shape.windowStartMs) {
       if (input.startMs < item.startMs) return refuse('boundary-extend-unsupported')
       const blocked = blockedBoundaryRepair(view, item, shape)
       if (blocked) return refuse(blocked)
@@ -309,8 +311,9 @@ export function planShowV2ClipResize(
   // absorb refuses with it, because both owners decide the same way at commit.
   if ((input.startMs >= item.startMs && input.endMs <= endMs)
     || (input.startMs <= item.startMs && input.endMs >= endMs)) {
+    const leadingShape = convertedBoundaryRepairShape(view, item, 'leading')
     if (leadingChanged && input.startMs < item.startMs
-      && convertedBoundaryRepairShape(view, item, 'leading')) {
+      && leadingShape && input.startMs > leadingShape.windowStartMs) {
       return refuse('boundary-extend-unsupported')
     }
     if (trailingChanged && input.endMs > endMs
