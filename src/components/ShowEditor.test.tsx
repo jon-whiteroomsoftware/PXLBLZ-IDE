@@ -508,21 +508,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(showEndHandle).toHaveClass('left-1/2', 'top-1/2', 'bg-current')
   })
 
-  // DEFECT: on v2 the converted flat Show keeps executionModel 'continuous' after the first
-  // Timeline edit; v1 switched it to 'deterministic-loop'. No spec §10 row covers the difference.
-  it.skip('persists deterministic loop semantics when the unified Timeline first materializes a composition (#586)', async () => {
-    const user = userEvent.setup()
-    const show = createDefaultShow('show-deterministic-composition', 'Deterministic composition', 1000)
-    const editor = openV2EditorForRecord(convertForTest(show))
-
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
-    await user.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
-    const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
-    fireEvent.change(brightness, { target: { value: '75%' } })
-    fireEvent.keyDown(brightness, { key: 'Enter' })
-
-    await waitFor(() => expect(editor.state().record.composition?.executionModel).toBe('deterministic-loop'))
-  })
+  // #586 deterministic-loop stamping on first materialization is not ported: spec §10 row 'A converted flat v1 Show keeps `continuous` execution' (Jon, 2026-09-24).
 
   it('progressively reveals the existing Zone workspace without burdening a one-Zone Show (#581)', async () => {
     const user = userEvent.setup()
