@@ -469,8 +469,8 @@ describe('App smoke test', () => {
     expect(window.location.pathname).toBe('/docs')
   })
 
-  // DEFECT: selectStudioPlace resolves the Shows place target from the v1 shows store (src/App.tsx), so with v2-only rows choosing Shows lands on /studio/shows instead of the remembered row. No section-10 row covers it.
-  it.skip('shows and restores the active Pattern and Show remembered across reference routes (#965)', async () => {
+  // v2 port blocked by #1116: selectStudioPlace resolves the Shows place target from the v1 shows store (src/App.tsx), so with v2-only rows choosing Shows lands on /studio/shows instead of the remembered row. No section-10 row covers it.
+  it('shows and restores the active Pattern and Show remembered across reference routes (#965)', async () => {
     const pattern: PatternRecord = {
       id: 'remembered-pattern',
       name: 'Evening Pattern',
@@ -488,8 +488,7 @@ describe('App smoke test', () => {
     setStudioLocation(`/studio/patterns/${pattern.id}`)
     seedSignedInWorkspace()
     usePatternStore.setState({ userPatterns: [pattern, starter], patternsLoaded: true, activePatternId: pattern.id })
-    seedStoredV2Shows([show, hydratedShow])
-    useShowStore.setState({ activeShowId: show.id })
+    useShowStore.setState({ shows: [show, hydratedShow], showsLoaded: true, activeShowId: show.id })
     render(<App />)
 
     await waitFor(() => expect(useStudioPlaceStore.getState().remembered.patterns).toBe(pattern.id))
