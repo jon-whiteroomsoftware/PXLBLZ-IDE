@@ -1,6 +1,7 @@
 import type { APIRequestContext, Page } from '@playwright/test'
 import { expect, removeSyntheticContent, test } from './fixtures/authenticated'
 import { createDefaultShow } from '../src/engine/showModel'
+import { findStoredShowV2, seedShowV2 } from './support/showBackingRecords'
 
 type ConfirmedEntity = {
   resource: 'patterns' | 'maps' | 'mixins'
@@ -12,17 +13,15 @@ type ConfirmedEntity = {
   beginDelete: (page: Page) => Promise<void>
 }
 
-test('authenticated fixture removes every synthetic personal-content resource', async ({ request }) => {
+test('authenticated fixture removes every synthetic personal-content resource', async ({ page, request }) => {
   const sentinel = Date.now()
+  // Shows are stored and read as version 2 only (#1042).
+  const show = await seedShowV2(page, createDefaultShow(
+    `workspace-cleanup-show-${sentinel}`,
+    `Workspace cleanup Show ${sentinel}`,
+    sentinel,
+  ), 'workspace cleanup Show')
   const records = [
-    {
-      resource: 'shows',
-      data: createDefaultShow(
-        `workspace-cleanup-show-${sentinel}`,
-        `Workspace cleanup Show ${sentinel}`,
-        sentinel,
-      ),
-    },
     {
       resource: 'patterns',
       data: {
@@ -87,6 +86,7 @@ test('authenticated fixture removes every synthetic personal-content resource', 
 
   await removeSyntheticContent(request)
 
+  expect(await findStoredShowV2(page, show.id)).toBeUndefined()
   for (const record of records) {
     const response = await request.get(`/api/${record.resource}`)
     expect(response.ok(), `GET /api/${record.resource} -> ${response.status()}`).toBe(true)

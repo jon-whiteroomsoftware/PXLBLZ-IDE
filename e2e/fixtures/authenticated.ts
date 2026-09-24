@@ -62,9 +62,8 @@ export const test = base.extend<AuthenticatedFixtures>({
     })
   },
 
-  // The Show suite runs against both stored record versions (#1066). Which
-  // one a run uses is decided here and in that spec's seeding and readback
-  // helpers; no test body knows. On the v1 run this is a no-op.
+  // Every Show navigation proves the editor bound a version-2 record
+  // (#1066, #1042).
   page: async ({ page }, use) => {
     installShowBacking(page)
     await use(page)
@@ -184,7 +183,10 @@ function trackAgentRegistrations(page: Page): {
 }
 
 export async function removeSyntheticContent(request: APIRequestContext): Promise<void> {
-  for (const resource of ['shows', 'patterns', 'maps', 'mixins', 'libraries', 'controllers'] as const) {
+  // Shows are swept through the version-2 list, which returns every stored
+  // Show whatever its version; DELETE /api/shows/:id serves both (#1042).
+  await removeStoredShowsV2(request)
+  for (const resource of ['patterns', 'maps', 'mixins', 'libraries', 'controllers'] as const) {
     const response = await request.get(`/api/${resource}`)
     if (!response.ok()) {
       throw new Error(`GET /api/${resource} -> ${response.status()}: ${await response.text()}`)
@@ -195,7 +197,4 @@ export async function removeSyntheticContent(request: APIRequestContext): Promis
       if (!removed.ok()) throw new Error(`DELETE /api/${resource}/${record.id} -> ${removed.status()}`)
     }
   }
-  // A Show the v2 run stored as a version-2 document is absent from the
-  // version-1 listing above, so it needs its own sweep (#1066).
-  await removeStoredShowsV2(request)
 }

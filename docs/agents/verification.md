@@ -658,8 +658,12 @@ it.
 | `npm run test:e2e:auth-full` (every auth spec) | manual |
 
 The required Show suite runs on the v2 backing since #1067 activation, and
-since #1042 every authenticated spec seeds and reads version-2 Shows only
-(`seedShowV2` in `e2e/support/showBackingRecords.ts`). The v1 backing, its
+since #1042 every authenticated spec, and the authenticated fixture's
+per-test cleanup, seeds and reads version-2 Shows only (`seedShowV2` and
+`listStoredShowsV2` in `e2e/support/showBackingRecords.ts`,
+`removeStoredShowsV2` in `e2e/support/showBacking.ts`). Every e2e
+`/api/shows` call carries `?show-version=2` except `DELETE /api/shows/:id`,
+which serves both shapes. The v1 backing, its
 `test:e2e:shows:v1` diagnostic and the #1065 editor-equivalence spec were
 retired with v1 authoring; `show-boundary-deletion.auth.spec.ts` now runs in
 the required suite on v2.
