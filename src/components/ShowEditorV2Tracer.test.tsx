@@ -8865,3 +8865,70 @@ describe('v2 refused panel field edits revert their draft (#1098)', () => {
     expectPanelRefusal('The Show changed; try again.', clipDetail())
   })
 })
+
+describe('v2 Group Transition popover refusal per occurrence (#1098)', () => {
+  it('clears a refusal when the popover moves to the same Transition in a linked occurrence', async () => {
+    // Two linked occurrences share one definition, so both junctions carry
+    // the definition-local Transition id group-pulse-join.
+    const source = corpusSource('groups-animation')
+    source.id = 'panel-refusal-linked-group-transition'
+    const definition = source.composition!.groupDefinitions![0]
+    definition.placements = [
+      { ...definition.placements[0], startMs: 0, durationMs: 2_000, layerOffset: 0 },
+      { ...definition.placements[1], startMs: 3_000, durationMs: 1_000, layerOffset: 0 },
+    ]
+    definition.propertyTracks = []
+    definition.transitions = [{
+      id: 'group-pulse-join', fromPlacementId: definition.placements[0].id, toPlacementId: definition.placements[1].id,
+      kind: 'crossfade', durationMs: 1_000, easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
+    }]
+    const record = convertCorpus(source)
+    expect(record.composition.groupOccurrences.map((occurrence) => occurrence.id)).toEqual(['occurrence-first', 'occurrence-second'])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const junction = (occurrenceId: string) => screen.getAllByRole('button', { name: 'Edit crossfade Transition between SignalMandala and SignalMandala' })
+      .find((button) => button.getAttribute('data-show-group-occurrence') === occurrenceId)!
+    const popover = () => screen.getByRole('dialog', { name: 'Layer Transition Details' })
+    const before = editor.state()
+
+    // A Group's internals are reached through isolation.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Mandala pulse' })[0]!, { detail: 2 })
+    await act(async () => {})
+    fireEvent.click(junction('occurrence-first'))
+    await act(async () => {})
+    // Another writer lands between the retime's plan and its door.
+    admission.beforeDoor = () => useShowStore.setState({ showRevisions: { [editor.showId]: before.revision + 1 } })
+    const duration = within(popover()).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' })
+    fireEvent.change(duration, { target: { value: '1.5' } })
+    fireEvent.keyDown(duration, { key: 'Enter' })
+    await act(async () => {})
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotGroupOccurrenceEdit'])
+    expect(editor.state().record).toBe(before.record)
+    expect(within(popover()).getByRole('alert')).toHaveTextContent('The Show changed; try again.')
+
+    // A Group junction opens only inside its own isolation, and leaving or
+    // entering isolation closes the popover. So the user reaches the other
+    // occurrence's Transition by double-clicking out of A, double-clicking
+    // into B, and opening B's junction. The popover key names the occurrence
+    // too (showLayerTransitionPopoverKey), so a retarget that skipped the
+    // close would still clear the line.
+    admission.beforeDoor = null
+    const secondChild = () => screen.getAllByRole('button', { name: 'Select Group Mandala pulse' })
+      .find((button) => button.closest('[data-show-group-occurrence]')?.getAttribute('data-show-group-occurrence') === 'occurrence-second')!
+    fireEvent.doubleClick(secondChild())
+    await act(async () => {})
+    fireEvent.doubleClick(secondChild())
+    await act(async () => {})
+    expect(useShowEditorViewStore.getState().selection).toMatchObject({ kind: 'group-clip', occurrenceId: 'occurrence-second' })
+    fireEvent.click(junction('occurrence-second'))
+    await act(async () => {})
+    expect(junction('occurrence-second').getAttribute('data-show-layer-junction')).toBe('occurrence-second:group-pulse-join')
+    expect(within(popover()).queryByRole('alert')).not.toBeInTheDocument()
+    // The popover now edits the second occurrence: its retime goes to that occurrence's owner.
+    fireEvent.change(within(popover()).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' }), { target: { value: '1.5' } })
+    fireEvent.keyDown(within(popover()).getByRole('textbox', { name: 'Layer Transition duration in seconds exact time' }), { key: 'Enter' })
+    await act(async () => {})
+    expect(admission.calls).toHaveLength(2)
+    expect(editor.state().record.composition.groupDefinitions[0]!.transitions.find((transition) => transition.id === 'group-pulse-join')?.durationMs).toBe(1_500)
+  })
+})

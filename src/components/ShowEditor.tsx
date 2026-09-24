@@ -359,6 +359,7 @@ import {
 import type { CreateShowGroupFromSelectionIntentV2 } from '@/engine/showGroupCreationV2'
 import { planShowV2GroupCreation } from '@/engine/showV2GroupCreationEditorModel'
 import { planShowV2GroupOccurrenceEdit, showV2GroupBaseLayerMax, type ShowV2GroupOccurrenceRequest } from '@/engine/showV2GroupOccurrenceEditorModel'
+import { showLayerTransitionPopoverKey } from '@/engine/showLayerTransitionPopoverKey'
 import {
   planShowV2ClipMove,
   planShowV2ClipResize,
@@ -5309,7 +5310,9 @@ export function ShowEditor({
           )}
           {layerTransitionTarget?.settings && layerTransitionTarget.settings.kind !== 'cut' && (
             <ShowLayerTransitionEditor
-              key={layerTransitionTarget.transitionId ?? layerTransitionTarget.groupTransitionId}
+              // Keyed by the edited entity, occurrence included, so moving
+              // to another entity clears the refusal line (#1098).
+              key={showLayerTransitionPopoverKey(layerTransitionTarget)}
               transition={layerTransitionTarget.settings}
               fromName={layerTransitionTarget.fromName}
               toName={layerTransitionTarget.toName}
