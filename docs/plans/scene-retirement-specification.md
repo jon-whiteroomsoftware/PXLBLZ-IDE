@@ -786,6 +786,7 @@ This table is the one list of the places where the v2 editor deliberately behave
 | Repeat-per-zone Clip sampling is retired: v2 Clips sample across Zones as one canvas (span) or independently; a v1 Show using repeat does not convert | #1094 (Jon, 2026-09-23) |
 | A Clip-targeted Property track cut by a derived section beside a whole-output Transition holds its section-edge value through that Transition window; v2 records can author animation there that v1 Scenes could not. An instance track (instance-control or instance-time-scale) that would need the same hold still refuses preparation: the compiler applies both Scenes' assignments to one runtime during the window. That is a compiler limitation. | #1103 (Jon, 2026-09-23) |
 | A converted flat v1 Show keeps `continuous` execution; v1 stamped `deterministic-loop` on the Timeline's first materialization | Jon, 2026-09-24 (#1042, #586) |
+| Workspace reload (`loadShows`) retires the open personal v2 pilot and its undo history; an in-flight write completes at the provider and the reopen reads it. v1 reconciled pending local records and carried history (`reconcileHydratedShows`) | Jon, 2026-09-24 (#1115) |
 
 ## 11. Work allocation and integration order
 
