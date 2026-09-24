@@ -168,16 +168,18 @@ describe('opt-in v2 Show route adoption', () => {
   })
 
   it('opens a converted pilot only after the current workspace hydration publishes its v1 source', async () => {
-    const previousSource = { ...transitionV1Show('crossfade'), name: 'Previous workspace source' }
+    // Ported seed to v2: hydration gates on the v1 list (empty) before reading the converted row.
+    // Converter preserves id (showRecordV1ToV2.ts:421), so currentSource.id opens the converted record.
     const currentSource = { ...transitionV1Show('crossfade'), name: 'Hydrated workspace source' }
+    const convertedForHydration = convertShowRecordV1ToV2(currentSource)
+    if (convertedForHydration.status !== 'converted') throw new Error(JSON.stringify(convertedForHydration.issues))
     const pendingShows = deferred<ReturnType<typeof transitionV1Show>[]>()
-    const listShowDocumentsV2 = vi.fn(async () => [] as ShowRecordV2[])
+    const listShowDocumentsV2 = vi.fn(async () => [structuredClone(convertedForHydration.record)])
     setPersonalContentProvider({
       id: 'hydrating-workspace',
       listShows: () => pendingShows.promise,
       listShowDocumentsV2,
     } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [previousSource], showsLoaded: true })
 
     const hydration = state().loadShows()
     const opening = state().openShowV2Pilot(currentSource.id)
@@ -186,7 +188,7 @@ describe('opt-in v2 Show route adoption', () => {
     expect(listShowDocumentsV2).not.toHaveBeenCalled()
     expect(state().showV2Pilots).toEqual({})
 
-    pendingShows.resolve([currentSource])
+    pendingShows.resolve([])
     await hydration
     await expect(opening).resolves.toMatchObject({
       status: 'ready',
@@ -220,15 +222,15 @@ describe('opt-in v2 Show route adoption', () => {
 
   it('converts v1, edits through the Transition owner, saves, undoes/redoes, and reloads provider bytes', async () => {
     const source = transitionV1Show('crossfade')
-    let stored: ShowRecordV2 | undefined
+    const convertedSeed = convertShowRecordV1ToV2(source)
+    if (convertedSeed.status !== 'converted') throw new Error(JSON.stringify(convertedSeed.issues))
+    let stored: ShowRecordV2 | undefined = structuredClone(convertedSeed.record)
     const writes: ShowRecordV2[] = []
     setPersonalContentProvider({
       id: 'v2-test',
-      listShows: async () => [source],
       listShowDocumentsV2: async () => stored ? [structuredClone(stored)] : [],
       replaceShowV2: async (_id: string, record: ShowRecordV2) => { stored = structuredClone(record); writes.push(structuredClone(record)) },
     } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [source] })
 
     const opened = await state().openShowV2Pilot(source.id)
     expect(opened.status).toBe('ready')
@@ -451,14 +453,14 @@ describe('opt-in v2 Show route adoption', () => {
 
   it('persists and reopens a delete/re-add candidate without resurrecting Transition identity', async () => {
     const source = transitionV1Show('crossfade')
-    let stored: ShowRecordV2 | undefined
+    const convertedDeleteSeed = convertShowRecordV1ToV2(source)
+    if (convertedDeleteSeed.status !== 'converted') throw new Error(JSON.stringify(convertedDeleteSeed.issues))
+    let stored: ShowRecordV2 | undefined = structuredClone(convertedDeleteSeed.record)
     setPersonalContentProvider({
       id: 'v2-delete-readd',
-      listShows: async () => [source],
       listShowDocumentsV2: async () => stored ? [structuredClone(stored)] : [],
       replaceShowV2: async (_id: string, record: ShowRecordV2) => { stored = structuredClone(record) },
     } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [source] })
     const opened = await state().openShowV2Pilot(source.id)
     if (opened.status !== 'ready') throw new Error('conversion failed')
     const originalOut = structuredClone(opened.record.composition.clips.find(clip => clip.id === 'out'))
@@ -504,11 +506,12 @@ describe('opt-in v2 Show route adoption', () => {
 
   it('rolls a failed current save back atomically with its history', async () => {
     const source = transitionV1Show('crossfade')
+    const convertedFailureSeed = convertShowRecordV1ToV2(source)
+    if (convertedFailureSeed.status !== 'converted') throw new Error(JSON.stringify(convertedFailureSeed.issues))
     setPersonalContentProvider({
-      id: 'v2-failure', listShows: async () => [source], listShowDocumentsV2: async () => [],
+      id: 'v2-failure', listShowDocumentsV2: async () => [structuredClone(convertedFailureSeed.record)],
       replaceShowV2: async () => { throw new Error('offline') },
     } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [source] })
     const opened = await state().openShowV2Pilot(source.id)
     if (opened.status !== 'ready') throw new Error('conversion failed')
     const next = { ...opened.record, name: 'Rejected replacement' }
@@ -522,10 +525,11 @@ describe('opt-in v2 Show route adoption', () => {
 
   it('refuses an unsupported provider before publishing an optimistic edit', async () => {
     const source = transitionV1Show('crossfade')
+    const convertedUnsupportedSeed = convertShowRecordV1ToV2(source)
+    if (convertedUnsupportedSeed.status !== 'converted') throw new Error(JSON.stringify(convertedUnsupportedSeed.issues))
     setPersonalContentProvider({
-      id: 'v1-only', listShows: async () => [source], listShowDocumentsV2: async () => [],
+      id: 'v1-only', listShowDocumentsV2: async () => [structuredClone(convertedUnsupportedSeed.record)],
     } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [source] })
     const opened = await state().openShowV2Pilot(source.id)
     if (opened.status !== 'ready') throw new Error('conversion failed')
 
@@ -539,11 +543,12 @@ describe('opt-in v2 Show route adoption', () => {
 
   it('does not let an older failed save roll back a newer accepted replacement', async () => {
     const source = transitionV1Show('crossfade')
+    const convertedSupersessionSeed = convertShowRecordV1ToV2(source)
+    if (convertedSupersessionSeed.status !== 'converted') throw new Error(JSON.stringify(convertedSupersessionSeed.issues))
     let rejectFirst!: (reason: Error) => void
     const firstWrite = new Promise<void>((_resolve, reject) => { rejectFirst = reject })
     const replace = vi.fn().mockImplementationOnce(() => firstWrite).mockResolvedValueOnce(undefined)
-    setPersonalContentProvider({ id: 'v2-supersession', listShows: async () => [source], listShowDocumentsV2: async () => [], replaceShowV2: replace } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [source] })
+    setPersonalContentProvider({ id: 'v2-supersession', listShowDocumentsV2: async () => [structuredClone(convertedSupersessionSeed.record)], replaceShowV2: replace } as unknown as PersonalContentProvider)
     const opened = await state().openShowV2Pilot(source.id)
     if (opened.status !== 'ready') throw new Error('conversion failed')
 
@@ -561,6 +566,8 @@ describe('opt-in v2 Show route adoption', () => {
 
   it('rolls a failed newer save back to an older save that settled while superseded', async () => {
     const source = transitionV1Show('crossfade')
+    const convertedDurableSeed = convertShowRecordV1ToV2(source)
+    if (convertedDurableSeed.status !== 'converted') throw new Error(JSON.stringify(convertedDurableSeed.issues))
     let resolveFirst!: () => void
     let rejectSecond!: (reason: Error) => void
     let stored: ShowRecordV2 | undefined
@@ -571,11 +578,9 @@ describe('opt-in v2 Show route adoption', () => {
       .mockImplementationOnce((_id: string, record: ShowRecordV2) => secondWrite.then(() => { stored = structuredClone(record) }))
     setPersonalContentProvider({
       id: 'v2-durable-supersession',
-      listShows: async () => [source],
-      listShowDocumentsV2: async () => [],
+      listShowDocumentsV2: async () => [structuredClone(convertedDurableSeed.record)],
       replaceShowV2: replace,
     } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [source] })
     const opened = await state().openShowV2Pilot(source.id)
     if (opened.status !== 'ready') throw new Error('conversion failed')
 
@@ -599,14 +604,14 @@ describe('opt-in v2 Show route adoption', () => {
 
   it('treats same-name and missing pilot renames as no-ops and rejects an invalid current record', async () => {
     const source = transitionV1Show('crossfade')
+    const convertedRenameSeed = convertShowRecordV1ToV2(source)
+    if (convertedRenameSeed.status !== 'converted') throw new Error(JSON.stringify(convertedRenameSeed.issues))
     const replaceShowV2 = vi.fn(async () => {})
     setPersonalContentProvider({
       id: 'v2-rename-boundaries',
-      listShows: async () => [source],
-      listShowDocumentsV2: async () => [],
+      listShowDocumentsV2: async () => [structuredClone(convertedRenameSeed.record)],
       replaceShowV2,
     } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [source] })
     const opened = await state().openShowV2Pilot(source.id)
     if (opened.status !== 'ready') throw new Error('conversion failed')
     const recordIdentity = state().showV2Pilots[source.id]
@@ -631,14 +636,14 @@ describe('opt-in v2 Show route adoption', () => {
 
   it('trims a rename through the registry owner, refuses blanks, and undoes once (#1091)', async () => {
     const source = transitionV1Show('crossfade')
+    const convertedTrimSeed = convertShowRecordV1ToV2(source)
+    if (convertedTrimSeed.status !== 'converted') throw new Error(JSON.stringify(convertedTrimSeed.issues))
     const replaceShowV2 = vi.fn(async () => {})
     setPersonalContentProvider({
       id: 'v2-rename-owner',
-      listShows: async () => [source],
-      listShowDocumentsV2: async () => [],
+      listShowDocumentsV2: async () => [structuredClone(convertedTrimSeed.record)],
       replaceShowV2,
     } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [source] })
     const opened = await state().openShowV2Pilot(source.id)
     if (opened.status !== 'ready') throw new Error('conversion failed')
     const oldName = opened.record.name
@@ -672,7 +677,6 @@ describe('v2 save-failure notice actions (#1066 slice 12)', () => {
     const writes: ShowRecordV2[] = []
     setPersonalContentProvider({
       id: 'v2-save-failure-actions',
-      listShows: async () => [],
       listShowDocumentsV2: async () => [structuredClone(stored)],
       replaceShowV2: async (_id: string, record: ShowRecordV2) => {
         if (offline) throw new Error('offline')
