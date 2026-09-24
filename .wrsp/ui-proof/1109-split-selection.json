@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1109",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-205-groups-linked-reuse",
+  "operation": "At 3000 ms on the built-in v2 Group Show, selected Show and captured Split enabled over the ordinary RibbonLoom Clip. Then selected the first Mandala pulse Group and captured Split disabled over that same Clip.",
+  "captures": [
+    ".wrsp/ui-proof/1109-no-selection.png",
+    ".wrsp/ui-proof/1109-group-selection.png"
+  ],
+  "capturedAtCommit": "fcf4f3f281ac8af097615294787f32ef8a32b8d0"
+}

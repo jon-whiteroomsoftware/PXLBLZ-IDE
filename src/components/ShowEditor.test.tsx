@@ -4140,34 +4140,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await waitFor(() => expect(editor.state().record).toEqual({ ...before, updatedAt: expect.any(Number) }))
   })
 
-  // v2 port blocked by #1109: v2 no-selection Split at 5 s splits the overlay clip-ov instead of the earlier Main clip-a.
   it.each([
     { partition: 'earlier Main when an overlay also covers the playhead', overlayOnly: false, clipId: 'clip-a', durationMs: 5000 },
-  ])('splits the no-selection $partition (#992)', async ({ overlayOnly, clipId, durationMs }) => {
-    const user = userEvent.setup()
-    const show = showSplitClipFixture()
-    if (overlayOnly) {
-      show.composition!.scenes[0].zones[0].main.shift()
-      show.composition!.transitions!.shift()
-    }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-    render(<ShowEditor showId={show.id} />)
-    act(() => useShowTransportStore.getState().setPosition(show.id, 5000))
-    await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
-    await waitFor(() => {
-      const saved = useShowStore.getState().shows[0]
-      const zone = saved.composition!.scenes[0].zones[0]
-      const clips = overlayOnly ? zone.overlays[0].placements : zone.main
-      expect(clips.find(clip => clip.id === clipId)?.durationMs).toBe(durationMs)
-      expect(saved.scenes).toEqual(show.scenes)
-      expect(useShowStore.getState().showHistories[show.id].past).toHaveLength(1)
-    })
-    const savedZone = useShowStore.getState().shows[0].composition!.scenes[0].zones[0]
-    expect(overlayOnly ? savedZone.main : savedZone.overlays).toEqual(overlayOnly ? show.composition!.scenes[0].zones[0].main : show.composition!.scenes[0].zones[0].overlays)
-    expect(useShowStore.getState().showSaveFailure).toBeNull()
-  })
-  it.each([
     { partition: 'overlay when no Main covers the playhead', overlayOnly: true, clipId: 'clip-ov', durationMs: 3000 },
   ])('splits the no-selection $partition (#992)', (row) => splitsNoSelection(row))
   async function splitsNoSelection({ overlayOnly, clipId, durationMs }: { overlayOnly: boolean; clipId: string; durationMs: number }) {
@@ -4282,36 +4256,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await waitFor(() => expect(editor.state().record).toEqual({ ...before, updatedAt: expect.any(Number) }))
   }
 
-  // v2 port blocked by #1109: v2 leaves toolbar Split enabled for a Group or multi-Clip selection and splits the external clip-b.
-  it.each<'Group' | 'multi' | 'isolated Group'>(['Group', 'multi'])('refuses toolbar Split for a %s selection over an external Clip (#992)', async partition => {
-    const user = userEvent.setup()
-    const show = showSplitClipFixture()
-    const provider = memoryProvider([show])
-    const save = vi.spyOn(provider, 'updateShow')
-    setPersonalContentProvider(provider)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-    render(<ShowEditor showId={show.id} />)
-    act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
-    if (partition === 'multi') {
-      await user.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:clip-a"]')!)
-      await user.keyboard('{Shift>}')
-      await user.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:clip-b"]')!)
-      await user.keyboard('{/Shift}')
-    } else {
-      const group = screen.getAllByRole('button', { name: 'Select Group Mixed Group' })[0]
-      if (partition === 'isolated Group') {
-        fireEvent.doubleClick(group)
-        expect(screen.getByRole('status', { name: 'Group isolation: Mixed Group' })).toBeVisible()
-      } else await user.click(group)
-    }
-    const split = screen.getByRole('button', { name: 'Split at playhead' })
-    expect(split).toHaveAttribute('aria-disabled', 'true')
-    fireEvent.click(split)
-    expect(useShowStore.getState().shows[0]).toEqual(show)
-    expect(save).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
-  })
-  it.each(['isolated Group'] as const)('refuses toolbar Split for a %s selection over an external Clip (#992)', partition => refusesToolbarSplit(partition))
+  it.each(['Group', 'multi', 'isolated Group'] as const)('refuses toolbar Split for a %s selection over an external Clip (#992)', partition => refusesToolbarSplit(partition))
   async function refusesToolbarSplit(partition: 'Group' | 'multi' | 'isolated Group') {
     const user = userEvent.setup()
     const show = showSplitClipFixture()
@@ -4320,10 +4265,13 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
     if (partition === 'multi') {
-      await user.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:clip-a"]')!)
-      await user.keyboard('{Shift>}')
-      await user.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:clip-b"]')!)
-      await user.keyboard('{/Shift}')
+      // v2 creates multi selection through the marquee; this row exercises
+      // Split from the resulting selection, not the marquee gesture.
+      act(() => useShowEditorViewStore.getState().setSelection({
+        kind: 'multi',
+        groupSelection: { placementIds: ['clip-a', 'clip-b'], transitionIds: [] },
+      }))
+      expect(useShowEditorViewStore.getState().selection.kind).toBe('multi')
     } else {
       const group = screen.getAllByRole('button', { name: 'Select Group Mixed Group' })[0]
       if (partition === 'isolated Group') {
