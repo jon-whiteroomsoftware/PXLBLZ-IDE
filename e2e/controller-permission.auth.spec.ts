@@ -13,7 +13,9 @@ test('first-time approval connects without a page reload (#63)', async ({ page }
   page.on('request', request => {
     if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations += 1
   })
-  await page.getByRole('button', { name: 'Connect a Controller', exact: true }).click()
+  // The Controllers page also shows an empty-state Connect button when the
+  // allocated account has no profiles (#1119); this test covers the header entry.
+  await page.getByTestId('controller-entry-button').click()
   await page.getByRole('textbox', { name: 'Controller IP address' }).fill('192.0.2.10')
   await page.getByTestId('controller-go').click()
   const hint = page.getByText('Authorize this Controller in the PXLBLZ-IDE helper.', { exact: true })
