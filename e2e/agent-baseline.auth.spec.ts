@@ -117,19 +117,12 @@ function formerCutSplitExpected(before: ShowRecordV2, rightId: string): ShowReco
     appearance: { keys: [{ id: `${rightId}:appearance:1`, timeMs: 30000, value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] } }] },
   })
   expected.composition.transitions.find(transition => transition.id === 'outgoing')!.participants[0].fromClipId = rightId
-  const tracks = expected.composition.propertyTracks
-  const trackB = tracks.find(track => track.id === 'track-b')!
-  trackB.keyframes = [
-    { id: 'track-b:boundary:10000', timeMs: 10000, value: 1, easing: { curve: 'linear' } },
-    ...trackB.keyframes,
-    { id: 'track-b:boundary:30000', timeMs: 30000, value: 0.2, easing: { curve: 'linear' } },
-  ]
-  trackB.activeStartMs = 10000
-  trackB.activeDurationMs = 20000
-  const tail = tracks.find(track => track.id === 'tail-track')!
+  // A split cuts tracks only at the split time (#1101): track-b's [0, 30 000)
+  // activation lies wholly left of the split and stays unchanged, and
+  // tail-track's [30 000, 60 000) lies wholly right and only retargets
+  // (src/engine/showPropertyAnimationV2.ts:191-196).
+  const tail = expected.composition.propertyTracks.find(track => track.id === 'tail-track')!
   tail.target = { ...tail.target, clipId: rightId } as typeof tail.target
-  tail.keyframes.push({ id: 'tail-track:boundary:37000', timeMs: 37000, value: 1, easing: { curve: 'linear' } })
-  tail.activeDurationMs = 7000
   return expected
 }
 
@@ -1963,7 +1956,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     ...[
       {
         id: 'APT953', command: 'add_property_tracks', args: { tracks: [{ target: { kind: 'view-phase', clip_id: 'clip-a' }, initial_value: 0.3 }] }, utterance: 'seed a phase animation track at point three',
-        pendingV2: 'defect: #1103 v2 add_property_tracks on clip-a is refused by delivery validation; lowering puts untouched tracks\' keys outside compiled Scene 2',
+        pendingV2: 'defect: #1103 compiler limitation: instance tracks across a whole-output Transition; delivery validation refuses the add_property_tracks commit',
       },
       { id: 'AK953', command: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { add: [{ at_ms: 15000, value: 0.5 }] } }, utterance: 'add a brightness keyframe at fifteen seconds' },
       { id: 'UK953', command: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { update: [{ keyframe_id: 'kf-1', at_ms: 20000 }] } }, utterance: 'move the first brightness keyframe to twenty seconds' },
@@ -2126,13 +2119,13 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         id: 'BT952', command: 'update_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', parameters: { color: '#000000' } },
         utterance: 'make the Boundary fade through black over fifteen hundred milliseconds', slug: 'kind',
         staleCommand: { command: 'resize_transition', args: { transition_id: 'transition-scene-1', duration_ms: 1500 } },
-        pendingV2: 'defect: v2 resize_transition on the converted Boundary is refused by delivery validation; lowering puts untouched tracks\' keys outside compiled Scene 1',
+        pendingV2: 'defect: #1103 compiler limitation: instance tracks across a whole-output Transition; delivery validation refuses the resize_transition commit',
       },
       {
         id: 'BTT952', command: 'update_transition', args: { transition_id: 'transition-scene-1', easing: 'ease-in' },
         utterance: 'set the Boundary to fifteen hundred milliseconds with ease in', slug: 'timing',
         staleCommand: { command: 'resize_transition', args: { transition_id: 'transition-scene-1', duration_ms: 1500 } },
-        pendingV2: 'defect: v2 resize_transition on the converted Boundary is refused by delivery validation; lowering puts untouched tracks\' keys outside compiled Scene 1',
+        pendingV2: 'defect: #1103 compiler limitation: instance tracks across a whole-output Transition; delivery validation refuses the resize_transition commit',
       },
       // v2 easing is a Transition field, not a parameter; sine-in is its structured curve.
       {
@@ -2448,10 +2441,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         converted.composition.transitions = converted.composition.transitions.filter(transition => transition.id !== 'incoming')
       } : undefined,
       // The Main and Cut partitions split clip-b (at 16 000 ms, SC951's split,
-      // and at 30 000 ms). The owner accepts both, but narrowing track-b's
-      // activation puts a section boundary inside the incoming Transition
-      // window and delivery validation refuses the toolbar Split.
-      pendingV2: ['Main', 'Cut'].includes(toolbarSplit.partition) ? 'defect: #1101 v2 split of clip-b activates track-b inside the incoming Transition window; delivery validation refuses the toolbar Split' : undefined,
+      // and at 30 000 ms); each cuts clip-b's tracks only at the split (#1101).
       // The overlay right piece shares instance-ov with `continue` and takes
       // clip-ov's held appearance at the split (src/engine/showCommandsV2/clips.ts:286).
       expectedFacts: (before: ShowRecordV2) => {
@@ -2658,11 +2648,9 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
   }
 
 
-  // The Main split selects clip-b at 20 000 ms. Every split of the converted
-  // clip-b narrows track-b's activation to start inside the incoming
-  // Transition window, and delivery validation refuses it (#1101), so this
-  // test stays fixme until that defect is fixed.
-  test.fixme('SC951-overlay: manual overlay split persists after a Main split and Undo', async ({ page }) => {
+  // The Main split selects clip-b at 20 000 ms; it cuts track-b only at the
+  // split, so delivery validation admits it (#1101).
+  test('SC951-overlay: manual overlay split persists after a Main split and Undo', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     const record = showSplitClipFixture()
     record.id = `split-overlay-951-${Date.now().toString(36)}`
