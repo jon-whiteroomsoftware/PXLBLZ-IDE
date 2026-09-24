@@ -5261,6 +5261,24 @@ describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
     expect(screen.getByTestId('show-timeline-grid').getAttribute('style')).toBe('width: calc(100% + 0px); min-width: 0px; grid-template-columns: 32px minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 1800fr) minmax(0, 5000fr) minmax(0, 1800fr) minmax(0, 5000fr); grid-template-rows: 28px 26px 26px 44px 44px 18px 18px 18px 18px 18px 18px 18px 44px 17px;')
   })
 
+  it('draws a boundary button for every boundary Transition, and selecting it opens that boundary (#1066 slice 9c2b)', async () => {
+    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    renderV2(structuredClone(stock.show) as ShowRecord)
+    const buttons = () => Array.from(screen.getByRole('group', { name: 'Sample repeat lane' }).querySelectorAll('button'))
+      .map((button) => `${button.getAttribute('aria-label')}|${button.style.gridColumn}|${button.textContent}|${button.getAttribute('data-show-selection-key')}`)
+
+    // Cut-boundary buttons are absent on v2 (spec :776), so only the two Transition boundaries draw.
+    expect(buttons()).toEqual([
+      'Edit repeat scale at 36.8: LineDancer2D + 1|15|—|transition:transition-effect-parameter',
+      'Edit repeat scale at 43.6: LineDancer2D + 1|17|1x→4x|transition:transition-split-position',
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'Edit repeat scale at 43.6: LineDancer2D + 1' }))
+    await act(async () => {})
+    expect(within(boundaryPanel()).getByRole('checkbox', { name: 'Animate repeat scale' })).toBeChecked()
+    expect(admission.calls).toEqual([])
+  })
+
   // The Cut-boundary lane buttons are absent on v2 (docs/plans/scene-retirement-specification.md:776).
   it('draws no lane for a Show that never sets a repeat scale', () => {
     renderV2(corpusSource('stock-lesson'))

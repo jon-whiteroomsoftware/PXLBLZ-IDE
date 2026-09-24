@@ -398,6 +398,42 @@ describe('App smoke test', () => {
     expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
   })
 
+  it('clears a stale active Show when a different stored v2 row is routed (#1039)', async () => {
+    const a = { ...transitionV1Show('crossfade'), id: 'still-active-row', name: 'Still active' }
+    const b = { ...transitionV1Show('crossfade'), id: 'routed-v2-row', name: 'Routed v2' }
+    setStudioLocation(`/studio/shows/${b.id}`)
+    seedSignedInWorkspace()
+    seedStoredV2Shows([a, b])
+    useShowStore.setState({ activeShowId: a.id })
+
+    render(<App />)
+
+    expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument()
+    await waitFor(() => expect(useShowStore.getState().activeShowId).toBeNull())
+    expect(window.location.pathname).toBe(`/studio/shows/${b.id}`)
+  })
+
+  it('keeps an explicit v2 editor route when the ordinary active Show is stale', async () => {
+    const sourceA = { ...transitionV1Show('crossfade'), id: 'pilot-active-a', name: 'Ordinary active A' }
+    const sourceB = { ...transitionV1Show('crossfade'), id: 'pilot-active-b', name: 'Explicit pilot B' }
+    setStudioLocation(`/studio/shows/${sourceB.id}?show-v2-editor=1`)
+    seedSignedInWorkspace()
+    seedStoredV2Shows([sourceA, sourceB])
+    useShowStore.setState({ activeShowId: sourceA.id })
+
+    render(<App />)
+    await act(async () => { await Promise.resolve() })
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'shows', id: sourceB.id },
+    })
+    expect(window.location.pathname).toBe(`/studio/shows/${sourceB.id}`)
+    expect(within(screen.getByTestId('editor-pane')).queryByRole('button', {
+      name: `Rename show ${sourceA.name}`,
+    })).not.toBeInTheDocument()
+  })
+
   it.each([
     ['/studio/patterns', 'Patterns'],
     ['/studio/shows', 'Shows'],
