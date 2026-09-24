@@ -44,16 +44,8 @@ export type ShowV2RouteArtifactsResult =
   | { status: 'ready'; artifacts: ShowV2RouteArtifacts }
   | { status: 'refused'; message: string }
 
-export function buildShowV2RouteArtifacts(
-  bundle: ShowPreparedStageBundleV2,
-  options: {
-    appVersion?: string
-    exportedAt?: string | Date
-    /** A fresh program id and preview image, for a download the firmware reads. */
-    id?: string
-    preview?: string
-  } = {},
-): ShowV2RouteArtifactsResult {
+/** The first reason this prepared v2 Show cannot be delivered, in the order v1 `compileShowForArtifact` applies them; null when deliverable. */
+export function showV2DeliveryRefusal(bundle: ShowPreparedStageBundleV2): string | null {
   const { record, assets, artifact } = bundle
   // The Installation coverage gate `compileShowForArtifact` applies first: a
   // physical Zone Layout that does not own every output pixel exactly once
@@ -62,7 +54,7 @@ export function buildShowV2RouteArtifacts(
   // refuses. The two gates never compete - the coverage rule returns null for a
   // Portable contract and the Portable rule for an Installation one.
   const coverage = installationCoverageBlockingMessage(validateInstallationCoverageV2(record))
-  if (coverage) return { status: 'refused', message: coverage }
+  if (coverage) return coverage
   // The Portable 2D capability gate `compileShowForArtifact` applies to a v1
   // Show. Preparation compiles a Portable Show the way v1 preview does, without
   // this gate; delivery is where v1 refuses one, so delivery is where v2 refuses
@@ -73,7 +65,7 @@ export function buildShowV2RouteArtifacts(
     showPortablePatternSitesV2(record, ref => preparedShowPatternSourceV2(ref, assets.patterns), { scope: 'effective' }),
     bundle.presentation.stageDimension,
   ))
-  if (portable) return { status: 'refused', message: portable }
+  if (portable) return portable
   // The resource ledger gate `compileShowForArtifact` applies after compiling:
   // it reports `summary.resources.blockers[0].message` as `artifactBlocker`,
   // and the v1 editor disables View code, Export and Send on it. This route
@@ -82,7 +74,23 @@ export function buildShowV2RouteArtifacts(
   // the device budget exported bytes no Controller can run. The refusal is
   // this route's `blockedReason`, which disables the same three actions.
   const resourceBlocker = artifact.summary.resources.blockers[0]
-  if (resourceBlocker) return { status: 'refused', message: resourceBlocker.message }
+  if (resourceBlocker) return resourceBlocker.message
+  return null
+}
+
+export function buildShowV2RouteArtifacts(
+  bundle: ShowPreparedStageBundleV2,
+  options: {
+    appVersion?: string
+    exportedAt?: string | Date
+    /** A fresh program id and preview image, for a download the firmware reads. */
+    id?: string
+    preview?: string
+  } = {},
+): ShowV2RouteArtifactsResult {
+  const refusal = showV2DeliveryRefusal(bundle)
+  if (refusal) return { status: 'refused', message: refusal }
+  const { record, assets, artifact } = bundle
   const exported = buildShowEpeExportV2(record, artifact.code, {
     userMaps: assets.maps,
     ...(options.exportedAt === undefined ? {} : { stampedAt: options.exportedAt }),

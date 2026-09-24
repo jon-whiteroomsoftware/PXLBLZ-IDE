@@ -5,6 +5,7 @@ import {
   buildShowV2RouteArtifacts,
   buildShowV2RouteSummary,
   describeShowArtifactPatternsV2,
+  showV2DeliveryRefusal,
 } from './showV2RouteDelivery'
 import { showV2GroupEditorFixture } from '@/test/showV2GroupEditorFixture'
 import { propertyEditGroupRecord } from '@/test/showV2PropertyEditsFixture'
@@ -38,7 +39,66 @@ function installation(ranges: Array<{ start: number; end: number }>, patternSour
   return { record, bundle: capture.prepared.bundle }
 }
 
+function overLimitInstallation() {
+  const { record, dependencies } = showV2GroupEditorFixture()
+  const pixelCount = 4_000
+  record.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount, resolution: 'fixed' }
+  record.zoneLayouts = record.zoneLayouts.map(layout => ({
+    ...layout,
+    zones: record.zones.map(zone => ({
+      zoneId: zone.id,
+      ranges: zone.id === record.composition.clips[0].zoneId ? [{ start: 0, end: pixelCount - 1 }] : [],
+    })),
+  }))
+  const capture = captureShowStageEditV2(record, dependencies)
+  if (capture.prepared.status !== 'ready') throw new Error(JSON.stringify(capture.prepared))
+  return capture.prepared.bundle
+}
+
 describe('the v2 route delivery model', () => {
+  it('shares the Installation coverage refusal with route delivery', () => {
+    const { bundle } = installation([{ start: 0, end: 3 }])
+    const refusal = showV2DeliveryRefusal(bundle)
+    expect(refusal).toContain('Installation output is incomplete')
+    expect(buildShowV2RouteArtifacts(bundle)).toEqual({ status: 'refused', message: refusal })
+  })
+
+  it('shares the Portable 2D refusal with route delivery', () => {
+    const { record, dependencies } = showV2GroupEditorFixture()
+    dependencies.patterns[0].src = 'export var gain = .4\nexport function sliderGain(v) { gain = v }\nexport function render3D(index, x, y, z) { rgb(gain, y, z) }'
+    const capture = captureShowStageEditV2(record, dependencies)
+    if (capture.prepared.status !== 'ready') throw new Error(JSON.stringify(capture.prepared))
+    const refusal = showV2DeliveryRefusal(capture.prepared.bundle)
+    expect(refusal).toContain('Portable 2D compatibility failed')
+    expect(buildShowV2RouteArtifacts(capture.prepared.bundle)).toEqual({ status: 'refused', message: refusal })
+  })
+
+  it('shares the resource ledger refusal with route delivery', () => {
+    const bundle = overLimitInstallation()
+    const refusal = showV2DeliveryRefusal(bundle)
+    expect(refusal).toBe(bundle.artifact.summary.resources.blockers[0].message)
+    expect(buildShowV2RouteArtifacts(bundle)).toEqual({ status: 'refused', message: refusal })
+  })
+
+  it('applies coverage before the resource ledger when both fail', () => {
+    const { bundle } = installation([{ start: 0, end: 3 }])
+    const ledger = overLimitInstallation().artifact.summary.resources.blockers
+    const competing = { ...bundle, artifact: {
+      ...bundle.artifact,
+      summary: { ...bundle.artifact.summary, resources: { ...bundle.artifact.summary.resources, blockers: ledger } },
+    } }
+    const refusal = showV2DeliveryRefusal(competing)
+    expect(refusal).toContain('Installation output is incomplete')
+    expect(refusal).not.toBe(ledger[0].message)
+    expect(buildShowV2RouteArtifacts(competing)).toEqual({ status: 'refused', message: refusal })
+  })
+
+  it('returns null for a deliverable bundle', () => {
+    const { bundle } = prepared()
+    expect(showV2DeliveryRefusal(bundle)).toBeNull()
+    expect(buildShowV2RouteArtifacts(bundle).status).toBe('ready')
+  })
+
   it('exports one .epe that reopens with the compiled Show and measures it', () => {
     const { bundle } = prepared()
     const result = buildShowV2RouteArtifacts(bundle, { exportedAt: '2026-09-17T00:00:00.000Z' })
