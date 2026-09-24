@@ -227,8 +227,6 @@ describe('ShowEditor (#318)', () => {
    * deleted as COVERED (test-results-keep/1042-p2-coverage.md):
    * - surfaces a failed Show save with working Retry and Dismiss (#792):
    *   src/components/ShowEditorV2Tracer.test.tsx "shows the save-failure notice on a rolled-back v2 edit and retries it from the notice"
-   * - exposes disabled-control explanations to hover targets and the a11y tree (#796):
-   *   e2e/shows.auth.spec.ts "disabled Show controls explain themselves on hover and to assistive tech (#796)"
    * - groups the unified toolbar as transport, time, edit, then view with Marker actions together (#779):
    *   e2e/shows.auth.spec.ts "timeline toolbar keeps transport, time, edit, and view in one visible desktop row"
    * - selects an appended Zone Layout routing interval from the timeline (#624):
@@ -248,6 +246,52 @@ describe('ShowEditor (#318)', () => {
    *   e2e/shows.auth.spec.ts "adds a Clip from the Add menu at a free playhead (#1090)"
    * No test in this range was REPRESENTATION or V1-ONLY.
    */
+  it('exposes disabled-control explanations to hover targets and the a11y tree (#796)', async () => {
+    const user = userEvent.setup()
+    const twoClips = createDefaultShow('show-disabled-reasons', 'Disabled reasons', 1000)
+    const show = removeShowClip(twoClips, 'cell-2')
+    const editor = openV2EditorForRecord(convertForTest(show))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+
+    const describedReason = (control: HTMLElement) => {
+      const id = control.getAttribute('aria-describedby')
+      expect(id).toBeTruthy()
+      return document.getElementById(id!)
+    }
+
+    // Clone without a usable selection stays focusable and explains itself.
+    const clone = screen.getByRole('button', { name: 'Clone selection' })
+    expect(clone).not.toBeDisabled()
+    expect(clone).toHaveAttribute('aria-disabled', 'true')
+    expect(describedReason(clone)).toHaveTextContent('Select one simple Clip to Clone')
+
+    // Deleting the final Clip explains the floor before it is pressed.
+    await user.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
+    const deleteClip = screen.getByRole('button', { name: 'Delete clip TestPattern1D' })
+    expect(deleteClip).not.toBeDisabled()
+    expect(deleteClip).toHaveAttribute('aria-disabled', 'true')
+    expect(describedReason(deleteClip)).toHaveTextContent('A Show must contain at least one Clip.')
+    await user.click(deleteClip)
+    expect(screen.getAllByRole('button', { name: 'Select TestPattern1D' }).length).toBeGreaterThan(0)
+
+    // Removing the last Zone explains the floor instead of a mute control.
+    await user.keyboard('{Escape}')
+    const timeline = screen.getByRole('region', { name: 'Show timeline' })
+    await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
+    await user.click(screen.getByRole('button', { name: 'Open zone main properties' }))
+    const removeZone = screen.getByRole('button', { name: 'Remove zone main' })
+    expect(removeZone).not.toBeDisabled()
+    expect(removeZone).toHaveAttribute('aria-disabled', 'true')
+    expect(describedReason(removeZone)).toHaveTextContent('A Show needs at least one Zone.')
+    await user.hover(removeZone)
+    expect(removeZone).toHaveAccessibleDescription(expect.stringContaining('A Show needs at least one Zone.'))
+    await user.click(removeZone)
+    expect(editor.state().record.zones).toHaveLength(1)
+    expect(editor.state().record.composition.clips).toHaveLength(1)
+    expect(editor.state().v2Writes).toBe(0)
+    expect(editor.state().legacyWrites).toBe(0)
+  })
+
   it('reassigns a Clip to a personal Pattern that imports a personal Library (#828)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-personal-library-pattern', 'Personal Library Pattern', 1000)
@@ -2097,12 +2141,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
    * COVERED:
    * - clears a stored 2D-only Wipe direction when the 1D boundary palette applies Linear (#1077):
    *   src/engine/showV2TransitionEditorModel.test.ts "clears a stored direction when the 1D palette applies Linear Wipe (#1077 corrective)"
-   * - applies timeline drag modifiers from gesture start or during the drag (#789):
-   *   e2e/shows.auth.spec.ts "applies Clip drag snapping modifiers regardless of press order (#789)"
    * - duplicates into a collapsed Zone without moving the source Clip (#668):
    *   src/components/ShowEditorV2Tracer.test.tsx "duplicates a Clip onto a collapsed Zone as a linked copy"
-   * - removes hidden Scene-boundary Transition time when resizing a generated Clip (#695):
-   *   e2e/shows.auth.spec.ts "reclaims Scene-boundary Transition time after resizing its Clip away (#695)"
    * - deletes a selected composition Clip from the keyboard (#580):
    *   src/components/ShowEditorV2Tracer.test.tsx "deletes a free Clip through keyboard Delete"
    * - adopts boundary repair with one save and restores the whole edit through Undo and Redo (#1023):
@@ -2122,6 +2162,128 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
    *   :772 "Delete permits the Trails-armed and cross-boundary shared-instance cases v1 refuses"
    * No test in this range was REPRESENTATION.
    */
+  it('applies timeline drag modifiers from gesture start or during the drag (#789)', async () => {
+    const show = createDefaultShow('show-drag-modifiers', 'Drag modifiers', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-drag-modifiers',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Modifier Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-drag-modifiers',
+            instanceId: 'instance-drag-modifiers',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: false,
+      markerSnapEnabled: false,
+    })
+    const saved = () => editor.state().record.composition.clips.find((clip) => clip.id === 'placement-drag-modifiers')
+
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const clip = screen.getByRole('button', { name: 'Select Modifier Rings' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 0, bottom: 40, width: 40, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (
+      type: string,
+      clientX: number,
+      modifiers: { altKey?: boolean; shiftKey?: boolean } = {},
+    ) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        altKey: { value: modifiers.altKey ?? false },
+        shiftKey: { value: modifiers.shiftKey ?? false },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    const elementFromPoint = document.elementFromPoint
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => layer })
+    fireEvent.pointerDown(clip, { pointerId: 789, clientX: 20, clientY: 20, shiftKey: true })
+    fireEvent.pointerMove(window, { pointerId: 789, clientX: 123.37, clientY: 20, shiftKey: true })
+    expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('12.3s')
+    fireEvent.pointerUp(window, { pointerId: 789, clientX: 123.37, clientY: 20, shiftKey: true })
+    await waitFor(() => {
+      expect(saved()).toMatchObject({ startMs: 12_300, durationMs: 4_000 })
+      expect(editor.state().v2Writes).toBe(1)
+    })
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: elementFromPoint })
+
+    fireEvent(clip, dragEvent('dragstart', 20))
+    fireEvent(layer, dragEvent('dragover', 123.37))
+    expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('12s')
+    fireEvent(layer, dragEvent('dragover', 123.37, { altKey: true }))
+    expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('12.337s')
+    fireEvent(layer, dragEvent('drop', 123.37, { altKey: true }))
+    fireEvent(clip, dragEvent('dragend', 123.37, { altKey: true }))
+    await waitFor(() => {
+      expect(saved()).toMatchObject({ startMs: 12_337, durationMs: 4_000 })
+      expect(editor.state().v2Writes).toBe(2)
+    })
+    expect(editor.state().legacyWrites).toBe(0)
+  })
+
+  it('removes hidden Scene-boundary Transition time when resizing a generated Clip (#695)', async () => {
+    const show = createDefaultShow('show-resize-boundary-transition', 'Resize boundary Transition', 1000)
+    const editor = openV2EditorForRecord(convertForTest(show))
+    expect(editor.state().record.composition.transitions.map((transition) => transition.id)).toContain('transition-scene-1')
+
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const handle = screen.getByRole('separator', { name: 'Resize CometLoom start' })
+
+    fireEvent.pointerDown(handle, { clientX: 320, pointerId: 1, altKey: true })
+    fireEvent.pointerMove(window, { clientX: 360, pointerId: 1, altKey: true })
+    fireEvent.pointerUp(window, { clientX: 360, pointerId: 1, altKey: true })
+
+    await waitFor(() => {
+      const saved = editor.state().record
+      expect(saved.composition.showEndMs).toBe(60_000)
+      // v2 has no Cut kind: the Transition's time is reclaimed by removing it.
+      expect(saved.composition.transitions.map((transition) => transition.id)).not.toContain('transition-scene-1')
+      // Scene 2 starts at 30 s, so v1's Scene-relative 4 s start is 34 s on the flat v2 timeline.
+      expect(saved.composition.clips.find((clip) => clip.id === 'placement-cell-2-scene-2')).toMatchObject({
+        startMs: 34_000,
+        durationMs: 26_000,
+      })
+      expect(validateShowRecordV2(saved)).toEqual([])
+      expect(editor.state().v2Writes).toBe(1)
+    })
+    expect(editor.state().legacyWrites).toBe(0)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Select CometLoom' })).toHaveStyle({
+      left: `${34_000 / 60_000 * 100}%`,
+      width: `${26_000 / 60_000 * 100}%`,
+    }))
+  })
+
   it('restores a Clip timing field when the engine refuses an overlap (#614)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-refused-inspector-timing', 'Refused inspector timing', 1000)
@@ -2321,6 +2483,21 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(clip).toHaveAttribute('aria-pressed', 'true')
     expect(clip).toHaveStyle({ borderLeftColor: 'var(--color-live)', boxShadow: 'none' })
     expect(clip.querySelector('.show-clip-pattern-name')).toHaveClass('text-live')
+  })
+
+  it('opens Show properties from the Show header action', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-properties-route', 'Properties route', 1000)
+    const editor = openV2EditorForRecord(convertForTest(show))
+
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(within(panel).getByRole('heading', { name: 'TestPattern1D' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
   })
 
   it('restores unified Clip summaries in the timeline and Entity Detail (#599)', async () => {
@@ -5435,7 +5612,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   /* COVERED: "leaves ordinary vertical wheel input available to the Show editor scroll owner (#476)"
    * and "pans the Show timeline horizontally with Shift and a vertical mouse wheel (#476)"
    * are covered by e2e/shows.auth.spec.ts:820.
-   * "opens Show properties from the Show header action" is covered by e2e/shows.auth.spec.ts:794.
    */
   it('drives proportional Show transport and requests an accurate seek (#414)', async () => {
     const user = userEvent.setup()
