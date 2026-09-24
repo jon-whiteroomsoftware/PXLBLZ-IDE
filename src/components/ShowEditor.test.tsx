@@ -4912,6 +4912,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
     const v2 = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
+    // The app opens a built-in lesson as a session-only lesson draft (App.tsx:895-898).
+    await act(async () => { await useShowStore.getState().openShowV2Pilot(stock.id) })
     const builtInContext = {
       track: stock.track,
       lesson: stock.lesson,
@@ -4945,6 +4947,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     await user.click(screen.getByRole('button', { name: 'Reset built-in Show' }))
     expect(screen.getAllByRole('button', { name: 'Select TunnelOfSquares2D' }).length).toBeGreaterThan(0)
+    expect(v2.state().history.past).toHaveLength(0)
+    expect(v2.state().record).toEqual(stockShowV2ById(stock.id))
+    // A built-in lesson is session-only: neither the edit nor Reset writes.
+    expect(v2.state().v2Writes).toBe(0)
+    expect(v2.state().legacyWrites).toBe(0)
   })
 
   it('keeps Clip resize grab zones clear of the junction band (#363)', () => {
