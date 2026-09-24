@@ -16,7 +16,6 @@ import {
   extendShowCell,
   removeShowClip,
   spanShowCellZones,
-  updateShowBoundaryTransition,
   updateShowCellAdaptations,
   updateShowTransition,
 } from '@/engine/showModel'
@@ -51,7 +50,7 @@ import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { showSplitClipFixture } from '@/test/showSplitClipFixture'
 import { convertForTest, openV2EditorForRecord } from '@/test/showEditorV2Harness'
-import { boundaryClipDeletionFixture, boundaryDeletionPlacement } from '@/test/showBoundaryClipDeletionFixture'
+import { boundaryClipDeletionFixture } from '@/test/showBoundaryClipDeletionFixture'
 import { useShowEditorViewStore } from '@/store/showEditorViewStore'
 
 // The pressure/blocked compile-bar tests need a show decisively over the
@@ -65,7 +64,6 @@ import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
 import { appendShowLayoutInterval } from '@/engine/showLayoutIntervals'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
-import { validateShowComposition } from '@/engine/showCompositionModel'
 import { expectDisabledReason } from '@/components/ui/disabled-reason.testing'
 
 /**
@@ -2129,10 +2127,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       }))
     })
   })
-
-  // #1042 Phase 2a-2 left these shared imports unused; the last Phase 2a slice
-  // removes them with the other dead imports.
-  void [updateShowBoundaryTransition, boundaryDeletionPlacement, validateShowComposition]
 
   /*
    * #1042 Phase 2a-2: the tests from here to "blocks deletion when the final flat
