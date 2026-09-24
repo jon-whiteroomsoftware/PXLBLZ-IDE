@@ -4,5 +4,5 @@
   "route": "/PXLBLZ-IDE/studio/shows/show-1111b2-preview-proof",
   "operation": "Opened a converted v2 Show as the synthetic issue user, disabled Snap, and dispatched a Clip dragover at 5 seconds, overlapping the 8-second obstruction. Mid-drag, the drop effect was none and no move outline appeared.",
   "captures": [".wrsp/ui-proof/1111-b-move-preview.png"],
-  "capturedAtCommit": "84f5d09d2dbc7e7a2bd8e18eca9730f6ff7940a4"
+  "capturedAtCommit": "de7b27de2eb497df449cb4c3fbe7fa36e8348d33"
 }
