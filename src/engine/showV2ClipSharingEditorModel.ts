@@ -6,7 +6,9 @@ import type { ShowV2TimelineCapture } from './showV2TimelineEditorModel'
 
 export interface ShowV2ClipSharingCapture extends ShowV2TimelineCapture { inputCapture?: ShowPreparedStageInputCaptureResultV2 }
 export type ShowV2ClipSharingIntent = Extract<ShowClipEditIntentV2, { kind: 'duplicate' | 'make-independent' | 'rejoin' }>
-export type ShowV2ClipSharingPlan = { status: 'ready'; intent: ShowV2ClipSharingIntent } | { status: 'unchanged' } | { status: 'refused'; message: string }
+/** Why a linked duplicate draft is refused; the timeline maps it to user copy (#1098). */
+export type ShowV2DuplicateRefusalCode = 'missing-clip' | 'past-show-end' | 'invalid-destination'
+export type ShowV2ClipSharingPlan = { status: 'ready'; intent: ShowV2ClipSharingIntent } | { status: 'unchanged' } | { status: 'refused'; message: string; code?: ShowV2DuplicateRefusalCode }
 function capturedRecord(capture: ShowV2ClipSharingCapture): ShowRecordV2 | null {
  if(capture.inputCapture) return capture.inputCapture.status==='qualified'?capture.inputCapture.inputs.record:null
  return capture.prepared.status==='ready'?capture.prepared.bundle.record:capture.prepared.status==='empty'?capture.prepared.record:null
@@ -36,12 +38,14 @@ function identityAllocator(record:ShowRecordV2,effective:ShowRecordV2,allocate:(
  return ()=>{const id=allocate();if(typeof id!=='string'||!id.trim()||used.has(id))throw Error('Fresh sharing identities conflict. Try the edit again.');used.add(id);return id}
 }
 const refusal=(message:string):ShowV2ClipSharingPlan=>({status:'refused',message})
-export function checkShowV2LinkedDuplicateDraft(capture:ShowV2ClipSharingCapture,clipId:string,draft:{zoneId:string;layerId:string;startMs:string}):{status:'ready'}|{status:'refused';message:string} {
+export function checkShowV2LinkedDuplicateDraft(capture:ShowV2ClipSharingCapture,clipId:string,draft:{zoneId:string;layerId:string;startMs:string}):{status:'ready'}|{status:'refused';message:string;code:ShowV2DuplicateRefusalCode} {
  const context=selected(capture,clipId)
- if(!context)return {status:'refused',message:'Select an available ordinary Clip.'}
+ if(!context)return {status:'refused',message:'Select an available ordinary Clip.',code:'missing-clip'}
  const {record,clip}=context,startMs=draft.startMs.trim()?Number(draft.startMs):NaN,endMs=startMs+clip.durationMs
- if(!Number.isSafeInteger(startMs)||startMs<0||!Number.isSafeInteger(endMs)||endMs>record.composition.showEndMs
-  ||!record.zones.some(zone=>zone.id===draft.zoneId)||!record.composition.layers.some(layer=>layer.id===draft.layerId&&layer.zoneId===draft.zoneId))return {status:'refused',message:'Choose a destination Zone, Layer and integer start within Show End.'}
+ const destination='Choose a destination Zone, Layer and integer start within Show End.'
+ if(!Number.isSafeInteger(startMs)||startMs<0||!Number.isSafeInteger(endMs)
+  ||!record.zones.some(zone=>zone.id===draft.zoneId)||!record.composition.layers.some(layer=>layer.id===draft.layerId&&layer.zoneId===draft.zoneId))return {status:'refused',message:destination,code:'invalid-destination'}
+ if(endMs>record.composition.showEndMs)return {status:'refused',message:destination,code:'past-show-end'}
  return {status:'ready'}
 }
 export function createShowV2LinkedDuplicateIntent(capture:ShowV2ClipSharingCapture,clipId:string,draft:{zoneId:string;layerId:string;startMs:string},allocate:()=>string):ShowV2ClipSharingPlan {

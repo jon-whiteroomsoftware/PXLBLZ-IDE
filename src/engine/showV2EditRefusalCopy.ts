@@ -1,6 +1,7 @@
 import type { ShowCompositionV2ValidationCode } from './showCompositionV2'
 import type { ShowV2ClipAddRefusalCode } from './showV2ClipAddPlacement'
 import type { ShowV2ClipTemporalRefusal } from './showV2ClipTemporalPlanning'
+import type { ShowV2DuplicateRefusalCode } from './showV2ClipSharingEditorModel'
 
 /**
  * User copy for a refused v2 timeline edit (#1098). `label` is the short red
@@ -12,6 +13,7 @@ export interface ShowV2RefusalCopy { label: string | null; status: string }
 /** Each timeline refusal a user can reach, plus one input for every race. */
 export type ShowV2EditRefusalInput =
   | { kind: 'overlap' }
+  | { kind: 'past-show-end' }
   | { kind: 'boundary-extend-unsupported' }
   | { kind: 'boundary-repair-blocked' }
   | { kind: 'split-outside-clip' }
@@ -37,6 +39,7 @@ const ADD_STATUS: Record<Exclude<ShowV2ClipAddRefusalCode, 'invalid-time'>, stri
 export function showV2EditRefusalCopy(refusal: ShowV2EditRefusalInput): ShowV2RefusalCopy {
   switch (refusal.kind) {
     case 'overlap': return SPACE_TAKEN
+    case 'past-show-end': return { label: 'Past Show End', status: 'The copy would run past Show End.' }
     case 'boundary-extend-unsupported': return { label: 'Joined to a Transition', status: 'Resize the Transition to change this edge.' }
     case 'boundary-repair-blocked': return { label: 'Transition blocks this', status: "This trim would break the joined Transition's animation." }
     case 'split-outside-clip': return { label: 'Playhead at the edge', status: 'Move the playhead inside the Clip to split it.' }
@@ -89,6 +92,15 @@ export function showV2PlannerRefusalInput(
   if (gesture === 'resize' && (reason === 'boundary-extend-unsupported' || reason === 'boundary-repair-blocked')) return { kind: reason }
   if (gesture === 'split' && reason === 'outside-clip') return { kind: 'split-outside-clip' }
   return { kind: 'refused' }
+}
+
+/**
+ * The input for a refused duplicate plan (Alt-duplicate or Clone). Only a copy
+ * that would run past Show End has its own copy; every other duplicate
+ * refusal takes the fallback.
+ */
+export function showV2DuplicateRefusalInput(code: ShowV2DuplicateRefusalCode | undefined): ShowV2EditRefusalInput {
+  return code === 'past-show-end' ? { kind: 'past-show-end' } : { kind: 'refused' }
 }
 
 /** The input for a refused double-click add, which has no Clip to label. */

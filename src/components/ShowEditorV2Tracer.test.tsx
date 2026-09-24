@@ -8334,6 +8334,63 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     expectClipRefusal('resize-a', 'Space taken', 'Clips on one Layer cannot overlap.')
   })
 
+  it('names an Alt-duplicate preview refused after a mid-drag Show End change as a changed Show, on release', async () => {
+    const editor = openV2Editor('refusal-duplicate-show-end-race')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+    const surface = dragSurface('resize-a')
+
+    surface.fire(surface.clip, 'dragstart', 0, true)
+    // Another writer extends Show End to 30 s while the drag is held. The
+    // timeline now clamps against 30 s; the drag's capture still ends at 20 s,
+    // so its check refuses a copy at 26 s as past Show End.
+    const extended = structuredClone(before.record)
+    extended.composition.showEndMs = 30_000
+    const last = extended.composition.layoutOccurrences[extended.composition.layoutOccurrences.length - 1]
+    last.durationMs = 30_000 - last.startMs
+    expect(validateShowRecordV2(extended)).toEqual([])
+    act(() => useShowStore.setState({
+      showV2Pilots: { [editor.showId]: extended },
+      showRevisions: { [editor.showId]: before.revision + 1 },
+    }))
+    const refreshed = dragSurface('resize-a')
+    refreshed.fire(refreshed.lane('overlay'), 'dragover', 199, true)
+    expect(refreshed.dataTransfer.dropEffect).toBe('none')
+    expect(screen.queryByTestId('show-clip-move-preview')).not.toBeInTheDocument()
+    expect(timelineStatus()).toBeNull()
+    // A refused preview fires no drop; the release is the drag's end.
+    refreshed.fire(clipButton('resize-a'), 'dragend', 199, true)
+    await act(async () => {})
+
+    const after = editor.state()
+    expect(admission.calls).toEqual([])
+    expect(after.v2Writes).toBe(0)
+    expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length)
+    expectClipRefusal('resize-a', 'Show changed', 'The Show changed; try again.')
+    expect(screen.queryByText('Space taken')).not.toBeInTheDocument()
+  })
+
+  it('keeps Clone of a Clip ending at Show End disabled with its existing reason', async () => {
+    const record = v2TracerRecord('refusal-clone-show-end')
+    const overlay = record.composition.clips.find((clip) => clip.id === 'overlay-a')!
+    overlay.durationMs = record.composition.showEndMs - overlay.startMs
+    expect(validateShowRecordV2(record)).toEqual([])
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    fireEvent.click(clipButton('overlay-a'))
+    await act(async () => {})
+    const before = editor.state()
+
+    const clone = timelineCommand('Clone selection')
+    expect(clone).toHaveAttribute('aria-disabled', 'true')
+    expect(clone).toHaveAccessibleDescription('The selected Clip needs empty time after it on this Layer')
+    fireEvent.click(clone)
+    await act(async () => {})
+
+    expectNoWrite(before, editor.state())
+    expect(screen.queryByTestId('show-clip-delete-blocked')).not.toBeInTheDocument()
+  })
+
   it('names a move into a Zone no Layout covers', async () => {
     const record = twoZoneV2Record('refusal-zone-unavailable')
     // From 10 s a second Layout routes only the first Zone, so the second

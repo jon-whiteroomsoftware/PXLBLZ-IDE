@@ -12,6 +12,7 @@ import {
   checkShowV2LinkedDuplicateDraft,
   createShowV2LinkedDuplicateIntent,
   type ShowV2ClipSharingCapture,
+  type ShowV2DuplicateRefusalCode,
 } from './showV2ClipSharingEditorModel'
 import { allocateShowClipTimingIdsV2 } from './showV2TimelineEditorModel'
 import {
@@ -43,7 +44,8 @@ export type ShowTimelineGestureSubmissionV2 =
 export type ShowTimelineGesturePlanV2 =
   | { status: 'ready'; submission: ShowTimelineGestureSubmissionV2; selectAfterId?: string }
   | { status: 'unchanged' }
-  | { status: 'refused'; message: string }
+  /** `code` names a duplicate draft refusal (#1098). */
+  | { status: 'refused'; message: string; code?: ShowV2DuplicateRefusalCode }
 
 /**
  * Plan one gesture against the captured record.
@@ -132,7 +134,7 @@ export function planShowTimelineGestureV2(
       zoneId: gesture.zoneId, layerId: gesture.layerId, startMs: String(gesture.startMs),
     }, allocate)
     if (duplicate.status === 'unchanged') return { status: 'unchanged' }
-    if (duplicate.status === 'refused') return refuse(duplicate.message)
+    if (duplicate.status === 'refused') return { status: 'refused', message: duplicate.message, ...(duplicate.code ? { code: duplicate.code } : {}) }
     if (duplicate.intent.kind !== 'duplicate') return refuse('Duplication produced an unexpected sharing intent.')
     return ready({ owner: 'clip-sharing', intent: duplicate.intent }, duplicate.intent.identities.clipId)
   }
@@ -156,10 +158,10 @@ export function planShowTimelineGestureV2(
 export function checkShowTimelineDuplicateGestureV2(
   capture: ShowV2ClipSharingCapture,
   gesture: Extract<ShowTimelineGestureV2, { kind: 'duplicate' }>,
-): { status: 'ready' } | { status: 'refused'; message: string } {
+): { status: 'ready' } | { status: 'refused'; message: string; code: ShowV2DuplicateRefusalCode } {
   const clip = capture.record.composition.clips.find(candidate => candidate.id === gesture.clipId)
   if (!clip) {
-    return { status: 'refused', message: 'Choose one ordinary Clip. A Group Clip use is edited through its Group occurrence.' }
+    return { status: 'refused', message: 'Choose one ordinary Clip. A Group Clip use is edited through its Group occurrence.', code: 'missing-clip' }
   }
   return checkShowV2LinkedDuplicateDraft(capture, gesture.clipId, {
     zoneId: gesture.zoneId, layerId: gesture.layerId, startMs: String(gesture.startMs),

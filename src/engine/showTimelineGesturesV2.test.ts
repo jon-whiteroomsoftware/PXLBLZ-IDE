@@ -253,8 +253,18 @@ describe('v2 timeline gesture adapters', () => {
     if (planned.status !== 'refused') throw new Error('Missing duplicate refusal')
     expect(allocate).not.toHaveBeenCalled()
     expect(checkShowTimelineDuplicateGestureV2(capture(record), gesture)).toEqual({
-      status: 'refused', message: planned.message,
+      status: 'refused', message: planned.message, code: 'missing-clip',
     })
+  })
+
+  it('names a duplicate that would run past Show End by its code (#1098)', () => {
+    const record = detached()
+    const clip = record.composition.clips[0]
+    const gesture = {
+      kind: 'duplicate', clipId: clip.id, startMs: record.composition.showEndMs - clip.durationMs + 1, zoneId: clip.zoneId, layerId: clip.layerId,
+    } as const
+    expect(checkShowTimelineDuplicateGestureV2(capture(record), gesture)).toMatchObject({ status: 'refused', code: 'past-show-end' })
+    expect(planShowTimelineGestureV2(capture(record), gesture, () => 'unused')).toMatchObject({ status: 'refused', code: 'past-show-end' })
   })
 
   it('maps delete onto the Clip delete intent, projecting each removed carrier', () => {

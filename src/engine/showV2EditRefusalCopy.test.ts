@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   showV2AddRefusalInput,
   showV2CommitRefusalInput,
+  showV2DuplicateRefusalInput,
   showV2EditRefusalCopy,
   showV2PlannerRefusalInput,
   type ShowV2EditRefusalInput,
@@ -10,6 +11,7 @@ import {
 // Every union member, with the copy Jon approved on #1098.
 const TABLE: Array<[ShowV2EditRefusalInput, string | null, string]> = [
   [{ kind: 'overlap' }, 'Space taken', 'Clips on one Layer cannot overlap.'],
+  [{ kind: 'past-show-end' }, 'Past Show End', 'The copy would run past Show End.'],
   [{ kind: 'boundary-extend-unsupported' }, 'Joined to a Transition', 'Resize the Transition to change this edge.'],
   [{ kind: 'boundary-repair-blocked' }, 'Transition blocks this', "This trim would break the joined Transition's animation."],
   [{ kind: 'split-outside-clip' }, 'Playhead at the edge', 'Move the playhead inside the Clip to split it.'],
@@ -71,5 +73,12 @@ describe('refusal inputs', () => {
     expect(showV2PlannerRefusalInput('resize', 'boundary-repair-blocked')).toEqual({ kind: 'boundary-repair-blocked' })
     expect(showV2PlannerRefusalInput('split', 'outside-clip')).toEqual({ kind: 'split-outside-clip' })
     expect(showV2AddRefusalInput('inside-transition')).toEqual({ kind: 'add', code: 'inside-transition' })
+  })
+
+  it('maps a duplicate refusal by its code: past Show End, else the fallback', () => {
+    expect(showV2DuplicateRefusalInput('past-show-end')).toEqual({ kind: 'past-show-end' })
+    expect(showV2DuplicateRefusalInput('invalid-destination')).toEqual({ kind: 'refused' })
+    expect(showV2DuplicateRefusalInput('missing-clip')).toEqual({ kind: 'refused' })
+    expect(showV2DuplicateRefusalInput(undefined)).toEqual({ kind: 'refused' })
   })
 })
