@@ -466,6 +466,7 @@ import { FieldActivityContext, createFieldActivityScope, useFieldActivity } from
 import { captureShowStageEditV2, showV2ClipRestartAvailabilityV2, type ShowPreparedStageEditCaptureV2 } from '@/engine/showPreparedStageV2'
 import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
 import type { ShowCompositionV2ValidationCode, ShowRecordV2 } from '@/engine/showCompositionV2'
+import { showSelectionExistsV2 } from '@/engine/showSelectionExistenceV2'
 import {
   SHOW_V2_RESTART_UNAVAILABLE_REASON,
   showV2AddRefusalInput,
@@ -3296,12 +3297,16 @@ export function ShowEditor({
     return () => window.clearTimeout(timeout)
   }, [closeDetailPanel, isolatedGroupOccurrenceId, recordVersion, savedShowV2, setSelection, timelineComposition])
   useEffect(() => {
-    if (!activeShow) return
+    if (recordVersion === 2 ? !savedShowV2 : !activeShow) return
     const pinnedSelectionMissing = Boolean(
-      pinnedDetail && !showSelectionExists(activeShow, timelineComposition, pinnedDetail.selection),
+      pinnedDetail && (recordVersion === 2 && savedShowV2
+        ? !showSelectionExistsV2(savedShowV2, pinnedDetail.selection)
+        : !showSelectionExists(activeShow!, timelineComposition, pinnedDetail.selection)),
     )
     const transientSelectionMissing = detailPanelOpen
-      && !showSelectionExists(activeShow, timelineComposition, selection)
+      && (recordVersion === 2 && savedShowV2
+        ? !showSelectionExistsV2(savedShowV2, selection)
+        : !showSelectionExists(activeShow!, timelineComposition, selection))
     if (!pinnedSelectionMissing && !transientSelectionMissing) return
     const timeout = window.setTimeout(() => {
       if (pinnedSelectionMissing) setPinnedDetail(null)
@@ -3311,7 +3316,7 @@ export function ShowEditor({
       }
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [activeShow, closeDetailPanel, detailPanelOpen, pinnedDetail, selection, setSelection, timelineComposition])
+  }, [activeShow, closeDetailPanel, detailPanelOpen, pinnedDetail, recordVersion, savedShowV2, selection, setSelection, timelineComposition])
   const propertyLanesV2 = useMemo(() => (
     recordVersion === 2 && lessonProjectionV2
       ? projectShowEditorPropertyLanesV2(lessonProjectionV2, Object.values(patternControlsByInstanceId).flat())

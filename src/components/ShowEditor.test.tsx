@@ -1620,9 +1620,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
   })
 
-  // DEFECT: on v2, after editShowZoneV2 removes the Zone and its Group occurrence, the pinned
-  // Entity Detail Panel stays open with owner key group-clip:phrase-use:inside-clip.
-  it.skip('closes a pinned Group child inspector when its owning Zone is removed', async () => {
+  it('closes a pinned Group child inspector when its owning Zone is removed', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-group-zone-removal', 'Group Zone removal', 1000), {
       name: 'accent',
