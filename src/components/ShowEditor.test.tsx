@@ -6024,12 +6024,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.queryByRole('group', { name: 'Animation speed lane for edge' })).not.toBeInTheDocument()
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('offers first-class Run and Save actions for the canonical generated Show (#429)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-send', 'Opening Night', 1000)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show))
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6109,7 +6108,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('keeps active Controller transforms in the source advisory when renderer pressure blocks delivery (#849)', () => {
     const [, fixture] = buildShowCompositionFreezeCases()
     const show = structuredClone(fixture.show)
@@ -6135,7 +6133,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     profile.globalTransforms = profile.globalTransforms.map((transform) => (
       transform.type === 'power-cap' ? { ...transform, enabled: true, maxDuty: 0.25 } : transform
     ))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, Object.fromEntries(fixture.patterns.map(pattern => [pattern.id, pattern.src]))))
     usePatternStore.setState({ userPatterns: fixture.patterns, patternsLoaded: true })
     useControllerProfileStore.setState({ profilesLoaded: true, profiles: [profile] })
     useControllerStore.setState({
@@ -6192,7 +6190,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByTestId('show-compile-bar')).not.toHaveTextContent('Controller transforms')
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('disables deployment while rebuilding an updated Show dependency, then sends the current source (#593, #851)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-send-current', 'Current source', 1000)
@@ -6214,7 +6211,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       updatedAt: 2,
     }
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, { 'live-pattern': oldPattern.src }))
     usePatternStore.setState({ userPatterns: [oldPattern], patternsLoaded: true })
     useControllerStore.setState({
       controllers: {
@@ -6239,13 +6236,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       usePatternStore.setState({ userPatterns: [newPattern] })
     })
 
-    expectDisabledReason(run, 'Rebuilding Show...')
-    expectDisabledReason(save, 'Rebuilding Show...')
-    expect(within(run).getByText('Run')).toBeInTheDocument()
-    expect(within(save).getByText('Save')).toBeInTheDocument()
-    expect(pushGeneratedArtifact).not.toHaveBeenCalled()
-
-    await waitFor(() => expect(run).not.toHaveAttribute('aria-disabled', 'true'))
+    // presentationV2Capture derives the updated source in the same render (ShowEditor.tsx).
+    expect(run).not.toHaveAttribute('aria-disabled', 'true')
     expect(save).toBeEnabled()
     await user.click(run)
 
@@ -6260,14 +6252,13 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(source).not.toContain('0.1234567')
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('confirms a Controller renderer adaptation before sending the adapted Show (#429)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-adapt', 'Spatial Show', 1000)
     show = { ...show, stageMapId: 'plane' }
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, {}, 2))
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6293,7 +6284,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })))
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  // v2 port blocked by #1114: v2 has no rebuilding window after a prepared dependency changes.
   it('retires a pending send confirmation when its prepared Show dependency changes (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-send-retire', 'Retire stale confirmation', 1000)
@@ -6330,7 +6321,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowDeliveryHarness showId={show.id} />)
+    render(<ShowDeliveryHarness showId={show.id} recordVersion={1} />)
     const run = screen.getByRole('button', { name: 'Run' })
     await user.click(run)
     expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
@@ -6351,7 +6342,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(source).not.toContain('0.1234567')
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('does not submit a confirmed Save after preview generation outlives its prepared Show (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-save-stale-preview', 'Stale preview Save', 1000)
@@ -6378,7 +6368,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg')
       .mockReturnValue(new Promise((resolve) => { resolvePreview = resolve }))
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, { 'live-pattern': oldPattern.src }, 2))
     usePatternStore.setState({ userPatterns: [oldPattern], patternsLoaded: true })
     useControllerStore.setState({
       controllers: {
@@ -6414,7 +6404,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('reports a confirmed Save whose Controller session changes during preview generation (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-save-session-preview', 'Session preview Save', 1000)
@@ -6424,7 +6413,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg')
       .mockReturnValue(new Promise((resolve) => { resolvePreview = resolve }))
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, {}, 2))
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6462,7 +6451,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('retires a pending send confirmation when the Controller session changes (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-session-retire', 'Retire Controller session', 1000)
@@ -6470,7 +6458,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
     const provider = new ConnectedControllerProvider()
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, {}, 2))
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6493,7 +6481,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('keeps a pending send confirmation through a same-Controller status refresh (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-session-refresh', 'Keep Controller confirmation', 1000)
@@ -6501,7 +6488,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
     const provider = new ConnectedControllerProvider()
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, {}, 2))
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6529,7 +6516,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
+  // v2 port blocked by #1114: v2 has no rebuilding window for an updated dependency.
   it('keeps deployment disabled with the Show compilation failure after rebuilding (#851)', async () => {
     const show = createDefaultShow('show-send-failure', 'Failed rebuild', 1000)
     show.cells[0] = {
@@ -6567,7 +6554,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowDeliveryHarness showId={show.id} />)
+    render(<ShowDeliveryHarness showId={show.id} recordVersion={1} />)
     const run = screen.getByRole('button', { name: 'Run' })
     act(() => usePatternStore.setState({ userPatterns: [brokenPattern] }))
 
@@ -6586,7 +6573,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('dismisses pending Controller delivery when navigating to another Show (#593)', async () => {
     const user = userEvent.setup()
     let firstShow = createDefaultShow('show-pending-first', 'Pending first', 1000)
@@ -6594,11 +6580,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     firstShow = updateShowTransition(firstShow, firstShow.scenes[0].id, 'portal', 2000, 0.1)
     const secondShow = createDefaultShow('show-pending-second', 'Pending second', 1000)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    useShowStore.setState({
-      shows: [firstShow, secondShow],
-      activeShowId: firstShow.id,
-      showsLoaded: true,
-    })
+    openV2EditorForRecord(convertForTest(firstShow, {}, 2))
+    useShowStore.setState((state) => ({
+      showV2Pilots: { ...state.showV2Pilots, [secondShow.id]: convertForTest(secondShow) },
+    }))
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6621,14 +6606,13 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('dismisses pending Controller delivery when the active Controller changes (#593)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-pending-controller', 'Pending Controller', 1000)
     show = { ...show, stageMapId: 'plane' }
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, {}, 2))
     useControllerStore.setState({
       controllers: {
         '10.0.0.5': {
@@ -6717,7 +6701,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('blocks a known-invalid Installation Controller target without changing its map (#437)', async () => {
     const user = userEvent.setup()
     const show = createShowWithOutputContract(
@@ -6726,7 +6709,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
       1000,
     )
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show))
     useControllerProfileStore.setState({
       profilesLoaded: true,
       profiles: [{
@@ -6770,7 +6753,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(useControllerStore.getState().pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('does not reinterpret map push history as the live installed map', async () => {
     const user = userEvent.setup()
     const show = createShowWithOutputContract(
@@ -6779,7 +6761,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
       1000,
     )
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show))
     useControllerProfileStore.setState({
       profilesLoaded: true,
       profiles: [{
@@ -6847,10 +6829,9 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(compileBar).not.toHaveTextContent(/arena|free|render target:|cache plan:|crossfade:|est\. \d+ fps|steady state|worst instant:/i)
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('surfaces a Controller rejection as a visible alert without hover (#849)', () => {
     const show = createDefaultShow('show-push-failure', 'Push failure', 1000)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show))
     useControllerStore.setState({
       artifactPushResult: {
         ok: false,
@@ -6869,10 +6850,9 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByRole('button', { name: 'Dismiss Save failure' })).toBeInTheDocument()
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('does not attribute another Show failure to the open Show (#849)', () => {
     const show = createDefaultShow('show-current', 'Current Show', 1000)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show))
     useControllerStore.setState({
       artifactPushResult: {
         ok: false,
@@ -6887,12 +6867,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  // v2 port blocked by #1114: v2 ShowEditor does not publish Controller delivery (ShowEditor.tsx:3805).
   it('keeps a Show push failure visible until dismissal (#849)', () => {
     vi.useFakeTimers()
     try {
       const show = createDefaultShow('show-persistent-failure', 'Persistent failure', 1000)
-      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+      openV2EditorForRecord(convertForTest(show))
       useControllerStore.setState({
         artifactPushResult: {
           ok: false,
@@ -7159,7 +7138,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(within(reloadedTimeline).getByText('56px')).toBeInTheDocument()
   })
 
-  // v2 port blocked by #1114: Installation View code stays enabled above the output limit.
   it('keeps an over-limit legacy Installation editable while blocking generated artifacts (#514)', () => {
     const show = createShowWithOutputContract(
       'show-installation-over-limit',
@@ -7167,10 +7145,9 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       { version: 1, kind: 'installation', outputMapId: 'plane', pixelCount: 2_001, resolution: 'fixed' },
       1000,
     )
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
 
     expect(screen.getByRole('button', { name: 'Show properties' })).toBeEnabled()
     expect(getShowAction('View code')).toBeDisabled()
@@ -7183,7 +7160,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     )
   })
 
-  // v2 port blocked by #1114: Portable View code stays enabled for an over-limit Controller.
+  // v2 port blocked by #1114: the prepared v2 artifact uses reference count, not the active Controller's 2,001 pixels.
   it('blocks Portable artifacts when the active Controller exceeds the supported output envelope (#514)', () => {
     const show = createShowWithOutputContract(
       'show-portable-over-limit-target',
@@ -7649,7 +7626,6 @@ it.each([1, 2])('releases a below-threshold auxiliary Marker button %s without w
   window.history.replaceState(null, '', '/')
 })
 
-// v2 port blocked by #1114: v2 Show delivery does not reach Controller Save preflight.
 it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount', 'preview override', 'Controller reconnect', 'same Show remount'] as const).map((dependency) => ({ dependency })))(
   'revalidates delayed popover Save JPEG after $dependency changes (#955, #997)', async ({ dependency }) => {
     const user = userEvent.setup()
@@ -7660,8 +7636,9 @@ it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount'
     const library = { id: 'delivery-library', name: 'Personal', src: 'function paint(index) { rgb(0.25,0,0) }', updatedAt: 1 }
     const map: MapRecord = { id: 'delivery-map', name: 'Delivery map', dim: 2, generator: 'custom', params: {}, points: [[0, 0], [1, 1]], updatedAt: 1 }
     const profile: ControllerProfile = { id: 'delivery-profile', name: 'Bench', lastSeenIp: '10.0.0.5', board: { kind: 'pixelblaze-v3-standard' }, inputs: [], globalTransforms: [], patternBindings: [], lastKnownPixelCount: 60, updatedAt: 1 }
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-    usePatternStore.setState({ userPatterns: [{ id: 'delivery-pattern', name: 'Personal Pattern', src: 'export function render(index) { Personal.paint(index) }', controls: {}, updatedAt: 1 }], patternsLoaded: true })
+    const patternSource = 'export function render(index) { Personal.paint(index) }'
+    openV2EditorForRecord(convertForTest(show, { 'delivery-pattern': patternSource }, 2))
+    usePatternStore.setState({ userPatterns: [{ id: 'delivery-pattern', name: 'Personal Pattern', src: patternSource, controls: {}, updatedAt: 1 }], patternsLoaded: true })
     useLibraryStore.setState({ userLibraries: [library] })
     useMapStore.setState({ userMaps: [map], mapsLoaded: true })
     useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
@@ -7680,12 +7657,12 @@ it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount'
         const changed = structuredClone(show)
         changed.cells[0].adaptations.brightness = 0.5
         switch (dependency) {
-          case 'Show': useShowStore.setState({ shows: [changed] }); break
+          case 'Show': useShowStore.setState((state) => ({ showV2Pilots: { ...state.showV2Pilots, [show.id]: convertForTest(changed, { 'delivery-pattern': patternSource }, 2) } })); break
           case 'Library': useLibraryStore.setState({ userLibraries: [{ ...library, src: 'function paint(index) { rgb(0,0.75,0) }', updatedAt: 2 }] }); break
           case 'map': useMapStore.setState({ userMaps: [{ ...map, points: [[0, 1], [1, 0]], updatedAt: 2 }] }); break
           case 'profile': useControllerProfileStore.setState({ profiles: [{ ...profile, lastKnownPixelCount: 120, updatedAt: 2 }] }); break
-          case 'output': useShowStore.setState({ shows: [{ ...show, outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 120 }) }] }); break
-          case 'navigation': changed.id = 'next-delivery-955'; useShowStore.setState({ shows: [show, changed] }); view.rerender(<ShowEditor showId={changed.id} />); break
+          case 'output': useShowStore.setState((state) => ({ showV2Pilots: { ...state.showV2Pilots, [show.id]: convertForTest({ ...show, outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 120 }) }, { 'delivery-pattern': patternSource }, 2) } })); break
+          case 'navigation': changed.id = 'next-delivery-955'; useShowStore.setState((state) => ({ showV2Pilots: { ...state.showV2Pilots, [changed.id]: convertForTest(changed, { 'delivery-pattern': patternSource }, 2) } })); view.rerender(<ShowEditor showId={changed.id} recordVersion={2} />); break
           case 'unmount': view.unmount(); break
           case 'same Show remount': view.rerender(<ShowDeliveryHarness key='replacement' showId={show.id} />); break
           case 'Controller reconnect': useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], liveEpoch: 1 } } })); break
@@ -7706,14 +7683,13 @@ it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount'
   },
 )
 
-// v2 port blocked by #1114: Controller popover has no v2 Show name or preflight.
 it.each(['cancel', 'Escape', 'outside', 'close', 'run', 'save'] as const)(
   'shares Show preflight from the Controller popover: %s (#997)', async (action) => {
     const user = userEvent.setup()
     let show = createDefaultShow('popover-997', 'Popover Show', 1)
     show = updateShowTransition({ ...show, stageMapId: 'plane' }, show.scenes[0].id, 'portal', 2000, 0.1)
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, {}, 2))
     useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: show.id } } })
     useControllerStore.setState({
       controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67' } },
@@ -7722,7 +7698,7 @@ it.each(['cancel', 'Escape', 'outside', 'close', 'run', 'save'] as const)(
     setControllerProvider(new ConnectedControllerProvider())
     const jpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockResolvedValue(new Uint8Array([1, 2, 3]))
     try {
-      const view = render(<><ShowEditor showId={show.id} /><ControllerActionRow /></>)
+      const view = render(<><ShowEditor showId={show.id} recordVersion={2} /><ControllerActionRow /></>)
       const row = within(screen.getByTestId('controller-action-row'))
       expect(row.getByText('Popover Show')).toBeInTheDocument()
       await user.click(row.getByRole('button', { name: action === 'save' ? 'Save' : 'Run' }))
@@ -7733,7 +7709,7 @@ it.each(['cancel', 'Escape', 'outside', 'close', 'run', 'save'] as const)(
         case 'cancel': await user.click(screen.getByRole('button', { name: 'Cancel' })); break
         case 'Escape': await user.keyboard('{Escape}'); break
         case 'outside': fireEvent.mouseDown(document.body); break
-        case 'close': view.rerender(<ShowEditor showId={show.id} />); break
+        case 'close': view.rerender(<ShowEditor showId={show.id} recordVersion={2} />); break
         default: await user.click(screen.getByRole('button', { name: 'Send anyway' }))
       }
       expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
@@ -7751,16 +7727,15 @@ it.each(['cancel', 'Escape', 'outside', 'close', 'run', 'save'] as const)(
   },
 )
 
-// v2 port blocked by #1114: v2 Show Run does not reach Controller delivery.
 it('runs a warning-free Show directly from the popover and fails closed after route departure (#997)', async () => {
   const user = userEvent.setup()
   const show = createDefaultShow('direct-997', 'Direct Show', 1)
   const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-  useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+  openV2EditorForRecord(convertForTest(show))
   useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: show.id } } })
   useControllerStore.setState({ controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67' } }, activeIp: '10.0.0.5', pushGeneratedArtifact })
   setControllerProvider(new ConnectedControllerProvider())
-  render(<><ShowEditor showId={show.id} /><ControllerActionRow /></>)
+  render(<><ShowEditor showId={show.id} recordVersion={2} /><ControllerActionRow /></>)
   const run = within(screen.getByTestId('controller-action-row')).getByRole('button', { name: 'Run' })
   await user.click(run)
   expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
@@ -7771,12 +7746,11 @@ it('runs a warning-free Show directly from the popover and fails closed after ro
   expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
 })
 
-// v2 port blocked by #1114: v2 Run and Save cannot surface Controller failures.
 it.each(['run', 'save'] as const)(
   'shows %s failure only in the popover and dismisses it (#997)', async (mode) => {
     const user = userEvent.setup()
     const show = createDefaultShow('failure-997', 'Failed delivery', 1)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show))
     useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: show.id } } })
     const pushGeneratedArtifact = vi.fn(async () => {
       useControllerStore.getState().reportArtifactPushFailure({ ok: false, artifactId: `show:${show.id}`, mode, message: 'Failed to fetch' })
@@ -7785,7 +7759,7 @@ it.each(['run', 'save'] as const)(
     setControllerProvider(new ConnectedControllerProvider())
     const jpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockResolvedValue(new Uint8Array([1, 2, 3]))
     try {
-      render(<><ShowEditor showId={show.id} /><ControllerActionRow /></>)
+      render(<><ShowEditor showId={show.id} recordVersion={2} /><ControllerActionRow /></>)
       const label = mode === 'save' ? 'Save' : 'Run'
       await user.click(within(screen.getByTestId('controller-action-row')).getByRole('button', { name: label }))
       await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1))
@@ -7813,9 +7787,9 @@ it('omits the Show entity-header Controller delivery row (#997)', () => {
 })
 
 // The delivery consumer is the Controller popover; the editor only publishes its prepared owner.
-function ShowDeliveryHarness({ showId }: { showId: string }) {
+function ShowDeliveryHarness({ showId, recordVersion = 2 }: { showId: string; recordVersion?: 1 | 2 }) {
   useLayoutEffect(() => {
     useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: showId } } })
   }, [showId])
-  return <><ShowEditor showId={showId} /><ControllerActionRow /></>
+  return <><ShowEditor showId={showId} recordVersion={recordVersion} /><ControllerActionRow /></>
 }

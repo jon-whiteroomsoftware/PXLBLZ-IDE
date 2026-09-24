@@ -83,8 +83,10 @@ export function openV2EditorForRecord(record: ShowRecordV2): OpenV2Editor {
 export function convertForTest(
   source: ShowRecord,
   personalSources: Readonly<Record<string, string>> = {},
+  stageDimension?: 2,
 ): ShowRecordV2 {
   const result = convertShowRecordV1ToV2(source, {
+    stageDimension,
     byCellId: Object.fromEntries(source.cells.map((cell) => {
       const patternSource = cell.pattern.kind === 'stock'
         ? DEMOS[resolveStockPatternId(cell.pattern.id)]
