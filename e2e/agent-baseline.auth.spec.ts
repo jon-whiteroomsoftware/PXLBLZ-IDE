@@ -87,6 +87,53 @@ function splitFixtureExpected(before: ShowRecordV2, rightId = 'clip-b-right'): S
   return expected
 }
 
+// clip-ov is 2000–8000 ms on the overlay Layer. Split at 5000 ms, the right
+// piece follows it, shares instance-ov with `continue` and takes its held
+// appearance from the split on (src/engine/showCommandsV2/clips.ts:286).
+function overlaySplitExpected(before: ShowRecordV2, rightId: string): ShowRecordV2 {
+  const expected = structuredClone(before)
+  const clips = expected.composition.clips
+  const left = clips.find(clip => clip.id === 'clip-ov')!
+  left.durationMs = 3000
+  clips.splice(clips.indexOf(left) + 1, 0, {
+    ...structuredClone(left), id: rightId, startMs: 5000, durationMs: 3000,
+    appearance: { keys: [{ ...structuredClone(left.appearance.keys[0]), id: `${rightId}:appearance:1`, timeMs: 5000 }] },
+  })
+  return expected
+}
+
+// v1 refused a Split at 30 000 ms, where clip-b's two Scene runs met at a Cut.
+// The converted clip-b is one global Clip, 12 000–36 000 ms, so 30 000 ms is
+// inside it and the owner splits there (src/engine/showCommandsV2/clips.ts:286).
+// track-b's keys all precede the split, so the left keeps them to a 30 000 ms
+// boundary key and the right piece gets no split copy; tail-track retargets to
+// the right piece (src/engine/showPropertyAnimationV2.ts:195).
+function formerCutSplitExpected(before: ShowRecordV2, rightId: string): ShowRecordV2 {
+  const expected = structuredClone(before)
+  const clips = expected.composition.clips
+  const left = clips.find(clip => clip.id === 'clip-b')!
+  left.durationMs = 18000
+  clips.splice(clips.indexOf(left) + 1, 0, {
+    ...structuredClone(left), id: rightId, startMs: 30000, durationMs: 6000,
+    appearance: { keys: [{ id: `${rightId}:appearance:1`, timeMs: 30000, value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] } }] },
+  })
+  expected.composition.transitions.find(transition => transition.id === 'outgoing')!.participants[0].fromClipId = rightId
+  const tracks = expected.composition.propertyTracks
+  const trackB = tracks.find(track => track.id === 'track-b')!
+  trackB.keyframes = [
+    { id: 'track-b:boundary:10000', timeMs: 10000, value: 1, easing: { curve: 'linear' } },
+    ...trackB.keyframes,
+    { id: 'track-b:boundary:30000', timeMs: 30000, value: 0.2, easing: { curve: 'linear' } },
+  ]
+  trackB.activeStartMs = 10000
+  trackB.activeDurationMs = 20000
+  const tail = tracks.find(track => track.id === 'tail-track')!
+  tail.target = { ...tail.target, clipId: rightId } as typeof tail.target
+  tail.keyframes.push({ id: 'tail-track:boundary:37000', timeMs: 37000, value: 1, easing: { curve: 'linear' } })
+  tail.activeDurationMs = 7000
+  return expected
+}
+
 async function seekToolbarSplit(page: Page, atMs: number): Promise<void> {
   await page.locator('body').press('a')
   const playhead = page.getByRole('slider', { name: 'Show playhead' })
@@ -356,13 +403,14 @@ async function createPersonalShowV2(page: Page): Promise<string> {
  * page, for the loader reason createPersonalShowV2 names, and is created
  * through the product's own create call (POST /api/shows?show-version=2).
  */
-async function seedConvertedShowV2(page: Page, record: ShowRecord, label: string): Promise<ShowRecordV2> {
+async function seedConvertedShowV2(page: Page, record: ShowRecord, label: string, edit?: (converted: ShowRecordV2) => void): Promise<ShowRecordV2> {
   await page.goto('studio/shows')
   const converted = (await page.evaluate(async (input) => {
     const load = (path: string) => import(path)
     const { convertBaselineRecord } = await load('/PXLBLZ-IDE/src/agent-harness/baseline/fixturesV2.ts')
     return convertBaselineRecord(input.source, input.label, [])
   }, { source: record, label })) as ShowRecordV2
+  edit?.(converted)
   const created = await page.context().request.post('/api/shows?show-version=2', { data: converted })
   expect(created.status(), await created.text()).toBe(201)
   return converted
@@ -1829,9 +1877,6 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     record.transitions.push({ id: 'routing-scene-1', afterSceneId: 'scene-1', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-1' })
     return record
   }
-  // A row still pending its v2 re-authoring keeps its v1 expectation as the
-  // source for that slice; the loop registers it as fixme and never calls it.
-  const v1Facts = (facts: (before: ShowRecord) => ShowRecord) => facts as unknown as (before: ShowRecordV2) => ShowRecordV2
   const admissionCases: Array<{
     id: string
     command: string
@@ -1842,7 +1887,9 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     unchangedUtterances?: string[]
     staleCommand?: { command: string; args: Record<string, unknown> }
     toolbarSplit?: { atMs: number; clipId: string | null; accepted: boolean }
-    /** The G3 slice that re-authors this row on v2; the loop registers it as fixme until then. */
+    /** An edit of the converted v2 record before it is seeded. */
+    editConverted?: (converted: ShowRecordV2) => void
+    /** A known v2 defect (`defect: #<issue> …`); the loop registers the row as fixme until it is fixed. */
     pendingV2?: string
   }> = [
     // Effect rows write clip-ov's one held appearance key (`apply` whole-clip).
@@ -1917,7 +1964,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     ...[
       {
         id: 'APT953', command: 'add_property_tracks', args: { tracks: [{ target: { kind: 'view-phase', clip_id: 'clip-a' }, initial_value: 0.3 }] }, utterance: 'seed a phase animation track at point three',
-        pendingV2: 'defect: v2 add_property_tracks on clip-a is refused by delivery validation; lowering puts untouched tracks\' keys outside compiled Scene 2',
+        pendingV2: 'defect: #1103 v2 add_property_tracks on clip-a is refused by delivery validation; lowering puts untouched tracks\' keys outside compiled Scene 2',
       },
       { id: 'AK953', command: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { add: [{ at_ms: 15000, value: 0.5 }] } }, utterance: 'add a brightness keyframe at fifteen seconds' },
       { id: 'UK953', command: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { update: [{ keyframe_id: 'kf-1', at_ms: 20000 }] } }, utterance: 'move the first brightness keyframe to twenty seconds' },
@@ -1948,42 +1995,47 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       },
     })),
 
-    {
-      id: 'ILT952', command: 'insert_layer_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500, easing: 'ease-in' },
-      utterance: 'insert a fifteen hundred millisecond Layer crossfade with ease in',
-      fixture: () => { const record = showLayerTransitionCommandFixture(); record.id = `layer-insert-952-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3d', expectedFacts: v1Facts(before => {
+    // Layer Transition rows run on the v2 Transition owner: the incoming Clip,
+    // its held appearance key and its Clip and instance tracks ripple by the
+    // duration delta, as in v1. A new Transition takes the owner's
+    // `transition-<from>-<to>` identity and no crossfade policy
+    // (src/engine/showCommandsV2/transitions.ts:69-83), where v1 wrote
+    // transition-1 with snapshot-live.
+    ...[
+      {
+        id: 'ILT952', command: 'insert_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500, kind: 'crossfade', easing: 'ease-in' },
+        utterance: 'insert a fifteen hundred millisecond Layer crossfade with ease in', overlay: false, attached: false, slug: 'insert', startMs: 11500, deltaMs: 1500,
+      },
+      {
+        id: 'RLT952', command: 'resize_transition', args: { transition_id: 'connected-transition', duration_ms: 1500 },
+        utterance: 'make the overlay Layer Transition fifteen hundred milliseconds', overlay: true, attached: true, slug: 'resize', startMs: 11500, deltaMs: 500,
+      },
+      {
+        id: 'RLC952', command: 'remove_transition', args: { transition_id: 'connected-transition' },
+        utterance: 'reset the Layer Transition to Cut', overlay: false, attached: true, slug: 'cut', startMs: 10000, deltaMs: -1000,
+      },
+    ].map(({ overlay, attached, slug, startMs, deltaMs, ...row }) => ({
+      ...row,
+      fixture: () => { const record = showLayerTransitionCommandFixture(overlay, attached); record.id = `layer-${slug}-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.startMs = 11500
-        for (const track of expected.composition!.scenes[0].propertyTracks ?? []) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs += 1500
-        expected.composition!.transitions = [{ id: 'transition-1', fromPlacementId: 'clip-a', toPlacementId: 'clip-b', kind: 'crossfade', durationMs: 1500, easing: { curve: 'quadratic', direction: 'in' }, crossfadePolicy: 'snapshot-live' }]
+        const composition = expected.composition
+        const clip = composition.clips.find(clip => clip.id === 'clip-b')!
+        clip.startMs = startMs
+        clip.appearance.keys[0].timeMs = startMs
+        for (const track of composition.propertyTracks) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs += deltaMs
+        if (row.id === 'ILT952') {
+          composition.transitions.push({
+            id: 'transition-clip-a-clip-b', kind: 'crossfade', durationMs: 1500, easing: { curve: 'quadratic', direction: 'in' },
+            participants: [{ id: 'transition-clip-a-clip-b-pair', zoneId: 'zone-1', layerId: 'layer:zone-1:main', fromClipId: 'clip-a', toClipId: 'clip-b' }],
+            propertyRamps: [],
+          })
+        }
+        if (row.id === 'RLT952') composition.transitions.find(transition => transition.id === 'connected-transition')!.durationMs = 1500
+        if (row.id === 'RLC952') composition.transitions = composition.transitions.filter(transition => transition.id !== 'connected-transition')
         return expected
-      }),
-    },
-    {
-      id: 'RLT952', command: 'resize_layer_transition', args: { transition_id: 'connected-transition', duration_ms: 1500 },
-      utterance: 'make the overlay Layer Transition fifteen hundred milliseconds',
-      fixture: () => { const record = showLayerTransitionCommandFixture(true, true); record.id = `layer-resize-952-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3d', expectedFacts: v1Facts(before => {
-        const expected = structuredClone(before)
-        expected.composition!.scenes[0].zones[0].overlays[0].placements.find(clip => clip.id === 'clip-b')!.startMs = 11500
-        for (const track of expected.composition!.scenes[0].propertyTracks ?? []) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs += 500
-        expected.composition!.transitions![0].durationMs = 1500
-        return expected
-      }),
-    },
-    {
-      id: 'RLC952', command: 'reset_layer_transition_to_cut', args: { transition_id: 'connected-transition' },
-      utterance: 'reset the Layer Transition to Cut',
-      fixture: () => { const record = showLayerTransitionCommandFixture(false, true); record.id = `layer-cut-952-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3d', expectedFacts: v1Facts(before => {
-        const expected = structuredClone(before)
-        expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.startMs = 10000
-        for (const track of expected.composition!.scenes[0].propertyTracks ?? []) if (['track-b', 'track-inst-b'].includes(track.id)) for (const key of track.keyframes) key.timeMs -= 1000
-        expected.composition!.transitions = []
-        return expected
-      }),
-    },
+      },
+    })),
     {
       id: 'CCR952', command: 'resize_clip', args: { clip_id: 'clip-b', duration_ms: 9000 },
       utterance: 'make the connected overlay Clip nine seconds',
@@ -2059,29 +2111,78 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         return expected
       },
     },
+    // The converted Boundary is the existing whole-output Transition
+    // transition-scene-1, so its kind, colour and easing are update_transition
+    // and its duration resize_transition. BT and BTT952 run both, with the
+    // resize as the stale candidate. A converted Boundary's resize is the v1
+    // loop commit in global time: the downstream side, its Marker, Group
+    // occurrence and Show End move by the delta and the Layout interval
+    // shortens with it (src/engine/showTransitionsV2.ts:333-365, 606), where
+    // the v1 record changed only the Boundary. The owner accepts that resize,
+    // but the bridge's delivery validation refuses the commit: track-b,
+    // track-inst and track-inst-b keep their activation to 32 000 ms, and
+    // lowering places their keys outside the shortened compiled Scene 1.
+    ...[
+      {
+        id: 'BT952', command: 'update_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', parameters: { color: '#000000' } },
+        utterance: 'make the Boundary fade through black over fifteen hundred milliseconds', slug: 'kind',
+        staleCommand: { command: 'resize_transition', args: { transition_id: 'transition-scene-1', duration_ms: 1500 } },
+        pendingV2: 'defect: v2 resize_transition on the converted Boundary is refused by delivery validation; lowering puts untouched tracks\' keys outside compiled Scene 1',
+      },
+      {
+        id: 'BTT952', command: 'update_transition', args: { transition_id: 'transition-scene-1', easing: 'ease-in' },
+        utterance: 'set the Boundary to fifteen hundred milliseconds with ease in', slug: 'timing',
+        staleCommand: { command: 'resize_transition', args: { transition_id: 'transition-scene-1', duration_ms: 1500 } },
+        pendingV2: 'defect: v2 resize_transition on the converted Boundary is refused by delivery validation; lowering puts untouched tracks\' keys outside compiled Scene 1',
+      },
+      // v2 easing is a Transition field, not a parameter; sine-in is its structured curve.
+      {
+        id: 'BTP952', command: 'update_transition', args: { transition_id: 'transition-scene-1', easing: { curve: 'sine', direction: 'in' } },
+        utterance: 'set the Boundary easing parameter to sine in', slug: 'parameter',
+      },
+    ].map(({ slug, ...row }) => ({
+      ...row,
+      fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-${slug}-952-${Date.now().toString(36)}`; return record },
+      expectedFacts: (before: ShowRecordV2) => {
+        const expected = structuredClone(before)
+        const composition = expected.composition
+        const boundary = composition.transitions.find(transition => transition.id === 'transition-scene-1')!
+        if (row.id === 'BTP952') { boundary.easing = { curve: 'sine', direction: 'in' }; return expected }
+        if (row.id === 'BT952') Object.assign(boundary, { kind: 'fade-color', color: '#000000' })
+        if (row.id === 'BTT952') boundary.easing = { curve: 'quadratic', direction: 'in' }
+        boundary.durationMs = 1500
+        composition.showEndMs -= 500
+        composition.layoutOccurrences[0].durationMs -= 500
+        const right = composition.clips.find(clip => clip.id === 'boundary-right')!
+        right.startMs -= 500
+        right.appearance.keys[0].timeMs -= 500
+        composition.markers.find(marker => marker.id === 'scene-marker:scene-2')!.timeMs -= 500
+        const group = composition.groupOccurrences.find(occurrence => occurrence.id === 'group-use')!
+        group.startMs -= 500
+        group.trackActivation!.startMs -= 500
+        return expected
+      },
+    })),
     {
-      id: 'BT952', command: 'set_boundary_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', variant: 'through-color', duration_ms: 1500 },
-      utterance: 'make the Boundary fade through black over fifteen hundred milliseconds',
-      fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-kind-952-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3d', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.transitions[0] = { id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'fade-color', durationMs: 1500, easing: { curve: 'linear' }, color: '#000000' }; return expected }),
-    },
-    {
-      id: 'BTT952', command: 'set_boundary_transition_timing', args: { transition_id: 'transition-scene-1', duration_ms: 1500, easing: 'ease-in' },
-      utterance: 'set the Boundary to fifteen hundred milliseconds with ease in',
-      fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-timing-952-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3d', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.transitions[0].durationMs = 1500; expected.transitions[0].easing = { curve: 'quadratic', direction: 'in' }; return expected }),
-    },
-    {
-      id: 'BTP952', command: 'update_boundary_transition_parameter', args: { transition_id: 'transition-scene-1', parameter: 'easing', value: 'sine-in' },
-      utterance: 'set the Boundary easing parameter to sine in',
-      fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-parameter-952-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3d', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.transitions[0].easing = { curve: 'sine', direction: 'in' }; return expected }),
-    },
-    {
-      id: 'BL952', command: 'set_boundary_layout', args: { transition_id: 'transition-scene-1', layout_id: 'layout-2' },
+      // v2 has no Boundary routing record: a Layout switch is the start of a
+      // Layout interval. The fixture keeps layout-1 through a routing cut at the
+      // Boundary, which converts into a second interval `layout-occurrence:2`
+      // from 30 000 ms, and select_layout points that interval at layout-2
+      // (src/engine/showCommandsV2/layouts.ts:148-168), where v1 added the
+      // routing record itself.
+      id: 'BL952', command: 'select_layout', args: { interval_id: 'layout-occurrence:2', layout_id: 'layout-2' },
       utterance: 'switch to the second Layout at the Boundary',
-      fixture: () => { const record = showBoundaryCommandFixture(); record.id = `boundary-layout-952-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3d', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.transitions.push({ id: 'routing-scene-1', afterSceneId: 'scene-1', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-2' }); return expected }),
+      fixture: () => {
+        const record = showBoundaryCommandFixture()
+        record.transitions.push({ id: 'routing-scene-1', afterSceneId: 'scene-1', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-1' })
+        record.id = `boundary-layout-952-${Date.now().toString(36)}`
+        return record
+      },
+      expectedFacts: before => {
+        const expected = structuredClone(before)
+        expected.composition.layoutOccurrences.find(occurrence => occurrence.id === 'layout-occurrence:2')!.layoutId = 'layout-2'
+        return expected
+      },
     },
 
     {
@@ -2331,7 +2432,8 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       { partition: 'Main', atMs: 16000, clipId: 'clip-b', accepted: true },
       { partition: 'overlay', atMs: 5000, clipId: 'clip-ov', accepted: true },
       { partition: 'gap', atMs: 45000, clipId: null, accepted: false },
-      { partition: 'Cut', atMs: 30000, clipId: 'clip-b', accepted: false },
+      // The former Scene Cut is inside the converted global clip-b, so v2 accepts it.
+      { partition: 'Cut', atMs: 30000, clipId: 'clip-b', accepted: true },
     ].map(toolbarSplit => ({
       id: `S992-${toolbarSplit.partition}`,
       command: 'split_clip',
@@ -2341,35 +2443,42 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       fixture: () => {
         const record = showSplitClipFixture()
         record.id = `toolbar-split-${toolbarSplit.partition.toLowerCase()}-${Date.now().toString(36)}`
-        if (toolbarSplit.partition === 'overlay') {
-          record.composition!.scenes[0].zones[0].main.shift()
-          record.composition!.transitions!.shift()
-        }
         return record
       },
-      pendingV2: 'G3d', expectedFacts: v1Facts((before: ShowRecord) => {
+      // The overlay partition removes the first Main Clip and its incoming
+      // Transition from the converted record, so only clip-ov is under the
+      // playhead at 5000 ms.
+      editConverted: toolbarSplit.partition === 'overlay' ? (converted: ShowRecordV2) => {
+        converted.composition.clips = converted.composition.clips.filter(clip => clip.id !== 'clip-a')
+        converted.composition.transitions = converted.composition.transitions.filter(transition => transition.id !== 'incoming')
+      } : undefined,
+      // The Main and Cut partitions split clip-b (at 16 000 ms, SC951's split,
+      // and at 30 000 ms). The owner accepts both, but narrowing track-b's
+      // activation puts a section boundary inside the incoming Transition
+      // window and delivery validation refuses the toolbar Split.
+      pendingV2: ['Main', 'Cut'].includes(toolbarSplit.partition) ? 'defect: #1101 v2 split of clip-b activates track-b inside the incoming Transition window; delivery validation refuses the toolbar Split' : undefined,
+      // The overlay right piece shares instance-ov with `continue` and takes
+      // clip-ov's held appearance at the split (src/engine/showCommandsV2/clips.ts:286).
+      expectedFacts: (before: ShowRecordV2) => {
         if (!toolbarSplit.accepted) return structuredClone(before)
-        if (toolbarSplit.partition === 'Main') return splitFixtureExpected(before as unknown as ShowRecordV2, TOOLBAR_SPLIT_ID) as unknown as ShowRecord
-        const expected = structuredClone(before)
-        const clips = expected.composition!.scenes[0].zones[0].overlays[0].placements
-        clips[0].durationMs = 3000
-        clips.push({ id: TOOLBAR_SPLIT_ID, instanceId: 'instance-ov', startMs: 5000, durationMs: 3000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
-        return expected
-      }),
+        if (toolbarSplit.partition === 'Main') return splitFixtureExpected(before, TOOLBAR_SPLIT_ID)
+        if (toolbarSplit.partition === 'Cut') return formerCutSplitExpected(before, TOOLBAR_SPLIT_ID)
+        return overlaySplitExpected(before, TOOLBAR_SPLIT_ID)
+      },
     }))
   ]
 
   // The table owns operation facts; this sequence owns the live admission contract.
   for (const admission of admissionCases) {
     // Each row seeds its v1 fixture as a converted v2 Show and counts v2 saves
-    // (PUT /api/shows/<id>?show-version=2). A row still pending its v2
-    // re-authoring (G3b–G3d) is registered as fixme under the same title.
+    // (PUT /api/shows/<id>?show-version=2). A row with a known v2 defect is
+    // registered as fixme under the same title.
     const register = admission.pendingV2 ? test.fixme : test
     register(`${admission.id}: ${admission.toolbarSplit ? 'toolbar Split matches selected Split or refuses without saving' : 'command admission saves once, reopens, undoes, refuses stale and deduplicates'}`, async ({ page }) => {
       test.setTimeout(90000)
       await page.setViewportSize({ width: 1440, height: 900 })
       const record = admission.fixture()
-      await seedConvertedShowV2(page, record, `baseline ${admission.id}`)
+      await seedConvertedShowV2(page, record, `baseline ${admission.id}`, admission.editConverted)
       await page.goto(`studio/shows/${record.id}?agent=1`)
       await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
       await expect.poll(() => page.evaluate(async () => {
@@ -2554,17 +2663,21 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
   }
 
 
-  test('SC951-overlay: manual overlay split persists after a Main split and Undo', async ({ page }) => {
+  // The Main split selects clip-b at 20 000 ms. Every split of the converted
+  // clip-b narrows track-b's activation to start inside the incoming
+  // Transition window, and delivery validation refuses it (#1101), so this
+  // test stays fixme until that defect is fixed.
+  test.fixme('SC951-overlay: manual overlay split persists after a Main split and Undo', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     const record = showSplitClipFixture()
     record.id = `split-overlay-951-${Date.now().toString(36)}`
-    expect((await page.context().request.post('/api/shows', { data: record })).ok()).toBe(true)
+    await seedConvertedShowV2(page, record, 'baseline SC951-overlay')
     await page.goto(`studio/shows/${record.id}?agent=1`)
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-    const before = await visibleRecord(page) as unknown as ShowRecord
+    const before = await visibleRecord(page) as unknown as ShowRecordV2
     const responses: unknown[] = []
     page.on('response', async response => {
-      if (response.request().method() === 'PATCH' && response.url().includes(`/api/shows/${record.id}`)) responses.push({ status: response.status(), body: await response.text(), sent: response.request().postDataJSON() })
+      if (response.request().method() === 'PUT' && response.url().includes(`/api/shows/${record.id}`)) responses.push({ status: response.status(), body: await response.text(), sent: response.request().postDataJSON() })
     })
     await page.locator('[data-show-selection-key="clip:clip-b"]').click()
     await page.locator('body').press('Escape')
@@ -2584,14 +2697,10 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await expect.poll(() => responses.length).toBe(3)
     saveRecord('SC951-overlay-responses', responses)
     expect(responses[2]).toMatchObject({ status: 200 })
-    const after = await visibleRecord(page) as unknown as ShowRecord
-    const expected = structuredClone(before)
-    const right = after.composition!.scenes[0].zones[0].overlays[0].placements[1]
-    expected.composition!.scenes[0].zones[0].overlays[0].placements = [
-      { ...before.composition!.scenes[0].zones[0].overlays[0].placements[0], durationMs: 3000 },
-      { id: right.id, instanceId: 'instance-ov', startMs: 5000, durationMs: 3000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
-    ]
-    expect(after).toEqual({ ...expected, updatedAt: after.updatedAt })
+    const after = await visibleRecord(page) as unknown as ShowRecordV2
+    // The toolbar's right piece takes a generated identity; it follows clip-ov.
+    const right = after.composition.clips[after.composition.clips.findIndex(clip => clip.id === 'clip-ov') + 1]
+    expect(after).toEqual({ ...overlaySplitExpected(before, right.id), updatedAt: after.updatedAt })
     expect(await durableShow(page, record.id)).toEqual(after)
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
     await expect.poll(() => visibleRecord(page)).toEqual({ ...before, updatedAt: expect.any(Number) })

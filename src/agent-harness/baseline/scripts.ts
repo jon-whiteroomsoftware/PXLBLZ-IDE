@@ -244,6 +244,53 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     { utterance: 'delete the middle brightness keyframe', tool: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { remove: ['middle'] } } },
     { utterance: 'remove the brightness animation track', tool: 'remove_property_tracks', args: { track_ids: ['track-b'] } },
   ].map(row => ({ utterance: row.utterance, intent: '#953: edit authored animation through the shared command.', script: [{ tool: row.tool, args: { ...row.args, finish_turn_reply: { intent: 'apply', reply: 'Updated the animation.' } } }] })),
+  // Admission matrix Layer Transition and Boundary rows (#1067 G3d), restored
+  // from the pre-#1039 catalogue on the version-2 Transition and Layout
+  // commands. The converted Boundary is Transition transition-scene-1: its
+  // duration is resize_transition and its kind, colour and easing
+  // update_transition. A Boundary Layout switch selects the Layout of the
+  // interval that starts there.
+  {
+    utterance: 'insert a fifteen hundred millisecond Layer crossfade with ease in',
+    intent: '#952: Layer insertion retains explicit timing and easing.',
+    script: [{ tool: 'insert_transition', args: { from_clip_id: 'clip-a', to_clip_id: 'clip-b', duration_ms: 1500, kind: 'crossfade', easing: 'ease-in', finish_turn_reply: { intent: 'apply', reply: 'Inserted the Layer crossfade.' } } }],
+  },
+  {
+    utterance: 'make the overlay Layer Transition fifteen hundred milliseconds',
+    intent: '#952: Layer resize shifts its endpoint chain.',
+    script: [{ tool: 'resize_transition', args: { transition_id: 'connected-transition', duration_ms: 1500, finish_turn_reply: { intent: 'apply', reply: 'Resized the Layer Transition.' } } }],
+  },
+  {
+    utterance: 'reset the Layer Transition to Cut',
+    intent: '#952: Layer reset closes the interval once.',
+    script: [{ tool: 'remove_transition', args: { transition_id: 'connected-transition', finish_turn_reply: { intent: 'apply', reply: 'Reset the Layer Transition to Cut.' } } }],
+  },
+  {
+    utterance: 'make the Boundary fade through black over fifteen hundred milliseconds',
+    intent: '#952: explicit Boundary variant adopts once.',
+    script: [
+      { tool: 'resize_transition', args: { transition_id: 'transition-scene-1', duration_ms: 1500 } },
+      { tool: 'update_transition', args: { transition_id: 'transition-scene-1', kind: 'fade-color', parameters: { color: '#000000' }, finish_turn_reply: { intent: 'apply', reply: 'Selected the Boundary fade.' } } },
+    ],
+  },
+  {
+    utterance: 'set the Boundary to fifteen hundred milliseconds with ease in',
+    intent: '#952: Boundary timing adopts once.',
+    script: [
+      { tool: 'resize_transition', args: { transition_id: 'transition-scene-1', duration_ms: 1500 } },
+      { tool: 'update_transition', args: { transition_id: 'transition-scene-1', easing: 'ease-in', finish_turn_reply: { intent: 'apply', reply: 'Updated Boundary timing.' } } },
+    ],
+  },
+  {
+    utterance: 'set the Boundary easing parameter to sine in',
+    intent: '#952: typed Boundary presentation parameter adopts once.',
+    script: [{ tool: 'update_transition', args: { transition_id: 'transition-scene-1', easing: { curve: 'sine', direction: 'in' }, finish_turn_reply: { intent: 'apply', reply: 'Updated Boundary easing.' } } }],
+  },
+  {
+    utterance: 'switch to the second Layout at the Boundary',
+    intent: '#952: agent-only Boundary Layout setter adopts once.',
+    script: [{ tool: 'select_layout', args: { interval_id: 'layout-occurrence:2', layout_id: 'layout-2', finish_turn_reply: { intent: 'apply', reply: 'Changed the Boundary Layout.' } } }],
+  },
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */
