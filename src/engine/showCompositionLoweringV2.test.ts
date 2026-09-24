@@ -11,6 +11,7 @@ import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { createDefaultShow, showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { lowerShowCompositionV2ForCompile, prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
+import { emitShowPropertyTrackExpression, evaluateShowPropertyTrack } from './showPropertyAnimation'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
 import { continuingV1Show, convertibleV1Show, flatV1Show, transitionV1Show } from '../test/showV2TracerFixture'
@@ -2062,11 +2063,37 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
     if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared.issues))
     return createHash('sha256').update(compileShow(prepared.recipe, LIBRARIES).code).digest('hex')
   }
+  // The value a lowered derived Scene's piece of a track takes at Show time
+  // atMs, on that Scene's own clock: local time is atMs minus the section
+  // start, so the outgoing Scene reads past its end through the following
+  // window and the incoming Scene reads before 0 through the preceding one.
+  // The v1 evaluator (showPropertyAnimation.ts:66) and the expression the
+  // compiler emits into generated code (showPropertyAnimation.ts:88) must agree.
+  const loweredTrackValue = (record: ShowRecordV2, sectionId: string, sectionStartMs: number, trackId: string) => {
+    const lowered = lowerShowCompositionV2ForCompile(record, lookupFor(record)).show
+    const scene = lowered.composition!.scenes.find(candidate => candidate.sceneId === sectionId)!
+    const track = scene.propertyTracks!.find(candidate => candidate.id === trackId)!
+    const emitted = new Function('localMs', `return ${emitShowPropertyTrackExpression(track, 'localMs')}`) as (localMs: number) => number
+    return {
+      durationMs: lowered.scenes.find(candidate => candidate.id === sectionId)!.durationMs,
+      at: (atMs: number) => {
+        const localMs = atMs - sectionStartMs
+        const value = evaluateShowPropertyTrack(track, localMs)
+        expect(emitted(localMs), `${trackId}@${atMs}`).toBeCloseTo(value, 12)
+        return value
+      },
+    }
+  }
+  const windowTimes = [30000, 31000, 31999]
 
   it('holds a Clip-targeted track cut before the outgoing whole-output Transition at its section end', () => {
     const record = animationRecord()
     // Only the Clip-targeted track-b remains; instance tracks keep their refusal.
     record.composition.propertyTracks = record.composition.propertyTracks.filter(track => 'clipId' in track.target)
+    // Ramp back up through the window so a hold differs from the source there.
+    const trackB = record.composition.propertyTracks.find(track => track.id === 'track-b')!
+    trackB.keyframes.push({ id: 'track-b-window', timeMs: 32000, value: 1, easing: { curve: 'linear' } })
+    expect(validateShowRecordV2(record)).toEqual([])
     const added = applyShowCommandV2(record, 'add_property_tracks', {
       tracks: [{ target: { kind: 'view-phase', clip_id: 'clip-a' }, initial_value: 0.3 }],
     })
@@ -2078,6 +2105,16 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
     expect(tracks['v2-section:1']).toEqual({ 'track-b@v2-section:1': [0, 2000, 9000, 20000] })
     // Pieces that already fit keep today's contribution restriction.
     expect(tracks['v2-section:0']).toEqual({ 'track-view-phase': [0, 10000] })
+    const piece =loweredTrackValue(added.record, 'v2-section:1', 10000, 'track-b@v2-section:1')
+    expect(piece.durationMs).toBe(20000)
+    const sourceAt = (atMs: number) => evaluateShowPropertyTrackV2(trackB, atMs)!
+    const held = sourceAt(30000)
+    // Authored values inside the section are unchanged.
+    for (const atMs of [10000, 15000, 25000, 29999]) expect(piece.at(atMs), `${atMs}`).toBeCloseTo(sourceAt(atMs), 12)
+    // Through the window the outgoing Scene holds the section-end value,
+    // where the source keeps ramping toward 1.
+    for (const atMs of windowTimes) expect(piece.at(atMs), `${atMs}`).toBeCloseTo(held, 12)
+    expect(sourceAt(31000)).toBeGreaterThan(held)
   })
 
   it('holds a Clip-targeted track ramping across the incoming whole-output Transition at its section start', () => {
@@ -2099,6 +2136,17 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
     expect(prepared.status === 'refused' ? prepared.issues : prepared.status).toBe('ready')
     // v2-section:2 is [32000, 62000), after the Transition window [30000, 32000).
     expect(sceneTracks(record)['v2-section:2']).toEqual({ 'track-d@v2-section:2': [0, 30000] })
+    const piece =loweredTrackValue(record, 'v2-section:2', 32000, 'track-d@v2-section:2')
+    expect(piece.durationMs).toBe(30000)
+    const trackD = record.composition.propertyTracks.find(track => track.id === 'track-d')!
+    const sourceAt = (atMs: number) => evaluateShowPropertyTrackV2(trackD, atMs)!
+    const held = sourceAt(32000)
+    // Authored values inside the section are unchanged.
+    for (const atMs of [32000, 32001, 40000, 61999]) expect(piece.at(atMs), `${atMs}`).toBeCloseTo(sourceAt(atMs), 12)
+    // Through the window the incoming Scene holds the section-start value,
+    // where the source is still ramping up to it.
+    for (const atMs of windowTimes) expect(piece.at(atMs), `${atMs}`).toBeCloseTo(held, 12)
+    expect(sourceAt(31000)).toBeLessThan(held)
   })
 
   // instance-a runs clip-a and clip-c before the window [30000, 32000); the
