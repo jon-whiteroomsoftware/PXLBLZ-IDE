@@ -147,6 +147,78 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     intent: '#951: removal preserves all other content.',
     script: [{ tool: 'remove_marker', args: { marker_id: 'marker-1000', finish_turn_reply: { intent: 'apply', reply: 'Removed the marker.' } } }],
   },
+  // Admission matrix Clip, Layer and connected-resize rows (#1067 G3b),
+  // restored from the pre-#1039 catalogue on the version-2 commands. Clips and
+  // Layers are addressed by the converted record's identities; `add_clip`
+  // names the overlay runtime because every fixture runtime plays CometLoom
+  // (src/engine/showCommandsV2/clipSpec.ts:144, 151), and `duplicate_clip`
+  // takes the explicit start v1 derived. Show End's entry above is already v2.
+  {
+    utterance: 'make the connected overlay Clip nine seconds',
+    intent: '#952: connected resize uses the canonical Clip command.',
+    script: [{ tool: 'resize_clip', args: { clip_id: 'clip-b', duration_ms: 9000, finish_turn_reply: { intent: 'apply', reply: 'Resized the connected Clip.' } } }],
+  },
+  {
+    utterance: 'move the connected second Clip five seconds later then two seconds earlier',
+    intent: '#951: exact canonical chain move in both directions.',
+    script: [
+      { tool: 'update_clips', args: { updates: [{ clip_id: 'resize-b', start_ms: 8000 }] } },
+      { tool: 'update_clips', args: { updates: [{ clip_id: 'resize-b', start_ms: 6000 }], finish_turn_reply: { intent: 'apply', reply: 'Moved the connected Clips three seconds later.' } } },
+    ],
+  },
+  {
+    utterance: 'keep the connected second Clip at six seconds',
+    intent: '#951: validated no-op produces no candidate.',
+    script: [{ tool: 'update_clips', args: { updates: [{ clip_id: 'resize-b', start_ms: 6000 }], finish_turn_reply: { intent: 'apply', reply: 'The Clip is already at six seconds.' } } }],
+  },
+  {
+    utterance: 'move the connected second Clip to overlay zero',
+    intent: '#951: incompatible connected destination refuses without detachment.',
+    script: [
+      { tool: 'update_clips', args: { updates: [{ clip_id: 'resize-b', start_ms: 6000, layer_id: 'layer:z1:overlay:1' }] } },
+      { say: 'The connected Clip cannot change Layer without an explicit disconnect.', intent: 'refuse' },
+    ],
+  },
+  {
+    utterance: 'duplicate the overlay Clip independently',
+    intent: '#951: duplicate preserves the complete Show and adopts once.',
+    script: [{ tool: 'duplicate_clip', args: { clip_id: 'clip-ov', start_ms: 8000, finish_turn_reply: { intent: 'apply', reply: 'Duplicated the overlay Clip.' } } }],
+  },
+  {
+    utterance: 'split the connected target Clip at sixteen seconds',
+    intent: '#951: connected split preserves shared state and adopts once.',
+    script: [{ tool: 'split_clip', args: { clip_id: 'clip-b', at_ms: 16000, finish_turn_reply: { intent: 'apply', reply: 'Split the target Clip at sixteen seconds.' } } }],
+  },
+  {
+    utterance: 'remove the connected target Clip',
+    intent: '#951: complete removal adopts once.',
+    script: [{ tool: 'remove_clips', args: { clip_ids: ['clip-b'], finish_turn_reply: { intent: 'apply', reply: 'Removed the target Clip and attached Transition.' } } }],
+  },
+  {
+    utterance: 'add a topmost overlay Layer',
+    intent: '#951: one fresh Zone-owned Layer, adopted once.',
+    script: [{ tool: 'create_layers', args: { layers: [{ zone_id: 'zone-1' }], finish_turn_reply: { intent: 'apply', reply: 'Added a topmost Layer.' } } }],
+  },
+  {
+    utterance: 'add CometLoom to the overlay at twenty nine seconds',
+    intent: '#951: add Clip admits one complete candidate.',
+    script: [{ tool: 'create_clips', args: { clips: [{ zone_id: 'zone-1', layer_id: 'layer:zone-1:overlay:2', start_ms: 29000, duration_ms: 1000, pattern: { kind: 'stock', id: 'CometLoom' }, instance: 'instance-ov' }], finish_turn_reply: { intent: 'apply', reply: 'Added CometLoom.' } } }],
+  },
+  {
+    utterance: 'make the third Clip Pattern independent',
+    intent: '#951: independent Pattern state admits once.',
+    script: [{ tool: 'make_clip_pattern_independent', args: { clip_id: 'clip-c', finish_turn_reply: { intent: 'apply', reply: 'Made the third Clip independent.' } } }],
+  },
+  {
+    utterance: 'rejoin the second Clip to the first Pattern instance',
+    intent: '#951: rejoin and source cleanup admit once.',
+    script: [{ tool: 'rejoin_clip_pattern_instance', args: { clip_id: 'clip-b', instance_id: 'instance-a', finish_turn_reply: { intent: 'apply', reply: 'Rejoined the second Clip.' } } }],
+  },
+  {
+    utterance: 'insert one second at twenty nine seconds',
+    intent: '#951: timeline insertion admits once.',
+    script: [{ tool: 'insert_time', args: { at_ms: 29000, duration_ms: 1000, finish_turn_reply: { intent: 'apply', reply: 'Inserted one second.' } } }],
+  },
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */

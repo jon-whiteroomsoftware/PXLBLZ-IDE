@@ -43,17 +43,47 @@ import { showOutputLayoutFixture } from '../src/test/showCommandFixture'
 
 const TOOLBAR_SPLIT_ID = '00000992-0000-4000-8000-000000000001'
 
-function splitFixtureExpected(before: ShowRecord, rightId = 'clip-1'): ShowRecord {
+// The converted split fixture's clip-b is one global Clip, 12 000–36 000 ms.
+// The right piece shares instance-b and enters with `continue`; the outgoing
+// Transition's endpoint retargets to it (src/engine/showCommandsV2/clips.ts:286).
+// track-b is cut at the split: the left keeps its keys up to 16 000 ms with a
+// curve segment, and the right gets a `:split:` copy from the boundary on
+// (src/engine/showPropertyAnimationV2.ts:195). tail-track, wholly after the
+// split, retargets to the right piece.
+function splitFixtureExpected(before: ShowRecordV2, rightId = 'clip-b-right'): ShowRecordV2 {
   const expected = structuredClone(before)
-  expected.composition!.scenes[0].zones[0].main[1].durationMs = 4000
-  expected.composition!.scenes[0].zones[0].main.push({ id: rightId, instanceId: 'instance-b', startMs: 16000, durationMs: 14000, view: { mirror: false, phase: 0, brightness: 1 } })
-  expected.composition!.scenes[1].zones[0].main[0] = { id: `${rightId}--span-scene-2`, logicalClipId: rightId, instanceId: 'instance-b', startMs: 0, durationMs: 6000, view: { mirror: false, phase: 0, brightness: 1 } }
-  expected.composition!.scenes[0].propertyTracks!.splice(1, 0, {
-    id: `track-b-${rightId}`, target: { kind: 'placement-view', placementId: rightId, property: 'brightness' },
-    keyframes: [{ id: `kf-1-${rightId}`, timeMs: 12000, value: 1, easing: { curve: 'linear' } }, { id: `kf-2-${rightId}`, timeMs: 19000, value: 0.2, easing: { curve: 'linear' } }],
+  const clips = expected.composition.clips
+  const left = clips.find(clip => clip.id === 'clip-b')!
+  left.durationMs = 4000
+  clips.splice(clips.indexOf(left) + 1, 0, {
+    ...structuredClone(left), id: rightId, startMs: 16000, durationMs: 20000,
+    appearance: { keys: [{ id: `${rightId}:appearance:1`, timeMs: 16000, value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] } }] },
   })
-  expected.composition!.scenes[1].propertyTracks![0].target = { kind: 'placement-view', placementId: `${rightId}--span-scene-2`, property: 'brightness' }
-  expected.composition!.transitions![1].fromPlacementId = `${rightId}--span-scene-2`
+  expected.composition.transitions.find(transition => transition.id === 'outgoing')!.participants[0].fromClipId = rightId
+  const segment = { baseValue: 1, deltaValue: -0.8, easing: { curve: 'linear' as const }, sourceDurationMs: 7000 }
+  const boundaryValue = 0.5428571428571429
+  const tracks = expected.composition.propertyTracks
+  const trackB = tracks.find(track => track.id === 'track-b')!
+  trackB.keyframes = [
+    { id: 'track-b:boundary:10000', timeMs: 10000, value: 1, easing: { curve: 'linear' } },
+    { ...trackB.keyframes[0], curveSegment: { ...segment, elapsedOffsetMs: 0 } },
+    { id: 'track-b:boundary:16000', timeMs: 16000, value: boundaryValue, easing: { curve: 'linear' } },
+  ]
+  trackB.activeStartMs = 10000
+  trackB.activeDurationMs = 6000
+  const tail = tracks.find(track => track.id === 'tail-track')!
+  tail.target = { ...tail.target, clipId: rightId } as typeof tail.target
+  tail.keyframes.push({ id: 'tail-track:boundary:37000', timeMs: 37000, value: 1, easing: { curve: 'linear' } })
+  tail.activeDurationMs = 7000
+  tracks.push({
+    id: `track-b:split:${rightId}`, target: { kind: 'clip-view', clipId: rightId, property: 'brightness' },
+    keyframes: [
+      { id: `track-b:boundary:16000:split:${rightId}`, timeMs: 16000, value: boundaryValue, easing: { curve: 'linear' }, curveSegment: { ...segment, elapsedOffsetMs: 4000 } },
+      { id: 'kf-2', timeMs: 19000, value: 0.2, easing: { curve: 'linear' } },
+      { id: 'track-b:boundary:30000', timeMs: 30000, value: 0.2, easing: { curve: 'linear' } },
+    ],
+    activeStartMs: 16000, activeDurationMs: 14000,
+  })
   return expected
 }
 
@@ -1933,7 +1963,9 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       id: 'CCR952', command: 'resize_clip', args: { clip_id: 'clip-b', duration_ms: 9000 },
       utterance: 'make the connected overlay Clip nine seconds',
       fixture: () => { const record = showLayerTransitionCommandFixture(true, true); record.id = `connected-resize-952-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3b', expectedFacts: v1Facts(before => { const expected = structuredClone(before); expected.composition!.scenes[0].zones[0].overlays[0].placements.find(clip => clip.id === 'clip-b')!.durationMs = 9000; return expected }),
+      // clip-b has no connected successor, so the trailing resize ripples nothing
+      // (src/engine/showCommandsV2/clips.ts:260).
+      expectedFacts: before => { const expected = structuredClone(before); expected.composition.clips.find(clip => clip.id === 'clip-b')!.durationMs = 9000; return expected },
     },
     {
       id: 'RN954', command: 'rename_show', args: { name: 'Night Show' },
@@ -2029,16 +2061,34 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
 
     {
       id: 'AC951',
-      command: 'add_clip',
-      args: { zone_id: 'zone-1', start_ms: 29000, duration_ms: 1000, overlay_layer_index: 0, pattern_kind: 'stock', pattern_id: 'CometLoom' },
+      command: 'create_clips',
+      // Every runtime in the fixture plays CometLoom, so D3 cannot pick or
+      // create one implicitly: `sole` is ambiguous and `new` refuses once a
+      // runtime exists (src/engine/showCommandsV2/clipSpec.ts:144, 151). The
+      // Clip names the overlay's own runtime, where v1 created instance-1.
+      args: { clips: [{ zone_id: 'zone-1', layer_id: 'layer:zone-1:overlay:2', start_ms: 29000, duration_ms: 1000, pattern: { kind: 'stock', id: 'CometLoom' }, instance: 'instance-ov' }] },
       utterance: 'add CometLoom to the overlay at twenty nine seconds',
-      fixture: () => { const record = showOverlayLayerFixture(); record.id = `add-951-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
+      // A Clip ending at 30 000 ms sits inside the converted Scene boundary's
+      // whole-output crossfade scope, which refuses it
+      // (src/engine/showCompositionV2.ts:517); a Cut boundary keeps the row on
+      // Clip creation.
+      fixture: () => {
+        const record = showOverlayLayerFixture()
+        record.transitions = [{ id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } }]
+        record.id = `add-951-${Date.now().toString(36)}`
+        return record
+      },
+      // The new Clip's identities are the owner's `clip-<zone>-<start>`
+      // (src/engine/showCommandsV2/clipSpec.ts:211, 213).
+      expectedFacts: before => {
         const expected = structuredClone(before)
-        expected.composition!.patternInstances.unshift({ id: 'instance-1', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } })
-        expected.composition!.scenes[0].zones[0].overlays[0].placements.push({ id: 'clip-1', instanceId: 'instance-1', startMs: 29000, durationMs: 1000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
+        expected.composition.clips.push({
+          id: 'clip-zone-1-29000', instanceId: 'instance-ov', zoneId: 'zone-1', layerId: 'layer:zone-1:overlay:2', startMs: 29000, durationMs: 1000,
+          entryPolicy: 'continue', zoneSampleMode: 'span',
+          appearance: { keys: [{ id: 'clip-zone-1-29000-appearance', timeMs: 29000, value: { opacity: 1, view: { mirror: false, phase: 0, brightness: 1 }, effects: [] } }] },
+        })
         return expected
-      }),
+      },
     },
     {
       id: 'IC951',
@@ -2046,28 +2096,31 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       args: { clip_id: 'clip-c' },
       utterance: 'make the third Clip Pattern independent',
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `independent-951-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
+      // The copied instance and its instance tracks take the owner's
+      // `-independent` identities (src/engine/showCommandsV2/clips.ts:375, 386, 390),
+      // where v1 used instance-1.
+      expectedFacts: before => {
         const expected = structuredClone(before)
-        expected.composition!.patternInstances.unshift({ ...structuredClone(before.composition!.patternInstances.find(instance => instance.id === 'instance-a')!), id: 'instance-1' })
-        expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-c')!.instanceId = 'instance-1'
-        const original = before.composition!.scenes[0].propertyTracks!.find(track => track.id === 'track-inst')!
-        expected.composition!.scenes[0].propertyTracks!.push({ ...structuredClone(original), id: 'track-inst-instance-1', target: { kind: 'instance-time-scale', instanceId: 'instance-1' }, keyframes: original.keyframes.map(keyframe => ({ ...structuredClone(keyframe), id: `${keyframe.id}-instance-1` })) })
+        expected.composition.patternInstances.push({ ...structuredClone(before.composition.patternInstances.find(instance => instance.id === 'instance-a')!), id: 'instance-a-independent' })
+        expected.composition.clips.find(clip => clip.id === 'clip-c')!.instanceId = 'instance-a-independent'
+        const original = before.composition.propertyTracks.find(track => track.id === 'track-inst')!
+        expected.composition.propertyTracks.push({ ...structuredClone(original), id: 'track-inst-independent', target: { kind: 'instance-time-scale', instanceId: 'instance-a-independent' }, keyframes: original.keyframes.map(keyframe => ({ ...structuredClone(keyframe), id: `${keyframe.id}-independent` })) })
         return expected
-      }),
+      },
     },
     {
       id: 'RJ951',
       command: 'rejoin_clip_pattern_instance',
-      args: { clip_id: 'clip-b', target_clip_id: 'clip-a' },
+      args: { clip_id: 'clip-b', instance_id: 'instance-a' },
       utterance: 'rejoin the second Clip to the first Pattern instance',
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `rejoin-951-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
+      expectedFacts: before => {
         const expected = structuredClone(before)
-        expected.composition!.patternInstances = expected.composition!.patternInstances.filter(instance => instance.id !== 'instance-b')
-        expected.composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')!.instanceId = 'instance-a'
-        expected.composition!.scenes[0].propertyTracks = expected.composition!.scenes[0].propertyTracks!.filter(track => track.id !== 'track-inst-b')
+        expected.composition.patternInstances = expected.composition.patternInstances.filter(instance => instance.id !== 'instance-b')
+        expected.composition.clips.find(clip => clip.id === 'clip-b')!.instanceId = 'instance-a'
+        expected.composition.propertyTracks = expected.composition.propertyTracks.filter(track => track.id !== 'track-inst-b')
         return expected
-      }),
+      },
     },
     {
       id: 'IT951',
@@ -2075,12 +2128,31 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       args: { at_ms: 29000, duration_ms: 1000 },
       utterance: 'insert one second at twenty nine seconds',
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `insert-time-951-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
+      // Global time mapping: everything at or after 29 000 ms shifts by one
+      // second, the Layout interval and Show End grow, and each Property track
+      // spanning the insertion holds its value there with a hold and resume key
+      // (src/engine/showPropertyTrackTimeMappingV2.ts:176, 178). Every key of
+      // these tracks is before 29 000 ms, so the held value is the last one.
+      expectedFacts: before => {
         const expected = structuredClone(before)
-        expected.scenes[0].durationMs += 1000
-        expected.composition!.durationMs = 63000
+        const composition = expected.composition
+        composition.showEndMs += 1000
+        composition.layoutOccurrences[0].durationMs += 1000
+        composition.transitions.find(transition => transition.id === 'transition-scene-1')!.wholeOutput!.startMs += 1000
+        for (const track of composition.propertyTracks) {
+          const value = track.keyframes.at(-1)!.value
+          track.keyframes.push(
+            { id: `${track.id}:hold:29000`, timeMs: 29000, value, easing: { curve: 'linear' } },
+            { id: `${track.id}:resume:30000`, timeMs: 30000, value, easing: { curve: 'linear' } },
+          )
+          track.activeDurationMs! += 1000
+        }
+        composition.markers.find(marker => marker.id === 'scene-marker:scene-2')!.timeMs += 1000
+        const group = composition.groupOccurrences.find(occurrence => occurrence.id === 'group-use')!
+        group.startMs += 1000
+        group.trackActivation!.startMs += 1000
         return expected
-      }),
+      },
     },
     {
       id: 'SE951',
@@ -2088,17 +2160,19 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       args: { end_ms: 70000 },
       utterance: 'set Show End to seventy seconds',
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `show-end-951-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3b', expectedFacts: v1Facts(before => {
+      // Lengthening Show End extends the final Layout interval; no Scene exists
+      // to lengthen (src/engine/showLayoutIntervalsV2.ts:278).
+      expectedFacts: before => {
         const expected = structuredClone(before)
-        expected.scenes[1].durationMs = 38000
-        expected.composition!.durationMs = 70000
+        expected.composition.showEndMs = 70000
+        expected.composition.layoutOccurrences[0].durationMs = 70000
         return expected
-      }),
+      },
     },
     {
       id: 'M951',
-      command: 'move_clip',
-      args: { clip_id: 'resize-b', start_ms: 6000 },
+      command: 'update_clips',
+      args: { updates: [{ clip_id: 'resize-b', start_ms: 6000 }] },
       utterance: 'move the connected second Clip five seconds later then two seconds earlier',
       fixture: () => {
         const record = resizeBoundaryShow(`move-951-${Date.now().toString(36)}`)
@@ -2109,33 +2183,40 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.composition!.transitions = [{ id: 'move-ab', fromPlacementId: 'resize-a', toPlacementId: 'resize-b', kind: 'crossfade', durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' }, crossfadePolicy: 'live-live' }]
         return record
       },
-      pendingV2: 'G3b', expectedFacts: v1Facts((before: ShowRecord) => {
+      // The connected move translates the whole component rigidly, held
+      // appearance keys included (src/engine/showCommandsV2/clips.ts:131).
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        expected.composition!.scenes[0].zones[0].main[0].startMs = 3000
-        expected.composition!.scenes[0].zones[0].main[1].startMs = 6000
+        for (const [id, startMs] of [['resize-a', 3000], ['resize-b', 6000]] as const) {
+          const clip = expected.composition.clips.find(candidate => candidate.id === id)!
+          clip.startMs = startMs
+          clip.appearance.keys[0].timeMs = startMs
+        }
         return expected
-      }),
+      },
       unchangedUtterances: ['keep the connected second Clip at six seconds', 'move the connected second Clip to overlay zero']
     },
     {
       id: 'RC951',
-      command: 'remove_clip',
-      args: { clip_id: 'clip-b' },
+      command: 'remove_clips',
+      args: { clip_ids: ['clip-b'] },
       utterance: 'remove the connected target Clip',
       fixture: () => {
         const record = showRemoveClipFixture()
         record.id = `remove-951-${Date.now().toString(36)}`
         return record
       },
-      pendingV2: 'G3b', expectedFacts: v1Facts((before: ShowRecord) => {
+      // v2 removes the Clip, its Clip-owned track-b and the connected
+      // Transition naming it; the vacated instance-b and its instance track stay
+      // (src/engine/showTransitionsV2.ts:147-152), where v1 collected them.
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        expected.composition!.scenes[0].zones[0].main.splice(1, 1)
-        expected.composition!.patternInstances.splice(1, 1)
-        expected.composition!.scenes[0].propertyTracks = [expected.composition!.scenes[0].propertyTracks![1]]
-        expected.composition!.transitions = []
-        delete expected.composition!.executionModel
+        const composition = expected.composition
+        composition.clips = composition.clips.filter(clip => clip.id !== 'clip-b')
+        composition.transitions = composition.transitions.filter(transition => transition.id !== 'connected-transition')
+        composition.propertyTracks = composition.propertyTracks.filter(track => track.id !== 'track-b')
         return expected
-      })
+      }
     },
     {
       id: 'SC951',
@@ -2147,30 +2228,39 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `split-951-${Date.now().toString(36)}`
         return record
       },
-      pendingV2: 'G3b',
-      expectedFacts: v1Facts(splitFixtureExpected)
+      // The owner's split narrows track-b's activation to start at 10 000 ms,
+      // inside the incoming Transition's window, and the bridge's delivery
+      // validation refuses the commit; v1 accepted the same split.
+      pendingV2: 'defect: v2 split_clip activates track-b inside the incoming Transition window; delivery validation refuses the commit',
+      expectedFacts: before => splitFixtureExpected(before)
     },
     {
       id: 'DC951',
       command: 'duplicate_clip',
-      args: { clip_id: 'clip-ov' },
+      args: { clip_id: 'clip-ov', start_ms: 8000 },
       utterance: 'duplicate the overlay Clip independently',
       fixture: () => {
         const record = showSplitClipFixture()
         record.id = `duplicate-951-${Date.now().toString(36)}`
         return record
       },
-      pendingV2: 'G3b', expectedFacts: v1Facts((before: ShowRecord) => {
+      // v2 needs an explicit start (v1 placed the copy after the source, at
+      // 8000 ms), and by D4 the copy shares instance-ov instead of copying it
+      // (src/engine/showCommandsV2/clips.ts:305, 319, 321).
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        expected.composition!.patternInstances.unshift({ ...structuredClone(before.composition!.patternInstances.find(instance => instance.id === 'instance-ov')!), id: 'instance-1' })
-        expected.composition!.scenes[0].zones[0].overlays[0].placements.push({ id: 'clip-1', instanceId: 'instance-1', startMs: 8000, durationMs: 6000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } })
+        const source = before.composition.clips.find(clip => clip.id === 'clip-ov')!
+        expected.composition.clips.push({
+          ...structuredClone(source), id: 'clip-ov-copy', startMs: 8000,
+          appearance: { keys: [{ ...structuredClone(source.appearance.keys[0]), id: 'clip-ov-appearance-1-copy', timeMs: 8000 }] },
+        })
         return expected
-      })
+      }
     },
     {
       id: 'L951',
-      command: 'add_overlay_layer',
-      args: { zone_id: 'zone-1' },
+      command: 'create_layers',
+      args: { layers: [{ zone_id: 'zone-1' }] },
       utterance: 'add a topmost overlay Layer',
       fixture: () => {
         const record = showOverlayLayerFixture()
@@ -2178,14 +2268,16 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `layer-951-${Date.now().toString(36)}`
         return record
       },
-      pendingV2: 'G3b', expectedFacts: v1Facts((before: ShowRecord) => {
+      // A v2 Layer is Zone-owned for the whole Show: one Layer at the top of
+      // zone-1 with the owner's generated identity and name
+      // (src/engine/showCommandsV2/layers.ts:102, 107), where v1 added one
+      // overlay per Scene.
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        expected.composition!.scenes[1].zones[0].overlays = [{ id: 'scene-2:zone-1:group-layer:1', name: 'Layer 1', placements: [] }]
-        expected.composition!.scenes[0].zones[0].overlays.unshift({ id: 'layer-1', name: 'Layer 3', placements: [] })
-        expected.composition!.scenes[1].zones[0].overlays.unshift({ id: 'layer-2', name: 'Layer 3', placements: [] })
+        expected.composition.layers.push({ id: 'layer-zone-1', zoneId: 'zone-1', name: 'Layer layer-zone-1', rank: 3 })
         return expected
-      }),
-      staleCommand: { command: 'add_clip', args: { zone_id: 'zone-1', overlay_layer_index: 0, start_ms: 0, duration_ms: 1000, pattern_kind: 'stock', pattern_id: 'CometLoom' } }
+      },
+      staleCommand: { command: 'create_clips', args: { clips: [{ zone_id: 'zone-1', layer_id: 'layer:zone-1:overlay:2', start_ms: 0, duration_ms: 1000, pattern: { kind: 'stock', id: 'CometLoom' }, instance: 'instance-ov' }] } }
     },
     {
       id: 'MK951',
@@ -2229,7 +2321,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       },
       pendingV2: 'G3d', expectedFacts: v1Facts((before: ShowRecord) => {
         if (!toolbarSplit.accepted) return structuredClone(before)
-        if (toolbarSplit.partition === 'Main') return splitFixtureExpected(before, TOOLBAR_SPLIT_ID)
+        if (toolbarSplit.partition === 'Main') return splitFixtureExpected(before as unknown as ShowRecordV2, TOOLBAR_SPLIT_ID) as unknown as ShowRecord
         const expected = structuredClone(before)
         const clips = expected.composition!.scenes[0].zones[0].overlays[0].placements
         clips[0].durationMs = 3000
