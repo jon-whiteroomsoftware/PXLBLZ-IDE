@@ -48,6 +48,7 @@ import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { createPropertySlotQualificationShow } from '@/engine/showPatternSlotTestFixture'
 import { showSplitClipFixture } from '@/test/showSplitClipFixture'
 import { convertForTest, openV2EditorForRecord } from '@/test/showEditorV2Harness'
@@ -3973,11 +3974,33 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await waitFor(() => expect(editor.state().record).toEqual({ ...before, updatedAt: expect.any(Number) }))
   })
 
-  // DEFECT: on v2 the no-selection Split at 5 s splits the overlay clip-ov instead of the
-  // earlier Main clip-a (clip-a keeps 10000 ms). No spec §10 row covers the difference.
-  it.skip.each([
+  // v2 port blocked by #1109: v2 no-selection Split at 5 s splits the overlay clip-ov instead of the earlier Main clip-a.
+  it.each([
     { partition: 'earlier Main when an overlay also covers the playhead', overlayOnly: false, clipId: 'clip-a', durationMs: 5000 },
-  ])('splits the no-selection $partition (#992)', (row) => splitsNoSelection(row))
+  ])('splits the no-selection $partition (#992)', async ({ overlayOnly, clipId, durationMs }) => {
+    const user = userEvent.setup()
+    const show = showSplitClipFixture()
+    if (overlayOnly) {
+      show.composition!.scenes[0].zones[0].main.shift()
+      show.composition!.transitions!.shift()
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 5000))
+    await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      const zone = saved.composition!.scenes[0].zones[0]
+      const clips = overlayOnly ? zone.overlays[0].placements : zone.main
+      expect(clips.find(clip => clip.id === clipId)?.durationMs).toBe(durationMs)
+      expect(saved.scenes).toEqual(show.scenes)
+      expect(useShowStore.getState().showHistories[show.id].past).toHaveLength(1)
+    })
+    const savedZone = useShowStore.getState().shows[0].composition!.scenes[0].zones[0]
+    expect(overlayOnly ? savedZone.main : savedZone.overlays).toEqual(overlayOnly ? show.composition!.scenes[0].zones[0].main : show.composition!.scenes[0].zones[0].overlays)
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+  })
   it.each([
     { partition: 'overlay when no Main covers the playhead', overlayOnly: true, clipId: 'clip-ov', durationMs: 3000 },
   ])('splits the no-selection $partition (#992)', (row) => splitsNoSelection(row))
@@ -4028,10 +4051,38 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
   })
 
-  // DEFECT: with the whole-output boundary transition-scene-1 selected, v2 leaves Split enabled
-  // but refuses the click with "This edit would make the Show undeliverable." (no write; clip-b
-  // keeps 18000 ms). v1 split clip-b. No spec §10 row covers the difference.
-  it.skip.each(['transition'] as const)('splits at the playhead with a %s selected (#992)', kind => splitsWithSelection(kind))
+  // v2 port blocked by #1109: with boundary transition-scene-1 selected, v2 refuses Split as undeliverable instead of splitting clip-b.
+  it.each<'transition' | 'zone' | 'zone-layout'>(['transition'])('splits at the playhead with a %s selected (#992)', async kind => {
+    const user = userEvent.setup()
+    const show = showSplitClipFixture()
+    if (kind === 'transition') {
+      show.transitions![0] = { ...show.transitions![0], kind: 'crossfade', durationMs: 2000, crossfadePolicy: 'live-live' }
+      delete show.composition!.scenes[1].zones[0].main[0].logicalClipId
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
+    if (kind === 'zone-layout') await openZoneLayout(user, 'Default')
+    else if (kind === 'zone') {
+      await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+      await user.click(screen.getByRole('button', { name: 'Open zone main properties' }))
+    } else {
+      const boundary = document.querySelector<HTMLElement>('[data-show-selection-key="transition:transition-scene-1"]')
+      expect(boundary).not.toBeNull()
+      await user.click(boundary!)
+    }
+    expect(useShowEditorViewStore.getState().selection.kind).toBe(kind)
+    await user.keyboard('{Escape}')
+    expect(useShowEditorViewStore.getState().selection.kind).toBe(kind)
+    const split = screen.getByRole('button', { name: 'Split at playhead' })
+    expect(split).not.toHaveAttribute('aria-disabled', 'true')
+    await user.click(split)
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')?.durationMs).toBe(4000))
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0]).toEqual({ ...show, updatedAt: expect.any(Number) }))
+  })
   it.each(['zone', 'zone-layout'] as const)('splits at the playhead with a %s selected (#992)', kind => splitsWithSelection(kind))
   async function splitsWithSelection(kind: 'transition' | 'zone' | 'zone-layout') {
     const user = userEvent.setup()
@@ -4065,10 +4116,35 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await waitFor(() => expect(editor.state().record).toEqual({ ...before, updatedAt: expect.any(Number) }))
   }
 
-  // DEFECT: on v2 a Group or multi-Clip selection leaves toolbar Split enabled; with the Group
-  // selected, the click splits the external clip-b under the playhead (one v2 write). v1 refused it.
-  // No spec §10 row covers the difference.
-  it.skip.each(['Group', 'multi'] as const)('refuses toolbar Split for a %s selection over an external Clip (#992)', partition => refusesToolbarSplit(partition))
+  // v2 port blocked by #1109: v2 leaves toolbar Split enabled for a Group or multi-Clip selection and splits the external clip-b.
+  it.each<'Group' | 'multi' | 'isolated Group'>(['Group', 'multi'])('refuses toolbar Split for a %s selection over an external Clip (#992)', async partition => {
+    const user = userEvent.setup()
+    const show = showSplitClipFixture()
+    const provider = memoryProvider([show])
+    const save = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
+    if (partition === 'multi') {
+      await user.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:clip-a"]')!)
+      await user.keyboard('{Shift>}')
+      await user.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:clip-b"]')!)
+      await user.keyboard('{/Shift}')
+    } else {
+      const group = screen.getAllByRole('button', { name: 'Select Group Mixed Group' })[0]
+      if (partition === 'isolated Group') {
+        fireEvent.doubleClick(group)
+        expect(screen.getByRole('status', { name: 'Group isolation: Mixed Group' })).toBeVisible()
+      } else await user.click(group)
+    }
+    const split = screen.getByRole('button', { name: 'Split at playhead' })
+    expect(split).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(split)
+    expect(useShowStore.getState().shows[0]).toEqual(show)
+    expect(save).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
+  })
   it.each(['isolated Group'] as const)('refuses toolbar Split for a %s selection over an external Clip (#992)', partition => refusesToolbarSplit(partition))
   async function refusesToolbarSplit(partition: 'Group' | 'multi' | 'isolated Group') {
     const user = userEvent.setup()
@@ -4239,7 +4315,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   it('opens a stock Show in the real editor without creating a personal record (#363)', async () => {
     const stock = STOCK_SHOWS[0]
-    const editor = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
+    const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
 
@@ -4254,7 +4330,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   it('hides Clone from signed-out sessions that cannot save (#794)', () => {
     const stock = STOCK_SHOWS[0]
-    const editor = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
+    const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
 
@@ -4308,7 +4384,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('authors stepped cadence through an exact rate field with a transient slider (#779)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-204-presentation-modes')!
-    const editor = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
+    const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const stutter = screen.getAllByRole('button', { name: 'Select IQPalettes' })
@@ -4424,7 +4500,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('opens a stock Show guide on first visit and fully collapses it per Show (#363)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS[0]
-    const editor = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
+    const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
     const builtInContext = {
       track: stock.track,
       lesson: stock.lesson,
@@ -4478,7 +4554,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       toJSON: () => ({}),
     })
     const stock = STOCK_SHOWS[0]
-    const editor = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
+    const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
     const note = {
       label: 'Learn 100',
       number: '101',
@@ -4521,7 +4597,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('offers Try with Pattern on lesson guides through catalogue patternSlots (#63)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-201-layers-property-animation')!
-    const editor = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
+    const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor
       showId={editor.showId}
@@ -4584,22 +4660,22 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
   })
 
-  // DEFECT: on v2 the reference guide's Try with Pattern picker shows MetaballsOfFire2D, the
-  // Pattern of reference slot instance-reference-content-reference; v1 showed MetaballGarden,
-  // the selected slot's Pattern. No spec §10 row covers the difference.
-  it.skip('turns a reference Show guide into a live Pattern comparison instrument (#506)', async () => {
+  // v2 port blocked by #1110: v2 reference guide Try with Pattern shows the reference slot MetaballsOfFire2D instead of the selected slot MetaballGarden.
+  it('turns a reference Show guide into a live Pattern comparison instrument (#506)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-blend-fade-transitions')!
-    const editor = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
-    const builtInContext = {
-      track: stock.track,
-      lesson: stock.lesson,
-      description: stock.description,
-      note: stock.note,
-      reference: stock.reference,
-    }
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} builtInContext={builtInContext} />)
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        reference: stock.reference,
+      }}
+    />)
 
     const guide = screen.getByRole('region', { name: 'Blend and Fade Transitions live strip' })
     expect(within(guide).queryByText(stock.reference!.summary)).not.toBeInTheDocument()
@@ -4619,22 +4695,24 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     // One Reset in the header owns all restoration; the guide has none (#63).
     expect(within(guide).queryByRole('button', { name: 'Reset Pattern' })).toBeNull()
 
-    // v2 keeps the edited draft in the pilot row, not stockShowDrafts (showStore showV2Pilots).
-    const opened = editor.state().record
-    const editedDraft: ShowRecordV2 = {
-      ...opened,
+    const editedDraft = {
+      ...stock.show,
       name: 'Edited reference draft',
-      updatedAt: opened.updatedAt + 1,
-      composition: {
-        ...opened.composition,
-        patternInstances: opened.composition.patternInstances.map((instance) => (
+      updatedAt: stock.show.updatedAt + 1,
+      composition: stock.show.composition ? {
+        ...stock.show.composition,
+        patternInstances: stock.show.composition.patternInstances.map((instance) => (
           instance.id === 'instance-reference-content-selected'
             ? { ...instance, controlTargets: { speed: 0.42 } }
             : instance
         )),
-      },
+      } : undefined,
     }
-    act(() => useShowStore.setState({ showV2Pilots: { [stock.id]: editedDraft } }))
+    act(() => useShowStore.setState({
+      stockShowDrafts: {
+        [stock.id]: editedDraft,
+      },
+    }))
     expect(screen.queryByRole('button', { name: 'Select CompassRose' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveTextContent('Edited reference draft')
@@ -4644,8 +4722,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await user.clear(brightness)
     await user.type(brightness, '60%')
     await user.keyboard('{Enter}')
-    await waitFor(() => expect(editor.state().record.composition
-      .patternInstances.find((instance) => instance.id === 'instance-reference-content-selected')).toMatchObject({
+    await waitFor(() => expect(useShowStore.getState().stockShowDrafts[stock.id].composition
+      ?.patternInstances.find((instance) => instance.id === 'instance-reference-content-selected')).toMatchObject({
       pattern: { kind: 'stock', id: 'MetaballGarden' },
       controlTargets: { speed: 0.42 },
     }))
@@ -4658,7 +4736,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('keeps a legacy reference Pattern transient after its first composition edit (#619)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
-    const v2 = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
+    const v2 = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
     const builtInContext = {
       track: stock.track,
       lesson: stock.lesson,
@@ -4701,7 +4779,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     // broken. 105 is two touching Clips per Zone, so one edge of each is joined
     // and the other is free.
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-105-portable-zones')!
-    const editor = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
+    const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
 
@@ -4724,7 +4802,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   it('identifies each property sparkline on the lane itself (#631)', () => {
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
-    const editor = openV2EditorForRecord(convertForTest(structuredClone(stock.show)))
+    const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
 
