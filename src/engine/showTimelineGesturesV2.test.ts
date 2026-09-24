@@ -241,6 +241,27 @@ describe('v2 timeline gesture adapters', () => {
     expect(refused.allocate.calls()).toBe(0)
   })
 
+  it('checks duplicate overlap with the sharing owner without changing the captured record or consuming identities', () => {
+    const record = detached()
+    const source = record.composition.clips[0]
+    const blocker = record.composition.clips[1]
+    const held = capture(record)
+    const overlapping = {
+      kind: 'duplicate', clipId: source.id, startMs: blocker.startMs,
+      zoneId: source.zoneId, layerId: source.layerId,
+    } as const
+
+    expect(checkShowTimelineDuplicateGestureV2(held, overlapping)).toMatchObject({
+      status: 'refused', code: 'owner-refused', message: expect.stringContaining('overlap'),
+    })
+    expect(held.record).toBe(record)
+
+    const free = { ...overlapping, startMs: 2_000 }
+    expect(checkShowTimelineDuplicateGestureV2(held, free)).toEqual({ status: 'ready' })
+    expect(checkShowTimelineDuplicateGestureV2(held, free)).toEqual({ status: 'ready' })
+    expect(held.record).toBe(record)
+  })
+
   it('refuses a duplicate gesture for a missing Clip with the planner message', () => {
     const record = detached()
     const clip = record.composition.clips[0]

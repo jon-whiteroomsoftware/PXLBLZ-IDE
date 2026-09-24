@@ -1,4 +1,5 @@
 import type { ShowClipEditIntentV2 } from './showClipsV2'
+import { editShowClipV2 } from './showClipsV2'
 import type { ShowClipTemporalIntentV2 } from './showClipTemporalV2'
 import type { ShowTimelineItemView, ShowTimelineViewModel } from './showTimelineViewModel'
 import {
@@ -152,8 +153,9 @@ export function planShowTimelineGestureV2(
 }
 
 /**
- * Check one duplicate gesture without allocating an identity. The preview
- * calls this per pointer sample and the commit plans once, on drop.
+ * Check one duplicate gesture without allocating a stored identity. The preview
+ * plans provisional identities, then asks the same owner the drop will ask
+ * whether this edit is valid (specification section 10, #1111-B3).
  */
 export function checkShowTimelineDuplicateGestureV2(
   capture: ShowV2ClipSharingCapture,
@@ -163,9 +165,22 @@ export function checkShowTimelineDuplicateGestureV2(
   if (!clip) {
     return { status: 'refused', message: 'Choose one ordinary Clip. A Group Clip use is edited through its Group occurrence.', code: 'missing-clip' }
   }
-  return checkShowV2LinkedDuplicateDraft(capture, gesture.clipId, {
+  const draft = checkShowV2LinkedDuplicateDraft(capture, gesture.clipId, {
     zoneId: gesture.zoneId, layerId: gesture.layerId, startMs: String(gesture.startMs),
   })
+  if (draft.status === 'refused') return draft
+  let provisional = 0
+  const planned = planShowTimelineGestureV2(capture, gesture, () => `__preview_duplicate_${++provisional}`)
+  if (planned.status !== 'ready') {
+    return { status: 'refused', message: planned.status === 'refused' ? planned.message : 'Duplication made no change.', code: 'owner-refused' }
+  }
+  if (planned.submission.owner !== 'clip-sharing') {
+    return { status: 'refused', message: 'Duplication produced an unexpected sharing intent.', code: 'owner-refused' }
+  }
+  const result = editShowClipV2(capture.record, planned.submission.intent)
+  return result.status === 'refused'
+    ? { status: 'refused', message: result.message, code: 'owner-refused' }
+    : { status: 'ready' }
 }
 
 /** The sole incoming carrier a leading resize of `deltaMs` would close, if any. */

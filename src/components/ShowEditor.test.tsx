@@ -2979,7 +2979,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
   })
 
-  // v2 port blocked by #1111: Option-drag over an invalid target still shows the move preview v1 withheld
   it('cancels Option-drag over an invalid target or without a drop without changing history (#668)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-option-drag-cancel', 'Option drag cancel', 1000)
@@ -3018,15 +3017,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         }],
       })),
     }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const editor = openV2EditorForRecord(convertForTest(show))
     useShowEditorSessionStore.setState({
       snapEnabled: false,
       markersVisible: false,
       markerSnapEnabled: false,
     })
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     const clip = screen.getByRole('button', { name: 'Select Cancel Source' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
     Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
@@ -3047,7 +3045,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       return event
     }
     await user.click(clip)
-    const before = structuredClone(useShowStore.getState().shows[0])
+    const before = structuredClone(editor.state().record)
 
     fireEvent(clip, dragEvent('dragstart', 20, true))
     fireEvent(layer, dragEvent('dragover', 50))
@@ -3056,8 +3054,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     fireEvent(layer, dragEvent('drop', 50))
     fireEvent(clip, dragEvent('dragend', 50))
 
-    expect(useShowStore.getState().shows[0]).toEqual(before)
-    expect(useShowStore.getState().showHistories[show.id]?.past ?? []).toEqual([])
+    expect(editor.state().record).toEqual(before)
+    expect(editor.state().v2Writes).toBe(0)
     expect(clip).toHaveAttribute('aria-pressed', 'true')
 
     // Native drag-and-drop reports Escape and outside releases as dragend
@@ -3065,8 +3063,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     fireEvent(clip, dragEvent('dragstart', 20, true))
     fireEvent(clip, dragEvent('dragend', 200))
 
-    expect(useShowStore.getState().shows[0]).toEqual(before)
-    expect(useShowStore.getState().showHistories[show.id]?.past ?? []).toEqual([])
+    expect(editor.state().record).toEqual(before)
+    expect(editor.state().v2Writes).toBe(0)
     expect(screen.queryByTestId('show-clip-move-preview')).not.toBeInTheDocument()
   })
 

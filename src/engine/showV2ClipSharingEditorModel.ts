@@ -7,7 +7,7 @@ import type { ShowV2TimelineCapture } from './showV2TimelineEditorModel'
 export interface ShowV2ClipSharingCapture extends ShowV2TimelineCapture { inputCapture?: ShowPreparedStageInputCaptureResultV2 }
 export type ShowV2ClipSharingIntent = Extract<ShowClipEditIntentV2, { kind: 'duplicate' | 'make-independent' | 'rejoin' }>
 /** Why a linked duplicate draft is refused; the timeline maps it to user copy (#1098). */
-export type ShowV2DuplicateRefusalCode = 'missing-clip' | 'past-show-end' | 'invalid-destination'
+export type ShowV2DuplicateRefusalCode = 'missing-clip' | 'past-show-end' | 'invalid-destination' | 'owner-refused'
 export type ShowV2ClipSharingPlan = { status: 'ready'; intent: ShowV2ClipSharingIntent } | { status: 'unchanged' } | { status: 'refused'; message: string; code?: ShowV2DuplicateRefusalCode }
 function capturedRecord(capture: ShowV2ClipSharingCapture): ShowRecordV2 | null {
  if(capture.inputCapture) return capture.inputCapture.status==='qualified'?capture.inputCapture.inputs.record:null
