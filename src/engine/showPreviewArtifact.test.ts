@@ -1,6 +1,7 @@
 import {
   compileShowForArtifact,
   compileShowForPreview,
+  portableTargetPixelBlocker,
   resolveShowCompilationControllerZones,
   sourceForShowPatternRef,
 } from './showPreviewArtifact'
@@ -524,6 +525,14 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
     expect(artifact.artifactBlocker).toBe(
       'Target Controller reports 2,001 pixels; compiled Shows support at most 2,000. Reduce the Controller pixel count before Run or Save.',
     )
+  })
+
+  it('blocks only Portable targets above 2,000 pixels (#514)', () => {
+    const message = 'Target Controller reports 2,001 pixels; compiled Shows support at most 2,000. Reduce the Controller pixel count before Run or Save.'
+    expect(portableTargetPixelBlocker('portable-2d', 2_000)).toBeUndefined()
+    expect(portableTargetPixelBlocker('portable-2d', 2_001)).toBe(message)
+    expect(portableTargetPixelBlocker('installation', 2_001)).toBeUndefined()
+    expect(portableTargetPixelBlocker('portable-2d', undefined)).toBeUndefined()
   })
 
   it('keeps a dynamic member allocation previewable but blocks artifact output with a remedy (#514)', () => {

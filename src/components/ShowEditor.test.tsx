@@ -7105,7 +7105,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     )
   })
 
-  // v2 port blocked by #1114: the prepared v2 artifact uses reference count, not the active Controller's 2,001 pixels.
   it('blocks Portable artifacts when the active Controller exceeds the supported output envelope (#514)', () => {
     const show = createShowWithOutputContract(
       'show-portable-over-limit-target',
@@ -7118,7 +7117,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       pattern: { kind: 'stock', id: 'ShapeShifter' },
       patternName: 'ShapeShifter',
     }))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const editor = openV2EditorForRecord(convertForTest(show))
     useControllerProfileStore.setState({
       profilesLoaded: true,
       profiles: [{
@@ -7143,7 +7142,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowEditor showId={show.id} />)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
 
     expect(getShowAction('View code')).toBeDisabled()
     expect(getShowAction('Download .epe')).toBeDisabled()

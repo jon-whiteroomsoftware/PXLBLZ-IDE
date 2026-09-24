@@ -81,6 +81,7 @@ import {
 } from '@/engine/showModel'
 import {
   compileShowForArtifact,
+  portableTargetPixelBlocker,
   resolveShowCompilationControllerZones,
   sourceForShowCell,
   sourceForShowPatternRef,
@@ -3016,9 +3017,13 @@ export function ShowEditor({
       // A prepared v2 Show uses the same ordered delivery refusals as the
       // route artifact builder. Before preparation, coverage can still surface.
       const artifactBlocker = prepared?.status === 'ready'
-        ? showV2DeliveryRefusal(prepared.bundle) ?? undefined
+        ? showV2DeliveryRefusal(prepared.bundle)
+          ?? portableTargetPixelBlocker(savedShowV2?.outputContract.kind, activeControllerProfile?.lastKnownPixelCount)
+          ?? undefined
         : savedShowV2
-          ? installationCoverageBlockingMessage(validateInstallationCoverageV2(savedShowV2)) ?? undefined
+          ? installationCoverageBlockingMessage(validateInstallationCoverageV2(savedShowV2))
+            ?? portableTargetPixelBlocker(savedShowV2.outputContract.kind, activeControllerProfile?.lastKnownPixelCount)
+            ?? undefined
           : undefined
       if (prepared?.status === 'ready') return { artifact: prepared.bundle.artifact, error: null, artifactBlocker }
       return { artifact: null, error: prepared?.status === 'refused' ? prepared.message : null, artifactBlocker }
@@ -3035,7 +3040,7 @@ export function ShowEditor({
           },
         )
       : { artifact: null, error: null }
-  }, [effectiveArtifactCompilationInput, presentationV2Capture, recordVersion, savedShowV2])
+  }, [activeControllerProfile?.lastKnownPixelCount, effectiveArtifactCompilationInput, presentationV2Capture, recordVersion, savedShowV2])
   const patternControlsByCellId = useMemo(() => Object.fromEntries((activeShow?.cells ?? []).map((cell) => {
     const saved = cell.pattern.kind === 'user'
       ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}

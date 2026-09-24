@@ -174,17 +174,21 @@ export function compileShowForArtifact(
   ))
   if (portableError) return { artifact: null, error: portableError }
   const compiled = compileShowForPreview(show, userPatterns, controllerZones, libraries, options)
-  if (show.outputContract?.kind === 'portable-2d' && (options.targetPixelCount ?? 0) > SHOW_MAX_OUTPUT_PIXELS) {
-    const targetPixelCount = Math.floor(options.targetPixelCount!)
-    return {
-      ...compiled,
-      artifactBlocker: `Target Controller reports ${targetPixelCount.toLocaleString('en-US')} pixels; compiled Shows support at most ${SHOW_MAX_OUTPUT_PIXELS.toLocaleString('en-US')}. Reduce the Controller pixel count before Run or Save.`,
-    }
-  }
+  const targetPixelBlocker = portableTargetPixelBlocker(show.outputContract?.kind, options.targetPixelCount)
+  if (targetPixelBlocker) return { ...compiled, artifactBlocker: targetPixelBlocker }
   const resourceBlocker = compiled.artifact?.summary.resources.blockers[0]
   return resourceBlocker
     ? { ...compiled, artifactBlocker: resourceBlocker.message }
     : compiled
+}
+
+export function portableTargetPixelBlocker(
+  outputContractKind: string | undefined,
+  targetPixelCount: number | undefined,
+): string | undefined {
+  if (outputContractKind !== 'portable-2d' || !((targetPixelCount ?? 0) > SHOW_MAX_OUTPUT_PIXELS)) return undefined
+  const roundedPixelCount = Math.floor(targetPixelCount!)
+  return `Target Controller reports ${roundedPixelCount.toLocaleString('en-US')} pixels; compiled Shows support at most ${SHOW_MAX_OUTPUT_PIXELS.toLocaleString('en-US')}. Reduce the Controller pixel count before Run or Save.`
 }
 
 export function sourceForShowCell(cell: ShowCell, userPatterns: PatternRecord[]): string {
