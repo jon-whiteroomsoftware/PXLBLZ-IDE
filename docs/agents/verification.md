@@ -24,6 +24,33 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.17.1 adoption (#1112)
+
+This adoption updates the executable package from 0.16.0. Source release is
+WRSP 0.17.1; see its `docs/reference/process-release-0.17.1.md` and
+`process-release-0.17.0.md`. 0.17.0 was never adopted: this repository's review
+of its tarball found that `wrsp-agents install` deleted personal hook entries,
+and 0.17.1 fixes that.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.17.1, tag `v0.17.1` |
+| Source | `07eb3f00d1f6f0c1696e6dd106b5b67cae8fa6e7` |
+| Tarball | `vendor/whiteroom-software-process-0.17.1.tgz` |
+| SHA256 | `9eed018538caed882028b4a74f67c98a47924986c9ad8aa663116e6d0f09f772` |
+
+The reviewer catalog is now generated from WRSP `templates/tiers.yaml` (WRSP
+#120). The ranked reviewers and their order are unchanged. The explicit
+reviewer choices grow to every Anthropic and OpenAI pair in any execution
+tier: Luna 6 High, Sonnet 5 High, Sol 6 Low, Opus 5.5 Medium and Opus 5.5 Low
+are new. The review policy fingerprint therefore changes, and existing receipts
+keep their authority under their recorded policy (WRSP #121). The rest of the
+release is agent tooling deployed from the WRSP checkout with
+`wrsp-agents install` (WRSP #123–#127, #129, #130). Install identifies WRSP
+hook entries by a `# wrsp-hook:<id>` marker and keeps personal entries (WRSP
+#126). Review semantics, receipt format and staged-test selection are
+unchanged.
+
 ## WRSP 0.16.0 adoption (#1084)
 
 This adoption updates the executable package from 0.15.0. Source release is
