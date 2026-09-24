@@ -94,6 +94,7 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
   const hoverTimerRef = useRef<number | null>(null)
   const pointerPressedRef = useRef(false)
   const nativeDragRef = useRef(false)
+  const pointerPositionRef = useRef<{ x: number; y: number } | null>(null)
   const cancelHoverOpen = useCallback(() => {
     if (hoverTimerRef.current !== null) window.clearTimeout(hoverTimerRef.current)
     hoverTimerRef.current = null
@@ -195,9 +196,31 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
 
   useEffect(() => {
     if (!state.timerArmed) return
-    const timer = window.setTimeout(() => apply({ type: 'timer-elapsed' }), CLOSE_DELAY_MS)
+    const timer = window.setTimeout(() => {
+      // The edge tab's leave is synthetic once the tab turns pointer-events-none, so a pointer
+      // resting under the open drawer counts as inside (#1120), while one that moved away still closes it (#982).
+      const position = pointerPositionRef.current
+      const drawer = drawerRef.current
+      if (
+        position && drawer && typeof document.elementFromPoint === 'function'
+        && drawer.contains(document.elementFromPoint(position.x, position.y))
+      ) apply({ type: 'pointer', inside: true })
+      else apply({ type: 'timer-elapsed' })
+    }, CLOSE_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [apply, state.timerArmed])
+
+  useEffect(() => {
+    if (mode === 'tucked') return
+    const moved = (event: PointerEvent) => { pointerPositionRef.current = { x: event.clientX, y: event.clientY } }
+    const leftWindow = (event: PointerEvent) => { if (event.relatedTarget === null) pointerPositionRef.current = null }
+    window.addEventListener('pointermove', moved, { capture: true, passive: true })
+    window.addEventListener('pointerout', leftWindow)
+    return () => {
+      window.removeEventListener('pointermove', moved, { capture: true })
+      window.removeEventListener('pointerout', leftWindow)
+    }
+  }, [mode])
 
   const syncBusy = useCallback(() => {
     const next = new Set<StudioEntityDrawerBusyKind>()
@@ -364,7 +387,10 @@ export const StudioEntityDrawer = forwardRef<StudioEntityDrawerHandle, {
                   if (!pointerPressedRef.current && !nativeDragRef.current && studioEntityDrawerMode(stateRef.current) === 'tucked') apply({ type: 'open', source: 'pointer' })
                 }, HOVER_OPEN_DELAY_MS)
               }}
-              onPointerLeave={() => apply({ type: 'pointer', inside: false })}
+              onPointerLeave={(event) => {
+                pointerPositionRef.current = { x: event.clientX, y: event.clientY }
+                apply({ type: 'pointer', inside: false })
+              }}
               onPointerUp={(event) => event.currentTarget.blur()}
               onClick={() => apply({ type: 'open', source: 'pointer' })}
               onKeyDown={(event) => {

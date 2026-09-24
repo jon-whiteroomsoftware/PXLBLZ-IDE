@@ -390,7 +390,71 @@ describe('Studio entity drawer hover (#981)', () => {
     expect(edge).toHaveAttribute('aria-expanded', 'true')
   })
 
+  it.each(['click', 'hover'] as const)('keeps the drawer open for a pointer resting where the edge was during a %s opening (#1120)', (source) => {
+    render(<Harness />)
+    const edge = screen.getByRole('button', { name: 'Open the Shows list' })
+    fireEvent.pointerEnter(edge)
+    if (source === 'click') fireEvent.click(edge)
+    else act(() => { vi.advanceTimersByTime(300) })
+    expect(edge).toHaveAttribute('aria-expanded', 'true')
+    const drawer = screen.getByTestId('studio-entity-drawer')
+    // A null relatedTarget would read as leaving the window; the drawer as relatedTarget would fire its own enter.
+    fireEvent.pointerLeave(edge, { clientX: 10, clientY: 200, relatedTarget: document.body })
+    let restore = pointPointerAt(() => drawer)
+    try {
+      act(() => { vi.advanceTimersByTime(1000) })
+      expect(edge).toHaveAttribute('aria-expanded', 'true')
+    } finally { restore() }
+    restore = pointPointerAt(() => document.body)
+    try {
+      fireEvent.pointerEnter(drawer)
+      fireEvent.pointerLeave(drawer, { relatedTarget: document.body })
+      act(() => { vi.advanceTimersByTime(600) })
+      expect(edge).toHaveAttribute('aria-expanded', 'false')
+    } finally { restore() }
+  })
+
+  it.each(['click', 'hover'] as const)('closes when the pointer moved off the drawer before the timer expired after a %s opening (#982, #1120)', (source) => {
+    render(<Harness />)
+    const edge = screen.getByRole('button', { name: 'Open the Shows list' })
+    fireEvent.pointerEnter(edge)
+    if (source === 'click') fireEvent.click(edge)
+    else act(() => { vi.advanceTimersByTime(300) })
+    const drawer = screen.getByTestId('studio-entity-drawer')
+    fireEvent.pointerLeave(edge, { clientX: 10, clientY: 200, relatedTarget: document.body })
+    fireEvent.pointerMove(window, { clientX: 400, clientY: 200 })
+    const restore = pointPointerAt((x, y) => (x === 400 && y === 200 ? document.body : drawer))
+    try {
+      act(() => { vi.advanceTimersByTime(600) })
+      expect(edge).toHaveAttribute('aria-expanded', 'false')
+    } finally { restore() }
+  })
+
+  it('closes when the pointer left the window (#1120)', () => {
+    render(<Harness />)
+    const edge = screen.getByRole('button', { name: 'Open the Shows list' })
+    fireEvent.pointerEnter(edge)
+    fireEvent.click(edge)
+    const drawer = screen.getByTestId('studio-entity-drawer')
+    fireEvent.pointerLeave(edge, { clientX: 10, clientY: 200, relatedTarget: document.body })
+    fireEvent.pointerOut(window, { relatedTarget: null })
+    const restore = pointPointerAt(() => drawer)
+    try {
+      act(() => { vi.advanceTimersByTime(600) })
+      expect(edge).toHaveAttribute('aria-expanded', 'false')
+    } finally { restore() }
+  })
+
 })
+
+function pointPointerAt(resolve: (x: number, y: number) => Element): () => void {
+  const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: resolve })
+  return () => {
+    if (original) Object.defineProperty(document, 'elementFromPoint', original)
+    else Reflect.deleteProperty(document, 'elementFromPoint')
+  }
+}
 
 it('mirrors an independently owned right drawer without claiming the list shortcut or pin preference', () => {
   useStudioEntityDrawerStore.setState({ pinPreferences: { shows: true } })
