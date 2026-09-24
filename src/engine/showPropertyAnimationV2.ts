@@ -1,4 +1,3 @@
-import { clipContributionInterval } from './showLayoutIntervalsV2'
 import { repeatScaleSourceIsInRangeV2, repeatScaleHoldSourceIsInRangeV2 } from './showRepeatScaleEditEligibilityV2'
 import { validateShowRecordV2, type ShowClipV2, type ShowPropertyKeyframeV2, type ShowPropertyTrackV2, type ShowRecordV2 } from './showCompositionV2'
 import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
@@ -183,11 +182,14 @@ export function editShowClipPropertyTracksV2(
     }
 
     if (intent.kind !== 'split') return [structuredClone(source)]
+    // A split cuts each track only at the split time, as v1 does (#1101): the
+    // left piece keeps the authored activation start and the right piece its
+    // end, never narrowing to the Clip's visible span.
     const splitMs = intent.atMs
-    const contribution = clipContributionInterval(record, clip)
+    const activeEndMs = source.activeStartMs + source.activeDurationMs
     const sourceKeyIds = new Set(source.keyframes.map(key => key.id))
-    const left = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, contribution.startMs, splitMs, sourceKeyIds)
-    const right = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, splitMs, contribution.endMs, sourceKeyIds)
+    const left = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, source.activeStartMs, splitMs, sourceKeyIds)
+    const right = restrictShowPropertyTrackV2(record.composition.propertyTracks, source, splitMs, activeEndMs, sourceKeyIds)
     if (!left && !right) return []
     affectedTrackIds.push(source.id)
     if (!left && right) return [{ ...right, target: retargetClip(right.target, intent.rightClipId) }]

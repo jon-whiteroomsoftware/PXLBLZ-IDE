@@ -46,10 +46,11 @@ const TOOLBAR_SPLIT_ID = '00000992-0000-4000-8000-000000000001'
 // The converted split fixture's clip-b is one global Clip, 12 000–36 000 ms.
 // The right piece shares instance-b and enters with `continue`; the outgoing
 // Transition's endpoint retargets to it (src/engine/showCommandsV2/clips.ts:286).
-// track-b is cut at the split: the left keeps its keys up to 16 000 ms with a
-// curve segment, and the right gets a `:split:` copy from the boundary on
-// (src/engine/showPropertyAnimationV2.ts:195). tail-track, wholly after the
-// split, retargets to the right piece.
+// track-b is cut only at the split, as v1 does (#1101): the left keeps its
+// activation start and its keys up to 16 000 ms with a curve segment, and the
+// right gets a `:split:` copy from the boundary on
+// (src/engine/showPropertyAnimationV2.ts:185). tail-track, wholly after the
+// split, retargets to the right piece with its activation unchanged.
 function splitFixtureExpected(before: ShowRecordV2, rightId = 'clip-b-right'): ShowRecordV2 {
   const expected = structuredClone(before)
   const clips = expected.composition.clips
@@ -65,17 +66,15 @@ function splitFixtureExpected(before: ShowRecordV2, rightId = 'clip-b-right'): S
   const tracks = expected.composition.propertyTracks
   const trackB = tracks.find(track => track.id === 'track-b')!
   trackB.keyframes = [
-    { id: 'track-b:boundary:10000', timeMs: 10000, value: 1, easing: { curve: 'linear' } },
+    { id: 'track-b:boundary:0', timeMs: 0, value: 1, easing: { curve: 'linear' } },
     { ...trackB.keyframes[0], curveSegment: { ...segment, elapsedOffsetMs: 0 } },
     { id: 'track-b:boundary:16000', timeMs: 16000, value: boundaryValue, easing: { curve: 'linear' } },
   ]
-  trackB.activeStartMs = 10000
-  trackB.activeDurationMs = 6000
+  trackB.activeDurationMs = 16000
   const tail = tracks.find(track => track.id === 'tail-track')!
   tail.target = { ...tail.target, clipId: rightId } as typeof tail.target
-  tail.keyframes.push({ id: 'tail-track:boundary:37000', timeMs: 37000, value: 1, easing: { curve: 'linear' } })
-  tail.activeDurationMs = 7000
-  tracks.push({
+  // The owner places the right piece directly after the track it split.
+  tracks.splice(tracks.indexOf(trackB) + 1, 0, {
     id: `track-b:split:${rightId}`, target: { kind: 'clip-view', clipId: rightId, property: 'brightness' },
     keyframes: [
       { id: `track-b:boundary:16000:split:${rightId}`, timeMs: 16000, value: boundaryValue, easing: { curve: 'linear' }, curveSegment: { ...segment, elapsedOffsetMs: 4000 } },
@@ -2353,10 +2352,6 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `split-951-${Date.now().toString(36)}`
         return record
       },
-      // The owner's split narrows track-b's activation to start at 10 000 ms,
-      // inside the incoming Transition's window, and the bridge's delivery
-      // validation refuses the commit; v1 accepted the same split.
-      pendingV2: 'defect: #1101 v2 split_clip activates track-b inside the incoming Transition window; delivery validation refuses the commit',
       expectedFacts: before => splitFixtureExpected(before)
     },
     {

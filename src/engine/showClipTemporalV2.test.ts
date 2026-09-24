@@ -9,6 +9,7 @@ import { materializeShowGroupsV2 } from './showGroupsV2'
 import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2, projectShowTransitionPropertyRampsV2, type ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
 import { expect, it } from 'vitest'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
+import { showSplitClipFixture } from '../test/showSplitClipFixture'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { createDefaultShow } from './showModel'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
@@ -618,4 +619,57 @@ it('names the validator overlap issue when a move lands on an occupied same-Laye
   source.composition.transitions = []
   const result = editShowClipTemporalV2(source, { kind: 'move', clipId: 'after', startMs: 300 })
   expect(result).toMatchObject({ status: 'refused', code: 'invalid-result', issueCode: 'overlap' })
+})
+
+function convertedSplitFixture(): ShowRecordV2 {
+  const converted = convertShowRecordV1ToV2(showSplitClipFixture())
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  return converted.record
+}
+
+function splitPreparation(record: ShowRecordV2) {
+  const lookup = { byCellId: {}, byPatternInstanceId: Object.fromEntries(materializeShowGroupsV2(record).composition.patternInstances.map(instance => [instance.id, sourceCode])), stageDimension: 2 as const }
+  const prepared = prepareShowV2ForCompile(reopen(record), lookup, { libraries: LIBRARIES })
+  return prepared.status === 'refused' ? prepared.issues : prepared.status
+}
+
+function activation(record: ShowRecordV2, id: string): number[] {
+  const track = record.composition.propertyTracks.find(candidate => candidate.id === id)!
+  return [track.activeStartMs, track.activeStartMs + track.activeDurationMs]
+}
+
+it('a split cuts a Clip track only at the split time, so the converted connected Clip still prepares (#1101)', () => {
+  const source = convertedSplitFixture()
+  expect(activation(source, 'track-b')).toEqual([0, 30000])
+  expect(activation(source, 'tail-track')).toEqual([30000, 60000])
+  const result = editShowClipV2(source, { kind: 'split', clipId: 'clip-b', atMs: 16000, rightClipId: 'clip-b-right' })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(splitPreparation(result.record)).toBe('ready')
+  expect(activation(result.record, 'track-b')).toEqual([0, 16000])
+  expect(activation(result.record, 'track-b:split:clip-b-right')).toEqual([16000, 30000])
+  // Wholly after the split, tail-track only retargets; its activation is unchanged.
+  expect(activation(result.record, 'tail-track')).toEqual([30000, 60000])
+  const original = source.composition.propertyTracks.find(track => track.id === 'track-b')!
+  for (const time of [0, 11000, 12000, 15999, 16000, 19000, 29999]) {
+    const piece = result.record.composition.propertyTracks.find(track => track.id === (time < 16000 ? 'track-b' : 'track-b:split:clip-b-right'))!
+    expect(evaluateShowPropertyTrackV2(piece, time), `${time}`).toEqual(evaluateShowPropertyTrackV2(original, time))
+  }
+})
+
+it('a split keeps an activation that starts inside the Clip and cuts it only at the split time (#1101)', () => {
+  const source = convertedSplitFixture()
+  const track = source.composition.propertyTracks.find(candidate => candidate.id === 'track-b')!
+  track.activeStartMs = 13000
+  track.activeDurationMs = 17000
+  track.keyframes = [
+    { id: 'inside-first', timeMs: 13000, value: 0.2, easing: { curve: 'linear' } },
+    { id: 'inside-last', timeMs: 20000, value: 1, easing: { curve: 'linear' } },
+  ]
+  expect(validateShowRecordV2(source)).toEqual([])
+  const result = editShowClipV2(source, { kind: 'split', clipId: 'clip-b', atMs: 16000, rightClipId: 'clip-b-right' })
+  expect(result.status).toBe('changed')
+  if (result.status !== 'changed') return
+  expect(activation(result.record, 'track-b')).toEqual([13000, 16000])
+  expect(activation(result.record, 'track-b:split:clip-b-right')).toEqual([16000, 30000])
 })
