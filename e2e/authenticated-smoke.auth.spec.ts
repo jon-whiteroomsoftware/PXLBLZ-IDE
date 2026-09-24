@@ -1956,6 +1956,9 @@ type DrawerMotionSample = {
   easing: string
 }
 
+type DrawerTransitionEvent = { type: string, property: string, time: number }
+type DrawerMotion = { samples: DrawerMotionSample[], transitions: DrawerTransitionEvent[] }
+
 test.describe('entity drawer motion (#982)', () => {
 
   test('slides in both directions with symmetric timing and respects reduced motion', async ({ page }) => {
@@ -1967,7 +1970,14 @@ test.describe('entity drawer motion (#982)', () => {
     const drawer = page.locator('[data-testid="studio-entity-drawer"][data-studio-drawer-owner="studio-entity-list"]')
     const startSampling = async () => drawer.evaluate((element) => {
       const samples: DrawerMotionSample[] = []
+      const transitions: DrawerTransitionEvent[] = []
       let active = true
+      // Transition events fire however sparse a loaded runner's frames are (#1107).
+      const record = (event: TransitionEvent) => {
+        if (active && event.target === element) transitions.push({ type: event.type, property: event.propertyName, time: performance.now() })
+      }
+      for (const type of ['transitionrun', 'transitionend', 'transitioncancel'] as const) element.addEventListener(type, record)
+      ;(window as unknown as { drawerTransitions: DrawerTransitionEvent[] }).drawerTransitions = transitions
       const sample = () => {
         const bounds = element.getBoundingClientRect()
         const style = getComputedStyle(element)
@@ -1983,42 +1993,70 @@ test.describe('entity drawer motion (#982)', () => {
       }
       sample()
       requestAnimationFrame(frame)
-      ;(window as unknown as { stopDrawerMotion: () => DrawerMotionSample[] }).stopDrawerMotion = () => {
-        active = false
+      ;(window as unknown as { stopDrawerMotion: () => DrawerMotion }).stopDrawerMotion = () => {
         sample()
-        return samples
+        active = false
+        for (const type of ['transitionrun', 'transitionend', 'transitioncancel'] as const) element.removeEventListener(type, record)
+        return { samples, transitions }
       }
     })
     const stopSampling = async () => page.evaluate(() => (
-      (window as unknown as { stopDrawerMotion: () => DrawerMotionSample[] }).stopDrawerMotion()
+      (window as unknown as { stopDrawerMotion: () => DrawerMotion }).stopDrawerMotion()
     ))
-    const intermediate = (samples: DrawerMotionSample[]) => samples.filter(({ x, width }) => x < -1 && x > -width + 1)
+    const intermediate = ({ samples }: DrawerMotion) => samples.filter(({ x, width }) => x < -1 && x > -width + 1)
+    const slid = ({ transitions }: DrawerMotion) => ['transitionrun', 'transitionend']
+      .every((type) => transitions.some((event) => event.type === type && event.property === 'translate'))
+    const slideEnded = async () => expect.poll(async () => slid({ samples: [], transitions: await page.evaluate(() => (
+      (window as unknown as { drawerTransitions: DrawerTransitionEvent[] }).drawerTransitions
+    )) }), { message: 'the drawer translate transition ran to its end' }).toBe(true)
+    const openDrawer = async () => {
+      await edge.hover()
+      await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
+      await expect.poll(async () => Math.abs((await drawer.boundingBox())!.x)).toBeLessThan(1)
+    }
 
     await expect(drawer).toBeHidden()
     await startSampling()
-    await edge.hover()
-    await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
-    await expect.poll(async () => Math.abs((await drawer.boundingBox())!.x)).toBeLessThan(1)
+    await openDrawer()
+    await slideEnded()
     const opening = await stopSampling()
 
-    await drawer.hover()
-    await page.mouse.move(1000, 500)
-    // Return midway through the specified 600 ms close delay, then pass its old deadline.
-    await page.waitForTimeout(300)
-    await drawer.hover()
-    await page.waitForTimeout(400)
+    // Return midway through the specified 600 ms close delay, then pass its old
+    // deadline. A loaded runner stretched a fixed 300 ms wait plus hover
+    // actionability past the delay (#1107), so the page times leave and return
+    // and only a return it saw inside the delay is judged.
+    const box = (await drawer.boundingBox())!
+    const inside = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    type DrawerReturn = { leave: number, enter: number }
+    let drawerReturn: DrawerReturn | null = null
+    for (let attempt = 0; attempt < 3 && !drawerReturn; attempt++) {
+      if (await layout.getAttribute('data-drawer-mode') !== 'open') await openDrawer()
+      await page.mouse.move(inside.x, inside.y)
+      await drawer.evaluate((element) => {
+        const timing = { leave: Number.NaN, enter: Number.NaN }
+        element.addEventListener('pointerleave', () => { timing.leave = performance.now() }, { once: true })
+        element.addEventListener('pointerenter', () => { timing.enter = performance.now() }, { once: true })
+        ;(window as unknown as { drawerReturn: DrawerReturn }).drawerReturn = timing
+      })
+      await page.mouse.move(1000, 500)
+      await page.waitForTimeout(150)
+      await page.mouse.move(inside.x, inside.y)
+      const timing = await page.evaluate(() => (window as unknown as { drawerReturn: DrawerReturn }).drawerReturn)
+      if (timing.enter - timing.leave < 550) drawerReturn = timing
+    }
+    expect(drawerReturn, 'the pointer returned inside the close delay').not.toBeNull()
+    await page.waitForFunction((leave) => performance.now() > leave + 800, drawerReturn!.leave)
     await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
     await startSampling()
     await page.mouse.move(1000, 500)
     await expect(layout).toHaveAttribute('data-drawer-mode', 'tucked')
     await expect(drawer).toBeHidden()
+    await slideEnded()
     const closing = await stopSampling()
 
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await startSampling()
-    await edge.hover()
-    await expect(layout).toHaveAttribute('data-drawer-mode', 'open')
-    await expect.poll(async () => Math.abs((await drawer.boundingBox())!.x)).toBeLessThan(1)
+    await openDrawer()
     const reducedOpening = await stopSampling()
     await drawer.hover()
     await startSampling()
@@ -2033,18 +2071,25 @@ test.describe('entity drawer motion (#982)', () => {
     console.log('Drawer motion summary:', JSON.stringify({
       openingIntermediateX: intermediate(opening).map(({ x }) => x),
       closingIntermediateX: intermediate(closing).map(({ x }) => x),
-      openingStyle: opening.at(-1), closingStyle: closing.at(-1), reducedStyle: reducedClosing.at(-1),
+      openingTransitions: opening.transitions, closingTransitions: closing.transitions,
+      openingStyle: opening.samples.at(-1), closingStyle: closing.samples.at(-1), reducedStyle: reducedClosing.samples.at(-1),
     }))
-    expect.soft(intermediate(opening).length).toBeGreaterThan(0)
-    expect.soft(intermediate(closing).length).toBeGreaterThan(0)
+    // #982 acceptance: the drawer slides both ways with the same configured
+    // duration and easing, and reduced motion removes the slide. The browser's
+    // translate transition running to its end proves the slide; counting
+    // sampled frames does not survive a loaded runner's sparse frames (#1107).
+    expect.soft(slid(opening)).toBe(true)
+    expect.soft(slid(closing)).toBe(true)
     expect.soft(intermediate(closing).every(({ visibility }) => visibility === 'visible')).toBe(true)
-    expect.soft(opening.at(-1)!.property).toContain('translate')
-    expect.soft(opening.at(-1)!.duration).toBe('0.225s, 0s')
-    expect.soft(opening.at(-1)!.duration).toBe(closing.at(-1)!.duration)
-    expect.soft(opening.at(-1)!.easing).toBe(closing.at(-1)!.easing)
-    expect.soft(opening.at(-1)!.easing).toContain('ease-in-out')
-    expect.soft(closing.find(({ mode }) => mode === 'tucked')!.time - closing[0].time).toBeGreaterThanOrEqual(600)
-    expect.soft(reducedOpening.at(-1)!.property).toBe('none')
+    expect.soft(opening.samples.at(-1)!.property).toContain('translate')
+    expect.soft(opening.samples.at(-1)!.duration).toBe('0.225s, 0s')
+    expect.soft(opening.samples.at(-1)!.duration).toBe(closing.samples.at(-1)!.duration)
+    expect.soft(opening.samples.at(-1)!.easing).toBe(closing.samples.at(-1)!.easing)
+    expect.soft(opening.samples.at(-1)!.easing).toContain('ease-in-out')
+    expect.soft(closing.samples.find(({ mode }) => mode === 'tucked')!.time - closing.samples[0].time).toBeGreaterThanOrEqual(600)
+    expect.soft(reducedOpening.samples.at(-1)!.property).toBe('none')
+    expect.soft(reducedOpening.transitions).toEqual([])
+    expect.soft(reducedClosing.transitions).toEqual([])
     expect.soft(intermediate(reducedOpening)).toEqual([])
     expect.soft(intermediate(reducedClosing)).toEqual([])
     if (process.env.PXLBLZ_DRAWER_MOTION_VIDEO) {
