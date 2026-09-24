@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1116",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1116-b-de6a4447-726a-4a93-b021-fb5a8505feeb",
+  "operation": "Signed in as the issue's synthetic local user, opened personal v2 Show B, selected Patterns from the place control, then selected Shows and returned to Show B.",
+  "captures": [".wrsp/ui-proof/1116-personal-v2-show.png"],
+  "capturedAtCommit": "04ba661c94c2c437aecdbc1724633789ec843c29"
+}
