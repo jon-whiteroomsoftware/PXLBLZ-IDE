@@ -470,28 +470,25 @@ describe('showStore (#318)', () => {
     expect(stored).toContainEqual(recoveredRecord)
   })
 
-  // DEFECT: v2 loadShows clears personal pilots/histories (showStore.ts:791), so hydration drops the accepted edit; no spec section 10 row covers it.
-  it.skip('does not let hydration replace an accepted edit while its save is in flight (#948)', async () => {
-    // Ported to v2: hydration (loadShows) must not replace an accepted v2 edit while replaceShowV2 is in flight.
-    const show = { ...transitionV1Show('crossfade'), id: 'show-hydration-during-save-948', name: 'Hydration base', updatedAt: 1 }
-    const converted = convertShowRecordV1ToV2(show)
-    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    const { stored, provider } = v2ProviderForPort([converted.record])
-    const realReplace = provider.replaceShowV2
+  // v2 port blocked by #1115: v2 loadShows clears personal pilots/histories (showStore.ts:791), so hydration drops the accepted edit; no spec section 10 row covers it.
+  it('does not let hydration replace an accepted edit while its save is in flight (#948)', async () => {
+    const show = createDefaultShow('show-hydration-during-save-948', 'Hydration base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
     const writeStarted = deferred()
     const releaseWrite = deferred()
-    provider.replaceShowV2 = async (pid: string, record: ShowRecordV2) => {
+    provider.updateShow = async (id, changes) => {
       writeStarted.resolve()
       await releaseWrite.promise
-      await (realReplace as (a: string, b: ShowRecordV2) => Promise<void>)(pid, record)
+      await realUpdate(id, changes)
     }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     await useShowStore.getState().loadShows()
-    await useShowStore.getState().openShowV2Pilot(converted.record.id)
-    const id = converted.record.id
 
-    const edit = useShowStore.getState().updateShowV2Pilot(id, { ...useShowStore.getState().showV2Pilots[id], name: 'Accepted edit', updatedAt: 2 })
-    const acceptedRecord = structuredClone(useShowStore.getState().showV2Pilots[id])
-    const acceptedHistory = structuredClone(useShowStore.getState().showV2Histories[id])
+    const edit = useShowStore.getState().updateShow(show.id, { ...show, name: 'Accepted edit', updatedAt: 2 })
+    const acceptedRecord = structuredClone(personalShow(show.id))
+    const acceptedHistory = structuredClone(useShowStore.getState().showHistories[show.id])
     await writeStarted.promise
     const hydration = useShowStore.getState().loadShows()
     await Promise.resolve()
@@ -500,10 +497,10 @@ describe('showStore (#318)', () => {
 
     await expect(edit).resolves.toBeUndefined()
     await expect(hydration).resolves.toBeUndefined()
-    expect(useShowStore.getState().showV2Pilots[id]).toEqual(acceptedRecord)
-    expect(useShowStore.getState().showV2Histories[id]).toEqual(acceptedHistory)
-    expect(useShowStore.getState().showV2SaveFailure).toBeNull()
-    expect(stored).toContainEqual(acceptedRecord)
+    expect(personalShow(show.id)).toEqual(acceptedRecord)
+    expect(useShowStore.getState().showHistories[show.id]).toEqual(acceptedHistory)
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    await expect(provider.listShows()).resolves.toContainEqual(persistedShow(acceptedRecord))
   })
 
   it('retires a failed retry when a later edit is accepted before its save settles (#948)', async () => {
@@ -613,112 +610,102 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().showV2SaveFailure).toBeNull()
   })
 
-  // DEFECT: v2 loadShows clears personal pilots/histories (showStore.ts:791) and openShowV2Pilot resets history,
-  // so re-hydration does not preserve undo history as v1 does; no spec section 10 row covers history preservation.
-  it.skip('keeps valid undo history through re-hydration and a later failed save (#792)', async () => {
-    // Ported to v2: edits via name; re-hydration via loadShows clears personal pilots by design, exercised here.
-    const show = { ...transitionV1Show('crossfade'), id: 'show-rehydrated-history', name: 'Rehydrated', updatedAt: 1 }
-    const converted = convertShowRecordV1ToV2(show)
-    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    const { provider } = v2ProviderForPort([converted.record])
-    const realReplace = provider.replaceShowV2
+  // v2 port blocked by #1115: v2 loadShows clears personal pilots/histories (showStore.ts:791) and openShowV2Pilot resets history, so re-hydration does not preserve undo history as v1 does; no spec section 10 row covers history preservation.
+  it('keeps valid undo history through re-hydration and a later failed save (#792)', async () => {
+    const show = createDefaultShow('show-rehydrated-history', 'Rehydrated', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
     let offline = false
-    provider.replaceShowV2 = async (pid: string, record: ShowRecordV2) => {
+    provider.updateShow = async (id, changes) => {
       if (offline) throw new Error('offline')
-      await (realReplace as (a: string, b: ShowRecordV2) => Promise<void>)(pid, record)
+      await realUpdate(id, changes)
     }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     await useShowStore.getState().loadShows()
-    await useShowStore.getState().openShowV2Pilot(converted.record.id)
-    const id = converted.record.id
 
-    await useShowStore.getState().updateShowV2Pilot(id, { ...useShowStore.getState().showV2Pilots[id], name: 'Saved edit' })
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Saved edit' })
+    // Navigating away and back re-hydrates from the provider mid-session.
     await useShowStore.getState().loadShows()
-    await useShowStore.getState().openShowV2Pilot(id)
 
     offline = true
-    await expect(useShowStore.getState().updateShowV2Pilot(id, { ...useShowStore.getState().showV2Pilots[id], name: 'Lost edit' })).rejects.toThrow('offline')
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })
 
-    expect(useShowStore.getState().showV2Pilots[id].name).toBe('Saved edit')
-    const past = useShowStore.getState().showV2Histories[id]?.past ?? []
-    expect(past.length).toBeGreaterThan(0)
+    // The rollback returns to the persisted edit and keeps its undo history.
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Saved edit')
+    const past = useShowStore.getState().showHistories[show.id]?.past ?? []
+    expect(past[past.length - 1]?.scenes[0].name).toBe('Scene 1')
 
     offline = false
-    await expect(useShowStore.getState().undoShowV2Pilot(id)).resolves.toBe(true)
-    expect(useShowStore.getState().showV2Pilots[id].name).not.toBe('Lost edit')
+    await expect(useShowStore.getState().undoShow(show.id)).resolves.toBe(true)
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Scene 1')
   })
 
-  // DEFECT: v2 loadShows clears personal pilots/histories and openShowV2Pilot queues behind in-flight saves,
-  // so racing history preservation deadlocks/drops as v1 does not; no spec section 10 row covers it.
-  it.skip('keeps undo history when loadShows races an in-flight successful save (#792)', async () => {
-    // Ported to v2: save races loadShows; v2 serializes via queueShowPersistence.
-    const show = { ...transitionV1Show('crossfade'), id: 'show-race-history', name: 'Race base', updatedAt: 1 }
-    const converted = convertShowRecordV1ToV2(show)
-    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    const { provider } = v2ProviderForPort([converted.record])
-    const realReplace = provider.replaceShowV2
+  // v2 port blocked by #1115: v2 loadShows clears personal pilots/histories and openShowV2Pilot queues behind in-flight saves, so racing history preservation deadlocks/drops as v1 does not; no spec section 10 row covers it.
+  it('keeps undo history when loadShows races an in-flight successful save (#792)', async () => {
+    const show = createDefaultShow('show-race-history', 'Race base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
     let releaseWrite!: () => void
     const writeGate = new Promise<void>((resolve) => { releaseWrite = resolve })
-    provider.replaceShowV2 = async (pid: string, record: ShowRecordV2) => {
-      await (realReplace as (a: string, b: ShowRecordV2) => Promise<void>)(pid, record)
+    provider.updateShow = async (id, changes) => {
+      await realUpdate(id, changes)
+      // Durable before the promise resolves, like a response in flight.
       await writeGate
     }
-    await useShowStore.getState().loadShows()
-    await useShowStore.getState().openShowV2Pilot(converted.record.id)
-    const id = converted.record.id
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    const edit = useShowStore.getState().updateShowV2Pilot(id, { ...useShowStore.getState().showV2Pilots[id], name: 'Saved edit' })
+    const edit = useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Saved edit' })
     await Promise.resolve()
     await Promise.resolve()
     await useShowStore.getState().loadShows()
-    await useShowStore.getState().openShowV2Pilot(id)
     releaseWrite()
     await edit
 
-    const past = useShowStore.getState().showV2Histories[id]?.past ?? []
-    expect(past.length).toBeGreaterThan(0)
-    await expect(useShowStore.getState().undoShowV2Pilot(id)).resolves.toBe(true)
+    const past = useShowStore.getState().showHistories[show.id]?.past ?? []
+    expect(past[past.length - 1]?.scenes[0].name).toBe('Scene 1')
+    await expect(useShowStore.getState().undoShow(show.id)).resolves.toBe(true)
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Scene 1')
   })
 
-  // DEFECT: v2 openShowV2Pilot queues behind in-flight saves and loadShows clears pilots/histories,
-  // so the mid-flight newer-row win cannot be exercised as v1 does; no spec section 10 row covers it.
-  it.skip('does not resurrect an older write over a newer record loaded mid-flight (#792)', async () => {
-    // Ported to v2: a newer stored row wins over an in-flight older write; no history replays the superseded write.
-    const show = { ...transitionV1Show('crossfade'), id: 'show-remote-newer', name: 'Remote base', updatedAt: 1 }
-    const converted = convertShowRecordV1ToV2(show)
-    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    const { stored, provider } = v2ProviderForPort([converted.record])
-    const realReplace = provider.replaceShowV2
+  // v2 port blocked by #1115: v2 openShowV2Pilot queues behind in-flight saves and loadShows clears pilots/histories, so the mid-flight newer-row win cannot be exercised as v1 does; no spec section 10 row covers it.
+  it('does not resurrect an older write over a newer record loaded mid-flight (#792)', async () => {
+    const show = createDefaultShow('show-remote-newer', 'Remote base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
     let releaseWrite!: () => void
     const writeGate = new Promise<void>((resolve) => { releaseWrite = resolve })
     let gateFirst = true
-    provider.replaceShowV2 = async (pid: string, record: ShowRecordV2) => {
-      await (realReplace as (a: string, b: ShowRecordV2) => Promise<void>)(pid, record)
+    provider.updateShow = async (id, changes) => {
+      await realUpdate(id, changes)
       if (gateFirst) {
         gateFirst = false
         await writeGate
       }
     }
-    await useShowStore.getState().loadShows()
-    await useShowStore.getState().openShowV2Pilot(converted.record.id)
-    const id = converted.record.id
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    const edit = useShowStore.getState().updateShowV2Pilot(id, { ...useShowStore.getState().showV2Pilots[id], name: 'Mine' })
+    const edit = useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Mine' })
     await Promise.resolve()
     await Promise.resolve()
-    const theirIdx = stored.findIndex((c) => c.id === id)
-    stored[theirIdx] = { ...stored[theirIdx], name: 'Theirs', updatedAt: Date.now() + 60_000 }
+    // Another client saves a newer record while our response is in flight.
+    await realUpdate(show.id, { name: 'Theirs', updatedAt: Date.now() + 60_000 })
     await useShowStore.getState().loadShows()
-    await useShowStore.getState().openShowV2Pilot(id)
     releaseWrite()
     await edit
 
-    expect(useShowStore.getState().showV2Pilots[id].name).toBe('Theirs')
-    await expect(useShowStore.getState().undoShowV2Pilot(id)).resolves.toBe(false)
-    expect(useShowStore.getState().showV2Pilots[id].name).toBe('Theirs')
+    // The newer loaded record wins: no history is restored that undo could
+    // use to replay our superseded write over it.
+    expect(useShowStore.getState().shows[0].name).toBe('Theirs')
+    await expect(useShowStore.getState().undoShow(show.id)).resolves.toBe(false)
+    expect(useShowStore.getState().shows[0].name).toBe('Theirs')
 
-    provider.replaceShowV2 = async () => { throw new Error('offline') }
-    await expect(useShowStore.getState().updateShowV2Pilot(id, { ...useShowStore.getState().showV2Pilots[id], name: 'Lost' })).rejects.toThrow('offline')
-    expect(useShowStore.getState().showV2Pilots[id].name).toBe('Theirs')
+    // A later failed write still rolls back to the newer durable record.
+    provider.updateShow = async () => { throw new Error('offline') }
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost' })
+    expect(useShowStore.getState().shows[0].name).toBe('Theirs')
   })
 
 
