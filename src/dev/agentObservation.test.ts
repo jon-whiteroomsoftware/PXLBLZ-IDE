@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import { showStageRecordDigestV2 } from '@/engine/showPreparedStageV2'
 import {
   createObservationLog,
   showRecordDigest,
@@ -29,6 +31,29 @@ describe('showRecordDigest', () => {
   it('is a stable eight-hex-digit string', () => {
     expect(showRecordDigest(base)).toMatch(/^[0-9a-f]{8}$/)
     expect(showRecordDigest(structuredClone(base))).toBe(showRecordDigest(base))
+  })
+
+  it('keeps the v1 digest the old field-subset hash produced', () => {
+    // Pinned from a run of the pre-#1067 implementation.
+    expect(showRecordDigest(base)).toBe('3418dfb2')
+  })
+
+  it('gives a v2 record the Stage digest, so adoption and preview agree', () => {
+    const v2 = {
+      version: 2,
+      id: 'show-v2',
+      name: 'V2',
+      zones: [{ id: 'z1', name: 'main', nominalPixelCount: 60 }],
+      zoneLayouts: [],
+      composition: { showEndMs: 30_000, tracks: [] },
+      outputContract: base.outputContract,
+      // A field outside the old v2 subset: the Stage digest sees it.
+      targetControllerProfileId: 'profile-a',
+      updatedAt: 1,
+    } as unknown as ShowRecordV2
+    expect(showRecordDigest(v2)).toBe(showStageRecordDigestV2(v2))
+    expect(showRecordDigest({ ...v2, updatedAt: 999 })).toBe(showRecordDigest(v2))
+    expect(showRecordDigest({ ...v2, name: 'renamed' })).toBe(showRecordDigest(v2))
   })
 })
 

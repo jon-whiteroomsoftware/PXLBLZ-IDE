@@ -8,6 +8,7 @@
 // Pattern source (a record is reduced to a digest), and the only way out is
 // `window.__pxlblzObservations.read()`, which hands back copies.
 import { isShowRecordV2, type ShowDocument } from '@/engine/showDocument'
+import { showStageRecordDigestV2 } from '@/engine/showPreparedStageV2'
 
 export type AgentApplyPhase =
   /** `applyShow` was called with a record for this editor install. */
@@ -92,18 +93,13 @@ export function createObservationLog(capacity = 200): ObservationLog {
  * FNV-1a over the choreography a Show compiles from. The client stamp and the
  * display name are excluded so the same edit adopted by the store and
  * compiled by the preview yields one digest even though adoption keeps the
- * candidate's captured `updatedAt`.
+ * candidate's captured `updatedAt`. A v2 record takes the v2 Stage digest
+ * (`showStageRecordDigestV2`), so v2 adoption and the v2 Stage report one
+ * digest for one edit.
  */
 export function showRecordDigest(show: ShowDocument): string {
-  const text = JSON.stringify(isShowRecordV2(show) ? {
-    version: 2,
-    zones: show.zones,
-    zoneLayouts: show.zoneLayouts,
-    composition: show.composition,
-    outputEffects: show.outputEffects ?? null,
-    outputContract: show.outputContract,
-    stageMapId: show.stageMapId ?? null,
-  } : {
+  if (isShowRecordV2(show)) return showStageRecordDigestV2(show)
+  const text = JSON.stringify({
     scenes: show.scenes,
     zones: show.zones,
     cells: show.cells,

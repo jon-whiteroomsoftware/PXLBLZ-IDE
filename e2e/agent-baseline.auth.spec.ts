@@ -487,8 +487,11 @@ function firstMainV1(show: PersistedShow | undefined): MainFacts | undefined {
 
 /** Open the Clip's detail panel, read the fields the author sees, and close it. */
 async function visibleClipFacts(page: Page, patternName: string): Promise<{ durationSeconds: string; brightnessPercent: string }> {
-  await page.getByRole('button', { name: `Select ${patternName}`, exact: true }).first().click()
+  // A Clip click toggles its own open panel (ShowEditor.tsx:1541-1545), and a drop can leave the moved Clip's panel open, so the helper reads an already-open panel instead of toggling it.
   const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+  if (!(await panel.getByRole('heading', { name: patternName, exact: true }).isVisible())) {
+    await page.getByRole('button', { name: `Select ${patternName}`, exact: true }).first().click()
+  }
   await expect(panel).toBeVisible()
   const durationSeconds = await panel.getByRole('textbox', { name: 'Duration seconds exact time' }).inputValue()
   const brightnessPercent = await panel.getByRole('textbox', { name: /^Brightness exact/ }).inputValue()
@@ -498,8 +501,11 @@ async function visibleClipFacts(page: Page, patternName: string): Promise<{ dura
 }
 
 async function visibleClipStart(page: Page, patternName: string): Promise<string> {
-  await page.getByRole('button', { name: `Select ${patternName}`, exact: true }).first().click()
+  // A Clip click toggles its own open panel (ShowEditor.tsx:1541-1545), and a drop can leave the moved Clip's panel open, so the helper reads an already-open panel instead of toggling it.
   const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+  if (!(await panel.getByRole('heading', { name: patternName, exact: true }).isVisible())) {
+    await page.getByRole('button', { name: `Select ${patternName}`, exact: true }).first().click()
+  }
   await expect(panel).toBeVisible()
   const startSeconds = await panel.getByRole('textbox', { name: 'Start seconds exact time' }).inputValue()
   await page.keyboard.press('Escape')
@@ -814,7 +820,13 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     test.setTimeout(90_000)
     const writes = watchShowWrites(page)
     const other = personalBaseShow(`baseline-away-${Date.now().toString(36)}`)
-    const seeded = await page.context().request.post('/api/shows', { data: other })
+    await page.goto('studio/shows')
+    const converted = (await page.evaluate(async (input) => {
+      const load = (path: string) => import(path)
+      const { convertBaselineRecord } = await load('/PXLBLZ-IDE/src/agent-harness/baseline/fixturesV2.ts')
+      return convertBaselineRecord(input.source, 'baseline D away show', input.patterns)
+    }, { source: other, patterns: [] })) as ShowRecordV2
+    const seeded = await page.context().request.post('/api/shows?show-version=2', { data: converted })
     expect(seeded.status(), await seeded.text()).toBe(201)
     const showId = await createPersonalShowV2(page)
     const original = await durableShow(page, showId)
@@ -1776,7 +1788,10 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     const reopened = await page.evaluate(async bytes => {
       const load = (path: string) => import(path)
       const { parseShowFileBundle } = await load('/PXLBLZ-IDE/src/engine/showFileBundle.ts')
-      return parseShowFileBundle(new Uint8Array(bytes))
+      // H exports a version-2 bundle, so opt in like the product import
+      // (src/components/PatternList.tsx:304-306); the Show record stays in
+      // `show` on a version-2 bundle (src/engine/showFileBundle.ts:37).
+      return parseShowFileBundle(new Uint8Array(bytes), { acceptV2: true })
     }, [...readFileSync((await file.path())!)])
     expect(reopened.show).toEqual(current)
     await expect.poll(async () => phaseTimeline(request, await readObservations(page), writes).adoptedToPreviewPublishedMs).not.toBeNull()
