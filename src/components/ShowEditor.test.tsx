@@ -2549,29 +2549,25 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
   })
 
-  // DEFECT (#1042 Phase 2a-2): the converted boundary holds a speed ramp on the
-  // incoming CometLoom Clip's instance (propertyRamps from 0.5), yet the timeline
-  // Clip summary reads "defaults", not "animated". No spec §10 row covers it.
-  it.skip('keeps compatibility Clip animation summaries aligned between timeline and Detail (#599 review)', async () => {
+  // v2 port blocked by #1111: converted boundary speed ramp shows the timeline Clip summary as defaults, not animated
+  it('keeps compatibility Clip animation summaries aligned between timeline and Detail (#599 review)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-compatibility-clip-summary', 'Compatibility Clip summary', 1000)
     show.transitions = [{
       ...show.transitions![0],
       propertyTransitions: {
-        // The converter keeps only the incoming cell's ramp start (showRecordV1ToV2.ts:990),
-        // so the fixture keys the ramp on the incoming CometLoom cell.
         timeScale: {
-          fromByCellId: { [show.cells[1].id]: 0.5 },
+          fromByCellId: { [show.cells[0].id]: 0.5 },
           durationMs: 1_000,
           easing: { curve: 'linear' },
         },
       },
     }]
-    const editor = openV2EditorForRecord(convertForTest(show))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={show.id} />)
 
-    const clip = screen.getByRole('button', { name: 'Select CometLoom' })
+    const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
     expect(within(clip).getByText('animated')).toBeInTheDocument()
 
     await user.click(clip)
@@ -2580,17 +2576,16 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       .getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Animation speedanimated')
   })
 
-  // DEFECT (#1042 Phase 2a-2): on the converted flat boundary, applying Star from
-  // the Change palette closes the palette with no v2 write and no refusal text;
-  // Block applies through the same palette. No spec §10 row covers it.
-  it.skip('previews, restores and applies a boundary Transition from the Change palette (#1065)', async () => {
+  // v2 port blocked by #1111: applying Star from the Change palette on the converted boundary makes no v2 write and shows no refusal
+  it('previews, restores and applies a boundary Transition from the Change palette (#1065)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-boundary-palette', 'Boundary palette', 1000)
-    const editor = openV2EditorForRecord(convertForTest(show))
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useShowTransportStore.getState().openShow(show.id, 62_000)
     useShowTransportStore.getState().setPosition(show.id, 5_000)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
     }))
@@ -2602,44 +2597,39 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const star = within(palette).getByRole('button', { name: 'Use Star Transition' })
 
     // Hovering previews the candidate on the Stage and seeks into the boundary.
-    // A v2 preview is published as `showV2` (showPreviewOverrideStore.ts).
     fireEvent.pointerEnter(star)
-    const previewed = useShowPreviewOverrideStore.getState().showV2
-    expect(previewed?.composition.transitions[0]).toMatchObject({ kind: 'portal', shape: 'star' })
+    const previewed = useShowPreviewOverrideStore.getState().show
+    expect(previewed?.transitions?.[0]).toMatchObject({ kind: 'portal', shape: 'star' })
     expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
     // Leaving restores both the Stage and the position the palette opened at.
     fireEvent.pointerLeave(star)
-    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
     expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(5_000)
 
     fireEvent.pointerEnter(star)
     // The applied candidate is the record the Stage previewed, not a second
     // computation of it: the same snapshot the palette hovered is persisted.
-    const hovered = useShowPreviewOverrideStore.getState().showV2
+    const hovered = useShowPreviewOverrideStore.getState().show
     await user.click(star)
 
     await waitFor(() => {
-      expect(editor.state().v2Writes).toBe(1)
-      expect(editor.state().record.composition.transitions[0]).toEqual(hovered?.composition.transitions[0])
+      const saved = useShowStore.getState().shows[0]
+      expect(saved.transitions?.[0]).toEqual(hovered?.transitions?.[0])
     })
-    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
     // Applying keeps the boundary position rather than restoring, as v1 does.
     expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
     expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
   })
 
-  // DEFECT (#1042 Phase 2a-2): committing "Animation speed target main exact
-  // multiplier" (0x, and 0.1x in a probe) on the converted boundary inspector
-  // leaves the field showing the new value but makes no v2 write; the incoming
-  // instance keeps timeScale 0.25. The repeat-scale half passes alone.
-  it.skip('authors boundary speed and repeat scales as multipliers while persisting raw values (#610)', async () => {
+  // v2 port blocked by #1111: committing the boundary speed multiplier makes no v2 write; the incoming instance keeps timeScale 0.25
+  it('authors boundary speed and repeat scales as multipliers while persisting raw values (#610)', async () => {
     const user = userEvent.setup()
-    // One v1 boundary cannot carry both ramps on v2: a speed ramp converts only
-    // at Layer participant scope, and a Scene repeat-scale change needs whole-output
-    // scope (showRecordV1ToV2.ts:306-312; spec §10 "Boundary speed and brightness
-    // ramps convert only on flat Shows, held on the Transition"). The speed half
-    // and the repeat half therefore run on two converted boundaries.
     const show = createDefaultShow('show-boundary-domain-units', 'Boundary domain units', 1000)
+    show.scenes = [
+      { ...show.scenes[0], sampleTargets: { repeatScale: 1 } },
+      { ...show.scenes[1], sampleTargets: { repeatScale: 2 } },
+    ]
     show.cells[1] = {
       ...show.cells[1],
       adaptations: { ...show.cells[1].adaptations, timeScale: 0.25 },
@@ -2651,25 +2641,15 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
           fromByCellId: { [show.cells[1].id]: 0.5 },
           durationMs: 1_000,
         },
-      },
-    }]
-    const repeatShow = createDefaultShow('show-boundary-domain-repeat', 'Boundary domain repeat', 1000)
-    repeatShow.scenes = [
-      { ...repeatShow.scenes[0], sampleTargets: { repeatScale: 1 } },
-      { ...repeatShow.scenes[1], sampleTargets: { repeatScale: 2 } },
-    ]
-    repeatShow.transitions = [{
-      ...repeatShow.transitions![0],
-      propertyTransitions: {
         sample: {
           repeatScale: { from: 1.5, durationMs: 1_000 },
         },
       },
     }]
-    const repeatRecord = convertForTest(repeatShow)
-    const editor = openV2EditorForRecord(convertForTest(show))
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    const { unmount } = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
     }))
@@ -2699,31 +2679,15 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     expect(screen.getByRole('textbox', { name: 'Animation speed start main exact multiplier' })).toHaveValue('0.5')
     expect(screen.getByRole('textbox', { name: 'Animation speed target main exact multiplier' })).toHaveValue('0.25')
-
-    changeCommittedNumber('Animation speed target main exact multiplier', '0x')
-
-    // v2 holds the incoming Clip's speed on its Pattern instance (showCompositionV2.ts ShowCompositionV2).
-    await waitFor(() => {
-      const { clips, patternInstances } = editor.state().record.composition
-      const incoming = [...clips].sort((left, right) => right.startMs - left.startMs)[0]
-      expect(patternInstances.find((instance) => instance.id === incoming.instanceId)?.time.timeScale).toBe(0)
-    })
-
-    unmount()
-    const repeatEditor = openV2EditorForRecord(repeatRecord)
-    render(<ShowEditor showId={repeatEditor.showId} recordVersion={2} />)
-    await user.click(screen.getByRole('button', {
-      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
-    }))
-    await user.click(screen.getByText('Advanced transition controls'))
     expect(screen.getByRole('textbox', { name: 'Repeat scale start exact multiplier' })).toHaveValue('1.5')
 
+    changeCommittedNumber('Animation speed target main exact multiplier', '0x')
     changeCommittedNumber('Repeat scale start exact multiplier', '2x')
 
-    // v2 holds the repeat ramp as a show-repeat-scale Transition ramp (showCompositionV2.ts ShowPropertyTargetV2).
     await waitFor(() => {
-      const { transitions } = repeatEditor.state().record.composition
-      expect(transitions[0].propertyRamps.find((ramp) => ramp.target.kind === 'show-repeat-scale')?.from).toBe(2)
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.cells[1].adaptations.timeScale).toBe(0)
+      expect(saved.transitions?.[0].propertyTransitions?.sample?.repeatScale?.from).toBe(2)
     })
   })
 
@@ -2849,10 +2813,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
   })
 
-  // DEFECT (#1042 Phase 2a-2): an Option-drag over the position overlapping the
-  // blocker still shows the move preview, which v1 withheld for an invalid
-  // target; same cause as "only shows a Clip move outline…". No §10 row covers it.
-  it.skip('cancels Option-drag over an invalid target or without a drop without changing history (#668)', async () => {
+  // v2 port blocked by #1111: Option-drag over an invalid target still shows the move preview v1 withheld
+  it('cancels Option-drag over an invalid target or without a drop without changing history (#668)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-option-drag-cancel', 'Option drag cancel', 1000)
     const zoneId = show.zones[0].id
@@ -2890,14 +2852,15 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         }],
       })),
     }
-    const editor = openV2EditorForRecord(convertForTest(show))
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useShowEditorSessionStore.setState({
       snapEnabled: false,
       markersVisible: false,
       markerSnapEnabled: false,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={show.id} />)
     const clip = screen.getByRole('button', { name: 'Select Cancel Source' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
     Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
@@ -2918,7 +2881,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       return event
     }
     await user.click(clip)
-    const before = structuredClone(editor.state().record)
+    const before = structuredClone(useShowStore.getState().shows[0])
 
     fireEvent(clip, dragEvent('dragstart', 20, true))
     fireEvent(layer, dragEvent('dragover', 50))
@@ -2927,9 +2890,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     fireEvent(layer, dragEvent('drop', 50))
     fireEvent(clip, dragEvent('dragend', 50))
 
-    expect(editor.state().record).toEqual(before)
-    expect(editor.state().history.past).toEqual([])
-    expect(editor.state().v2Writes).toBe(0)
+    expect(useShowStore.getState().shows[0]).toEqual(before)
+    expect(useShowStore.getState().showHistories[show.id]?.past ?? []).toEqual([])
     expect(clip).toHaveAttribute('aria-pressed', 'true')
 
     // Native drag-and-drop reports Escape and outside releases as dragend
@@ -2937,9 +2899,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     fireEvent(clip, dragEvent('dragstart', 20, true))
     fireEvent(clip, dragEvent('dragend', 200))
 
-    expect(editor.state().record).toEqual(before)
-    expect(editor.state().history.past).toEqual([])
-    expect(editor.state().v2Writes).toBe(0)
+    expect(useShowStore.getState().shows[0]).toEqual(before)
+    expect(useShowStore.getState().showHistories[show.id]?.past ?? []).toEqual([])
     expect(screen.queryByTestId('show-clip-move-preview')).not.toBeInTheDocument()
   })
 
@@ -3112,10 +3073,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
   })
 
-  // DEFECT (#1042 Phase 2a-2): dragging over the 5-9 s position that overlaps the
-  // 8-12 s obstruction shows a move outline (left 5 s, data-drag-mode "move"),
-  // but dropping there makes no v2 write. No spec §10 row covers it.
-  it.skip('only shows a Clip move outline for a position that can be committed', async () => {
+  // v2 port blocked by #1111: a move outline shows over an obstructed position where the drop makes no v2 write
+  it('only shows a Clip move outline for a position that can be committed', async () => {
     const show = createDefaultShow('show-clip-valid-drop-preview', 'Valid Clip drop preview', 1000)
     const zoneId = show.zones[0].id
     show.composition = {
@@ -3154,14 +3113,15 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         }],
       })),
     }
-    const editor = openV2EditorForRecord(convertForTest(show))
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useShowEditorSessionStore.setState({
       snapEnabled: false,
       markersVisible: false,
       markerSnapEnabled: false,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={show.id} />)
 
     const clip = screen.getByRole('button', { name: 'Select Drop Contract' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -3202,8 +3162,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     fireEvent(clip, dragEvent('dragend', 30))
 
     await waitFor(() => {
-      const saved = editor.state().record.composition.clips.find((clip) => clip.id === 'placement-valid-drop-preview')
-      expect(saved?.startMs).toBe(3_000)
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main[0].startMs).toBe(3_000)
     })
   })
 
@@ -3649,11 +3609,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
-  // DEFECT (#1042 Phase 2a-2): the start-resize preview snaps to the 29 s playhead
-  // (left 29 s, width 8 s), but release is refused with the status "This edit
-  // isn't possible here." and no v2 write; the Clip stays at 32-37 s. v1 committed
-  // the resize. No spec §10 row covers the refusal itself.
-  it.skip('always snaps a Clip edge to the playhead across a hidden Scene boundary', async () => {
+  // v2 port blocked by #1111: the playhead-snapped start resize is refused on release with no v2 write
+  it('always snaps a Clip edge to the playhead across a hidden Scene boundary', async () => {
     const show = createDefaultShow('show-resize-playhead-snap', 'Resize to playhead', 1000)
     const zoneId = show.zones[0].id
     show.composition = {
@@ -3679,7 +3636,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         }],
       })),
     }
-    const editor = openV2EditorForRecord(convertForTest(show))
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useShowTransportStore.setState({
       showId: show.id,
       durationMs: 62_000,
@@ -3691,7 +3649,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       markerSnapEnabled: false,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={show.id} />)
 
     const clip = screen.getByRole('button', { name: 'Select Playhead Trim' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -3709,13 +3667,17 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     fireEvent.pointerUp(window, { clientX: 291, pointerId: 1 })
 
-    // v2 has no Scene boundary to split at: the resized Clip stays one flat Clip
-    // from the playhead to its unchanged end (showCompositionV2.ts ShowClipV2).
     await waitFor(() => {
-      expect(editor.state().record.composition.clips).toContainEqual(expect.objectContaining({
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main).toContainEqual(expect.objectContaining({
         id: 'placement-resize-playhead',
         startMs: 29_000,
-        durationMs: 8_000,
+        durationMs: 1_000,
+      }))
+      expect(saved.composition?.scenes[1].zones[0].main).toContainEqual(expect.objectContaining({
+        logicalClipId: 'placement-resize-playhead',
+        startMs: 0,
+        durationMs: 5_000,
       }))
     })
   })
@@ -3854,12 +3816,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(editor.state().v2Writes).toBe(0)
   })
 
-  // DEFECT (#1042 Phase 2a-2): the converter writes the Scene-spanning cell as two
-  // Clips (placement-cell-1-scene-1, placement-cell-1-scene-2) without a
-  // logicalClipId, so Delete is enabled and removes one of them (one v2 write).
-  // Spec §10 (line 771) keeps the final-Clip count on the logical Clip only via
-  // logicalClipId. This may be a map misclassification rather than an editor defect.
-  it.skip('blocks deletion when the final flat Clip spans multiple projected placements (#63)', async () => {
+  // v2 port blocked by #1111: the Scene-spanning cell converts to two Clips without a logicalClipId, so Delete removes one
+  it('blocks deletion when the final flat Clip spans multiple projected placements (#63)', async () => {
     const user = userEvent.setup()
     const show = extendShowCell(
       removeShowClip(
@@ -3869,10 +3827,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       'cell-1',
       2,
     )
-    const editor = openV2EditorForRecord(convertForTest(show))
-    const before = structuredClone(editor.state().record)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={show.id} />)
     const firstProjectedPlacement = screen.getAllByRole('button', { name: 'Select TestPattern1D' })
       .find((button) => button.getAttribute('data-show-selection-key') === 'clip:placement-cell-1-scene-1')
     expect(firstProjectedPlacement).toBeDefined()
@@ -3885,15 +3843,12 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByRole('status', { name: 'Clip deletion unavailable' })).toHaveTextContent(
       'A Show must contain at least one Clip.',
     )
-    expect(editor.state().record).toEqual(before)
-    expect(editor.state().v2Writes).toBe(0)
+    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)?.cells).toEqual(show.cells)
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
   })
 
-  // DEFECT (#1042 Phase 2a-2): as above for Zones: the Zone-spanning cell converts
-  // to placement-cell-1-scene-1-zone-1 and -zone-2 without a logicalClipId, and
-  // Delete removes the zone-1 Clip. No spec §10 row covers it.
-  it.skip('blocks deletion when the final flat Clip spans multiple projected Zones (#63)', async () => {
+  // v2 port blocked by #1111: the Zone-spanning cell converts to two Clips without a logicalClipId, so Delete removes one
+  it('blocks deletion when the final flat Clip spans multiple projected Zones (#63)', async () => {
     const user = userEvent.setup()
     let show = removeShowClip(
       createDefaultShow('show-protect-zone-spanned-final-clip', 'Protect Zone-spanned final Clip', 1000),
@@ -3901,10 +3856,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     )
     show = addShowZone(show, { name: 'accent' })
     show = spanShowCellZones(show, 'cell-1', 2)
-    const editor = openV2EditorForRecord(convertForTest(show))
-    const before = structuredClone(editor.state().record)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={show.id} />)
     const projectedPlacements = screen.getAllByRole('button', { name: 'Select TestPattern1D' })
     expect(projectedPlacements).toHaveLength(2)
     await user.click(projectedPlacements[0])
@@ -3913,8 +3868,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await user.keyboard('{Delete}')
 
     expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()
-    expect(editor.state().record).toEqual(before)
-    expect(editor.state().v2Writes).toBe(0)
+    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)?.cells).toEqual(show.cells)
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
   })
 
