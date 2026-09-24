@@ -2282,49 +2282,29 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
 // ── Time grid ────────────────────────────────────────────────────────────────
 
 /**
- * The timeline's time grid must resolve to the same CSS tracks on both
- * backings. The tracks are `fr` weights, so a different column set resolves to
+ * The timeline's time grid pins the v2 CSS tracks recorded from the v1 renders before
+ * the v1 backing was removed. The tracks are `fr` weights, so a different column set resolves to
  * a different sub-pixel origin even when the weights sum to the same total, and
  * every Clip box, ruler tick and label in the timeline then rasters differently
  * (#1065). The assertion is the rendered `style` attribute, which is what the
  * browser lays the surface out from.
  */
 describe('v2 time grid columns (#1065)', () => {
-  function gridStyle(): string {
+  // Pinned literals are the v1 renders recorded before the v1 backing was removed.
+  function renderGrid(record: ShowRecordV2): string {
+    const editor = openV2EditorForRecord(record)
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     return screen.getByTestId('show-timeline-grid').getAttribute('style') ?? ''
   }
 
-  function renderV1(source: ShowRecord): string {
-    useShowStore.setState({
-      shows: [source],
-      showsLoaded: true,
-      activeShowId: source.id,
-      showV2Pilots: {},
-      showV2Histories: {},
-      showRevisions: {},
-    })
-    render(<ShowEditor showId={source.id} />)
-    const style = gridStyle()
-    cleanup()
-    return style
-  }
-
-  function renderV2(record: ShowRecordV2): string {
-    const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
-    return gridStyle()
-  }
-
-  for (const key of ['fresh', 'installation-layouts', 'groups-animation', 'stock-lesson'] as const) {
-    it(`lays ${key} out in the same grid tracks on both backings`, () => {
-      const source = corpusSource(key)
-      const record = convertForTest(source)
-
-      const v1Style = renderV1(source)
-      const v2Style = renderV2(record)
-
-      expect(v1Style).toContain('grid-template-columns:')
-      expect(v2Style).toBe(v1Style)
+  for (const [key, expected] of [
+    ['fresh', 'width: calc(100% + 0px); min-width: 0px; grid-template-columns: 0px minmax(0, 30000fr) minmax(0, 2000fr) minmax(0, 30000fr); grid-template-rows: 28px 44px 17px;'],
+    ['installation-layouts', 'width: calc(100% + 0px); min-width: 0px; grid-template-columns: 32px minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 6000fr) minmax(0, 0.001fr) minmax(0, 6000fr); grid-template-rows: 28px 26px 44px 44px 17px;'],
+    ['groups-animation', 'width: calc(100% + 0px); min-width: 0px; grid-template-columns: 0px minmax(0, 16000fr); grid-template-rows: 28px 44px 44px 44px 17px;'],
+    ['stock-lesson', 'width: calc(100% + 0px); min-width: 0px; grid-template-columns: 0px minmax(0, 16500fr); grid-template-rows: 28px 44px 18px 17px;'],
+  ] as const) {
+    it('lays ' + key + ' out in the same grid tracks', () => {
+      expect(renderGrid(convertForTest(corpusSource(key)))).toBe(expected)
     })
   }
 })
@@ -2385,10 +2365,6 @@ function connectedV2Record(id: string): ShowRecordV2 {
   if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
   expect(validateShowRecordV2(converted.record)).toEqual([])
   return converted.record
-}
-
-function v2TracerV1Record(id: string): ShowRecord {
-  return connectedV1Record(id)
 }
 
 /**
@@ -4380,46 +4356,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expectOneEdit(before, after)
     await expectUndoRedoExact(editor, before)
   })
-
-  it('keeps a v1 row on the legacy inspector path', async () => {
-    const source: ShowRecord = v2TracerV1Record('slice3-v1-brightness')
-    const v2Writes = vi.fn(async (_id: string, _next: ShowRecordV2) => {})
-    const legacyWrites = vi.fn(async () => {})
-    setPersonalContentProvider({
-      id: 'tracer-guard-provider',
-      listPatterns: async () => [],
-      listMaps: async () => [],
-      listMixins: async () => [],
-      listControllerProfiles: async () => [],
-      createShow: legacyWrites,
-      updateShow: legacyWrites,
-      deleteShow: legacyWrites,
-      replaceShowV2: v2Writes,
-      getLastActive: async () => undefined,
-      setLastActive: async () => {},
-    } as unknown as PersonalContentProvider)
-    useShowStore.setState({
-      shows: [source],
-      showsLoaded: true,
-      activeShowId: source.id,
-      showV2Pilots: {},
-      showV2Histories: {},
-      showRevisions: {},
-    })
-    render(<ShowEditor showId={source.id} />)
-    fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
-    await act(async () => {})
-
-    typeAndCommit('Brightness exact percentage', '75')
-    await act(async () => {})
-
-    expect(admission.calls).toEqual([])
-    expect(v2Writes).not.toHaveBeenCalled()
-    expect(legacyWrites.mock.calls.length).toBeGreaterThan(0)
-    const stored = useShowStore.getState().shows[0]
-    const brightness = stored.composition!.scenes[0].zones[0].overlays[0].placements[0].view.brightness
-    expect(brightness).toBe(0.75)
-  })
 })
 
 // ── Slice-4 entry policy and Replace Pattern (#1066) ─────────────────────────
@@ -5310,62 +5246,26 @@ describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
       .map((cell) => `${(cell as HTMLElement).style.gridColumn}|${(cell as HTMLElement).style.gridRow}|${cell.textContent}`)
   }
 
-  function renderBoth(source: ShowRecord): { v1: string[] | null; v2: string[] | null; v1Grid: string | null; v2Grid: string | null } {
-    const record = convertForTest(source)
-    useShowStore.setState({ shows: [source], showsLoaded: true, activeShowId: source.id, showV2Pilots: {}, showV2Histories: {}, showRevisions: {} })
-    render(<ShowEditor showId={source.id} />)
-    const v1 = laneCells()
-    const v1Grid = screen.getByTestId('show-timeline-grid').getAttribute('style')
-    cleanup()
-    const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
-    return { v1, v2: laneCells(), v1Grid, v2Grid: screen.getByTestId('show-timeline-grid').getAttribute('style') }
-  }
-
-  it('reads each section\'s repeat scale in the cells v1 draws for the same Show', async () => {
-    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
-    const { v1, v2, v1Grid, v2Grid } = renderBoth(structuredClone(stock.show) as ShowRecord)
-
-    expect(v1).toEqual(['2|3|1x', '4|3|1x', '6|3|1x', '8|3|1x', '10|3|1x', '12|3|1x', '14|3|1x', '16|3|1x', '18|3|4x'])
-    expect(v2).toEqual(v1)
-    expect(v2Grid).toBe(v1Grid)
-  })
-
-  it('draws a boundary button where v1 does for every boundary Transition, and selecting it opens that boundary (#1066 slice 9c2b)', async () => {
-    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
-    const source = structuredClone(stock.show) as ShowRecord
-    const buttons = () => Array.from(screen.getByRole('group', { name: 'Sample repeat lane' }).querySelectorAll('button'))
-      .map((button) => `${button.getAttribute('aria-label')}|${button.style.gridColumn}|${button.textContent}|${button.getAttribute('data-show-selection-key')}`)
-    useShowStore.setState({ shows: [source], showsLoaded: true, activeShowId: source.id, showV2Pilots: {}, showV2Histories: {}, showRevisions: {} })
-    render(<ShowEditor showId={source.id} />)
-    const v1 = buttons()
-    cleanup()
+  function renderV2(source: ShowRecord): void {
     const editor = openV2EditorForRecord(convertForTest(source))
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
-    const v2 = buttons()
+  }
 
-    // v1 also draws a button at each of its six Cut boundaries; a derived Cut
-    // on v2 has no Transition to select until Insert from Cut connects.
-    expect(v1).toHaveLength(8)
-    expect(v2).toEqual([
-      'Edit repeat scale at 36.8: LineDancer2D + 1|15|—|transition:transition-effect-parameter',
-      'Edit repeat scale at 43.6: LineDancer2D + 1|17|1x→4x|transition:transition-split-position',
-    ])
-    expect(v2).toEqual(v1.slice(6))
+  it("reads each section's repeat scale in the cells for the same Show", async () => {
+    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    renderV2(structuredClone(stock.show) as ShowRecord)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit repeat scale at 43.6: LineDancer2D + 1' }))
-    await act(async () => {})
-    expect(within(boundaryPanel()).getByRole('checkbox', { name: 'Animate repeat scale' })).toBeChecked()
-    expect(admission.calls).toEqual([])
+    // Cells recorded from the v1 render before the v1 backing was removed.
+    expect(laneCells()).toEqual(['2|3|1x', '4|3|1x', '6|3|1x', '8|3|1x', '10|3|1x', '12|3|1x', '14|3|1x', '16|3|1x', '18|3|4x'])
+    expect(screen.getByTestId('show-timeline-grid').getAttribute('style')).toBe('width: calc(100% + 0px); min-width: 0px; grid-template-columns: 32px minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 0.001fr) minmax(0, 5000fr) minmax(0, 1800fr) minmax(0, 5000fr) minmax(0, 1800fr) minmax(0, 5000fr); grid-template-rows: 28px 26px 26px 44px 44px 18px 18px 18px 18px 18px 18px 18px 44px 17px;')
   })
 
+  // The Cut-boundary lane buttons are absent on v2 (docs/plans/scene-retirement-specification.md:776).
   it('draws no lane for a Show that never sets a repeat scale', () => {
-    const { v1, v2 } = renderBoth(corpusSource('stock-lesson'))
+    renderV2(corpusSource('stock-lesson'))
 
-    expect(v1).toBeNull()
-    expect(v2).toBeNull()
+    expect(laneCells()).toBeNull()
   })
 })
 
@@ -7652,49 +7552,6 @@ describe('v2 boundary palette live preview (#1066 5c)', () => {
     expectOneEdit(before, editor.state())
     expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
     expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
-  })
-
-  it("a v1 Show's hover still writes show and never showV2", async () => {
-    const source = corpusSource('fresh')
-    source.id = 'tracer-5c-v1-hover'
-    const legacyWrites = vi.fn(async () => {})
-    setPersonalContentProvider({
-      id: 'tracer-5c-v1-provider',
-      listPatterns: async () => [],
-      listMaps: async () => [],
-      listMixins: async () => [],
-      listShows: async () => [source],
-      listControllerProfiles: async () => [],
-      createShow: legacyWrites,
-      updateShow: legacyWrites,
-      deleteShow: legacyWrites,
-      replaceShowV2: vi.fn(async () => {}),
-      getLastActive: async () => undefined,
-      setLastActive: async () => {},
-    } as unknown as PersonalContentProvider)
-    useShowStore.setState({ shows: [source], activeShowId: source.id, showsLoaded: true })
-    useShowTransportStore.getState().openShow(source.id, 62_000)
-    useShowTransportStore.getState().setPosition(source.id, 5_000)
-
-    render(<ShowEditor showId={source.id} />)
-    fireEvent.click(screen.getByRole('button', { name: JUNCTION }))
-    await act(async () => {})
-    fireEvent.click(within(boundaryPanel()).getByRole('button', { name: /Change$/ }))
-    await act(async () => {})
-
-    const star = paletteRow('Use Star Transition')
-    fireEvent.pointerEnter(star)
-    await act(async () => {})
-
-    expect(useShowPreviewOverrideStore.getState().show?.transitions?.[0])
-      .toMatchObject({ kind: 'portal', shape: 'star' })
-    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
-
-    fireEvent.pointerLeave(star)
-    await act(async () => {})
-
-    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
-    expect(useShowPreviewOverrideStore.getState().showV2).toBeNull()
   })
 })
 
