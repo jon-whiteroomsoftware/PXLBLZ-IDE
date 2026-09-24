@@ -1,0 +1,193 @@
+{
+  "id": "stock-draft",
+  "record": {
+    "version": 2,
+    "id": "stock-show-101-clips-cuts-blank-time",
+    "name": "101 Clips, Cuts, and Blank Time",
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "Main",
+        "nominalPixelCount": 1936,
+        "color": "#38bdf8"
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "layout-main",
+        "name": "Main",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone-1"
+          ]
+        }
+      }
+    ],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 1936,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "continuous",
+      "showEndMs": 16000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "garden",
+          "pattern": {
+            "kind": "stock",
+            "id": "MetaballGarden"
+          },
+          "patternName": "MetaballGarden",
+          "time": {
+            "timeScale": 0.32,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "ribbons",
+          "pattern": {
+            "kind": "stock",
+            "id": "RibbonLoom"
+          },
+          "patternName": "RibbonLoom",
+          "time": {
+            "timeScale": 0.32,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:zone-1:main",
+          "zoneId": "zone-1",
+          "name": "Main",
+          "rank": 0
+        }
+      ],
+      "clips": [
+        {
+          "id": "clip-ribbons",
+          "instanceId": "ribbons",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 0,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-ribbons:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "clip-garden",
+          "instanceId": "garden",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 5000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-garden:appearance:1",
+                "timeMs": 5000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "clip-reprise",
+          "instanceId": "ribbons",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 12000,
+          "durationMs": 4000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-reprise:appearance:1",
+                "timeMs": 12000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "layout-main",
+          "startMs": 0,
+          "durationMs": 16000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [],
+      "markers": [
+        {
+          "id": "scene-marker:timeline",
+          "timeMs": 0,
+          "name": "Timeline",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 364
+  },
+  "patterns": [],
+  "libraries": []
+}

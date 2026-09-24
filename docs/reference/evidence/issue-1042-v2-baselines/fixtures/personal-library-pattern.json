@@ -1,0 +1,186 @@
+{
+  "id": "personal-library-pattern",
+  "record": {
+    "version": 2,
+    "id": "baseline-personal-library",
+    "name": "Baseline Library Pattern Show",
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "continuous",
+      "showEndMs": 60000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "user",
+            "id": "baseline-pattern-library-pulse"
+          },
+          "patternName": "Library Pulse",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "c2",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:z1:main",
+          "zoneId": "z1",
+          "name": "Main",
+          "rank": 0
+        }
+      ],
+      "clips": [
+        {
+          "id": "placement-c1-s1",
+          "instanceId": "c1",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 0,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c1-s1:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c2-s2",
+          "instanceId": "c2",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 30000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c2-s2:appearance:1",
+                "timeMs": 30000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "l1",
+          "startMs": 0,
+          "durationMs": 60000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [],
+      "markers": [
+        {
+          "id": "scene-marker:s1",
+          "timeMs": 0,
+          "name": "Opening",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s2",
+          "timeMs": 30000,
+          "name": "Closing",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 1757000000000
+  },
+  "patterns": [
+    {
+      "id": "baseline-pattern-library-pulse",
+      "name": "Library Pulse",
+      "src": "// A personal Pattern that calls a personal Library (Blz.half).\nexport function render(index) {\n  var h = Blz.half(index / pixelCount) + time(0.05)\n  hsv(h, 1, 1)\n}\n",
+      "controls": {},
+      "updatedAt": 1757000000000
+    }
+  ],
+  "libraries": [
+    {
+      "id": "baseline-library-blz",
+      "name": "Blz",
+      "src": "// Half of a value, kept as a Library call so the Pattern below depends on\n// personal Library resolution at compile time.\nfunction half(value) {\n  return value * 0.5\n}\n",
+      "updatedAt": 1757000000000
+    }
+  ]
+}

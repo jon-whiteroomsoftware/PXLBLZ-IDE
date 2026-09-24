@@ -1,0 +1,333 @@
+{
+  "id": "routing",
+  "record": {
+    "version": 2,
+    "id": "stock-show-206-changing-zone-layouts",
+    "name": "206 Changing Zone Layouts",
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "Weave",
+        "nominalPixelCount": 968,
+        "color": "#38bdf8"
+      },
+      {
+        "id": "zone-2",
+        "name": "Water",
+        "nominalPixelCount": 968,
+        "color": "#f97316"
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "layout-full",
+        "name": "Full Surface",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone-1"
+          ]
+        }
+      },
+      {
+        "id": "layout-split",
+        "name": "Moving Split",
+        "zones": [],
+        "logical": {
+          "kind": "split",
+          "zoneIds": [
+            "zone-1",
+            "zone-2"
+          ],
+          "axis": "x"
+        }
+      },
+      {
+        "id": "layout-rings",
+        "name": "Rings",
+        "zones": [],
+        "logical": {
+          "kind": "rings",
+          "zoneIds": [
+            "zone-1",
+            "zone-2"
+          ],
+          "rings": 2
+        }
+      }
+    ],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 1936,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "continuous",
+      "showEndMs": 17000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "loom",
+          "pattern": {
+            "kind": "stock",
+            "id": "RibbonLoom"
+          },
+          "patternName": "RibbonLoom",
+          "time": {
+            "timeScale": 0.32,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "water",
+          "pattern": {
+            "kind": "stock",
+            "id": "IceFloes2D"
+          },
+          "patternName": "IceFloes2D",
+          "time": {
+            "timeScale": 0.32,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:zone-1:main",
+          "zoneId": "zone-1",
+          "name": "Main",
+          "rank": 0
+        },
+        {
+          "id": "layer:zone-2:main",
+          "zoneId": "zone-2",
+          "name": "Main",
+          "rank": 0
+        }
+      ],
+      "clips": [
+        {
+          "id": "clip-full-loom",
+          "instanceId": "loom",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 0,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-full-loom:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "clip-split-loom",
+          "instanceId": "loom",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 5000,
+          "durationMs": 6000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-split-loom:appearance:1",
+                "timeMs": 5000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "clip-split-water",
+          "instanceId": "water",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 5000,
+          "durationMs": 6000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-split-water:appearance:1",
+                "timeMs": 5000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "clip-rings-loom",
+          "instanceId": "loom",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 11000,
+          "durationMs": 6000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-rings-loom:appearance:1",
+                "timeMs": 11000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "clip-rings-water",
+          "instanceId": "water",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 11000,
+          "durationMs": 6000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-rings-water:appearance:1",
+                "timeMs": 11000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "layout-full",
+          "startMs": 0,
+          "durationMs": 5000,
+          "parameters": {}
+        },
+        {
+          "id": "layout-occurrence:2",
+          "layoutId": "layout-split",
+          "startMs": 5000,
+          "durationMs": 6000,
+          "parameters": {
+            "splitPosition": 0.5
+          },
+          "incomingTransfer": {
+            "id": "routing-full-split",
+            "fromOccurrenceId": "layout-occurrence:1",
+            "durationMs": 1500,
+            "direction": "forward",
+            "easing": {
+              "curve": "sine",
+              "direction": "in-out"
+            }
+          }
+        },
+        {
+          "id": "layout-occurrence:3",
+          "layoutId": "layout-rings",
+          "startMs": 11000,
+          "durationMs": 6000,
+          "parameters": {},
+          "incomingSwitch": {
+            "origin": "converted-routing-cut",
+            "id": "routing-split-rings",
+            "fromOccurrenceId": "layout-occurrence:2",
+            "easing": {
+              "curve": "linear"
+            }
+          }
+        }
+      ],
+      "propertyTracks": [],
+      "markers": [
+        {
+          "id": "scene-marker:full",
+          "timeMs": 0,
+          "name": "Full surface",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:split",
+          "timeMs": 5000,
+          "name": "Split",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:rings",
+          "timeMs": 11000,
+          "name": "Rings",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 364
+  },
+  "patterns": [],
+  "libraries": []
+}

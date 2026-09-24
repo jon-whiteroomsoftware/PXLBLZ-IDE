@@ -145,6 +145,7 @@
     "agent:diagnostics": "npm run check:node && vitest run --config vitest.agent-diagnostics.config.ts",
     "agent:baseline:fixtures": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/baseline/fixturesCli.ts",
     "show:v2-parity": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-parity.ts",
+    "show:v2-baselines": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-baselines.ts",
     "show:v2-native-parity": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-native-parity.ts",
     "show:v2-migrate": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-migrate.ts",
     "capture:chapters": "npm run check:node && tsx scripts/with-suite-lock.ts capture:chapters -- tsx scripts/run-authenticated-playwright.ts e2e/capture-chapters.auth.spec.ts --workers=1",

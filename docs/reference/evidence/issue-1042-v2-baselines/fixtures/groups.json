@@ -1,0 +1,365 @@
+{
+  "id": "groups",
+  "record": {
+    "version": 2,
+    "id": "stock-show-205-groups-linked-reuse",
+    "name": "205 Groups and Linked Reuse",
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "Main",
+        "nominalPixelCount": 1936,
+        "color": "#38bdf8"
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "layout-main",
+        "name": "Main",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "zone-1"
+          ]
+        }
+      }
+    ],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 1936,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "deterministic-loop",
+      "showEndMs": 16000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "loom",
+          "pattern": {
+            "kind": "stock",
+            "id": "RibbonLoom"
+          },
+          "patternName": "RibbonLoom",
+          "time": {
+            "timeScale": 0.32,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:zone-1:main",
+          "zoneId": "zone-1",
+          "name": "Main",
+          "rank": 0
+        },
+        {
+          "id": "layer:zone-1:overlay:1",
+          "zoneId": "zone-1",
+          "name": "Layer 1",
+          "rank": 1
+        },
+        {
+          "id": "layer:zone-1:overlay:2",
+          "zoneId": "zone-1",
+          "name": "Layer 2",
+          "rank": 2
+        }
+      ],
+      "clips": [
+        {
+          "id": "clip-loom",
+          "instanceId": "loom",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 0,
+          "durationMs": 16000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "clip-loom:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "transitions": [],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "layout-main",
+          "startMs": 0,
+          "durationMs": 16000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [],
+      "markers": [
+        {
+          "id": "scene-marker:reuse",
+          "timeMs": 0,
+          "name": "Reuse",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        }
+      ],
+      "groupDefinitions": [
+        {
+          "id": "group-pulse",
+          "name": "Mandala pulse",
+          "patternInstances": [
+            {
+              "id": "pulse",
+              "pattern": {
+                "kind": "stock",
+                "id": "SignalMandala"
+              },
+              "patternName": "SignalMandala",
+              "time": {
+                "timeScale": 0.32,
+                "timeOffsetMs": 0
+              }
+            }
+          ],
+          "layers": [
+            {
+              "id": "group-pulse:layer:0",
+              "name": "Layer 0",
+              "rank": 0
+            },
+            {
+              "id": "group-pulse:layer:1",
+              "name": "Layer 1",
+              "rank": 1
+            }
+          ],
+          "clips": [
+            {
+              "id": "pulse-lead",
+              "instanceId": "pulse",
+              "layerId": "group-pulse:layer:0",
+              "startMs": 0,
+              "durationMs": 4000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "pulse-lead:appearance:1",
+                    "timeMs": 0,
+                    "value": {
+                      "opacity": 0,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "pulse-echo",
+              "instanceId": "pulse",
+              "layerId": "group-pulse:layer:1",
+              "startMs": 1000,
+              "durationMs": 3000,
+              "entryPolicy": "continue",
+              "zoneSampleMode": "span",
+              "appearance": {
+                "keys": [
+                  {
+                    "id": "pulse-echo:appearance:1",
+                    "timeMs": 1000,
+                    "value": {
+                      "opacity": 0,
+                      "view": {
+                        "mirror": false,
+                        "phase": 0,
+                        "brightness": 1
+                      },
+                      "transform": {
+                        "positionX": 0.2,
+                        "positionY": -0.14,
+                        "rotation": 0,
+                        "scaleX": 0.6,
+                        "scaleY": 0.6
+                      },
+                      "effects": []
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "transitions": [],
+          "propertyTracks": [
+            {
+              "id": "track-pulse-echo",
+              "target": {
+                "kind": "clip-opacity",
+                "clipId": "pulse-echo"
+              },
+              "keyframes": [
+                {
+                  "id": "echo-in",
+                  "timeMs": 1000,
+                  "value": 0,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "echo-peak",
+                  "timeMs": 2500,
+                  "value": 0.55,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "echo-out",
+                  "timeMs": 4000,
+                  "value": 0,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                }
+              ],
+              "activeStartMs": 0,
+              "activeDurationMs": 4000
+            },
+            {
+              "id": "track-pulse-lead",
+              "target": {
+                "kind": "clip-opacity",
+                "clipId": "pulse-lead"
+              },
+              "keyframes": [
+                {
+                  "id": "lead-in",
+                  "timeMs": 0,
+                  "value": 0,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "lead-peak",
+                  "timeMs": 1500,
+                  "value": 0.9,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                },
+                {
+                  "id": "lead-out",
+                  "timeMs": 4000,
+                  "value": 0,
+                  "easing": {
+                    "curve": "sine",
+                    "direction": "in-out"
+                  }
+                }
+              ],
+              "activeStartMs": 0,
+              "activeDurationMs": 4000
+            }
+          ]
+        }
+      ],
+      "groupOccurrences": [
+        {
+          "id": "occurrence-first",
+          "definitionId": "group-pulse",
+          "layoutOccurrenceId": "layout-occurrence:1",
+          "zoneId": "zone-1",
+          "startMs": 2000,
+          "translationX": 0,
+          "translationY": 0,
+          "holds": [],
+          "instanceBindings": {
+            "pulse": "occurrence-first:pulse"
+          },
+          "trackActivation": {
+            "startMs": 0,
+            "durationMs": 16000
+          },
+          "layerBindings": [
+            {
+              "definitionLayerId": "group-pulse:layer:0",
+              "layerId": "layer:zone-1:overlay:1"
+            },
+            {
+              "definitionLayerId": "group-pulse:layer:1",
+              "layerId": "layer:zone-1:overlay:2"
+            }
+          ]
+        },
+        {
+          "id": "occurrence-second",
+          "definitionId": "group-pulse",
+          "layoutOccurrenceId": "layout-occurrence:1",
+          "zoneId": "zone-1",
+          "startMs": 9000,
+          "translationX": -0.18,
+          "translationY": 0.12,
+          "holds": [],
+          "instanceBindings": {
+            "pulse": "occurrence-second:pulse"
+          },
+          "trackActivation": {
+            "startMs": 0,
+            "durationMs": 16000
+          },
+          "layerBindings": [
+            {
+              "definitionLayerId": "group-pulse:layer:0",
+              "layerId": "layer:zone-1:overlay:1"
+            },
+            {
+              "definitionLayerId": "group-pulse:layer:1",
+              "layerId": "layer:zone-1:overlay:2"
+            }
+          ]
+        }
+      ]
+    },
+    "updatedAt": 364
+  },
+  "patterns": [],
+  "libraries": []
+}

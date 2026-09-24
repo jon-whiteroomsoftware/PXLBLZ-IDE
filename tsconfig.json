@@ -25,6 +25,7 @@
     "functions",
     "scripts/show-v2-parity.ts",
     "scripts/show-v2-parity.test.ts",
+    "scripts/show-v2-baselines.ts",
     "scripts/authenticated-playwright-release.test.ts"
   ]
 }

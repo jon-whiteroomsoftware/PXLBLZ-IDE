@@ -1,0 +1,1160 @@
+{
+  "id": "animation",
+  "record": {
+    "version": 2,
+    "id": "stock-show-reference-property-animation",
+    "name": "Property Animation",
+    "zones": [
+      {
+        "id": "zone-1",
+        "name": "A",
+        "nominalPixelCount": 1000,
+        "color": "#38bdf8"
+      },
+      {
+        "id": "zone-2",
+        "name": "B",
+        "nominalPixelCount": 1000,
+        "color": "#f97316"
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "layout-property-split",
+        "name": "Property split",
+        "zones": [],
+        "logical": {
+          "kind": "split",
+          "zoneIds": [
+            "zone-1",
+            "zone-2"
+          ],
+          "axis": "x"
+        }
+      }
+    ],
+    "stageMapId": "plane",
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 1936,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "continuous",
+      "showEndMs": 48600,
+      "sampleRemap": {
+        "repeatScale": 1,
+        "origin": "converted-authored-repeat-scale"
+      },
+      "patternInstances": [
+        {
+          "id": "instance-property-subject",
+          "pattern": {
+            "kind": "stock",
+            "id": "LineDancer2D"
+          },
+          "patternName": "LineDancer2D",
+          "time": {
+            "timeScale": 0.2,
+            "timeOffsetMs": 0
+          },
+          "controlTargets": {
+            "sliderSpeed": 0.02
+          }
+        },
+        {
+          "id": "instance-property-subject-speed",
+          "pattern": {
+            "kind": "stock",
+            "id": "LineDancer2D"
+          },
+          "patternName": "LineDancer2D",
+          "time": {
+            "timeScale": 0.2,
+            "timeOffsetMs": 0
+          },
+          "controlTargets": {
+            "sliderSpeed": 0.02
+          }
+        },
+        {
+          "id": "instance-property-comparison-speed",
+          "pattern": {
+            "kind": "stock",
+            "id": "LineDancer2D"
+          },
+          "patternName": "LineDancer2D",
+          "time": {
+            "timeScale": 0.2,
+            "timeOffsetMs": 0
+          },
+          "controlTargets": {
+            "sliderSpeed": 0.02
+          }
+        },
+        {
+          "id": "instance-property-subject-control",
+          "pattern": {
+            "kind": "stock",
+            "id": "LineDancer2D"
+          },
+          "patternName": "LineDancer2D",
+          "time": {
+            "timeScale": 0.2,
+            "timeOffsetMs": 0
+          },
+          "controlTargets": {
+            "sliderSpeed": 0.02
+          }
+        },
+        {
+          "id": "instance-property-comparison-control",
+          "pattern": {
+            "kind": "stock",
+            "id": "LineDancer2D"
+          },
+          "patternName": "LineDancer2D",
+          "time": {
+            "timeScale": 0.2,
+            "timeOffsetMs": 0
+          },
+          "controlTargets": {
+            "sliderSpeed": 0.02
+          }
+        },
+        {
+          "id": "instance-overlay-opacity-overlay",
+          "pattern": {
+            "kind": "stock",
+            "id": "SignalMandala"
+          },
+          "patternName": "SignalMandala",
+          "time": {
+            "timeScale": 0.28,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:zone-1:main",
+          "zoneId": "zone-1",
+          "name": "Main",
+          "rank": 0
+        },
+        {
+          "id": "layer:zone-1:overlay:1",
+          "zoneId": "zone-1",
+          "name": "Signal overlay",
+          "rank": 1
+        },
+        {
+          "id": "layer:zone-2:main",
+          "zoneId": "zone-2",
+          "name": "Main",
+          "rank": 0
+        }
+      ],
+      "clips": [
+        {
+          "id": "placement-animation-speed-a",
+          "instanceId": "instance-property-subject-speed",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 0,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-animation-speed-a:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-animation-speed-b",
+          "instanceId": "instance-property-comparison-speed",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 0,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-animation-speed-b:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-pattern-control-a",
+          "instanceId": "instance-property-subject-control",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 5000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-pattern-control-a:appearance:1",
+                "timeMs": 5000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-pattern-control-b",
+          "instanceId": "instance-property-comparison-control",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 5000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-pattern-control-b:appearance:1",
+                "timeMs": 5000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-brightness-a",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 10000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-brightness-a:appearance:1",
+                "timeMs": 10000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-brightness-b",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 10000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-brightness-b:appearance:1",
+                "timeMs": 10000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-clip-transform-a",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 15000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-clip-transform-a:appearance:1",
+                "timeMs": 15000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-clip-transform-b",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 15000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-clip-transform-b:appearance:1",
+                "timeMs": 15000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-clip-viewport-a",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 20000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-clip-viewport-a:appearance:1",
+                "timeMs": 20000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "aperture": {
+                    "enabled": true,
+                    "x": 0.15,
+                    "y": 0.15,
+                    "width": 0.9,
+                    "height": 0.7,
+                    "edge": "soft"
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-clip-viewport-b",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 20000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-clip-viewport-b:appearance:1",
+                "timeMs": 20000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-overlay-opacity-a",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 25000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-overlay-opacity-a:appearance:1",
+                "timeMs": 25000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-overlay-opacity-b",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 25000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-overlay-opacity-b:appearance:1",
+                "timeMs": 25000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-overlay-opacity-overlay",
+          "instanceId": "instance-overlay-opacity-overlay",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:overlay:1",
+          "startMs": 25000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-overlay-opacity-overlay:appearance:1",
+                "timeMs": 25000,
+                "value": {
+                  "opacity": 0,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-effect-parameter-a",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 30000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-effect-parameter-a:appearance:1",
+                "timeMs": 30000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": [
+                    {
+                      "id": "translate-demo",
+                      "kind": "translate",
+                      "x": 0,
+                      "y": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-effect-parameter-b",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 30000,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-effect-parameter-b:appearance:1",
+                "timeMs": 30000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-split-position-a",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 36800,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-split-position-a:appearance:1",
+                "timeMs": 36800,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-split-position-b",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 36800,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-split-position-b:appearance:1",
+                "timeMs": 36800,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-repeat-scale-a",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-1",
+          "layerId": "layer:zone-1:main",
+          "startMs": 43600,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-repeat-scale-a:appearance:1",
+                "timeMs": 43600,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-repeat-scale-b",
+          "instanceId": "instance-property-subject",
+          "zoneId": "zone-2",
+          "layerId": "layer:zone-2:main",
+          "startMs": 43600,
+          "durationMs": 5000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "span",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-repeat-scale-b:appearance:1",
+                "timeMs": 43600,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "id": "transition-effect-parameter",
+          "kind": "crossfade",
+          "durationMs": 1800,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "live-live",
+          "origin": "converted-boundary-transition",
+          "wholeOutput": {
+            "startMs": 35000,
+            "fromClipIds": [
+              "placement-effect-parameter-a",
+              "placement-effect-parameter-b"
+            ],
+            "toClipIds": [
+              "placement-split-position-a",
+              "placement-split-position-b"
+            ]
+          },
+          "participants": [],
+          "propertyRamps": [
+            {
+              "target": {
+                "kind": "layout-occurrence-split-position",
+                "layoutOccurrenceId": "layout-occurrence:3"
+              },
+              "from": 0.25,
+              "durationMs": 1800,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ]
+        },
+        {
+          "id": "transition-split-position",
+          "kind": "crossfade",
+          "durationMs": 1800,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "live-live",
+          "origin": "converted-boundary-transition",
+          "wholeOutput": {
+            "startMs": 41800,
+            "fromClipIds": [
+              "placement-split-position-a",
+              "placement-split-position-b"
+            ],
+            "toClipIds": [
+              "placement-repeat-scale-a",
+              "placement-repeat-scale-b"
+            ]
+          },
+          "participants": [],
+          "propertyRamps": [
+            {
+              "target": {
+                "kind": "show-repeat-scale"
+              },
+              "from": 1,
+              "durationMs": 1800,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ]
+        }
+      ],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "layout-property-split",
+          "startMs": 0,
+          "durationMs": 30000,
+          "parameters": {
+            "splitPosition": 0.5
+          }
+        },
+        {
+          "id": "layout-occurrence:2",
+          "layoutId": "layout-property-split",
+          "startMs": 30000,
+          "durationMs": 6800,
+          "parameters": {
+            "splitPosition": 0.25
+          }
+        },
+        {
+          "id": "layout-occurrence:3",
+          "layoutId": "layout-property-split",
+          "startMs": 36800,
+          "durationMs": 6800,
+          "parameters": {
+            "splitPosition": 0.75
+          }
+        },
+        {
+          "id": "layout-occurrence:4",
+          "layoutId": "layout-property-split",
+          "startMs": 43600,
+          "durationMs": 5000,
+          "parameters": {
+            "splitPosition": 0.5
+          }
+        }
+      ],
+      "propertyTracks": [
+        {
+          "id": "track-animation-speed",
+          "target": {
+            "kind": "instance-time-scale",
+            "instanceId": "instance-property-subject-speed"
+          },
+          "keyframes": [
+            {
+              "id": "track-animation-speed-start",
+              "timeMs": 0,
+              "value": 0.06,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-animation-speed-middle",
+              "timeMs": 2500,
+              "value": 0.36,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-animation-speed-end",
+              "timeMs": 5000,
+              "value": 0.06,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ],
+          "activeStartMs": 0,
+          "activeDurationMs": 5000
+        },
+        {
+          "id": "track-pattern-control",
+          "target": {
+            "kind": "instance-control",
+            "instanceId": "instance-property-subject-control",
+            "exportName": "sliderSpeed"
+          },
+          "keyframes": [
+            {
+              "id": "track-pattern-control-start",
+              "timeMs": 5000,
+              "value": 0.02,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-pattern-control-middle",
+              "timeMs": 7500,
+              "value": 0.22,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-pattern-control-end",
+              "timeMs": 10000,
+              "value": 0.02,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ],
+          "activeStartMs": 5000,
+          "activeDurationMs": 5000
+        },
+        {
+          "id": "track-brightness",
+          "target": {
+            "kind": "clip-view",
+            "clipId": "placement-brightness-a",
+            "property": "brightness"
+          },
+          "keyframes": [
+            {
+              "id": "track-brightness-start",
+              "timeMs": 10000,
+              "value": 0.1,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-brightness-middle",
+              "timeMs": 12500,
+              "value": 1,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-brightness-end",
+              "timeMs": 15000,
+              "value": 0.1,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ],
+          "activeStartMs": 10000,
+          "activeDurationMs": 5000
+        },
+        {
+          "id": "track-clip-transform",
+          "target": {
+            "kind": "clip-transform",
+            "clipId": "placement-clip-transform-a",
+            "property": "positionX"
+          },
+          "keyframes": [
+            {
+              "id": "track-clip-transform-start",
+              "timeMs": 15000,
+              "value": -0.25,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-clip-transform-middle",
+              "timeMs": 17500,
+              "value": 0.25,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-clip-transform-end",
+              "timeMs": 20000,
+              "value": -0.25,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ],
+          "activeStartMs": 15000,
+          "activeDurationMs": 5000
+        },
+        {
+          "id": "track-clip-viewport",
+          "target": {
+            "kind": "clip-aperture",
+            "clipId": "placement-clip-viewport-a",
+            "property": "width"
+          },
+          "keyframes": [
+            {
+              "id": "track-clip-viewport-start",
+              "timeMs": 20000,
+              "value": 0.9,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-clip-viewport-middle",
+              "timeMs": 22500,
+              "value": 0.4,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-clip-viewport-end",
+              "timeMs": 25000,
+              "value": 0.9,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ],
+          "activeStartMs": 20000,
+          "activeDurationMs": 5000
+        },
+        {
+          "id": "track-overlay-opacity",
+          "target": {
+            "kind": "clip-opacity",
+            "clipId": "placement-overlay-opacity-overlay"
+          },
+          "keyframes": [
+            {
+              "id": "track-overlay-opacity-start",
+              "timeMs": 25000,
+              "value": 0,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-overlay-opacity-middle",
+              "timeMs": 27500,
+              "value": 0.85,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-overlay-opacity-end",
+              "timeMs": 30000,
+              "value": 0,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ],
+          "activeStartMs": 25000,
+          "activeDurationMs": 5000
+        },
+        {
+          "id": "track-effect-parameter",
+          "target": {
+            "kind": "clip-effect",
+            "clipId": "placement-effect-parameter-a",
+            "effectId": "translate-demo",
+            "effectKind": "translate",
+            "parameterId": "translateX"
+          },
+          "keyframes": [
+            {
+              "id": "track-effect-parameter-start",
+              "timeMs": 30000,
+              "value": 0,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-effect-parameter-middle",
+              "timeMs": 32500,
+              "value": -0.35,
+              "easing": {
+                "curve": "linear"
+              }
+            },
+            {
+              "id": "track-effect-parameter-end",
+              "timeMs": 35000,
+              "value": 0,
+              "easing": {
+                "curve": "linear"
+              }
+            }
+          ],
+          "activeStartMs": 30000,
+          "activeDurationMs": 6800
+        },
+        {
+          "id": "show-repeat-scale:held",
+          "target": {
+            "kind": "show-repeat-scale"
+          },
+          "activeStartMs": 0,
+          "activeDurationMs": 48600,
+          "keyframes": [
+            {
+              "timeMs": 0,
+              "value": 1,
+              "id": "show-repeat-scale:held:0",
+              "easing": {
+                "curve": "hold",
+                "at": 1
+              }
+            },
+            {
+              "timeMs": 43600,
+              "value": 4,
+              "id": "show-repeat-scale:held:1",
+              "easing": {
+                "curve": "hold",
+                "at": 1
+              }
+            }
+          ]
+        }
+      ],
+      "markers": [
+        {
+          "id": "scene-marker:animation-speed",
+          "timeMs": 0,
+          "name": "Animation speed",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:pattern-control",
+          "timeMs": 5000,
+          "name": "Public Pattern control",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:brightness",
+          "timeMs": 10000,
+          "name": "Brightness",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:clip-transform",
+          "timeMs": 15000,
+          "name": "Clip Transform",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:clip-viewport",
+          "timeMs": 20000,
+          "name": "Clip Viewport",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:overlay-opacity",
+          "timeMs": 25000,
+          "name": "Overlay opacity",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:effect-parameter",
+          "timeMs": 30000,
+          "name": "Effect parameter",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:split-position",
+          "timeMs": 36800,
+          "name": "Split position",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:repeat-scale",
+          "timeMs": 43600,
+          "name": "Repeat scale",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 364
+  },
+  "patterns": [],
+  "libraries": []
+}

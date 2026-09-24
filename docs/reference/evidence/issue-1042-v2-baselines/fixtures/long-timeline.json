@@ -1,0 +1,744 @@
+{
+  "id": "long-timeline",
+  "record": {
+    "version": 2,
+    "id": "baseline-long-timeline",
+    "name": "Baseline long timeline",
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Main",
+        "nominalPixelCount": 64
+      }
+    ],
+    "zoneLayouts": [
+      {
+        "id": "l1",
+        "name": "Full Stage",
+        "zones": [],
+        "logical": {
+          "kind": "single",
+          "zoneIds": [
+            "z1"
+          ]
+        }
+      }
+    ],
+    "outputContract": {
+      "version": 1,
+      "kind": "portable-2d",
+      "referenceMapId": "plane",
+      "referencePixelCount": 256,
+      "compatibility": {
+        "dimensions": [
+          2
+        ],
+        "mapClass": "continuous-surface",
+        "resolution": "variable"
+      }
+    },
+    "composition": {
+      "version": 2,
+      "executionModel": "continuous",
+      "showEndMs": 371000,
+      "sampleRemap": {
+        "repeatScale": 1
+      },
+      "patternInstances": [
+        {
+          "id": "c1",
+          "pattern": {
+            "kind": "stock",
+            "id": "CometLoom"
+          },
+          "patternName": "CometLoom",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "c2",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern1D"
+          },
+          "patternName": "TestPattern1D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        },
+        {
+          "id": "c3",
+          "pattern": {
+            "kind": "stock",
+            "id": "TestPattern2D"
+          },
+          "patternName": "TestPattern2D",
+          "time": {
+            "timeScale": 1,
+            "timeOffsetMs": 0
+          }
+        }
+      ],
+      "layers": [
+        {
+          "id": "layer:z1:main",
+          "zoneId": "z1",
+          "name": "Main",
+          "rank": 0
+        }
+      ],
+      "clips": [
+        {
+          "id": "placement-c1-s1",
+          "instanceId": "c1",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 0,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c1-s1:appearance:1",
+                "timeMs": 0,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c2-s2",
+          "instanceId": "c2",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 31000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c2-s2:appearance:1",
+                "timeMs": 31000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c3-s3",
+          "instanceId": "c3",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 62000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c3-s3:appearance:1",
+                "timeMs": 62000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c4-s4",
+          "instanceId": "c1",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 93000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c4-s4:appearance:1",
+                "timeMs": 93000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c5-s5",
+          "instanceId": "c2",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 124000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c5-s5:appearance:1",
+                "timeMs": 124000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c6-s6",
+          "instanceId": "c3",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 155000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c6-s6:appearance:1",
+                "timeMs": 155000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c7-s7",
+          "instanceId": "c1",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 186000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c7-s7:appearance:1",
+                "timeMs": 186000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c8-s8",
+          "instanceId": "c2",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 217000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c8-s8:appearance:1",
+                "timeMs": 217000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c9-s9",
+          "instanceId": "c3",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 248000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c9-s9:appearance:1",
+                "timeMs": 248000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c10-s10",
+          "instanceId": "c1",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 279000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c10-s10:appearance:1",
+                "timeMs": 279000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c11-s11",
+          "instanceId": "c2",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 310000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c11-s11:appearance:1",
+                "timeMs": 310000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "placement-c12-s12",
+          "instanceId": "c3",
+          "zoneId": "z1",
+          "layerId": "layer:z1:main",
+          "startMs": 341000,
+          "durationMs": 30000,
+          "entryPolicy": "continue",
+          "zoneSampleMode": "independent",
+          "appearance": {
+            "keys": [
+              {
+                "id": "placement-c12-s12:appearance:1",
+                "timeMs": 341000,
+                "value": {
+                  "opacity": 1,
+                  "view": {
+                    "mirror": false,
+                    "phase": 0,
+                    "brightness": 1
+                  },
+                  "effects": []
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "transitions": [
+        {
+          "id": "transition-s1",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s1:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c1-s1",
+              "toClipId": "placement-c2-s2"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s2",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s2:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c2-s2",
+              "toClipId": "placement-c3-s3"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s3",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s3:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c3-s3",
+              "toClipId": "placement-c4-s4"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s4",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s4:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c4-s4",
+              "toClipId": "placement-c5-s5"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s5",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s5:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c5-s5",
+              "toClipId": "placement-c6-s6"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s6",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s6:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c6-s6",
+              "toClipId": "placement-c7-s7"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s7",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s7:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c7-s7",
+              "toClipId": "placement-c8-s8"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s8",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s8:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c8-s8",
+              "toClipId": "placement-c9-s9"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s9",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s9:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c9-s9",
+              "toClipId": "placement-c10-s10"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s10",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s10:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c10-s10",
+              "toClipId": "placement-c11-s11"
+            }
+          ],
+          "propertyRamps": []
+        },
+        {
+          "id": "transition-s11",
+          "kind": "crossfade",
+          "durationMs": 1000,
+          "easing": {
+            "curve": "linear"
+          },
+          "crossfadePolicy": "snapshot-live",
+          "origin": "converted-boundary-transition",
+          "participants": [
+            {
+              "id": "transition-s11:participant:1",
+              "zoneId": "z1",
+              "layerId": "layer:z1:main",
+              "fromClipId": "placement-c11-s11",
+              "toClipId": "placement-c12-s12"
+            }
+          ],
+          "propertyRamps": []
+        }
+      ],
+      "layoutOccurrences": [
+        {
+          "id": "layout-occurrence:1",
+          "layoutId": "l1",
+          "startMs": 0,
+          "durationMs": 371000,
+          "parameters": {}
+        }
+      ],
+      "propertyTracks": [],
+      "markers": [
+        {
+          "id": "scene-marker:s1",
+          "timeMs": 0,
+          "name": "Scene 1",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s2",
+          "timeMs": 31000,
+          "name": "Scene 2",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s3",
+          "timeMs": 62000,
+          "name": "Scene 3",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s4",
+          "timeMs": 93000,
+          "name": "Scene 4",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s5",
+          "timeMs": 124000,
+          "name": "Scene 5",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s6",
+          "timeMs": 155000,
+          "name": "Scene 6",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s7",
+          "timeMs": 186000,
+          "name": "Scene 7",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s8",
+          "timeMs": 217000,
+          "name": "Scene 8",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s9",
+          "timeMs": 248000,
+          "name": "Scene 9",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s10",
+          "timeMs": 279000,
+          "name": "Scene 10",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s11",
+          "timeMs": 310000,
+          "name": "Scene 11",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        },
+        {
+          "id": "scene-marker:s12",
+          "timeMs": 341000,
+          "name": "Scene 12",
+          "role": "chapter",
+          "origin": "converted-scene-label"
+        }
+      ],
+      "groupDefinitions": [],
+      "groupOccurrences": []
+    },
+    "updatedAt": 1757000000000
+  },
+  "patterns": [],
+  "libraries": []
+}
