@@ -21,21 +21,22 @@ export default {
         resourceClass: 'default',
       },
       'e2e-public': {
-        command: ['npm', 'run', 'test:e2e'],
+        // The runner never retries; keep a trace for every failing test.
+        command: ['env', 'PXLBLZ_E2E_TRACE=retain-on-failure', 'npm', 'run', 'test:e2e'],
         required: true,
         timeoutMinutes: 15,
         artifacts: ['playwright-report/**', 'test-results/**/trace.zip'],
         resourceClass: 'exclusive',
       },
       'e2e-auth-smoke': {
-        command: ['npm', 'run', 'test:e2e:auth-smoke'],
+        command: ['env', 'PXLBLZ_E2E_TRACE=retain-on-failure', 'npm', 'run', 'test:e2e:auth-smoke'],
         required: true,
         timeoutMinutes: 15,
         artifacts: ['playwright-report/**', 'test-results/**/trace.zip'],
         resourceClass: 'exclusive',
       },
       'e2e-shows': {
-        command: ['npm', 'run', 'test:e2e:shows'],
+        command: ['env', 'PXLBLZ_E2E_TRACE=retain-on-failure', 'npm', 'run', 'test:e2e:shows'],
         required: true,
         timeoutMinutes: 20,
         artifacts: ['playwright-report/**', 'test-results/**/trace.zip'],

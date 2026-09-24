@@ -35,7 +35,10 @@ export default defineConfig({
   globalSetup: './e2e/public.global-setup.ts',
   use: {
     baseURL: studioUrl,
-    trace: 'on-first-retry',
+    // The runner never retries, so its suites opt into a trace for every
+    // failing test through PXLBLZ_E2E_TRACE (#1092, #1102, #1106); local runs
+    // keep the cheaper retry-only trace.
+    trace: process.env.PXLBLZ_E2E_TRACE === 'retain-on-failure' ? 'retain-on-failure' : 'on-first-retry',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

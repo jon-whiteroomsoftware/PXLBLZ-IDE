@@ -25,7 +25,10 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: {
     baseURL: studioBaseUrl,
-    trace: 'on-first-retry',
+    // The runner never retries, so its suites opt into a trace for every
+    // failing test through PXLBLZ_E2E_TRACE (#1092, #1102, #1106); local runs
+    // keep the cheaper retry-only trace.
+    trace: process.env.PXLBLZ_E2E_TRACE === 'retain-on-failure' ? 'retain-on-failure' : 'on-first-retry',
   },
   // One project per run. The required Show suite uses `PXLBLZ_SHOW_BACKING=v2`
   // against v2-stored Shows (#1067). `PXLBLZ_SHOW_BACKING=v1` runs the
