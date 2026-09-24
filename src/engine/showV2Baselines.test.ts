@@ -1,6 +1,7 @@
 // #1042 Phase 0: the v2-only baselines stay byte-identical across every v1
 // removal slice, and the check that proves it imports no v1 authoring module.
-import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { readdirSync, readFileSync } from 'node:fs'
 import { posix, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { checkBaselines } from '../../scripts/show-v2-baselines'
@@ -36,20 +37,61 @@ const GUARDED_FILES = ['scripts/show-v2-baselines.ts', 'src/engine/showV2Baselin
 
 const repoRoot = resolve(__dirname, '../..')
 
-/** Repo-relative module paths (extension stripped) a file imports directly. */
-function directImports(file: string): string[] {
-  const text = readFileSync(resolve(repoRoot, file), 'utf8')
-  const specifiers = [...text.matchAll(/^\s*(?:import|export)\b[^'"]*?from\s+['"]([^'"]+)['"]/gm)].map(match => match[1])
+/**
+ * SHA-256 of the committed baseline set, byte for byte. `--write` would
+ * re-baseline silently and the check would still pass, so the files are pinned
+ * here too. The only legitimate change is deleting the whole set, and this
+ * constant with it, when #1042 closes, with Jon's say.
+ */
+const BASELINE_DIR = 'docs/reference/evidence/issue-1042-v2-baselines'
+const PINNED_DIGESTS: Record<string, string> = {
+  'baselines.json': '8ee57f9b4f43172824c72e2a65627f234c0f460ae14ab0c61a04e1eeacf3d1e0',
+  'fixtures/animation.json': '5fe5e38c50a73ca5ff25305a93063a3f50f673d676c5f78bd38de1b51eb2c5e7',
+  'fixtures/groups.json': 'be4db1bb8ba11efba0f1864642c32ffcfee22aabc8de2415a7c839ff6a15e505',
+  'fixtures/long-timeline.json': '31ae99370a863d0c9d0afb341ca94c74a6352c49c0b1ea42ee4831a91dbb262d',
+  'fixtures/personal-base.json': 'ff551c3e7554c628e564a30dd1751de69bd31551339df297c88b9daccdda5016',
+  'fixtures/personal-library-pattern.json': '1ce5f7afa69cc17183ec9442db68007ab5646a9992c0ff64f8a413e6c41ef8fd',
+  'fixtures/routing.json': '9a24ba1e7a872518358c930ac93c68549e7518795bf12802d664ce90c6c5523e',
+  'fixtures/stock-draft.json': '748fe7d6dbf8b33e50339a2e772721c6e25ceb1c9bd84509281a5dfd088a4503',
+}
+
+/** Module specifiers of static, side-effect, re-export and dynamic imports. */
+const IMPORT_PATTERNS = [
+  /^\s*(?:import|export)\b[^'"]*?\bfrom\s*['"]([^'"]+)['"]/gm,
+  /^\s*import\s*['"]([^'"]+)['"]/gm,
+  /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+]
+
+/**
+ * Repo-relative module paths that `text`, read as `file`, imports directly,
+ * with the extension, a trailing slash and a trailing `/index` stripped.
+ */
+function importedPaths(text: string, file: string): string[] {
+  const specifiers = IMPORT_PATTERNS.flatMap(pattern => [...text.matchAll(pattern)].map(match => match[1]))
   return specifiers.flatMap(specifier => {
     if (specifier.startsWith('@/')) return [`src/${specifier.slice(2)}`]
-    if (specifier.startsWith('.')) return [posix.normalize(relative(repoRoot, resolve(repoRoot, file, '..', specifier)).split('\\').join('/'))]
+    if (specifier.startsWith('src/')) return [specifier]
+    if (specifier.startsWith('.')) return [relative(repoRoot, resolve(repoRoot, file, '..', specifier)).split('\\').join('/')]
     return []
-  }).map(path => path.replace(/\.(?:[cm]?[jt]sx?)$/, ''))
+  }).map(path => posix.normalize(path).replace(/\/+$/, '').replace(/\.(?:[cm]?[jt]sx?)$/, '').replace(/\/index$/, ''))
+}
+
+function directImports(file: string): string[] {
+  return importedPaths(readFileSync(resolve(repoRoot, file), 'utf8'), file)
 }
 
 function forbidden(path: string): boolean {
   return FORBIDDEN_MODULES.some(module => module.replace(/\.ts$/, '') === path)
-    || FORBIDDEN_DIRECTORIES.some(directory => path.startsWith(directory))
+    || FORBIDDEN_DIRECTORIES.some(directory => path === directory.replace(/\/$/, '') || path.startsWith(directory))
+}
+
+/**
+ * The forbidden paths a synthetic source, read as a file in `src/engine/`,
+ * imports. Synthetic dynamic imports spell the call `IMPORT(`: this file is
+ * itself guarded, and a literal call inside a string would flag it.
+ */
+function flagged(source: string): string[] {
+  return importedPaths(source.replace(/IMPORT\(/g, 'import('), 'src/engine/synthetic.ts').filter(forbidden)
 }
 
 describe('#1042 v2 baselines', () => {
@@ -62,8 +104,45 @@ describe('#1042 v2 baselines', () => {
 
   it('the guard recognizes a forbidden import', () => {
     expect(forbidden('src/engine/showClipInvariant')).toBe(true)
-    expect(forbidden('src/engine/showCommands/index')).toBe(true)
-    expect(forbidden('src/engine/showCommandsV2/index')).toBe(false)
+    expect(forbidden('src/engine/showCommands')).toBe(true)
+    expect(forbidden('src/engine/showCommands/catalog')).toBe(true)
+    expect(forbidden('src/engine/showCommandsV2')).toBe(false)
+  })
+
+  it.each([
+    ['a named import', "import { a } from './showClipInvariant'", 'src/engine/showClipInvariant'],
+    ['a type import', "import type { A } from '@/engine/showClipInvariant.ts'", 'src/engine/showClipInvariant'],
+    ['a multi-line import', "import {\n  a,\n  b,\n} from './showClipInvariant'", 'src/engine/showClipInvariant'],
+    ['a side-effect import', "import './showClipInvariant'", 'src/engine/showClipInvariant'],
+    ['a re-export', "export { a } from './showClipInvariant'", 'src/engine/showClipInvariant'],
+    ['a star re-export', "export * from '@/engine/showClipInvariant'", 'src/engine/showClipInvariant'],
+    ['a dynamic import', "const m = await IMPORT('./showClipInvariant')", 'src/engine/showClipInvariant'],
+    ['an alias directory import', "import { c } from '@/engine/showCommands'", 'src/engine/showCommands'],
+    ['an alias directory index import', "import { c } from '@/engine/showCommands/index'", 'src/engine/showCommands'],
+    ['a root-relative directory import', "import { c } from 'src/engine/showCommands'", 'src/engine/showCommands'],
+    ['a relative directory import', "import { c } from './showCommands'", 'src/engine/showCommands'],
+    ['a relative directory import with a slash', "import { c } from './showCommands/'", 'src/engine/showCommands'],
+    ['a relative directory index import', "import { c } from '../engine/showCommands/index.ts'", 'src/engine/showCommands'],
+    ['a directory submodule import', "import { c } from './showCommands/catalog'", 'src/engine/showCommands/catalog'],
+    ['a dynamic directory import', "void IMPORT('@/engine/showCommands')", 'src/engine/showCommands'],
+  ])('the guard flags %s', (_form, source, path) => {
+    expect(flagged(source)).toEqual([path])
+  })
+
+  it.each([
+    ['the v2 catalogue', "import { c } from '@/engine/showCommandsV2'"],
+    ['the v2 catalogue index', "import { c } from './showCommandsV2/index'"],
+    ['a v2 dynamic import', "void IMPORT('./showCommandsV2')"],
+    ['a package', "import { describe } from 'vitest'"],
+  ])('the guard allows %s', (_form, source) => {
+    expect(flagged(source)).toEqual([])
+  })
+
+  it('the committed baselines still hash to their pinned digests', () => {
+    const fixtures = readdirSync(resolve(repoRoot, BASELINE_DIR, 'fixtures')).filter(name => name.endsWith('.json')).sort()
+    const files = ['baselines.json', ...fixtures.map(name => `fixtures/${name}`)]
+    const digests = Object.fromEntries(files.map(file => [file, createHash('sha256').update(readFileSync(resolve(repoRoot, BASELINE_DIR, file))).digest('hex')]))
+    expect(digests).toEqual(PINNED_DIGESTS)
   })
 
   it('every pinned record still matches the committed baselines', async () => {

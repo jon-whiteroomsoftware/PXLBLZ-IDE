@@ -44,13 +44,21 @@ removal or refactor. When #1042 closes, this directory is deleted (Jon,
 
 ```bash
 npm run show:v2-baselines              # check (default); exit 1 names each record and field
-npm run show:v2-baselines -- --write   # regenerate; never inside a #1042 slice
+npm run show:v2-baselines -- --write   # created this set; never re-pins it during #1042
 npx vitest run src/engine/showV2Baselines.test.ts
 ```
 
+`--write` exists to create the set. It is never used to re-pin during #1042:
+the Vitest test pins the SHA-256 of `baselines.json` and of each
+`fixtures/*.json`, so a rewrite fails there even when the check agrees with the
+rewritten file. The only legitimate change to those digests is deleting the
+whole set, digests included, when #1042 closes, with Jon's say.
+
 The Vitest test runs the same check in-process. It also statically reads the
-direct imports of `scripts/show-v2-baselines.ts` and of the test itself. It
-fails if either imports a v1 authoring module on #1042's removal list or
-anything under `src/engine/showCommands/`. Transitive reach through the
+direct imports of `scripts/show-v2-baselines.ts` and of the test itself: static,
+side-effect, re-export and dynamic imports, through the `@/` alias, a `src/`
+path or a relative path. It fails if either imports a v1 authoring module on
+#1042's removal list, or `src/engine/showCommands` itself or anything under it
+(with or without `/index`); `src/engine/showCommandsV2` stays allowed. Transitive reach through the
 retained compiler (`showModel.ts`) is allowed: that is what #1042 refactors, and
 these pins guard its output.
