@@ -222,6 +222,54 @@ describe('convertShowRecordV1ToV2', () => {
     expect(result.report.unaccountedSourcePaths).toEqual([])
   })
 
+  it('accounts for a flat Cell effect regardless of parameter key order', () => {
+    const source = flatV1Show()
+    source.cells[0].effects = [{ opacity: 0.6, kind: 'opacity', id: 'effect-a' }]
+    const normalized = structuredClone(source)
+    normalized.cells[0].effects = [{ id: 'effect-a', kind: 'opacity', opacity: 0.6 }]
+
+    const result = convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'source' } })
+    const normalizedResult = convertShowRecordV1ToV2(normalized, { byCellId: { 'cell-a': 'source' } })
+
+    expect(result).toMatchObject({ status: 'converted', report: { unaccountedSourcePaths: [] } })
+    expect(normalizedResult.status).toBe('converted')
+    if (result.status !== 'converted' || normalizedResult.status !== 'converted') return
+    expect(result.record).toEqual(normalizedResult.record)
+  })
+
+  it('accounts for a flat Cell transform regardless of parameter key order', () => {
+    const source = flatV1Show()
+    source.cells[0].transform = { scaleY: 0.75, scaleX: 1.5, rotation: 0.25, positionY: -0.1, positionX: 0.2 }
+    const normalized = structuredClone(source)
+    normalized.cells[0].transform = { positionX: 0.2, positionY: -0.1, rotation: 0.25, scaleX: 1.5, scaleY: 0.75 }
+
+    const result = convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'source' } })
+    const normalizedResult = convertShowRecordV1ToV2(normalized, { byCellId: { 'cell-a': 'source' } })
+
+    expect(result).toMatchObject({ status: 'converted', report: { unaccountedSourcePaths: [] } })
+    expect(normalizedResult.status).toBe('converted')
+    if (result.status !== 'converted' || normalizedResult.status !== 'converted') return
+    expect(result.record).toEqual(normalizedResult.record)
+  })
+
+  it('finds a changed effect parameter in a converted candidate', () => {
+    const source = flatV1Show()
+    source.cells[0].effects = [{ id: 'effect-a', kind: 'opacity', opacity: 0.6 }]
+    const conversion = convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'source' } })
+    expect(conversion).toMatchObject({ status: 'converted' })
+    if (conversion.status !== 'converted') return
+    const candidate = structuredClone(conversion.record)
+    const effect = candidate.composition.clips[0].appearance.keys[0].value.effects![0]
+    if (effect.kind !== 'opacity') throw new Error('Expected opacity effect')
+    effect.opacity += 0.1
+
+    const audit = auditShowV1ToV2Accounting(source, candidate, conversion.report)
+
+    expect(audit.unaccountedSourcePaths).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^cells\.0\.effects/),
+    ]))
+  })
+
   it('finds a known mapped leaf when its candidate output correspondence is removed', () => {
     const source = flatV1Show()
     source.cells[0].blink = { rateHz: 2, duty: 0.25, phase: 0.125 }

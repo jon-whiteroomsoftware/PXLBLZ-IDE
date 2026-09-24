@@ -3,6 +3,7 @@ import { materializeShowGroupLayerShells } from './showGroupModel'
 import { clipAppearance, convertPropertyTarget } from './showV2ValueConversion'
 import { repeatScaleAt, scalarBoundaryRamps } from './showV2ScalarProperties'
 import { normalizePersistedShowEasing } from './showEasing'
+import { structurallyEqualAppearanceV2 } from './showFlatLoweringV2'
 import type {
   ShowMainPlacement,
   ShowOverlayPlacement,
@@ -1312,7 +1313,7 @@ function auditFlatCell(
     if (condition) addAccountingLeaves(accounting, `${sourcePath}.${path}`, value, 'mapped', targetPath)
   }
   const equalAll = (path: string, targetPath: string, value: unknown, targets: unknown[]) => {
-    mapped(path, targetPath, value, targets.length > 0 && targets.every(target => JSON.stringify(target) === JSON.stringify(value)))
+    mapped(path, targetPath, value, targets.length > 0 && targets.every(target => structurallyEqualAppearanceV2(target, value)))
   }
   mapped('id', 'composition.patternInstances/clips', cell.id, clips.length > 0 && instances.length > 0)
   mapped('zoneId', 'composition.clips.*.zoneId', cell.zoneId, clips.length > 0 && clips.some(clip => clip.zoneId === cell.zoneId))
