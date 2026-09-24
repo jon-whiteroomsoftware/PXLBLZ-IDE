@@ -219,6 +219,31 @@ export const BASELINE_UTTERANCES: BaselineUtterance[] = [
     intent: '#951: timeline insertion admits once.',
     script: [{ tool: 'insert_time', args: { at_ms: 29000, duration_ms: 1000, finish_turn_reply: { intent: 'apply', reply: 'Inserted one second.' } } }],
   },
+  // Admission matrix Effect, appearance, instance-property and animation rows
+  // (#1067 G3c), restored from the pre-#1039 catalogue on the version-2
+  // commands. Effect edits apply to the whole Clip; view, controls, time and
+  // evaluation go through update_clips; keyframe edits through
+  // edit_property_keyframes.
+  ...[
+    { utterance: 'add an opacity Effect to the overlay Clip', tool: 'add_clip_effect', args: { clip_id: 'clip-ov', kind: 'opacity', parameters: { opacity: 0.6 }, apply: { scope: 'whole-clip' } } },
+    { utterance: 'set the overlay brightness Effect to seven tenths', tool: 'update_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', parameters: { brightness: 0.7 }, apply: { scope: 'whole-clip' } } },
+    { utterance: 'duplicate the overlay brightness Effect', tool: 'duplicate_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', apply: { scope: 'whole-clip' } } },
+    { utterance: 'move the overlay hue Effect before brightness', tool: 'move_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'hue', target_effect_id: 'brightness', edge: 'before', apply: { scope: 'whole-clip' } } },
+    { utterance: 'remove the overlay brightness Effect', tool: 'remove_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', apply: { scope: 'whole-clip' } } },
+  ].map(({ utterance, tool, args }) => ({ utterance, intent: '#953: shared Effect admission.', script: [{ tool, args: { ...args, finish_turn_reply: { intent: 'apply', reply: 'Updated the Effect stack.' } } }] })),
+  ...[
+    { utterance: 'dim and mirror the overlay Clip', args: { clip_id: 'clip-ov', appearance: { view: { mirror: true, phase: 0.25, brightness: 0.5 }, apply: { scope: 'whole-clip' } } } },
+    { utterance: 'set the first Clip speed control to three quarters', args: { clip_id: 'clip-a', instance_properties: { controls: { sliderSpeed: 0.75 } } } },
+    { utterance: 'slow the first Clip shared instance to half speed', args: { clip_id: 'clip-a', instance_properties: { time_scale: 0.5, time_offset_ms: 250 } } },
+    { utterance: 'freeze the first Clip shared instance at entry', args: { clip_id: 'clip-a', instance_properties: { evaluation: 'freeze-at-entry' } } },
+  ].map(({ utterance, args }) => ({ utterance, intent: '#953: shared Clip property admission.', script: [{ tool: 'update_clips', args: { updates: [args], finish_turn_reply: { intent: 'apply', reply: 'Updated the Clip properties.' } } }] })),
+  ...[
+    { utterance: 'seed a phase animation track at point three', tool: 'add_property_tracks', args: { tracks: [{ target: { kind: 'view-phase', clip_id: 'clip-a' }, initial_value: 0.3 }] } },
+    { utterance: 'add a brightness keyframe at fifteen seconds', tool: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { add: [{ at_ms: 15000, value: 0.5 }] } } },
+    { utterance: 'move the first brightness keyframe to twenty seconds', tool: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { update: [{ keyframe_id: 'kf-1', at_ms: 20000 }] } } },
+    { utterance: 'delete the middle brightness keyframe', tool: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { remove: ['middle'] } } },
+    { utterance: 'remove the brightness animation track', tool: 'remove_property_tracks', args: { track_ids: ['track-b'] } },
+  ].map(row => ({ utterance: row.utterance, intent: '#953: edit authored animation through the shared command.', script: [{ tool: row.tool, args: { ...row.args, finish_turn_reply: { intent: 'apply', reply: 'Updated the animation.' } } }] })),
 ]
 
 /** The script for an utterance the scripted bridge knows, or null. */

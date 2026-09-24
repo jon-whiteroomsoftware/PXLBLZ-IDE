@@ -1845,12 +1845,18 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     /** The G3 slice that re-authors this row on v2; the loop registers it as fixme until then. */
     pendingV2?: string
   }> = [
+    // Effect rows write clip-ov's one held appearance key (`apply` whole-clip).
+    // A new Effect's identity is the owner's `<clip>-<kind>` and a duplicate's
+    // `<effect>-copy` (src/engine/showCommandsV2/effects.ts:105, 213), where v1
+    // used `opacity` and `brightness-2`. No Property track targets the removed
+    // brightness Effect, so RE953's Clip-owned track cascade removes nothing
+    // (src/engine/showClipAppearanceEditsV2.ts:135).
     ...[
-      { id: 'AE953', command: 'add_clip_effect', args: { clip_id: 'clip-ov', kind: 'opacity', parameters: { opacity: 0.6 } }, utterance: 'add an opacity Effect to the overlay Clip' },
-      { id: 'UE953', command: 'update_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', parameter: 'brightness', value: 0.7 }, utterance: 'set the overlay brightness Effect to seven tenths' },
-      { id: 'DE953', command: 'duplicate_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness' }, utterance: 'duplicate the overlay brightness Effect' },
-      { id: 'ME953', command: 'move_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'hue', target_effect_id: 'brightness', edge: 'before' }, utterance: 'move the overlay hue Effect before brightness' },
-      { id: 'RE953', command: 'remove_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness' }, utterance: 'remove the overlay brightness Effect' },
+      { id: 'AE953', command: 'add_clip_effect', args: { clip_id: 'clip-ov', kind: 'opacity', parameters: { opacity: 0.6 }, apply: { scope: 'whole-clip' } }, utterance: 'add an opacity Effect to the overlay Clip' },
+      { id: 'UE953', command: 'update_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', parameters: { brightness: 0.7 }, apply: { scope: 'whole-clip' } }, utterance: 'set the overlay brightness Effect to seven tenths' },
+      { id: 'DE953', command: 'duplicate_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', apply: { scope: 'whole-clip' } }, utterance: 'duplicate the overlay brightness Effect' },
+      { id: 'ME953', command: 'move_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'hue', target_effect_id: 'brightness', edge: 'before', apply: { scope: 'whole-clip' } }, utterance: 'move the overlay hue Effect before brightness' },
+      { id: 'RE953', command: 'remove_clip_effect', args: { clip_id: 'clip-ov', effect_id: 'brightness', apply: { scope: 'whole-clip' } }, utterance: 'remove the overlay brightness Effect' },
     ].map(row => ({
       ...row,
       fixture: () => {
@@ -1863,45 +1869,60 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         ]
         return record
       },
-      pendingV2: 'G3c',
-      expectedFacts: v1Facts((before: ShowRecord) => {
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        const placement = expected.composition!.scenes[0].zones[0].overlays[0].placements[0]
-        const effects = placement.effects!
-        if (row.id === 'AE953') effects.push({ id: 'opacity', kind: 'opacity', opacity: 0.6 })
+        const key = expected.composition.clips.find(clip => clip.id === 'clip-ov')!.appearance.keys[0]
+        const effects = key.value.effects!
+        if (row.id === 'AE953') effects.push({ id: 'clip-ov-opacity', kind: 'opacity', opacity: 0.6 })
         if (row.id === 'UE953') effects[1] = { id: 'brightness', kind: 'brightness', brightness: 0.7 }
-        if (row.id === 'DE953') effects.splice(2, 0, { id: 'brightness-2', kind: 'brightness', brightness: 0.4 })
-        if (row.id === 'ME953') placement.effects = [effects[0], effects[2], effects[1]]
+        if (row.id === 'DE953') effects.splice(2, 0, { id: 'brightness-copy', kind: 'brightness', brightness: 0.4 })
+        if (row.id === 'ME953') key.value.effects = [effects[0], effects[2], effects[1]]
         if (row.id === 'RE953') effects.splice(1, 1)
         return expected
-      }),
+      },
     })),
+    // View is a whole-clip appearance patch on clip-ov's held key; controls,
+    // time and evaluation are instance_properties on clip-a's shared instance-a
+    // (src/engine/showInstancePropertiesV2.ts:110, 116-118). The control write
+    // checks CometLoom's exported sliders through the editor's captured bundle
+    // (src/engine/showInstancePropertiesV2.ts:92-105).
     ...[
-      { id: 'V953', command: 'set_clip_view', args: { clip_id: 'clip-ov', mirror: true, phase: 0.25, brightness: 0.5 }, utterance: 'dim and mirror the overlay Clip' },
-      { id: 'C953', command: 'set_clip_control_target', args: { clip_id: 'clip-a', export_name: 'sliderSpeed', value: 0.75 }, utterance: 'set the first Clip speed control to three quarters' },
-      { id: 'T953', command: 'set_clip_time', args: { clip_id: 'clip-a', time_scale: 0.5, time_offset_ms: 250 }, utterance: 'slow the first Clip shared instance to half speed' },
-      { id: 'E953', command: 'set_clip_evaluation', args: { clip_id: 'clip-a', policy: 'freeze-at-entry' }, utterance: 'freeze the first Clip shared instance at entry' },
+      { id: 'V953', command: 'update_clips', args: { updates: [{ clip_id: 'clip-ov', appearance: { view: { mirror: true, phase: 0.25, brightness: 0.5 }, apply: { scope: 'whole-clip' } } }] }, utterance: 'dim and mirror the overlay Clip' },
+      { id: 'C953', command: 'update_clips', args: { updates: [{ clip_id: 'clip-a', instance_properties: { controls: { sliderSpeed: 0.75 } } }] }, utterance: 'set the first Clip speed control to three quarters' },
+      { id: 'T953', command: 'update_clips', args: { updates: [{ clip_id: 'clip-a', instance_properties: { time_scale: 0.5, time_offset_ms: 250 } }] }, utterance: 'slow the first Clip shared instance to half speed' },
+      { id: 'E953', command: 'update_clips', args: { updates: [{ clip_id: 'clip-a', instance_properties: { evaluation: 'freeze-at-entry' } }] }, utterance: 'freeze the first Clip shared instance at entry' },
     ].map(row => ({
       ...row,
       fixture: () => { const record = showOverlayLayerFixture(); record.id = `${row.id.toLowerCase()}-${Date.now().toString(36)}`; return record },
-      pendingV2: 'G3c',
-      expectedFacts: v1Facts((before: ShowRecord) => {
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        const composition = expected.composition!
-        if (row.id === 'V953') composition.scenes[0].zones[0].overlays[0].placements[0].view = { mirror: true, phase: 0.25, brightness: 0.5 }
-        if (row.id === 'C953') composition.patternInstances[0].controlTargets = { sliderSpeed: 0.75 }
-        if (row.id === 'T953') composition.patternInstances[0].time = { timeScale: 0.5, timeOffsetMs: 250 }
-        if (row.id === 'E953') composition.patternInstances[0].evaluationPolicy = 'freeze-at-entry'
+        const composition = expected.composition
+        const instance = composition.patternInstances.find(candidate => candidate.id === 'instance-a')!
+        if (row.id === 'V953') composition.clips.find(clip => clip.id === 'clip-ov')!.appearance.keys[0].value.view = { mirror: true, phase: 0.25, brightness: 0.5 }
+        if (row.id === 'C953') instance.controlTargets = { sliderSpeed: 0.75 }
+        if (row.id === 'T953') instance.time = { timeScale: 0.5, timeOffsetMs: 250 }
+        if (row.id === 'E953') instance.evaluationPolicy = 'freeze-at-entry'
         return expected
-      }),
+      },
     })),
 
+    // APT953's constant track takes the owner's default activation, clip-a's
+    // span 0–10 000 ms, with a key at each end and owner identities
+    // (src/engine/showCommandsV2/animation.ts:135, 185, 201-203), where v1
+    // spanned its Scene to 30 000 ms. AK953's key takes the owner's
+    // `<track>-key-<at>-<n>` identity (src/engine/showCommandsV2/animation.ts:324).
+    // The owner accepts APT953's track, but the bridge's delivery validation
+    // refuses the commit: lowering places keys of the untouched track-b,
+    // track-inst and track-inst-b outside compiled Scene 2.
     ...[
-      { id: 'APT953', command: 'add_property_track', args: { clip_id: 'clip-a', target: 'view-phase', initial_value: 0.3 }, utterance: 'seed a phase animation track at point three' },
-      { id: 'AK953', command: 'add_keyframe', args: { track_id: 'track-b', time_ms: 15000, value: 0.5 }, utterance: 'add a brightness keyframe at fifteen seconds' },
-      { id: 'UK953', command: 'update_keyframe', args: { track_id: 'track-b', keyframe_id: 'kf-1', time_ms: 20000 }, utterance: 'move the first brightness keyframe to twenty seconds' },
-      { id: 'DK953', command: 'delete_keyframe', args: { track_id: 'track-b', keyframe_id: 'middle' }, utterance: 'delete the middle brightness keyframe' },
-      { id: 'DPT953', command: 'delete_property_track', args: { track_id: 'track-b' }, utterance: 'remove the brightness animation track' },
+      {
+        id: 'APT953', command: 'add_property_tracks', args: { tracks: [{ target: { kind: 'view-phase', clip_id: 'clip-a' }, initial_value: 0.3 }] }, utterance: 'seed a phase animation track at point three',
+        pendingV2: 'defect: v2 add_property_tracks on clip-a is refused by delivery validation; lowering puts untouched tracks\' keys outside compiled Scene 2',
+      },
+      { id: 'AK953', command: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { add: [{ at_ms: 15000, value: 0.5 }] } }, utterance: 'add a brightness keyframe at fifteen seconds' },
+      { id: 'UK953', command: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { update: [{ keyframe_id: 'kf-1', at_ms: 20000 }] } }, utterance: 'move the first brightness keyframe to twenty seconds' },
+      { id: 'DK953', command: 'edit_property_keyframes', args: { track_id: 'track-b', edits: { remove: ['middle'] } }, utterance: 'delete the middle brightness keyframe' },
+      { id: 'DPT953', command: 'remove_property_tracks', args: { track_ids: ['track-b'] }, utterance: 'remove the brightness animation track' },
     ].map(row => ({ ...row,
       fixture: () => {
         const show = showAnimationCommandFixture()
@@ -1909,18 +1930,22 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         if (row.id === 'DK953') show.composition!.scenes[0].propertyTracks![0].keyframes.splice(1, 0, { id: 'middle', timeMs: 15000, value: 0.5, easing: { curve: 'linear' } })
         return show
       },
-      pendingV2: 'G3c',
-      expectedFacts: v1Facts((before: ShowRecord) => {
+      expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
-        const scene = expected.composition!.scenes[0]
-        const track = scene.propertyTracks!.find(track => track.id === 'track-b')!
-        if (row.id === 'APT953') scene.propertyTracks!.unshift({ id: 'track-1', target: { kind: 'placement-view', placementId: 'clip-a', property: 'phase' }, keyframes: [{ id: 'kf-7', timeMs: 0, value: 0.3, easing: { curve: 'linear' } }, { id: 'kf-8', timeMs: 30000, value: 0.3, easing: { curve: 'linear' } }] })
-        if (row.id === 'AK953') track.keyframes.splice(1, 0, { id: 'kf-7', timeMs: 15000, value: 0.5, easing: { curve: 'linear' } })
+        const composition = expected.composition
+        const track = composition.propertyTracks.find(track => track.id === 'track-b')!
+        if (row.id === 'APT953') {
+          composition.propertyTracks.push({
+            id: 'track-view-phase', target: { kind: 'clip-view', clipId: 'clip-a', property: 'phase' }, activeStartMs: 0, activeDurationMs: 10000,
+            keyframes: [{ id: 'track-view-phase-key-1', timeMs: 0, value: 0.3, easing: { curve: 'linear' } }, { id: 'track-view-phase-key-2', timeMs: 10000, value: 0.3, easing: { curve: 'linear' } }],
+          })
+        }
+        if (row.id === 'AK953') track.keyframes.splice(1, 0, { id: 'track-b-key-15000-1', timeMs: 15000, value: 0.5, easing: { curve: 'linear' } })
         if (row.id === 'UK953') { const first = track.keyframes.shift()!; track.keyframes.push({ ...first, timeMs: 20000 }) }
         if (row.id === 'DK953') track.keyframes = track.keyframes.filter(key => key.id !== 'middle')
-        if (row.id === 'DPT953') scene.propertyTracks = scene.propertyTracks!.filter(track => track.id !== 'track-b')
+        if (row.id === 'DPT953') composition.propertyTracks = composition.propertyTracks.filter(track => track.id !== 'track-b')
         return expected
-      }),
+      },
     })),
 
     {
