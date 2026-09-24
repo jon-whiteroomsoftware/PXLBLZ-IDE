@@ -2206,15 +2206,15 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         record.id = `remove-951-${Date.now().toString(36)}`
         return record
       },
-      // v2 removes the Clip, its Clip-owned track-b and the connected
-      // Transition naming it; the vacated instance-b and its instance track stay
-      // (src/engine/showTransitionsV2.ts:147-152), where v1 collected them.
+      // Spec §6 collects the orphaned instance-b and its instance tracks; v2 keeps them (#1100).
+      pendingV2: 'defect: #1100 v2 removal keeps the orphaned instance and its instance tracks',
       expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
         const composition = expected.composition
         composition.clips = composition.clips.filter(clip => clip.id !== 'clip-b')
         composition.transitions = composition.transitions.filter(transition => transition.id !== 'connected-transition')
-        composition.propertyTracks = composition.propertyTracks.filter(track => track.id !== 'track-b')
+        composition.propertyTracks = composition.propertyTracks.filter(track => !['track-b', 'track-inst-b'].includes(track.id))
+        composition.patternInstances = composition.patternInstances.filter(instance => instance.id !== 'instance-b')
         return expected
       }
     },
@@ -2231,13 +2231,13 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       // The owner's split narrows track-b's activation to start at 10 000 ms,
       // inside the incoming Transition's window, and the bridge's delivery
       // validation refuses the commit; v1 accepted the same split.
-      pendingV2: 'defect: v2 split_clip activates track-b inside the incoming Transition window; delivery validation refuses the commit',
+      pendingV2: 'defect: #1101 v2 split_clip activates track-b inside the incoming Transition window; delivery validation refuses the commit',
       expectedFacts: before => splitFixtureExpected(before)
     },
     {
       id: 'DC951',
       command: 'duplicate_clip',
-      args: { clip_id: 'clip-ov', start_ms: 8000 },
+      args: { clip_id: 'clip-ov', start_ms: 8000, independent: true },
       utterance: 'duplicate the overlay Clip independently',
       fixture: () => {
         const record = showSplitClipFixture()
@@ -2245,15 +2245,19 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         return record
       },
       // v2 needs an explicit start (v1 placed the copy after the source, at
-      // 8000 ms), and by D4 the copy shares instance-ov instead of copying it
-      // (src/engine/showCommandsV2/clips.ts:305, 319, 321).
+      // 8000 ms). independent gives the copy a fresh instance-ov-independent
+      // cloned from instance-ov (src/engine/showCommandsV2/clips.ts:351-358, 375;
+      // src/engine/showClipsV2.ts:269-277); instance-ov has no instance tracks to copy.
       expectedFacts: (before: ShowRecordV2) => {
         const expected = structuredClone(before)
         const source = before.composition.clips.find(clip => clip.id === 'clip-ov')!
+        const instance = before.composition.patternInstances.find(candidate => candidate.id === 'instance-ov')!
+        expected.composition.patternInstances.push({ ...structuredClone(instance), id: 'instance-ov-independent' })
         expected.composition.clips.push({
-          ...structuredClone(source), id: 'clip-ov-copy', startMs: 8000,
+          ...structuredClone(source), id: 'clip-ov-copy', instanceId: 'instance-ov-independent', startMs: 8000,
           appearance: { keys: [{ ...structuredClone(source.appearance.keys[0]), id: 'clip-ov-appearance-1-copy', timeMs: 8000 }] },
         })
+        expected.composition.executionModel = 'continuous'
         return expected
       }
     },
