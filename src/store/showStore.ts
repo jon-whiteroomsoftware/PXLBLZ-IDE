@@ -823,6 +823,8 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       ? (await listProvider.listShowDocumentsV2().catch(() => []))
         .map((record): ShowV2ListRow => ({ id: record.id, name: record.name, updatedAt: record.updatedAt }))
       : []
+    // Rows list newest first, as v1 does (#1117).
+    v2Rows.sort((a, b) => b.updatedAt - a.updatedAt)
     // A workspace that changed while the rows were read owns its own listing.
     const currentWorkspace = showV2WorkspaceGeneration === listGeneration
       && getPersonalContentProvider() === listProvider

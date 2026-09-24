@@ -1004,17 +1004,31 @@ describe('showStore (#318)', () => {
     })
   })
 
-  // v2 port blocked by #TBD: loadShows leaves v2 rows in provider order instead of recency order.
   it('loads shows sorted by recency and opens one as active', async () => {
-    const older = createDefaultShow('show-1', 'Older', 1)
-    const newer = createDefaultShow('show-2', 'Newer', 2)
-    setPersonalContentProvider(memoryProvider([older, newer]))
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const older = { ...converted.record, id: 'show-1', name: 'Older', updatedAt: 1 }
+    const newer = { ...converted.record, id: 'show-2', name: 'Newer', updatedAt: 2 }
+    v2ProviderForPort([older, newer])
 
     await useShowStore.getState().loadShows()
-    useShowStore.getState().openShow('show-1')
+    const opened = await useShowStore.getState().openShowV2Pilot(older.id)
 
-    expect(useShowStore.getState().shows.map((show) => show.id)).toEqual(['show-2', 'show-1'])
-    expect(useShowStore.getState().activeShowId).toBe('show-1')
+    expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toEqual(['show-2', 'show-1'])
+    expect(opened).toMatchObject({ status: 'ready', record: { id: older.id } })
+    expect(useShowStore.getState().showV2Pilots[older.id]).toMatchObject({ id: older.id })
+  })
+
+  it('keeps provider order for v2 Shows with equal recency', async () => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const first = { ...converted.record, id: 'show-first', name: 'First', updatedAt: 2 }
+    const second = { ...converted.record, id: 'show-second', name: 'Second', updatedAt: 2 }
+    v2ProviderForPort([first, second])
+
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toEqual(['show-first', 'show-second'])
   })
 
   it('creates, renames, edits, and deletes shows through the provider', async () => {
