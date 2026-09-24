@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/f589dc6c-6000-4c76-b5ac-da11a6c86b90",
+  "operation": "A throwaway Playwright spec at 1440x900, run as the synthetic user, imported a version-1 .pxlshow through the Shows rail's Add show → Import Show file… → Import Show. The file held the convertibleV1Show fixture from src/test/showV2TracerFixture.ts, renamed 'Imported v1 Show'. The import converted the Show to v2 before writing and opened it in the existing Show editor on its new route, where the capture shows the TestPattern1D Clip. Readback through findStoredShowV2 (GET /api/shows?show-version=2) returned version 2, the same id and name, and one Clip; GET /api/shows without the parameter answered 410 show-v1-retired.",
+  "captures": [
+    ".wrsp/ui-proof/1042p1b-import.png"
+  ],
+  "capturedAtCommit": "320356b6385528b2209faa798dd5ec8a981ea08d"
+}
