@@ -24,6 +24,32 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.18.0 adoption (#1118)
+
+This adoption updates the executable package from 0.17.1. Source release is
+WRSP 0.18.0; see its `docs/reference/process-release-0.18.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.18.0, tag `v0.18.0` |
+| Source | `aa5a9fff875fc9017ba797de560cec1bc1518648` |
+| Tarball | `vendor/whiteroom-software-process-0.18.0.tgz` |
+| SHA256 | `438e0821841f263f1e23e896523c33f5b47fbbfb9e83cfb41d841a2b09b565b0` |
+
+The reviewer catalog now comes from WRSP `templates/models.yaml` instead of
+the execution tiers (WRSP #131). The ranked reviewers and their order are
+unchanged: Opus 5.5 High, Sol 6 High, Astra Low, then Fable 5.1 Medium. The
+explicit choices that existed only because a tier listed them are removed:
+Luna 6 High, Sonnet 5 High, Sol 6 Low, Opus 5.5 Low and Opus 5.5 Medium. The
+review policy fingerprint changes to
+`71dc7ebc576d6ebdc536de52d3778de1803888664777355034717da623acce52`, and
+existing receipts keep their authority under their recorded policy. The package
+gains its first runtime dependency, `yaml`, which the lockfile now resolves.
+Execution tiers, hook ownership (WRSP #132) and the coordinator context budget
+with Claude compaction at 300k (WRSP #123) are agent tooling deployed from the
+WRSP checkout with `wrsp-agents install`. Review semantics, receipt format and
+staged-test selection are unchanged.
+
 ## WRSP 0.17.1 adoption (#1112)
 
 This adoption updates the executable package from 0.16.0. Source release is
