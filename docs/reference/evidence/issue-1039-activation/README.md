@@ -41,7 +41,7 @@ mode, or Show Trails. The v2 commands for most of them exist
 (`set_output_contract`, `set_stage_map`, `update_zone`, `set_output_trails`), so
 this is a missing editor surface rather than a missing capability, and an agent
 can still author them. It is recorded in
-[the editor contract](../../contracts/show-editor-v2.md#surfaces-the-v1-editor-has-and-this-route-does-not)
+[the editor contract](../../contracts/show-editor-v2.md#edit-doors)
 and is the first thing a follow-up slice should close.
 
 ## Evidence

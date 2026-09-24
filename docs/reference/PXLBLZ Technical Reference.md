@@ -937,7 +937,7 @@ an Installation Show, its physical LED ranges. Those two owners were the
 editor's alone: the MCP command set edits content in Shows, not Show structure,
 so an agent still cannot create a Zone or re-route a definition. Dragging
 across the Stage to select an Installation Zone's LEDs remains a v1-only
-surface. See [the editor contract](contracts/show-editor-v2.md#show-properties)
+surface. See [the editor contract](contracts/show-editor-v2.md#edit-doors)
 and [the Zone owner contract](contracts/show-v2-zone-layout-owners.md).
 
 **Row conversion.** Personal rows move to v2 through an explicit operator pass,

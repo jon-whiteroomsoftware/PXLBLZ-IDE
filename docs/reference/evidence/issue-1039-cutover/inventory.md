@@ -209,13 +209,13 @@ the Show list reads both stored versions, `.pxlshow` import accepts a version-2
 bundle beside a version-1 one, and the production MCP catalogue is v2 before
 attachment. Which editor holds one Show follows that Show's stored version, so
 no mixed window exists in either state; see
-[the editor contract](../../contracts/show-editor-v2.md#the-version-gate) and
+[the editor contract](../../contracts/show-editor-v2.md#which-record-backs-the-open-editor) and
 [the activation evidence](../issue-1039-activation/README.md).
 
 | Item | State |
 | --- | --- |
 | Remote row conversion and the deployed-tip MCP transcript | deferred and blocked by the recorded Cloudflare migration authorization failure; no push, deploy or remote migration attempted. The local rehearsal is [rehearsal.md](rehearsal.md), re-run on the flipped build |
-| Output contract, Stage map, Zone Map, Zone Layout definition and Show Trails surfaces on the v2 editor | open; the commands exist, the editor surface does not. Named in [the editor contract](../../contracts/show-editor-v2.md#surfaces-the-v1-editor-has-and-this-route-does-not) |
+| Output contract, Stage map, Zone Map, Zone Layout definition and Show Trails surfaces on the v2 editor | open; the commands exist, the editor surface does not. Named in [the editor contract](../../contracts/show-editor-v2.md#edit-doors) |
 | The agent harness on v2 vocabulary | open; `src/agent-harness/` still speaks v1 and its checks are offline, so the flip does not break them |
 | Built-in Shows on the native v2 catalogue | open; `STOCK_SHOWS` stays the pinned parity input and the Gallery, keyframes and census still read it, so a built-in Show keeps the v1 editor |
 | Legacy authoring owners and the legacy columns | #1042, explicitly out of scope here |
