@@ -40,9 +40,10 @@ The reviewer catalog now comes from WRSP `templates/models.yaml` instead of
 the execution tiers (WRSP #131). The ranked reviewers and their order are
 unchanged: Opus 5.5 High, Sol 6 High, Astra Low, then Fable 5.1 Medium. The
 explicit choices that existed only because a tier listed them are removed:
-Luna 6 High, Sonnet 5 High, Sol 6 Low, Opus 5.5 Low and Opus 5.5 Medium. The
-review policy fingerprint changes to
-`71dc7ebc576d6ebdc536de52d3778de1803888664777355034717da623acce52`, and
+Luna 6 High, Sonnet 5 High, Sol 6 Low, Opus 5.5 Low and Opus 5.5 Medium. This
+repository's review policy fingerprint, which includes the project policy in
+`wrsp.config.mjs`, changes to
+`fc1f410a529a99fd42323aa37d37b6f53e60c2003f50bd30504fb47dbf6bdb3d`, and
 existing receipts keep their authority under their recorded policy. The package
 gains its first runtime dependency, `yaml`, which the lockfile now resolves.
 Execution tiers, hook ownership (WRSP #132) and the coordinator context budget
