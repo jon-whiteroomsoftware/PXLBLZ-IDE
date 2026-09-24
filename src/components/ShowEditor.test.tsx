@@ -2788,7 +2788,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
   })
 
-  // v2 port blocked by #1111: committing the boundary speed multiplier makes no v2 write; the incoming instance keeps timeScale 0.25
+  // v1 only: its whole-boundary fixture has no v2 form (unsupported-boundary-transition); the v2 behaviour is covered by the #1111-A2 tests.
   it('authors boundary speed and repeat scales as multipliers while persisting raw values (#610)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-boundary-domain-units', 'Boundary domain units', 1000)
@@ -2855,6 +2855,87 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       expect(saved.cells[1].adaptations.timeScale).toBe(0)
       expect(saved.transitions?.[0].propertyTransitions?.sample?.repeatScale?.from).toBe(2)
     })
+  })
+
+  it('edits the incoming Clip brightness from the boundary destination row (#1111-A2)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-v2-boundary-brightness-target', 'Boundary brightness target', 1000)
+    show.cells[1] = {
+      ...show.cells[1],
+      adaptations: { ...show.cells[1].adaptations, brightness: 0.75 },
+    }
+    show.transitions = [{
+      ...show.transitions![0],
+      propertyTransitions: {
+        brightness: { fromByCellId: { [show.cells[1].id]: 0.5 }, durationMs: 1_000 },
+      },
+    }]
+    const editor = openV2EditorForRecord(convertForTest(show))
+    const participant = editor.state().record.composition.transitions[0].participants[0]
+    const before = structuredClone(editor.state().record)
+
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await user.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await user.click(screen.getByText('Advanced transition controls'))
+    expect(screen.getByRole('textbox', { name: 'Brightness target main exact percentage' })).toHaveValue('75')
+
+    changeCommittedNumber('Brightness target main exact percentage', '60%')
+
+    await waitFor(() => {
+      const record = editor.state().record
+      const incoming = record.composition.clips.find(clip => clip.id === participant.toClipId)!
+      expect(incoming.appearance.keys[0].value.view.brightness).toBe(0.6)
+      expect(editor.state().v2Writes).toBe(1)
+    })
+    const record = editor.state().record
+    const outgoing = before.composition.clips.find(clip => clip.id === participant.fromClipId)!
+    expect(record.composition.clips.find(clip => clip.id === participant.fromClipId)).toEqual(outgoing)
+    expect(record.composition.patternInstances.find(instance => instance.id === outgoing.instanceId))
+      .toEqual(before.composition.patternInstances.find(instance => instance.id === outgoing.instanceId))
+    expect(editor.state().legacyWrites).toBe(0)
+  })
+
+  it('edits the incoming Clip speed from the boundary destination row as a multiplier (#1111-A2)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-v2-boundary-speed-target', 'Boundary speed target', 1000)
+    show.cells[1] = {
+      ...show.cells[1],
+      adaptations: { ...show.cells[1].adaptations, timeScale: 0.25 },
+    }
+    show.transitions = [{
+      ...show.transitions![0],
+      propertyTransitions: {
+        timeScale: { fromByCellId: { [show.cells[1].id]: 0.5 }, durationMs: 1_000 },
+      },
+    }]
+    const editor = openV2EditorForRecord(convertForTest(show))
+    const participant = editor.state().record.composition.transitions[0].participants[0]
+    const before = structuredClone(editor.state().record)
+
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    await user.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await user.click(screen.getByText('Advanced transition controls'))
+    expect(screen.getByRole('textbox', { name: 'Animation speed start main exact multiplier' })).toHaveValue('0.5')
+    expect(screen.getByRole('textbox', { name: 'Animation speed target main exact multiplier' })).toHaveValue('0.25')
+
+    changeCommittedNumber('Animation speed target main exact multiplier', '0.5x')
+
+    await waitFor(() => {
+      const record = editor.state().record
+      const incoming = record.composition.clips.find(clip => clip.id === participant.toClipId)!
+      expect(record.composition.patternInstances.find(instance => instance.id === incoming.instanceId)?.time.timeScale).toBe(0.5)
+      expect(editor.state().v2Writes).toBe(1)
+    })
+    const saved = editor.state().record
+    const outgoing = before.composition.clips.find(clip => clip.id === participant.fromClipId)!
+    expect(saved.composition.clips.find(clip => clip.id === participant.fromClipId)).toEqual(outgoing)
+    expect(saved.composition.patternInstances.find(instance => instance.id === outgoing.instanceId))
+      .toEqual(before.composition.patternInstances.find(instance => instance.id === outgoing.instanceId))
+    expect(editor.state().legacyWrites).toBe(0)
   })
 
   it('contracts unchanged values across a non-Cut Clip junction (#599 review)', () => {

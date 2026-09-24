@@ -12078,7 +12078,14 @@ function ContextualInspector({
           onPreviewEnd={() => {}}
           onOpenPalette={() => onOpenTransitions(selection.transitionId)}
           onRemove={(transitionId) => onRemoveBoundaryTransitionV2?.(transitionId)}
-          onUpdateDestinationAdaptations={() => {}}
+          onUpdateDestinationAdaptations={(destinationId, changes) => {
+            if (!boundary.destinations.some(destination => destination.id === destinationId)) return
+            if (changes.timeScale !== undefined) {
+              onUpdateClipInspectorV2?.(destinationId, { simulation: { timeScale: changes.timeScale } })
+            } else if (changes.brightness !== undefined) {
+              onUpdateClipInspectorV2?.(destinationId, { view: { brightness: changes.brightness } })
+            }
+          }}
           onUpdateDestinationControlTarget={() => {}}
         />
       )
