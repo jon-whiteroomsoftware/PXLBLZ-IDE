@@ -97,5 +97,10 @@ export function showLessonAuthoredSlotPatternV2(
   record: ShowRecordV2,
   group: ShowPatternSlotGroup,
 ): ShowPatternRef | undefined {
-  return record.composition.patternInstances.find((instance) => group.instanceIds.includes(instance.id))?.pattern
+  // A group's first declared instance names the Pattern its picker shows (#1110).
+  for (const id of group.instanceIds) {
+    const instance = record.composition.patternInstances.find((candidate) => candidate.id === id)
+    if (instance) return instance.pattern
+  }
+  return undefined
 }

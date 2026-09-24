@@ -4829,14 +4829,18 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
   })
 
-  // v2 port blocked by #1110: v2 reference guide Try with Pattern shows the reference slot MetaballsOfFire2D instead of the selected slot MetaballGarden.
   it('turns a reference Show guide into a live Pattern comparison instrument (#506)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-blend-fade-transitions')!
+    const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
+    const selectedInstance = editor.state().record.composition.patternInstances
+      .find((instance) => instance.id === 'instance-reference-content-selected')!
+    selectedInstance.controlTargets = { speed: 0.42 }
+    const authoredSelected = structuredClone(selectedInstance)
 
     render(<ShowEditor
-      showId={stock.id}
-      showOverride={stock.show}
+      showId={editor.showId}
+      recordVersion={2}
       builtInContext={{
         track: stock.track,
         lesson: stock.lesson,
@@ -4864,38 +4868,25 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     // One Reset in the header owns all restoration; the guide has none (#63).
     expect(within(guide).queryByRole('button', { name: 'Reset Pattern' })).toBeNull()
 
-    const editedDraft = {
-      ...stock.show,
-      name: 'Edited reference draft',
-      updatedAt: stock.show.updatedAt + 1,
-      composition: stock.show.composition ? {
-        ...stock.show.composition,
-        patternInstances: stock.show.composition.patternInstances.map((instance) => (
-          instance.id === 'instance-reference-content-selected'
-            ? { ...instance, controlTargets: { speed: 0.42 } }
-            : instance
-        )),
-      } : undefined,
-    }
-    act(() => useShowStore.setState({
-      stockShowDrafts: {
-        [stock.id]: editedDraft,
-      },
-    }))
-    expect(screen.queryByRole('button', { name: 'Select CompassRose' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Show properties' }))
-    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveTextContent('Edited reference draft')
+    await waitFor(() => {
+      const selected = editor.state().record.composition.patternInstances
+        .find((instance) => instance.id === 'instance-reference-content-selected')!
+      expect(selected.pattern).toEqual({ kind: 'stock', id: 'MetaballGarden' })
+      expect(selected.controlTargets).toEqual(authoredSelected.controlTargets)
+    })
+    expect(editor.state().v2Writes).toBe(0)
 
     await user.click(screen.getAllByRole('button', { name: 'Select Caustics' })[0])
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     await user.clear(brightness)
     await user.type(brightness, '60%')
     await user.keyboard('{Enter}')
-    await waitFor(() => expect(useShowStore.getState().stockShowDrafts[stock.id].composition
-      ?.patternInstances.find((instance) => instance.id === 'instance-reference-content-selected')).toMatchObject({
-      pattern: { kind: 'stock', id: 'MetaballGarden' },
-      controlTargets: { speed: 0.42 },
-    }))
+    await waitFor(() => {
+      const selected = editor.state().record.composition.patternInstances
+        .find((instance) => instance.id === 'instance-reference-content-selected')!
+      expect(selected.pattern).toEqual({ kind: 'stock', id: 'MetaballGarden' })
+      expect(selected.controlTargets).toEqual(authoredSelected.controlTargets)
+    })
 
     await user.click(screen.getByRole('button', { name: 'Reset built-in Show' }))
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()

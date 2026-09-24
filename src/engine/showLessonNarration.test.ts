@@ -127,4 +127,12 @@ describe('lesson authored slot pattern (#1066 11c2a)', () => {
       }
     })
   }
+
+  it('shows the selected Pattern declared first by the blend and fade reference guide (#1110)', () => {
+    const entry = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-blend-fade-transitions')!
+    const record = stockShowV2ById(entry.id)!
+    expect(showLessonAuthoredSlotPatternV2(record, entry.reference!.patternSlots!)).toEqual({
+      kind: 'stock', id: 'MetaballGarden',
+    })
+  })
 })

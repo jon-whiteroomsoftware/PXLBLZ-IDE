@@ -2609,8 +2609,9 @@ function transitionReferenceShow(input: {
     patternSlots: {
       cellIds: scenes.filter((_, index) => index % 2 === 1).map((item) => cellId(item.id, 'zone-1')),
       // Declarations scope the generated swap surface (#822): both content
-      // sides are swappable.
-      instanceIds: [contentInstanceId(0), contentInstanceId(1)],
+      // sides are swappable. The selected side comes first because the picker
+      // shows the first declared Pattern (#1110).
+      instanceIds: [contentInstanceId(1), contentInstanceId(0)],
     },
     examples: input.specs.map((spec, index) => ({
       id: spec.id,
