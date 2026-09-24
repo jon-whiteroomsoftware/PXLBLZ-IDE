@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ShowRecordV2 } from './showCompositionV2'
+import { resolveShowV2SplitTarget } from './showV2ClipTemporalPlanning'
 import {
   completeShowGroupSelectionV2,
   projectShowEditorPropertyLanesV2,
@@ -198,6 +199,60 @@ describe('Show editor timeline commands v2', () => {
       .toEqual({ enabled: true, reason: 'Split the selected Clip at the playhead.' })
     expect(commands({ playheadMs: 2_500, isolatedGroupOccurrenceId: 'occurrence' }).split)
       .toEqual({ enabled: false, reason: 'Place the playhead inside a Clip.' })
+  })
+
+  it('targets the earlier Main Clip when a later overlay also covers the playhead', () => {
+    const timeline = view()
+    const main = timeline.rows[0]!.layers[0]!
+    const overlay = {
+      ...main,
+      id: 'overlay',
+      layerIndex: 0,
+      items: [{ ...main.items[0]!, id: 'overlay-clip', layerId: 'overlay', startMs: 1_000, durationMs: 4_000, endMs: 5_000 }],
+    }
+    timeline.rows[0]!.layers = [overlay, { ...main, layerIndex: 1 }]
+    const selection = { kind: 'other' } as const
+    expect(resolveShowV2SplitTarget(timeline, { selection, playheadMs: 2_500, isolatedGroupOccurrenceId: null }))
+      .toBe('clip-a')
+    expect(commands({ view: timeline, selection, playheadMs: 2_500 }).split)
+      .toEqual({ enabled: true, reason: 'Split the selected Clip at the playhead.' })
+  })
+
+  it.each([
+    { kind: 'group' } as const,
+    { kind: 'multi', placementIds: ['clip-a'], transitionIds: [] } as const,
+  ])('refuses Split for $kind selection over an ordinary Clip', (selection) => {
+    const timeline = view()
+    expect(resolveShowV2SplitTarget(timeline, { selection, playheadMs: 2_500, isolatedGroupOccurrenceId: null }))
+      .toBeNull()
+    expect(commands({ view: timeline, selection, playheadMs: 2_500 }).split)
+      .toEqual({ enabled: false, reason: 'Place the playhead inside a Clip.' })
+  })
+
+  it('refuses Split inside Group isolation', () => {
+    const selection = { kind: 'other' } as const
+    expect(resolveShowV2SplitTarget(view(), { selection, playheadMs: 2_500, isolatedGroupOccurrenceId: 'occurrence' }))
+      .toBeNull()
+    expect(commands({ selection, playheadMs: 2_500, isolatedGroupOccurrenceId: 'occurrence' }).split)
+      .toEqual({ enabled: false, reason: 'Place the playhead inside a Clip.' })
+  })
+
+  it('refuses Split for a selected Group child', () => {
+    const timeline = view()
+    timeline.rows[0]!.layers[0]!.items[0]!.groupOccurrenceId = 'occurrence'
+    const selection = { kind: 'clip', clipId: 'clip-a' } as const
+    expect(resolveShowV2SplitTarget(timeline, { selection, playheadMs: 2_500, isolatedGroupOccurrenceId: null }))
+      .toBeNull()
+    expect(commands({ view: timeline, selection, playheadMs: 2_500 }).split)
+      .toEqual({ enabled: false, reason: 'Place the playhead inside the selected Clip.' })
+  })
+
+  it('falls back to the playhead Clip for a missing selected Clip id', () => {
+    const selection = { kind: 'clip', clipId: 'missing' } as const
+    expect(resolveShowV2SplitTarget(view(), { selection, playheadMs: 2_500, isolatedGroupOccurrenceId: null }))
+      .toBe('clip-a')
+    expect(commands({ selection, playheadMs: 2_500 }).split)
+      .toEqual({ enabled: true, reason: 'Split the selected Clip at the playhead.' })
   })
 
   it('enables Clone only when the Layer holds another Clip length after the selection', () => {

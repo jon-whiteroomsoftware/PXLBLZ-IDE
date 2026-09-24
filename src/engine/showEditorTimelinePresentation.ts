@@ -37,6 +37,7 @@ import {
   type ShowPropertyLaneSegment,
 } from './showPropertyLaneProjection'
 import { qualifiedPropertyLabel, type ShowPropertyLaneFamily } from './showPropertyLaneFamilies'
+import { resolveShowV2SplitTarget } from './showV2ClipTemporalPlanning'
 
 interface AuthoredTimelineItem {
   view: ShowTimelineItemView
@@ -524,9 +525,12 @@ export function projectShowEditorTimeColumnsV2(record: ShowRecordV2): ShowEditor
 }
 
 /** The part of the editor's selection these commands read. The surface maps its
- * own selection onto this shape so the engine stays free of store types. */
+ * own selection onto this shape so the engine stays free of store types.
+ * `group` means a Group or Group child selection; neither resolves Split at
+ * the playhead. */
 export type ShowEditorTimelineCommandSelectionV2 =
   | { kind: 'clip'; clipId: string }
+  | { kind: 'group' }
   | { kind: 'multi'; placementIds: readonly string[]; transitionIds: readonly string[] }
   | { kind: 'other' }
 
@@ -540,21 +544,6 @@ export interface ShowEditorTimelineCommandsV2 {
   split: ShowEditorTimelineCommandCapabilityV2
   clone: ShowEditorTimelineCommandCapabilityV2
   group: ShowEditorTimelineCommandCapabilityV2
-}
-
-function firstOrdinaryItemAt(
-  view: ShowTimelineViewModel,
-  timeMs: number,
-): ShowTimelineItemView | null {
-  for (const row of view.rows) {
-    for (const layer of row.layers) {
-      for (const item of layer.items) {
-        if (item.groupOccurrenceId) continue
-        if (timeMs > item.startMs && timeMs < item.endMs) return item
-      }
-    }
-  }
-  return null
 }
 
 function findItem(view: ShowTimelineViewModel, clipId: string): ShowTimelineItemView | null {
@@ -592,11 +581,10 @@ export function projectShowEditorTimelineCommandsV2(input: {
   const selectedItem = selection.kind === 'clip' ? findItem(view, selection.clipId) : null
   const selectedOrdinary = selectedItem && !selectedItem.groupOccurrenceId ? selectedItem : null
 
-  const splitTarget = isolatedGroupOccurrenceId
-    ? null
-    : selectedOrdinary ?? (selection.kind === 'clip' && selectedItem ? null : firstOrdinaryItemAt(view, playheadMs))
+  const splitTargetId = resolveShowV2SplitTarget(view, { selection, playheadMs, isolatedGroupOccurrenceId })
+  const splitTarget = splitTargetId ? findItem(view, splitTargetId) : null
   const split: ShowEditorTimelineCommandCapabilityV2 = !splitTarget
-    ? selection.kind === 'clip' && selectedItem
+    ? selection.kind === 'clip'
       ? { enabled: false, reason: 'Place the playhead inside the selected Clip.' }
       : { enabled: false, reason: 'Place the playhead inside a Clip.' }
     : playheadMs > splitTarget.startMs && playheadMs < splitTarget.endMs

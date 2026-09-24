@@ -330,12 +330,13 @@ describe('resolveShowV2SplitTarget', () => {
     const playheads = [0, 1000, 4000, 4500, 5500, 6500, 7000, 12500, 19000]
     for (const selectionClipId of selections) {
       for (const playheadMs of playheads) {
+        const selection = selectionClipId ? { kind: 'clip' as const, clipId: selectionClipId } : { kind: 'other' as const }
         const target = resolveShowV2SplitTarget(view, {
-          selectionClipId, playheadMs, isolatedGroupOccurrenceId: null,
+          selection, playheadMs, isolatedGroupOccurrenceId: null,
         })
         const capability = projectShowEditorTimelineCommandsV2({
           view,
-          selection: selectionClipId ? { kind: 'clip', clipId: selectionClipId } : { kind: 'other' },
+          selection,
           playheadMs,
           isolatedGroupOccurrenceId: null,
         }).split
@@ -350,7 +351,7 @@ describe('resolveShowV2SplitTarget', () => {
 
   it('resolves nothing inside group isolation', () => {
     expect(resolveShowV2SplitTarget(fixture(), {
-      selectionClipId: 'a', playheadMs: 2000, isolatedGroupOccurrenceId: 'use-1',
+      selection: { kind: 'clip', clipId: 'a' }, playheadMs: 2000, isolatedGroupOccurrenceId: 'use-1',
     })).toBeNull()
   })
 })

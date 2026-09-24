@@ -1,4 +1,5 @@
 import type { ShowClipTemporalIntentV2 } from './showClipTemporalV2'
+import type { ShowEditorTimelineCommandSelectionV2 } from './showEditorTimelinePresentation'
 import type { ShowTransitionEditIntentV2 } from './showTransitionsV2'
 import type {
   ShowTimelineItemView,
@@ -402,30 +403,31 @@ export function planShowV2ClipSplit(
   }
 }
 
-function firstOrdinaryItemAt(view: ShowTimelineViewModel, timeMs: number): ShowTimelineItemView | null {
-  for (const row of view.rows) {
-    for (const layer of row.layers) {
-      for (const item of layer.items) {
-        if (item.groupOccurrenceId) continue
-        if (timeMs > item.startMs && timeMs < item.startMs + item.durationMs) return item
-      }
-    }
-  }
-  return null
-}
-
 /**
- * The toolbar Split target on a v2 backing, mirroring the landed split
- * capability rule: the selected ordinary Clip, else the ordinary Clip under
- * the playhead, and nothing inside Group isolation or for a Group child.
+ * The v1 toolbar Split target: an explicit ordinary Clip wins; Show,
+ * Transition, Zone, and Zone Layout selections use the first ordinary Clip
+ * covering the playhead by start, row, Layer, and stable id. Group, Group
+ * child, and multi selections have no target; Group isolation has none.
  */
 export function resolveShowV2SplitTarget(
   view: ShowTimelineViewModel,
-  input: { selectionClipId: string | null; playheadMs: number; isolatedGroupOccurrenceId: string | null },
+  input: { selection: ShowEditorTimelineCommandSelectionV2; playheadMs: number; isolatedGroupOccurrenceId: string | null },
 ): string | null {
   if (input.isolatedGroupOccurrenceId) return null
-  const selected = input.selectionClipId ? findItem(view, input.selectionClipId) : null
-  if (selected && !selected.item.groupOccurrenceId) return selected.item.id
-  if (selected) return null
-  return firstOrdinaryItemAt(view, input.playheadMs)?.id ?? null
+  if (input.selection.kind === 'clip') {
+    const selected = findItem(view, input.selection.clipId)
+    if (selected) return selected.item.groupOccurrenceId ? null : selected.item.id
+  } else if (input.selection.kind === 'group' || input.selection.kind === 'multi') {
+    return null
+  }
+  const covering = view.rows.flatMap((row, rowIndex) => row.layers.flatMap((layer) => layer.items
+    .filter((item) => !item.groupOccurrenceId
+      && input.playheadMs > item.startMs
+      && input.playheadMs < item.startMs + item.durationMs)
+    .map((item) => ({ item, rowIndex, layerIndex: layer.layerIndex }))))
+  covering.sort((left, right) => left.item.startMs - right.item.startMs
+    || left.rowIndex - right.rowIndex
+    || left.layerIndex - right.layerIndex
+    || left.item.id.localeCompare(right.item.id))
+  return covering[0]?.item.id ?? null
 }
