@@ -1,8 +1,8 @@
 {
   "version": 1,
   "issue": "1042",
-  "route": "/PXLBLZ-IDE/studio/shows/f91b7abd-1336-4deb-9f46-fdd4b40a7829",
-  "operation": "Opened a personal Show in the v2 editor after the pilot components were deleted, edited the crossfade Transition's duration from 2 s to 1 s in the Transition popover (the edit applied: the timeline re-laid out, Undo enabled, source grew to 10.4 KB), then reloaded the route in a fresh Playwright context and reopened the popover; the capture shows the saved 1 s duration.",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1122-missing-map-boundary",
+  "operation": "Re-driven after rebasing onto the landed bug-fix chain and 4-4b. With the pilot editor components deleted, opened a personal Show's boundary Transition in the v2 editor and changed its duration from 2 s to 3 s. Then reloaded the route in a fresh Playwright context and reopened the Transition: the capture shows the saved 3 s duration, and the total length is 01:03.0.",
   "captures": [".wrsp/ui-proof/1042-44d-show-editor-transition-edit.png"],
-  "capturedAtCommit": "437dfff8ea2826f1737595b1111b0943cf064d25"
+  "capturedAtCommit": "fcef4fbfac4ac340304f781f624713156ee70728"
 }
