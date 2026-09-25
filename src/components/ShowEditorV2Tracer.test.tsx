@@ -54,7 +54,7 @@ import { resolveBundledPatternSliderNames } from '@/engine/showPatternControls'
 import { compileLibraries } from '@/engine/libraries'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import type { ShowPatternRef } from '@/engine/personalContentRecords'
-import type { ShowPatternSlotGroup } from '@/engine/showReferenceShow'
+import type { ShowPatternSlotGroupV2 } from '@/pixelblaze/stock/showCatalogueV2'
 import { convertForTest, openV2EditorForRecord, type EditorState, type OpenV2Editor } from '@/test/showEditorV2Harness'
 
 vi.mock('@/components/PixelblazeCodeEditor', () => ({
@@ -6493,9 +6493,11 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
 
 describe('v2 lesson Live strip (#1066 11c2a)', () => {
   async function renderLessonV2(id: string, withNote = true) {
+    const { stockShowCatalogueById } = await import('@/pixelblaze/stock/showCatalogueV2')
     const { stockShowById } = await import('@/pixelblaze/stock/shows')
     const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
-    const stock = stockShowById(id)!
+    const stock = stockShowCatalogueById(id)!
+    const legacyStock = stockShowById(id)!
     const record = structuredClone(stockShowV2ById(id)!)
     const editor = openV2EditorForRecord(record)
     const builtInContext = withNote
@@ -6511,7 +6513,7 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
     if (withNote) useShowEditorSessionStore.getState().setShowNoteOpen(editor.showId, true)
     render(<ShowEditor showId={editor.showId} builtInContext={builtInContext} />)
     await act(async () => {})
-    return { stock, record, editor }
+    return { stock, legacyStock, record, editor }
   }
 
   it('renders LIVE Heart 1/9 with the authored Kishimisu on aperture icons', async () => {
@@ -6526,9 +6528,10 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
   })
 
   it('renders CLIP with the v1 first-clip label and count on 101', async () => {
-    const { stock } = await renderLessonV2('stock-show-101-clips-cuts-blank-time')
+    // Phase 4 deletes this with shows.ts.
+    const { stock, legacyStock } = await renderLessonV2('stock-show-101-clips-cuts-blank-time')
     const { currentShowClip } = await import('@/engine/showReferenceShow')
-    const clip = currentShowClip(stock.show, 0)!
+    const clip = currentShowClip(legacyStock.show, 0)!
     const title = stock.note.number ? `${stock.note.number} ${stock.note.title}` : stock.note.title
     const strip = screen.getByRole('region', { name: `${title} live strip` })
     expect(within(strip).getByText('CLIP')).toBeInTheDocument()
@@ -6538,16 +6541,17 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
   })
 
   it('renders INTERVAL on a multi-chapter non-reference lesson', async () => {
-    const { stock } = await renderLessonV2('stock-show-105-portable-zones')
+    // Phase 4 deletes this with shows.ts.
+    const { stock, legacyStock } = await renderLessonV2('stock-show-105-portable-zones')
     expect(stock.reference).toBeUndefined()
-    expect(stock.show.scenes.length).toBeGreaterThan(1)
+    expect(legacyStock.show.scenes.length).toBeGreaterThan(1)
     const { currentShowScene } = await import('@/engine/showReferenceShow')
-    const scene = currentShowScene(stock.show, 0)!
+    const scene = currentShowScene(legacyStock.show, 0)!
     const title = stock.note.number ? `${stock.note.number} ${stock.note.title}` : stock.note.title
     const strip = screen.getByRole('region', { name: `${title} live strip` })
     expect(within(strip).getByText('INTERVAL')).toBeInTheDocument()
     expect(within(strip).getByText(scene.scene.name)).toBeInTheDocument()
-    expect(within(strip).getByText(`${scene.index + 1}/${stock.show.scenes.length}`)).toBeInTheDocument()
+    expect(within(strip).getByText(`${scene.index + 1}/${legacyStock.show.scenes.length}`)).toBeInTheDocument()
     expect(admission.calls).toEqual([])
   })
 
@@ -6563,7 +6567,7 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
 
   function projectLessonV2(
     record: ShowRecordV2,
-    groups: readonly ShowPatternSlotGroup[],
+    groups: readonly ShowPatternSlotGroupV2[],
     selections: Readonly<Record<number, ShowPatternRef>>,
   ): ShowRecordV2 {
     const librarySet = compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries)
@@ -6849,9 +6853,9 @@ describe('v2 lesson Reset built-in Show (#1066 t54)', () => {
     } as unknown as PersonalContentProvider)
     const opened = await useShowStore.getState().openShowV2Pilot(id)
     expect(opened.status).toBe('ready')
-    const { stockShowById } = await import('@/pixelblaze/stock/shows')
+    const { stockShowCatalogueById } = await import('@/pixelblaze/stock/showCatalogueV2')
     const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
-    const stock = stockShowById(id)!
+    const stock = stockShowCatalogueById(id)!
     const lesson = stockShowV2ById(id)!
     expect(useShowStore.getState().isShowV2LessonDraft(id)).toBe(true)
     render(<ShowEditor
@@ -6915,9 +6919,9 @@ describe('v2 lesson header Clone (#1091 item 3)', () => {
     const opened = await useShowStore.getState().openShowV2Pilot(id)
     expect(opened.status).toBe('ready')
     act(() => { useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true }) })
-    const { stockShowById } = await import('@/pixelblaze/stock/shows')
+    const { stockShowCatalogueById } = await import('@/pixelblaze/stock/showCatalogueV2')
     const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
-    const stock = stockShowById(id)!
+    const stock = stockShowCatalogueById(id)!
     const lesson = stockShowV2ById(id)!
     render(<ShowEditor
       showId={id}

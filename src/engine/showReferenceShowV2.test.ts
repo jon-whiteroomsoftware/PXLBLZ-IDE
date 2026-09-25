@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { stockShowById } from '@/pixelblaze/stock/shows'
+import { stockShowCatalogueById, type ShowPatternSlotGroupV2 } from '@/pixelblaze/stock/showCatalogueV2'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { compileLibraries } from './libraries'
 import { bundledPatternSliderNames } from './showPatternControls'
@@ -56,6 +57,12 @@ function slotGroupsFor(id: string): readonly ShowPatternSlotGroup[] {
   return stock.patternSlots
 }
 
+function slotGroupsV2For(id: string): readonly ShowPatternSlotGroupV2[] {
+  const stock = stockShowCatalogueById(id)
+  if (!stock?.patternSlots) throw new Error(`missing v2 slot groups for ${id}`)
+  return stock.patternSlots
+}
+
 function convertedOracle(id: string, selections: Readonly<Record<number, ShowPatternRef>>): ShowRecordV2 {
   const stock = stockShowById(id)
   if (!stock) throw new Error(`missing v1 stock show ${id}`)
@@ -98,7 +105,7 @@ function nativeProjected(
   if (!native) throw new Error(`missing native v2 stock show ${id}`)
   const projected = applyShowPatternSlotSelectionsV2(
     native,
-    slotGroupsFor(id),
+    slotGroupsV2For(id),
     selections,
     patternNameFor,
     exportedSliderNamesFor,
@@ -180,7 +187,7 @@ describe('Try-with-Pattern projection over v2 records (#1066 slice 11b1)', () =>
 
   it('drops the control target and track whose export the new Pattern lacks', () => {
     const id = 'stock-show-reference-property-animation'
-    const groups = slotGroupsFor(id)
+    const groups = slotGroupsV2For(id)
     const sliders = exportedSliderNamesFor(CAUSTICS)
     if (!sliders?.has('sliderSpeed')) throw new Error('Caustics fixture lacks sliderSpeed')
     const reduced = new Set([...sliders].filter((name) => name !== 'sliderSpeed'))
@@ -212,7 +219,7 @@ describe('Try-with-Pattern projection over v2 records (#1066 slice 11b1)', () =>
     expect(
       applyShowPatternSlotSelectionsV2(
         native,
-        slotGroupsFor('stock-show-103-clip-transform'),
+        slotGroupsV2For('stock-show-103-clip-transform'),
         {},
         patternNameFor,
         exportedSliderNamesFor,
@@ -226,7 +233,7 @@ describe('Try-with-Pattern projection over v2 records (#1066 slice 11b1)', () =>
     const snapshot = structuredClone(native)
     applyShowPatternSlotSelectionsV2(
       native,
-      slotGroupsFor('stock-show-reference-property-animation'),
+      slotGroupsV2For('stock-show-reference-property-animation'),
       { 0: RIBBON_LOOM },
       patternNameFor,
       exportedSliderNamesFor,

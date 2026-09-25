@@ -146,10 +146,6 @@ import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { showKeyboardSeekStepMs } from '@/engine/showKeyboardSeek'
 import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
 import {
-  type ShowPatternSlotGroup,
-  type ShowReferenceGuide,
-} from '@/engine/showReferenceShow'
-import {
   applyShowPatternSlotSelectionsV2,
   showPatternSlotRemovedControlNamesV2,
 } from '@/engine/showReferenceShowV2'
@@ -308,7 +304,12 @@ import { useShowClipHoverStore } from '@/store/showClipHoverStore'
 import { useShowEditorViewStore, type ShowSelection } from '@/store/showEditorViewStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { docExternalHref } from '@/docs/catalog'
-import { stockShowById, type StockShowNote } from '@/pixelblaze/stock/shows'
+import {
+  stockShowCatalogueById,
+  type ShowPatternSlotGroupV2,
+  type ShowReferenceGuideV2,
+  type StockShowNote,
+} from '@/pixelblaze/stock/showCatalogueV2'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import type {
   MapRecord,
@@ -766,8 +767,8 @@ function ShowPatternSlotPicker({
   onSelectPattern,
   inline = false,
 }: {
-  authoredPatternFor: (group: ShowPatternSlotGroup) => ShowPatternRef | undefined
-  slotGroups: readonly ShowPatternSlotGroup[]
+  authoredPatternFor: (group: ShowPatternSlotGroupV2) => ShowPatternRef | undefined
+  slotGroups: readonly ShowPatternSlotGroupV2[]
   patternOptions: ShowPatternOption[]
   selections?: Readonly<Record<number, ShowCell['pattern']>>
   onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
@@ -849,8 +850,8 @@ function ShowLiveStrip({
   note: StockShowNote
   showId: string
   narrationAt: (positionMs: number) => ShowLessonNarration
-  authoredPatternFor: (group: ShowPatternSlotGroup) => ShowPatternRef | undefined
-  patternSlots?: readonly ShowPatternSlotGroup[]
+  authoredPatternFor: (group: ShowPatternSlotGroupV2) => ShowPatternRef | undefined
+  patternSlots?: readonly ShowPatternSlotGroupV2[]
   patternOptions: ShowPatternOption[]
   selections?: Readonly<Record<number, ShowCell['pattern']>>
   onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
@@ -956,8 +957,8 @@ export function ShowEditor({
     lesson: string
     description: string
     note?: StockShowNote
-    patternSlots?: readonly ShowPatternSlotGroup[]
-    reference?: ShowReferenceGuide
+    patternSlots?: readonly ShowPatternSlotGroupV2[]
+    reference?: ShowReferenceGuideV2
   }
   headerGuideTarget?: HTMLElement | null
   headerActionsTarget?: HTMLElement | null
@@ -1008,7 +1009,7 @@ export function ShowEditor({
   }, [compileLibrarySet, userPatterns])
   // Lessons and reference Showcases declare ordered groups on the catalogue
   // entry. The legacy single reference slot remains a compatibility fallback.
-  const builtInSlotGroups = useMemo<readonly ShowPatternSlotGroup[] | undefined>(() => (
+  const builtInSlotGroups = useMemo<readonly ShowPatternSlotGroupV2[] | undefined>(() => (
     builtInContext?.patternSlots
       ?? (builtInContext?.reference?.patternSlots ? [builtInContext.reference.patternSlots] : undefined)
   ), [builtInContext?.reference?.patternSlots, builtInContext?.patternSlots])
@@ -1357,9 +1358,6 @@ export function ShowEditor({
       : null
   ), [activeControllerLiveEpoch, connectedControllerAddress, connectedControllerId])
 
-  const afterSceneIdByTransitionId = useMemo<Readonly<Record<string, string>>>(() => (
-    Object.fromEntries((stockShowById(showId)?.show.transitions ?? []).map((transition) => [transition.id, transition.afterSceneId]))
-  ), [showId])
   const requestPatternSlotSelection = useCallback((slotIndex: number, pattern: ShowPatternRef) => {
     const group = builtInSlotGroups?.[slotIndex]
     const patternName = slotPatternNameFor(pattern)
@@ -3091,7 +3089,7 @@ export function ShowEditor({
     />
   ) : null
 
-  const cloneBuiltInShow = stockShowById(showId) !== undefined && personalWorkspaceAuthenticated
+  const cloneBuiltInShow = stockShowCatalogueById(showId) !== undefined && personalWorkspaceAuthenticated
     ? () => {
         if (savingBuiltInCopy) return
         setSavingBuiltInCopy(true)
@@ -3253,7 +3251,7 @@ export function ShowEditor({
               key={showId}
               note={builtInContext.note}
               showId={showId}
-              narrationAt={(positionMs) => showLessonNarrationV2(lessonProjectionV2, builtInContext.reference, positionMs, afterSceneIdByTransitionId)}
+              narrationAt={(positionMs) => showLessonNarrationV2(lessonProjectionV2, builtInContext.reference, positionMs)}
               authoredPatternFor={(group) => showLessonAuthoredSlotPatternV2(lessonProjectionV2, group)}
               patternSlots={builtInSlotGroups}
               patternOptions={referencePatternOptions}
@@ -4633,7 +4631,7 @@ function ShowTimelineWorkspace({
   const setMarkersVisible = useShowEditorSessionStore((state) => state.setMarkersVisible)
   const setMarkerSnapEnabled = useShowEditorSessionStore((state) => state.setMarkerSnapEnabled)
   const zonesOpen = useShowEditorSessionStore((state) => (
-    state.zoneWorkspaceOpenByShowId[showId] ?? stockShowById(showId)?.zonesOpenByDefault ?? false
+    state.zoneWorkspaceOpenByShowId[showId] ?? stockShowCatalogueById(showId)?.zonesOpenByDefault ?? false
   ))
   const collapsedZoneIds = useShowEditorSessionStore((state) => state.collapsedZoneIdsByShowId[showId]) ?? EMPTY_ZONE_IDS
   const focusedZoneId = useShowEditorSessionStore((state) => state.focusedZoneIdByShowId[showId] ?? null)

@@ -1,5 +1,6 @@
 import type { ShowPatternRef, ShowRecord, ShowTransitionEasing } from './personalContentRecords'
 import type { ShowRecordV2 } from './showCompositionV2'
+import type { ShowPatternSlotGroupV2, ShowReferenceGuideV2 } from '@/pixelblaze/stock/showCatalogueV2'
 import { showLoopDurationMs } from './showModel'
 import {
   currentShowClip,
@@ -56,12 +57,11 @@ export function showLessonNarrationV1(
 
 export function showLessonNarrationV2(
   record: ShowRecordV2,
-  reference: ShowReferenceGuide | undefined,
+  reference: ShowReferenceGuideV2 | undefined,
   positionMs: number,
-  afterSceneIdByTransitionId: Readonly<Record<string, string>>,
 ): ShowLessonNarration {
   if (reference) {
-    const current = currentShowReferenceExampleV2(record, reference, positionMs, afterSceneIdByTransitionId)
+    const current = currentShowReferenceExampleV2(record, reference, positionMs)
     const index = current ? reference.examples.findIndex((example) => example.id === current.id) : -1
     const count = reference.examples.length
     const durationMs = record.composition.showEndMs
@@ -95,7 +95,7 @@ export function showLessonAuthoredSlotPatternV1(
 
 export function showLessonAuthoredSlotPatternV2(
   record: ShowRecordV2,
-  group: ShowPatternSlotGroup,
+  group: ShowPatternSlotGroupV2,
 ): ShowPatternRef | undefined {
   // A group's first declared instance names the Pattern its picker shows (#1110).
   for (const id of group.instanceIds) {

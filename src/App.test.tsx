@@ -35,7 +35,7 @@ import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/store/entityOrganizationStore'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOW_CATALOGUE } from '@/pixelblaze/stock/showCatalogueV2'
 import { openDemoPattern } from '@/store/openPattern'
 import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
 import { EMPTY_REMEMBERED_STUDIO_PLACES, useStudioPlaceStore } from '@/store/studioPlaceStore'
@@ -1202,7 +1202,7 @@ describe('routing (#308)', () => {
 
   it('projects a Showcase Pattern slot choice through the routed stock Show artifact (#506, #714)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-transitions')!
+    const stock = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-reference-wipe-transitions')!
     setStudioLocation(`/studio/shows/${stock.id}`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [], showsLoaded: true, activeShowId: null })

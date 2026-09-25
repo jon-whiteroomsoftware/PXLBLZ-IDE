@@ -93,8 +93,8 @@ import { buildApiReferenceCatalog } from '@/engine/apiReferenceCatalog'
 import { useReferenceNavigationStore } from '@/store/referenceNavigationStore'
 import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import { stockShowById } from '@/pixelblaze/stock/shows'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
+import { stockShowCatalogueById } from '@/pixelblaze/stock/showCatalogueV2'
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
 import { projectShowEditorStagePresentationV2, type ShowEditorStagePresentationV2 } from '@/engine/showEditorStagePresentation'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
@@ -513,7 +513,7 @@ function StudioApp() {
     if (showId) {
       const show = shows.find((candidate) => candidate.id === showId)
         ?? showV2Rows.find((candidate) => candidate.id === showId)
-        ?? stockShowById(showId)
+        ?? stockShowCatalogueById(showId)
         ?? stockShowV2ById(showId)
       if (show) details.shows = show.name
     }
@@ -645,7 +645,7 @@ function StudioApp() {
       }
     } else if (currentRoute.kind === 'studio' && currentRoute.entity !== null && currentRoute.entity.kind === 'shows' && currentRoute.entity.id !== null) {
       const entityId = currentRoute.entity.id
-      if (stockShowById(entityId)) {
+      if (stockShowCatalogueById(entityId)) {
         if (activeShowId !== null) void openShow(null)
       } else if (routedShowOpensOnV2(entityId)) {
         // A stored v2 row is held outside the v1 Show selection; leaving a
@@ -854,8 +854,8 @@ function StudioApp() {
     && activeControllerProfileId === null
     && controllerProfilesLoaded
     && controllerProfiles.length === 0
-  const routedStockShow = route.kind === 'studio' && route.entity?.kind === 'shows'
-    ? stockShowById(route.entity.id)
+  const routedStockShow = route.kind === 'studio' && route.entity?.kind === 'shows' && route.entity.id !== null
+    ? stockShowCatalogueById(route.entity.id)
     : undefined
   const routedShowId = showsLoaded && route.kind === 'studio' && route.entity?.kind === 'shows'
     ? route.entity.id
@@ -1004,7 +1004,7 @@ function StudioApp() {
       : routeEntity.kind === 'shows'
         // Stored v2 rows and built-ins resolve; an unconverted v1 row waits
         // for the operator conversion (#1042, #1105) and reads as missing.
-        ? v2EditorShowId === null && showsLoaded && !stockShowById(routeEntity.id)
+        ? v2EditorShowId === null && showsLoaded && !stockShowCatalogueById(routeEntity.id)
         : true)
   const invalidDocRoute = route.kind === 'docs' && route.docId !== null && !isDocId(route.docId)
   const activeApiReference = route.kind === 'api-reference'
@@ -1066,7 +1066,7 @@ function StudioApp() {
       : place === 'shows'
         ? (shows.some((show) => show.id === remembered)
             || showV2Rows.some((row) => row.id === remembered)
-            || (remembered ? Boolean(stockShowById(remembered) ?? stockShowV2ById(remembered)) : false)
+            || (remembered ? Boolean(stockShowCatalogueById(remembered) ?? stockShowV2ById(remembered)) : false)
             ? remembered
             : (showV2Rows[0]?.id ?? shows[0]?.id ?? null))
         : place === 'maps'

@@ -58,6 +58,7 @@ import { createInstallationShowOutputContract } from '@/engine/showOutputContrac
 import { normalizeShowComposition } from '@/engine/showCompositionModel'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
+import { stockShowCatalogueById } from '@/pixelblaze/stock/showCatalogueV2'
 import {
   createShowEditSession,
   type ShowEditIntent,
@@ -601,7 +602,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     next: ShowRecord,
     onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving'>) => void,
   ): Promise<void> => {
-    if (stockShowById(id)) {
+    if (stockShowCatalogueById(id)) {
       const previousRecord = get().resolveEditableShow(id)
       if (!previousRecord || next === previousRecord) return
       next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
@@ -748,7 +749,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     if (editSession !== session) return { request, status: 'retired' }
     const rechecked = session.check(request, eligibility())
     if (rechecked.status !== 'pending') return rechecked
-    const adopted = session.adopted(request.operationId, stockShowById(request.showId) ? 'draft' : 'saving')
+    const adopted = session.adopted(request.operationId, stockShowCatalogueById(request.showId) ? 'draft' : 'saving')
     void updateShowRecord(request.showId, candidate, (settlement) => {
       if (settlement !== 'draft') session.settle(request.operationId, settlement)
     }).catch(() => { /* Store recovery notice and receipt own the failure. */ })
@@ -1404,7 +1405,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     if (!transition) return false
     const replacement = normalizeShowRecord(transition.replacement)
     const nextHistory = transition.history
-    if (stockShowById(showId)) {
+    if (stockShowCatalogueById(showId)) {
       const next = replacementWithNextOrderingStamp(show, replacement)
       set((state) => ({
         ...revisionPatch(state, showId),
@@ -1430,7 +1431,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     if (!transition) return false
     const replacement = normalizeShowRecord(transition.replacement)
     const nextHistory = transition.history
-    if (stockShowById(showId)) {
+    if (stockShowCatalogueById(showId)) {
       const next = replacementWithNextOrderingStamp(show, replacement)
       set((state) => ({
         ...revisionPatch(state, showId),

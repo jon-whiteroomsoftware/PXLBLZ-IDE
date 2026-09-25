@@ -1,6 +1,6 @@
 import { useRef, useState, type RefObject } from 'react'
 import type { ShowRecord } from '@/store/showStore'
-import type { StockShow } from '@/pixelblaze/stock/shows'
+import type { StockShowCatalogueEntry } from '@/pixelblaze/stock/showCatalogueV2'
 import { searchEntityOrganization, type EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { stockShowOrganization } from '@/engine/stockEntityOrganization'
 import {
@@ -52,7 +52,7 @@ export function ShowsRailSection({
   userShowsV2?: readonly { id: string; name: string }[]
   onOpenShowV2?: (id: string) => void
   activeShowId: string | null
-  stockShows: StockShow[]
+  stockShows: readonly StockShowCatalogueEntry[]
   activeStockShowId: string | null
   showStockShows: boolean
   showSeedProfileName: string | null
@@ -64,7 +64,7 @@ export function ShowsRailSection({
   onImportShow: () => void
   onCreateShowFromController: () => void
   onOpenShow: (show: ShowRecord) => void
-  onOpenStockShow: (show: StockShow) => void
+  onOpenStockShow: (show: StockShowCatalogueEntry) => void
   onToggleStockShows: () => void
   onRenameShow: (id: string, name: string) => void
   onDuplicateShow: (id: string) => void

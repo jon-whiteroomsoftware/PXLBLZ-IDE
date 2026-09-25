@@ -3,7 +3,7 @@ import {
   participantTransitionWindows,
   type ParticipantTransitionWindowV2,
 } from './showBoundaryScopeV2'
-import type { ShowReferenceExample, ShowReferenceGuide } from './showReferenceShow'
+import type { ShowReferenceExampleV2, ShowReferenceGuideV2 } from '@/pixelblaze/stock/showCatalogueV2'
 
 function wrapLoopPosition(positionMs: number, durationMs: number): number {
   return durationMs > 0 ? ((positionMs % durationMs) + durationMs) % durationMs : 0
@@ -105,10 +105,9 @@ function chapterBoundaryStartsV2(
 /** Names the reference example covering loop time, mirroring v1 window selection. */
 export function currentShowReferenceExampleV2(
   record: ShowRecordV2,
-  guide: ShowReferenceGuide,
+  guide: ShowReferenceGuideV2,
   positionMs: number,
-  afterSceneIdByTransitionId: Readonly<Record<string, string>>,
-): ShowReferenceExample | null {
+): ShowReferenceExampleV2 | null {
   const durationMs = record.composition.showEndMs
   if (durationMs <= 0) return guide.examples[0] ?? null
   const position = wrapLoopPosition(positionMs, durationMs)
@@ -117,8 +116,8 @@ export function currentShowReferenceExampleV2(
   const boundaryStarts = boundaryStartByChapter.slice(1).sort((left, right) => left - right)
   const candidates = guide.examples.flatMap((example) => {
     const anchor = example.anchor
-    if (anchor.kind === 'scene') {
-      const marker = record.composition.markers.find((candidate) => candidate.id === `scene-marker:${anchor.sceneId}`)
+    if (anchor.kind === 'chapter') {
+      const marker = record.composition.markers.find((candidate) => candidate.id === anchor.markerId)
       if (!marker || marker.role !== 'chapter') return []
       const chapterIndex = chapters.findIndex((chapter) => chapter.id === marker.id)
       if (chapterIndex < 0) return []
@@ -128,9 +127,7 @@ export function currentShowReferenceExampleV2(
         endMs: chapters[chapterIndex + 1]?.timeMs ?? durationMs,
       }]
     }
-    const afterSceneId = afterSceneIdByTransitionId[anchor.transitionId]
-    if (afterSceneId === undefined) return []
-    const chapterIndex = chapters.findIndex((chapter) => chapter.id === `scene-marker:${afterSceneId}`)
+    const chapterIndex = chapters.findIndex((chapter) => chapter.id === anchor.afterChapterMarkerId)
     if (chapterIndex < 0 || chapterIndex + 1 >= chapters.length) return []
     const startMs = boundaryStartByChapter[chapterIndex + 1]
     return [{ example, startMs, endMs: boundaryStarts.find((start) => start > startMs) ?? durationMs }]

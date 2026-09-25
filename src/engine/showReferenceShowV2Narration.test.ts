@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOW_CATALOGUE, stockShowCatalogueById } from '@/pixelblaze/stock/showCatalogueV2'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { projectShowTimeline } from './showModel'
 import {
@@ -18,12 +19,8 @@ const STEP_MS = 250
 type LessonMode = 'scene' | 'clip' | 'reference'
 
 function lessonMode(entry: (typeof STOCK_SHOWS)[number]): LessonMode {
-  if (entry.reference) return 'reference'
+  if (stockShowCatalogueById(entry.id)?.reference) return 'reference'
   return entry.show.scenes.length > 1 ? 'scene' : 'clip'
-}
-
-function afterSceneIdByTransitionId(entry: (typeof STOCK_SHOWS)[number]): Record<string, string> {
-  return Object.fromEntries((entry.show.transitions ?? []).map((transition) => [transition.id, transition.afterSceneId]))
 }
 
 describe('v2 live strip narration parity (#1066 slice 11c1)', () => {
@@ -43,7 +40,7 @@ describe('v2 live strip narration parity (#1066 slice 11c1)', () => {
       expect(projectShowTimeline(entry.show).durationMs).toBe(durationMs)
       const mode = lessonMode(entry)
       const sceneCount = projectShowTimeline(entry.show).scenes.length
-      const mapping = afterSceneIdByTransitionId(entry)
+      const reference = stockShowCatalogueById(entry.id)?.reference
       const mismatches: string[] = []
       for (let position = 0; position < durationMs; position += STEP_MS) {
         if (mode === 'scene') {
@@ -60,7 +57,7 @@ describe('v2 live strip narration parity (#1066 slice 11c1)', () => {
           if (v1 !== v2) mismatches.push(`${position}ms v1=${v1} v2=${v2}`)
         } else {
           const fromV1 = currentShowReferenceExample(entry.show, entry.reference!, position)
-          const fromV2 = currentShowReferenceExampleV2(record, entry.reference!, position, mapping)
+          const fromV2 = currentShowReferenceExampleV2(record, reference!, position)
           const v1 = fromV1?.id ?? 'null'
           const v2 = fromV2?.id ?? 'null'
           if (v1 !== v2) mismatches.push(`${position}ms v1=${v1} v2=${v2}`)
@@ -70,20 +67,54 @@ describe('v2 live strip narration parity (#1066 slice 11c1)', () => {
     })
   }
 
-  it('skips a boundary example whose transitionId is absent from the mapping', () => {
-    const entry = STOCK_SHOWS.find((item) => item.id === 'stock-show-reference-blend-fade-transitions')!
+  it('resolves every catalogue example at its v2 chapter or boundary anchor', () => {
+    for (const entry of STOCK_SHOW_CATALOGUE) {
+      if (!entry.reference) continue
+      const record = stockShowV2ById(entry.id)!
+      const chapters = record.composition.markers
+        .filter((marker) => marker.role === 'chapter')
+        .sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+      const clipById = new Map(record.composition.clips.map((clip) => [clip.id, clip]))
+      const windows = record.composition.transitions.flatMap((transition) => {
+        if (transition.wholeOutput) {
+          const startMs = transition.wholeOutput.startMs
+          return [{ startMs, endMs: startMs + transition.durationMs }]
+        }
+        const participant = transition.participants[0]
+        const from = participant && clipById.get(participant.fromClipId)
+        const to = participant && clipById.get(participant.toClipId)
+        return from && to ? [{ startMs: from.startMs + from.durationMs, endMs: to.startMs }] : []
+      })
+      for (const example of entry.reference.examples) {
+        const anchor = example.anchor
+        const chapterIndex = chapters.findIndex((marker) => (
+          marker.id === (anchor.kind === 'chapter' ? anchor.markerId : anchor.afterChapterMarkerId)
+        ))
+        expect(chapterIndex, `${entry.id} ${example.id} chapter`).toBeGreaterThanOrEqual(0)
+        const chapter = chapters[chapterIndex]
+        const nextChapter = chapters[chapterIndex + 1]
+        const position = anchor.kind === 'chapter'
+          ? chapter.timeMs
+          : (windows.find((window) => window.endMs === nextChapter?.timeMs)?.startMs ?? nextChapter?.timeMs)
+        expect(position, `${entry.id} ${example.id} position`).toBeDefined()
+        expect(currentShowReferenceExampleV2(record, entry.reference, position!),
+          `${entry.id} ${example.id} at ${position}ms`).toEqual(example)
+      }
+    }
+  })
+
+  it('skips a boundary example whose chapter Marker is absent', () => {
+    const entry = stockShowCatalogueById('stock-show-reference-blend-fade-transitions')!
     const record = stockShowV2ById(entry.id)!
-    const { 'transition-reference-2': _removed, ...partialMapping } = afterSceneIdByTransitionId(entry)
-    const reducedGuide = {
+    const guide = {
       ...entry.reference!,
-      examples: entry.reference!.examples.filter((example) => example.id !== 'crossfade'),
+      examples: entry.reference!.examples.map((example) => (
+        example.id === 'crossfade'
+          ? { ...example, anchor: { kind: 'boundary' as const, afterChapterMarkerId: 'missing-chapter' } }
+          : example
+      )),
     }
-    expect(currentShowReferenceExample(entry.show, entry.reference!, 7000)?.id).toBe('crossfade')
-    expect(currentShowReferenceExampleV2(record, entry.reference!, 7000, partialMapping)).toBeNull()
-    for (const position of [6000, 7000, 12499]) {
-      const fromV1 = currentShowReferenceExample(entry.show, reducedGuide, position)
-      const fromV2 = currentShowReferenceExampleV2(record, entry.reference!, position, partialMapping)
-      expect(fromV2?.id ?? null, `position ${position}ms`).toBe(fromV1?.id ?? null)
-    }
+    expect(currentShowReferenceExampleV2(record, entry.reference!, 7000)?.label).toBe('Crossfade')
+    expect(currentShowReferenceExampleV2(record, guide, 7000)).toBeNull()
   })
 })

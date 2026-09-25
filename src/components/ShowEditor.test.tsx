@@ -46,7 +46,7 @@ import { createInstallationShowOutputContract, createPortableShowOutputContract 
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOW_CATALOGUE } from '@/pixelblaze/stock/showCatalogueV2'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { showSplitClipFixture } from '@/test/showSplitClipFixture'
 import { convertForTest, openV2EditorForRecord } from '@/test/showEditorV2Harness'
@@ -4394,7 +4394,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   })
 
   it('opens a stock Show in the real editor without creating a personal record (#363)', async () => {
-    const stock = STOCK_SHOWS[0]
+    const stock = STOCK_SHOW_CATALOGUE[0]
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} readOnly />)
@@ -4409,7 +4409,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   })
 
   it('hides Clone from signed-out sessions that cannot save (#794)', () => {
-    const stock = STOCK_SHOWS[0]
+    const stock = STOCK_SHOW_CATALOGUE[0]
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} readOnly />)
@@ -4463,7 +4463,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   it('authors stepped cadence through an exact rate field with a transient slider (#779)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-204-presentation-modes')!
+    const stock = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-204-presentation-modes')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} />)
@@ -4579,7 +4579,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   it('opens a stock Show guide on first visit and fully collapses it per Show (#363)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS[0]
+    const stock = STOCK_SHOW_CATALOGUE[0]
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
     const builtInContext = {
       track: stock.track,
@@ -4633,7 +4633,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       x: 0, y: 0, left: 0, top: 0, right: 367, bottom: 300, width: 367, height: 300,
       toJSON: () => ({}),
     })
-    const stock = STOCK_SHOWS[0]
+    const stock = STOCK_SHOW_CATALOGUE[0]
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
     const note = {
       label: 'Learn 100',
@@ -4676,7 +4676,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   it('offers Try with Pattern on lesson guides through catalogue patternSlots (#63)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-201-layers-property-animation')!
+    const stock = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-201-layers-property-animation')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor
@@ -4742,7 +4742,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   it('turns a reference Show guide into a live Pattern comparison instrument (#506)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-blend-fade-transitions')!
+    const stock = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-reference-blend-fade-transitions')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
     const selectedInstance = editor.state().record.composition.patternInstances
       .find((instance) => instance.id === 'instance-reference-content-selected')!
@@ -4806,7 +4806,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   it('keeps a legacy reference Pattern transient after its first composition edit (#619)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
+    const stock = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
     const v2 = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
     // The app opens a built-in lesson as a session-only lesson draft (App.tsx:895-898).
     await act(async () => { await useShowStore.getState().openShowV2Pilot(stock.id) })
@@ -4856,7 +4856,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     // underneath it and can never be hit, which is what made resizing feel
     // broken. 105 is two touching Clips per Zone, so one edge of each is joined
     // and the other is free.
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-105-portable-zones')!
+    const stock = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-105-portable-zones')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} />)
@@ -4879,7 +4879,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   })
 
   it('identifies each property sparkline on the lane itself (#631)', () => {
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
+    const stock = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} readOnly />)
@@ -6925,7 +6925,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
   it('keeps table-driven score bytes as a single-line category row (#545, #63)', async () => {
     const user = userEvent.setup()
-    const easing = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-easing')!
+    const easing = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-reference-easing')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(easing.id)!))
 
     render(<ShowEditor showId={editor.showId} readOnly />)
@@ -7136,7 +7136,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     ['same id from another source', { 1: { kind: 'user', id: 'EventHorizon' } }, true],
   ] as const)('enables chooser Reset only for changed Patterns: %s (#987)', async (_label, selections, enabled) => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
+    const stock = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
     // Native built-ins become session drafts through openShowV2Pilot (showStore.ts:1108).
     await useShowStore.getState().openShowV2Pilot(stock.id)

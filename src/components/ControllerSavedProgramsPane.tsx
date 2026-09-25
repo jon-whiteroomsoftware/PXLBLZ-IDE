@@ -59,7 +59,7 @@ import {
 } from '@/engine/savedProgramImport'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOW_CATALOGUE } from '@/pixelblaze/stock/showCatalogueV2'
 import {
   useControllerStore,
   type ControllerReconciliationState,
@@ -978,12 +978,11 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         name,
         sourceHash: artifactHash(DEMOS[name]),
       })),
-      ...STOCK_SHOWS.flatMap((item) => {
-        const show = stockShowDrafts[item.id] ?? item.show
+      ...STOCK_SHOW_CATALOGUE.flatMap((item) => {
         return [item.id, ...(item.legacySourceIds ?? [])].map((sourceId) => ({
           bindingKey: `show:${sourceId}`,
           routeId: `show:${item.id}`,
-          name: show.name,
+          name: stockShowDrafts[item.id]?.name ?? item.name,
         }))
       }),
       // An exact personal Show id wins over a built-in's legacy source alias.

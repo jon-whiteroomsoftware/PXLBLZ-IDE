@@ -1,10 +1,10 @@
 import type { ShowPatternRef } from './personalContentRecords'
 import type { ShowRecordV2 } from './showCompositionV2'
-import type { ShowPatternSlotGroup } from './showReferenceShow'
+import type { ShowPatternSlotGroupV2 } from '@/pixelblaze/stock/showCatalogueV2'
 
 export function showPatternSlotRemovedControlNamesV2(
   record: ShowRecordV2,
-  group: ShowPatternSlotGroup,
+  group: ShowPatternSlotGroupV2,
   exportedSliderNames: ReadonlySet<string>,
 ): string[] {
   const instanceIds = new Set(group.instanceIds)
@@ -32,7 +32,7 @@ export function showPatternSlotRemovedControlNamesV2(
  */
 export function applyShowPatternSlotSelectionsV2(
   record: ShowRecordV2,
-  slotGroups: readonly ShowPatternSlotGroup[],
+  slotGroups: readonly ShowPatternSlotGroupV2[],
   selections: Readonly<Record<number, ShowPatternRef>>,
   patternNameFor: (ref: ShowPatternRef) => string | undefined,
   exportedSliderNamesFor: (ref: ShowPatternRef) => ReadonlySet<string> | null,
@@ -50,7 +50,7 @@ export function applyShowPatternSlotSelectionsV2(
 
 function applyShowPatternSlotSelectionV2(
   record: ShowRecordV2,
-  group: ShowPatternSlotGroup,
+  group: ShowPatternSlotGroupV2,
   pattern: ShowPatternRef,
   patternName: string,
   sliderNames: ReadonlySet<string>,

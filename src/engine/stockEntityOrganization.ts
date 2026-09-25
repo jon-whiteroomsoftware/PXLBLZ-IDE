@@ -1,6 +1,6 @@
 import { normalizeEntityOrganization, type EntityOrganizationNode, type EntityOrganizationV1 } from './entityOrganization'
 import { DEMO_SECTIONS, type GalleryPattern } from './galleryCatalog'
-import type { StockShow } from '@/pixelblaze/stock/shows'
+import type { StockShowCatalogueEntry } from '@/pixelblaze/stock/showCatalogueV2'
 
 export function stockPatternOrganization(patterns: readonly GalleryPattern[]): EntityOrganizationV1 {
   const declaredOrder = new Map(DEMO_SECTIONS.map((section, index) => [section.label, index]))
@@ -29,7 +29,7 @@ function sectionOrder(label: string, patternName: string): number {
   return index < 0 ? Number.MAX_SAFE_INTEGER : index
 }
 
-export function stockShowOrganization(shows: readonly StockShow[]): EntityOrganizationV1 {
+export function stockShowOrganization(shows: readonly StockShowCatalogueEntry[]): EntityOrganizationV1 {
   // Derived from the catalogue rather than declared, so a level with no lessons
   // does not leave an empty folder in the rail (#363).
   const learnLevels = [...new Set(shows
@@ -45,10 +45,10 @@ export function stockShowOrganization(shows: readonly StockShow[]): EntityOrgani
       .map((show) => ({ kind: 'entity', entityId: show.id })),
   }))
   const showcaseGroups = [
-    { id: 'effects', name: 'Effects', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Effects') },
-    { id: 'transitions', name: 'Transitions & animation', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && !show.name.includes('Effects') && !show.name.includes('Aperture') && !show.name.includes('Zone') },
-    { id: 'placement', name: 'Placement', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Aperture') },
-    { id: 'zones', name: 'Zones', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Zone') },
+    { id: 'effects', name: 'Effects', matches: (show: StockShowCatalogueEntry) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Effects') },
+    { id: 'transitions', name: 'Transitions & animation', matches: (show: StockShowCatalogueEntry) => show.collection === 'showcases' && show.track === 'portable' && !show.name.includes('Effects') && !show.name.includes('Aperture') && !show.name.includes('Zone') },
+    { id: 'placement', name: 'Placement', matches: (show: StockShowCatalogueEntry) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Aperture') },
+    { id: 'zones', name: 'Zones', matches: (show: StockShowCatalogueEntry) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Zone') },
   ]
   const showcases = showcaseGroups.map((group): EntityOrganizationNode => ({
     kind: 'folder',
@@ -56,7 +56,7 @@ export function stockShowOrganization(shows: readonly StockShow[]): EntityOrgani
     name: group.name,
     children: shows.filter(group.matches).sort((left, right) => left.order - right.order).map((show) => ({ kind: 'entity', entityId: show.id })),
   }))
-  const collectionEntities = (collection: StockShow['collection']): EntityOrganizationNode[] => shows
+  const collectionEntities = (collection: StockShowCatalogueEntry['collection']): EntityOrganizationNode[] => shows
     .filter((show) => show.collection === collection)
     .sort((left, right) => left.order - right.order)
     .map((show) => ({ kind: 'entity', entityId: show.id }))

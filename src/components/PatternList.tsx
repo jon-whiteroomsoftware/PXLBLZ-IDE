@@ -73,7 +73,7 @@ import { LibrariesRailSection } from '@/components/rail/LibrariesRailSection'
 import { ControllersRailSection } from '@/components/rail/ControllersRailSection'
 import { ShowsRailSection } from '@/components/rail/ShowsRailSection'
 import { ShowImportPlanDialog, type ShowImportDialogState } from '@/components/ShowImportPlanDialog'
-import { STOCK_SHOWS, type StockShow } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOW_CATALOGUE, type StockShowCatalogueEntry } from '@/pixelblaze/stock/showCatalogueV2'
 import { parseShowFileBundle } from '@/engine/showFileBundle'
 import { applyShowImportPlan, planShowImport, ShowImportPlanError, type ShowImportPlan } from '@/engine/showImportPlan'
 import { applyShowImportPlanV2, planShowImportV2, type ShowImportPlanV2 } from '@/engine/showImportPlanV2'
@@ -157,7 +157,7 @@ export function PatternList({
   const navigate = useRouterStore((s) => s.navigate)
   const route = useRouterStore((s) => s.route)
   const activeStockShowId = route.kind === 'studio' && route.entity?.kind === 'shows'
-    && STOCK_SHOWS.some((item) => item.id === route.entity?.id)
+    && STOCK_SHOW_CATALOGUE.some((item) => item.id === route.entity?.id)
     ? route.entity.id
     : null
   // A stored version-2 row is held outside the v1 Show store, so `activeShowId`
@@ -923,7 +923,7 @@ export function PatternList({
     })
   }
 
-  function openStockShowRoute(item: StockShow) {
+  function openStockShowRoute(item: StockShowCatalogueEntry) {
     requestBufferReplacement(() => {
       closeMapEditor()
       closeMixinEditor()
@@ -1252,7 +1252,7 @@ export function PatternList({
             userShowsV2={userShowsV2}
             onOpenShowV2={(id) => { openShowV2Route(id); onEntityChosen?.() }}
             activeShowId={activePersonalShowId}
-            stockShows={STOCK_SHOWS}
+            stockShows={STOCK_SHOW_CATALOGUE}
             activeStockShowId={activeStockShowId}
             showStockShows={showStockShows}
             showSeedProfileName={showSeedProfile ? controllerProfileDisplayName(showSeedProfile) : null}

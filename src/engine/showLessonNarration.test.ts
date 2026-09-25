@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { stockShowCatalogueById } from '@/pixelblaze/stock/showCatalogueV2'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { projectShowTimeline, showLoopDurationMs } from './showModel'
 import {
@@ -15,10 +16,6 @@ import {
 } from './showLessonNarration'
 
 const STEP_MS = 250
-
-function afterSceneIdByTransitionId(entry: (typeof STOCK_SHOWS)[number]): Record<string, string> {
-  return Object.fromEntries((entry.show.transitions ?? []).map((transition) => [transition.id, transition.afterSceneId]))
-}
 
 function oracleV1(entry: (typeof STOCK_SHOWS)[number], positionMs: number) {
   const show = entry.show
@@ -58,6 +55,7 @@ function oracleV1(entry: (typeof STOCK_SHOWS)[number], positionMs: number) {
 
 describe('v1 lesson narration extraction (#1066 11c2a)', () => {
   for (const entry of STOCK_SHOWS) {
+    // Phase 4 deletes this with shows.ts.
     it(`${entry.id} matches the inline ShowLiveNarration expression`, () => {
       const durationMs = projectShowTimeline(entry.show).durationMs
       const mismatches: string[] = []
@@ -77,17 +75,18 @@ describe('v1 lesson narration extraction (#1066 11c2a)', () => {
 
 describe('v2 lesson narration parity (#1066 11c2a)', () => {
   for (const entry of STOCK_SHOWS) {
+    // Phase 4 deletes this with shows.ts.
     it(`${entry.id} agrees with v1 at every 250 ms sample`, () => {
       const record = stockShowV2ById(entry.id)
+      const referenceV2 = stockShowCatalogueById(entry.id)?.reference
       expect(record, `${entry.id} has no native v2 record`).toBeDefined()
       if (!record) return
-      const mapping = afterSceneIdByTransitionId(entry)
       const durationMs = record.composition.showEndMs
       expect(projectShowTimeline(entry.show).durationMs).toBe(durationMs)
       const mismatches: string[] = []
       for (let position = 0; position < durationMs; position += STEP_MS) {
         const fromV1 = showLessonNarrationV1(entry.show, entry.reference, position)
-        const fromV2 = showLessonNarrationV2(record, entry.reference, position, mapping)
+        const fromV2 = showLessonNarrationV2(record, referenceV2, position)
         const fields: Array<'kind' | 'label' | 'detail' | 'index' | 'count' | 'easing'> = ['kind', 'label', 'detail', 'index', 'count', 'easing']
         for (const field of fields) {
           const left = (fromV1 as unknown as Record<string, unknown>)[field] ?? null
@@ -113,16 +112,21 @@ describe('v2 lesson narration parity (#1066 11c2a)', () => {
 
 describe('lesson authored slot pattern (#1066 11c2a)', () => {
   for (const entry of STOCK_SHOWS) {
+    const metadataV2 = stockShowCatalogueById(entry.id)
     const groups = entry.patternSlots
       ?? (entry.reference?.patternSlots ? [entry.reference.patternSlots] : undefined)
+    const groupsV2 = metadataV2?.patternSlots
+      ?? (metadataV2?.reference?.patternSlots ? [metadataV2.reference.patternSlots] : undefined)
     if (!groups || groups.length === 0) continue
+    // Phase 4 deletes this with shows.ts.
     it(`${entry.id} resolves the authored pattern identically on v1 and v2`, () => {
       const record = stockShowV2ById(entry.id)
       expect(record, `${entry.id} has no native v2 record`).toBeDefined()
       if (!record) return
-      for (const group of groups) {
+      expect(groupsV2).toHaveLength(groups.length)
+      for (const [index, group] of groups.entries()) {
         const fromV1 = showLessonAuthoredSlotPatternV1(entry.show, group)
-        const fromV2 = showLessonAuthoredSlotPatternV2(record, group)
+        const fromV2 = showLessonAuthoredSlotPatternV2(record, groupsV2![index])
         expect(fromV2, `${entry.id} group ${group.instanceIds.join(':')}`).toEqual(fromV1)
       }
     })
@@ -131,7 +135,8 @@ describe('lesson authored slot pattern (#1066 11c2a)', () => {
   it('shows the selected Pattern declared first by the blend and fade reference guide (#1110)', () => {
     const entry = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-blend-fade-transitions')!
     const record = stockShowV2ById(entry.id)!
-    expect(showLessonAuthoredSlotPatternV2(record, entry.reference!.patternSlots!)).toEqual({
+    const referenceV2 = stockShowCatalogueById(entry.id)?.reference
+    expect(showLessonAuthoredSlotPatternV2(record, referenceV2!.patternSlots!)).toEqual({
       kind: 'stock', id: 'MetaballGarden',
     })
   })

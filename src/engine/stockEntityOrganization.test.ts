@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEMO_SECTIONS, STOCK_PATTERNS, ZRANGER1_DEMOS } from './galleryCatalog'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOW_CATALOGUE } from '@/pixelblaze/stock/showCatalogueV2'
 import { stockPatternOrganization, stockShowOrganization } from './stockEntityOrganization'
 
 describe('built-in entity organization', () => {
@@ -72,7 +72,7 @@ describe('built-in entity organization', () => {
   })
 
   it('organizes built-in Shows into learning, showcase, portable, and installation collections', () => {
-    const organization = stockShowOrganization(STOCK_SHOWS)
+    const organization = stockShowOrganization(STOCK_SHOW_CATALOGUE)
 
     expect(organization.nodes).toMatchObject([
       { kind: 'folder', name: 'Learn', children: [{ kind: 'folder', name: '100' }, { kind: 'folder', name: '200' }, { kind: 'folder', name: '300' }] },
@@ -91,11 +91,11 @@ describe('built-in entity organization', () => {
         { kind: 'entity', entityId: 'stock-show-remix-overture' },
       ] },
     ])
-    expect(new Set(collectEntityIds(organization.nodes)).size).toBe(STOCK_SHOWS.length)
+    expect(new Set(collectEntityIds(organization.nodes)).size).toBe(STOCK_SHOW_CATALOGUE.length)
   })
 
   it('starts every top-level built-in Show folder open and only nested grouping folders collapsed', () => {
-    const organization = stockShowOrganization(STOCK_SHOWS)
+    const organization = stockShowOrganization(STOCK_SHOW_CATALOGUE)
 
     expect(organization.collapsedFolderIds).toEqual([
       'stock-show-learn-100',
@@ -119,12 +119,12 @@ describe('built-in entity organization', () => {
   it('omits a Learn level folder that has no lessons', () => {
     // The rail is derived from the catalogue, so retiring a level removes its
     // folder instead of leaving an empty node behind (#363).
-    const only100 = STOCK_SHOWS.filter((show) => show.collection !== 'learn' || show.level === 100)
+    const only100 = STOCK_SHOW_CATALOGUE.filter((show) => show.collection !== 'learn' || show.level === 100)
     const learn = stockShowOrganization(only100).nodes
       .find((node) => node.kind === 'folder' && node.name === 'Learn')
 
     expect(learn).toMatchObject({ children: [{ name: '100' }] })
-    expect(stockShowOrganization(STOCK_SHOWS.filter((show) => show.collection !== 'learn')).nodes)
+    expect(stockShowOrganization(STOCK_SHOW_CATALOGUE.filter((show) => show.collection !== 'learn')).nodes)
       .toMatchObject([
         { kind: 'folder', name: 'Learn', children: [] },
         { kind: 'folder', name: 'Showcases' },
