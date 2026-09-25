@@ -1020,8 +1020,9 @@ diagnostics). Its interval sweep scales with authored range count rather than
 allocating one counter per output pixel. `showPortableCompatibility.ts` requires
 logical geometry and 2D capability, admitting 1D `render` members through an explicit adaptation.
 
-**Built-in Shows.** `src/pixelblaze/stock/shows.ts` owns pristine fixtures
-plus catalogue metadata. Editing is session-scoped: the first mutation creates
+**Built-in Shows.** `src/pixelblaze/stock/showsV2.ts` owns the native v2 catalogue
+and its metadata, with authoring vocabulary in `showsV2Authoring.ts`. Editing is
+session-scoped: the first mutation creates
 an in-memory draft with normal undo; Reset or reload restores the fixture; no
 built-in mutation touches D1. Reference Showcases group Pattern sources into
 slots for **Try with Pattern**; selections project through the same

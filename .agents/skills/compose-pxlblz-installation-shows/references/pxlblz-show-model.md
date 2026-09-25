@@ -10,7 +10,7 @@ A stock Installation showcase normally consists of:
 2. A source-backed map entry in `src/pixelblaze/stock/maps/stockCatalogue.ts`.
 3. One or more raw Pixelblaze Patterns under `src/pixelblaze/stock/patterns/`, discovered by the stock catalogue.
 4. Recommended standalone preview settings in `src/pixelblaze/stock/patterns.ts`.
-5. A stock Show entry in `src/pixelblaze/stock/shows.ts`.
+5. A stock Show entry in `src/pixelblaze/stock/showsV2.ts`.
 6. Guide material in the Visual Effects Guide and, when user-visible behavior changes, the Feature Guide.
 
 The Show must compile through the production artifact path. Do not substitute a Canvas-only prototype or preview-only shader.

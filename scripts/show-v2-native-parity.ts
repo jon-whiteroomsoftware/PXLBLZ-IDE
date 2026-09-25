@@ -5,8 +5,8 @@
 // native v2 stock builder against the same choreography reached by converting
 // the pinned legacy stock records.
 //
-// The two inputs are independent on purpose. `src/pixelblaze/stock/shows.ts`
-// stays the pinned legacy builder and is never derived from the native one, so
+// The two inputs are independent on purpose. The legacy side is the frozen fixture
+// `src/test/fixtures/v1StockShows.json`, never derived from the native builder, so
 // this is native-builder output versus converted pinned legacy rather than two
 // outputs of one builder. Neither side may be allowlisted: a record either has
 // an identical representation, or every structural difference carries an
@@ -170,7 +170,7 @@ export async function main(): Promise<void> {
     generatedFrom: {
       specification: 'docs/plans/scene-retirement-specification.md',
       nativeBuilder: 'src/pixelblaze/stock/showsV2.ts',
-      pinnedLegacyBuilder: 'src/pixelblaze/stock/shows.ts',
+      pinnedLegacyFixture: 'src/test/fixtures/v1StockShows.json',
       provisionalSchemaSha256: sha256(readFileSync(resolve('schemas/show-record-v2.provisional.schema.json'), 'utf8')),
       recordIdentity: { algorithm: 'sha256', excludedVolatileFields: [...VOLATILE_FIELDS] },
       runtime: { comparison: 'native-prepared versus converted-prepared, one lowering route each', modes: ['fast', 'fidelity'], mapPoints: 8 },

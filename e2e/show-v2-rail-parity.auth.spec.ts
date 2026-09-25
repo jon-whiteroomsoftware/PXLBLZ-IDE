@@ -10,8 +10,6 @@ import { expect, test, type Page } from './fixtures/authenticated'
  * and emptying the Trash reconciled the persisted rail organization against the
  * v1 ids alone, which pruned every surviving v2 row from it.
  */
-const GATE = 'show-v2-editor=1'
-
 /**
  * The stored version-2 documents. `?show-version=2` means "do not skip the rows
  * the version-1 list hides", so it answers with both stored versions; the
@@ -52,11 +50,11 @@ test('a stored v2 row renames, duplicates and trashes from the Shows rail', asyn
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
 
   await page.setViewportSize({ width: 1440, height: 1000 })
-  await page.goto(`studio/shows?${GATE}`)
+  await page.goto('studio/shows')
   const showId = await createFreshShow(page)
   expect((await listV2(page)).map(row => row.id)).toEqual([showId])
 
-  await page.goto(`studio/shows?${GATE}`)
+  await page.goto('studio/shows')
   const created = (await listV2(page))[0].name
   const row = page.getByRole('treeitem', { name: new RegExp(created) })
   await expect(row).toBeVisible()
@@ -79,7 +77,7 @@ test('a stored v2 row renames, duplicates and trashes from the Shows rail', asyn
   const copyId = (await listV2(page)).find(item => item.name === 'Renamed v2 Show copy')!.id
   expect(copyId).not.toBe(showId)
 
-  await page.goto(`studio/shows?${GATE}`)
+  await page.goto('studio/shows')
   await expect(page.getByRole('treeitem', { name: /Renamed v2 Show copy/ })).toBeVisible()
   await page.screenshot({ path: '.wrsp/ui-proof/1039-rail-v2-duplicate.png' })
 

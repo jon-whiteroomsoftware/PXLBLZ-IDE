@@ -56,45 +56,13 @@ verified with a `hsv(0, 0, y)` gradient capture, #819). An earlier note here
 claimed the opposite and cost a review cycle — probe with a gradient before
 relying on either axis for directional behaviour.
 
-## Two stock Show builders during the Scene retirement
+## Stock Show builder and historical corpus
 
-The catalogue is authored twice until #1039 activates v2 (#1040):
-
-- `src/pixelblaze/stock/shows.ts` is the **pinned legacy v1 builder** until
-  #1042 slice 4-3b deletes it. Treat it as pinned input: change it only when
-  production content must change, and never derive it from the native builder.
-  The v1 conversion corpus no longer reads it: its 40 entries are frozen in
-  `src/test/fixtures/v1StockShows.json` (loader `src/test/v1StockShowsFixture.ts`),
-  which the census, conversion and parity consumers read instead.
-  `v1StockShowsFixture.test.ts` fails if the builder and the fixture diverge.
-- `src/pixelblaze/stock/showsV2.ts` is the **native v2 builder**, with its
-  authoring vocabulary in `showsV2Authoring.ts` and its compile inputs in
-  `showsV2Compile.ts`. Every entry validates and compiles straight from native v2
-  authoring, with no converter in the path.
-
-`npm run show:v2-native-parity` compares them: native-builder output against the
-converted pinned legacy record, per Show. It and `show:v2-parity` read the v1
-side from the frozen fixture. It reports record representation,
-compile recipe, generated source, compile summary and deterministic Fast/Precise
-output, state and lifecycle at matched global times, and fails on any
-unclassified representation difference or any runtime divergence. Today all 40
-records are recipe-, source- and summary-equal with exact Fast/Precise parity.
-The frozen v1 fixture pins the `updatedAt` stamps the legacy builder once
-restamped through `updateShowBoundaryTransition` to the catalogue vintage, so
-they no longer differ from the native builder.
-
-Changing a stock Show therefore means changing **both** builders and re-running
-both reports. A change to one alone fails `show:v2-native-parity` — that is the
-point of keeping the inputs independent. `#1042` retires the legacy builder after
-migration, and this section retires with it.
-
-Both catalogues ship in the production bundle for the duration of the
-transition, because the Gallery's chapter projection reads the native records
-while playback still reads the pinned legacy ones. Measured on 2026-09-16 by
-building with and without the native import: **96.0 kB minified, 16.8 kB
-gzipped** on a 4,111 kB / 1,211 kB bundle. That is the deliberate price of
-naming chapters from `role: chapter` rather than from Scene labels, and #1042
-recovers it by deleting the legacy builder.
+`src/pixelblaze/stock/showsV2.ts` is the only stock Show builder, with authoring
+vocabulary in `showsV2Authoring.ts` and compile inputs in `showsV2Compile.ts`.
+The frozen v1 corpus in `src/test/fixtures/v1StockShows.json` is historical input
+for conversion tests and the `show:v2-parity` and `show:v2-native-parity` scripts.
+Never edit that fixture.
 
 The three Zone Layout showcases census differently between the two paths on
 purpose: their v1 placements ran inside intervals where their Zone was unrouted,
@@ -103,28 +71,23 @@ three and fails if the set grows.
 
 ## Changing the stock Show catalogue
 
-Editing `src/pixelblaze/stock/shows.ts` fans out in this order:
+Editing `src/pixelblaze/stock/showsV2.ts` fans out in this order:
 
-0. **`src/test/v1StockShowsFixture.test.ts`** — the builder must still equal the
-   frozen v1 fixture. The v1 consumers below (including the `show:v2-parity` and
-   `show:v2-native-parity` scripts) read the fixture, not the builder.
-1. **`shows.test.ts` census** — count, name/level/order rows, and the reference id
-   list, plus doctrine tests keyed off the FOUNDATION/COMPOSITION/OUTPUT id lists.
-2. **`stockEntityOrganization.test.ts`** — rail folders derive from data; only the
+1. **`stockEntityOrganization.test.ts`** — rail folders derive from data; only the
    tests pin them.
-3. **`showDirectColorSinksCatalogue.test.ts`** — pins which Shows are
+2. **`showDirectColorSinksCatalogue.test.ts`** — pins which Shows are
    direct-sink eligible. Adding one means reviewing the named Precise-mode
    approximation in the Technical Reference.
-4. **`test/perf-harness/issue514.test.ts`, `issue540.test.ts`**
+3. **`test/perf-harness/issue514.test.ts`, `issue540.test.ts`**
    — real capacity gates, not pins. `514` rejects Shows over the activation
    proxy or the 256-global ceiling. Adding a stock *Pattern* also moves 514's
    pattern corpus and 540's field and shading census.
-5. **`showsV2.test.ts` native census** — entry count, id and name order, Zones,
+4. **`showsV2.test.ts` native census** — entry count, id and name order, Zones,
    Layout definitions and output contracts must match the legacy rows, every
    native record must validate, reopen and compile, its chapter Markers must
    reproduce the legacy Scene arc, and its resource ledger must match the legacy
    compile apart from the three pinned retirement records.
-6. **Qualification suites and disclosure strings** are keyed to specific
+5. **Qualification suites and disclosure strings** are keyed to specific
    reference fixture ids and exact compile-bar text. When a fixture retires,
    preserve its shape as an engine test fixture rather than losing the
    qualification subject.
@@ -144,9 +107,8 @@ together and re-pin in one pass:
   count re-pinned with it.
 - Pins live in `showVisualToolkit.test.ts` (variant order),
   `showVisualToolkitPresentation.test.ts` (catalogue length),
-  `showTransitionAuthoring.test.ts` and its component sibling (item counts), the
-  stock `shows.test.ts` census (the stock reference must exercise every
-  shape-reveal variant), and the perf-harness byte and global ledgers.
+  `showTransitionAuthoring.test.ts` and its component sibling (item counts), and
+  the perf-harness byte and global ledgers.
 - Fixtures live in `showVisualToolkitFixtures.ts` and `catalogueShapeSettings`.
 
 Per-variant parameter defaults belong in `constraintsByVariant` in

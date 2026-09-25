@@ -1202,8 +1202,8 @@ describe('built-in Show session drafts (#363)', () => {
   const STOCK_ID = 'stock-show-101-clips-cuts-blank-time'
 
   // openShowV2Pilot opens every built-in Show as a lesson, so its only other
-  // outcome is a stored v2 row or refusal (#1042 S2a). This test goes when
-  // `src/pixelblaze/stock/shows.ts` is deleted.
+  // outcome is a stored v2 row or refusal (#1042 S2a). This test reads the
+  // frozen v1 fixture.
   it('has a native v2 lesson for every v1 stock Show id', () => {
     const ids = [...new Set(V1_STOCK_SHOWS.flatMap(({ id, show }) => [id, show.id]))]
     expect(ids).toHaveLength(V1_STOCK_SHOWS.length)
