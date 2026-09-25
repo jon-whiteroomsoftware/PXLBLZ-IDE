@@ -380,23 +380,43 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   const identity = { binding_id: bindingId, operation_id: operationId }
   expect(await (await rpc('begin_edit', { binding_id: bindingId, intent: 'Rename', idempotency_key: 'begin' })).json()).toMatchObject({ result: { structuredContent: { code: 'begun', operation_id: operationId } } })
   expect(await (await rpc('begin_edit', { binding_id: bindingId, intent: 'Changed intent', idempotency_key: 'begin' })).json()).toMatchObject({ result: { structuredContent: { code: 'identity_conflict', operation_id: operationId } } })
-  // This canonical rename exceeds the old16KiB OAuth body limit but is below
-  // the64KiB normalized command cap. The relay must preserve it byte-for-byte.
-  const name = 'x'.repeat(64_000)
-  const renames = Array.from({ length: 10 }, (_, index) => rpc('rename_show', { ...identity, idempotency_key: `rename-${index}`, name: index === 0 ? name : `Parallel ${index}` }))
+  // The canonical body exceeds the old 16 KiB OAuth body limit but stays below
+  // the 64 KiB normalized-command cap (agent-oauth-discovery.md:235-236).
+  // rename_show caps name at 200 (#1041), so the capacity probe uses
+  // add_property_tracks: 8 tracks of 128 keyframes on show-repeat-scale, which
+  // needs no existing identities and is accepted by the v2 executor on
+  // STOCK_SHOW_IDS[0] (showEndMs 16_000). The relay must preserve it byte-for-byte.
+  const bulkTracks = Array.from({ length: 8 }, () => ({
+    target: { kind: 'show-repeat-scale' },
+    active_start_ms: 0,
+    active_duration_ms: 16_000,
+    keyframes: Array.from({ length: 128 }, (_, keyIndex) => ({
+      at_ms: Math.floor((keyIndex * 16_000) / 127),
+      value: 1,
+    })),
+  }))
+  const bulkArgs = { tracks: bulkTracks }
+  const calls = [
+    rpc('add_property_tracks', { ...identity, idempotency_key: 'rename-0', ...bulkArgs }),
+    ...Array.from({ length: 9 }, (_, index) => rpc('rename_show', { ...identity, idempotency_key: `rename-${index + 1}`, name: `Parallel ${index + 1}` })),
+  ]
   const sequences: number[] = []
   const receivedNames: string[] = []
-  for (let index = 0; index < renames.length; index += 1) {
+  let receivedBulk: unknown
+  for (let index = 0; index < calls.length; index += 1) {
     const next = await (await channel({ type: 'receive', ...own })).json() as { deliveries: Array<{ operationId: string; deliveryId: string; sequence: number; payload: unknown }> }
     expect(next.deliveries).toHaveLength(1)
     const delivery = next.deliveries[0]
     sequences.push(delivery.sequence)
-    receivedNames.push((delivery.payload as { arguments: { name: string } }).arguments.name)
+    const payload = delivery.payload as { name: string; arguments: { name?: string } & Record<string, unknown> }
+    if (payload.name === 'add_property_tracks') receivedBulk = payload.arguments
+    else receivedNames.push(payload.arguments.name!)
     await channel({ type: 'reply', ...own, bindingId, operationId, deliveryId: delivery.deliveryId, result: { code: 'changed' } })
   }
   expect(sequences).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-  expect(new Set(receivedNames)).toEqual(new Set([name, ...Array.from({ length: 9 }, (_, index) => `Parallel ${index + 1}`)]))
-  for (const rename of renames) expect(await (await rename).json()).toMatchObject({ result: { structuredContent: { code: 'changed' } } })
+  expect(receivedBulk).toEqual(bulkArgs)
+  expect(new Set(receivedNames)).toEqual(new Set(Array.from({ length: 9 }, (_, index) => `Parallel ${index + 1}`)))
+  for (const call of calls) expect(await (await call).json()).toMatchObject({ result: { structuredContent: { code: 'changed' } } })
   const oversized = await runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json' }, body: ' '.repeat(67_585) })
   expect(oversized.status).toBe(413)
   expect(await oversized.json()).toEqual({ error: 'invalid_request' })
