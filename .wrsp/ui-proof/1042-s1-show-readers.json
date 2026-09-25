@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows",
+  "operation": "Signed in as a synthetic Playwright user on an isolated authenticated runtime serving 3c510bfd, created a personal v2 Show 'Untitled Show', and captured its Shows rail row above Built-in Shows. Opened and reloaded it, observed its name in Places after switching to Patterns, and chose Shows to reopen its route. On built-in Quadrille, Show actions > Clone opened 'Quadrille copy'. With a fake live Controller bound to the personal Show and built-in Quadrille (device name 'Stale pushed name'), the Controller profile listed 'Untitled Show' and catalogue name 'Quadrille' under Saved PXLBLZ Patterns.",
+  "captures": [
+    ".wrsp/ui-proof/1042-s1-1-rail.png",
+    ".wrsp/ui-proof/1042-s1-2a-reloaded.png",
+    ".wrsp/ui-proof/1042-s1-2b-remembered-name.png",
+    ".wrsp/ui-proof/1042-s1-2c-reopened.png",
+    ".wrsp/ui-proof/1042-s1-3-copy-opened.png",
+    ".wrsp/ui-proof/1042-s1-4-saved-programs.png"
+  ],
+  "capturedAtCommit": "3c510bfd44214350f222aeeba832c0a4866873c7"
+}
