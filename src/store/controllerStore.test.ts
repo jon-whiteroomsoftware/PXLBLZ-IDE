@@ -67,6 +67,9 @@ import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { convertForTest } from '@/test/showEditorV2Harness'
 import { prepareShowV2ControllerDelivery } from '@/engine/showV2ControllerDelivery'
 import { encodeMapData } from '@/engine/mapPush'
+import { bakeMapSource } from '@/engine/maps/bake'
+import { mapFingerprintForPoints } from '@/engine/mapFingerprint'
+import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -296,6 +299,59 @@ async function bindManagedShow(profileSignature: string): Promise<void> {
       },
     },
   })
+}
+
+// An 8-pixel Installation Show authored on stock Square (`plane`); its stamp
+// requires that map's fingerprint at 8 pixels.
+function installationShowV2(): ShowRecordV2 {
+  return convertForTest(createShowWithOutputContract(
+    'show-installation',
+    'Installed wall',
+    createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+    1,
+  ))
+}
+
+async function connectInstallationController(pixelMap: number[][]): Promise<FakeProvider> {
+  await setControllerBindings({ '10.0.0.5': { 'show:show-installation': 'SHOW0002' } })
+  await setPushRecords({
+    '10.0.0.5': {
+      'show:show-installation': {
+        transforms: [],
+        profileSignature: 'old-signature',
+        artifactHash: 'old-hash',
+        stampedAt: '2026-07-12T00:00:00.000Z',
+        name: 'Installed wall',
+      },
+    },
+  })
+  setControllerProviderFactory((ip) => {
+    const provider = new FakeProvider()
+    provider.pixelMap = pixelMap
+    created.set(ip, provider)
+    return provider
+  })
+  await store().addController({
+    id: 'pixelblaze_pb32_managed',
+    address: '10.0.0.5',
+    name: 'Managed Controller',
+  })
+  const provider = created.get('10.0.0.5')!
+  provider.programs = [{ id: 'SHOW0002', name: 'Installed wall' }]
+  return provider
+}
+
+function squareMapAt(pixelCount: number): number[][] {
+  return bakeMapSource(stockMapSpec('plane')!.source, pixelCount).points
+}
+
+function markInstalledMapLoading(): void {
+  useControllerStore.setState((state) => ({
+    controllers: {
+      ...state.controllers,
+      '10.0.0.5': { ...state.controllers['10.0.0.5'], installedMap: { status: 'loading' } },
+    },
+  }))
 }
 
 async function connectManagedController(): Promise<FakeProvider> {
@@ -643,6 +699,76 @@ describe('controllerStore (keyed)', () => {
     expect(store().controllerReconciliations['profile-1']).toMatchObject({
       managedCount: 0,
       unmanagedCount: 1,
+    })
+  })
+
+  it('skips an Installation v2 Show whose required map differs from the installed map at the same pixel count (#1129)', async () => {
+    setControllerProfiles([{ ...managedShowProfile(), lastKnownPixelCount: 8 }], [installationShowV2()])
+    const provider = await connectInstallationController(
+      Array.from({ length: 8 }, (_, index) => [index / 7, 1 - index / 7]),
+    )
+    const installed = store().controllers['10.0.0.5'].installedMap
+    expect(installed).toMatchObject({ status: 'present', pointCount: 8 })
+    expect(installed?.status === 'present' && installed.fingerprint).not.toBe(
+      mapFingerprintForPoints(squareMapAt(8)),
+    )
+
+    await store().reconcileControllerProfile('profile-1')
+
+    expect(provider.saved).toEqual([])
+    expect(provider.compiledSources).toEqual([])
+    expect(store().controllerReconciliations['profile-1']).toMatchObject({
+      managedCount: 0,
+      unmanagedCount: 1,
+    })
+  })
+
+  it('reconciles an Installation v2 Show when the installed map matches its required map (#1129)', async () => {
+    setControllerProfiles([{ ...managedShowProfile(), lastKnownPixelCount: 8 }], [installationShowV2()])
+    const provider = await connectInstallationController(squareMapAt(8))
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({
+      status: 'present',
+      fingerprint: mapFingerprintForPoints(squareMapAt(8)),
+    })
+
+    await store().reconcileControllerProfile('profile-1')
+
+    expect(provider.saved.map((write) => write.opts.id)).toEqual(['SHOW0002'])
+    expect(store().controllerReconciliations['profile-1']).toMatchObject({
+      phase: 'current',
+      managedCount: 1,
+      unmanagedCount: 0,
+    })
+  })
+
+  it('skips an Installation v2 Show while the installed map is still loading (#1129)', async () => {
+    setControllerProfiles([{ ...managedShowProfile(), lastKnownPixelCount: 8 }], [installationShowV2()])
+    const provider = await connectInstallationController(squareMapAt(8))
+    markInstalledMapLoading()
+
+    await store().reconcileControllerProfile('profile-1')
+
+    expect(provider.saved).toEqual([])
+    expect(provider.compiledSources).toEqual([])
+    expect(store().controllerReconciliations['profile-1']).toMatchObject({
+      managedCount: 0,
+      unmanagedCount: 1,
+    })
+  })
+
+  it('reconciles a Portable v2 Show while the installed map is still loading (#1129)', async () => {
+    setControllerProfiles([{ ...managedShowProfile(), lastKnownPixelCount: 1_024 }], [portableShowV2()])
+    await bindManagedShow('old-signature')
+    const provider = await connectManagedController()
+    markInstalledMapLoading()
+
+    await store().reconcileControllerProfile('profile-1')
+
+    expect(provider.saved.map((write) => write.opts.id)).toEqual(['SHOW0001'])
+    expect(store().controllerReconciliations['profile-1']).toMatchObject({
+      phase: 'current',
+      managedCount: 1,
+      unmanagedCount: 0,
     })
   })
 

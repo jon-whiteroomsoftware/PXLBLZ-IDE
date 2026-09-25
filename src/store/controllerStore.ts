@@ -56,7 +56,8 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useLibraryStore } from '@/store/libraryStore'
-import { useMapStore, openMapForPushState } from '@/store/mapStore'
+import { useMapStore, openMapForPushState, STOCK_MAPS } from '@/store/mapStore'
+import { buildShowControllerCompatibilityContext } from '@/engine/showControllerCompatibilityContext'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
@@ -1189,8 +1190,15 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const patternState = usePatternStore.getState()
           const libraryState = useLibraryStore.getState()
           const mapState = useMapStore.getState()
-          // Every saved v2 Show through the editor's delivery chain; a refused
-          // Show is neither pushed nor counted as managed (#1129).
+          // Every saved v2 Show through the editor's delivery chain, against
+          // the editor's compatibility context; a refused Show is neither
+          // pushed nor counted as managed (#1129).
+          const compatibility = buildShowControllerCompatibilityContext(
+            profile,
+            mapState.userMaps,
+            live.installedMap,
+            STOCK_MAPS,
+          )
           const showArtifacts = showRecords.flatMap((record) => {
             let delivery: ShowV2ControllerDelivery
             try {
@@ -1207,15 +1215,19 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 controller: {
                   mapDim: live.mapDim,
                   firmwareVersion: live.firmwareVersion,
-                  compatibility: profile.lastKnownPixelCount === undefined
-                    ? {}
-                    : { pixelCount: profile.lastKnownPixelCount },
+                  compatibility,
                 },
               })
             } catch {
               return []
             }
             if (delivery.status !== 'ready') return []
+            // Unattended delivery fails closed: an Installation Show waits
+            // until the installed map is read and can be compared.
+            if (
+              delivery.artifactStamp.showOutputContract?.kind === 'installation'
+              && live.installedMap?.status !== 'present'
+            ) return []
             const bindingKey = `show:${record.id}`
             return [{
               bindingKey,
