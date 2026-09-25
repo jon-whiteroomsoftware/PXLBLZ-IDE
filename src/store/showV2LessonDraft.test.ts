@@ -151,3 +151,10 @@ it('(f) a pilot placed directly under a lesson id still saves through the provid
   })
   expect(replaceShowV2).toHaveBeenCalledTimes(1)
 })
+
+it('(g) a store reset to the initial state forgets lesson-draft membership', async () => {
+  await useShowStore.getState().openShowV2Pilot(LESSON_ID)
+  expect(useShowStore.getState().isShowV2LessonDraft(LESSON_ID)).toBe(true)
+  useShowStore.setState(showInitialState)
+  expect(useShowStore.getState().isShowV2LessonDraft(LESSON_ID)).toBe(false)
+})

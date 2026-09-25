@@ -51,12 +51,6 @@ let showsHydration: Promise<void> | null = null
 // this pair, never an unpersisted optimistic intermediate or a history that
 // could replay one.
 const lastPersistedShowV2Pilots = new Map<string, { record: ShowRecordV2; history: ShowV2History }>()
-// The Show ids whose v2 pilot was opened as a built-in lesson (#1066
-// slice 11a). Membership is explicit state, never inferred from the id: a
-// pilot placed directly under a built-in id (as agent tests do for channel
-// authority) is personal content and still saves. Lesson pilots are
-// session-only in-memory drafts.
-const showV2LessonDraftIds = new Set<string>()
 let showV2WorkspaceGeneration = 0
 
 // Advance the durable baseline for a completed write, but never behind the
@@ -87,6 +81,15 @@ interface ShowState {
   showV2Pilots: Record<string, ShowRecordV2>
   showV2Histories: Record<string, ShowV2History>
   showV2SaveFailure: { showId: string; record: ShowRecordV2 } | null
+  /**
+   * The Show ids whose v2 pilot was opened as a built-in lesson (#1066 slice
+   * 11a). Membership is explicit state, never inferred from the id: a pilot
+   * placed directly under a built-in id (as agent tests do for channel
+   * authority) is personal content and still saves. Lesson pilots are
+   * session-only in-memory drafts. Store state, so a reset to
+   * `showInitialState` forgets it with the pilots it describes.
+   */
+  showV2LessonDraftIds: Record<string, true>
   /**
    * The stored v2 rows the Show list offers behind the route gate (#1056
    * slice 6). A v2 row is absent from `shows`, which stays v1-typed until
@@ -185,6 +188,7 @@ export const showInitialState = {
   showV2Pilots: {} as Record<string, ShowRecordV2>,
   showV2Histories: {} as Record<string, ShowV2History>,
   showV2SaveFailure: null as { showId: string; record: ShowRecordV2 } | null,
+  showV2LessonDraftIds: {} as Record<string, true>,
   showV2Rows: [] as ShowV2ListRow[],
 }
 
@@ -201,7 +205,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     revision: id => get().showRevisions[id] ?? 0,
     missing: id => showsPendingDeletion.has(id),
     adopt: (id, next, settle) => updateShowV2Record(id, next, settle),
-    isDraft: id => showV2LessonDraftIds.has(id),
+    isDraft: id => get().showV2LessonDraftIds[id] === true,
   })
   const revisionPatch = (state: ShowState, id: string) => ({
     showRevisions: { ...state.showRevisions, [id]: (state.showRevisions[id] ?? 0) + 1 },
@@ -220,7 +224,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
   )
   /** Whether this personal Show is stored as a v2 document rather than a v1 record. */
   const isPersonalShowV2Row = (id: string): boolean => (
-    !showV2LessonDraftIds.has(id)
+    get().showV2LessonDraftIds[id] !== true
     && (get().showV2Pilots[id] !== undefined || get().showV2Rows.some(row => row.id === id))
   )
   /**
@@ -266,7 +270,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     // A lesson draft is session-only: the same synchronous state update as a
     // personal adoption, but no provider check, no queued persistence and no
     // rollback path. The settlement reports the draft.
-    const lessonDraft = showV2LessonDraftIds.has(id)
+    const lessonDraft = get().showV2LessonDraftIds[id] === true
     const provider = getPersonalContentProvider()
     const workspaceGeneration = showV2WorkspaceGeneration
     if (!lessonDraft && !provider.replaceShowV2) throw new Error('The active personal-content provider does not support v2 Shows.')
@@ -395,9 +399,9 @@ export const useShowStore = create<ShowState>()((set, get) => {
     lastPersistedShowV2Pilots.clear()
     set(state => ({
       showV2Pilots: Object.fromEntries(Object.entries(state.showV2Pilots)
-        .filter(([id]) => showV2LessonDraftIds.has(id))),
+        .filter(([id]) => state.showV2LessonDraftIds[id])),
       showV2Histories: Object.fromEntries(Object.entries(state.showV2Histories)
-        .filter(([id]) => showV2LessonDraftIds.has(id))),
+        .filter(([id]) => state.showV2LessonDraftIds[id])),
       showV2SaveFailure: null,
       showV2Rows: [],
     }))
@@ -547,17 +551,19 @@ export const useShowStore = create<ShowState>()((set, get) => {
       // the session state a v2 Show holds is forgotten with the v1 state.
       await deletePersistedShow(id)
       lastPersistedShowV2Pilots.delete(id)
-      showV2LessonDraftIds.delete(id)
       set((state) => {
         const showV2Pilots = { ...state.showV2Pilots }
         delete showV2Pilots[id]
         const showV2Histories = { ...state.showV2Histories }
         delete showV2Histories[id]
+        const showV2LessonDraftIds = { ...state.showV2LessonDraftIds }
+        delete showV2LessonDraftIds[id]
         return {
           shows: state.shows.filter((show) => show.id !== id),
           showV2Rows: state.showV2Rows.filter((row) => row.id !== id),
           showV2Pilots,
           showV2Histories,
+          showV2LessonDraftIds,
           activeShowId: state.activeShowId === id ? null : state.activeShowId,
           ...(state.showV2SaveFailure?.showId === id ? { showV2SaveFailure: null } : {}),
         }
@@ -594,11 +600,11 @@ export const useShowStore = create<ShowState>()((set, get) => {
     return record
   },
 
-  isShowV2LessonDraft: (id) => showV2LessonDraftIds.has(id),
+  isShowV2LessonDraft: (id) => get().showV2LessonDraftIds[id] === true,
 
   resetShowV2LessonDraft: (id) => {
     const lesson = stockShowV2ById(id)
-    if (!lesson || !showV2LessonDraftIds.has(id) || !get().showV2Pilots[id]) return
+    if (!lesson || !get().showV2LessonDraftIds[id] || !get().showV2Pilots[id]) return
     inputWait.invalidate(id)
     const record = cloneValidShowRecordV2(lesson)
     set((state) => {
@@ -626,15 +632,15 @@ export const useShowStore = create<ShowState>()((set, get) => {
       const lesson = stockShowV2ById(showId)
       if (lesson) {
         const existing = get().showV2Pilots[showId]
-        if (existing && showV2LessonDraftIds.has(showId)) {
+        if (existing && get().showV2LessonDraftIds[showId]) {
           return { status: 'ready', record: existing }
         }
         const record = cloneValidShowRecordV2(lesson)
         const history = { past: [], future: [] }
-        showV2LessonDraftIds.add(showId)
         set(state => ({
           showV2Pilots: { ...state.showV2Pilots, [showId]: record },
           showV2Histories: { ...state.showV2Histories, [showId]: history },
+          showV2LessonDraftIds: { ...state.showV2LessonDraftIds, [showId]: true },
         }))
         return { status: 'ready', record }
       }
