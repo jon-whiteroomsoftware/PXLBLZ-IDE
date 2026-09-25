@@ -4,7 +4,7 @@ import { emptyRendezvous, transitionRendezvous, windowRendezvousView } from './a
 describe('account rendezvous', () => {
   it('arms one live registered window and binds only one agent', () => {
     const initial = emptyRendezvous()
-    const registered = transitionRendezvous(initial, { type: 'register', sessionId: 'session-a', showId: 'show-a', registrationId: 'registration-a' }, 0)
+    const registered = transitionRendezvous(initial, { type: 'register', sessionId: 'session-a', showId: 'show-a', registrationId: 'registration-a', showVersion: 2 }, 0)
     expect(registered.result.code).toBe('registered')
     const armed = transitionRendezvous(registered.state, { type: 'arm', registrationId: 'registration-a', sessionId: 'session-a', showId: 'show-a' }, 1)
     expect(armed.result.code).toBe('armed')
@@ -17,8 +17,8 @@ describe('account rendezvous', () => {
   })
 })
 
-const windowA = { registrationId: 'registration-a', sessionId: 'session-a', showId: 'show-a' }
-const windowB = { registrationId: 'registration-b', sessionId: 'session-b', showId: 'show-b' }
+const windowA = { registrationId: 'registration-a', sessionId: 'session-a', showId: 'show-a', showVersion: 2 as const }
+const windowB = { registrationId: 'registration-b', sessionId: 'session-b', showId: 'show-b', showVersion: 2 as const }
 const agentA = { agentKind: 'external' as const, agentId: 'agent-a', agentName: 'Agent A', callId: 'call-a', bindingId: 'binding-a' }
 function registered() {
   const a = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA }, 0).state
@@ -91,7 +91,7 @@ it('checks session and Show along with registration capability', () => {
 
 it('does not evict live registrations at capacity, and late decline cannot drop a new call', () => {
   let state = emptyRendezvous()
-  for (let i = 0; i < 8; i++) state = transitionRendezvous(state, { type: 'register', registrationId: `r${i}`, sessionId: `s${i}`, showId: 'show' }, 0).state
+  for (let i = 0; i < 8; i++) state = transitionRendezvous(state, { type: 'register', registrationId: `r${i}`, sessionId: `s${i}`, showId: 'show', showVersion: 2 }, 0).state
   const full = transitionRendezvous(state, { type: 'register', ...windowA }, 1)
   expect(full.result.code).toBe('capacity')
   expect(full.state).toEqual(state)
@@ -177,7 +177,7 @@ it('keeps revoked bound work retiring until the original browser acknowledges re
 
 it('projects an existing external binding without transferring ownership', () => {
   const namedA = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA, showName: 'First Show' }, 0).state
-  const sameShow = { registrationId: 'registration-a2', sessionId: 'session-a2', showId: 'show-a' }
+  const sameShow = { registrationId: 'registration-a2', sessionId: 'session-a2', showId: 'show-a', showVersion: 2 as const }
   const withA2 = transitionRendezvous(namedA, { type: 'register', ...sameShow, showName: 'First Show' }, 0).state
   const withB = transitionRendezvous(withA2, { type: 'register', ...windowB, showName: 'Second Show' }, 0).state
   const armed = transitionRendezvous(withB, { type: 'arm', ...windowA }, 1).state
@@ -230,7 +230,7 @@ it('moves only the exact observed external generation and keeps old traffic isol
 })
 
 it('admits one competing move and rejects every stale replacement of its source generation', () => {
-  const windowC = { registrationId: 'registration-c', sessionId: 'session-c', showId: 'show-c' }
+  const windowC = { registrationId: 'registration-c', sessionId: 'session-c', showId: 'show-c', showVersion: 2 as const }
   const state = transitionRendezvous(registered(), { type: 'register', ...windowC }, 0).state
   const armed = transitionRendezvous(state, { type: 'arm', ...windowA }, 1).state
   const bound = transitionRendezvous(armed, { type: 'claim', ...agentA }, 2).state
@@ -305,20 +305,27 @@ it('atomically compares an external tool binding while consuming its public-resp
     .toMatchObject({ code: 'bound', claim: { callId: 'call-b', bindingId: 'binding-b' } })
 })
 
-it('stores a declared version-2 record and leaves a version-1 registration unchanged (#1039)', () => {
-  const v1 = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA }, 0).state
-  expect(v1.registrations).toEqual([{ ...windowA, lastSeenAt: 0 }])
-  const v2 = transitionRendezvous(v1, { type: 'register', ...windowB, showVersion: 2 }, 0).state
-  expect(v2.registrations[1]).toEqual({ ...windowB, showVersion: 2, lastSeenAt: 0 })
-  const declaredOne = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA, showVersion: 1 }, 0).state
-  expect(declaredOne.registrations).toEqual([{ ...windowA, lastSeenAt: 0 }])
+it('stores a version-2 registration without recording a version (#1042)', () => {
+  const state = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA }, 0).state
+  expect(state.registrations).toEqual([
+    { registrationId: 'registration-a', sessionId: 'session-a', showId: 'show-a', lastSeenAt: 0 },
+  ])
+})
+ 
+it('reads a persisted legacy registration that still carries showVersion (#1042)', () => {
+  const stored = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA }, 0).state
+  const persisted = structuredClone(stored)
+  const legacy = persisted.registrations[0] as unknown as Record<string, unknown>
+  legacy.showVersion = 1
+  const armed = transitionRendezvous(persisted, { type: 'arm', ...windowA }, 1)
+  expect(armed.result.code).toBe('armed')
 })
 
 it('stores only bounded nonempty registration names', () => {
   const blank = transitionRendezvous(emptyRendezvous(), { type: 'register', ...windowA, showName: '' }, 0).state
   const long = transitionRendezvous(blank, { type: 'register', ...windowB, showName: 'x'.repeat(129) }, 0).state
   expect(long.registrations).toEqual([
-    { ...windowA, lastSeenAt: 0 },
-    { ...windowB, lastSeenAt: 0 },
+    { registrationId: 'registration-a', sessionId: 'session-a', showId: 'show-a', lastSeenAt: 0 },
+    { registrationId: 'registration-b', sessionId: 'session-b', showId: 'show-b', lastSeenAt: 0 },
   ])
 })

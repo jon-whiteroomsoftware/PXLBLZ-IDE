@@ -126,8 +126,7 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   expect(initialize.status).toBe(200)
   const initialization = await initialize.json() as { result: { capabilities: { tools: { listChanged?: boolean }; resources: { listChanged?: boolean } }; instructions: string } }
   // Before attachment the server describes the production vocabulary, which is
-  // v2 since #1039 flipped the route; a connection bound to a row still stored
-  // as v1 is answered v1 by the catalogue dispatch instead.
+  // v2-only since #1042: every connection is described the v2 catalogue.
   expect(initialization).toMatchObject({ result: { capabilities: { tools: {}, resources: {} }, instructions: expect.stringContaining('clip-layer-authoring/v2') } })
   expect(initialization.result.capabilities.resources.listChanged).not.toBe(true)
   const listing = await rpc('tools/list')
@@ -172,7 +171,7 @@ it('marks read_show on a retired binding as an MCP tool error in actual workerd'
   const showId = STOCK_SHOW_IDS[0]
   const channel = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const rpc = (name: string, args: object = {}) => runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) })
-  const registration = await (await channel({ type: 'register', sessionId: 'retired-binding', showId })).json() as { registrationId: string }
+  const registration = await (await channel({ type: 'register', sessionId: 'retired-binding', showId, showVersion: 2 })).json() as { registrationId: string }
   const window = { registrationId: registration.registrationId, sessionId: 'retired-binding', showId }
   await channel({ type: 'arm', ...window })
   const connected = (await (await rpc('get_connection')).json() as { result: { structuredContent: { binding_id: string } } }).result.structuredContent
@@ -341,7 +340,7 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   const showId = STOCK_SHOW_IDS[0]
   const channel = async (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const rpc = (name: string, args: object = {}) => runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) })
-  const registration = await (await channel({ type: 'register', sessionId: 'mcp-live', showId })).json() as { registrationId: string }
+  const registration = await (await channel({ type: 'register', sessionId: 'mcp-live', showId, showVersion: 2 })).json() as { registrationId: string }
   const own = { registrationId: registration.registrationId, sessionId: 'mcp-live', showId }
   await channel({ type: 'arm', ...own })
   const connected = await (await rpc('get_connection')).json() as { result: { structuredContent: { code: string; binding_id: string } } }
@@ -439,8 +438,8 @@ it('moves one live external binding between authorized Show editors with fresh i
   const toolResult = async (response: { json(): Promise<unknown> }) => (await response.json() as { result: { structuredContent: Record<string, unknown> } }).result.structuredContent
   const firstShowId = STOCK_SHOW_IDS[0]
   const secondShowId = STOCK_SHOW_IDS[1]
-  const firstRegistration = await (await channel({ type: 'register', sessionId: 'move-first', showId: firstShowId })).json() as { registrationId: string }
-  const secondRegistration = await (await channel({ type: 'register', sessionId: 'move-second', showId: secondShowId })).json() as { registrationId: string }
+  const firstRegistration = await (await channel({ type: 'register', sessionId: 'move-first', showId: firstShowId, showVersion: 2 })).json() as { registrationId: string }
+  const secondRegistration = await (await channel({ type: 'register', sessionId: 'move-second', showId: secondShowId, showVersion: 2 })).json() as { registrationId: string }
   const first = { registrationId: firstRegistration.registrationId, sessionId: 'move-first', showId: firstShowId }
   const second = { registrationId: secondRegistration.registrationId, sessionId: 'move-second', showId: secondShowId }
   const moveTo = async (target: { registrationId: string; sessionId: string; showId: string }, expectedBindingId: string) => {
@@ -523,7 +522,7 @@ it('local Forget revokes only the grant attached to the exact owning window', as
   const tokens = await authorized()
   const showId = STOCK_SHOW_IDS[0]
   const channel = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const registration = await (await channel({ type: 'register', sessionId: 'forget', showId })).json() as { registrationId: string }
+  const registration = await (await channel({ type: 'register', sessionId: 'forget', showId, showVersion: 2 })).json() as { registrationId: string }
   const own = { registrationId: registration.registrationId, sessionId: 'forget', showId }
   await channel({ type: 'arm', ...own })
   const connected = await runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_connection', arguments: {} } }) })

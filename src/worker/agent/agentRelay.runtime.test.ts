@@ -20,7 +20,7 @@ async function internal(body: unknown) {
   return ns.get(ns.idFromName('relay-account')).fetch('https://internal/account', { method: 'POST', body: JSON.stringify(body) })
 }
 it('routes a trusted claim through held browser receive/reply without holding the coordination transaction', async () => {
-  const registration = await (await channel({ type: 'register', sessionId: 'live', showId })).json() as { registrationId: string }
+  const registration = await (await channel({ type: 'register', sessionId: 'live', showId, showVersion: 2 })).json() as { registrationId: string }
   const window = { ...registration, sessionId: 'live', showId }
   // Construct exact public capability, never echo response metadata into commands.
   const own = { registrationId: window.registrationId, sessionId: window.sessionId, showId }
@@ -42,8 +42,8 @@ it('routes a trusted claim through held browser receive/reply without holding th
   await channel({ type: 'leave', ...own })
 }, 10_000)
 it('accepts only exact stock IDs and disarms only the armed owning window', async () => {
-  expect(await (await channel({ type: 'register', sessionId: 'invented', showId: 'stock-show-made-up' })).json()).toEqual({ code: 'unavailable' })
-  const registration = await (await channel({ type: 'register', sessionId: 'armed', showId })).json() as { registrationId: string }
+  expect(await (await channel({ type: 'register', sessionId: 'invented', showId: 'stock-show-made-up', showVersion: 2 })).json()).toEqual({ code: 'unavailable' })
+  const registration = await (await channel({ type: 'register', sessionId: 'armed', showId, showVersion: 2 })).json() as { registrationId: string }
   const own = { registrationId: registration.registrationId, sessionId: 'armed', showId }
   expect(await (await channel({ type: 'arm', ...own })).json()).toMatchObject({ code: 'armed' })
   expect(await (await channel({ type: 'disarm', ...own, sessionId: 'wrong' })).json()).toEqual({ code: 'retired' })
@@ -53,7 +53,7 @@ it('accepts only exact stock IDs and disarms only the armed owning window', asyn
 })
 
 it('evicts an account owner, retires its persisted old binding, and admits only a fresh generation', async () => {
-  const registration = await (await channel({ type: 'register', sessionId: 'recreated', showId })).json() as { registrationId: string }
+  const registration = await (await channel({ type: 'register', sessionId: 'recreated', showId, showVersion: 2 })).json() as { registrationId: string }
   const own = { registrationId: registration.registrationId, sessionId: 'recreated', showId }
   const old = { agentKind: 'external', agentId: 'grant', agentName: 'Client', callId: 'old-call', bindingId: 'old-binding' }
   await channel({ type: 'arm', ...own })
@@ -86,7 +86,7 @@ it('evicts an account owner, retires its persisted old binding, and admits only 
 }, 10_000)
 
 it('evicts an account owner and restores a trusted built-in relay from the exact persisted identity', async () => {
-  const registration = await (await channel({ type: 'register', sessionId: 'builtin-recreated', showId })).json() as { registrationId: string }
+  const registration = await (await channel({ type: 'register', sessionId: 'builtin-recreated', showId, showVersion: 2 })).json() as { registrationId: string }
   const own = { registrationId: registration.registrationId, sessionId: 'builtin-recreated', showId }
   const identity = { agentKind: 'builtin', agentId: 'builtin-recreated', agentName: 'Assistant', callId: 'builtin-call', bindingId: 'builtin-binding' }
   expect(await (await internal({ type: 'claim', ...identity, window: own })).json()).toMatchObject({ code: 'bound' })

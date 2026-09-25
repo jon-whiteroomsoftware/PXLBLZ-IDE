@@ -28,7 +28,7 @@ async function channel(body: unknown, authenticated = true) {
   return runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://app.test', ...(authenticated ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) })
 }
 it('refuses signed-out access and registers an owned Show through the actual Worker and Durable Object', async () => {
-  const body = { type: 'register', sessionId: 'session-a', showId: 'show-a' }
+  const body = { type: 'register', sessionId: 'session-a', showId: 'show-a', showVersion: 2 }
   expect((await channel(body, false)).status).toBe(401)
   const registered = await channel(body)
   expect(registered.status).toBe(200)
@@ -42,6 +42,12 @@ it('refuses signed-out access and registers an owned Show through the actual Wor
   expect(armResult.connection.expiresAt).toBeGreaterThanOrEqual(beforeArm + 120_000)
   expect(armResult.connection.expiresAt).toBeLessThanOrEqual(Date.now() + 120_000)
 })
+ 
+it('refuses a register that does not declare showVersion 2 as an invalid request', async () => {
+  expect(await (await channel({ type: 'register', sessionId: 'versioned', showId: 'show-a' })).json()).toEqual({ code: 'invalid_request' })
+  expect(await (await channel({ type: 'register', sessionId: 'versioned', showId: 'show-a', showVersion: 1 })).json()).toEqual({ code: 'invalid_request' })
+  expect(await (await channel({ type: 'register', sessionId: 'versioned', showId: 'show-a', showVersion: 2 })).json()).toMatchObject({ code: 'registered' })
+})
 
 async function sessionCookie(userId: string) {
   return `pxlblz_session=${await createSessionToken({ userId, primaryProvider: 'github', primaryHandle: null, displayName: null, avatarUrl: null }, 'test-secret')}`
@@ -50,7 +56,7 @@ async function requestAs(userId: string, body: unknown, query = '?agent=1', orig
   return runtime.dispatchFetch(`https://app.test/api/agent/channel${query}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin, Cookie: await sessionCookie(userId) }, body: JSON.stringify(body) })
 }
 it('accepts ordinary and legacy URLs for non-allowlisted accounts while preserving origin and Show ownership', async () => {
-  const body = { type: 'register', sessionId: 'refused-session', showId: 'show-a' }
+  const body = { type: 'register', sessionId: 'refused-session', showId: 'show-a', showVersion: 2 }
   for (const query of ['', '?agent=0', '?agent=1&agent=1']) {
     expect(await (await requestAs('account-a', { ...body, sessionId: `session-${query}` }, query)).json()).toMatchObject({ code: 'registered' })
   }
@@ -61,14 +67,14 @@ it('accepts ordinary and legacy URLs for non-allowlisted accounts while preservi
 it('rejects cookie-backed external claims and forged actor/account fields', async () => {
   for (const body of [
     { type: 'claim', agentId: 'forged', agentName: 'forged', showId: 'show-a', sessionId: 'forged' },
-    { type: 'register', showId: 'show-a', sessionId: 'forged', accountId: 'account-b' },
-    { type: 'register', showId: 'show-a', sessionId: 'forged', role: 'agent' },
-    { type: 'register', showId: 'show-a', sessionId: 'forged', registrationId: 'chosen' },
+    { type: 'register', showId: 'show-a', sessionId: 'forged', showVersion: 2, accountId: 'account-b' },
+    { type: 'register', showId: 'show-a', sessionId: 'forged', showVersion: 2, role: 'agent' },
+    { type: 'register', showId: 'show-a', sessionId: 'forged', showVersion: 2, registrationId: 'chosen' },
   ]) expect(await (await requestAs('account-a', body)).json()).toEqual({ code: 'invalid_request' })
 })
 it('serializes simultaneous external claims and competing Answers on the actual Durable Object', async () => {
-  const first = await (await requestAs('account-b', { type: 'register', showId: 'show-b', sessionId: 'b-one' })).json() as { registrationId: string }
-  const second = await (await requestAs('account-b', { type: 'register', showId: 'show-b', sessionId: 'b-two' })).json() as { registrationId: string }
+  const first = await (await requestAs('account-b', { type: 'register', showId: 'show-b', sessionId: 'b-one', showVersion: 2 })).json() as { registrationId: string }
+  const second = await (await requestAs('account-b', { type: 'register', showId: 'show-b', sessionId: 'b-two', showVersion: 2 })).json() as { registrationId: string }
   const namespace = await runtime.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
   const stub = namespace.get(namespace.idFromName('account-b'))
   const claims = await Promise.all(['one', 'two'].map(async (id) => (await stub.fetch('https://internal/claim', { method: 'POST', body: JSON.stringify({ type: 'claim', agentKind: 'external', agentId: id, agentName: id, callId: `call-${id}`, bindingId: `binding-${id}` }) })).json() as Promise<{ code: string }>))
@@ -137,7 +143,7 @@ it('keeps browser heartbeat, receive, delivery, reply and cleanup healthy after 
   expect(await json({ type: 'leave', ...own })).toEqual({ code: 'retired' })
 })
 it('can retire its own window after capability loss or Show deletion', async () => {
-  const registration = await (await requestAs('account-a', { type: 'register', showId: 'show-a', sessionId: 'leaving' })).json() as { registrationId: string }
+  const registration = await (await requestAs('account-a', { type: 'register', showId: 'show-a', sessionId: 'leaving', showVersion: 2 })).json() as { registrationId: string }
   const db = await runtime.getD1Database('PXLBLZ_DB')
   await db.prepare('DELETE FROM personal_shows WHERE user_id = ? AND id = ?').bind('account-a', 'show-a').run()
   const ended = await requestAs('account-a', { type: 'leave', showId: 'show-a', sessionId: 'leaving', registrationId: registration.registrationId }, '')
@@ -145,7 +151,7 @@ it('can retire its own window after capability loss or Show deletion', async () 
   expect(ended.status).toBe(200)
 })
 it('allows only one simultaneous builtin or external claim through the shared account owner', async () => {
-  const data = await (await requestAs('account-c', { type: 'register', sessionId: 'c-one', showId: 'show-c' })).json() as { registrationId: string }
+  const data = await (await requestAs('account-c', { type: 'register', sessionId: 'c-one', showId: 'show-c', showVersion: 2 })).json() as { registrationId: string }
   const namespace = await runtime.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
   const stub = namespace.get(namespace.idFromName('account-c'))
   const attempts = [
@@ -161,7 +167,7 @@ it('refuses service-disabled access through the real Worker before target work',
   const bundle = await build({ entryPoints: ['src/worker/index.ts'], external: ['cloudflare:workers'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
   const disabled = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-06-30', bindings: { SESSION_SECRET: 'test-secret' }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } } }))
   try {
-    const response = await disabled.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Origin: 'https://app.test', Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'register', sessionId: 'disabled', showId: 'show-a' }) })
+    const response = await disabled.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Origin: 'https://app.test', Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'register', sessionId: 'disabled', showId: 'show-a', showVersion: 2 }) })
     expect(response.status).toBe(503)
     expect(await response.json()).toEqual({ code: 'service_disabled' })
   } finally { await disabled.dispose() }
@@ -172,7 +178,7 @@ it('rejects malformed session cookies as unauthenticated', async () => {
   expect(await response.json()).toEqual({ code: 'unauthorized' })
 })
 it('cannot reuse a registration capability in another authenticated account', async () => {
-  const registration = await (await requestAs('account-c', { type: 'register', sessionId: 'scope-session', showId: 'show-c' })).json() as { registrationId: string }
+  const registration = await (await requestAs('account-c', { type: 'register', sessionId: 'scope-session', showId: 'show-c', showVersion: 2 })).json() as { registrationId: string }
   const response = await requestAs('account-b', { type: 'poll', sessionId: 'scope-session', showId: 'show-b', registrationId: registration.registrationId })
   expect(await response.json()).toEqual({ code: 'retired' })
 })
@@ -236,9 +242,9 @@ it('resolves builtin identity privately for the original window, never a public 
 })
 
 it('projects safe external binding availability without transferring ownership or capabilities', async () => {
-  const first = await (await requestAs('account-move', { type: 'register', sessionId: 'move-first', showId: 'move-a' })).json() as { registrationId: string }
-  const same = await (await requestAs('account-move', { type: 'register', sessionId: 'move-same', showId: 'move-a' })).json() as { registrationId: string }
-  const other = await (await requestAs('account-move', { type: 'register', sessionId: 'move-other', showId: 'move-b' })).json() as { registrationId: string }
+  const first = await (await requestAs('account-move', { type: 'register', sessionId: 'move-first', showId: 'move-a', showVersion: 2 })).json() as { registrationId: string }
+  const same = await (await requestAs('account-move', { type: 'register', sessionId: 'move-same', showId: 'move-a', showVersion: 2 })).json() as { registrationId: string }
+  const other = await (await requestAs('account-move', { type: 'register', sessionId: 'move-other', showId: 'move-b', showVersion: 2 })).json() as { registrationId: string }
   const firstWindow = { registrationId: first.registrationId, sessionId: 'move-first', showId: 'move-a' }
   const namespace = await runtime.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
   const stub = namespace.get(namespace.idFromName('account-move'))

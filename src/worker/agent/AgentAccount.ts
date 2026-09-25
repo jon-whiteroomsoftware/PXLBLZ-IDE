@@ -38,7 +38,7 @@ type AccountCommand = RendezvousCommand | AgentWindowChannelCommand
   | { type: 'external-tool-inspect-binding'; agentId: string }
   | { type: 'external-tool-dispatch'; agentId: string; expectedBindingId: string; delivery: ExternalAgentDeliveryInput }
   | { type: 'external-tool-query'; agentId: string; expectedBindingId: string; query: AgentEditorQuery }
-interface AccountBody { code: string; contact?: 'live' | 'lost'; registrationId?: string; binding?: AgentClaim & WindowIdentity & Pick<EditorRegistration, 'showName' | 'showVersion'>; connection?: ReturnType<typeof windowRendezvousView>; claim?: AgentClaim; expiresAt?: number; moveNotice?: ExternalMoveNotice; retry_after_ms?: number }
+interface AccountBody { code: string; contact?: 'live' | 'lost'; registrationId?: string; binding?: AgentClaim & WindowIdentity & Pick<EditorRegistration, 'showName'>; connection?: ReturnType<typeof windowRendezvousView>; claim?: AgentClaim; expiresAt?: number; moveNotice?: ExternalMoveNotice; retry_after_ms?: number }
 interface AccountRead { body: AccountBody; status: number; state: RendezvousState }
 
 /** Private binding only. Never mount this fetch handler at a public Worker URL. */
@@ -151,7 +151,7 @@ export class AgentAccount {
     if (!state || !target || slot?.kind !== 'bound') return agentResponse({ code: 'no_live_editor' })
     return agentResponse({
       code: 'bound',
-      binding: { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, showVersion: target.showVersion === 2 ? 2 : 1 },
+      binding: { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId },
     })
   }
   private coordinate(command: RendezvousCommand, accounting = accountCommandAccounting(command)): Promise<AccountRead> {
@@ -184,7 +184,7 @@ export class AgentAccount {
           body.claim = { agentId: slot.agentId, agentName: slot.agentName, agentKind: slot.agentKind, callId: slot.callId, bindingId: slot.bindingId }
           if (slot.kind === 'pending') body.expiresAt = slot.expiresAt
         }
-        if ((result.code === 'bound' || result.code === 'binding_moved') && target) body.binding = { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, ...(target.showName ? { showName: target.showName } : {}), showVersion: target.showVersion === 2 ? 2 : 1 }
+        if ((result.code === 'bound' || result.code === 'binding_moved') && target) body.binding = { ...slot as AgentClaim, registrationId: target.registrationId, sessionId: target.sessionId, showId: target.showId, ...(target.showName ? { showName: target.showName } : {}) }
         return reply(body)
       }
       if (command.type === 'expire' || ending) return reply(result)

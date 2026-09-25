@@ -7,7 +7,7 @@ import type { AgentDeliveryInput, AgentEditorQuery, ExternalAgentDeliveryInput }
 type Environment = AgentAccessEnvironment & { AGENT_ACCOUNTS?: AgentAccountNamespace }
 export interface ExternalToolConnection extends PrivateEditResult {
   claim?: AgentClaim
-  binding?: AgentClaim & WindowIdentity & { showName?: string; showVersion?: 1 | 2 }
+  binding?: AgentClaim & WindowIdentity & { showName?: string }
   expiresAt?: number
   moveNotice?: ExternalMoveNotice
   retry_after_ms?: number

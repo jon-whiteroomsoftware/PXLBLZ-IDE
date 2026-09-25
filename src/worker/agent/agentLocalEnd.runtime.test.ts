@@ -40,7 +40,7 @@ async function fixture(race: 'failure' | 'ack' | 'leave') {
   const internal = async (body: object) => (await ns.get(ns.idFromName('end-account')).fetch('https://internal', {method:'POST',body:JSON.stringify(body)})).json() as Promise<{code:string}>
   const post = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', {method:'POST',headers:{Cookie:cookie,Origin:'https://app.test','Content-Type':'application/json'},body:JSON.stringify(body)})
   const sessionId='session', showId='stock-show-100-getting-around'
-  const registration=await(await post({type:'register',sessionId,showId})).json() as {registrationId:string}
+  const registration=await(await post({type:'register',sessionId,showId,showVersion:2})).json() as {registrationId:string}
   const window={registrationId:registration.registrationId,sessionId,showId}
   await post({type:'arm',...window})
   const identity={agentKind:'external',agentName:'Client',agentId:'grant',callId:'call',bindingId:'binding'}
@@ -65,7 +65,7 @@ it('retains end-control identity after unknown transport without restoring the r
   // Use a distinct real registration for the browser session.
   await f.post({type:'leave',...f.window})
   const request={sessionId:'browser',showId:f.window.showId,operationId:'binding:op',baseRevision:0,payloadKey:'',referenceContext:'{}',targets:[]}
-  const admission={sessionId:'browser',available:()=>true,onClose:()=>()=>{},getShow:showCommandFixture,getEditorFocus:()=>({}),captureCommandContext:()=>({commandContext:{source:()=>undefined},retainedBytes:1}),beginRequest:vi.fn(()=>({request,show:showCommandFixture(),context:{}})),readOutcome:()=>({request,status:'pending'}),cancel:vi.fn(()=>({request,status:'cancelled'})),applyShow:vi.fn(),complete:vi.fn()}
+  const admission={sessionId:'browser',recordVersion:2,available:()=>true,onClose:()=>()=>{},getShow:showCommandFixture,getEditorFocus:()=>({}),captureCommandContext:()=>({commandContext:{source:()=>undefined},retainedBytes:1}),beginRequest:vi.fn(()=>({request,show:showCommandFixture(),context:{}})),readOutcome:()=>({request,status:'pending'}),cancel:vi.fn(()=>({request,status:'cancelled'})),applyShow:vi.fn(),complete:vi.fn()}
   const calls:Record<string,unknown>[]=[]
   const session=createAgentBrowserSession({admission:admission as unknown as ReturnType<typeof createAgentEditorAdmission>,showId:f.window.showId,fetch:async(_url,init)=>{const body=JSON.parse(init?.body as string);calls.push(body);if(body.type==='forget')throw Error('request never reached server');const response = await f.post(body);return new Response(await response.text(), {status:response.status,headers:{'Content-Type':'application/json'}})}})
   try {

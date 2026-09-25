@@ -33,20 +33,13 @@ async function call(owner: { fetch: ReturnType<typeof vi.fn> }, name: string, ar
 }
 
 /**
- * The account stub these tests bind to. The MCP server asks it which record
- * version the bound editor holds before it registers a tool (#1039), so the
- * stub answers that read itself and forwards every tool call to the test's own
- * owner - which keeps "one authoritative owner response per tool call" exact.
+ * The account stub these tests bind to. The MCP server serves the v2 catalogue
+ * for every connection (#1042), so the stub forwards every tool call to the test's
+ * own owner - which keeps "one authoritative owner response per tool call" exact.
  */
-function account(owner: { fetch: ReturnType<typeof vi.fn> | ((input: Request) => Promise<Response>) }, showVersion?: 1 | 2) {
+function account(owner: { fetch: ReturnType<typeof vi.fn> | ((input: Request) => Promise<Response>) }) {
   return {
-    fetch: async (input: Request) => {
-      const body = await input.clone().json() as { type?: string }
-      if (body.type === 'external-tool-inspect-binding') {
-        return Response.json(showVersion ? { code: 'bound', binding: { ...claim, showVersion } } : { code: 'no_live_editor' })
-      }
-      return (owner.fetch as (input: Request) => Promise<Response>)(input)
-    },
+    fetch: async (input: Request) => (owner.fetch as (input: Request) => Promise<Response>)(input),
   }
 }
 
@@ -309,87 +302,10 @@ it('publishes server-owned identity schemas and rejects legacy delivery fields',
   }
 })
 
-// #1039: the server registers one catalogue per connection. `list_commands` is
-// how a caller discovers that vocabulary without attaching to an editor, so it
-// must describe the catalogue that was actually registered. Describing v1 under
-// `catalogue: 'v2'` hands the caller command names that match no registered
-// tool - the same editor-accepts-v2-while-commands-assume-v1 window the
-// scene-retirement specification forbids, in miniature.
-async function catalogueRequest(env: WorkerEnv, method: string, params: unknown, catalogue: 'v1' | 'v2') {
-  return agentMcpRouting(new Request('https://app.test/mcp', {
-    method: 'POST',
-    headers: { Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }),
-  }), env, grant, { catalogue })
-}
-
-async function listedCommands(catalogue: 'v1' | 'v2') {
-  const owner = { fetch: vi.fn().mockResolvedValue(Response.json({ code: 'no_live_editor' })) }
-  const env = {
-    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
-    ASSETS: { fetch: vi.fn() },
-    AGENT_SERVICE_ENABLED: '1',
-  } as unknown as WorkerEnv
-  const response = await catalogueRequest(env, 'tools/call', { name: 'list_commands', arguments: {} }, catalogue)
-  const result = (await response.json() as {
-    result: { content: Array<{ text: string }>; structuredContent: Record<string, unknown>; isError?: boolean }
-  }).result
-  expect(result.isError).toBeUndefined()
-  expectCopies(result)
-  return (result.structuredContent as {
-    commands: Array<{ name: string; description: string; fields: Record<string, unknown>; exactlyOne?: readonly string[] }>
-  }).commands
-}
-
-it.each(['v1', 'v2'] as const)('list_commands describes the %s catalogue the connection registered', async catalogue => {
-  const expected = (catalogue === 'v2' ? SHOW_COMMANDS_V2 : SHOW_COMMANDS).map(command => command.name)
-  expect((await listedCommands(catalogue)).map(command => command.name)).toEqual(expected)
-})
-
-it.each(['v1', 'v2'] as const)('list_commands names only tools the %s catalogue registered', async catalogue => {
-  const response = await catalogueRequest({ ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, 'tools/list', undefined, catalogue)
-  const tools = new Set((await response.json() as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
-  const listed = await listedCommands(catalogue)
-  expect(listed.length).toBeGreaterThan(0)
-  for (const command of listed) expect(tools, `${catalogue}: ${command.name}`).toContain(command.name)
-})
-
-it('list_commands carries each v2 catalogue entry own field metadata', async () => {
-  const byName = new Map((await listedCommands('v2')).map(command => [command.name, command]))
-  for (const descriptor of SHOW_COMMANDS_V2) {
-    const entry = byName.get(descriptor.name)!
-    expect(entry.description, descriptor.name).toBe(descriptor.description)
-    expect(entry.fields, descriptor.name).toEqual(descriptor.fields)
-    expect(entry.exactlyOne, descriptor.name).toEqual(descriptor.exactlyOne)
-  }
-})
-
-it.each([
-  [1, SHOW_COMMANDS],
-  [2, SHOW_COMMANDS_V2],
-] as const)('registers the catalogue the bound editor record version %i needs', async (showVersion, expected) => {
-  const owner = { fetch: vi.fn().mockResolvedValue(Response.json({ code: 'no_live_editor' })) }
-  const env = {
-    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner, showVersion) },
-    ASSETS: { fetch: vi.fn() },
-    AGENT_SERVICE_ENABLED: '1',
-  } as unknown as WorkerEnv
-  const response = await request(env, 'tools/list')
-  const tools = new Set((await response.json() as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
-  for (const command of expected) expect(tools, command.name).toContain(command.name)
-  const absent = (showVersion === 2 ? SHOW_COMMANDS : SHOW_COMMANDS_V2).filter(command => !expected.some(entry => entry.name === command.name))
-  expect(absent.length).toBeGreaterThan(0)
-  for (const command of absent) expect(tools, command.name).not.toContain(command.name)
-  // The binding read is not a tool call: it neither reaches the owner's tool
-  // surface nor consumes one of its rate-limited agent calls.
-  expect(owner.fetch).not.toHaveBeenCalled()
-})
-
-it('describes the production v2 catalogue when no editor is bound (#1039)', async () => {
-  // Since the flip, v2 is the authored vocabulary of the production editor, so
-  // an unbound connection is told about it. A connection that then binds to a
-  // row storage still holds as v1 is answered v1 by the dispatch above, and
-  // `get_connection` already instructs that client to reconnect.
+it('describes the production v2 catalogue when no editor is bound (#1042)', async () => {
+  // v2 is the only vocabulary the server speaks, so an unbound connection is
+  // told about it; a registration that does not declare showVersion 2 never
+  // binds in the first place.
   const owner = { fetch: vi.fn().mockResolvedValue(Response.json({ code: 'no_live_editor' })) }
   const env = {
     AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
@@ -403,7 +319,7 @@ it('describes the production v2 catalogue when no editor is bound (#1039)', asyn
   for (const command of v1Only) expect(tools, command.name).not.toContain(command.name)
 })
 
-it('describes the production v2 catalogue when the binding cannot be read (#1039)', async () => {
+it('describes the production v2 catalogue when the binding cannot be read (#1042)', async () => {
   const env = {
     AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => ({ fetch: () => { throw new Error('unreachable') } }) },
     ASSETS: { fetch: vi.fn() },
@@ -411,4 +327,18 @@ it('describes the production v2 catalogue when the binding cannot be read (#1039
   } as unknown as WorkerEnv
   const tools = new Set(((await (await request(env, 'tools/list')).json()) as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
   for (const command of SHOW_COMMANDS_V2) expect(tools, command.name).toContain(command.name)
+})
+ 
+it('lists only the v2 catalogue for a bound connection', async () => {
+  const owner = { fetch: vi.fn().mockResolvedValue(Response.json({ code: 'no_live_editor' })) }
+  const env = {
+    AGENT_ACCOUNTS: { idFromName: () => 'account', get: () => account(owner) },
+    ASSETS: { fetch: vi.fn() },
+    AGENT_SERVICE_ENABLED: '1',
+  } as unknown as WorkerEnv
+  const tools = new Set(((await (await request(env, 'tools/list')).json()) as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
+  for (const command of SHOW_COMMANDS_V2) expect(tools, command.name).toContain(command.name)
+  const v1Only = SHOW_COMMANDS.filter(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name))
+  expect(v1Only.length).toBeGreaterThan(0)
+  for (const command of v1Only) expect(tools, command.name).not.toContain(command.name)
 })

@@ -1,8 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { z } from 'zod'
-import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
-import { showCommandInputShape } from '../../engine/showCommands/descriptorSchema'
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 import { showCommandV2InputShape } from '../../engine/showCommandsV2/descriptorSchema'
 import {
@@ -12,78 +10,43 @@ import {
   SHOW_AUTHORING_V2_SCHEMA_URI,
   SHOW_AUTHORING_V2_SERVER_INTRO,
 } from '../../engine/showCommandsV2/authoringReference'
-import {
-  SHOW_AUTHORING_JSON_SCHEMA,
-  SHOW_AUTHORING_REFERENCE_MARKDOWN,
-  SHOW_AUTHORING_REFERENCE_URI,
-  SHOW_AUTHORING_SCHEMA_URI,
-  SHOW_AUTHORING_SERVER_INTRO,
-} from '../../engine/showCommands/bulkAuthoringReference'
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
 import { isAgentMcpError, isAgentMcpResult } from '../../engine/agentMcpResults'
 import type { WorkerEnv } from '../apiRoutes'
 import type { ValidatedAgentGrant } from './AgentOAuthAuthority'
 import { agentGrantLive } from './agentGrant'
-import { connectExternalTool, dispatchExternalTool, inspectExternalToolBinding, queryExternalTool, resolveExternalTool, type ExternalToolConnection } from './accountDelivery'
+import { connectExternalTool, dispatchExternalTool, queryExternalTool, resolveExternalTool, type ExternalToolConnection } from './accountDelivery'
 import { AGENT_MCP_MOVE_INSTRUCTION, AGENT_MCP_OUTPUT_SCHEMAS } from './agentMcpSchemas'
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 const binding = { binding_id: id.describe('Binding returned by get_connection; changed bindings require a new operation.') }
 const idempotencyKey = id
 const operation = { ...binding, operation_id: id, idempotency_key: idempotencyKey.optional() }
-export const AGENT_MCP_INSTRUCTIONS = [
+const AGENT_MCP_TRANSPORT_INSTRUCTIONS = [
   'Connect and edit in this order: call get_connection, then read_show. read_show returns the Show and the IDs used by command arguments. get_context reads the current editor focus when needed but does not replace read_show. Call begin_edit with the current binding_id, a required nonblank intent shown to the person in the editor, and a stable idempotency_key; it returns the relay-assigned operation_id. Send commands with that binding_id and operation_id, then call commit_edit and get_outcome until the receipt settles.',
   'Independent commands may be queued because the relay serializes admitted calls in admission order. Await every prerequisite before its dependent command, and await every command before commit_edit. A canonical command domain refusal returns refused with issues, changes nothing, and keeps the private operation open for a corrected command, commit_edit, or cancel_edit; noop means a valid command made no change. Explicit whole-turn refusal, commit or admission refusal, service or result-size failure, cancellation, and retirement are terminal.',
   'At most 10 ordinary calls may be queued, including the in-flight head. One operation admits at most 253 ordinary commands; the 256-delivery lifecycle reserves one delivery for commit_edit and one after it for cancel_edit. When a choreography needs more commands, split it into committed operations and call read_show again before each new chunk.',
   'begin_edit requires a stable key. Later mutations may use an optional stable idempotency_key; a keyed retry with an identical payload only looks up the original admission. pending means the original call may still finish; unknown means its result is unavailable and never permits replay. After an unkeyed timeout, do not repeat the mutation; call get_outcome with its operation_id. The retry ledger is volatile: after connection or ledger loss, call get_connection, then read_show, and begin a new operation with a new key; never replay an unkeyed call.',
-  SHOW_AUTHORING_SERVER_INTRO,
 ].join('\n\n')
-/** The prepared v2 catalogue's server instructions; #1039 activates them. */
+/** The server instructions; the served vocabulary is v2-only (#1042). */
 export const AGENT_MCP_INSTRUCTIONS_V2 = [
-  ...AGENT_MCP_INSTRUCTIONS.split('\n\n').slice(0, -1),
+  AGENT_MCP_TRANSPORT_INSTRUCTIONS,
   SHOW_AUTHORING_V2_SERVER_INTRO,
 ].join('\n\n')
 /**
- * Which authored command catalogue the server exposes.
- *
- * Normally this is not a choice: the catalogue follows the routed record's
- * version, so the editor a tool is bound to and the commands it is offered are
- * always the same version for one Show (specification section 10). An explicit
- * option overrides that resolution for tests and for the measured opt-in.
+ * The server speaks one authored vocabulary: the v2 command catalogue (#1042).
+ * Every connection, bound or not, is described the v2 tools, the v2 server
+ * instructions and the v2 schema and reference resources, so a caller that
+ * discovers a command can always call it. A registration that does not declare
+ * showVersion 2 is refused before it binds, and a built-in turn whose captured
+ * record is not version 2 ends incomplete.
  */
-export interface AgentMcpRoutingOptions { catalogue?: 'v1' | 'v2' }
 
-/**
- * The catalogue the bound editor's record needs (#1039).
- *
- * This costs one exempt account read before the server is built, because
- * `tools/list` has to describe the vocabulary the private executor will
- * actually accept. It is deliberately not a `resolve`: that would consume the
- * binding-moved notice the caller's next `get_connection` is owed and spend one
- * of its rate-limited agent calls.
- *
- * An unbound or unreachable connection describes v2, because since #1039 that
- * is the production editor's authored vocabulary: every fresh Show is v2 and
- * the operator conversion moves the rest. A connection bound to a row storage
- * still holds as v1 is answered v1, the same version its editor and its
- * private executor hold, and a client that binds the other way afterwards sees
- * the other catalogue on its next request - the reconnect `get_connection`
- * already instructs it to make.
- */
-async function resolveCatalogue(env: WorkerEnv, grant: ValidatedAgentGrant, options: AgentMcpRoutingOptions): Promise<'v1' | 'v2'> {
-  if (options.catalogue) return options.catalogue
-  try {
-    const inspected = await inspectExternalToolBinding(env, grant)
-    return inspected.binding?.showVersion === 1 ? 'v1' : 'v2'
-  } catch { return 'v2' }
-}
-
-export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant, options: AgentMcpRoutingOptions = {}): Promise<Response> {
-  const selected = await resolveCatalogue(env, grant, options)
-  // One catalogue per connection. Every command surface - the registered tools,
-  // the server instructions, the schema/reference resources and `list_commands`
-  // - describes this same vocabulary, so a caller that discovers a command can
-  // always call it (#1039).
+export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: ValidatedAgentGrant): Promise<Response> {
+  // One catalogue for every connection. Every command surface - the registered
+  // tools, the server instructions, the schema and reference resources and
+  // list_commands - describes the v2 vocabulary, so a caller that discovers a
+  // command can always call it (#1042).
   const descriptors: ReadonlyArray<{
     name: string
     description: string
@@ -91,10 +54,8 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     exactlyOne?: readonly string[]
     atLeastOne?: readonly string[]
     atMostOne?: readonly string[]
-  }> = selected === 'v2' ? SHOW_COMMANDS_V2 : SHOW_COMMANDS
-  const catalogue = selected === 'v2'
-    ? SHOW_COMMANDS_V2.map(descriptor => ({ name: descriptor.name, description: descriptor.description, shape: showCommandV2InputShape(descriptor) }))
-    : SHOW_COMMANDS.map(descriptor => ({ name: descriptor.name, description: descriptor.description, shape: showCommandInputShape(descriptor) }))
+  }> = SHOW_COMMANDS_V2
+  const catalogue = SHOW_COMMANDS_V2.map(descriptor => ({ name: descriptor.name, description: descriptor.description, shape: showCommandV2InputShape(descriptor) }))
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
   const active = () => grant.expiresAt * 1000 > Date.now()
   const notice = (resolved: ExternalToolConnection) => resolved.moveNotice ? {
@@ -118,8 +79,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   const toolResult = (resolved: ExternalToolConnection): PrivateEditResult => resolved.code === 'binding_moved'
     ? moved(resolved)
     : resolved.code === 'retirement_unconfirmed' ? { code: 'no_live_editor', ...notice(resolved) } : visible(resolved)
-  const v2 = selected === 'v2'
-  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: v2 ? AGENT_MCP_INSTRUCTIONS_V2 : AGENT_MCP_INSTRUCTIONS })
+  const server = new McpServer({ name: 'PXLBLZ Agent', version: '0.2.0' }, { instructions: AGENT_MCP_INSTRUCTIONS_V2 })
   const output = (untrusted: PrivateEditResult) => {
     const trusted: PrivateEditResult = isAgentMcpResult(untrusted) ? untrusted : { code: 'unknown' }
     const { operationId, ...rest } = trusted
@@ -198,18 +158,16 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
   for (const entry of catalogue) registerMutation(entry.name, entry.description, entry.shape, args => ({ kind: 'command', name: entry.name, arguments: args }))
   registerMutation('commit_edit', 'Validate and request adoption of the entire private candidate once; command changes describe only the private proposal, waiting/saving are not completion, and invalid-candidate may include bounded validation detail.', {}, () => ({ kind: 'commit_edit' }))
   registerMutation('cancel_edit', 'Retire the private candidate; already-adopted saves retain their receipt.', {}, () => ({ kind: 'cancel_edit' }))
-  server.registerResource(v2 ? 'clip-layer-authoring-schema-v2' : 'clip-layer-authoring-schema-v1', v2 ? SHOW_AUTHORING_V2_SCHEMA_URI : SHOW_AUTHORING_SCHEMA_URI, {
-    title: v2 ? 'Show authoring schema v2' : 'Clip and Layer authoring schema v1',
+  server.registerResource('clip-layer-authoring-schema-v2', SHOW_AUTHORING_V2_SCHEMA_URI, {
+    title: 'Show authoring schema v2',
     description: 'Generated JSON Schema for the authored command vocabulary. This is distinct from persisted ShowRecord JSON.',
     mimeType: 'application/schema+json',
-  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(v2 ? SHOW_AUTHORING_V2_JSON_SCHEMA : SHOW_AUTHORING_JSON_SCHEMA, null, 2) }] }))
-  server.registerResource(v2 ? 'clip-layer-authoring-reference-v2' : 'clip-layer-authoring-reference-v1', v2 ? SHOW_AUTHORING_V2_REFERENCE_URI : SHOW_AUTHORING_REFERENCE_URI, {
-    title: v2 ? 'Show authoring reference v2' : 'Clip and Layer authoring reference v1',
-    description: v2
-      ? 'Identity addressing, exact global timing, the appearance apply selector, Effect and Aperture parameter names, the animation target union, the uniform no-op and the affected-entity result.'
-      : 'Global timing, patch/replace, shared-instance, atomicity, result, and executable example semantics.',
+  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(SHOW_AUTHORING_V2_JSON_SCHEMA, null, 2) }] }))
+  server.registerResource('clip-layer-authoring-reference-v2', SHOW_AUTHORING_V2_REFERENCE_URI, {
+    title: 'Show authoring reference v2',
+    description: 'Identity addressing, exact global timing, the appearance apply selector, Effect and Aperture parameter names, the animation target union, the uniform no-op and the affected-entity result.',
     mimeType: 'text/markdown',
-  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: v2 ? SHOW_AUTHORING_V2_REFERENCE_MARKDOWN : SHOW_AUTHORING_REFERENCE_MARKDOWN }] }))
+  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: SHOW_AUTHORING_V2_REFERENCE_MARKDOWN }] }))
   server.server.registerCapabilities({ tools: { listChanged: false }, resources: { listChanged: false } })
   const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true })
   await server.connect(transport)

@@ -1,7 +1,5 @@
 import { z } from 'zod'
 import { zodRealtimeFunction } from 'openai/helpers/zod'
-import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
-import { showCommandInputShape } from '../../engine/showCommands/descriptorSchema'
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 import { showCommandV2InputShape } from '../../engine/showCommandsV2/descriptorSchema'
 
@@ -17,17 +15,14 @@ const finishTurn = tool('finish_turn', 'Finish this turn explicitly. Apply reque
   message: z.string().max(4000),
 }).strict())
 
-export type BuiltinToolset = ReturnType<typeof builtinToolsFor>
+export type BuiltinToolset = typeof builtinTools
 
 /**
- * The tools a built-in turn may call, for the version of the record the editor
- * actually captured (#1039). The catalogue and the private executor read the
+ * The tools a built-in turn may call: the v2 command catalogue plus the explicit
+ * typed finish decision (#1042). The catalogue and the private executor read the
  * same record, so a turn is never offered a command its own candidate refuses.
  */
-export function builtinToolsFor(recordVersion: 1 | 2) {
-  return recordVersion === 2
-    ? [...SHOW_COMMANDS_V2.map(descriptor => tool(descriptor.name, descriptor.description, z.object(showCommandV2InputShape(descriptor)).strict())), finishTurn]
-    : [...SHOW_COMMANDS.map(descriptor => tool(descriptor.name, descriptor.description, z.object(showCommandInputShape(descriptor)).strict())), finishTurn]
-}
-
-export const builtinTools = builtinToolsFor(1)
+export const builtinTools = [
+  ...SHOW_COMMANDS_V2.map(descriptor => tool(descriptor.name, descriptor.description, z.object(showCommandV2InputShape(descriptor)).strict())),
+  finishTurn,
+]

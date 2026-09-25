@@ -8,7 +8,7 @@ function fixture(outputs: unknown[][]) {
   const dispatch = vi.fn<Parameters<typeof runBuiltinTurn>[0]['dispatch']>(async () => ({ ok: true as const, output: outputs.shift() ?? [] }))
   const deliver = vi.fn(async (payload: Record<string, unknown>): Promise<Record<string, unknown> & { code: string }> => {
     deliveries.push(payload)
-    if (payload.kind === 'begin_edit') return { code: 'begun', show: { id: 'show' }, context: {} }
+    if (payload.kind === 'begin_edit') return { code: 'begun', show: { id: 'show', version: 2 }, context: {} }
     if (payload.kind === 'command') return { code: 'changed', changes: [{ description: 'Private change' }] }
     return { code: 'outcome', receipt: { status: 'applied' } }
   })
@@ -22,7 +22,7 @@ it('executes canonical commands privately and adopts only explicit apply complet
   expect(f.dispatch).toHaveBeenCalledTimes(2)
   const firstRequest = (f.dispatch.mock.calls as unknown as Array<[{ input: Array<{ role?: string; content?: string }> }]>)[0][0]
   expect(firstRequest.input[0]).toMatchObject({
-    role: 'developer', content: expect.stringContaining('Clip and Layer authoring schema v1'),
+    role: 'developer', content: expect.stringContaining('Show authoring uses schema version'),
   })
 })
 it.each(['ask', 'refuse', 'incomplete'])('discards private work for explicit %s', async outcome => {
@@ -45,7 +45,7 @@ it('does not dispatch when begin is refused and keeps the same edit open for com
   let commands = 0
   g.deliver.mockImplementation(async payload => {
     g.deliveries.push(payload)
-    if (payload.kind === 'begin_edit') return { code: 'begun', show: {}, context: {} }
+    if (payload.kind === 'begin_edit') return { code: 'begun', show: { version: 2 }, context: {} }
     if (payload.kind === 'command' && commands++ === 0) return { code: 'refused', issues: [{ code: 'invalid-argument', message: 'Name is required.' }] }
     if (payload.kind === 'command') return { code: 'changed', changes: [{ description: 'Private change' }] }
     return { code: 'outcome', receipt: { status: 'applied' } }
@@ -63,7 +63,7 @@ it('keeps explicit whole-turn refusal terminal after a command refusal', async (
   const f = fixture([[call('rename_show', { name: '' })], [call('finish_turn', { outcome: 'refuse', message: 'I cannot resolve the name.' })]])
   f.deliver.mockImplementation(async payload => {
     f.deliveries.push(payload)
-    if (payload.kind === 'begin_edit') return { code: 'begun', show: {}, context: {} }
+    if (payload.kind === 'begin_edit') return { code: 'begun', show: { version: 2 }, context: {} }
     if (payload.kind === 'command') return { code: 'refused', issues: [{ code: 'invalid-argument', message: 'Name is required.' }] }
     return { code: 'outcome', receipt: { status: 'completed', completion: 'refused' } }
   })
@@ -76,7 +76,7 @@ it('bounds rounds and preserves unknown delivery outcomes without replay', async
   expect(f.dispatch).toHaveBeenCalledTimes(6)
   expect(f.deliveries[f.deliveries.length - 1]).toEqual({ kind: 'complete_edit', completion: 'incomplete' })
   const g = fixture([[call('finish_turn', { outcome: 'apply', message: 'Done' })]])
-  g.deliver.mockImplementation(async payload => payload.kind === 'begin_edit' ? { code: 'begun', show: {}, context: {} } : { code: 'unknown' })
+  g.deliver.mockImplementation(async payload => payload.kind === 'begin_edit' ? { code: 'begun', show: { version: 2 }, context: {} } : { code: 'unknown' })
   expect(await runBuiltinTurn(g, 'Edit')).toMatchObject({ code: 'unknown' })
   expect(g.deliver).toHaveBeenCalledTimes(2)
 })
@@ -106,6 +106,21 @@ it('carries SDK reasoning content through a complete provider-backed edit turn',
   expect(requests[1].input).toEqual(expect.arrayContaining([reasoning]))
 })
 
+it('completes incomplete without provider dispatch when the begun Show is not version 2', async () => {
+  for (const show of [{ id: 'show' }, { id: 'show', version: 1 }]) {
+    const f = fixture([])
+    f.deliver.mockImplementation(async (payload: Record<string, unknown>) => {
+      f.deliveries.push(payload)
+      if (payload.kind === 'begin_edit') return { code: 'begun', show, context: {} }
+      return { code: 'outcome', receipt: { status: 'completed' } }
+    })
+    expect(await runBuiltinTurn(f, 'Edit')).toMatchObject({ code: 'outcome' })
+    expect(f.dispatch).not.toHaveBeenCalled()
+    expect(f.deliveries.map(entry => entry.kind)).toEqual(['begin_edit', 'complete_edit'])
+    expect(f.deliveries[1]).toMatchObject({ completion: 'incomplete' })
+  }
+})
+ 
 it('offers the v2 catalogue, tools and reference when the captured record is v2', async () => {
   const f = fixture([[call('rename_show', { name: 'New' })], [call('finish_turn', { outcome: 'apply', message: 'Requested rename' })]])
   f.deliver.mockImplementation(async (payload: Record<string, unknown>) => {

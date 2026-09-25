@@ -7,15 +7,6 @@ export interface EditorRegistration {
   sessionId: string
   showId: string
   showName?: string
-  /**
-   * The record version this editor holds (#1039). The browser declares it,
-   * because the open record is what commands act on: a v1 row opened on the v2
-   * route is a v2 working copy no server-side row inspection would report.
-   * It selects the command catalogue a connected tool discovers; the private
-   * executor still dispatches on the captured record itself, so a wrong claim
-   * narrows discovery rather than admitting a mismatched command.
-   */
-  showVersion?: 1 | 2
   lastSeenAt: number
 }
 export interface AgentClaim {
@@ -36,7 +27,7 @@ export interface RendezvousState {
 }
 export type WindowIdentity = Pick<EditorRegistration, 'registrationId' | 'sessionId' | 'showId'>
 export type WindowCommand =
-  | ({ type: 'register'; showName?: string; showVersion?: 1 | 2 } & WindowIdentity)
+  | ({ type: 'register'; showName?: string; showVersion: 2 } & WindowIdentity)
   | ({ type: 'arm' | 'poll' | 'heartbeat' | 'leave' | 'disarm' } & WindowIdentity)
   | ({ type: 'answer' | 'decline'; callId: string } & WindowIdentity)
   | ({ type: 'disconnect' | 'retirement-ack'; bindingId: string } & WindowIdentity)
@@ -153,10 +144,7 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
     if (state.registrations.some((item) => item.sessionId === command.sessionId || item.registrationId === command.registrationId)) return result('already_registered')
     if (state.registrations.length >= MAX_REGISTRATIONS) return result('capacity')
     const showName = typeof command.showName === 'string' && command.showName.length > 0 && command.showName.length <= 128 ? command.showName : undefined
-    // Only a declared version 2 is stored: an absent field is version 1, which
-    // keeps every existing window's persisted registration shape unchanged.
-    const showVersion = command.showVersion === 2 ? { showVersion: 2 as const } : {}
-    state.registrations.push({ registrationId: command.registrationId, sessionId: command.sessionId, showId: command.showId, ...(showName ? { showName } : {}), ...showVersion, lastSeenAt: now })
+    state.registrations.push({ registrationId: command.registrationId, sessionId: command.sessionId, showId: command.showId, ...(showName ? { showName } : {}), lastSeenAt: now })
     return result('registered')
   }
   if (command.type === 'claim') {

@@ -84,11 +84,10 @@ token endpoint.
 
 The MCP SDK serves stateless JSON initialization and stable `tools/list` metadata:
 `get_connection`, `list_commands`, `list_patterns`, `list_controller_profiles`,
-`read_show`, `get_context`, `begin_edit`, all canonical `SHOW_COMMANDS`,
-`commit_edit`, `get_outcome` and `cancel_edit`. `read_show` returns the Show the
-bound editor holds in its own record version; when the coordinated cutover in
-#1039 makes the editor v2, that is the v2 record and the legacy `cells` plus
-`composition` double representation ends with it. Listing
+ `read_show`, `get_context`, `begin_edit`, all canonical `SHOW_COMMANDS_V2`,
+ `commit_edit`, `get_outcome` and `cancel_edit`. `read_show` returns the v2 Show
+ the bound editor holds; the legacy `cells` plus `composition` double
+ representation ended with the #1039 cutover. Listing
 metadata neither claims an account slot nor reads Show contents. There is no GET
 event stream, DELETE session, durable MCP session or tools-list notification.
 Initialization therefore does not advertise resource-list changes. Every listed
@@ -170,52 +169,40 @@ command failure terminates the relay operation and settles unsent followers as
 unavailable. This matches the browser executor's refusal boundary without
 turning an interim command issue into an operation outcome.
 
-### Prepared v2 catalogue and resource versions
+### v2-only catalogue and resource versions (#1042)
 
 `agentMcpRouting` serves the
 [v2 catalogue](../show-command-coverage.md#prepared-v2-command-catalogue) and
-the v2 authoring resources when the bound editor holds a version-2 record, and
-the v1 pair otherwise (#1039). It changes no part of the transport: the same
-binding, operation identity, idempotency, throttling, error signalling, output
-schemas, read tools and server-instruction structure apply.
+the v2 authoring resources for every connection. It changes no part of the
+transport: the same binding, operation identity, idempotency, throttling,
+error signalling, output schemas, read tools and server-instruction structure
+apply.
 
-The server resolves that version before it registers a tool, because
-`tools/list` has to describe the vocabulary the private executor will accept.
-It asks the account for the bound editor's declared record version through a
-read that is deliberately not a `resolve`: a resolve would consume the pending
-binding-moved notice the caller's next `get_connection` is owed, and would spend
-one of that caller's rate-limited agent calls to describe its own tool list.
-This read is exempt from that rate window, writes nothing and takes no slot. An
-unbound or unreachable connection describes v2 - the production editor's
-vocabulary since #1039 - and a client that binds to a row still stored as v1
-sees the v1 tools on its next request, which is the reconnect `get_connection`
-already instructs it to make. The change runs the other way too, once the
-operator conversion has rewritten that row.
+There is nothing to resolve before the server registers its tools: one
+vocabulary is described to every connection, so a caller that discovers a
+command can always call it. A registration must declare `showVersion: 2`;
+anything else is an invalid request and never binds. A built-in turn whose
+begun Show is not version 2 ends the turn as `incomplete` before any provider
+dispatch.
 
-The browser declares the version at registration, because the open record is
-what commands act on: a v1 stored row opened on the v2 route is a v2 working
-copy that no server-side row inspection would report. The declaration selects
-discovery only. The private executor still dispatches on the record it actually
-captured, so a wrong claim narrows the tools a caller is offered rather than
-admitting a command the candidate would refuse. Since #1039 flipped
-`SHOW_V2_ROUTE_DEFAULT`, an ordinary production session routes a v2 record and
-is served the v2 catalogue; a row the operator conversion has not reached yet
-routes v1 and is served v1. The explicit `catalogue` option remains for tests.
+The browser still declares the version at registration, because the open
+record is what commands act on. The declaration admits the editor to the only
+vocabulary the server speaks. The private executor still dispatches on the
+record it actually captured, so the turn-level `incomplete` refusal above is
+what stops a non-v2 capture rather than discovery.
 
-The versioned authoring resources are named by version, and the pair a session
-sees always matches the catalogue it was served:
+The authoring resources are the v2 pair, for every session:
 
 | Catalogue | Schema resource | Reference resource |
 | --- | --- | --- |
-| v1 (a version-1 record) | `pxlblz://schemas/clip-layer-authoring/v1` | `pxlblz://docs/clip-layer-authoring/v1` |
-| v2 (a version-2 record, or no binding) | `pxlblz://schemas/clip-layer-authoring/v2` | `pxlblz://docs/clip-layer-authoring/v2` |
+ | v2 | `pxlblz://schemas/clip-layer-authoring/v2` | `pxlblz://docs/clip-layer-authoring/v2` |
 
 The v2 resources carry what the compact v2 schema deliberately does not spell
 out: identity addressing, exact half-open global milliseconds, the appearance
 `apply` selector, the generated per-kind Effect parameter table, the per-shape
 Aperture parameters, the animation target union with its short names, the
-uniform no-op and the fourteen affected collections. The final paragraph of the
-server instructions is the only part that differs between catalogues.
+uniform no-op and the fourteen affected collections. The server instructions are
+the shared transport paragraphs plus that v2 intro.
 
 An explicit browser move keeps the validated grant while replacing its call and
 binding IDs. The next actual MCP tool handler resolves the current binding once,

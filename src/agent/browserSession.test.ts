@@ -232,7 +232,7 @@ function registrationHarness({ holdRegister = true } = {}) {
       signal?.addEventListener('abort', () => { aborted.push(type); reject(new Error('aborted')) }, { once: true })
     if (body.type === 'register') {
       const registrationId = `registration-${++issued}`
-      const accepted = apply({ type: 'register', registrationId, sessionId: body.sessionId, showId: body.showId })
+      const accepted = apply({ type: 'register', registrationId, sessionId: body.sessionId, showId: body.showId, showVersion: 2 })
       const reply = Response.json(accepted.code === 'registered' ? { code: accepted.code, registrationId } : { code: accepted.code })
       if (!state.holdRegister) return Promise.resolve(reply)
       return new Promise<Response>((resolve, reject) => { answers.push(() => resolve(reply)); rejectOnAbort('register', reject) })

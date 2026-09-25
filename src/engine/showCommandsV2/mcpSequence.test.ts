@@ -22,8 +22,8 @@ import { commandFixtureV2, fixtureContext } from './fixtures'
 // the outcome and reopen the saved record.
 //
 // Fidelity boundary: every step's tool and arguments go through the real MCP
-// server (`agentMcpRouting` with a fake grant and the prepared `catalogue: 'v2'`
-// option), and every step's semantics go through the real v2 catalogue over the
+// server (`agentMcpRouting` with a fake grant), and every step's semantics go through
+// the real v2 catalogue over the
 // prepared v2 record, judged at the reopened `.pxlshow` and `.epe`. The browser
 // executor still applies v1 commands to a v1 capture, so binding this transcript
 // to a live editor is #1039's coordinated activation and its deployed transcript
@@ -78,7 +78,7 @@ async function callTool(step: Step) {
         arguments: { binding_id: 'binding', operation_id: 'operation', ...step.arguments },
       },
     }),
-  }), { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, grant, { catalogue: 'v2' })
+  }), { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, grant)
   return await response.json() as { result?: { isError?: boolean; structuredContent?: { code?: string } }; error?: { message: string } }
 }
 

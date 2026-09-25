@@ -199,3 +199,26 @@ it('fails closed when persisted binding state outlives the volatile relay ledger
   await send(recreatedOwner, { type: 'reply', ...window, bindingId: 'fresh-binding', operationId: read.operationId, deliveryId: read.deliveryId, result: { code: 'read', show: {} } })
   expect(await reading).toMatchObject({ code: 'read' })
 })
+ 
+it('binds a persisted legacy registration that still carries showVersion without surfacing a version', async () => {
+  const now = 0
+  vi.spyOn(Date, 'now').mockImplementation(() => now)
+  const target = { registrationId: 'legacy', sessionId: 'legacy-session', showId: 'show' }
+  const values = new Map<string, unknown>([['account', {
+    rendezvous: { registrations: [{ ...target, showVersion: 1, lastSeenAt: now }], slot: null },
+  }]])
+  const storage: ConstructorParameters<typeof AgentAccount>[0]['storage'] = {
+    async get<T>(key: string) { return structuredClone(values.get(key)) as T | undefined },
+    async put<T>(key: string, value: T) { values.set(key, structuredClone(value)) },
+    async delete(key: string) { return values.delete(key) },
+    async setAlarm() {}, async deleteAlarm() {}, async transaction(callback) { return callback(storage) },
+  }
+  const owner = new AgentAccount({ storage })
+  const send = async (body: object) => (await owner.fetch(new Request('https://internal', { method: 'POST', body: JSON.stringify(body) }))).json()
+  const agent = { agentKind: 'external', agentId: 'grant', agentName: 'Client', callId: 'call', bindingId: 'binding' }
+  await send({ type: 'arm', ...target })
+  expect(await send({ type: 'claim', ...agent })).toMatchObject({ code: 'bound' })
+  const resolved = await send({ type: 'resolve-external', agentId: 'grant' }) as Record<string, unknown>
+  expect(resolved).toMatchObject({ code: 'bound' })
+  expect(resolved.binding).not.toHaveProperty('showVersion')
+})

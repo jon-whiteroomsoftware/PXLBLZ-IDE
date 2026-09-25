@@ -18,7 +18,7 @@ const relay = {
     if (envelope.payload.kind === 'begin_edit') {
       const receipt = { status: 'pending', request: { operationId: envelope.operationId, accountId, bindingId: identity.bindingId } }
       receipts.set(envelope.operationId, receipt)
-      return { code: 'begun', show: { id: 'runtime-allowance-show', name: 'Runtime proof' }, context: {} }
+      return { code: 'begun', show: { id: 'runtime-allowance-show', name: 'Runtime proof', version: 2 }, context: {} }
     }
     const receipt = { status: 'completed', completion: 'asked', request: receipts.get(envelope.operationId)?.request }
     receipts.set(envelope.operationId, receipt)
@@ -54,7 +54,7 @@ beforeAll(async () => {
   const db = await runtime.getD1Database('PXLBLZ_DB')
   await db.exec('CREATE TABLE personal_shows (user_id TEXT, id TEXT, name TEXT); CREATE TABLE identities (user_id TEXT, provider TEXT, provider_user_id TEXT, handle TEXT, email TEXT, email_verified INTEGER)')
   await db.prepare('INSERT INTO personal_shows VALUES (?, ?, ?)').bind('account-open', showId, 'Runtime proof').run()
-  const registered = await channel('account-open', { type: 'register', sessionId: windowIdentity.sessionId, showId })
+  const registered = await channel('account-open', { type: 'register', sessionId: windowIdentity.sessionId, showId, showVersion: 2 })
   const body = await registered.json() as { code: string; registrationId: string }
   expect(body.code).toBe('registered')
   windowIdentity.registrationId = body.registrationId

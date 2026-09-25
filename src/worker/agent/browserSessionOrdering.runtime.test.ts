@@ -23,7 +23,7 @@ async function fixture(pauseReceives = false) {
   const internal = async (body: object) => (await owner.fetch('https://internal/account', { method: 'POST', body: JSON.stringify(body) })).json() as Promise<{ code: string }>
   const request = { sessionId: 'session', showId: 'stock-show-100-getting-around', operationId: 'binding:op', baseRevision: 0, payloadKey: '', referenceContext: '{}', targets: ['clip-a'] }
   const admission = {
-    sessionId: 'session', available: () => true, onClose: () => () => {},
+    sessionId: 'session', recordVersion: 2, available: () => true, onClose: () => () => {},
     getShow: commandFixtureV2, getEditorFocus: () => ({}), captureCommandContext: () => ({ commandContext: fixtureContext(), retainedBytes: 1 }),
     beginRequest: vi.fn(() => ({ request, show: commandFixtureV2(), context: {} })),
     readOutcome: () => ({ request, status: 'pending' }), cancel: vi.fn(() => ({ request, status: 'cancelled' })),

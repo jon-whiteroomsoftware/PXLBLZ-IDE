@@ -18,24 +18,19 @@ const grant = {
   clientOrigins: [], grantId: 'grant', expiresAt: Math.ceil(Date.now() / 1000) + 60,
 }
 
-async function resources(catalogue: 'v1' | 'v2') {
+async function resources() {
   const response = await agentMcpRouting(new Request('https://app.test/mcp', {
     method: 'POST',
     headers: { Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'resources/list' }),
-  }), { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, grant, { catalogue })
+  }), { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, grant)
   return await response.json() as { result: { resources: Array<{ uri: string; name: string }> } }
 }
 
 describe('v2 authoring resources', () => {
-  it('bumps the versioned schema and reference resources with the catalogue', async () => {
+  it('names the versioned schema and reference resources', async () => {
     expect(SHOW_AUTHORING_V2_SCHEMA_VERSION).toBe(2)
-    const before = await resources('v1')
-    expect(before.result.resources.map(resource => resource.uri).sort()).toEqual([
-      'pxlblz://docs/clip-layer-authoring/v1',
-      'pxlblz://schemas/clip-layer-authoring/v1',
-    ])
-    const after = await resources('v2')
+    const after = await resources()
     expect(after.result.resources.map(resource => resource.uri).sort()).toEqual([
       SHOW_AUTHORING_V2_REFERENCE_URI,
       SHOW_AUTHORING_V2_SCHEMA_URI,
@@ -47,7 +42,7 @@ describe('v2 authoring resources', () => {
       method: 'POST',
       headers: { Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'resources/read', params: { uri: SHOW_AUTHORING_V2_REFERENCE_URI } }),
-    }), { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, grant, { catalogue: 'v2' })
+    }), { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, grant)
     const read = await response.json() as { result: { contents: Array<{ uri: string; text: string }> } }
     expect(read.result.contents[0].text).toBe(SHOW_AUTHORING_V2_REFERENCE_MARKDOWN)
   })
