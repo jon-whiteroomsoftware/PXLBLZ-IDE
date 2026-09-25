@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Opened stock Show 101 (Clips, Cuts, and Blank Time) in the editor at 1440x900 and opened the Agent drawer from its edge button; captured the drawer with its ACTIVITY stream rendered and no Retry control (desktop.png). Resized to 390x844 and captured the open drawer again (narrow.png). The run asserted the activity log is visible, no agent-chat-retry element exists, and no console or page errors were logged. Captured with repository Playwright through scripts/run-authenticated-playwright.ts as the run's synthetic user; the Codex in-app browser is unavailable to this Claude worker, so this is Playwright provenance.",
+  "captures": [
+    ".wrsp/ui-proof/1042-p3a-agent-drawer-desktop.png",
+    ".wrsp/ui-proof/1042-p3a-agent-drawer-narrow.png"
+  ],
+  "capturedAtCommit": "60b8c9bb46cd95521e29122a88e2b5d5a1909b9c"
+}
