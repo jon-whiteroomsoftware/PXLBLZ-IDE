@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/f91b7abd-1336-4deb-9f46-fdd4b40a7829",
+  "operation": "Opened a v2 Show and clicked its TestPattern1D Clip. The Clip inspector's Pattern tab renders the PATTERN INSTANCE section from ShowPatternInstanceControls, with ownership 'Independent' and the Stutter Pattern control, now typed by the component-local ShowClipPatternInstanceOwnership after showTimelineClipAuthoring was deleted.",
+  "captures": [".wrsp/ui-proof/1042-44b2-pattern-instance-controls.png"],
+  "capturedAtCommit": "0700951a66843c5d317c6c97aa3dbc2dcd5e826a"
+}
