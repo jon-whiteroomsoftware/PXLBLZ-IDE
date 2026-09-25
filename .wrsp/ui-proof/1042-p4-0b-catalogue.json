@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-reference-blend-fade-transitions",
+  "operation": "Compared the expanded Built-in Shows rail with a base capture, opened the Show 101 lesson guide, and sought to 5000 ms on Blend and Fade Transitions to show the boundary example Cut. The saved-programs pane was unreachable without a Controller.",
+  "captures": [
+    ".wrsp/ui-proof/1042-p4-0b-rail.png",
+    ".wrsp/ui-proof/1042-p4-0b-lesson-note.png",
+    ".wrsp/ui-proof/1042-p4-0b-boundary-narration.png",
+    ".wrsp/ui-proof/1042-p4-0b-no-controller.png"
+  ],
+  "capturedAtCommit": "3b6307f2344c2bb75bb8c46f9422e92415e25b47"
+}
