@@ -4571,7 +4571,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)
-    const stutter = screen.getAllByRole('button', { name: 'Select IQPalettes' })
+    const stutter = screen.getAllByRole('button', { name: 'Select Kishimisu' })
       .find((button) => button.getAttribute('data-show-selection-key') === 'clip:clip-stutter')!
     await user.click(stutter)
 

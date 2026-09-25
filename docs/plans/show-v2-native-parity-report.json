@@ -3007,8 +3007,8 @@
     {
       "showId": "stock-show-203-pattern-instance-lifecycle",
       "showName": "203 Pattern Instance Lifecycle",
-      "nativeSemanticSha256": "9995baee15e64e6308c8ebadaff44ecf5d66077e5fb67ae0d806b9b62ae67769",
-      "convertedSemanticSha256": "d87c8580bd1050f3dc84000b9e2d567061d06fe1db4698293605628afd260eb9",
+      "nativeSemanticSha256": "05b70c2bc3b452e7d21b91f818c26cd7041e8f89b5b841ff2840d4f8982b73fc",
+      "convertedSemanticSha256": "8feda1865d6be8a2fd2635cc6e359b6d600804f0ddf34b069173419ff38070d3",
       "representation": "classified-difference",
       "representationDifferences": [
         {
@@ -3055,24 +3055,31 @@
         "loopResetFrameMatched": false,
         "loopResetStateMatched": false,
         "loopResetStateDifferences": [
-          "palette-fresh:b",
+          "palette-fresh:bandSpacing",
+          "palette-fresh:edgeWidth",
           "palette-fresh:elapsed_ms",
-          "palette-fresh:g",
-          "palette-fresh:r",
-          "palette-fresh:scroll",
+          "palette-fresh:formMix",
+          "palette-fresh:rotC",
+          "palette-fresh:rotS",
           "palette-fresh:t",
-          "palette-shared:b",
           "palette-shared:elapsed_ms",
-          "palette-shared:g",
-          "palette-shared:r",
-          "palette-shared:scroll",
+          "palette-shared:form",
+          "palette-shared:formMix",
+          "palette-shared:nextForm",
+          "palette-shared:rotC",
+          "palette-shared:rotS",
           "palette-shared:t"
         ],
         "loopResetStateResiduals": [
           {
-            "key": "palette-fresh:b",
-            "phase": 0,
-            "secondLoop": 0.7533299323731657
+            "key": "palette-fresh:bandSpacing",
+            "phase": 0.06,
+            "secondLoop": 0.07100000000000001
+          },
+          {
+            "key": "palette-fresh:edgeWidth",
+            "phase": 0.03,
+            "secondLoop": 0.0338
           },
           {
             "key": "palette-fresh:elapsed_ms",
@@ -3080,29 +3087,24 @@
             "secondLoop": 1279.9999999999952
           },
           {
-            "key": "palette-fresh:g",
+            "key": "palette-fresh:formMix",
             "phase": 0,
-            "secondLoop": 0.9906180857103484
+            "secondLoop": 0.3607989811139226
           },
           {
-            "key": "palette-fresh:r",
-            "phase": 0,
-            "secondLoop": 0.8402530234515502
+            "key": "palette-fresh:rotC",
+            "phase": 1,
+            "secondLoop": 0.9984082454953335
           },
           {
-            "key": "palette-fresh:scroll",
+            "key": "palette-fresh:rotS",
             "phase": 0,
-            "secondLoop": 0.06912000000000015
+            "secondLoop": 0.0564001358768738
           },
           {
             "key": "palette-fresh:t",
             "phase": 0,
-            "secondLoop": 1.280000000000003
-          },
-          {
-            "key": "palette-shared:b",
-            "phase": 0.6611019706851483,
-            "secondLoop": 0.9151086303499736
+            "secondLoop": 0.08422400000000048
           },
           {
             "key": "palette-shared:elapsed_ms",
@@ -3110,24 +3112,34 @@
             "secondLoop": 3921.919999999939
           },
           {
-            "key": "palette-shared:g",
-            "phase": 0.9125198908947842,
-            "secondLoop": 0.8816606355654424
+            "key": "palette-shared:form",
+            "phase": 0,
+            "secondLoop": 1
           },
           {
-            "key": "palette-shared:r",
-            "phase": 0.667664329812571,
-            "secondLoop": 0.998630180877867
+            "key": "palette-shared:formMix",
+            "phase": 0,
+            "secondLoop": 0.15666763498377256
           },
           {
-            "key": "palette-shared:scroll",
-            "phase": 0.00442368,
-            "secondLoop": 0.21178367999999603
+            "key": "palette-shared:nextForm",
+            "phase": 1,
+            "secondLoop": 2
+          },
+          {
+            "key": "palette-shared:rotC",
+            "phase": 0.9999934784502422,
+            "secondLoop": 0.9850896907314453
+          },
+          {
+            "key": "palette-shared:rotS",
+            "phase": 0.0036115172690829966,
+            "secondLoop": 0.17204156827530223
           },
           {
             "key": "palette-shared:t",
-            "phase": 0.08192,
-            "secondLoop": 3.9219199999999264
+            "phase": 0.005390336,
+            "secondLoop": 0.25806233600000145
           }
         ],
         "coldSeekMatchedContinuous": true,
@@ -3163,24 +3175,31 @@
         "loopResetFrameMatched": false,
         "loopResetStateMatched": false,
         "loopResetStateDifferences": [
-          "palette-fresh:b",
+          "palette-fresh:bandSpacing",
+          "palette-fresh:edgeWidth",
           "palette-fresh:elapsed_ms",
-          "palette-fresh:g",
-          "palette-fresh:r",
-          "palette-fresh:scroll",
+          "palette-fresh:formMix",
+          "palette-fresh:rotC",
+          "palette-fresh:rotS",
           "palette-fresh:t",
-          "palette-shared:b",
           "palette-shared:elapsed_ms",
-          "palette-shared:g",
-          "palette-shared:r",
-          "palette-shared:scroll",
+          "palette-shared:form",
+          "palette-shared:formMix",
+          "palette-shared:nextForm",
+          "palette-shared:rotC",
+          "palette-shared:rotS",
           "palette-shared:t"
         ],
         "loopResetStateResiduals": [
           {
-            "key": "palette-fresh:b",
-            "phase": 0,
-            "secondLoop": 49395
+            "key": "palette-fresh:bandSpacing",
+            "phase": 3932,
+            "secondLoop": 4653
+          },
+          {
+            "key": "palette-fresh:edgeWidth",
+            "phase": 1966,
+            "secondLoop": 2215
           },
           {
             "key": "palette-fresh:elapsed_ms",
@@ -3188,29 +3207,24 @@
             "secondLoop": 83888000
           },
           {
-            "key": "palette-fresh:g",
+            "key": "palette-fresh:formMix",
             "phase": 0,
-            "secondLoop": 64932
+            "secondLoop": 23476
           },
           {
-            "key": "palette-fresh:r",
-            "phase": 0,
-            "secondLoop": 55111
+            "key": "palette-fresh:rotC",
+            "phase": 65536,
+            "secondLoop": 65432
           },
           {
-            "key": "palette-fresh:scroll",
+            "key": "palette-fresh:rotS",
             "phase": 0,
-            "secondLoop": 4549
+            "secondLoop": 3682
           },
           {
             "key": "palette-fresh:t",
             "phase": 0,
-            "secondLoop": 84250
-          },
-          {
-            "key": "palette-shared:b",
-            "phase": 43326,
-            "secondLoop": 60024
+            "secondLoop": 5500
           },
           {
             "key": "palette-shared:elapsed_ms",
@@ -3218,24 +3232,34 @@
             "secondLoop": 257032832
           },
           {
-            "key": "palette-shared:g",
-            "phase": 59804,
-            "secondLoop": 57660
+            "key": "palette-shared:form",
+            "phase": 0,
+            "secondLoop": 65536
           },
           {
-            "key": "palette-shared:r",
-            "phase": 43759,
-            "secondLoop": 65432
+            "key": "palette-shared:formMix",
+            "phase": 0,
+            "secondLoop": 9866
           },
           {
-            "key": "palette-shared:scroll",
-            "phase": 291,
-            "secondLoop": 13939
+            "key": "palette-shared:nextForm",
+            "phase": 65536,
+            "secondLoop": 131072
+          },
+          {
+            "key": "palette-shared:rotC",
+            "phase": 65536,
+            "secondLoop": 64566
+          },
+          {
+            "key": "palette-shared:rotS",
+            "phase": 235,
+            "secondLoop": 11234
           },
           {
             "key": "palette-shared:t",
-            "phase": 5392,
-            "secondLoop": 258142
+            "phase": 352,
+            "secondLoop": 16852
           }
         ],
         "coldSeekMatchedContinuous": true,
@@ -3249,8 +3273,8 @@
     {
       "showId": "stock-show-204-presentation-modes",
       "showName": "204 Presentation Modes",
-      "nativeSemanticSha256": "ad084cb0d98eb3727292855f4c4f852daaf69918144a050f567104461e41d925",
-      "convertedSemanticSha256": "3872800e276ac2a9c19b412d2f314b17c5fd1a1f427e2883615736856d040206",
+      "nativeSemanticSha256": "2327c743cac29cde9c1fc5a317a6dc2cf53b59403125743585eb5dd66d907eb9",
+      "convertedSemanticSha256": "db3092fdfeb68e52ac062f8efe89551ee71592572308855aba9e3d6b097908a7",
       "representation": "classified-difference",
       "representationDifferences": [
         {
@@ -3303,25 +3327,32 @@
         "loopResetStateDifferences": [
           "palette-stuttered:b",
           "palette-stuttered:elapsed_ms",
+          "palette-stuttered:expBuilt",
           "palette-stuttered:g",
+          "palette-stuttered:glowM",
+          "palette-stuttered:invRingDensityM",
+          "palette-stuttered:octavesM",
           "palette-stuttered:r",
-          "palette-stuttered:scroll",
+          "palette-stuttered:ringDensityM",
+          "palette-stuttered:sharpnessM",
           "palette-stuttered:step_pending_delta",
           "palette-stuttered:step_pending_ms",
           "palette-stuttered:step_primed",
           "palette-stuttered:t",
+          "palette-stuttered:t04",
+          "palette-stuttered:zoomM",
           "palette:b",
           "palette:elapsed_ms",
           "palette:g",
           "palette:r",
-          "palette:scroll",
-          "palette:t"
+          "palette:t",
+          "palette:t04"
         ],
         "loopResetStateResiduals": [
           {
             "key": "palette-stuttered:b",
             "phase": 0,
-            "secondLoop": 0.7178179681837815
+            "secondLoop": 0.12056953821068775
           },
           {
             "key": "palette-stuttered:elapsed_ms",
@@ -3329,19 +3360,44 @@
             "secondLoop": 805.1200000000003
           },
           {
+            "key": "palette-stuttered:expBuilt",
+            "phase": 0,
+            "secondLoop": 8
+          },
+          {
             "key": "palette-stuttered:g",
             "phase": 0,
-            "secondLoop": 0.9687975609892782
+            "secondLoop": 0.11233262693243236
+          },
+          {
+            "key": "palette-stuttered:glowM",
+            "phase": 0.01,
+            "secondLoop": 0.010016
+          },
+          {
+            "key": "palette-stuttered:invRingDensityM",
+            "phase": 0.125,
+            "secondLoop": 0.12509382036527394
+          },
+          {
+            "key": "palette-stuttered:octavesM",
+            "phase": 4,
+            "secondLoop": 3
           },
           {
             "key": "palette-stuttered:r",
             "phase": 0,
-            "secondLoop": 0.7770702344299423
+            "secondLoop": 0.10463877646328877
           },
           {
-            "key": "palette-stuttered:scroll",
-            "phase": 0,
-            "secondLoop": 0.04347648000000001
+            "key": "palette-stuttered:ringDensityM",
+            "phase": 8,
+            "secondLoop": 7.994000000000001
+          },
+          {
+            "key": "palette-stuttered:sharpnessM",
+            "phase": 1.2,
+            "secondLoop": 1.2000000000000002
           },
           {
             "key": "palette-stuttered:step_pending_delta",
@@ -3364,9 +3420,19 @@
             "secondLoop": 0.8051200000000003
           },
           {
+            "key": "palette-stuttered:t04",
+            "phase": 0,
+            "secondLoop": 0.3220480000000001
+          },
+          {
+            "key": "palette-stuttered:zoomM",
+            "phase": 1.5,
+            "secondLoop": 1.4995
+          },
+          {
             "key": "palette:b",
-            "phase": 0.6611019706851483,
-            "secondLoop": 0.9149875448580318
+            "phase": 0.071704424433007,
+            "secondLoop": 0.11948842662923476
           },
           {
             "key": "palette:elapsed_ms",
@@ -3375,23 +3441,23 @@
           },
           {
             "key": "palette:g",
-            "phase": 0.9125198908947842,
-            "secondLoop": 0.8819410536151217
+            "phase": 0.08549001737860049,
+            "secondLoop": 0.12137541203171756
           },
           {
             "key": "palette:r",
-            "phase": 0.667664329812571,
-            "secondLoop": 0.9986621181059252
-          },
-          {
-            "key": "palette:scroll",
-            "phase": 0.00442368,
-            "secondLoop": 0.21164543999999602
+            "phase": 0.1083743463636518,
+            "secondLoop": 0.11501552753707506
           },
           {
             "key": "palette:t",
             "phase": 0.08192,
             "secondLoop": 3.9193599999999265
+          },
+          {
+            "key": "palette:t04",
+            "phase": 0.032768000000000005,
+            "secondLoop": 1.5677439999999707
           }
         ],
         "coldSeekMatchedContinuous": true,
@@ -3433,25 +3499,31 @@
         "loopResetStateDifferences": [
           "palette-stuttered:b",
           "palette-stuttered:elapsed_ms",
+          "palette-stuttered:expBuilt",
           "palette-stuttered:g",
+          "palette-stuttered:glowM",
+          "palette-stuttered:invRingDensityM",
+          "palette-stuttered:octavesM",
           "palette-stuttered:r",
-          "palette-stuttered:scroll",
+          "palette-stuttered:ringDensityM",
           "palette-stuttered:step_pending_delta",
           "palette-stuttered:step_pending_ms",
           "palette-stuttered:step_primed",
           "palette-stuttered:t",
+          "palette-stuttered:t04",
+          "palette-stuttered:zoomM",
           "palette:b",
           "palette:elapsed_ms",
           "palette:g",
           "palette:r",
-          "palette:scroll",
-          "palette:t"
+          "palette:t",
+          "palette:t04"
         ],
         "loopResetStateResiduals": [
           {
             "key": "palette-stuttered:b",
             "phase": 0,
-            "secondLoop": 47070
+            "secondLoop": 7940
           },
           {
             "key": "palette-stuttered:elapsed_ms",
@@ -3459,19 +3531,39 @@
             "secondLoop": 52765552
           },
           {
+            "key": "palette-stuttered:expBuilt",
+            "phase": 0,
+            "secondLoop": 524288
+          },
+          {
             "key": "palette-stuttered:g",
             "phase": 0,
-            "secondLoop": 63512
+            "secondLoop": 7410
+          },
+          {
+            "key": "palette-stuttered:glowM",
+            "phase": 655,
+            "secondLoop": 656
+          },
+          {
+            "key": "palette-stuttered:invRingDensityM",
+            "phase": 8192,
+            "secondLoop": 8198
+          },
+          {
+            "key": "palette-stuttered:octavesM",
+            "phase": 262144,
+            "secondLoop": 196608
           },
           {
             "key": "palette-stuttered:r",
             "phase": 0,
-            "secondLoop": 50978
+            "secondLoop": 6900
           },
           {
-            "key": "palette-stuttered:scroll",
-            "phase": 0,
-            "secondLoop": 2869
+            "key": "palette-stuttered:ringDensityM",
+            "phase": 524288,
+            "secondLoop": 523886
           },
           {
             "key": "palette-stuttered:step_pending_delta",
@@ -3494,9 +3586,19 @@
             "secondLoop": 53137
           },
           {
+            "key": "palette-stuttered:t04",
+            "phase": 0,
+            "secondLoop": 21254
+          },
+          {
+            "key": "palette-stuttered:zoomM",
+            "phase": 98304,
+            "secondLoop": 98270
+          },
+          {
             "key": "palette:b",
-            "phase": 43326,
-            "secondLoop": 60017
+            "phase": 4693,
+            "secondLoop": 7868
           },
           {
             "key": "palette:elapsed_ms",
@@ -3505,23 +3607,23 @@
           },
           {
             "key": "palette:g",
-            "phase": 59804,
-            "secondLoop": 57678
+            "phase": 5595,
+            "secondLoop": 8039
           },
           {
             "key": "palette:r",
-            "phase": 43759,
-            "secondLoop": 65434
-          },
-          {
-            "key": "palette:scroll",
-            "phase": 291,
-            "secondLoop": 13930
+            "phase": 7094,
+            "secondLoop": 7676
           },
           {
             "key": "palette:t",
             "phase": 5392,
             "secondLoop": 257973
+          },
+          {
+            "key": "palette:t04",
+            "phase": 2156,
+            "secondLoop": 103187
           }
         ],
         "coldSeekMatchedContinuous": true,

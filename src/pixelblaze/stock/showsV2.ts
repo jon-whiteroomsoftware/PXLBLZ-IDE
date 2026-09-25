@@ -496,12 +496,11 @@ function learn202V2(): ShowRecordV2 {
   })
 }
 
-// 203 needs a source whose state is unmistakable at a glance. Measured across
-// the 2D catalogue, IQPalettes drifts further from itself over twelve seconds
-// than anything else that stays calm frame to frame (d12s=0.26 at the lesson
-// clock), because its whole identity is which palette world it currently
-// occupies. A restart therefore reads as the color world snapping back, and a
-// shared clock reads as the world staying put across a junction.
+// 203 needs a source whose state is unmistakable at a glance. ShapeShifter
+// continuously melts five analytic silhouettes into one another, so its whole
+// identity is which form it currently occupies. A restart therefore reads as
+// the form snapping back, and a shared clock reads as the form staying put
+// across a junction.
 function learn203V2(): ShowRecordV2 {
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   return nativeShowV2({
@@ -514,8 +513,8 @@ function learn203V2(): ShowRecordV2 {
     executionModel: 'continuous',
     showEndMs: 16_000,
     patternInstances: [
-      instance('palette-fresh', 'IQPalettes', LESSON_TIME_SCALE),
-      instance('palette-shared', 'IQPalettes', LESSON_TIME_SCALE),
+      instance('palette-fresh', 'ShapeShifter', LESSON_TIME_SCALE),
+      instance('palette-shared', 'ShapeShifter', LESSON_TIME_SCALE),
     ],
     layers: [mainLayer('zone-1')],
     clips: [
@@ -530,17 +529,14 @@ function learn203V2(): ShowRecordV2 {
   })
 }
 
-// 204 compares five presentations of one drifting palette field. The cast is
-// measured, not chosen by eye: IQPalettes carries the strongest full-channel
-// motion of the candidates (0.157 mean RGB change over two seconds at the
-// lesson clock), and 203 already establishes it as the level's diagnostic
-// source. (The cast originally also dodged a lowering defect: before #663 a
-// stepped clock rendered its whole first window ahead of the first
-// beforeRender delivery, which broke Patterns like Caustics that compute
-// render state there. The priming delivery removed that constraint; every
-// Pattern is now safe to Stutter.) The Stutter passage owns a second
-// instance because Stutter quantizes the Pattern-instance clock itself;
-// giving it the shared instance would stutter every other Clip too.
+// 204 compares five presentations of one drifting field. The cast is
+// Kishimisu, Jon's choice (#1097). (The cast originally also dodged a
+// lowering defect: before #663 a stepped clock rendered its whole first
+// window ahead of the first beforeRender delivery, which broke Patterns like
+// Caustics that compute render state there. The priming delivery removed that
+// constraint; every Pattern is now safe to Stutter.) The Stutter passage owns
+// a second instance because Stutter quantizes the Pattern-instance clock
+// itself; giving it the shared instance would stutter every other Clip too.
 function learn204V2(): ShowRecordV2 {
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   return nativeShowV2({
@@ -553,8 +549,8 @@ function learn204V2(): ShowRecordV2 {
     executionModel: 'continuous',
     showEndMs: 15_000,
     patternInstances: [
-      instance('palette', 'IQPalettes', LESSON_TIME_SCALE),
-      steppedInstance('palette-stuttered', 'IQPalettes', LESSON_TIME_SCALE, 500),
+      instance('palette', 'Kishimisu', LESSON_TIME_SCALE),
+      steppedInstance('palette-stuttered', 'Kishimisu', LESSON_TIME_SCALE, 500),
     ],
     layers: [mainLayer('zone-1')],
     clips: [
@@ -2344,4 +2340,3 @@ function overtureRemixV2(): ShowRecordV2 {
     ],
   })
 }
-

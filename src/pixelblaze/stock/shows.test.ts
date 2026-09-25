@@ -300,9 +300,11 @@ describe('stock Show curriculum (#363)', () => {
   // Casting doctrine agreed 2026-07-25: the approved tiers exclude diagnostic
   // Patterns that "look cheap", HeatShimmerTiles, and everything in the
   // very-expensive tier, whose marginal artifact cost runs 7-11 KB each.
+  // Kishimisu left the list when Jon cast 204 Presentation Modes with it
+  // (#1097); it remains excluded everywhere else by review, not by this pin.
   const EXCLUDED_FROM_LESSONS = [
     'TestPattern1D', 'TestPattern2D', 'TestPattern3D', 'EasedSweep', 'HeatShimmerTiles',
-    'PhantomStar', 'ZippyZaps', 'SceneSplice', 'Kishimisu',
+    'PhantomStar', 'ZippyZaps', 'SceneSplice',
     'RedlineMachine', 'RedlineMachinePortable',
   ]
   const FOUNDATION_IDS = [
@@ -1231,7 +1233,7 @@ describe('stock Show curriculum (#363)', () => {
     // Clip identity and instance identity are separate facts: four Clips,
     // two instances, and the shared one serves the first, second, and last.
     expect(composition.patternInstances.map((instance) => instance.patternName))
-      .toEqual(['IQPalettes', 'IQPalettes'])
+      .toEqual(['ShapeShifter', 'ShapeShifter'])
     expect(main.map((placementItem) => placementItem.instanceId))
       .toEqual(['palette-shared', 'palette-shared', 'palette-fresh', 'palette-shared'])
     expect(main.map((placementItem) => [placementItem.startMs, placementItem.durationMs]))
