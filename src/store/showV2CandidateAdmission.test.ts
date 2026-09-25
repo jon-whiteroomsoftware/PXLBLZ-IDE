@@ -334,7 +334,17 @@ it('refuses an old v2 candidate after deletion recreates the same Show identity'
   await useShowStore.getState().removeShow(context.record.id)
   await useShowStore.getState().addImportedShowV2(structuredClone(context.record))
   const recreated = useShowStore.getState().showV2Pilots[context.record.id]
-  expect(context.deliver(context.edited(), 'op-1', { request }).status).toMatch(/refused|retired/)
+  const capture = captureShowStageEditV2(recreated, context.dependencies)
+  if (capture.prepared.status === 'refused') throw new Error(capture.prepared.message)
+  const baseline = voiceBaseline(recreated)
+  const receipt = useShowStore.getState().deliverShowV2EditCandidate({
+    request,
+    candidate: context.edited(),
+    capture,
+    baseline,
+    isCurrent: () => useShowStore.getState().showV2Pilots[context.record.id] === capture.record,
+  })
+  expect(receipt).toEqual({ request, status: 'refused', reason: 'revision-conflict' })
   expect(useShowStore.getState().showV2Pilots[context.record.id]).toBe(recreated)
   expect(context.write).not.toHaveBeenCalled()
   expect(context.deleteShow).toHaveBeenCalledOnce()
