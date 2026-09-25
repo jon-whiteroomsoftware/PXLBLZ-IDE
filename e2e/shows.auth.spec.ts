@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { squareWorkspaceShow } from './fixtures/showWorkspace'
 import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { createShowWithOutputContract } from '../src/engine/showModel'
+import type { ShowClipAppearanceValueV2, ShowClipV2, ShowRecordV2 } from '../src/engine/showCompositionV2'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
 import { findStoredShowV2, listStoredShowsV2, seedShowV2, storedShowV2RevisionMatchesAnchor, waitForStoredShowV2, waitForV2BarrierSave } from './support/showBackingRecords'
 
@@ -1089,11 +1090,14 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
     })).toHaveCount(0)
-    await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
-      transition.id === 'transition-scene-1'
-      && transition.kind === 'cut'
-      && transition.durationMs === 0
-    )) === true)
+    // v2 has no 'cut' kind: a junction without a Transition stores none.
+    await waitForCurrentShow(page, (show) => {
+      const left = storedClipsOf(show, 'TestPattern1D')[0]
+      const right = storedClipsOf(show, 'CometLoom')[0]
+      return show.composition.transitions.length === 0
+        && left !== undefined && right !== undefined
+        && right.startMs > left.startMs + left.durationMs
+    })
 
     const leftBounds = await leftClip.boundingBox()
     const movedHandle = await startHandle.boundingBox()
@@ -1111,7 +1115,10 @@ test.describe('authenticated Show authoring', () => {
       const right = await rightClip.boundingBox()
       return left && right ? Math.abs(right.x - (left.x + left.width)) : Number.POSITIVE_INFINITY
     }).toBeLessThanOrEqual(1.5)
-    await waitForCurrentShow(page, (show) => show.composition?.scenes[1]?.zones[0]?.main[0]?.startMs === 0)
+    await waitForCurrentShow(page, (show) => {
+      const left = storedClipsOf(show, 'TestPattern1D')[0]
+      return storedClipsOf(show, 'CometLoom')[0]?.startMs === (left ? left.startMs + left.durationMs : undefined)
+    })
   })
 
   test('keeps the Snap preference after a reload', async ({ page }) => {
@@ -1265,11 +1272,9 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Select Option Copy Rings' })).toHaveCount(2)
     await waitForCurrentShow(page, (saved) => {
       const composition = saved.composition
-      if (!composition || composition.patternInstances?.length !== 2) return false
-      const sourceClips = composition.scenes.flatMap((scene) => scene.zones?.[0]?.main ?? [])
-      const copiedClips = composition.scenes.flatMap((scene) => (
-        scene.zones?.[0]?.overlays.flatMap((layer) => layer.placements) ?? []
-      ))
+      if (composition.patternInstances.length !== 2) return false
+      const sourceClips = composition.clips.filter((clip) => storedClipLayerRank(saved, clip) === 0)
+      const copiedClips = composition.clips.filter((clip) => (storedClipLayerRank(saved, clip) ?? 0) > 0)
       return sourceClips.length === 1
         && sourceClips[0]?.instanceId === 'instance-source'
         && copiedClips.length === 1
@@ -1361,13 +1366,11 @@ test.describe('authenticated Show authoring', () => {
     await page.mouse.up()
     await page.keyboard.up('Shift')
     await expect(movePreview).toHaveCount(0)
-    await waitForCurrentShow(page, (saved) => (
-      saved.composition?.scenes.some((scene) => scene.zones.some((zone) => (
-        zone.overlays.some((layer) => layer.placements.some((clip) => (
-          clip.id === 'clip-modifier-source' && clip.startMs % 100 === 0
-        )))
-      ))) ?? false
-    ))
+    await waitForCurrentShow(page, (saved) => saved.composition.clips.some((clip) => (
+      clip.id === 'clip-modifier-source'
+      && (storedClipLayerRank(saved, clip) ?? 0) > 0
+      && clip.startMs % 100 === 0
+    )))
 
     const target = await beginDrag()
     await expect(movePreviewTime).toHaveText(/^\d+s$/)
@@ -1432,9 +1435,7 @@ test.describe('authenticated Show authoring', () => {
     await brightness.press('Enter')
 
     // Barrier, not oracle.
-    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
-      scene.zones?.some((zone) => zone.main?.some((placement) => placement.view?.brightness === 0.63))
-    )) === true)
+    await waitForCurrentShow(page, (show) => someClipAppearance(show, 'TestPattern1D', (value) => value.view.brightness === 0.63))
 
     await page.reload()
     await selectClip(page, 'TestPattern1D')
@@ -1505,9 +1506,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(mirrorRow).toHaveAttribute('data-fixed', 'true')
     await expect(mirrorRow.getByText('Always first')).toBeVisible()
     await expect(mirrorRow.getByRole('button', { name: /Drag/ })).toHaveCount(0)
-    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
-      scene.zones?.some((zone) => zone.main?.some((placement) => placement.view.mirror))
-    )) === true)
+    await waitForCurrentShow(page, (show) => someClipAppearance(show, 'TestPattern1D', (value) => value.view.mirror))
 
     await page.reload()
     const reloaded = await openClipEffects(page, 'TestPattern1D')
@@ -1517,9 +1516,9 @@ test.describe('authenticated Show authoring', () => {
     await menu.getByRole('menuitem', { name: 'Remove Mirror Effect' }).click()
 
     await expect(reloaded.getByTestId('show-effect-mirror')).toHaveCount(0)
-    await waitForCurrentShow(page, (show) => show.composition?.scenes.every((scene) => (
-      scene.zones?.every((zone) => zone.main?.every((placement) => !placement.view.mirror))
-    )) === true)
+    await waitForCurrentShow(page, (show) => show.composition.clips.every((clip) => (
+      clip.appearance.keys.every((key) => !key.value.view.mirror)
+    )))
   })
 
   test('keeps edited Effect parameters after a reload', async ({ page }) => {
@@ -1681,7 +1680,7 @@ test.describe('authenticated Show authoring', () => {
     // page.reload() would discard it. Observe the persisted value before
     // navigating; the assertion after the reload stays on visible state.
     await waitForCurrentShow(page, (show) => (
-      show.transitions?.[0]?.durationMs === 3400 && show.transitions[0].starPoints === 7
+      show.composition.transitions[0]?.durationMs === 3400 && show.composition.transitions[0].starPoints === 7
     ))
 
     await page.reload()
@@ -1730,7 +1729,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page).toHaveURL(new RegExp(`/studio/shows/${portable.id}$`))
     await expect(page.getByTitle('Show output summary')).toContainText('Portable')
     await expectCurrentShowUnsaved(page, (show) => (
-      show.outputContract?.kind === 'portable-2d'
+      show.outputContract.kind === 'portable-2d'
       && show.outputContract.referencePixelCount === 1024
       && show.outputContract.referenceMapId === 'plane'
     ))
@@ -1762,10 +1761,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Default routing mode')).not.toHaveValue('single')
     await page.getByLabel('Default routing mode').selectOption('grid-2x2')
     await waitForCurrentShow(page, (show) => (
-      show.outputContract?.kind === 'portable-2d'
+      show.outputContract.kind === 'portable-2d'
       && show.outputContract.referencePixelCount === 1536
       && show.outputContract.referenceMapId === 'wide'
-      && show.routingLayouts[0]?.logical?.kind === 'grid'
+      && show.zoneLayouts[0]?.logical?.kind === 'grid'
     ))
 
     await page.reload()
@@ -1949,9 +1948,7 @@ test.describe('authenticated Show authoring', () => {
       blockWrites = false
       await notice.getByRole('button', { name: 'Retry save' }).click()
       await expect(notice).not.toBeVisible()
-      await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
-        scene.zones?.some((zone) => zone.main?.some((placement) => placement.view?.brightness === 0.75))
-      )) === true)
+      await waitForCurrentShow(page, (show) => someClipAppearance(show, 'TestPattern1D', (value) => value.view.brightness === 0.75))
 
       await page.reload()
       await selectClip(page, 'TestPattern1D')
@@ -2107,11 +2104,9 @@ test.describe('authenticated Show authoring', () => {
     // second edit's PUT is not dispatched until the first resolves, and
     // page.reload() would discard it. Observe the persisted value before
     // navigating; the assertion after the reload stays on visible state.
-    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
-      scene.zones?.some((zone) => zone.main?.some((placement) => (
-        placement.transform?.positionX === 0.25 && placement.transform?.rotation === -0.25
-      )))
-    )) === true)
+    await waitForCurrentShow(page, (show) => someClipAppearance(show, 'TestPattern1D', (value) => (
+      value.transform?.positionX === 0.25 && value.transform.rotation === -0.25
+    )))
 
     await page.reload()
     await selectClip(page, 'TestPattern1D')
@@ -2135,13 +2130,11 @@ test.describe('authenticated Show authoring', () => {
     await width.fill('0.1')
     await width.press('Enter')
 
-    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
-      scene.zones?.some((zone) => zone.main?.some((placement) => (
-        placement.viewport?.enabled === true
-        && placement.viewport.aperture === 'ellipse'
-        && placement.viewport.feather === 0.1
-      )))
-    )) === true)
+    await waitForCurrentShow(page, (show) => someClipAppearance(show, 'TestPattern1D', (value) => (
+      value.aperture?.enabled === true
+      && value.aperture.aperture === 'ellipse'
+      && value.aperture.feather === 0.1
+    )))
 
     await page.reload()
     await selectClip(page, 'TestPattern1D')
@@ -2326,10 +2319,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Save physical zone' })).toBeVisible()
     await page.getByRole('button', { name: 'Save physical zone' }).click()
 
-    await waitForCurrentShow(page, (show) => (
-      show.routingLayouts[0]?.zones[0]?.ranges.length > 1
-      && show.routingLayouts[0].zones[0].ranges.every((range) => range.start <= range.end)
-    ))
+    await waitForCurrentShow(page, (show) => {
+      const ranges = show.zoneLayouts[0]?.zones[0]?.ranges ?? []
+      return ranges.length > 1 && ranges.every((range) => range.start <= range.end)
+    })
     await page.setViewportSize({ width: 1440, height: 900 })
     await expect(page.getByRole('region', { name: 'Show timeline' }).getByText(`${selectedCount}px`)).toBeVisible()
     await page.getByRole('button', { name: 'Open zone main properties' }).click()
@@ -2378,9 +2371,9 @@ test.describe('authenticated Show authoring', () => {
     await expect(await getShowAction(page, 'View code')).toBeEnabled()
     await expect(await getShowAction(page, 'Download .epe')).toBeEnabled()
     await waitForCurrentShow(page, (show) => (
-      show.outputContract?.kind === 'installation'
+      show.outputContract.kind === 'installation'
       && show.outputContract.pixelCount === 256
-      && show.routingLayouts[0]?.zones[0]?.ranges[0]?.end === 255
+      && show.zoneLayouts[0]?.zones[0]?.ranges[0]?.end === 255
     ))
   })
 
@@ -2476,13 +2469,12 @@ test.describe('authenticated Show authoring', () => {
     // page.reload() would discard it. Observe all four persisted facets before
     // navigating; the assertions after the reload stay on visible state.
     await waitForCurrentShow(page, (show) => {
-      const placement = show.composition?.scenes.flatMap((scene) => (
-        scene.zones?.flatMap((zone) => zone.main ?? []) ?? []
-      )).find((candidate) => candidate.transform?.positionX === 0.25)
-      const instance = show.composition?.patternInstances
-        ?.find((candidate) => candidate.patternName === 'TestPattern1D')
-      return placement !== undefined
-        && (placement.effects ?? []).some((effect) => effect.kind === 'ripple')
+      const instance = show.composition.patternInstances
+        .find((candidate) => candidate.patternName === 'TestPattern1D')
+      return someClipAppearance(show, 'TestPattern1D', (value) => (
+        value.transform?.positionX === 0.25
+        && (value.effects ?? []).some((effect) => effect.kind === 'ripple')
+      ))
         && instance?.time?.timeScale === 2
         && instance?.evaluationPolicy === 'freeze-at-entry'
     })
@@ -2536,12 +2528,12 @@ test.describe('authenticated Show authoring', () => {
     await easing.selectOption('ease-in-out')
     await page.getByLabel('Routing transfer direction').selectOption('reverse')
 
-    await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
-      transition.kind === 'routing'
-      && transition.layoutId === 'layout-2'
-      && transition.durationMs === 2_000
-      && showEasingId(transition.easing) === 'ease-in-out'
-      && transition.routingDirection === 'reverse'
+    await waitForCurrentShow(page, (show) => show.composition.layoutOccurrences.some((occurrence) => (
+      occurrence.layoutId === 'layout-2'
+      && occurrence.incomingTransfer?.durationMs === 2_000
+      && occurrence.incomingTransfer.easing !== undefined
+      && showEasingId(occurrence.incomingTransfer.easing) === 'ease-in-out'
+      && occurrence.incomingTransfer.direction === 'reverse'
     )))
 
     await page.reload()
@@ -2590,12 +2582,14 @@ test.describe('authenticated Show authoring', () => {
     await splitDuration.press('Enter')
     await page.getByLabel('Split position easing').selectOption('ease-in-out')
 
-    await waitForCurrentShow(page, (show) => (
-      show.routingLayouts[0]?.logical?.kind === 'split'
-      && show.transitions?.[0]?.propertyTransitions?.routing?.splitPosition?.from === 0.2
-      && show.transitions[0].propertyTransitions.routing.splitPosition.durationMs === 1200
-      && showEasingId(show.transitions[0].propertyTransitions.routing.splitPosition.easing) === 'ease-in-out'
-    ))
+    await waitForCurrentShow(page, (show) => {
+      const ramp = splitPositionRamp(show)
+      return show.zoneLayouts[0]?.logical?.kind === 'split'
+        && ramp?.from === 0.2
+        && ramp.durationMs === 1200
+        && ramp.easing !== undefined
+        && showEasingId(ramp.easing) === 'ease-in-out'
+    })
 
     await page.reload()
     await openZoneLayout(page, 'Default')
@@ -2631,9 +2625,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: /^Edit split position at / }).click()
     await page.getByText('Advanced transition controls').click()
     await page.getByLabel('Animate split position').uncheck()
-    await waitForCurrentShow(page, (show) => (
-      show.transitions?.[0]?.propertyTransitions?.routing?.splitPosition === undefined
-    ))
+    await waitForCurrentShow(page, (show) => splitPositionRamp(show) === undefined)
   })
 
   test('authors and reloads transition-scoped sample repeat tiling (#654)', async ({ page }) => {
@@ -2660,9 +2652,11 @@ test.describe('authenticated Show authoring', () => {
     await panel.getByLabel('Repeat scale easing').selectOption('ease-in-out')
 
     await waitForCurrentShow(page, (show) => {
-      const descriptor = show.transitions?.[0]?.propertyTransitions?.sample?.repeatScale
+      const descriptor = show.composition.transitions[0]?.propertyRamps
+        .find((ramp) => ramp.target.kind === 'show-repeat-scale')
       return descriptor?.from === 2
         && descriptor.durationMs === 800
+        && descriptor.easing !== undefined
         && showEasingId(descriptor.easing) === 'ease-in-out'
     })
 
@@ -2694,15 +2688,15 @@ test.describe('authenticated Show authoring', () => {
     await page.keyboard.press('Escape')
     await expect(popover).toHaveCount(0)
     await expect(clipPanel).toBeVisible()
-    await expectCurrentShowUnsaved(page, (show) => !show.composition?.scenes[0]?.propertyTracks?.length)
+    await expectCurrentShowUnsaved(page, (show) => show.composition.propertyTracks.length === 0)
 
     await diamond.click()
     const from = page.getByRole('textbox', { name: 'Brightness animation from exact percentage' })
     await from.fill('60%')
     await from.press('Enter')
     await waitForCurrentShow(page, (show) => {
-      const track = show.composition?.scenes[0]?.propertyTracks?.[0]
-      return track?.target.kind === 'placement-view'
+      const track = show.composition.propertyTracks[0]
+      return track?.target.kind === 'clip-view'
         && track.target.property === 'brightness'
         && track.keyframes[0]?.timeMs === 0
         && track.keyframes[0]?.value === 0.6
@@ -2733,17 +2727,16 @@ test.describe('authenticated Show authoring', () => {
     await expect(brightnessTo).toBeFocused()
     await brightnessTo.press('Enter')
     await waitForCurrentShow(page, (show) => (
-      show.composition?.scenes[0]?.propertyTracks?.[0]?.keyframes[1]?.value === 0.42
+      show.composition.propertyTracks[0]?.keyframes[1]?.value === 0.42
     ))
     await page.getByRole('combobox', { name: 'Brightness animation easing' }).selectOption('steps-4-end')
 
     await waitForCurrentShow(page, (show) => {
-      const track = show.composition?.scenes[0]?.propertyTracks?.[0]
-      return track?.target.kind === 'placement-view'
+      const track = show.composition.propertyTracks[0]
+      return track?.target.kind === 'clip-view'
         && track.target.property === 'brightness'
         && track.keyframes[1]?.value === 0.42
-        && typeof track.keyframes[0]?.easing === 'object'
-        && track.keyframes[0].easing.curve === 'steps'
+        && track.keyframes[0]?.easing.curve === 'steps'
     })
 
     await page.reload()
@@ -2761,7 +2754,7 @@ test.describe('authenticated Show authoring', () => {
 
     await reloadedPanel.getByRole('button', { name: 'Animations — 1' }).click()
     await reloadedPanel.getByRole('button', { name: 'Remove Brightness animation' }).click()
-    await waitForCurrentShow(page, (show) => !show.composition?.scenes[0]?.propertyTracks?.length)
+    await waitForCurrentShow(page, (show) => show.composition.propertyTracks.length === 0)
     await expect(reloadedPanel.getByRole('button', { name: /^Animations/ })).toHaveCount(0)
   })
 
@@ -2800,7 +2793,7 @@ test.describe('authenticated Show authoring', () => {
     await ringWidthField.press('Enter')
 
     // Barrier, not oracle: the write must land before the reload discards it.
-    await waitForCurrentShow(page, (show) => show.transitions?.[0]?.ringWidth === 0.2)
+    await waitForCurrentShow(page, (show) => show.composition.transitions[0]?.ringWidth === 0.2)
 
     await page.reload()
     const reloaded = await openTransition(page)
@@ -2897,19 +2890,19 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('textbox', { name: 'Duration seconds exact time' }).fill('4')
     await page.getByRole('textbox', { name: 'Duration seconds exact time' }).press('Enter')
     await waitForCurrentShow(page, (saved) => (
-      saved.composition?.groupDefinitions?.length === 1
-      && saved.composition.groupDefinitions[0].placements.some((placement) => placement.durationMs === 4_000)
-      && saved.composition.groupOccurrences?.length === 2
+      saved.composition.groupDefinitions.length === 1
+      && saved.composition.groupDefinitions[0].clips.some((clip) => clip.durationMs === 4_000)
+      && saved.composition.groupOccurrences.length === 2
     ))
 
     await page.keyboard.press('Escape')
     await expect(page.getByRole('status', { name: 'Group isolation: Group' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Select Group Group' }).last().click()
     await page.getByRole('button', { name: 'Make Group unique' }).click()
-    await waitForCurrentShow(page, (saved) => saved.composition?.groupDefinitions?.length === 2)
+    await waitForCurrentShow(page, (saved) => saved.composition.groupDefinitions.length === 2)
 
     await page.getByRole('button', { name: 'Undo Show edit' }).click()
-    await waitForCurrentShow(page, (saved) => saved.composition?.groupDefinitions?.length === 1)
+    await waitForCurrentShow(page, (saved) => saved.composition.groupDefinitions.length === 1)
   })
 
   test('fits short timelines, reserves preview space for tall timelines, and preserves manual sizing (#1006)', async ({ page }) => {
@@ -3393,20 +3386,11 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
  * Poll the stored record the open Show route addresses until a test's
  * predicate holds.
  *
- * These predicates are save barriers written against the version-1 record
- * shape. The stored document is a version-2 record (#1066, #1042) and nothing
- * projects it back, so the predicate is documentary only; the barrier waits for the version-2 save to reach storage instead and annotates
- * the test, so the inventory never reads such a run as an unqualified pass.
- * What the save contains is left to the assertions that follow.
+ * The predicate is evaluated against the stored v2 document after the save
+ * lands (#1121).
  *
- * Every barrier through this function takes the save path, deliberately. Classifying by evaluating
- * the v1 predicate against the v2 document is unsound in both directions: a
- * predicate can throw on the v2 shape (`composition.scenes`, which v2
- * replaces) or hold vacuously (`transitions?.[0]?.... === undefined`, true
- * because v2 carries no top-level `transitions`). The predicate alone cannot
- * tell "this barrier waits for a save" from "this barrier asserts nothing was
- * saved", so a barrier through this function waits for the
- * stored revision to advance past its pre-gesture anchor: the previous
+ * Every barrier through this function first waits for a save: the
+ * stored revision must advance past its pre-gesture anchor: the previous
  * barrier's consumed revision, else the revision this run wrote when it
  * seeded the version-2 document. The anchor never comes from a barrier-start
  * read, because a v2 edit's adoption and persistence are one awaited flow and
@@ -3418,13 +3402,18 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
  * equal its pre-gesture anchor. Any other barrier reaching this function
  * still times out loudly rather than passing silently when no save follows.
  */
-async function waitForCurrentShow(page: Page, _predicate: (show: PersistedShow) => boolean): Promise<void> {
-  const id = new URL(page.url()).pathname.split('/').at(-1)
-  test.info().annotations.push({
-    type: 'show-backing-v2',
-    description: 'save barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits for the stored revision to advance past its pre-gesture anchor',
-  })
-  await waitForV2BarrierSave(page, id!)
+async function waitForCurrentShow(page: Page, predicate: (show: ShowRecordV2) => boolean): Promise<void> {
+  const id = new URL(page.url()).pathname.split('/').at(-1)!
+  await waitForV2BarrierSave(page, id)
+  // waitForStoredShowV2 also advances the observed-save stamp to the revision
+  // that satisfied the predicate, so the next barrier anchors after it.
+  const timeoutMs = 15_000
+  try {
+    await waitForStoredShowV2(page, id, predicate, timeoutMs)
+  } catch {
+    const last = await findStoredShowV2(page, id)
+    throw new Error(`Stored v2 Show ${id} never satisfied the barrier predicate within ${timeoutMs}ms; last stored updatedAt ${String(last?.updatedAt)}`)
+  }
 }
 
 /**
@@ -3432,22 +3421,43 @@ async function waitForCurrentShow(page: Page, _predicate: (show: PersistedShow) 
  *
  * The absence half of the save-barrier pair, adopted by the two test-body
  * sites that assert nothing was saved (spec:1494, the seeded Portable
- * readback; spec:2469, the popover-dismiss barrier). The version-1 predicate
- * cannot be evaluated against a version-2 document, and no gesture before these barriers performs a save,
- * so it waits out a settle window and then requires the stored revision to
- * still equal its pre-gesture anchor, without updating the observed-save
- * stamp — a later save barrier still anchors where this read did. Annotates
- * the test so the inventory never reads such a run as an unqualified pass.
+ * readback; spec:2469, the popover-dismiss barrier). No gesture before these
+ * barriers performs a save, so it waits out a settle window and then requires
+ * the stored revision to still equal its pre-gesture anchor, without updating
+ * the observed-save stamp — a later save barrier still anchors where this read
+ * did. The predicate is then evaluated against the stored v2 document (#1121).
  */
-async function expectCurrentShowUnsaved(page: Page, _predicate: (show: PersistedShow) => boolean): Promise<void> {
-  const id = new URL(page.url()).pathname.split('/').at(-1)
-  test.info().annotations.push({
-    type: 'show-backing-v2',
-    description: 'absence barrier substituted: a version-1 stored-state predicate cannot read a version-2 document, so the run waits out a settle window and then asserts the stored revision still equals its pre-gesture anchor (no save)',
-  })
+async function expectCurrentShowUnsaved(page: Page, predicate: (show: ShowRecordV2) => boolean): Promise<void> {
+  const id = new URL(page.url()).pathname.split('/').at(-1)!
   await page.waitForTimeout(1500)
-  const reading = await storedShowV2RevisionMatchesAnchor(page, id!)
+  const reading = await storedShowV2RevisionMatchesAnchor(page, id)
   expect(reading.unchanged, `The v2 run observed a version-2 save for Show ${id} where none was expected (anchor revision ${String(reading.anchor)}, stored revision ${String(reading.current)})`).toBe(true)
+  const record = await findStoredShowV2(page, id)
+  expect(record !== undefined && predicate(record), `stored v2 Show ${id} predicate`).toBe(true)
+}
+
+/** The stored Clips whose Pattern instance carries `patternName`. */
+function storedClipsOf(show: ShowRecordV2, patternName: string): ShowClipV2[] {
+  const instanceIds = new Set(show.composition.patternInstances
+    .filter((instance) => instance.patternName === patternName)
+    .map((instance) => instance.id))
+  return show.composition.clips.filter((clip) => instanceIds.has(clip.instanceId))
+}
+
+/** Whether some appearance key of some `patternName` Clip satisfies `test`. */
+function someClipAppearance(show: ShowRecordV2, patternName: string, test: (value: ShowClipAppearanceValueV2) => boolean): boolean {
+  return storedClipsOf(show, patternName).some((clip) => clip.appearance.keys.some((key) => test(key.value)))
+}
+
+/** The first stored Transition ramp that animates a Layout interval's split position. */
+function splitPositionRamp(show: ShowRecordV2): ShowRecordV2['composition']['transitions'][number]['propertyRamps'][number] | undefined {
+  return show.composition.transitions.flatMap((transition) => transition.propertyRamps)
+    .find((ramp) => ramp.target.kind === 'layout-occurrence-split-position')
+}
+
+/** The Layer rank a stored Clip sits on; zero is the Main Layer. */
+function storedClipLayerRank(show: ShowRecordV2, clip: ShowClipV2): number | undefined {
+  return show.composition.layers.find((layer) => layer.id === clip.layerId)?.rank
 }
 
 async function showStageCanvasStats(page: Page): Promise<{ checksum: number; maxChannel: number }> {
