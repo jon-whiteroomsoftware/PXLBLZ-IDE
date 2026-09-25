@@ -13,12 +13,10 @@ import { DraftTextField } from '@/components/ui/draft-text-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
 import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPercentageFieldProps } from '@/components/ui/percentage-field'
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
-import { BoundedNumberField } from '@/components/ui/bounded-number-field'
 import { formatDomainNumber } from '@/engine/domainNumberPresentation'
 import { measureShowTimelineMinimumHeight } from '@/engine/showWorkspaceLayout'
-import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
-import { formatShowTime, showBoundaryClipIdentity } from '@/engine/showClipIdentity'
+import { formatShowTime } from '@/engine/showClipIdentity'
 import { presentShowDiagnostic, presentShowTrayDiagnostic } from '@/engine/showDiagnosticPresentation'
 import { SHOW_ESCAPE_LAYER_RANK, registerShowEscapeLayer } from '@/engine/showEscapeLayers'
 import {
@@ -70,14 +68,12 @@ import {
   showLoopDurationMs,
   projectShowTimeline,
   transitionCost,
-  updateShowBoundaryTransition,
   ZONE_COLORS,
   showRoutingLayoutKindLabel,
 } from '@/engine/showModel'
 import {
   portableTargetPixelBlocker,
   resolveShowCompilationControllerZones,
-  sourceForShowCell,
   sourceForShowPatternRef,
   type CompiledShowState,
 } from '@/engine/showPreviewArtifact'
@@ -85,15 +81,12 @@ import {
   projectFlatShowToCompositionV1WithCellOrigins,
 } from '@/engine/showCompositionModel'
 import { type ShowPropertyLaneProjection } from '@/engine/showPropertyLaneProjection'
-import { installationCoverageBlockingMessage, resolveShowZonePixelCount, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
+import { installationCoverageBlockingMessage, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { validateInstallationCoverageV2 } from '@/engine/showInstallationCoverageV2'
 import { showV2DeliveryRefusal } from '@/engine/showV2RouteDelivery'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
-import { createPortableShowOutputContract } from '@/engine/showOutputContract'
-import { declaredPatternSliderNames, resolveBundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
+import { resolveBundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
-  projectCompositionShowClipSummary,
-  projectGlobalShowClipSummary,
   projectResolvedShowClipSummary,
   projectShowClipTimelineSummary,
   showClipSummaryDestination,
@@ -105,26 +98,11 @@ import {
   type ShowClipTimelineGlyph,
 } from '@/engine/showClipSummary'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
+import { type ShowClipInspectorOwner, type ShowClipInspectorPatch } from '@/engine/showClipInspectorModel'
 import {
-  projectShowClipInspector,
-  updateShowClipInspector,
-  type ShowClipInspectorOwner,
-  type ShowClipInspectorPatch,
-} from '@/engine/showClipInspectorModel'
-import {
-  addShowPropertyKeyframe,
-  addShowPropertyTrack,
-  deleteShowPropertyKeyframe,
-  deleteShowPropertyTrack,
-  updateShowPropertyKeyframe,
-} from '@/engine/showPropertyAnimation'
-import {
-  applyShowGroupPropertyAnimationChange,
   buildShowPropertyAnimationOptions,
-  projectShowPropertyAnimationEditorContext,
   type ShowPropertyAnimationChange,
   type ShowPropertyAnimationEditorContext,
-  type ShowPropertyAnimationStorageOwner,
 } from '@/engine/showPropertyAnimationEditorModel'
 import {
   beginFineAdjust,
@@ -149,8 +127,6 @@ import {
   type ShowTimelineViewModel,
 } from '@/engine/showTimelineViewModel'
 import {
-  projectShowUnifiedTimeline,
-  type ShowUnifiedTimelineClipProjection,
   type ShowUnifiedTimelineJunctionProjection,
 } from '@/engine/showUnifiedTimelineProjection'
 import {
@@ -161,9 +137,6 @@ import {
 } from '@/engine/showTimelineKeyboard'
 import { claimStudioPreviewSpace } from '@/engine/keyboardShortcuts'
 import {
-  makeShowClipPatternIndependent,
-  projectShowClipPatternInstanceOwnership,
-  rejoinShowClipPatternInstance,
   type ShowTimelineClipOwner,
 } from '@/engine/showTimelineClipAuthoring'
 import {
@@ -182,22 +155,11 @@ import {
 import { deleteShowClipInShow, type ShowClipDeletionResult } from '@/engine/showClipDeletion'
 import {
   deleteShowGroupOccurrence,
-  duplicateShowGroupOccurrence,
   insertShowGroupLayerTransition,
-  makeShowGroupOccurrenceUnique,
   projectShowGroupRuntimePatternInstances,
   resizeShowGroupLayerTransition,
-  translateShowGroupOccurrence,
-  ungroupShowGroupOccurrence,
-  updateShowGroupOccurrencePlacement,
-  validateShowGroups,
   type ShowGroupSelection,
 } from '@/engine/showGroupModel'
-import {
-  projectShowGroupClipInspector,
-  updateShowGroupClipInspector,
-  type ShowGroupClipOwner,
-} from '@/engine/showGroupClipInspectorModel'
 import { type ShowEpeExport, type ShowEpeExportOptions } from '@/engine/showEpeExport'
 import { buildShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
 import {
@@ -210,7 +172,6 @@ import {
 } from '@/engine/showSourceInventory'
 import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { bytesToBase64 } from '@/engine/RelayWebSocket'
-import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
 import { showKeyboardSeekStepMs } from '@/engine/showKeyboardSeek'
 import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
 import {
@@ -398,12 +359,9 @@ import type {
   ShowAutomatableProperty,
 } from '@/engine/personalContentRecords'
 import { normalizeShowOutputEffects } from '@/engine/showPreviousRgbFeedback'
-import { setShowOutputTrails, type SetShowOutputTrailsInput } from '@/engine/showOutputEffectAuthoring'
-import { normalizeShowClipTransform } from '@/engine/showClipTransform'
+import { type SetShowOutputTrailsInput } from '@/engine/showOutputEffectAuthoring'
 import { validateShowLogicalRouting, type ShowLogicalRouting } from '@/engine/showLogicalRouting'
 import {
-  makeShowLayoutIntervalUnique,
-  projectShowLayoutIntervals,
   showLayoutIntervalAtTime,
   showLayoutIntervalPercentBounds,
 } from '@/engine/showLayoutIntervals'
@@ -474,24 +432,9 @@ interface ShowEditorZoneMapV2 {
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
-const compactField =
-  'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] text-zinc-200 outline-none focus:border-live/70'
 const transitionRuleUnderField =
   'h-7 border-0 border-b border-zinc-700 bg-transparent px-1 text-xs text-zinc-200 outline-none focus:border-live/70'
 const EMPTY_ZONE_IDS: string[] = []
-const JUMPS_PER_SECOND_PRESENTATION = resolveLinearNumberPresentation({
-  kindLabel: 'rate',
-  suffix: '/s',
-  min: 0.25,
-  max: 30,
-  step: 0.25,
-  sliderMin: 0.25,
-  sliderMax: 30,
-  sliderStep: 0.25,
-  detentStep: 1,
-  detentMagnet: 0.12,
-  labelStep: 5,
-})
 const clipBase =
   'show-timeline-clip z-10 flex flex-col justify-center gap-px overflow-hidden rounded-none border-0 border-l-2 px-2 py-0.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
@@ -1242,13 +1185,6 @@ export function ShowEditor({
   const retryShowV2SaveFailure = useShowStore((state) => state.retryShowV2SaveFailure)
   const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
   const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
-  const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
-  const updateCellControlTarget = useShowStore((state) => state.updateCellControlTarget)
-  const updateCellRestartOnEntry = useShowStore((state) => state.updateCellRestartOnEntry)
-  const spanCellZones = useShowStore((state) => state.spanCellZones)
-  const updateCellZoneMode = useShowStore((state) => state.updateCellZoneMode)
-  const addZone = useShowStore((state) => state.addZone)
-  const updateZone = useShowStore((state) => state.updateZone)
   const removeZone = useShowStore((state) => state.removeZone)
   const showNoteOpen = useShowEditorSessionStore((state) => (
     state.showNoteOpenById[showId] ?? builtInContext?.note?.defaultOpen ?? false
@@ -1258,9 +1194,6 @@ export function ShowEditor({
   const setReferencePattern = useShowEditorSessionStore((state) => state.setReferencePattern)
   const clearReferencePatterns = useShowEditorSessionStore((state) => state.clearReferencePatterns)
   const setDiagnosticFocus = useShowEditorSessionStore((state) => state.setDiagnosticFocus)
-  const addRoutingLayout = useShowStore((state) => state.addRoutingLayout)
-  const updateRoutingLayout = useShowStore((state) => state.updateRoutingLayout)
-  const removeRoutingLayout = useShowStore((state) => state.removeRoutingLayout)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userLibraries = useLibraryStore((state) => state.userLibraries)
   const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
@@ -2945,16 +2878,6 @@ export function ShowEditor({
     if (prepared?.status === 'ready') return { artifact: prepared.bundle.artifact, error: null, artifactBlocker }
     return { artifact: null, error: prepared?.status === 'refused' ? prepared.message : null, artifactBlocker }
   }, [activeControllerProfile?.lastKnownPixelCount, presentationV2Capture, savedShowV2])
-  const patternControlsByCellId = useMemo(() => Object.fromEntries((activeShow?.cells ?? []).map((cell) => {
-    const saved = cell.pattern.kind === 'user'
-      ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}
-      : {}
-    try {
-      return [cell.id, discoverAutomatablePatternControls(sourceForShowCell(cell, userPatterns), saved, cell.pattern.kind === 'stock' ? resolveStockPatternId(cell.pattern.id) : undefined)]
-    } catch {
-      return [cell.id, []]
-    }
-  })), [activeShow, userPatterns]) as Record<string, AutomatablePatternControl[]>
   const timelineProjection = useMemo<{
     composition: ShowCompositionV1
     sourceCellIdByPlacementId: Record<string, string>
@@ -3231,9 +3154,6 @@ export function ShowEditor({
   const zoneMapV2 = useMemo(() => (
     recordVersion === 2 && lessonProjectionV2 ? projectShowEditorZoneMapV2(lessonProjectionV2) : null
   ), [recordVersion, lessonProjectionV2])
-  const inspectorShow = activeShow && timelineComposition && !activeShow.composition
-    ? { ...activeShow, composition: timelineComposition }
-    : activeShow
   const layerTransitionPlan = activeShow && timelineComposition && layerTransitionTarget?.legacy
     ? layerTransitionTarget.groupOccurrenceId
       ? planShowGroupLayerTransitionInsertion(activeShow, timelineComposition, {
@@ -3264,54 +3184,6 @@ export function ShowEditor({
   const pendingConnectedCount = compositionClipPendingDelete
     ? pendingConnectedTransitions.length
     : pendingConnectedTransitionsV2.length
-  const declaredSliderNamesFor = (ref: ShowPatternRef) => declaredPatternSliderNames(
-    ref.kind === 'stock' ? DEMOS[resolveStockPatternId(ref.id)] : userPatterns.find(pattern => pattern.id === ref.id)?.src,
-  )
-  const commitClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
-    if (!activeShow || !inspectorShow) return false
-    const controlPattern = patch.pattern?.ref ?? (patch.simulation?.controlTargets ? projectShowClipInspector(inspectorShow, owner)?.pattern : undefined)
-    const next = updateShowClipInspector(
-      inspectorShow,
-      owner,
-      patch,
-      controlPattern ? (patch.pattern ? exportedSliderNamesFor(controlPattern) : declaredSliderNamesFor(controlPattern)) : undefined,
-    )
-    return next !== inspectorShow ? Promise.resolve(updateShow(activeShow.id, next)) : false
-  }
-  const commitGroupClipInspectorPatch = (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => {
-    if (!activeShow) return false
-    const next = updateShowGroupClipInspector(
-      activeShow,
-      owner,
-      patch,
-      patch.pattern ? exportedSliderNamesFor(patch.pattern.ref) : undefined,
-    )
-    if (next === activeShow || !next.composition || validateShowGroups(next, next.composition).length > 0) return false
-    return Promise.resolve(updateShow(activeShow.id, next))
-  }
-  const previewClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
-    if (!inspectorShow) return
-    const controlPattern = patch.pattern?.ref ?? (patch.simulation?.controlTargets ? projectShowClipInspector(inspectorShow, owner)?.pattern : undefined)
-    const next = updateShowClipInspector(
-      inspectorShow,
-      owner,
-      patch,
-      controlPattern ? (patch.pattern ? exportedSliderNamesFor(controlPattern) : declaredSliderNamesFor(controlPattern)) : undefined,
-    )
-    if (next !== inspectorShow) useShowPreviewOverrideStore.getState().preview(next)
-  }
-  const previewGroupClipInspectorPatch = (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => {
-    if (!activeShow) return
-    const next = updateShowGroupClipInspector(
-      activeShow,
-      owner,
-      patch,
-      patch.pattern ? exportedSliderNamesFor(patch.pattern.ref) : undefined,
-    )
-    if (next !== activeShow && next.composition && validateShowGroups(next, next.composition).length === 0) {
-      useShowPreviewOverrideStore.getState().preview(next)
-    }
-  }
   const endInspectorPreview = () => {
     if (activeShow) useShowPreviewOverrideStore.getState().clear(activeShow.id)
   }
@@ -4260,15 +4132,6 @@ export function ShowEditor({
               : []),
           ].map((detail) => {
             const detailClipId = detail.selection.kind === 'clip' ? detail.selection.clipId : null
-            const detailSelectedClip = detailClipId && legacyShow
-              ? legacyShow.cells.find((clip) => clip.id === detailClipId) ?? null
-              : null
-            const detailSelectedCompositionClipOwner = detailClipId && !detailSelectedClip
-              ? findCompositionClipOwner(timelineComposition, detailClipId)
-              : null
-            const detailSelectedGroupClipOwner: ShowGroupClipOwner | null = detail.selection.kind === 'group-clip'
-              ? { occurrenceId: detail.selection.occurrenceId, placementId: detail.selection.placementId }
-              : null
             // The v2 backing resolves its Clip from the authored record; without
             // this the panel drops the Clip body layout and sizes to content
             // where v1 fills the available height (#1065).
@@ -4276,9 +4139,7 @@ export function ShowEditor({
               recordVersion === 2 && detailClipId
                 && savedShowV2?.composition.clips.some((clip) => clip.id === detailClipId),
             )
-            const detailIsClip = Boolean(
-              detailSelectedClip || detailSelectedCompositionClipOwner || detailSelectedGroupClipOwner,
-            ) || detailIsV2Clip
+            const detailIsClip = detail.selection.kind === 'group-clip' || detailIsV2Clip
             return (
             <ShowEntityDetailPanel
               key={detail.id}
@@ -4315,21 +4176,15 @@ export function ShowEditor({
                 )}
                 <InspectorReadOnlyContext.Provider value={readOnly}>
                   <ContextualInspector
-                  show={legacyShow}
-                  compositionShow={legacyShow ? inspectorShow ?? legacyShow : null}
-                  recordV2={recordVersion === 2 ? lessonProjectionV2 ?? null : null}
-                  replacementCaptureV2={recordVersion === 2 ? preparedV2Capture : null}
-                  preparedCaptureV2={recordVersion === 2 ? preparedV2Capture : null}
+                  recordV2={lessonProjectionV2 ?? null}
+                  replacementCaptureV2={preparedV2Capture}
+                  preparedCaptureV2={preparedV2Capture}
                   boundaryTransitionsV2={boundaryTransitionsV2}
                   panelKey={detail.id}
                   selection={detail.selection}
-                  selectedClip={detailSelectedClip}
-                  selectedCompositionClipOwner={detailSelectedCompositionClipOwner}
-                  selectedGroupClipOwner={detailSelectedGroupClipOwner}
                   transformEnabled={stageDimension === 2}
                   stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
                   patternOptions={patternOptions}
-                  patternControlsByCellId={patternControlsByCellId}
                   patternControlsByInstanceId={patternControlsByInstanceId}
                   compiledOutputEffects={compiled.artifact?.summary.outputEffects}
                   controllerProfiles={controllerProfiles}
@@ -4341,74 +4196,31 @@ export function ShowEditor({
                     }
                   }}
                   onUpdateTargetProfile={(targetControllerProfileId) => {
-                    if (recordVersion === 2) {
-                      const capture = preparedV2CaptureRef.current
-                      if (!capture) return
-                      const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
-                      void commitV2ShowMetadata({
-                        capture,
-                        baseRevision,
-                        intent: { command: 'set_target_controller_profile', input: { profile_id: targetControllerProfileId || null } },
-                      })
-                      return
-                    }
-                    if (!legacyShow) return
-                    updateShowInBackground(legacyShow.id, {
-                      ...legacyShow,
-                      targetControllerProfileId: targetControllerProfileId || undefined,
-                      updatedAt: Date.now(),
+                    const capture = preparedV2CaptureRef.current
+                    if (!capture) return
+                    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+                    void commitV2ShowMetadata({
+                      capture,
+                      baseRevision,
+                      intent: { command: 'set_target_controller_profile', input: { profile_id: targetControllerProfileId || null } },
                     })
                   }}
                   onUpdatePortableReference={(referenceMapId, referencePixelCount) => {
-                    if (recordVersion === 2) {
-                      const capture = preparedV2CaptureRef.current
-                      if (!capture) return
-                      commitV2ShowMetadataEdit(capture, planShowV2PortableReferenceEdit(
-                        capture.record, referenceMapId, referencePixelCount,
-                      ))
-                      return
-                    }
-                    if (!legacyShow) return
-                    updateShowInBackground(legacyShow.id, {
-                      ...legacyShow,
-                      stageMapId: referenceMapId,
-                      outputContract: createPortableShowOutputContract({ referenceMapId, referencePixelCount }),
-                      updatedAt: Date.now(),
-                    })
+                    const capture = preparedV2CaptureRef.current
+                    if (!capture) return
+                    commitV2ShowMetadataEdit(capture, planShowV2PortableReferenceEdit(
+                      capture.record, referenceMapId, referencePixelCount,
+                    ))
                   }}
                   onUpdateOutputTrails={(input) => {
-                    if (recordVersion === 2) {
-                      const capture = preparedV2CaptureRef.current
-                      if (!capture) return
-                      commitV2ShowMetadataEdit(capture, planShowV2TrailsEdit(capture.record, input))
-                      return
-                    }
-                    if (!legacyShow) return
-                    updateShowInBackground(legacyShow.id, setShowOutputTrails(legacyShow, input))
+                    const capture = preparedV2CaptureRef.current
+                    if (!capture) return
+                    commitV2ShowMetadataEdit(capture, planShowV2TrailsEdit(capture.record, input))
                   }}
                   onPatternCommit={returnFocusToTimelineSelection}
-                  onRemoveClip={(clip) => {
-                    if (recordVersion === 2) {
-                      requestDeleteClipV2(clip.id, false)
-                      return
-                    }
-                    const placementId = Object.entries(
-                      timelineProjection?.sourceCellIdByPlacementId ?? {},
-                    ).find(([, sourceCellId]) => sourceCellId === clip.id)?.[0] ?? clip.id
-                    requestDeleteClip(
-                      { kind: 'clip', clipId: placementId },
-                      timelineComposition,
-                      findTimelineClipOwner(timelineComposition, placementId),
-                    )
-                  }}
                   onRemoveClipV2={(clipId) => {
                     requestDeleteClipV2(clipId, false)
                   }}
-                  onUpdateAdaptations={(cell, changes) => {
-                    if (!legacyShow) return
-                    void updateCellAdaptations(legacyShow.id, cell.id, changes)
-                  }}
-                  onUpdateClipInspector={commitClipInspectorPatch}
                   onUpdateClipInspectorV2={commitV2ClipInspectorPatch}
                   onUpdateBoundaryTransitionV2={commitV2BoundaryTransitionChanges}
                   onRemoveBoundaryTransitionV2={commitV2BoundaryTransitionRemove}
@@ -4416,71 +4228,7 @@ export function ShowEditor({
                   onRemoveRoutingTransferV2={commitV2RoutingTransferRemove}
                   onPropertyAnimationChangeV2={commitV2PropertyAnimationChange}
                   onGroupPropertyAnimationChangeV2={commitV2GroupPropertyAnimationChange}
-                  onPropertyAnimationChange={(owner, change) => {
-                    if (!legacyShow || !inspectorShow?.composition) return false
-                    const composition = inspectorShow.composition
-                    let next: ShowCompositionV1
-                    if (owner.kind === 'group') {
-                      next = applyShowGroupPropertyAnimationChange(
-                        legacyShow,
-                        composition,
-                        owner,
-                        change,
-                        newPersonalContentId,
-                      )
-                    } else {
-                      const scene = inspectorShow.scenes.find((candidate) => candidate.id === owner.sceneId)
-                      if (!scene) return false
-                      next = change.kind === 'add-track'
-                        ? addShowPropertyTrack(legacyShow, composition, owner.sceneId, {
-                            id: newPersonalContentId(),
-                            target: change.target,
-                            keyframes: (change.keyframes ?? [
-                              { timeMs: 0, value: change.initialValue, easing: { curve: 'linear' as const } },
-                              { timeMs: scene.durationMs, value: change.initialValue, easing: { curve: 'linear' as const } },
-                            ]).map((keyframe) => ({ ...keyframe, id: newPersonalContentId() })),
-                          })
-                        : change.kind === 'update-keyframe'
-                          ? updateShowPropertyKeyframe(legacyShow, composition, owner.sceneId, change.trackId, change.keyframeId, change.changes)
-                          : change.kind === 'add-keyframe'
-                            ? addShowPropertyKeyframe(legacyShow, composition, owner.sceneId, change.trackId, {
-                                ...change.keyframe,
-                                id: newPersonalContentId(),
-                              })
-                            : change.kind === 'delete-keyframe'
-                              ? deleteShowPropertyKeyframe(composition, owner.sceneId, change.trackId, change.keyframeId)
-                              : deleteShowPropertyTrack(composition, owner.sceneId, change.trackId)
-                    }
-                    if (next === composition) return false
-                    updateShowInBackground(legacyShow.id, { ...legacyShow, composition: next, updatedAt: Date.now() })
-                    return true
-                  }}
-                  onUpdateGroupClipInspector={commitGroupClipInspectorPatch}
-                  onPreviewClipInspector={previewClipInspectorPatch}
-                  onPreviewGroupClipInspector={previewGroupClipInspectorPatch}
                   onPreviewEnd={endInspectorPreview}
-                  onMakeCompositionPatternIndependent={(owner) => {
-                    if (!legacyShow || !timelineComposition) return
-                    const timelineOwner = showTimelineOwnerForInspector(owner)
-                    if (!timelineOwner) return
-                    const composition = makeShowClipPatternIndependent(timelineComposition, {
-                      owner: timelineOwner,
-                      newInstanceId: newPersonalContentId(),
-                    })
-                    if (composition === timelineComposition) return
-                    updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
-                  }}
-                  onRejoinCompositionPattern={(owner, targetInstanceId) => {
-                    if (!legacyShow || !timelineComposition) return
-                    const timelineOwner = showTimelineOwnerForInspector(owner)
-                    if (!timelineOwner) return
-                    const composition = rejoinShowClipPatternInstance(timelineComposition, {
-                      owner: timelineOwner,
-                      targetInstanceId,
-                    })
-                    if (composition === timelineComposition) return
-                    updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
-                  }}
                   onMakePatternIndependentV2={(clipId) => {
                     // Independence and rejoin reach the v2 clip-sharing door;
                     // an unchanged or refused plan writes nothing, as v1
@@ -4498,183 +4246,46 @@ export function ShowEditor({
                     if (plan.status !== 'ready') return
                     void commitV2ClipSharing({ ...gesture, intent: plan.intent }).catch(() => {})
                   }}
-                  onRemoveCompositionClip={(owner) => {
-                    if (recordVersion === 2) {
-                      const timelineOwner = showTimelineOwnerForInspector(owner)
-                      if (!timelineOwner) return
-                      requestDeleteClipV2(timelineOwner.placementId, false)
-                      return
-                    }
-                    if (!legacyShow || !timelineComposition) return
-                    const timelineOwner = showTimelineOwnerForInspector(owner)
-                    if (!timelineOwner) return
-                    requestDeleteClip(
-                      { kind: 'clip', clipId: timelineOwner.placementId },
-                      timelineComposition,
-                      timelineOwner,
-                    )
-                  }}
-                  onDuplicateGroup={(occurrenceId) => {
-                    if (!legacyShow?.composition) return
-                    const occurrence = legacyShow.composition.groupOccurrences?.find((candidate) => candidate.id === occurrenceId)
-                    const definition = legacyShow.composition.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
-                    if (!occurrence || !definition) return
-                    const durationMs = Math.max(0, ...definition.placements.map((placement) => placement.startMs + placement.durationMs))
-                    const newOccurrenceId = newPersonalContentId()
-                    const composition = duplicateShowGroupOccurrence(legacyShow.composition, {
-                      occurrenceId,
-                      newOccurrenceId,
-                      startMs: occurrence.startMs + durationMs,
-                    })
-                    if (validateShowGroups(legacyShow, composition).length > 0) return
-                    updateShow(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
-                      .then(() => selectTimeline({ kind: 'group', occurrenceId: newOccurrenceId }))
-                      .catch(() => {})
-                  }}
-                  onMakeGroupUnique={(occurrenceId) => {
-                    if (!legacyShow?.composition) return
-                    const composition = makeShowGroupOccurrenceUnique(legacyShow.composition, {
-                      occurrenceId,
-                      newDefinitionId: newPersonalContentId(),
-                    })
-                    if (composition === legacyShow.composition) return
-                    updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
-                  }}
-                  onTranslateGroup={(occurrenceId, translationX, translationY) => {
-                    if (!legacyShow?.composition) return
-                    const composition = translateShowGroupOccurrence(legacyShow.composition, { occurrenceId, translationX, translationY })
-                    if (composition === legacyShow.composition) return
-                    updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
-                  }}
-                  onUpdateGroupPlacement={(occurrenceId, patch) => {
-                    if (!legacyShow?.composition) return
-                    const composition = updateShowGroupOccurrencePlacement(legacyShow.composition, { occurrenceId, ...patch })
-                    if (composition === legacyShow.composition || validateShowGroups(legacyShow, composition).length > 0) return
-                    updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
-                  }}
                   onDeleteGroup={(occurrenceId) => {
                     requestDeleteSelection({ kind: 'group', occurrenceId })
                   }}
-                  onUngroup={(occurrenceId) => {
-                    if (!legacyShow?.composition) return
-                    const composition = ungroupShowGroupOccurrence(legacyShow.composition, occurrenceId)
-                    if (composition === legacyShow.composition) return
-                    closeDetailPanel()
-                    closePinnedDetailForSelection({ kind: 'group', occurrenceId })
-                    updateShowInBackground(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() })
-                  }}
                   onV2GroupOccurrenceRequest={requestV2GroupOccurrenceEdit}
                   onUpdateGroupClipPatternV2={commitV2GroupClipPattern}
-                  onUpdateControlTarget={(cell, exportName, value) => {
-                    if (!legacyShow) return
-                    void updateCellControlTarget(legacyShow.id, cell.id, exportName, value)
-                  }}
-                  onUpdateRestartOnEntry={(cell, restartOnEntry) => {
-                    if (!legacyShow) return
-                    void updateCellRestartOnEntry(legacyShow.id, cell.id, restartOnEntry)
-                  }}
-                  onSpanZones={(cell, zoneSpan) => {
-                    if (!legacyShow) return
-                    void spanCellZones(legacyShow.id, cell.id, zoneSpan)
-                  }}
-                  onUpdateCellZoneMode={(cell, zoneMode) => {
-                    if (!legacyShow) return
-                    void updateCellZoneMode(legacyShow.id, cell.id, zoneMode)
-                  }}
-                  onUpdateBoundaryTransition={(transitionId, changes) => {
-                    if (!legacyShow) return
-                    void updateBoundaryTransition(legacyShow.id, transitionId, changes)
-                  }}
                   onOpenTransitions={(transitionId) => {
                     transitionPaletteReturnMsRef.current = useShowTransportStore.getState().positionMs
                     transitionPaletteCandidateRef.current = null
                     transitionPaletteCandidateV2Ref.current = null
                     setTransitionPaletteId(transitionId)
                   }}
-                  onRemoveBoundaryTransition={(transitionId) => {
-                    if (!legacyShow) return
-                    closeDetailPanel()
-                    closePinnedDetailForSelection({ kind: 'transition', transitionId })
-                    void removeBoundaryTransition(legacyShow.id, transitionId)
-                  }}
-                  onAddZone={() => {
-                    if (recordVersion === 2) {
-                      timelineWorkspaceRef.current?.focus()
-                      commitV2ZonePlan((record) => planShowV2ZoneAdd(record))
-                      return
-                    }
-                    if (!legacyShow) return
-                    timelineWorkspaceRef.current?.focus()
-                    void addZone(legacyShow.id)
-                  }}
                   onUpdateZone={(zoneId, changes) => {
-                    if (recordVersion === 2) {
-                      commitV2ZonePlan((record) => planShowV2ZoneUpdate(record, zoneId, changes))
-                      return
-                    }
-                    if (!legacyShow) return
-                    void updateZone(legacyShow.id, zoneId, changes)
+                    commitV2ZonePlan((record) => planShowV2ZoneUpdate(record, zoneId, changes))
                   }}
                   onRemoveZone={(zoneId) => {
-                    if (recordVersion === 2) {
-                      closeDetailPanel()
-                      closePinnedDetailForSelection({ kind: 'zone', zoneId })
-                      commitV2ZonePlan((record) => planShowV2ZoneRemove(record, zoneId))
-                      return
-                    }
-                    if (!legacyShow) return
                     closeDetailPanel()
                     closePinnedDetailForSelection({ kind: 'zone', zoneId })
-                    void removeZone(legacyShow.id, zoneId)
+                    commitV2ZonePlan((record) => planShowV2ZoneRemove(record, zoneId))
                   }}
                   onAddRoutingLayout={(sourceLayoutId) => {
-                    if (recordVersion === 2) {
-                      commitV2ZonePlan((record) => planShowV2LayoutDuplicate(record, sourceLayoutId ?? ''))
-                      return
-                    }
-                    if (!legacyShow) return
-                    void addRoutingLayout(legacyShow.id, sourceLayoutId)
+                    commitV2ZonePlan((record) => planShowV2LayoutDuplicate(record, sourceLayoutId ?? ''))
                   }}
                   onUpdateRoutingLayout={(layoutId, changes) => {
-                    if (recordVersion === 2) {
-                      commitV2ZonePlan((record) => planShowV2LayoutUpdate(record, layoutId, changes))
-                      return
-                    }
-                    if (!legacyShow) return
-                    void updateRoutingLayout(legacyShow.id, layoutId, changes)
+                    commitV2ZonePlan((record) => planShowV2LayoutUpdate(record, layoutId, changes))
                   }}
                   onRemoveRoutingLayout={(layoutId) => {
-                    if (recordVersion === 2) {
-                      commitV2ZonePlan((record) => planShowV2LayoutRemove(record, layoutId))
-                      return
-                    }
-                    if (!legacyShow) return
-                    void removeRoutingLayout(legacyShow.id, layoutId)
+                    commitV2ZonePlan((record) => planShowV2LayoutRemove(record, layoutId))
                   }}
                   onMakeLayoutIntervalUnique={(intervalId) => {
-                    if (recordVersion === 2) {
-                      if (!savedShowV2 || readOnly) return
-                      const capture = preparedV2CaptureRef.current
-                      if (!capture || capture.prepared.status === 'refused') return
-                      const name = showV2MakeUniqueLayoutName(capture.record, intervalId)
-                      if (name === null) return
-                      const plan = planShowV2LayoutEdit(capture.record, { kind: 'make-unique', occurrenceId: intervalId, name }, newPersonalContentId)
-                      if (plan.status !== 'ready' || plan.intent.kind !== 'make-unique') return
-                      const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
-                      const layoutId = plan.intent.layoutId
-                      void commitV2LayoutOccurrenceEdit({ capture, baseRevision, intent: plan.intent }).then((applied) => {
-                        if (applied) selectTimeline({ kind: 'zone-layout', layoutId, intervalId })
-                      }).catch(() => {})
-                      return
-                    }
-                    if (!legacyShow || !timelineComposition) return
-                    const basis = { ...legacyShow, composition: timelineComposition }
-                    const next = makeShowLayoutIntervalUnique(basis, intervalId)
-                    if (next === basis) return
-                    updateShow(legacyShow.id, next).then(() => {
-                      // Follow the selection onto the unlinked copy.
-                      const interval = projectShowLayoutIntervals(next).find((candidate) => candidate.id === intervalId)
-                      if (interval) selectTimeline({ kind: 'zone-layout', layoutId: interval.layoutId, intervalId })
+                    if (!savedShowV2 || readOnly) return
+                    const capture = preparedV2CaptureRef.current
+                    if (!capture || capture.prepared.status === 'refused') return
+                    const name = showV2MakeUniqueLayoutName(capture.record, intervalId)
+                    if (name === null) return
+                    const plan = planShowV2LayoutEdit(capture.record, { kind: 'make-unique', occurrenceId: intervalId, name }, newPersonalContentId)
+                    if (plan.status !== 'ready' || plan.intent.kind !== 'make-unique') return
+                    const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
+                    const layoutId = plan.intent.layoutId
+                    void commitV2LayoutOccurrenceEdit({ capture, baseRevision, intent: plan.intent }).then((applied) => {
+                      if (applied) selectTimeline({ kind: 'zone-layout', layoutId, intervalId })
                     }).catch(() => {})
                   }}
                   />
@@ -10034,21 +9645,15 @@ export function InspectorPanel({
 }
 
 function ContextualInspector({
-  show,
-  compositionShow,
   recordV2,
   replacementCaptureV2,
   preparedCaptureV2,
   boundaryTransitionsV2,
   panelKey,
   selection,
-  selectedClip,
-  selectedCompositionClipOwner,
-  selectedGroupClipOwner,
   transformEnabled,
   stageDimensions,
   patternOptions,
-  patternControlsByCellId,
   patternControlsByInstanceId,
   compiledOutputEffects,
   controllerProfiles,
@@ -10059,9 +9664,6 @@ function ContextualInspector({
   onUpdatePortableReference,
   onUpdateOutputTrails,
   onPatternCommit,
-  onRemoveClip,
-  onUpdateAdaptations,
-  onUpdateClipInspector,
   onUpdateClipInspectorV2,
   onUpdateBoundaryTransitionV2,
   onRemoveBoundaryTransitionV2,
@@ -10069,32 +9671,14 @@ function ContextualInspector({
   onRemoveRoutingTransferV2,
   onPropertyAnimationChangeV2,
   onGroupPropertyAnimationChangeV2,
-  onPropertyAnimationChange,
-  onUpdateGroupClipInspector,
-  onPreviewClipInspector,
-  onPreviewGroupClipInspector,
   onPreviewEnd,
-  onMakeCompositionPatternIndependent,
-  onRejoinCompositionPattern,
   onMakePatternIndependentV2,
   onRejoinPatternV2,
-  onRemoveCompositionClip,
   onRemoveClipV2,
-  onDuplicateGroup,
-  onMakeGroupUnique,
-  onTranslateGroup,
-  onUpdateGroupPlacement,
   onDeleteGroup,
-  onUngroup,
   onV2GroupOccurrenceRequest,
   onUpdateGroupClipPatternV2,
-  onUpdateControlTarget,
-  onUpdateRestartOnEntry,
-  onSpanZones,
-  onUpdateCellZoneMode,
-  onUpdateBoundaryTransition,
   onOpenTransitions,
-  onRemoveBoundaryTransition,
   onUpdateZone,
   onRemoveZone,
   onAddRoutingLayout,
@@ -10102,25 +9686,15 @@ function ContextualInspector({
   onRemoveRoutingLayout,
   onMakeLayoutIntervalUnique,
 }: {
-  // One inspector, read through whichever record backs the editor (#1065). The
-  // v1 record stays inside the v1 branches; the v2 backing supplies its own
-  // presented values through the same entity detail components.
-  show: ShowRecord | null
-  compositionShow: ShowRecord | null
   recordV2: ShowRecordV2 | null
   replacementCaptureV2: ShowV2PilotPreparedCapture | null
   preparedCaptureV2?: ShowPreparedStageEditCaptureV2 | null
-  /** The boundary family v1's Transition inspector owns, projected by the root. */
   boundaryTransitionsV2: Record<string, ShowBoundaryTransitionInspectorValue> | null
   panelKey: string
   selection: ShowSelection
-  selectedClip: ShowCell | null
-  selectedCompositionClipOwner: ShowClipInspectorOwner | null
-  selectedGroupClipOwner: ShowGroupClipOwner | null
   transformEnabled: boolean
   stageDimensions: 1 | 2 | 3
   patternOptions: ShowPatternOption[]
-  patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
   compiledOutputEffects?: import('@/engine/showCompiler').ShowCompileSummary['outputEffects']
   controllerProfiles: ControllerProfile[]
@@ -10131,9 +9705,6 @@ function ContextualInspector({
   onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
   onUpdateOutputTrails: (input: SetShowOutputTrailsInput) => void
   onPatternCommit: () => void
-  onRemoveClip: (clip: ShowCell) => void
-  onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
-  onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onUpdateClipInspectorV2?: (clipId: string, patch: ShowClipInspectorPatch) => EditRefusalResult<boolean | void>
   onUpdateBoundaryTransitionV2?: (transitionId: string, changes: ShowTransitionChanges) => EditRefusalResult<boolean | void>
   onRemoveBoundaryTransitionV2?: (transitionId: string) => void
@@ -10141,40 +9712,18 @@ function ContextualInspector({
   onRemoveRoutingTransferV2?: (occurrenceId: string) => void
   onPropertyAnimationChangeV2?: (clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange) => boolean
   onGroupPropertyAnimationChangeV2?: (occurrenceId: string, clipId: string, change: ShowPropertyAnimationChange) => boolean
-  onPropertyAnimationChange: (owner: ShowPropertyAnimationStorageOwner, change: ShowPropertyAnimationChange) => boolean | void
-  onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
-  onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
-  onPreviewGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => void
   onPreviewEnd: () => void
-  onMakeCompositionPatternIndependent: (owner: ShowClipInspectorOwner) => void
-  onRejoinCompositionPattern: (owner: ShowClipInspectorOwner, targetInstanceId: string) => void
   onMakePatternIndependentV2?: (clipId: string) => void
   onRejoinPatternV2?: (clipId: string, targetInstanceId: string) => void
-  onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
   onRemoveClipV2?: (clipId: string) => void
+  onDeleteGroup: (occurrenceId: string) => void
   onV2GroupOccurrenceRequest?: (request: ShowV2GroupOccurrenceRequest) => EditRefusalResult<boolean | void>
   onUpdateGroupClipPatternV2?: (occurrenceId: string, clipId: string, ref: ShowPatternRef) => EditRefusalResult<boolean | void>
-  onDuplicateGroup: (occurrenceId: string) => void
-  onMakeGroupUnique: (occurrenceId: string) => void
-  onTranslateGroup: (occurrenceId: string, translationX: number, translationY: number) => void
-  onUpdateGroupPlacement: (occurrenceId: string, patch: { startMs?: number; baseLayer?: number }) => void
-  onDeleteGroup: (occurrenceId: string) => void
-  onUngroup: (occurrenceId: string) => void
-  onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
-  onUpdateRestartOnEntry: (cell: ShowCell, restartOnEntry: boolean) => void
-  onSpanZones: (cell: ShowCell, zoneSpan: number) => void
-  onUpdateCellZoneMode: (cell: ShowCell, zoneMode: NonNullable<ShowCell['zoneMode']>) => void
-  onUpdateBoundaryTransition: (
-    transitionId: string,
-    changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>,
-  ) => void
   onOpenTransitions: (transitionId: string) => void
-  onRemoveBoundaryTransition: (transitionId: string) => void
-  onAddZone: () => void
-  onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
+  onUpdateZone: (zoneId: string, changes: Partial<ShowRecordV2['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
   onAddRoutingLayout: (sourceLayoutId?: string) => void
-  onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
+  onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRecordV2['zoneLayouts'][number], 'id'>>) => void
   onRemoveRoutingLayout: (layoutId: string) => void
   onMakeLayoutIntervalUnique: (intervalId: string) => void
 }) {
@@ -10191,39 +9740,11 @@ function ContextualInspector({
   const routingTransfersV2 = useMemo(() => (
     recordV2 ? projectShowEditorRoutingTransfersV2(recordV2) : null
   ), [recordV2])
-  const canRemoveClip = show ? showRecordClipCount(show) > 1 : false
   // The button asks the delete owner's count, so a spanning Clip's parts count once (§10, #1111-E).
-  const canRemoveClipV2 = recordV2 ? showV2ClipCount(recordV2) > 1 : false
-  const compositionTimelineClips = compositionShow?.composition
-    ? projectShowUnifiedTimeline(compositionShow, compositionShow.composition).zones.flatMap((zone) => (
-        zone.layers.flatMap((layer) => layer.clips)
-      ))
-    : []
-  const compositionClipSummary = (
-    clipId: string,
-    patternControls: AutomatablePatternControl[],
-  ): ShowClipSummarySection[] => {
-    const clip = compositionTimelineClips.find((candidate) => candidate.id === clipId)
-    if (!show || !compositionShow?.composition || !clip) return []
-    if (!show.composition) {
-      const compatibilityCell = compatibilityCellForTimelineClip(show, clip)
-      if (!compatibilityCell) return []
-      const compatibilityControls = patternControlsByCellId[compatibilityCell.id] ?? []
-      return projectGlobalShowClipSummary(
-        show,
-        compatibilityCell.id,
-        Object.fromEntries(compatibilityControls.map((control) => [control.exportName, control.label])),
-      )
-    }
-    return projectCompositionShowClipSummary(
-      compositionShow.composition,
-      clip,
-      Object.fromEntries(patternControls.map((control) => [control.exportName, control.label])),
-    )
-  }
-  // Authored-v2 Clip detail. The same entity detail component the v1 branches
-  // use, given presented values read from the authored record (#1065).
-  if (presentationV2 && (selection.kind === 'clip' || selection.kind === 'group-clip')) {
+  if (!recordV2 || !presentationV2) return null
+  const canRemoveClipV2 = showV2ClipCount(recordV2) > 1
+  // Authored-v2 Clip detail uses the same entity detail component.
+  if (selection.kind === 'clip' || selection.kind === 'group-clip') {
     const presented = selection.kind === 'clip'
       ? presentationV2.clipsById[selection.clipId]
       : presentationV2.groupsByOccurrenceId[selection.occurrenceId]?.clipsById[selection.placementId]
@@ -10240,7 +9761,7 @@ function ContextualInspector({
           replacementTarget={selection.kind === 'clip'
             ? { kind: 'clip', clipId: selection.clipId }
             : (() => {
-                const definitionId = recordV2?.composition.groupOccurrences.find(occurrence => occurrence.id === selection.occurrenceId)?.definitionId
+                const definitionId = recordV2.composition.groupOccurrences.find(occurrence => occurrence.id === selection.occurrenceId)?.definitionId
                 return definitionId ? { kind: 'group' as const, definitionId, clipId: selection.placementId } : undefined
               })()}
           preparedCaptureV2={preparedCaptureV2}
@@ -10260,9 +9781,7 @@ function ContextualInspector({
           )}
           transformEnabled={transformEnabled}
           stageDimensions={stageDimensions}
-          instanceOwnership={recordV2
-            ? projectShowEditorClipInstanceOwnershipV2(recordV2, presented.value.effectiveInstanceId)
-            : null}
+          instanceOwnership={projectShowEditorClipInstanceOwnershipV2(recordV2, presented.value.effectiveInstanceId)}
           propertyAnimationContext={{
             tracks: presented.animation.tracks.map((track) => track.editor),
             trackIssues: {},
@@ -10333,7 +9852,6 @@ function ContextualInspector({
               if (selection.kind !== 'group-clip') return false
               return onGroupPropertyAnimationChangeV2?.(selection.occurrenceId, selection.placementId, change) ?? false
             }}
-          onPreviewPatch={() => {}}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
           // A Group Clip use reports its shared runtime without offering a
@@ -10360,47 +9878,7 @@ function ContextualInspector({
     }
   }
 
-  if (compositionShow && selection.kind === 'group-clip' && selectedGroupClipOwner) {
-    const value = projectShowGroupClipInspector(compositionShow, selectedGroupClipOwner)
-    if (value) {
-      const propertyAnimationContext = projectShowPropertyAnimationEditorContext(
-        compositionShow,
-        value,
-        selectedGroupClipOwner,
-      )
-      const patternControls = value.instanceId
-        ? patternControlsByInstanceId[`${selectedGroupClipOwner.occurrenceId}:${value.instanceId}`] ?? []
-        : []
-      return (
-        <CompositionClipInspector
-          key={`group-clip:${selectedGroupClipOwner.occurrenceId}:${selectedGroupClipOwner.placementId}`}
-          value={value}
-          panelKey={panelKey}
-          patternOptions={patternOptions}
-          patternControls={patternControls}
-          summary={compositionClipSummary(
-            `${selectedGroupClipOwner.occurrenceId}:${selectedGroupClipOwner.placementId}`,
-            patternControls,
-          )}
-          transformEnabled={transformEnabled}
-          stageDimensions={stageDimensions}
-          instanceOwnership={null}
-          propertyAnimationContext={propertyAnimationContext}
-          onPropertyAnimationChange={propertyAnimationContext
-            ? (change) => onPropertyAnimationChange(propertyAnimationContext.storageOwner, change)
-            : undefined}
-          onPatch={(patch) => onUpdateGroupClipInspector(selectedGroupClipOwner, patch)}
-          onPreviewPatch={(patch) => onPreviewGroupClipInspector(selectedGroupClipOwner, patch)}
-          onPreviewEnd={onPreviewEnd}
-          onPatternCommit={onPatternCommit}
-          onMakePatternIndependent={() => {}}
-          onRejoinPattern={() => {}}
-        />
-      )
-    }
-  }
-
-  if (presentationV2 && selection.kind === 'group') {
+  if (selection.kind === 'group') {
     const group = presentationV2.groupsByOccurrenceId[selection.occurrenceId]
     if (group) {
       return (
@@ -10418,7 +9896,7 @@ function ContextualInspector({
           linkedOccurrenceCount={group.linkedOccurrenceCount}
           // The Base Layer field stops where the Place rebinding below still
           // finds a Zone Layer for every definition Layer (#1098).
-          baseLayerMax={recordV2 ? showV2GroupBaseLayerMax(recordV2, selection.occurrenceId) ?? undefined : undefined}
+          baseLayerMax={showV2GroupBaseLayerMax(recordV2, selection.occurrenceId) ?? undefined}
           // Translate, Place and Delete reach the v2 occurrence owners through the same door as Duplicate (#1075 G1).
           // Every refusal, including each early return below, names a
           // reason in the panel (#1098).
@@ -10494,114 +9972,7 @@ function ContextualInspector({
     }
   }
 
-  if (show && selection.kind === 'group') {
-    const occurrence = show.composition?.groupOccurrences?.find((candidate) => candidate.id === selection.occurrenceId)
-    const definition = show.composition?.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
-    if (occurrence && definition) {
-      const linkedOccurrenceCount = show.composition?.groupOccurrences
-        ?.filter((candidate) => candidate.definitionId === definition.id).length ?? 1
-      return (
-        <GroupInspector
-          value={{
-            name: definition.name,
-            clipCount: definition.placements.length,
-            layerCount: new Set(definition.placements.map((placement) => placement.layerOffset)).size,
-            startMs: occurrence.startMs,
-            baseLayer: occurrence.baseLayer,
-            translationX: occurrence.translationX,
-            translationY: occurrence.translationY,
-          }}
-          linkedOccurrenceCount={linkedOccurrenceCount}
-          onDuplicate={() => onDuplicateGroup(occurrence.id)}
-          onMakeUnique={() => onMakeGroupUnique(occurrence.id)}
-          onTranslate={(translationX, translationY) => onTranslateGroup(occurrence.id, translationX, translationY)}
-          onPlace={(patch) => onUpdateGroupPlacement(occurrence.id, patch)}
-          onDelete={() => onDeleteGroup(occurrence.id)}
-          onUngroup={() => onUngroup(occurrence.id)}
-        />
-      )
-    }
-  }
-
-  if (compositionShow && selection.kind === 'clip' && selectedCompositionClipOwner) {
-    const value = projectShowClipInspector(compositionShow, selectedCompositionClipOwner)
-    const timelineOwner = showTimelineOwnerForInspector(selectedCompositionClipOwner)
-    const instanceOwnership = compositionShow.composition && timelineOwner
-      ? projectShowClipPatternInstanceOwnership(compositionShow.composition, timelineOwner)
-      : null
-    if (value && selectedCompositionClipOwner.kind !== 'global') {
-      const propertyAnimationContext = projectShowPropertyAnimationEditorContext(compositionShow, value)
-      const patternControls = value.instanceId ? patternControlsByInstanceId[value.instanceId] ?? [] : []
-      return (
-        <CompositionClipInspector
-          key={`clip:${selection.clipId}`}
-          value={value}
-          panelKey={panelKey}
-          patternOptions={patternOptions}
-          patternControls={patternControls}
-          summary={compositionClipSummary(selection.clipId, patternControls)}
-          transformEnabled={transformEnabled}
-          stageDimensions={stageDimensions}
-          instanceOwnership={instanceOwnership}
-          propertyAnimationContext={propertyAnimationContext}
-          onPatch={(patch) => onUpdateClipInspector(selectedCompositionClipOwner, patch)}
-          onPropertyAnimationChange={propertyAnimationContext
-            ? (change) => onPropertyAnimationChange(propertyAnimationContext.storageOwner, change)
-            : undefined}
-          onPreviewPatch={(patch) => onPreviewClipInspector(selectedCompositionClipOwner, patch)}
-          onPreviewEnd={onPreviewEnd}
-          onPatternCommit={onPatternCommit}
-          onMakePatternIndependent={() => onMakeCompositionPatternIndependent(selectedCompositionClipOwner)}
-          onRejoinPattern={(targetInstanceId) => onRejoinCompositionPattern(selectedCompositionClipOwner, targetInstanceId)}
-          canRemove={canRemoveClip}
-          onRemove={() => onRemoveCompositionClip(selectedCompositionClipOwner)}
-        />
-      )
-    }
-  }
-
-  if (show && selection.kind === 'clip' && selectedClip) {
-    return (
-      <ClipInspector
-        panelKey={panelKey}
-        key={selectedClip.id}
-        show={show}
-        clip={selectedClip}
-        patternOptions={patternOptions}
-        patternControls={patternControlsByCellId[selectedClip.id] ?? []}
-        transformEnabled={transformEnabled}
-        stageDimensions={stageDimensions}
-        canRemove={canRemoveClip}
-        onUpdateClip={(patch) => onUpdateClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
-        onPreviewClip={(patch) => onPreviewClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
-        onPreviewEnd={onPreviewEnd}
-        onPatternCommit={onPatternCommit}
-        onRemove={() => onRemoveClip(selectedClip)}
-        onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedClip, changes)}
-        onUpdateRestartOnEntry={(restartOnEntry) => onUpdateRestartOnEntry(selectedClip, restartOnEntry)}
-        onSpanZones={(zoneSpan) => onSpanZones(selectedClip, zoneSpan)}
-        onUpdateZoneMode={(zoneMode) => onUpdateCellZoneMode(selectedClip, zoneMode)}
-      />
-    )
-  }
-
-  if (show && selection.kind === 'transition') {
-    return (
-      <TransitionInspector
-        show={show}
-        transitionId={selection.transitionId}
-        stageDimensions={stageDimensions}
-        onUpdate={onUpdateBoundaryTransition}
-        onOpenPalette={() => onOpenTransitions(selection.transitionId)}
-        onRemove={onRemoveBoundaryTransition}
-        onUpdateCellAdaptations={onUpdateAdaptations}
-        patternControlsByCellId={patternControlsByCellId}
-        onUpdateControlTarget={onUpdateControlTarget}
-      />
-    )
-  }
-
-  if (presentationV2 && selection.kind === 'zone') {
+  if (selection.kind === 'zone') {
     const presentedZone = presentationV2.zonesById[selection.zoneId]
     if (presentedZone) {
       return (
@@ -10625,28 +9996,7 @@ function ContextualInspector({
     }
   }
 
-  if (show && selection.kind === 'zone') {
-    const zone = show.zones.find((candidate) => candidate.id === selection.zoneId)
-    if (zone) {
-      const authored = resolveShowZonePixelCount(show, zone.id)
-      return (
-        <ZoneInspector
-          context={{
-            outputContract: show.outputContract,
-            zoneCount: show.zones.length,
-            binding: authored ? { source: authored.source, pixelCount: authored.pixelCount } : null,
-          }}
-          zone={zone}
-          spatialSelectionUnavailableReason={spatialSelectionUnavailableReason}
-          onOpenSpatialSelection={() => onOpenSpatialSelection(zone.id)}
-          onUpdateZone={(changes) => onUpdateZone(zone.id, changes)}
-          onRemoveZone={() => onRemoveZone(zone.id)}
-        />
-      )
-    }
-  }
-
-  if (presentationV2 && selection.kind === 'zone-layout') {
+  if (selection.kind === 'zone-layout') {
     const presentedLayout = presentationV2.zoneLayoutsById[selection.layoutId]
     if (presentedLayout) {
       return (
@@ -10676,29 +10026,7 @@ function ContextualInspector({
     }
   }
 
-  if (show && selection.kind === 'zone-layout') {
-    const layout = show.routingLayouts.find((candidate) => candidate.id === selection.layoutId)
-    if (layout) {
-      return (
-        <ZoneLayoutInspector
-          context={{
-            outputContract: show.outputContract,
-            zones: show.zones,
-            layoutCount: show.routingLayouts.length,
-          }}
-          layout={layout}
-          intervals={projectShowLayoutIntervals(show)}
-          selectedIntervalId={selection.intervalId}
-          onAddRoutingLayout={onAddRoutingLayout}
-          onUpdateRoutingLayout={onUpdateRoutingLayout}
-          onRemoveRoutingLayout={onRemoveRoutingLayout}
-          onMakeIntervalUnique={onMakeLayoutIntervalUnique}
-        />
-      )
-    }
-  }
-
-  if (presentationV2 && selection.kind === 'transition') {
+  if (selection.kind === 'transition') {
     // A Layout occurrence's incoming transfer IS v1's routing Transition: same
     // destination Layout, duration, easing and direction, and the same panel.
     const transfer = routingTransfersV2?.[selection.transitionId]
@@ -10758,9 +10086,8 @@ function ContextualInspector({
 
   // A v2 Transition the two surfaces above do not claim draws nothing rather
   // than falling through to the Show panel (#1065).
-  if (presentationV2) {
-    if (selection.kind === 'transition') return null
-    return (
+  if (selection.kind === 'transition') return null
+  return (
       <ShowSetupInspector
         value={{
           name: presentationV2.show.name,
@@ -10783,51 +10110,7 @@ function ContextualInspector({
         onUpdateOutputTrails={onUpdateOutputTrails}
         compiledOutputEffects={compiledOutputEffects}
       />
-    )
-  }
-  if (!show) return null
-  return (
-    <ShowSetupInspector
-      value={{
-        name: show.name,
-        zoneCount: show.zones.length,
-        nominalPixelCount: show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0),
-        outputContract: show.outputContract,
-        stageMapId: show.stageMapId,
-        targetControllerProfileId: show.targetControllerProfileId,
-        outputEffects: show.outputEffects,
-        loopDurationMs: showLoopDurationMs(show),
-        installationCoverage: validateInstallationCoverage(show),
-      }}
-      controllerProfiles={controllerProfiles}
-      userMaps={userMaps}
-      onUpdateTargetProfile={onUpdateTargetProfile}
-      onUpdatePortableReference={onUpdatePortableReference}
-      onUpdateOutputTrails={onUpdateOutputTrails}
-      compiledOutputEffects={compiledOutputEffects}
-    />
   )
-}
-
-function showTimelineOwnerForInspector(owner: ShowClipInspectorOwner): ShowTimelineClipOwner | null {
-  if (owner.kind === 'scene-main') {
-    return {
-      kind: 'main',
-      sceneId: owner.sceneId,
-      zoneId: owner.zoneId,
-      placementId: owner.placementId,
-    }
-  }
-  if (owner.kind === 'scene-overlay') {
-    return {
-      kind: 'overlay',
-      sceneId: owner.sceneId,
-      zoneId: owner.zoneId,
-      layerId: owner.layerId,
-      placementId: owner.placementId,
-    }
-  }
-  return null
 }
 
 function availableClipSummaryDestination(
@@ -10966,7 +10249,6 @@ function CompositionClipInspector({
   onPatch,
   propertyAnimationContext,
   onPropertyAnimationChange,
-  onPreviewPatch,
   onPreviewEnd,
   onPatternCommit,
   onMakePatternIndependent,
@@ -10974,7 +10256,7 @@ function CompositionClipInspector({
   canRemove = true,
   onRemove,
 }: {
-  value: NonNullable<ReturnType<typeof projectShowClipInspector>> | ShowEditorClipValueV2
+  value: ShowEditorClipValueV2
   panelKey: string
   patternOptions: ShowPatternOption[]
   replacementCapture?: ShowV2PilotPreparedCapture | null
@@ -10983,12 +10265,11 @@ function CompositionClipInspector({
   summary: ShowClipSummarySection[]
   transformEnabled: boolean
   stageDimensions: 1 | 2 | 3
-  instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
+  instanceOwnership: ReturnType<typeof projectShowEditorClipInstanceOwnershipV2>
   preparedCaptureV2?: ShowPreparedStageEditCaptureV2 | null
   onPatch: (patch: ShowClipInspectorPatch) => EditRefusalResult<boolean | void>
-  propertyAnimationContext?: Omit<ShowPropertyAnimationEditorContext, 'storageOwner'> | ShowPropertyAnimationEditorContext | null
+  propertyAnimationContext?: Omit<ShowPropertyAnimationEditorContext, 'storageOwner'> | null
   onPropertyAnimationChange?: (change: ShowPropertyAnimationChange) => boolean | void
-  onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
   onPreviewEnd?: () => void
   onPatternCommit: () => void
   onMakePatternIndependent: () => void
@@ -11107,7 +10388,6 @@ function CompositionClipInspector({
         ) : undefined}
         embedded
         onPatch={onPatch}
-        onPreviewPatch={onPreviewPatch}
         onPreviewEnd={onPreviewEnd}
         onPatternCommit={onPatternCommit}
         animationOverviewOpen={animationOverviewOpen}
@@ -11139,458 +10419,6 @@ function CompositionClipInspector({
   )
 }
 
-function ClipInspector({
-  show,
-  panelKey,
-  clip,
-  patternOptions,
-  patternControls,
-  transformEnabled,
-  stageDimensions,
-  canRemove,
-  onUpdateClip,
-  onPreviewClip,
-  onPreviewEnd,
-  onPatternCommit,
-  onRemove,
-  onUpdateAdaptations,
-  onUpdateRestartOnEntry,
-  onSpanZones,
-  onUpdateZoneMode,
-}: {
-  show: ShowRecord
-  panelKey: string
-  clip: ShowCell
-  patternOptions: ShowPatternOption[]
-  patternControls: AutomatablePatternControl[]
-  transformEnabled: boolean
-  stageDimensions: 1 | 2 | 3
-  canRemove: boolean
-  onUpdateClip: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
-  onPreviewClip?: (patch: ShowClipInspectorPatch) => void
-  onPreviewEnd?: () => void
-  onPatternCommit: () => void
-  onRemove: () => void
-  onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
-  onUpdateRestartOnEntry: (restartOnEntry: boolean) => void
-  onSpanZones: (zoneSpan: number) => void
-  onUpdateZoneMode: (zoneMode: NonNullable<ShowCell['zoneMode']>) => void
-}) {
-  const cell = clip
-  const clipDetailRef = useRef<ShowClipEntityDetailHandle>(null)
-  const sceneIndex = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
-  const zoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
-  const maxZoneSpan = Math.max(1, show.zones.length - zoneIndex)
-  const lightShutter = cell.adaptations.lightShutter
-  const hasAdvancedOverrides = cell.adaptations.mirror
-    || cell.sceneSpan > 1
-    || (cell.zoneSpan ?? 1) > 1
-    || cell.zoneMode === 'repeat'
-    || cell.adaptations.phase !== 0
-    || Boolean(cell.restartOnEntry)
-    || cell.adaptations.steppedClock !== undefined
-    || (cell.adaptations.timeOffsetMs ?? 0) !== 0
-    || lightShutter !== undefined
-  const [advancedControlsOpen, setAdvancedControlsOpen] = useState(hasAdvancedOverrides)
-  const inspectorValue = projectShowClipInspector(show, { kind: 'global', cellId: cell.id })
-  const summary = projectGlobalShowClipSummary(
-    show,
-    cell.id,
-    Object.fromEntries(patternControls.map((control) => [control.exportName, control.label])),
-  )
-  const updateLightShutter = (changes: Partial<NonNullable<ShowCell['adaptations']['lightShutter']>>) => {
-    if (!lightShutter) return
-    onUpdateAdaptations({ lightShutter: { ...lightShutter, ...changes } })
-  }
-  return (
-    <InspectorPanel
-      family="Clip"
-      heading={cell.patternName}
-      summary={(
-        <ClipConfigurationSummary
-          summary={summary}
-          destinationForItem={(section, item) => availableClipSummaryDestination(section, item, {
-            transformEnabled,
-            patternControls,
-            stutterAvailable: false,
-            opacityAvailable: false,
-          })}
-          onNavigate={(destination) => clipDetailRef.current?.navigateToSummaryDestination(destination)}
-        />
-      )}
-      icon={<Grid2X2 size={13} aria-hidden />}
-      actions={(
-        <span className="inline-flex">
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            aria-label={`Delete clip ${cell.patternName}`}
-            title={canRemove ? `Delete ${cell.patternName}` : undefined}
-            aria-disabled={!canRemove || undefined}
-            aria-describedby={canRemove ? undefined : 'legacy-clip-delete-reason'}
-            className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300 aria-disabled:opacity-50"
-            onClick={() => { if (canRemove) onRemove() }}
-          >
-            <Trash2 size={12} aria-hidden />
-          </Button>
-          {!canRemove && (
-            <DisabledReasonTip id="legacy-clip-delete-reason">A Show must contain at least one Clip.</DisabledReasonTip>
-          )}
-        </span>
-      )}
-    >
-      {inspectorValue && (
-        <ShowClipEntityDetail
-          ref={clipDetailRef}
-          value={inspectorValue}
-          title={cell.patternName}
-          readOnly={false}
-          patternOptions={patternOptions.map((option) => ({
-            value: `${option.ref.kind}:${option.ref.id}`,
-            label: option.label,
-            group: option.group,
-          }))}
-          patternControls={patternControls}
-          transformEnabled={transformEnabled}
-          stageDimensions={stageDimensions}
-          panelKey={panelKey}
-          embedded
-          onPatch={onUpdateClip}
-          onPreviewPatch={onPreviewClip}
-          onPreviewEnd={onPreviewEnd}
-          onPatternCommit={onPatternCommit}
-        >
-          <div data-testid="global-clip-control-tray" className="mt-2">
-        <details
-          className="min-w-0 border-t border-zinc-800/80"
-          aria-label="Global placement and clock controls"
-          open={advancedControlsOpen}
-          onToggle={(event) => setAdvancedControlsOpen(event.currentTarget.open)}
-        >
-          <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Global placement and clock controls</summary>
-          <div className="border-t border-zinc-800/70 py-1 text-[9px]">
-            <div className="grid max-w-[30rem] grid-cols-2 items-end gap-1.5 sm:grid-cols-3">
-            {(cell.zoneSpan ?? 1) > 1 && (
-              <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
-                Zone domain
-                <select
-                  aria-label="Zone domain"
-                  value={cell.zoneMode === 'repeat' ? 'repeat' : 'span'}
-                  onChange={(event) => onUpdateZoneMode(event.target.value === 'repeat' ? 'repeat' : 'span')}
-                  className={`${compactField} mt-1 w-full`}
-                >
-                  <option value="span">one canvas</option>
-                  <option value="repeat">repeat per zone</option>
-                </select>
-              </label>
-            )}
-            <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
-              Span zones
-              <select
-                aria-label="Span zones"
-                value={cell.zoneSpan ?? 1}
-                onChange={(event) => onSpanZones(Number(event.target.value))}
-                className={`${compactField} mt-1 w-full`}
-              >
-                {Array.from({ length: maxZoneSpan }, (_, index) => index + 1).map((span) => (
-                  <option key={span} value={span}>{span}</option>
-                ))}
-              </select>
-            </label>
-            </div>
-            {sceneIndex > 0 && (
-              <section className="mt-1 max-w-2xl border-t border-zinc-800/65 py-1">
-                <label className="flex shrink-0 items-center gap-2 text-zinc-200">
-                <input
-                  type="checkbox"
-                  aria-label="Restart Pattern on entry"
-                  checked={Boolean(cell.restartOnEntry)}
-                  onChange={(event) => onUpdateRestartOnEntry(event.target.checked)}
-                />
-                Restart Pattern on entry
-                </label>
-              </section>
-            )}
-            <MotionCadenceControl
-              stepMs={cell.adaptations.steppedClock?.stepMs}
-              timeOffsetMs={cell.adaptations.timeOffsetMs ?? 0}
-              onChange={(stepMs) => onUpdateAdaptations({
-                steppedClock: stepMs === null ? undefined : { stepMs },
-              })}
-              onOffsetChange={(timeOffsetMs) => onUpdateAdaptations({ timeOffsetMs })}
-            />
-            <div className="mt-1 max-w-2xl border-t border-zinc-800/65 pt-1">
-              <label className="flex items-center gap-2 text-zinc-300">
-              <input
-                type="checkbox"
-                checked={Boolean(lightShutter)}
-                onChange={(event) => onUpdateAdaptations({
-                  lightShutter: event.target.checked
-                    ? { rateHz: 8, duty: 0.5, phase: 0, clockBehavior: 'continue' }
-                    : undefined,
-                })}
-              />
-              Light shutter
-              </label>
-              {lightShutter && (
-                <>
-                  <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                  <NumberField compact label="Shutter rate (Hz)" value={lightShutter.rateHz} min={0.01} max={60} step={0.1} onChange={(rateHz) => updateLightShutter({ rateHz })} />
-                  <PercentageField compact label="Light on fraction" value={lightShutter.duty} min={0} max={1} step={0.01} onChange={(duty) => updateLightShutter({ duty })} />
-                  <NumberField compact label="Shutter phase" value={lightShutter.phase} min={0} max={1} step={0.01} onChange={(phase) => updateLightShutter({ phase })} />
-                  <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
-                    Clock while dark
-                    <select
-                      aria-label="Clock while dark"
-                      value={lightShutter.clockBehavior}
-                      onChange={(event) => updateLightShutter({ clockBehavior: event.target.value === 'freeze' ? 'freeze' : 'continue' })}
-                      className={`${compactField} mt-1 w-full`}
-                    >
-                      <option value="continue">continue</option>
-                      <option value="freeze">freeze</option>
-                    </select>
-                  </label>
-                  </div>
-                  <p className="mt-1.5 text-[9px] leading-4 text-zinc-500">
-                    Closed frames emit black and skip Pattern rendering. Continue advances motion; freeze pauses Pattern time.
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        </details>
-          </div>
-        </ShowClipEntityDetail>
-      )}
-    </InspectorPanel>
-  )
-}
-
-function MotionCadenceControl({
-  stepMs,
-  timeOffsetMs,
-  onChange,
-  onOffsetChange,
-}: {
-  stepMs: number | undefined
-  timeOffsetMs: number
-  onChange: (stepMs: number | null) => void
-  onOffsetChange: (timeOffsetMs: number) => void
-}) {
-  const stepped = stepMs !== undefined
-  const rateHz = steppedClockRateHz(stepMs ?? 125)
-  return (
-    <section className="mt-1 max-w-2xl border-t border-zinc-800/65 pt-1">
-      <div
-        role="group"
-        aria-label="Motion cadence controls"
-        className="grid items-center gap-x-1.5 gap-y-0.5 sm:grid-cols-[minmax(8rem,10rem)_auto_7rem] sm:grid-rows-[auto_1.5rem]"
-      >
-        <div className="text-[9px] uppercase tracking-[0.12em] text-violet-300/85 sm:col-start-1 sm:row-start-1">
-          Motion cadence
-        </div>
-        <div className="text-[9px] uppercase tracking-[0.12em] text-zinc-600 sm:col-start-3 sm:row-start-1">
-          Start offset (s)
-        </div>
-        <div
-          className="min-w-0 truncate text-[8px] text-zinc-600 sm:col-start-1 sm:row-start-2"
-          title="Shift this clip's private Pattern clock for rounds across zones."
-        >
-          <span aria-hidden>Private Pattern clock</span>
-          <span className="sr-only">Shift this clip&apos;s private Pattern clock for rounds across zones.</span>
-        </div>
-        <div className="flex h-6 rounded border border-zinc-700 bg-zinc-950 p-0.5 text-[9px] sm:col-start-2 sm:row-start-2">
-          <button
-            type="button"
-            aria-label="Smooth motion"
-            aria-pressed={!stepped}
-            className={stepped ? 'rounded px-1.5 text-zinc-500 hover:text-zinc-300' : 'rounded bg-zinc-700 px-1.5 text-zinc-100'}
-            onClick={() => onChange(null)}
-          >
-            smooth
-          </button>
-          <button
-            type="button"
-            aria-label="Stepped motion"
-            aria-pressed={stepped}
-            className={stepped ? 'rounded bg-violet-400/20 px-1.5 text-violet-200' : 'rounded px-1.5 text-zinc-500 hover:text-zinc-300'}
-            onClick={() => onChange(stepMs ?? 125)}
-          >
-            stepped
-          </button>
-        </div>
-        <div className="sm:col-start-3 sm:row-start-2">
-          <TimeField
-            compact
-            hideLabel
-            label="Start offset (s)"
-            value={timeOffsetMs / 1_000}
-            min={0}
-            max={60}
-            step={0.1}
-            onChange={(seconds) => onOffsetChange(Math.round(seconds * 1_000))}
-          />
-        </div>
-      </div>
-      {stepped && (
-        <>
-          <div className="mt-1.5 grid grid-cols-[minmax(7rem,10rem)_1fr] items-end gap-3 border-t border-zinc-800/55 pt-1.5">
-            <BoundedNumberField
-              compact
-              label="Jumps per second"
-              value={rateHz}
-              presentation={JUMPS_PER_SECOND_PRESENTATION}
-              variant="editor"
-              onChange={(next) => onChange(steppedClockStepMs(next))}
-            />
-            <div className="pb-0.5 text-[8px] tabular-nums text-zinc-600">
-              every {Math.round(stepMs)} ms
-            </div>
-          </div>
-          <p className="mt-1 text-[8px] text-zinc-600">
-            Motion freezes and jumps; unlike Light shutter, pixels do not blink off and the renderer keeps running.
-          </p>
-        </>
-      )}
-    </section>
-  )
-}
-
-/**
- * v1's boundary Transition inspector, resolved from its own record (#1065).
- *
- * This adapter owns everything version-specific: the Scene index behind the
- * boundary, the ShowCell covering each Zone on either side, and every legacy
- * mutation owner. It hands the panel below a value, so the panel itself never
- * sees a Show, a Scene or a ShowCell.
- */
-function TransitionInspector({
-  show,
-  transitionId,
-  stageDimensions,
-  onUpdate,
-  onOpenPalette,
-  onRemove,
-  onUpdateCellAdaptations,
-  patternControlsByCellId,
-  onUpdateControlTarget,
-}: {
-  show: ShowRecord
-  transitionId: string
-  stageDimensions: 1 | 2 | 3
-  onUpdate: (transitionId: string, changes: ShowTransitionChanges) => void
-  onOpenPalette: () => void
-  onRemove: (transitionId: string) => void
-  onUpdateCellAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
-  patternControlsByCellId: Record<string, AutomatablePatternControl[]>
-  onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
-}) {
-  const transition = show.transitions?.find((candidate) => candidate.id === transitionId)
-  if (!transition) return null
-  const sceneIndex = show.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
-  const scene = show.scenes[sceneIndex] ?? show.scenes[0]
-  const nextScene = show.scenes[sceneIndex + 1]
-  const boundaryIdentity = showBoundaryClipIdentity(show, transition.afterSceneId)
-  if (transition.kind === 'routing') {
-    return (
-      <RoutingTransferInspector
-        value={{
-          boundaryIdentity,
-          layoutId: transition.layoutId ?? '',
-          durationMs: transition.durationMs,
-          easing: transition.easing,
-          direction: transition.routingDirection ?? 'forward',
-          directionAuthored: transition.routingDirection !== undefined,
-          maxDurationMs: nextScene?.durationMs ?? 0,
-          layoutOptions: show.routingLayouts.map((layout) => ({ id: layout.id, name: layout.name })),
-        }}
-        onUpdate={(changes) => onUpdate(transition.id, changes)}
-        onRemove={() => onRemove(transition.id)}
-      />
-    )
-  }
-  const cellSide = (cell: ShowCell) => ({
-    id: cell.id,
-    controlSourceId: cell.id,
-    patternKey: `${cell.pattern.kind}:${cell.pattern.id}`,
-    adaptations: { timeScale: cell.adaptations.timeScale, brightness: cell.adaptations.brightness },
-    transform: normalizeShowClipTransform(cell.transform),
-    controlTargets: cell.controlTargets ?? {},
-  })
-  const destinationCells = nextScene
-    ? show.zones.flatMap((zone) => {
-        const cell = cellCoveringScene(show, zone.id, sceneIndex + 1)
-        return cell ? [{ zone, cell }] : []
-      }).filter((entry, index, entries) => entries.findIndex((candidate) => candidate.cell.id === entry.cell.id) === index)
-    : []
-  const cellsById = new Map(destinationCells.map(({ cell }) => [cell.id, cell]))
-  const { afterSceneId: _afterSceneId, ...settings } = transition
-  const value: ShowBoundaryTransitionInspectorValue = {
-    id: transition.id,
-    boundaryIdentity,
-    settings,
-    destinations: destinationCells.map(({ zone, cell }) => {
-      const outgoing = cellCoveringScene(show, zone.id, sceneIndex)
-      return {
-        zoneId: zone.id,
-        zoneName: zone.name,
-        ...cellSide(cell),
-        ...(outgoing ? { outgoing: cellSide(outgoing) } : {}),
-      }
-    }),
-    ...(nextScene
-      ? {
-          repeat: {
-            from: scene?.sampleTargets?.repeatScale ?? 1,
-            to: nextScene.sampleTargets?.repeatScale ?? 1,
-          },
-        }
-      : {}),
-    ...(nextScene && show.routingLayouts.some((layout) => (
-      layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
-    ))
-      ? {
-          split: {
-            from: scene?.routingTargets?.splitPosition ?? 0.5,
-            to: nextScene.routingTargets?.splitPosition ?? 0.5,
-          },
-        }
-      : {}),
-  }
-  return (
-    <BoundaryTransitionInspector
-      value={value}
-      stageDimensions={stageDimensions}
-      patternControlsBySourceId={patternControlsByCellId}
-      onUpdate={onUpdate}
-      onPreviewSettings={(changes) => useShowPreviewOverrideStore.getState().preview(
-        updateShowBoundaryTransition(show, transition.id, changes),
-      )}
-      onPreviewEnd={() => useShowPreviewOverrideStore.getState().clear(show.id)}
-      onOpenPalette={onOpenPalette}
-      onRemove={onRemove}
-      onUpdateDestinationAdaptations={(destinationId, changes) => {
-        const cell = cellsById.get(destinationId)
-        if (cell) onUpdateCellAdaptations(cell, changes)
-      }}
-      onUpdateDestinationControlTarget={(destinationId, exportName, controlValue) => {
-        const cell = cellsById.get(destinationId)
-        if (cell) onUpdateControlTarget(cell, exportName, controlValue)
-      }}
-    />
-  )
-}
-
-/**
- * The boundary Transition panel both backings draw (#1065).
- *
- * This is v1's original panel, unchanged in markup, labels, controls and
- * ordering. Only its inputs moved: it reads a presented value and names an
- * authored destination identity in its callbacks, so the v1 adapter above and
- * the authored-v2 reader can each supply it without either one owning the
- * other's record. Routing Transitions never reach here; they keep
- * `RoutingTransferInspector`.
- */
 function BoundaryTransitionInspector({
   value,
   stageDimensions,
@@ -13400,17 +12228,6 @@ function ClipSummaryInline({
   )
 }
 
-function compatibilityCellForTimelineClip(
-  show: ShowRecord,
-  clip: Pick<ShowUnifiedTimelineClipProjection, 'id' | 'segmentIds' | 'sceneId' | 'zoneId'>,
-): ShowCell | null {
-  const segmentIds = new Set(clip.segmentIds ?? [clip.id])
-  return show.cells.find((cell) => {
-    const baseId = `placement-${cell.id}-${clip.sceneId}`
-    return segmentIds.has(baseId) || segmentIds.has(`${baseId}-${clip.zoneId}`)
-  }) ?? null
-}
-
 function ClipConfigurationSummary({
   summary,
   animationCount,
@@ -13598,16 +12415,6 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor(seconds / 60)
   const rest = seconds % 60
   return rest === 0 ? `${minutes}m` : `${minutes}m ${rest}s`
-}
-
-function cellCoveringScene(show: ShowRecord, zoneId: string, targetSceneIndex: number): ShowCell | undefined {
-  return show.cells.find((cell) => {
-    const cellZoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
-    const targetZoneIndex = show.zones.findIndex((zone) => zone.id === zoneId)
-    if (cellZoneIndex < 0 || targetZoneIndex < cellZoneIndex || targetZoneIndex >= cellZoneIndex + (cell.zoneSpan ?? 1)) return false
-    const start = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
-    return start >= 0 && targetSceneIndex >= start && targetSceneIndex < start + cell.sceneSpan
-  })
 }
 
 function formatTimeScale(value: number): string {
