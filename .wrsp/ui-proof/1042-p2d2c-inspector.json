@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows",
+  "operation": "On stock Show 101, open a Clip inspector and Show setup; on a converted personal v2 Show, open the boundary Transition palette, apply Block, then undo. On stock Shows 301 and 102, open Zone spatial selection and the layer-transition editor; on a new personal Installation Show, add a Layer and add a Clip by double-clicking its empty lane.",
+  "captures": [
+    ".wrsp/ui-proof/1042-p2d2c-clip-inspector.png",
+    ".wrsp/ui-proof/1042-p2d2c-transition-palette.png",
+    ".wrsp/ui-proof/1042-p2d2c-transition-applied.png",
+    ".wrsp/ui-proof/1042-p2d2c-transition-undone.png",
+    ".wrsp/ui-proof/1042-p2d2c-zone-spatial-selection.png",
+    ".wrsp/ui-proof/1042-p2d2c-show-setup.png",
+    ".wrsp/ui-proof/1042-p2d2c-layer-transition-editor.png",
+    ".wrsp/ui-proof/1042-p2d2c-personal-installation-add-clip.png"
+  ],
+  "capturedAtCommit": "c6c98b330bbed17d1a7845f4c4672c3c7199512c"
+}
