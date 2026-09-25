@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/a5654029-0a97-4c9e-b2e2-5e6b9e33a3b2",
+  "operation": "Opened a personal v2 Show, switched to a built-in Show, cancelled New Show, completed New Show, and reloaded its URL. The personal rail selection followed the routed Show at each step.",
+  "captures": [
+    ".wrsp/ui-proof/1042-s2b-1-personal-selected.png",
+    ".wrsp/ui-proof/1042-s2b-2-built-in-selected.png",
+    ".wrsp/ui-proof/1042-s2b-3-creation-cancelled.png",
+    ".wrsp/ui-proof/1042-s2b-4-created-selected.png",
+    ".wrsp/ui-proof/1042-s2b-5-reloaded-selected.png"
+  ],
+  "capturedAtCommit": "46a7ad03a3017632577ba57bbc3ccede38b8f29f"
+}
