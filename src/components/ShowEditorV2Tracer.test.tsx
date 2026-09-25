@@ -8160,7 +8160,8 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     // The refusal is not a success: Details are not re-anchored.
     expect(reanchors()).toBe(0)
     const after = editor.state()
-    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    // The preview refuses the move (#1111-B), so admission is never asked.
+    expect(admission.calls.map((call) => call.door)).toEqual([])
     expect(after.record).toBe(before.record)
     expect(after.history).toEqual({ past: [], future: [] })
     expect(after.v2Writes).toBe(0)
@@ -8189,6 +8190,23 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     expect(after.record).toBe(before.record)
     expect(after.record.composition.clips).toHaveLength(before.record.composition.clips.length)
     expect(after.v2Writes).toBe(0)
+    expectClipRefusal('resize-a', 'Space taken', 'Clips on one Layer cannot overlap.')
+  })
+
+  it('names an occupied-range move preview on release when no drop fires', async () => {
+    const editor = openV2Editor('refusal-move-occupied-release')
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const surface = dragSurface('resize-a')
+
+    surface.fire(surface.clip, 'dragstart', 0)
+    surface.fire(surface.lane('main'), 'dragover', 85)
+    expect(surface.dataTransfer.dropEffect).toBe('none')
+    expect(timelineStatus()).toBeNull()
+    surface.fire(clipButton('resize-a'), 'dragend', 85)
+    await act(async () => {})
+
+    expect(admission.calls.map((call) => call.door)).toEqual([])
+    expect(editor.state().v2Writes).toBe(0)
     expectClipRefusal('resize-a', 'Space taken', 'Clips on one Layer cannot overlap.')
   })
 
@@ -8272,7 +8290,8 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     await act(async () => {})
 
     const after = editor.state()
-    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipTemporal'])
+    // The preview refuses the move (#1111-B), so admission is never asked.
+    expect(admission.calls.map((call) => call.door)).toEqual([])
     expect(after.record).toBe(before.record)
     expect(after.v2Writes).toBe(0)
     expectClipRefusal('overlay-a', 'No Zone Layout', 'No Zone Layout covers this time.')

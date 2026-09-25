@@ -6462,10 +6462,10 @@ function ShowTimelineWorkspace({
   const suppressResizeClipClickRef = useRef<string | null>(null)
   const [movePreview, setMovePreview] = useState<ShowClipMovePreview | null>(null)
   const movePlanRef = useRef<ShowClipMovePlan | null>(null)
-  // The last Alt-duplicate preview the check refused, kept for the gesture so
+  // The last refused v2 move or Alt-duplicate preview, kept for the gesture so
   // its release or drop can name the reason (#1098). The preview itself
   // clears, so the drop finds no plan to commit.
-  const duplicatePreviewRefusalRef = useRef<(Extract<ReturnType<typeof checkShowTimelineDuplicateGestureV2>, { status: 'refused' }> & { clipId: string; targetKey: string }) | null>(null)
+  const previewRefusalRef = useRef<{ clipId: string; targetKey: string; input: ShowV2EditRefusalInput } | null>(null)
   const activeMoveLayerRef = useRef<{
     element: HTMLElement
     layer: ShowTimelineLayerView
@@ -6862,14 +6862,14 @@ function ShowTimelineWorkspace({
           : null
         if (!duplicateCheck || duplicateCheck.status !== 'ready') {
           if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
-          duplicatePreviewRefusalRef.current = duplicateCheck
-            ? { ...duplicateCheck, clipId: clip.id, targetKey: input.targetKey }
+          previewRefusalRef.current = duplicateCheck
+            ? { clipId: clip.id, targetKey: input.targetKey, input: showV2DuplicateRefusalInput(duplicateCheck) }
             : null
           movePlanRef.current = null
           setMovePreview(null)
           return
         }
-        duplicatePreviewRefusalRef.current = null
+        previewRefusalRef.current = null
         const nextDuplicatePreview: ShowClipMovePreview = {
           clipId: clip.id,
           mode: 'duplicate',
@@ -6921,6 +6921,7 @@ function ShowTimelineWorkspace({
       }
       if (gesturePlan.kind === 'refuse') {
         if (gesturePlan.reason === 'no-change') {
+          previewRefusalRef.current = null
           if (input.dataTransfer) input.dataTransfer.dropEffect = 'move'
           movePlanRef.current = {
             recordVersion: 2,
@@ -6943,12 +6944,22 @@ function ShowTimelineWorkspace({
       if (gesturePlan.kind === 'temporal' && draggingCompositionClipRef.current?.v2Move) {
         const ownerResult = editShowClipTemporalV2(draggingCompositionClipRef.current.v2Move.capture.record, gesturePlan.intent)
         if (ownerResult.status === 'refused') {
+          previewRefusalRef.current = {
+            clipId: clip.id,
+            targetKey: input.targetKey,
+            input: showV2CommitRefusalInput({
+              source: 'owner',
+              code: ownerResult.code,
+              ...(ownerResult.issueCode ? { issueCode: ownerResult.issueCode } : {}),
+            }),
+          }
           if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
           movePlanRef.current = null
           setMovePreview(null)
           return
         }
       }
+      previewRefusalRef.current = null
       movePlanRef.current = {
         recordVersion: 2,
         preview: nextPreview,
@@ -7017,23 +7028,23 @@ function ShowTimelineWorkspace({
     }
     setMovePreview(nextPreview)
   }
-  // Names a refused Alt-duplicate preview once, on release or drop.
+  // Names a refused move or Alt-duplicate preview once, on release or drop.
   // The drag's capture clamps against the Show it opened on; the timeline
   // clamps against the current one. A refusal made against a capture that is
   // no longer current is a race, so it names the changed Show, not its code.
-  const reportDuplicatePreviewRefusal = () => {
-    const refusal = duplicatePreviewRefusalRef.current
-    duplicatePreviewRefusalRef.current = null
+  const reportPreviewRefusal = () => {
+    const refusal = previewRefusalRef.current
+    previewRefusalRef.current = null
     const draggedClip = draggingCompositionClipRef.current
     if (!refusal || draggedClip?.clipId !== refusal.clipId) return
     const held = draggedClip.v2Move
     const current = captureV2Move?.()
     const stale = !held || !current || current.capture !== held.capture || current.baseRevision !== held.baseRevision
-    reportV2Refusal(refusal.clipId, stale ? { kind: 'stale' } : showV2DuplicateRefusalInput(refusal))
+    reportV2Refusal(refusal.clipId, stale ? { kind: 'stale' } : refusal.input)
   }
   const resetCompositionClipMove = () => {
     if (draggingCompositionClipRef.current?.settling) return
-    duplicatePreviewRefusalRef.current = null
+    previewRefusalRef.current = null
     activeMoveLayerRef.current = null
     draggingCompositionClipRef.current = null
     setDraggingCompositionClip(null)
@@ -7111,7 +7122,7 @@ function ShowTimelineWorkspace({
     if (!draggedClip
       || activePlan?.preview.clipId !== draggedClip.clipId
       || activePlan.preview.targetKey !== targetKey) {
-      if (duplicatePreviewRefusalRef.current?.targetKey === targetKey) reportDuplicatePreviewRefusal()
+      if (previewRefusalRef.current?.targetKey === targetKey) reportPreviewRefusal()
       resetCompositionClipMove()
       return
     }
@@ -9105,8 +9116,8 @@ function ShowTimelineWorkspace({
                     movePlanRef.current = null
                     setMovePreview(null)
                   }
-                  if (duplicatePreviewRefusalRef.current?.targetKey === `composition:${layer.id}`) {
-                    duplicatePreviewRefusalRef.current = null
+                  if (previewRefusalRef.current?.targetKey === `composition:${layer.id}`) {
+                    previewRefusalRef.current = null
                   }
                 }}
                 onDrop={(event) => {
@@ -9367,9 +9378,9 @@ function ShowTimelineWorkspace({
                         })
                       }}
                       onDragEnd={() => {
-                        // A refused preview reads dropEffect none, so the
-                        // browser fires no drop: the release names it here.
-                        reportDuplicatePreviewRefusal()
+                        // A refused move or Alt-duplicate preview reads
+                        // dropEffect none, so release names it here.
+                        reportPreviewRefusal()
                         resetCompositionClipMove()
                       }}
                       onClick={(event) => {
