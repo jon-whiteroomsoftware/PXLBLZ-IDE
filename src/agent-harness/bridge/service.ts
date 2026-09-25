@@ -34,8 +34,6 @@ import { dictationTools, projectionForAgent, runDictationTurn, type TurnDisposit
 import { DICTATION_RULES, type EditorContext } from '../grammar/read.js'
 import { createSessionStore, type GrammarSessionStore } from '../grammar/session.js'
 import { createShowsServer } from '../mcp/showsServer.js'
-import { runTargetedResizeTurn } from '../experiment/targetedResizeTurn.js'
-import { parseAgentResizeIntent, type AgentResizeIntent } from '../../dev/agentResizeProtocol.js'
 import { SHOW_COMMANDS_V2 } from '@/engine/showCommandsV2/registry'
 import type { GrammarChange } from '../grammar/types.js'
 import type { AgentChange } from '@/engine/agentDrawerModel'
@@ -69,8 +67,6 @@ export interface UtteranceRequest {
    * still pending. Ignored by a live agent.
    */
   delayMs?: number
-  /** Explicit binding retained from a successful original private turn. */
-  retryResize?: AgentResizeIntent
 }
 
 export interface UtteranceResponse {
@@ -82,8 +78,6 @@ export interface UtteranceResponse {
   /** Registry execution metadata, presentation only; not an editor receipt. */
   changes?: AgentChange[]
   show?: unknown
-  /** Executed canonical binding; absent for mixed, repaired or uncommitted work. */
-  retryResize?: AgentResizeIntent
 }
 
 /** The bridge-side phase clock of one turn, in `Date.now()` milliseconds. */
@@ -214,20 +208,14 @@ export async function runUtterance(
   // affected-entity collections, not before/after values, so the band comes
   // from the accepted call's own arguments and the Show End it replaced.
   const insertionRanges = new WeakMap<GrammarChange, { startMs: number; endMs: number }>()
-  let executedResize: AgentResizeIntent | undefined
-  let applyAttempts = 0
-  let mutationCalls = 0
-  let agentRuns = 0
   // The Show End the last accepted operation left, so a later set_show_end can
   // report the band it moved without a before/after value on the change record.
   let showEndMs = 0
-  const readOnlyTools = new Set(['describe_show', 'export_show', 'resolve_reference', 'get_editor_context', 'list_stock_patterns', 'get_stock_pattern', 'evaluate_property_at', 'validate_show', 'describe_changes'])
   const store = observedSessionStore(rawStore, (validation) => {
     timing.validation = validation
     onProgress({ kind: 'validation', ...(requestId ? { requestId } : {}), ...validation })
   }, (operation, args, result) => {
     const ok = result.ok
-    applyAttempts += 1
     const previousShowEndMs = showEndMs
     if (ok) showEndMs = result.listing.showEndMs
     if (operation === 'insert_time' && ok && typeof args.at_ms === 'number' && typeof args.duration_ms === 'number') {
@@ -241,9 +229,6 @@ export async function runUtterance(
       for (const change of result.changes) {
         insertionRanges.set(change, { startMs: Math.min(before, args.end_ms), endMs: Math.max(before, args.end_ms) })
       }
-    }
-    if (operation === 'resize_clip' && ok && Object.keys(args).length === 2 && Object.prototype.hasOwnProperty.call(args, 'clip_id') && Object.prototype.hasOwnProperty.call(args, 'duration_ms')) {
-      executedResize = parseAgentResizeIntent({ clipId: args.clip_id, durationMs: args.duration_ms })
     }
   })
   const server = createShowsServer({ sessions: store })
@@ -305,7 +290,7 @@ export async function runUtterance(
         agent,
         timing.delayMs,
         () => { timing.agentStartedAt = Date.now() },
-        () => { agentRuns += 1; timing.agentEndedAt = Date.now() },
+        () => { timing.agentEndedAt = Date.now() },
       ),
       utterance: request.utterance,
       history: dialogue,
@@ -313,15 +298,12 @@ export async function runUtterance(
       description: projectionForAgent(described.ok ? (described.description as unknown as Record<string, unknown>) : null),
       instructions: DICTATION_RULES,
       editorContext,
-      onMalformedToolCall: () => { mutationCalls += 1 },
       tools: dictationTools(toolList.tools).map((tool) => ({
         name: tool.name,
         description: tool.description,
         inputSchema: tool.inputSchema,
       })),
       callTool: async (name, args) => {
-        if (!readOnlyTools.has(name)) mutationCalls += 1
-        if (name === 'resize_clip' && Object.keys(args).some(key => !['session_id', 'clip_id', 'clip', 'duration_ms'].includes(key))) mutationCalls += 1
         const at = Date.now()
         onProgress({ kind: 'tool', name, ...(requestId ? { requestId } : {}), at })
         const result = await client.callTool({ name, arguments: args })
@@ -360,51 +342,12 @@ export async function runUtterance(
       summaries,
       ...(changed ? { changes: drawerChanges } : {}),
       ...(changed && exported?.ok ? { show: exported.show } : {}),
-      ...(changed && exported?.ok && agentRuns === 1 && mutationCalls === 1 && applyAttempts === 1 && executedResize ? { retryResize: executedResize } : {}),
       timing,
     }
   } finally {
     await client.close().catch(() => {})
     await server.close().catch(() => {})
   }
-}
-
-export async function runRetryUtterance(
-  agent: DictationAgent,
-  request: UtteranceRequest,
-  onProgress: (event: ProgressEvent) => void = () => {},
-  scripted = false,
-  clock: { acceptedAt?: number; delayMs?: number } = {},
-): Promise<UtteranceRun> {
-  const acceptedAt = clock.acceptedAt ?? Date.now()
-  const timing: BridgeTurnTiming = { acceptedAt, delayMs: clock.delayMs ?? 0, agentStartedAt: acceptedAt, agentEndedAt: acceptedAt, exportedAt: acceptedAt, toolCalls: [] }
-  const refuse = (reply: string): UtteranceRun => ({ privateOutcome: { kind: 'service-refused' }, reply, changed: false, summaries: [], timing })
-  const intent = parseAgentResizeIntent(request.retryResize)
-  if (!intent) return refuse('The retained resize is unavailable.')
-  if (timing.delayMs > 0) await new Promise(resolve => setTimeout(resolve, timing.delayMs))
-  timing.agentStartedAt = Date.now()
-  const proposed = await runTargetedResizeTurn(agent, intent, scripted)
-  timing.agentEndedAt = Date.now()
-  if (proposed.kind !== 'proposal') return refuse('The exact resize was not proposed.')
-  const store = createSessionStore({ authoringValidation: true })
-  const opened = store.open(request.show, [], { allowUnresolvedUserPatterns: true })
-  if (!opened.ok) return refuse('The current Show did not open for editing.')
-  const id = opened.sessionId
-  try {
-    if (!store.begin(id, 'Retry exact Clip duration').ok) return refuse('The retry did not start.')
-    const applied = store.apply(id, 'resize_clip', { clip_id: intent.clipId, duration_ms: intent.durationMs })
-    if (!applied.ok) return refuse(applied.issues[0]?.message ?? 'The original Clip cannot be resized.')
-    const at = Date.now()
-    const committed = store.commit(id)
-    timing.validation = { at, ms: Date.now() - at, ok: committed.ok }
-    onProgress({ kind: 'validation', requestId: request.requestId, ...timing.validation })
-    if (!committed.ok) return refuse('The current Show refused the exact resize.')
-    if (!committed.changes.length) return { ...refuse('The Clip already has that duration.'), privateOutcome: { kind: 'nothing-applied' } }
-    const exported = store.export(id)
-    if (!exported.ok) return refuse('The private retry could not be exported.')
-    timing.exportedAt = Date.now()
-    return { privateOutcome: { kind: 'committed', summary: committed.summary }, reply: `Resize the original Clip to ${intent.durationMs / 1000}s.`, changed: true, summaries: [committed.summary], changes: committed.changes.flatMap(change => change.targetId ? [{ targetId: change.targetId, description: change.description }] : []), show: exported.show, retryResize: intent, timing }
-  } finally { store.close(id) }
 }
 
 function sendJson(response: ServerResponse, status: number, body: unknown): void {
@@ -481,26 +424,6 @@ export function createBridgeServer(options: BridgeOptions): Server {
       response.end(chatScript)
       return
     }
-    if (request.method === 'POST' && request.url === '/resize') {
-      if (busy) { sendJson(response, 429, { kind: 'refused' }); return }
-      busy = true
-      const chunks: Buffer[] = []
-      request.on('data', (chunk: Buffer) => chunks.push(chunk))
-      request.on('end', () => {
-        void (async () => {
-          try {
-            const intent: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-            turns += 1
-            options.guard?.beginUnit(`bridge-turn-${turns}`)
-            if (options.scripted && defaultDelayMs > 0) await new Promise(resolve => setTimeout(resolve, defaultDelayMs))
-            sendJson(response, 200, await runTargetedResizeTurn(agent, intent, options.scripted === true))
-          } catch { sendJson(response, 200, { kind: 'service-error' }) }
-          finally { busy = false }
-        })()
-      })
-      request.on('error', () => { busy = false })
-      return
-    }
     if (request.method === 'POST' && request.url === '/utterance') {
       if (busy) {
         sendJson(response, 429, { reply: 'One moment — still working on the previous request.', changed: false, summaries: [] })
@@ -546,8 +469,7 @@ export function createBridgeServer(options: BridgeOptions): Server {
             const delayMs = options.scripted
               ? (typeof body.delayMs === 'number' && body.delayMs >= 0 ? body.delayMs : defaultDelayMs)
               : 0
-            const run = Object.prototype.hasOwnProperty.call(body, 'retryResize') ? runRetryUtterance : runUtterance
-            const result = await run(agent, body, (event) => emit(event), options.scripted === true, { acceptedAt, delayMs })
+            const result = await runUtterance(agent, body, (event) => emit(event), options.scripted === true, { acceptedAt, delayMs })
             log(`[${requestId}] turn done in ${((Date.now() - acceptedAt) / 1000).toFixed(1)}s (changed: ${result.changed})`)
             log(`[${requestId}]   reply: ${result.reply.slice(0, 400)}`)
             emit({ kind: 'done', requestId, ...result })

@@ -5,7 +5,6 @@ export function agentRefusalMessage(code: string): string {
     case 'interaction-timeout': return 'Finish the current manual edit, then try again.'
     case 'wrong-session': case 'wrong-show': case 'unknown-operation': case 'identity-mismatch':
       return 'This edit no longer belongs to the open Show. Make a new request.'
-    case 'invalid-retry': return 'This edit can no longer be retried. Make a new request.'
     case 'missing-show': return 'This Show is no longer available.'
     case 'invalid-candidate': case 'no-candidate': case 'commit-refused': case 'refused': case 'service-refused':
       return 'This edit could not be applied to the current Show.'

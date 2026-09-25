@@ -16,7 +16,7 @@ function fixture(admission?: ReturnType<typeof createAgentEditorAdmission>, init
   let listener: (event: DrawerChannelEvent) => void = () => {}
   let receipt: unknown
   const channel = { getConnection: () => ({ kind: 'idle' }), subscribe: (fn: typeof listener) => { listener = fn; return () => { listener = () => {} } }, getOutcome: () => receipt ? ({ code: 'outcome', receipt }) : ({ code: 'unknown' }), close: vi.fn(), arm: vi.fn(async () => ({ code: 'occupied' })), cancelArm: vi.fn(async () => ({ code: 'idle' })), answer: vi.fn(async () => ({ code: 'bound' })), decline: vi.fn(async () => ({ code: 'declined' })), disconnect: vi.fn(async () => ({ code: 'disconnected' })), forget: vi.fn(async () => ({ code: 'forgotten' })), moveExternal: vi.fn(async () => ({ code: 'moved' })) } as unknown as DrawerChannelPort
-  const api = admission ?? { available: () => true, onClose: () => () => {}, readOutcome: () => receipt, retryIntent: () => undefined, cancel: vi.fn() } as unknown as ReturnType<typeof createAgentEditorAdmission>
+  const api = admission ?? { available: () => true, onClose: () => () => {}, readOutcome: () => receipt, cancel: vi.fn() } as unknown as ReturnType<typeof createAgentEditorAdmission>
   const builtin = vi.fn(async (_body: Record<string, unknown>) => ({ code: 'occupied' } as Record<string, unknown> & { code: string }))
   const controller = createProductionDrawerController(api, 'show', channel, builtin, initialAllowance)
   stop = controller.dispose
@@ -377,32 +377,6 @@ it('projects bounded interim command issues on the working entry until final set
   expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'op')).toMatchObject({
     outcome: 'saved', interimIssues: undefined, changes: [{ targetId: 'clip', description: 'Clip resized' }],
   })
-})
-it('registers the returned qualified Retry operation and tracks saving without replacing failure or draft', async () => {
-  const f = fixture()
-  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
-  const original = { operationId: 'binding:old', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: ['clip'] }
-  const request = { ...original, operationId: 'binding:new', retryOf: original.operationId, baseRevision: 1 }
-  f.setReceipt({ request: original, status: 'pending' })
-  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'old', deliveryId: 'begin', sequence: 0, payload: { kind: 'begin_edit', intent: 'Resize original Clip' } }, result: { code: 'begun' }, request: original })
-  f.setReceipt({ request: original, status: 'applied', settlement: 'rolled-back' })
-  f.emit({ type: 'delivery', delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'old', deliveryId: 'commit', sequence: 1, payload: { kind: 'commit_edit' } }, result: { code: 'outcome', receipt: { request: original, status: 'applied', settlement: 'rolled-back' } }, request: original })
-  vi.spyOn(f.api, 'retryIntent').mockReturnValue({ clipId: 'clip', durationMs: 1000 } as never)
-  f.channel.retry = vi.fn(async (): Promise<PrivateEditResult> => {
-    const receipt = { request, status: 'applied', settlement: 'saving' }
-    f.setReceipt(receipt)
-    return { code: 'outcome', operationId: 'new', request, retryOf: original.operationId, receipt }
-  })
-  f.controller.dispatch({ type: 'draft', text: 'Unrelated composer draft' })
-  f.controller.retry('old')
-  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'new')).toMatchObject({ retryOf: 'old', outcome: 'applied' }))
-  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'old')).toMatchObject({ outcome: 'rolled-back' })
-  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'old')?.retryable).toBe(false)
-  expect(useAgentDrawerStore.getState().state.draft).toBe('Unrelated composer draft')
-  expect(useAgentDrawerStore.getState().busy).toBe(true)
-  f.setReceipt({ request, status: 'applied', settlement: 'saved' })
-  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'new')?.outcome).toBe('saved'))
-  expect(f.builtin).not.toHaveBeenCalled()
 })
 it('settles and preserves an owned local outcome when provider configuration becomes unavailable', async () => {
   const f = fixture()

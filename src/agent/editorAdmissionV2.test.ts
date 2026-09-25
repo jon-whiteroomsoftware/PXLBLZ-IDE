@@ -266,23 +266,3 @@ it('refuses a duplicate begin key and keeps one private operation', () => {
   expect(context.send({ kind: 'begin_edit', intent: 'Again' }).code).toBe('finished')
   expect(context.send({ kind: 'begin_edit', intent: 'Other' }, 'second').code).toBe('busy')
 })
-
-it('admits an ordinary v2 delivery carrying the retry-resize hint and still refuses a retry', async () => {
-  const phases: string[] = []
-  const context = setup({ observe: (_request, phase) => { phases.push(phase) } })
-  const begun = context.admission.beginRequest('hint', 'Rename', [])!
-  const candidate = { ...structuredClone(begun.show), name: 'Agent name' }
-  // The harness bridge attaches this hint to every ordinary single-resize
-  // reply; on v2 it is ignored rather than read as a retry.
-  const hint = { clipId: 'clip-1', durationMs: 8000 }
-  expect(context.admission.applyShow(candidate, begun.request, hint)).toMatchObject({ status: 'applied' })
-  await vi.waitFor(() => expect(context.admission.readOutcome(begun.request)).toMatchObject({ status: 'applied', settlement: 'saved' }))
-  context.admission.readOutcome(begun.request)
-  expect(phases).toEqual(['admitted', 'adopted', 'settled'])
-  expect(context.current().name).toBe('Agent name')
-  // v2 offers no stable resize retry, so a Retry request is still refused.
-  const retry = context.admission.beginRequest('retry', 'Rename', [])!
-  const refused = context.admission.applyShow({ ...structuredClone(retry.show), name: 'Retry' }, { ...retry.request, retryOf: retry.request.operationId }, hint)
-  expect(refused.status).toBe('refused')
-  expect(context.current().name).toBe('Agent name')
-})

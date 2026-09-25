@@ -287,7 +287,6 @@ it.each([
   ['referenceContext', 'other', 'refused'],
   ['targets', ['other'], 'refused'],
   ['baseRevision', -1, 'refused'],
-  ['retryOf', 'other', 'refused'],
 ] as const)('binds v2 noncandidate completion to unchanged %s', (key, value, status) => {
   const context = setup()
   const request = context.begin()

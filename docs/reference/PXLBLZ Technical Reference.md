@@ -1145,20 +1145,9 @@ Browser capture projects flat Shows privately using exact loaded Pattern metadat
 immutable missing-reference baseline, metadata requirements and consumer proof
 are defined in [Agent candidate application](contracts/agent-candidate-application.md#internal-authoring-validation).
 
-The internal exact-resize admission owner replays one resolved operation on the
-current Show after observing finite Layer dependencies. Independent placement
-edits survive; conflicts remain refused across change-and-restore. It shares
-ordinary history/save recovery and adds validated no-op receipts. Its
-[finite contract and store/artifact proof](contracts/agent-candidate-application.md#internal-qualified-exact-resize)
-bound the operation independently of model behavior. The explicit DEV typed
-resize path qualifies only its fixed Clip/duration packet before inference;
-ordinary chat and unrestricted text retain whole-Show admission. See the
-[typed diagnostic contract](contracts/agent-candidate-application.md#typed-exact-resize-diagnostic).
-
-The internal completed-candidate and qualified exact-resize store paths can wait
+The internal completed-candidate store path can wait
 for explicit drag/dirty ownership before admission. A fixed monotonic five-second
-deadline and lifecycle cleanup are owned by `showInputWait.ts`; resize retains its
-private Layer qualification and current-state replay, and final adoption and saves
+deadline and lifecycle cleanup are owned by `showInputWait.ts`, and final adoption and saves
 remain in the Show store. Its [contract and consumer proof](contracts/agent-candidate-application.md#internal-bounded-active-input-wait)
 qualify diagnostic waiting/Cancel. Existing shared text and numeric fields under
 editable ShowEditor register dirty drafts and slider lifetimes, including portals

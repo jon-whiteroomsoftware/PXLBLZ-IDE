@@ -34,12 +34,9 @@ metadata, and manual input ownership, then performs one history adoption and
 personal save, or changes only the current stock draft. The drawer projects
 those receipts rather than treating provider prose as proof of saving.
 
-Only the qualified single `resize_clip` exact-duration Retry is offered. It
-captures current state under a new operation linked by `retryOf`, preserves the
-original failed activity and composer draft, and uses the original stable Clip
-identity. It performs no new inference and consumes no message allowance. Other
-failed requests retain their truthful activity and permit a fresh user request.
-The built-in and external activity streams expose no Dismiss action.
+No Retry is offered. Failed requests retain their truthful activity and permit
+a fresh user request. The built-in and external activity streams expose no
+Dismiss action.
 
 ## Dispatch and accounting bounds
 
@@ -89,8 +86,7 @@ does not promise recovery at midnight.
 Server-issued operation identities have a 24-hour admission horizon. Expiry
 refuses new dispatch without cancelling already-started inference or adopted
 saves. Bounded accounting records and tombstones cannot turn an expired duplicate
-into a new paid call. Qualified local Retry creates a new editor operation but
-does not invoke the provider or create another message charge.
+into a new paid call.
 Durable accounting stores identifiers and spend metadata, not Show content,
 prompts, transcripts, or editor receipts.
 

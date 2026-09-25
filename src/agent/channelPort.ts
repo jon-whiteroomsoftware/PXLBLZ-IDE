@@ -30,8 +30,6 @@ export interface AgentBrowserSessionPort {
   forget(): Promise<AgentChannelResult>
   moveExternal(expectedBindingId: string): Promise<AgentChannelResult>
   getOutcome(operationId: string): PrivateEditResult
-  /** Qualified single-resize retry only; creates a new operation, never inference. */
-  retry(operationId: string): Promise<PrivateEditResult>
   /** Retires transport/executor; the React owner separately closes admission. */
   close(): void
 }

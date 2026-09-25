@@ -130,7 +130,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
     if (receipt.status === 'pending') return
     if (receipt.status === 'waiting') { emit({ type: 'waiting', id }); return }
     const outcome: AgentOutcome = receipt.status === 'applied' ? receipt.settlement === 'saving' ? 'applied' : receipt.settlement : receipt.status === 'cancelled' ? 'cancelled' : receipt.status === 'retired' ? 'unknown' : 'not-applied'
-    emit({ type: 'outcome', id, outcome, changes: operation.changes, band: agentInsertionBand(operation.changes), retryable: Boolean(api.retryIntent(receipt.request)), reason: receipt.status === 'refused' ? showEditDiagnosticMessage(receipt.diagnostic) ?? agentRefusalMessage(receipt.reason) : receipt.status === 'completed' ? agentRefusalMessage(receipt.completion) : undefined })
+    emit({ type: 'outcome', id, outcome, changes: operation.changes, band: agentInsertionBand(operation.changes), reason: receipt.status === 'refused' ? showEditDiagnosticMessage(receipt.diagnostic) ?? agentRefusalMessage(receipt.reason) : receipt.status === 'completed' ? agentRefusalMessage(receipt.completion) : undefined })
   }
   const refresh = () => {
     if (disposed || !api.available()) return
@@ -231,7 +231,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
       const operation = operations.get(id) ?? { changes: [] }
       if (event.request) operation.request = event.request
       operations.set(id, operation)
-      emit({ type: 'beginEdit', id, intent: payload.intent || 'Edit the Show', retryOf: event.request?.retryOf ? [...operations.entries()].find(([, prior]) => prior.request?.operationId === event.request!.retryOf)?.[0] : undefined })
+      emit({ type: 'beginEdit', id, intent: payload.intent || 'Edit the Show' })
       if (cancelled.has(id) && operation.request) publish(id, api.cancel(operation.request))
     }
     const operation = operations.get(id)
@@ -333,23 +333,6 @@ export function createProductionDrawerController(api: Admission, showId: string,
           }
         } catch { emit({ type: 'drop' }) } finally { running = false; updateBusy() }
       })()
-    },
-    retry(id) {
-      const request = operations.get(id)?.request
-      if (!request || !api.retryIntent(request) || disposed || running || useAgentDrawerStore.getState().busy || state.request || state.contactLost || state.connection?.kind !== 'builtin') return
-      running = true; updateBusy()
-      void action(async () => {
-        const result = await channel.retry(id)
-        const next = result.request as ShowEditRequest | undefined
-        if (result.code === 'outcome' && typeof result.operationId === 'string' && next?.retryOf === request.operationId && next.sessionId === request.sessionId) {
-          const nextId = result.operationId
-          operations.set(nextId, { request: next, changes: [...(operations.get(id)?.changes ?? [])] })
-          emit({ type: 'beginEdit', id: nextId, intent: state.stream.find(line => line.operationId === id)?.text ?? 'Retry the original Clip resize', retryOf: id })
-          publish(nextId, result.receipt as Receipt)
-          emit({ type: 'retryStarted', id })
-        }
-        return result
-      }).finally(() => { running = false; refresh() })
     },
     cancel() {
       const id = state.request?.id

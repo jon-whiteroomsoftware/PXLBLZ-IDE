@@ -119,15 +119,6 @@ describe('browser private edit executor', () => {
     expect(cancelled.owner.apply).not.toHaveBeenCalled()
   })
 
-  it('counts a refused mutation attempt against exact-resize Retry qualification', () => {
-    const { owner, send } = setup()
-    send(0, begin)
-    expect(send(1, { ...resize, arguments: { clip_id: 'missing', duration_ms: 9000 } }).code).toBe('refused')
-    expect(send(2, resize).code).toBe('changed')
-    send(3, { kind: 'commit_edit' })
-    expect(owner.apply).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined)
-  })
-
   it.each(['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 'service-refused', 'service-failed'] as const)('keeps explicit %s whole-turn completion terminal', completion => {
     const { owner, send } = setup()
     send(0, begin)
@@ -266,11 +257,4 @@ describe('browser private edit executor on a v2 record', () => {
     expect(owner.complete).toHaveBeenCalledWith(expect.anything(), 'nothing-applied')
   })
 
-  it('offers no stable resize retry for a v2 candidate', () => {
-    const { executor, send } = setup()
-    expect(send(0, begin).code).toBe('begun')
-    expect(send(1, { kind: 'command', name: 'rename_show', arguments: { name: 'Retryable?' } }).code).toBe('changed')
-    expect(send(2, { kind: 'commit_edit' }).code).toBe('outcome')
-    expect(executor.retry('op', 'retry').code).toBe('not_qualified')
-  })
 })

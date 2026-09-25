@@ -9,14 +9,12 @@ export interface AgentLine {
   kind: 'author' | 'reply' | 'system' | 'action'
   text: string
   operationId?: string
-  retryOf?: string
   phase?: 'thinking' | 'working' | 'waiting'
   outcome?: AgentOutcome
   changes?: AgentChange[]
   reason?: string
   reply?: string
   replyOnRefusal?: boolean
-  retryable?: boolean
   calls?: string[]
   interimIssues?: string[]
 }
@@ -60,13 +58,12 @@ export type AgentDrawerEvent =
   | { type: 'allowance'; allowance: AgentMessageAllowance }
   | { type: 'operationReply'; id: string; text: string; replyOnRefusal?: boolean }
   | { type: 'thinking'; id: string }
-  | { type: 'beginEdit'; id: string; intent: string; retryOf?: string }
+  | { type: 'beginEdit'; id: string; intent: string }
   | { type: 'waiting'; id: string }
   | { type: 'call'; id: string; name: string }
   | { type: 'commandRefused'; id: string; issues: string[] }
-  | { type: 'retryStarted'; id: string }
   | { type: 'touch'; targetId: string }
-  | { type: 'outcome'; id: string; outcome: AgentOutcome; changes?: AgentChange[]; reason?: string; retryable?: boolean; refusedTargets?: string[]; band?: AgentDrawerState['band'] }
+  | { type: 'outcome'; id: string; outcome: AgentOutcome; changes?: AgentChange[]; reason?: string; refusedTargets?: string[]; band?: AgentDrawerState['band'] }
 export function createAgentDrawerState(pinned = false, allowance: AgentMessageAllowance = unavailableAgentMessageAllowance()): AgentDrawerState {
   return { drawer: pinned ? 'pinned' : 'tucked', pinPreference: pinned, connection: null, externalBinding: null, movePending: false, armingUntil: null, setupOpen: false, setupNotice: null, pendingCall: null, contactLost: false, request: null, stream: [], unread: [], highlights: [], highlightPhase: 'none', highlightOperation: null, refusedTargets: [], band: null, draft: '', showMcp: false, allowance }
 }
@@ -140,7 +137,7 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
         request: { id: event.id, phase: 'working' },
         stream: previous
           ? state.stream.map(line => line === previous ? { ...line, phase: 'working' } : line)
-          : [...state.stream, { id: `op-${event.id}`, operationId: event.id, retryOf: event.retryOf, kind: 'action', text: event.intent, phase: 'working' }],
+          : [...state.stream, { id: `op-${event.id}`, operationId: event.id, kind: 'action', text: event.intent, phase: 'working' }],
       }
     }
     case 'waiting': {
@@ -169,7 +166,6 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
         stream: state.stream.map(line => line.operationId === event.id ? { ...line, phase: 'working', interimIssues: [...event.issues] } : line),
       }
     }
-    case 'retryStarted': return { ...state, stream: state.stream.map(line => line.operationId === event.id ? { ...line, retryable: false } : line) }
     case 'touch': return { ...state, highlights: state.highlights.filter(id => id !== event.targetId), refusedTargets: state.refusedTargets.filter(id => id !== event.targetId) }
     case 'manualEdit': case 'undo': return { ...state, ...clearHighlights }
     case 'settle': return state.highlightPhase === 'flash' ? { ...state, highlightPhase: 'settled' } : state
@@ -185,7 +181,7 @@ export function transitionAgentDrawer(state: AgentDrawerState, event: AgentDrawe
         ...(clears ? clearHighlights : {}),
         request: state.request?.id === event.id && event.outcome !== 'unknown' ? null : state.request,
         announcement: { text: previous.text, outcome: event.outcome },
-        stream: state.stream.map(line => line === previous ? { ...line, outcome: event.outcome, phase: undefined, changes, reason: event.reason, retryable: event.retryable ?? false, interimIssues: undefined } : line),
+        stream: state.stream.map(line => line === previous ? { ...line, outcome: event.outcome, phase: undefined, changes, reason: event.reason, interimIssues: undefined } : line),
         unread: state.drawer === 'tucked' ? [...new Set([...state.unread, event.id])] : state.unread,
         ...((event.outcome === 'applied' || event.outcome === 'saved' || event.outcome === 'draft') && (!previous.outcome || previous.outcome === 'unknown') ? { highlights: event.band ? [] : [...new Set((changes ?? []).map(change => change.targetId))], highlightPhase: 'flash' as const, highlightOperation: event.id, band: event.band ?? null, refusedTargets: [] } : {}),
         ...(event.outcome === 'not-applied' ? { refusedTargets: event.refusedTargets ?? [] } : {}),

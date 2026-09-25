@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import type { AgentResizeIntent } from './agentResizeProtocol'
 import { createDeliveryJournal, MAX_AGENT_DELIVERY_RESULT_BYTES, measureAgentDeliveryResultBytes, type AgentDelivery, type DeliveryScope } from './agentDeliveryJournal'
 import type { ShowEditCompletion, ShowEditRequest } from './showEditAdmission'
 import { applyShowCommand, type ShowCommandChange, type ShowCommandContext } from './showCommands/registry'
@@ -16,8 +15,7 @@ export type PrivateEditCommandContext = ShowCommandContext | ShowCommandV2Contex
 
 export interface PrivateEditOwner {
   capture(operationId: string, intent: string, remainingBytes: number): { request: ShowEditRequest; show: ShowDocument; context: unknown; commandContext: PrivateEditCommandContext; retainedBytes: number } | undefined
-  apply(show: ShowDocument, request: ShowEditRequest, resize?: AgentResizeIntent): unknown
-  retry?(request: ShowEditRequest, operationId: string, remainingBytes: number): { request: ShowEditRequest; receipt: unknown; retainedBytes: number } | undefined
+  apply(show: ShowDocument, request: ShowEditRequest): unknown
   complete(request: ShowEditRequest, completion: ShowEditCompletion): unknown
   cancel(request: ShowEditRequest): unknown
   outcome(request: ShowEditRequest): unknown
@@ -32,7 +30,7 @@ const payloadSchema = z.discriminatedUnion('kind', [
 ])
 interface Operation {
   request: ShowEditRequest
-  private?: { show: ShowDocument; commandContext: PrivateEditCommandContext; changes: Array<ShowCommandChange | ShowCommandV2Change>; commandAttempts: number; resize?: AgentResizeIntent }
+  private?: { show: ShowDocument; commandContext: PrivateEditCommandContext; changes: Array<ShowCommandChange | ShowCommandV2Change> }
 }
 
 type CommandOutcome =
@@ -100,7 +98,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
         owner.complete(captured.request, 'service-refused')
         return { code: 'result_too_large' }
       }
-      operation.private = { show: captured.show, commandContext: captured.commandContext, changes: [], commandAttempts: 0 }
+      operation.private = { show: captured.show, commandContext: captured.commandContext, changes: [] }
       active = delivery.operationId
       return begun
     }
@@ -111,21 +109,13 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
     }
     if (!operation.private) return { code: 'finished' }
     if (payload.kind === 'command') {
-      operation.private.commandAttempts += 1
       const result = applyPrivateCommand(operation.private.show, payload.name, payload.arguments, operation.private.commandContext)
-      if (!result.ok) {
-        operation.private.resize = undefined
-        return { code: 'refused', issues: result.issues }
-      }
+      if (!result.ok) return { code: 'refused', issues: result.issues }
       if (new TextEncoder().encode(JSON.stringify({ show: result.record, changes: [...operation.private.changes, ...result.changes] })).byteLength > 1_048_576) {
         finish(delivery.operationId, operation)
         owner.complete(operation.request, 'service-refused')
         return { code: 'result_too_large' }
       }
-      // Stable diagnostic resize retry is a v1 `resize_clip` qualification; the
-      // v2 catalogue has its own timing commands and no qualified retry.
-      operation.private.resize = !isShowRecordV2(operation.private.show) && operation.private.commandAttempts === 1 && payload.name === 'resize_clip'
-        ? { clipId: payload.arguments.clip_id as string, durationMs: payload.arguments.duration_ms as number } : undefined
       operation.private.show = result.record
       operation.private.changes.push(...result.changes)
       return { code: result.changes.length ? 'changed' : 'noop', changes: structuredClone(result.changes) }
@@ -134,7 +124,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
     finish(delivery.operationId, operation)
     if (payload.kind === 'complete_edit') return outcome(owner.complete(operation.request, payload.completion))
     if (candidate.changes.length === 0) return outcome(owner.complete(operation.request, 'nothing-applied'))
-    return { ...outcome(owner.apply(candidate.show, operation.request, candidate.resize)), changes: structuredClone(candidate.changes) }
+    return { ...outcome(owner.apply(candidate.show, operation.request)), changes: structuredClone(candidate.changes) }
   }
   return {
     deliver(delivery: AgentDelivery): PrivateEditResult {
@@ -149,28 +139,6 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
         result = { code: 'unavailable' }
       }
       return journal.complete(delivery.operationId, delivery.deliveryId, result) ? result : { code: 'result_unavailable' }
-    },
-    retry(operationId: string, nextOperationId: string): PrivateEditResult {
-      expireResults()
-      if (retired) return { code: 'retired' }
-      if (captureCapacityReached) return { code: 'capacity' }
-      if (active) return { code: 'busy' }
-      const original = operations.get(operationId)
-      if (!original || !owner.retry) return { code: 'not_qualified' }
-      const delivery = { ...scope, operationId: nextOperationId, deliveryId: nextOperationId, sequence: 0, payload: { kind: 'local_retry', original: operationId } }
-      const admitted = journal.admit(delivery)
-      if (admitted.code === 'known') return admitted.result as PrivateEditResult
-      if (admitted.code !== 'accepted') return { code: admitted.code }
-      const retried = owner.retry(original.request, `${scope.bindingId}:${nextOperationId}`, 16_777_216 - retainedCaptureBytes)
-      const result: PrivateEditResult = retried
-        ? { ...outcome(retried.receipt), operationId: nextOperationId, request: retried.request, retryOf: original.request.operationId }
-        : { code: 'not_qualified' }
-      if (retried) {
-        retainedCaptureBytes += retried.retainedBytes
-        operations.set(nextOperationId, { request: retried.request })
-      }
-      journal.complete(nextOperationId, nextOperationId, result)
-      return result
     },
     getRequest(operationId: string): ShowEditRequest | undefined {
       const request = operations.get(operationId)?.request

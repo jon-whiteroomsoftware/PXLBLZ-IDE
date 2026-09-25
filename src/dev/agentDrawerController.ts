@@ -8,7 +8,7 @@ import { AGENT_DAILY_MESSAGE_LIMIT, type AgentMessageAllowance } from '@/engine/
 import { showEditDiagnosticMessage } from '@/engine/showEditDiagnostic'
 
 type Admission = ReturnType<typeof createAgentEditorAdmission>
-type Captured = NonNullable<ReturnType<Admission['beginRequest']>> & { retryResize?: ReturnType<Admission['retryIntent']> }
+type Captured = NonNullable<ReturnType<Admission['beginRequest']>>
 type Receipt = ReturnType<Admission['readOutcome']>
 interface DiagnosticRecord {
   requestId: string
@@ -77,7 +77,6 @@ export function createAgentDrawerController(api: Admission, showId: string) {
       : receipt.status === 'retired' ? 'unknown' : 'not-applied'
     dispatch({ type: 'outcome', id: request.operationId, outcome, changes: details?.changes, band: details?.band,
       reason: receipt.status === 'refused' ? showEditDiagnosticMessage(receipt.diagnostic) ?? receipt.reason : receipt.status === 'completed' ? receipt.completion : undefined,
-      retryable: Boolean(api.retryIntent(request)),
       refusedTargets: receipt.status === 'refused' ? details?.changes.map(change => change.targetId) ?? [...request.targets] : [],
     })
     const record = records.find(item => item.requestId === request.operationId)
@@ -91,28 +90,27 @@ export function createAgentDrawerController(api: Admission, showId: string) {
   const unsubscribe = useShowStore.subscribe((next, previous) => {
     if (!adopting && next.showRevisions[showId] !== previous.showRevisions[showId]) dispatch({ type: 'manualEdit' })
   })
-  const submitCaptured = async (utterance: string, captured: Captured, retry = false) => {
+  const submitCaptured = async (utterance: string, captured: Captured) => {
     if (!bridgeUrl || !available()) return
     active = captured
     useAgentDrawerStore.setState({ busy: true })
     captures.set(captured.request.operationId, captured)
     const id = captured.request.operationId
-    dispatch({ type: 'beginEdit', id, intent: retry ? `Resize the original Clip to ${captured.retryResize!.durationMs / 1000}s` : utterance, retryOf: captured.request.retryOf })
+    dispatch({ type: 'beginEdit', id, intent: utterance })
     dispatch({ type: 'thinking', id })
     const record: DiagnosticRecord = { requestId: id, showId, capturedUpdatedAt: captured.show.updatedAt, responseAt: null, firstEventAt: null, doneAt: null, applyStartedAt: null, applyEndedAt: null, submittedAt: Date.now(), events: [], error: null }
     records.push(record)
     transport = new AbortController()
     try {
       const context = captured.context as { hoveredClipId?: string; selection?: { kind: string; clipId?: string; zoneId?: string }; playheadMs?: number }
-      const payload = retry ? JSON.parse(captured.request.payloadKey) as { utterance: string; history: typeof history } : { utterance, history: history.slice(-12) }
       const response = await fetch(`${bridgeUrl}/utterance`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: transport.signal,
-        body: JSON.stringify({ requestId: id, show: captured.show, utterance: payload.utterance, history: payload.history, context: { hoveredClipId: context.hoveredClipId, selectedClipIds: context.selection?.kind === 'clip' ? [context.selection.clipId] : undefined, activeZoneId: context.selection?.kind === 'zone' ? context.selection.zoneId : undefined, playheadMs: context.playheadMs }, ...(retry ? { retryResize: captured.retryResize } : {}) }) })
+        body: JSON.stringify({ requestId: id, show: captured.show, utterance, history: history.slice(-12), context: { hoveredClipId: context.hoveredClipId, selectedClipIds: context.selection?.kind === 'clip' ? [context.selection.clipId] : undefined, activeZoneId: context.selection?.kind === 'zone' ? context.selection.zoneId : undefined, playheadMs: context.playheadMs } }) })
       record.responseAt = Date.now()
       if (!response.ok || !response.body) throw new Error(`Bridge response ${response.status}`)
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
-      let result: { changed?: boolean; show?: unknown; reply: string; privateOutcome?: { kind: string }; retryResize?: unknown; changes?: AgentChange[]; timing?: unknown } | null = null
+      let result: { changed?: boolean; show?: unknown; reply: string; privateOutcome?: { kind: string }; changes?: AgentChange[]; timing?: unknown } | null = null
       for (;;) {
         const { value, done } = await reader.read()
         buffer += decoder.decode(value, { stream: !done })
@@ -136,7 +134,7 @@ export function createAgentDrawerController(api: Admission, showId: string) {
       record.doneAt = Date.now(); record.changed = result.changed === true; record.bridgeTiming = result.timing
       // A private edit reply cannot claim live completion; the owned action carries its outcome.
       if (!result.changed) dispatch({ type: 'reply', text: result.reply })
-      history.push({ role: 'user', text: retry ? `Retry exact duration ${captured.retryResize!.durationMs}ms for original logical Clip ${captured.retryResize!.clipId}.` : utterance })
+      history.push({ role: 'user', text: utterance })
       if (result.changed && result.show && result.privateOutcome?.kind === 'committed') {
         // Metadata comes from private registry execution, and grants no mutation capability.
         const changes = Array.isArray(result.changes) ? result.changes.filter(change => typeof change.targetId === 'string' && typeof change.description === 'string') : []
@@ -144,7 +142,7 @@ export function createAgentDrawerController(api: Admission, showId: string) {
         record.applyStartedAt = Date.now()
         adopting = true
         let receipt: Receipt
-        try { receipt = api.applyShow(result.show, captured.request, result.retryResize) } finally { adopting = false }
+        try { receipt = api.applyShow(result.show, captured.request) } finally { adopting = false }
         publish(captured.request, receipt)
         while (available() && (receipt?.status === 'waiting' || (receipt?.status === 'applied' && receipt.settlement === 'saving'))) {
           await new Promise(resolve => window.setTimeout(resolve, 50))
@@ -183,15 +181,6 @@ export function createAgentDrawerController(api: Admission, showId: string) {
       if (!captured) { dispatch({ type: 'system', text: 'The editor refused to start this request.' }); return }
       dispatch({ type: 'draft', text: '' })
       void submitCaptured(utterance, captured)
-    },
-    retry(id: string) {
-      if (state.connection?.kind !== 'builtin' || active || state.request || state.contactLost || !available()) return
-      const original = captures.get(id)
-      if (!original) return
-      const captured = api.beginRetry(mint(), original.request)
-      if (!captured) return
-      dispatch({ type: 'retryStarted', id })
-      void submitCaptured(JSON.parse(captured.request.payloadKey).utterance, captured, true)
     },
     cancel() {
       const captured = state.request ? captures.get(state.request.id) : active

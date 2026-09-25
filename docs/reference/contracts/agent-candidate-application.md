@@ -46,46 +46,6 @@ deadline, and retirement clears the receipt and diagnostic together.
 
 The overlay displays private prose alongside the actual editor outcome and includes that outcome in subsequent session dialogue. A delivered candidate remains one busy submission while waiting for active input and while saving. Waiting displays a Cancel action; cancellation prevents later adoption. Completion does not move focus away from a manual field. Closing the overlay releases its transport and polling resources while already-adopted saves retain store ownership. The store owns save recovery in [Show state, history, and persistence](show-state-history-persistence.md). [Show command semantics](show-command-semantics.md) governs the shared registry. Migrated diagnostic operations derive their input schema and delegate execution through the shared descriptor adapter; families awaiting migration retain their existing owners. The private pair move path retains its separately qualified transaction capability. Canonical move uses whole-Show admission; it has no narrow resize-style dependency admission.
 
-## Stable diagnostic resize retry
-
-An eligible failed activity offers an explicit exact-duration Retry.
-The service retains the logical Clip id and positive safe-integer duration from
-one successfully executed canonical `resize_clip`, after reference resolution.
-Only normal private committed completion qualifies. Additional mutation attempts,
-including no-ops, refused or unknown calls, lifecycle calls, malformed tool JSON,
-unknown arguments and a validation-repair run make the turn ineligible. Start/end
-variants and wholly no-change turns do not acquire a retry binding.
-
-The browser binds that command once alongside the original broad request identity.
-Revision conflict, interaction timeout, user cancellation and rolled-back saving
-may offer Retry after private completion. Pending, saving, successful, superseded,
-noncandidate and unsupported outcomes do not. Starting Retry removes that action
-while retaining the historical failure. The production activity stream has no
-Dismiss action. Typing and focusing another field do not change Retry availability.
-Pointer activation preserves existing focus; keyboard activation returns focus
-from a removed Retry action to the composer without changing its draft or selection.
-
-Retry captures fresh Show state and metadata guards under a new operation id with
-`retryOf`, preserving the original payload, reference context and target identities.
-The fixed-intent proposal sees only the retained Clip id and duration. A new private
-session executes that exact command and validates its complete result. The browser
-compares the complete candidate with canonical execution on its captured snapshot,
-independent of object-key order; only the command-generated `updatedAt` clock is
-excluded because ordinary adoption assigns its own stamp. Valid-envelope malformed
-bindings or candidates terminally refuse; foreign envelopes cannot consume the
-original operation. Whole-Show revision admission remains conservative throughout.
-
-A moved or renamed Clip retains its identity; a missing Clip refuses without
-selecting another ordinal. Retry never replays the prior whole-record candidate,
-consumes an unrelated composer draft, or starts automatically. Later dialogue
-describes the exact resolved retry separately from the immutable original request.
-Linked retries retain that same meaning. Existing cancellation, retirement, save
-recovery and one-adoption history ownership remain authoritative.
-
-[Retry evidence](../evidence/issue-949-stable-retry/README.md) records the finite
-qualification. General natural-language retries and the final Agent panel are
-outside this diagnostic boundary.
-
 ## Bounded mixed batches
 
 A diagnostic turn may move B from 8000 to 16000 ms, then resize A at 0 ms
@@ -135,7 +95,7 @@ produce typed non-application outcomes. Its session-only receipt lookup separate
 applied/saving from saved, rolled-back, superseded and stock draft settlement.
 
 [Show state, history, and persistence](show-state-history-persistence.md#internal-request-admission)
-defines lifetime, revision inventory, retry identity and the configurable entry
+defines lifetime, revision inventory and the configurable entry
 cap. [Pure policy tests](../../../src/engine/showEditAdmission.test.ts) and
 [store admission tests](../../../src/store/showEditAdmission.test.ts) exercise
 full records/history, provider writes, revision ABA, retirement, deduplication
@@ -212,11 +172,7 @@ placement preview cancellation/manual commit and native Effect dragend/drop;
 see [detail gesture evidence](../evidence/issue-949-detail-gesture-activity.md).
 SA covers retained physical-zone drafts through the scripted bridge and clean-source
 index replacement through the existing diagnostic adapter; see [spatial draft
-evidence](../evidence/issue-949-spatial-draft-activity.md). W retains its explicit synthetic-token protocol proof. Internal
-`admitResolvedShowResize` consumes the same owner, checks its private dependency
-qualification before waiting, and replays the captured operation on current state
-at settlement. It returns the same waiting projection; no immediate resize
-entrypoint bypasses active ownership.
+evidence](../evidence/issue-949-spatial-draft-activity.md). W retains its explicit synthetic-token protocol proof.
 
 When active input requires waiting, the original completed-candidate arrival
 establishes one 5,000 ms monotonic deadline, captured before snapshot/serialization
@@ -240,26 +196,19 @@ same-session manual activity. Session replacement/retirement clears activity as
 well. Cancellation and noncandidate completion release pending candidate resources;
 adopted saves keep ordinary settlement ownership after retirement.
 
-Pending snapshots/callbacks/timers are discarded on terminal action. Qualified
-resize observation is discarded with its wait, including timeout; dependency or
-metadata invalidation also releases the wait immediately without retiring active
+Pending snapshots/callbacks/timers are discarded on terminal action. Dependency or
+metadata invalidation releases the wait immediately without retiring active
 same-session input tokens. Exact serialized candidate identities remain separately,
 bounded by the existing
 operation-table capacity until session retirement, so changed payloads cannot
-replace an original delivery or make a terminal id new. Qualified resize uses its
-captured resolved payload identity in that same bound. Wrong envelopes refuse
+replace an original delivery or make a terminal id new. Wrong envelopes refuse
 without poisoning the original. A foreign-Show candidate delivered with the valid
 registered envelope receives a stored terminal `invalid-candidate` refusal: reads
-agree with delivery, the diagnostic adapter records rejection once and releases
-metadata subscriptions, and an explicit new operation may name it as `retryOf`.
-A changed duplicate cannot replace the original candidate identity. Broad delivery
-never consumes a qualified resize-owned request. No automatic retry or provider/model call is
-introduced. [Store consumer tests](../../../src/store/showInputWait.test.ts)
+agree with delivery, and the diagnostic adapter records rejection once and releases
+metadata subscriptions. A changed duplicate cannot replace the original candidate
+identity. No automatic retry or provider/model call is introduced. [Store consumer tests](../../../src/store/showInputWait.test.ts)
 cover complete records/history, zero attributable writes while waiting/refused,
-monotonic boundaries and a serialized `.pxlshow` reopened through its importer.
-[Qualified resize consumer tests](../../../src/store/showQualifiedResize.test.ts)
-also prove independent Layer preservation through waiting and undo, final
-qualification crossing the armed deadline, and observation cleanup. Actual field
+monotonic boundaries and a serialized `.pxlshow` reopened through its importer. Actual field
 ownership is covered by `src/dev/agentFieldActivity.test.tsx`, shared-control
 lifecycle tests, and the FA browser sequence. The registered timeline, detail and
 spatial families and their GA/DA/SA evidence are enumerated above; external
@@ -270,89 +219,6 @@ resize semantic owner, with two explicitly tagged manual Transition-to-Cut
 exceptions ([command contract](show-command-semantics.md#manual-resize-commits)).
 They retain ordinary editor persistence and conservative captured-source refusal;
 sharing semantics does not give them this request lifecycle or narrow context.
-
-## Internal qualified exact resize
-
-`beginResolvedShowResize` captures a resolved logical Clip and exact integer
-resize request in the current internal store session. `admitResolvedShowResize`
-checks identity and observed dependencies, consumes the bounded active-input wait,
-then replays that stored operation through `resizeShowClipExactly` on the current
-Show, validates the complete candidate with `validateShowAuthoring`, and adopts
-once through ordinary store history and persistence. Final dependency qualification
-and validation must finish before an armed wait deadline; never-waited admission
-has no computation deadline. A validated no-op has a terminal `noop` receipt and creates no history, timestamp or provider write.
-
-The finite reference meaning is the original logical Clip identity. Its private
-dependency context protects the complete affected logical Layer across Scenes,
-including connected successors. Scene-local Layer identities and array order,
-placement membership/instance links, all Pattern instances, tracks, Transitions,
-shared timing and other Show fields remain guarded. Only unrelated placement
-values are excluded. Thus a manual brightness or duration edit on another Layer
-or Zone survives admission; same-Layer edits anywhere conflict. Groups and
-missing composition/targets refuse this narrow path. Broad model context and
-other operations retain the whole-Show callback guard.
-
-Pending observation makes conflicts permanent even when later edits restore
-identical bytes. Authoritative Show replacements, undo/redo and removal are
-observed; hydration, stock reset and save recovery invalidate conservatively.
-Pattern, Library and Map array replacements also invalidate all pending qualified
-requests, including change-and-restore. These external guards deliberately refuse
-unrelated metadata edits too. Observation exists only while requests are pending,
-shares the existing session operation cap, and ends on completion, cancellation,
-refusal or retirement. It is volatile session state, not a manual-edit ledger.
-
-The receipt preserves original reference meaning and exact operation identity;
-explicit retry uses a new operation id and fresh current dependencies. A missing
-original Clip refuses instead of selecting a replacement. The owner supplies the
-dependency context; callers cannot provide narrow guards or run arbitrary
-callbacks under a resize receipt. The owner proves only the finite
-context it captures. Adapters must qualify all context actually supplied to a
-model; the returned operation alone is insufficient. The explicit typed diagnostic
-below is the only exposed narrow path.
-
-[Store consumer proof](../../../src/store/showQualifiedResize.test.ts) compares
-complete current records/history and attributable writes, including undo/redo,
-durable provider records and reopened `.pxlshow` files. It covers Main/Overlay and
-Zone independence, multi-Scene connected resize, same-Layer and shared-dependency
-conflicts, ABA, external source changes, retry identity, no-op validation,
-cancellation/retirement, bounded observation and save rollback/supersession.
-This qualifies the internal resize path only; broad diagnostic requests remain conservative.
-
-## Typed exact resize diagnostic
-
-The explicit DEV resize entry accepts only `{clipId, durationMs}`, where duration
-is a positive safe integer in milliseconds. It resolves and captures through the
-existing qualified owner before inference. The caller retains that request and
-its original editor API through response delivery. Ordinary chat still captures
-the whole Show and uses conservative revision admission.
-
-The finite model packet enumerates only that Clip id and requested duration,
-plus fixed instructions, empty focus/history/listing and the exact resize and
-completion schemas. The `/resize` loopback route rejects additional request
-keys. Dispatch independently rejects broad reads, other operations, foreign
-identity/range and unknown arguments; schema advertisement alone is not the
-boundary. Tool and completion feedback is fixed prose/codes, without Show
-records, grammar validation issues or prior dialogue. The installed provider
-serializer is exercised through an injected transport without a network call.
-
-A proposal requires a matching operation, strict typed apply completion and
-normal agent return. Ask, refusal, missing/contradictory completion, abnormal
-return and errors produce no proposal. There is no semantic repair or broad
-fallback in this finite mode. The existing browser/store owner alone replays the
-operation on current state, validates authoring, waits for active input and
-adopts through ordinary history and persistence.
-
-A mismatched proposal delivered with the valid pending envelope terminally
-refuses that operation and releases its observation. A foreign envelope does not
-consume the original; a changed duplicate cannot rewrite an already-terminal
-receipt. Broad candidate invalidation remains unable to consume qualified
-resize authority. URL/session retirement, cancellation, dependency ABA and
-metadata invalidation retain their existing semantics.
-
-This qualifies fixed typed requests only. Unrestricted text such as “like
-before,” automatic narrow-mode routing, model-selected duration and generic
-private grammar batches remain outside this boundary. The [evidence packet](../evidence/issue-949-targeted-resize/README.md)
-records the finite consumer cases and residual gaps.
 
 ## Present limits
 
@@ -691,7 +557,7 @@ version; the diagnostic adapter does not authorize production attachments.
 request capture, metadata invalidation, candidate validation, input wait and
 save receipts. `src/dev/agentEditorAdmission.ts` is a compatibility wrapper
 that injects diagnostic observation; production callers import the owner
-directly. Snapshot and finite resize-identity helpers are pure engine modules.
+directly. Snapshot helpers are pure engine modules.
 No second adoption owner or diagnostic grammar is introduced.
 
 `src/engine/agentPrivateExecutor.ts` keeps one private candidate per binding,
@@ -700,8 +566,7 @@ immutable identity,
 and delegates apply/complete/cancel/outcome to that admission. A domain-command
 refusal returns its issues while retaining the private candidate and earlier
 accepted changes. Both built-in and external clients may correct the command
-within that operation, then commit or cancel. Every attempted domain command,
-including a refusal, counts against single-resize Retry qualification. Explicit
+within that operation, then commit or cancel. Explicit
 whole-turn completion, commit/admission refusal, service/result-size failure,
 cancellation and retirement retain their existing terminal ownership.
 
@@ -751,9 +616,9 @@ working copy instead of the v1 collection, so `read_show` answers v2 for a v2
 record; captures the complete validated record as the operation snapshot
 rather than projecting a flat Show; takes its dependency baseline from the v2
 Pattern sites; and resolves a replacement Pattern through the same captured
-bundle the inspector uses. Stable diagnostic resize retry stays version 1's:
-it qualifies one exact `resize_clip` recomputation, and a v2 editor answers
-`not_qualified` rather than approximating that intent with another command.
+bundle the inspector uses. The stable diagnostic resize retry and the typed
+exact resize diagnostic each qualified one exact v1 `resize_clip` and existed
+only for version-1 records; #1042 Phase 3a removed both.
 
 `agentPrivateExecutor` folds whichever catalogue owns the captured record.
 The two report the same three outcomes in different shapes, and version 2 maps

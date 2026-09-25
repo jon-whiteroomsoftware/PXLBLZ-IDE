@@ -101,17 +101,14 @@ An unchanged open selector follows authoritative selection updates so a later Sa
 cannot restore stale indexes. Explicit Save keeps its existing history boundary.
 Existing pointer identity and cancellation semantics remain authoritative. Candidate settlement
 then performs the applicable current qualification, final validation and adoption
-sequence without an await. Whole-Show work uses revision equality; qualified resize
-replays on current state under its private Layer dependencies, preserving unrelated
-placement edits. Timeout, cancellation and lifecycle invalidation discard pending
+sequence without an await. Whole-Show work uses revision equality. Timeout, cancellation and lifecycle invalidation discard pending
 resources without taking over history or persistence. The [bounded wait contract](agent-candidate-application.md#internal-bounded-active-input-wait)
 defines ownership, timing and its internal-only limits.
 
 The operation table retains immutable pending, refused, cancelled, completed, no-op and
 applied receipts for the live session. Duplicate delivery reads the existing
 outcome; a changed envelope under the same id refuses without replacing that
-identity. Explicit retry requires a new id and retains the original payload
-identity, reference context and target identities. Target qualification remains
+identity. Target qualification remains
 the engine adapter's responsibility. The configurable default is 256 entries
 per session, a conservative memory bound. A full table refuses new registrations
 instead of evicting ids. Retirement clears historical lookup; unknown or old
@@ -127,8 +124,8 @@ Noncandidate completion checks the live session, Show, operation and exact captu
 envelope, including its original base revision, but does not compare that revision
 with the current document. Manual edits, Undo and hydration cannot turn an answer
 or service disposition into a revision-conflict refusal. Completion changes no
-document, history or provider state; its terminal receipt cannot be an explicit
-`retryOf` original. Candidate admission retains both current-revision checks.
+document, history or provider state. Candidate admission retains both
+current-revision checks.
 
 Applied receipts distinguish saving from settlement. The existing personal
 write queue reports saved when that adoption is still current at successful
@@ -137,17 +134,6 @@ when current-write failure restores its durable record/history pair. Stock
 admission reports draft immediately. Receipt lookup is session-only; an adopted
 save still settles normally after retirement without recreating lost receipts.
 These outcomes use the existing recovery policy, not a second persistence queue.
-
-The internal exact-resize owner can admit across unrelated placement edits by
-observing engine-owned Layer dependencies throughout the pending lifetime. Its
-receipt binds the original resolved logical target and exact range; retry
-retains that meaning while recapturing dependencies from current state. The
-owner replays the stored operation on current state and validates the final
-authoring candidate synchronously before ordinary adoption. A terminal validated
-`noop` adds no history or write and remains deduplicated at the existing session
-cap. Qualified receipts cannot be submitted to the arbitrary callback path. The
-finite supported scope, conservative lifecycle/source invalidation and evidence
-are defined in [Internal qualified exact resize](agent-candidate-application.md#internal-qualified-exact-resize).
 
 ## Manual resize source check
 

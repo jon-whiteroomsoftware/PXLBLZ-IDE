@@ -5,7 +5,7 @@
 // unknown Zone, a non-integer physical endpoint, invalid logical routing, a
 // duplicate Zone identity inside one Layout and an output pixel count that is
 // not a positive safe integer as STRUCTURAL ERRORS, so
-// `agent/editorAdmission.ts` and `store/showResizeAdmission.ts` refuse the
+// `agent/editorAdmission.ts` refuses the
 // candidate outright. An output count merely past the compiled capacity is a
 // delivery warning that leaves the Show authorable. Nothing on the v2 path
 // asked any of them. The oracle for each case below is therefore the real

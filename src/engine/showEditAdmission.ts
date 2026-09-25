@@ -9,7 +9,6 @@ export interface ShowEditIntent {
   readonly payloadKey: string
   readonly referenceContext: string
   readonly targets: readonly string[]
-  readonly retryOf?: string
 }
 
 export interface ShowEditRequest extends ShowEditIntent {
@@ -20,7 +19,7 @@ export interface ShowEditRequest extends ShowEditIntent {
 
 export type ShowEditSettlement = 'saving' | 'saved' | 'rolled-back' | 'superseded' | 'draft'
 export type ShowEditRefusal = 'revision-conflict' | 'wrong-session' | 'wrong-show' | 'unknown-operation'
-  | 'interaction-timeout' | 'identity-mismatch' | 'capacity' | 'invalid-retry' | 'missing-show' | 'invalid-candidate' | 'no-candidate'
+  | 'interaction-timeout' | 'identity-mismatch' | 'capacity' | 'missing-show' | 'invalid-candidate' | 'no-candidate'
 
 export type ShowEditCompletion = 'asked' | 'refused' | 'nothing-applied' | 'commit-refused' | 'incomplete' | 'service-refused' | 'service-failed'
 
@@ -43,7 +42,7 @@ export interface ShowEditEligibility extends ShowEditIdentity {
 
 function sameIntent(a: ShowEditIntent, b: ShowEditIntent): boolean {
   return a.operationId === b.operationId && a.payloadKey === b.payloadKey
-    && a.referenceContext === b.referenceContext && a.retryOf === b.retryOf
+    && a.referenceContext === b.referenceContext
     && a.targets.length === b.targets.length && a.targets.every((id, index) => id === b.targets[index])
 }
 
@@ -91,16 +90,6 @@ export function createShowEditSession(
       const existing = read(input.operationId)
       if (existing) return sameIntent(existing.request, input) ? existing : receipt(request, 'refused', 'identity-mismatch')
       if (entries.size >= capacity) return receipt(request, 'refused', 'capacity')
-      if (input.retryOf !== undefined) {
-        const original = read(input.retryOf)
-        if (!original || !(original.status === 'refused' || original.status === 'cancelled' || original.settlement === 'rolled-back')
-          || original.request.payloadKey !== input.payloadKey
-          || original.request.referenceContext !== input.referenceContext
-          || original.request.targets.length !== input.targets.length
-          || original.request.targets.some((id, i) => id !== input.targets[i])) {
-          return remember(receipt(request, 'refused', 'invalid-retry'))
-        }
-      }
       return remember(receipt(request, 'pending'))
     },
     check(request: ShowEditRequest, current: ShowEditEligibility): ShowEditReceipt {

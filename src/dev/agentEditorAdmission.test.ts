@@ -257,7 +257,6 @@ it.each(['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 
     expect(api.readOutcome(captured.request)).toEqual(result)
     expect(api.complete(captured.request, 'asked')).toBe(result)
     expect(api.applyShow({ ...captured.show, name: 'Late candidate' }, captured.request)).toBe(result)
-    expect(state().beginShowEdit(api.sessionId, { ...captured.request, operationId: 'retry-' + action, retryOf: action })).toMatchObject({ status: 'refused', reason: 'invalid-retry' })
     expect(snapshot()).toEqual(before)
     expect(writes).toHaveBeenCalledTimes(count)
   }
@@ -369,7 +368,7 @@ it('observes the authoritative adoption once after rejected mismatches and repea
   expect(phases.filter(phase => phase === 'settled')).toEqual(['settled'])
 })
 
-it('records a foreign-Show candidate refusal once, releases metadata and permits an explicit retry', async () => {
+it('records a foreign-Show candidate refusal once and releases metadata', async () => {
   const stores = await Promise.all([import('@/store/patternStore'), import('@/store/libraryStore'), import('@/store/mapStore')])
   const unsubscribes: ReturnType<typeof vi.fn>[] = []
   const subscriptions = [stores[0].usePatternStore, stores[1].useLibraryStore, stores[2].useMapStore].map(store => {
@@ -397,7 +396,6 @@ it('records a foreign-Show candidate refusal once, releases metadata and permits
     unsubscribes.forEach(unsubscribe => expect(unsubscribe).toHaveBeenCalledTimes(1))
     const rejected = window.__pxlblzObservations!.read().filter(event => event.kind === 'agent-apply' && event.requestId === captured.request.operationId && event.phase === 'rejected')
     expect(rejected).toHaveLength(1)
-    expect(state().beginShowEdit(api.sessionId, { ...captured.request, operationId: 'retry', retryOf: captured.request.operationId })).toMatchObject({ status: 'pending' })
   } finally { subscriptions.forEach(spy => spy.mockRestore()) }
 })
 

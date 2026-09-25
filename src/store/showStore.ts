@@ -66,7 +66,6 @@ import {
   type ShowEditSession,
   type ShowEditSettlement,
 } from '@/engine/showEditAdmission'
-import { createShowResizeAdmission, type ResolvedShowResizeIntent } from './showResizeAdmission'
 import { createShowV2CandidateAdmission, type ShowV2CandidateDelivery } from './showV2CandidateAdmission'
 import { createShowInputWait, type ShowEditActivity, type ShowInputWaitReceipt } from '@/engine/showInputWait'
 import { isShowEditDiagnosticInput, retainShowEditDiagnostic, type ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
@@ -189,9 +188,6 @@ interface ShowState {
     evaluate: (current: ShowRecord) => ShowRecord | null,
     validate: (candidate: ShowRecord, current: ShowRecord) => ShowEditValidationResult,
   ) => ShowEditReceipt
-  beginResolvedShowResize: (sessionId: string, intent: ResolvedShowResizeIntent) => ShowEditReceipt
-  admitResolvedShowResize: (request: ShowEditRequest) => ShowInputWaitReceipt
-  rejectResolvedShowResize: (request: ShowEditRequest) => ShowEditReceipt
   /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
   shows: ShowRecord[]
   showsLoaded: boolean
@@ -407,19 +403,9 @@ async function updateShowQuietly(
   }
 }
 
-export const useShowStore = create<ShowState>()((set, get, api) => {
+export const useShowStore = create<ShowState>()((set, get) => {
   let editSession: ShowEditSession | undefined
   const inputWait = createShowInputWait(() => editSession)
-  const resizeAdmission = createShowResizeAdmission({
-    inputWait,
-    session: () => editSession,
-    current: id => get().resolveEditableShow(id),
-    revision: id => get().showRevisions[id] ?? 0,
-    subscribe: listener => api.subscribe(listener),
-    missing: id => showsPendingDeletion.has(id),
-    adopt: (id, next, settle) => updateShowRecord(id, next, settle),
-    isStock: id => !!stockShowById(id),
-  })
   // The caller-supplied v2 candidate path (#1039). It shares this store's
   // session, input wait, revisions and adoption, so an agent command sequence
   // and the route's own typed intents are one writer.
@@ -588,7 +574,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
       }))
       onSettlement?.(get().shows.find((show) => show.id === id)?.updatedAt === adopted.updatedAt ? 'saved' : 'superseded')
     } catch (cause) {
-      resizeAdmission.invalidate(id)
       inputWait.invalidate(id)
       let rolledBack = false
       set((state) => {
@@ -654,7 +639,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   readShowEditCandidate: (sessionId, id) => editSession?.sessionId === sessionId ? inputWait.read(id) : undefined,
   deliverShowEditCandidate: (request, candidate, validate, validateRaw) => {
     const arrivedAt = performance.now()
-    if (resizeAdmission.owns(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
     const capturedRequest = structuredClone(request)
     const capturedSession = editSession
     let capturedCandidate: ShowRecord
@@ -690,18 +674,13 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   invalidateShowEditCandidate: (request, diagnostic) => {
     const session = editSession
     if (!session || session.sessionId !== request.sessionId) return undefined
-    if (resizeAdmission.owns(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
     const checked = session.checkIdentity(request, session)
     if (checked !== session.read(request.operationId) || checked.status !== 'pending') return checked
     inputWait.release(request.operationId)
     return session.refuse(request.operationId, 'invalid-candidate', diagnostic)
   },
-  beginResolvedShowResize: (sessionId, intent) => resizeAdmission.begin(sessionId, intent),
-  admitResolvedShowResize: request => resizeAdmission.admit(request),
-  rejectResolvedShowResize: request => resizeAdmission.reject(request),
 
   beginShowEditSession: (showId, capacity) => {
-    resizeAdmission.retire()
     inputWait.retire()
     editSession?.retire()
     editSession = createShowEditSession(crypto.randomUUID(), showId, capacity)
@@ -709,7 +688,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   },
   retireShowEditSession: (sessionId) => {
     if (editSession?.sessionId !== sessionId) return
-    resizeAdmission.retire()
     inputWait.retire()
     editSession.retire()
     editSession = undefined
@@ -730,14 +708,13 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   readShowEdit: (sessionId, operationId) => editSession?.sessionId === sessionId ? editSession.read(operationId) : undefined,
   cancelShowEdit: (sessionId, operationId) => {
     if (editSession?.sessionId !== sessionId) return undefined
-    resizeAdmission.release(operationId)
     inputWait.release(operationId)
     return editSession.cancel(operationId)
   },
   admitShowEdit: (request, evaluate, validate) => {
     const session = editSession
     if (!session || session.sessionId !== request.sessionId) return { request, status: 'retired' }
-    if (resizeAdmission.owns(request.operationId) || inputWait.owns(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
+    if (inputWait.owns(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
     const eligibility = () => ({ sessionId: session.sessionId, showId: session.showId, revision: get().showRevisions[session.showId] ?? 0 })
     const checked = session.check(request, eligibility())
     if (checked.status !== 'pending') return checked
@@ -783,13 +760,11 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     const checked = session.checkIdentity(request, { sessionId: session.sessionId, showId: session.showId })
     if (checked.status !== 'pending') return checked
     if (!['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 'service-refused', 'service-failed'].includes(completion)) return { request, status: 'refused', reason: 'identity-mismatch' }
-    resizeAdmission.release(request.operationId)
     inputWait.release(request.operationId)
     return session.complete(request.operationId, completion)!
   },
 
   loadShows: async () => {
-    resizeAdmission.invalidate()
     inputWait.invalidate()
     // Personal pilots are provider-owned content. Retire them before a workspace
     // reload so a same-id record from the previous account cannot satisfy the
@@ -828,7 +803,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
     // A workspace that changed while the rows were read owns its own listing.
     const currentWorkspace = showV2WorkspaceGeneration === listGeneration
       && getPersonalContentProvider() === listProvider
-    resizeAdmission.invalidate()
     inputWait.invalidate()
     set((state) => ({
       ...(currentWorkspace ? { showV2Rows: v2Rows } : {}),
@@ -973,7 +947,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
 
   removeShow: async (id) => {
     if (showsPendingDeletion.has(id)) return
-    resizeAdmission.invalidate(id)
     inputWait.invalidate(id)
     showsPendingDeletion.add(id)
     set((state) => revisionPatch(state, id))
@@ -1064,7 +1037,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   resetShowV2LessonDraft: (id) => {
     const lesson = stockShowV2ById(id)
     if (!lesson || !showV2LessonDraftIds.has(id) || !get().showV2Pilots[id]) return
-    resizeAdmission.invalidate(id)
     inputWait.invalidate(id)
     const record = cloneValidShowRecordV2(lesson)
     set((state) => {
@@ -1078,7 +1050,6 @@ export const useShowStore = create<ShowState>()((set, get, api) => {
   },
 
   resetStockShowDraft: (id) => set((state) => {
-    resizeAdmission.invalidate(id)
     inputWait.invalidate(id)
     if (!(id in state.stockShowDrafts)) return state
     const stockShowDrafts = { ...state.stockShowDrafts }

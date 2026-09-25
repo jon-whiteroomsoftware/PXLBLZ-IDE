@@ -22,7 +22,6 @@ beforeEach(() => {
     },
     applyShow: applied = vi.fn(() => { receipt = { request, status: 'applied', settlement: 'saved' }; return receipt }),
     readOutcome: () => receipt,
-    retryIntent: () => undefined,
     cancel: () => { receipt = { request, status: 'cancelled' }; return receipt },
     complete: () => { receipt = { request, status: 'completed', completion: 'nothing-applied' }; return receipt },
   }

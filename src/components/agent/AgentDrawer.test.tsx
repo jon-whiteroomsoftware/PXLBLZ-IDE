@@ -11,7 +11,7 @@ beforeEach(() => {
   const allowance = available()
   useWorkspaceStore.setState({ ...workspaceInitialState, agentCapabilities: { external: true, builtin: true, endpoint: 'https://app.test/mcp', allowance } })
   let state = createAgentDrawerState(false, allowance)
-  controller = { dispatch: (event: AgentDrawerEvent) => { state = transitionAgentDrawer(state, event); useAgentDrawerStore.setState({ state }) }, retry: vi.fn(), submit: vi.fn(), disconnect: vi.fn(), changeAgent: vi.fn(), moveExternal: vi.fn(), backToChooser: vi.fn(), restoreContact: vi.fn(), cancel: vi.fn() } as unknown as AgentDrawerController
+  controller = { dispatch: (event: AgentDrawerEvent) => { state = transitionAgentDrawer(state, event); useAgentDrawerStore.setState({ state }) }, submit: vi.fn(), disconnect: vi.fn(), changeAgent: vi.fn(), moveExternal: vi.fn(), backToChooser: vi.fn(), restoreContact: vi.fn(), cancel: vi.fn() } as unknown as AgentDrawerController
   useAgentDrawerStore.setState({ controller, state, busy: false })
 })
 afterEach(() => act(() => {
@@ -157,7 +157,6 @@ it('announces terminal outcomes without putting read/progress lines in a live re
   expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
   expect(screen.getByTestId('agent-response')).toHaveTextContent('The save was rolled back.')
-  expect(controller.retry).not.toHaveBeenCalled()
 })
 
 it('restores a deliberately pinned drawer after a narrow overlay without remounting the Show', () => {
@@ -187,42 +186,6 @@ it('names connection loss on the tucked keyboard edge', () => {
   render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
   act(() => controller.dispatch({ type: 'drop' }))
   expect(screen.getByRole('button', { name: /Open the Agent drawer;.*contact lost.*0 unread/ })).toBeVisible()
-})
-
-it('keeps Retry unavailable while another applied operation still owns the save', () => {
-  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
-  controller.dispatch({ type: 'beginEdit', id: 'old', intent: 'First resize' })
-  controller.dispatch({ type: 'outcome', id: 'old', outcome: 'not-applied', retryable: true })
-  controller.dispatch({ type: 'beginEdit', id: 'new', intent: 'Second resize' })
-  controller.dispatch({ type: 'outcome', id: 'new', outcome: 'applied' })
-  useAgentDrawerStore.setState({ busy: true })
-  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
-  expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled()
-})
-
-it('keeps Retry and the composer draft while exposing no Dismiss control', () => {
-  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
-  controller.dispatch({ type: 'draft', text: 'Keep this draft' })
-  controller.dispatch({ type: 'beginEdit', id: 'old', intent: 'Resize' })
-  controller.dispatch({ type: 'outcome', id: 'old', outcome: 'not-applied', retryable: true })
-  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
-  expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
-  expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
-  expect(screen.getByRole('textbox', { name: 'Message the Pixelblaze agent' })).toHaveValue('Keep this draft')
-})
-
-it('returns keyboard focus to the preserved composer when Retry removes its action', () => {
-  controller.dispatch({ type: 'drawer', mode: 'open' }); controller.dispatch({ type: 'chooseBuiltin' })
-  controller.dispatch({ type: 'draft', text: 'Keep this draft' })
-  controller.dispatch({ type: 'beginEdit', id: 'old', intent: 'Resize' })
-  controller.dispatch({ type: 'outcome', id: 'old', outcome: 'not-applied', retryable: true })
-  vi.mocked(controller.retry).mockImplementation(id => controller.dispatch({ type: 'retryStarted', id }))
-  render(<AgentDrawerWorkspace narrow={false}><main>Show</main></AgentDrawerWorkspace>)
-  const retry = screen.getByRole('button', { name: 'Retry' })
-  retry.focus()
-  fireEvent.click(retry)
-  expect(screen.getByTestId('agent-chat-input')).toHaveFocus()
-  expect(screen.getByTestId('agent-chat-input')).toHaveValue('Keep this draft')
 })
 
 it.each(['not-applied', 'cancelled'] as const)('does not show private change descriptions for %s', outcome => {

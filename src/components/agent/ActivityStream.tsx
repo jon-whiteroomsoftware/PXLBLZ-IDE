@@ -2,30 +2,16 @@ import { useLayoutEffect, useRef } from 'react'
 import { Terminal } from 'lucide-react'
 import type { AgentDrawerState, AgentLine } from '@/engine/agentDrawerModel'
 const words = { applied: 'saving', saved: 'saved', draft: 'applied to draft', 'not-applied': 'not applied', 'rolled-back': 'rolled back', superseded: 'superseded', cancelled: 'cancelled', unknown: 'outcome unknown' }
-export function ActivityStream({ state, retry, busy = false }: { state: AgentDrawerState; retry: (id: string) => void; busy?: boolean }) {
+export function ActivityStream({ state }: { state: AgentDrawerState }) {
   const failed = (line: AgentLine) => ['not-applied', 'rolled-back', 'cancelled'].includes(line.outcome ?? '')
   const showReply = (line: AgentLine) => !!line.reply && (line.outcome === 'saved' || line.outcome === 'draft' || (line.outcome === 'not-applied' && line.replyOnRefusal === true))
   const latestOutcome = state.announcement
   const logRef = useRef<HTMLDivElement>(null)
-  const retryFocusRef = useRef<{ button: HTMLButtonElement; panel: Element | null } | null>(null)
   const orphanedThinking = !state.contactLost && state.request?.phase === 'thinking' && !state.stream.some(line => line.operationId === state.request?.id)
   useLayoutEffect(() => {
     const log = logRef.current
     if (log) log.scrollTop = log.scrollHeight
   }, [state.stream, state.showMcp, state.request?.id, state.request?.phase])
-  useLayoutEffect(() => {
-    const pending = retryFocusRef.current
-    if (!pending) return
-    if (pending.button.isConnected) {
-      if (!busy) retryFocusRef.current = null
-      return
-    }
-    if (document.activeElement === document.body || document.activeElement === pending.button) {
-      const target = pending.panel?.querySelector<HTMLElement>('[data-testid="agent-chat-input"]') ?? pending.panel?.querySelector<HTMLElement>('[aria-label="Agent menu"]')
-      target?.focus({ preventScroll: true })
-    }
-    retryFocusRef.current = null
-  }, [busy, state.stream])
   const response = (line: AgentLine): string[] => {
     if (!line.operationId) return []
     if (!line.outcome) {
@@ -64,9 +50,8 @@ export function ActivityStream({ state, retry, busy = false }: { state: AgentDra
         <div className="min-w-0 flex-1 whitespace-pre-wrap break-words">{messages.map((message, index) => <p key={index} className={index ? 'mt-1' : ''}>{message}</p>)}</div>
       </div>}
       {state.showMcp && line.calls?.map((call, index) => <p key={index} className="mt-1 font-mono text-[10px] text-teal-300">{call}</p>)}
-      {failed(line) && <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-        {state.connection?.kind === 'builtin' && line.retryable && <button type="button" data-testid="agent-chat-retry" data-show-detail-pointer-preserve="true" onPointerDown={event => event.preventDefault()} onClick={event => { if (document.activeElement === event.currentTarget) retryFocusRef.current = { button: event.currentTarget, panel: event.currentTarget.closest('[data-testid="agent-chat-panel"]') }; retry(line.operationId!) }} disabled={busy || !!state.request || state.contactLost} className="agent-button">Retry</button>}
-        {state.connection?.kind === 'external' && <p className="w-full text-zinc-400">Ask your agent to try again from current state.</p>}
+      {failed(line) && state.connection?.kind === 'external' && <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+        <p className="w-full text-zinc-400">Ask your agent to try again from current state.</p>
       </div>}
     </div>})}
     {orphanedThinking && <p data-testid="agent-orphaned-thinking" className="agent-thinking my-4 text-[11px] leading-relaxed text-zinc-400">Thinking</p>}

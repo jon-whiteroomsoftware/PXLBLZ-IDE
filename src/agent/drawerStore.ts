@@ -4,7 +4,6 @@ export interface AgentDrawerControllerPort {
   showId: string
   dispatch(event: AgentDrawerEvent): void
   submit(): void
-  retry(id: string): void
   cancel(): void
   restoreContact(): void
   backToChooser(): void

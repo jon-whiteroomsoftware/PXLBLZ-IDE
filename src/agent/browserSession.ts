@@ -205,7 +205,6 @@ export function createAgentBrowserSession({ admission, showId, fetch: fetcher = 
       return closed || generation !== moveGeneration ? { code: 'superseded' } : result
     },
     getOutcome: operationId => executor?.getOutcome(operationId) ?? { code: 'unknown' },
-    retry: async operationId => executor?.retry(operationId, crypto.randomUUID()) ?? { code: 'not_qualified' },
     close,
   }
 }
