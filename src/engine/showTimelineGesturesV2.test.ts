@@ -186,6 +186,51 @@ describe('v2 timeline gesture adapters', () => {
     expect(narrowed.submission.intent).not.toHaveProperty('propertyRampProjections')
   })
 
+  it('projects a carrier removed by a leading drag past its window start, with no shift (#1111-C3)', () => {
+    const record = converted()
+    // The outgoing Clip sits on the other Layer, so the range before the
+    // window start is free and only the Transition stands in the way.
+    const other = record.composition.layers.find(layer => layer.rank === 1)!
+    record.composition.clips = record.composition.clips.map(clip =>
+      clip.id === 'out' ? { ...clip, zoneId: other.zoneId, layerId: other.id } : clip)
+    record.composition.transitions = [{
+      id: 'boundary', kind: 'crossfade', durationMs: 200, easing: { curve: 'linear' }, crossfadePolicy: 'live-live',
+      participants: [], wholeOutput: { startMs: 400, fromClipIds: ['out'], toClipIds: ['in'] },
+      propertyRamps: [{ target: { kind: 'show-repeat-scale' }, from: 3, easing: { curve: 'linear' } }],
+    }]
+    expect(validateShowRecordV2(record)).toEqual([])
+
+    const passed = plan(record, { kind: 'resize-leading', clipId: 'in', startMs: 200 }, 'ramp').result
+    expect(passed).toEqual({
+      status: 'ready',
+      submission: {
+        owner: 'clip-temporal',
+        intent: {
+          kind: 'extend',
+          clipId: 'in',
+          startMs: 200,
+          endMs: 1_000,
+          propertyRampProjections: [{
+            rampIndex: 0, trackId: 'ramp-1', startKeyId: 'ramp-2', endKeyId: 'ramp-3',
+            activeEndMs: 600, toValue: record.composition.sampleRemap.repeatScale,
+          }],
+        },
+      },
+    })
+    if (passed.status !== 'ready') return
+    const applied = editShowClipTemporalV2(record, passed.submission.intent as never)
+    expect(applied.status, JSON.stringify(applied)).toBe('changed')
+    if (applied.status !== 'changed') return
+    const composition = applied.record.composition
+    expect(composition.transitions).toEqual([])
+    expect(composition.clips.find(clip => clip.id === 'in')).toMatchObject({ startMs: 200, durationMs: 800 })
+    expect(composition.clips.find(clip => clip.id === 'out'))
+      .toEqual(record.composition.clips.find(clip => clip.id === 'out'))
+    expect(composition.showEndMs).toBe(record.composition.showEndMs)
+    expect(composition.propertyTracks.find(track => track.id === 'ramp-1')).toBeDefined()
+    expect(composition.propertyTracks).toHaveLength(record.composition.propertyTracks.length + 1)
+  })
+
   it('allocates one fresh right Clip for an interior split and refuses a boundary before allocating', () => {
     const record = detached()
     const split = plan(record, { kind: 'split', clipId: 'out', atMs: 250 }, 'split')

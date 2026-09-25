@@ -105,7 +105,7 @@ export function planShowTimelineGestureV2(
       ? (nextEndMs > endMs ? 'extend' : 'trim')
       : (nextStartMs < clip.startMs ? 'extend' : 'trim')
     const intent: ShowClipTemporalIntentV2 = { kind, clipId: clip.id, startMs: nextStartMs, endMs: nextEndMs }
-    // A leading edge dragged onto its outgoing neighbour closes the incoming
+    // A leading edge dragged onto or past the window start closes the incoming
     // window; the owner drops Clip value ramps and projects other carriers.
     const carrier = trailing ? undefined : closingRampCarrier(record, clip.id, nextStartMs - clip.startMs)
     if (!carrier) return ready({ owner: 'clip-temporal', intent })
@@ -184,7 +184,10 @@ export function checkShowTimelineDuplicateGestureV2(
     : { status: 'ready' }
 }
 
-/** The sole incoming carrier a leading resize of `deltaMs` would close, if any. */
+/**
+ * The sole incoming carrier a leading resize of `deltaMs` would remove, if
+ * any: the drag reaches or passes the window start, closing it.
+ */
 function closingRampCarrier(
   record: ShowV2ClipSharingCapture['record'],
   clipId: string,
@@ -193,7 +196,7 @@ function closingRampCarrier(
   const incoming = record.composition.transitions
     .filter(transition => transitionEndpoints(transition).to.includes(clipId))
   if (incoming.length !== 1 || incoming[0].propertyRamps.length === 0) return undefined
-  return incoming[0].durationMs + deltaMs === 0 ? incoming[0] : undefined
+  return incoming[0].durationMs + deltaMs <= 0 ? incoming[0] : undefined
 }
 
 /**
