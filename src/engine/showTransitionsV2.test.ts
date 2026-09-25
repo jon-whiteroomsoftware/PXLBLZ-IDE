@@ -730,7 +730,7 @@ describe('v2 Transition ownership', () => {
       const source = convertedTransitionShow()
       const before = structuredClone(source)
       const result = editShowTransitionV2(source, { kind: 'resize-leading', clipId: 'in', startMs: 300 })
-      expect(result).toMatchObject({ status: 'refused', code: 'invalid-result' })
+      expect(result).toMatchObject({ status: 'refused', code: 'invalid-result', issueCode: 'overlap' })
       expect(result.record).toBe(source)
       expect(source).toEqual(before)
     })

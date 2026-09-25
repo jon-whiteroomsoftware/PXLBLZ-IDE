@@ -8169,6 +8169,27 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     expectClipRefusal('resize-a', 'Space taken', 'Clips on one Layer cannot overlap.')
   })
 
+  it('names an occupied range when a leading resize closes its Transition (#1127)', async () => {
+    const editor = openV2EditorForRecord(connectedV2Record('refusal-leading-overlap'))
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const before = editor.state()
+
+    // A ends at 5 s; B starts at 7 s. Pull B through the 5–7 s Transition to 4 s.
+    await resizeDrag('CometLoom', 'start', 1, 70, 40)
+
+    expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotTransitionResize'])
+    expect(admission.calls.map((call) => call.request.intent)).toEqual([
+      { kind: 'resize-leading', clipId: 'resize-b', startMs: 4_000 },
+    ])
+    const after = editor.state()
+    expect(after.record).toBe(before.record)
+    expect(after.history).toEqual({ past: [], future: [] })
+    expect(after.revision).toBe(before.revision)
+    expect(after.v2Writes).toBe(0)
+    expect(after.legacyWrites).toBe(0)
+    expectClipRefusal('resize-b', 'Space taken', 'Clips on one Layer cannot overlap.')
+  })
+
   it('names an occupied-range Alt duplicate on the dragged Clip and writes nothing', async () => {
     const editor = openV2Editor('refusal-duplicate-occupied')
     render(<ShowEditor showId={editor.showId} recordVersion={2} />)

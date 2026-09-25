@@ -5,6 +5,7 @@ import {
   validateShowRecordV2,
   type ShowClipV2,
   type ShowCompositionV2ValidationCode,
+  type ShowCompositionV2ValidationIssue,
   type ShowPropertyTrackV2,
   type ShowRecordV2,
   type ShowTransitionV2,
@@ -225,7 +226,7 @@ export function editShowTransitionV2(
         transition.id === current.id ? { ...structuredClone(intent.transition), wholeOutput: retimedTransition.wholeOutput, participants: retimedTransition.participants, propertyRamps } : transition
       ))
       const settledIssue = validateShowRecordV2(settled)[0]
-      if (settledIssue) return refusedResult(record, 'invalid-result', `${settledIssue.path}: ${settledIssue.message}`)
+      if (settledIssue) return validatorRefusedResult(record, settledIssue)
       // The nested resize checked placement under the old kind; the settings
       // may change the kind (RL08 keys on Fade and Motion), so the settled
       // record faces the same compiler check as every sibling path.
@@ -740,7 +741,7 @@ function resetConvertedBoundaryToCut(record: ShowRecordV2, repair: ConvertedBoun
   const committed = commitConvertedBoundaryRepairsV2(record, next, [repair])
   if (committed.status === 'refused') return refusedResult(record, 'invalid-result', committed.message)
   const issue = validateShowRecordV2(next)[0]
-  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  if (issue) return validatorRefusedResult(record, issue)
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const moved = new Set(committed.applied.shiftedClipIds)
@@ -792,7 +793,7 @@ function resizeConvertedBoundaryEdge(
   const committed = commitConvertedBoundaryRepairsV2(record, next, [repair])
   if (committed.status === 'refused') return refusedResult(record, 'invalid-result', committed.message)
   const issue = validateShowRecordV2(next)[0]
-  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  if (issue) return validatorRefusedResult(record, issue)
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const moved = new Set([clip.id, ...committed.applied.shiftedClipIds])
@@ -848,7 +849,7 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
     ? { ...candidate, wholeOutput: { ...candidate.wholeOutput, startMs: candidate.wholeOutput.startMs + deltaMs } }
     : candidate)
   const issue = validateShowRecordV2(next)[0]
-  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  if (issue) return validatorRefusedResult(record, issue)
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const unavailable = firstUnavailableContributor(next, [...new Set([
@@ -891,7 +892,7 @@ function resetTransitionWithProjectedPropertyRamps(
   const next = structuredClone(reset.record)
   next.composition.propertyTracks.push(...projectedTracks)
   const issue = validateShowRecordV2(next)[0]
-  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  if (issue) return validatorRefusedResult(record, issue)
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   return {
@@ -927,7 +928,7 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
     ? { ...candidate, durationMs, propertyRamps: retimeShowTransitionRampsV2(candidate, durationMs) }
     : candidate)
   const issue = validateShowRecordV2(next)[0]
-  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  if (issue) return validatorRefusedResult(record, issue)
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const unavailable = firstUnavailableContributor(next, [...new Set([clip.id, ...endpoints.all])])
@@ -984,7 +985,7 @@ function extendLeadingThroughTransitionV2(
   next.composition.transitions = next.composition.transitions.filter(candidate => candidate.id !== transition.id)
   const trackEdit = applyLeadingClipEdit(record, next, clip, startMs)
   const issue = validateShowRecordV2(next)[0]
-  if (issue) return refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`)
+  if (issue) return validatorRefusedResult(record, issue)
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const unavailable = firstUnavailableContributor(next, [...new Set([clip.id, ...endpoints.all])])
@@ -1025,7 +1026,7 @@ function commitShift(
   }
   shiftWholeOutputWindows(record, next, moved, deltaMs, new Set(replacementById.keys()))
   const issue = validateShowRecordV2(next)[0]
-  if (issue) return { ...refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`), issueCode: issue.code } as ShowTransitionEditResultV2
+  if (issue) return validatorRefusedResult(record, issue)
   const compilerRestriction = firstShowTransitionPlacementRestrictionV2(next)
   if (compilerRestriction) return refusedResult(record, 'compiler-ineligible', compilerRestriction.message)
   const contributionAffected = new Set(moved)
@@ -1094,12 +1095,16 @@ function refusedResult(
   record: ShowRecordV2,
   code: ShowTransitionEditRefusalV2,
   message: string,
-): ShowTransitionEditResultV2 {
+): Extract<ShowTransitionEditResultV2, { status: 'refused' }> {
   return {
     status: 'refused', record, code, message,
     affectedClipIds: [], affectedTransitionIds: [], affectedTrackIds: [],
     affectedInstanceIds: [], affectedKeyframeIds: [], affectedLayoutOccurrenceIds: [], affectedMarkerIds: [], affectedGroupOccurrenceIds: [], removedIds: [],
   }
+}
+
+function validatorRefusedResult(record: ShowRecordV2, issue: ShowCompositionV2ValidationIssue): ShowTransitionEditResultV2 {
+  return { ...refusedResult(record, 'invalid-result', `${issue.path}: ${issue.message}`), issueCode: issue.code }
 }
 
 export function transitionEndpoints(transition: ShowTransitionV2): { from: string[]; to: string[]; all: string[] } {
