@@ -80,7 +80,6 @@ import {
   showRoutingLayoutKindLabel,
 } from '@/engine/showModel'
 import {
-  compileShowForArtifact,
   portableTargetPixelBlocker,
   resolveShowCompilationControllerZones,
   sourceForShowCell,
@@ -100,7 +99,7 @@ import { validateInstallationCoverageV2 } from '@/engine/showInstallationCoverag
 import { showV2DeliveryRefusal } from '@/engine/showV2RouteDelivery'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
-import { declaredPatternSliderNames, bundledPatternSliderNames, resolveBundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
+import { declaredPatternSliderNames, resolveBundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
   projectCompositionShowClipSummary,
   projectGlobalShowClipSummary,
@@ -233,13 +232,12 @@ import {
   setShowEndMs,
   showTimelineContentEndMs,
 } from '@/engine/showTimelineAuthoring'
-import { buildShowEpeExport, type ShowEpeExport, type ShowEpeExportOptions } from '@/engine/showEpeExport'
+import { type ShowEpeExport, type ShowEpeExportOptions } from '@/engine/showEpeExport'
 import { buildShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
 import {
   buildDeliveredShowSourceInventory,
   buildShowArtifactInventoryModel,
   deliveredShowSourceBytes,
-  describeShowArtifactPatterns,
   describeShowArtifactPatternUses,
   type DeliveredShowSourceInventory,
   type ShowArtifactInventoryModel,
@@ -261,9 +259,7 @@ import {
   showPatternSlotRemovedControlNamesV2,
 } from '@/engine/showReferenceShowV2'
 import {
-  showLessonAuthoredSlotPatternV1,
   showLessonAuthoredSlotPatternV2,
-  showLessonNarrationV1,
   showLessonNarrationV2,
   type ShowLessonNarration,
 } from '@/engine/showLessonNarration'
@@ -1282,13 +1278,11 @@ export function ShowEditor({
   // (#1066 slice 11a), which the v1 stockShowDrafts map never sees. Like a v1
   // stock draft, it exists once any edit was made, even if undone: either
   // ShowV2History side (past, future) holding an entry counts.
-  const isV2LessonDraft = recordVersion === 2 && isShowV2LessonDraft(showId)
+  const isV2LessonDraft = isShowV2LessonDraft(showId)
   const hasStockDraft = isV2LessonDraft
-    ? showV2History !== undefined && (showV2History.past.length > 0 || showV2History.future.length > 0)
-    : stockShowDraft !== undefined
+    && showV2History !== undefined && (showV2History.past.length > 0 || showV2History.future.length > 0)
   const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
   const resetShowV2LessonDraft = useShowStore((state) => state.resetShowV2LessonDraft)
-  const duplicateShow = useShowStore((state) => state.duplicateShow)
   const duplicateShowV2Row = useShowStore((state) => state.duplicateShowV2Row)
   const openShow = useShowStore((state) => state.openShow)
   const routerNavigate = useRouterStore((state) => state.navigate)
@@ -1296,9 +1290,6 @@ export function ShowEditor({
   const agentCapabilities = useWorkspaceStore((state) => state.agentCapabilities)
   const [savingBuiltInCopy, setSavingBuiltInCopy] = useState(false)
   const persistShow = useShowStore((state) => state.updateShow)
-  const showSaveFailure = useShowStore((state) => state.showSaveFailure)
-  const dismissShowSaveFailure = useShowStore((state) => state.dismissShowSaveFailure)
-  const retryShowSaveFailure = useShowStore((state) => state.retryShowSaveFailure)
   const showV2SaveFailure = useShowStore((state) => state.showV2SaveFailure)
   const dismissShowV2SaveFailure = useShowStore((state) => state.dismissShowV2SaveFailure)
   const retryShowV2SaveFailure = useShowStore((state) => state.retryShowV2SaveFailure)
@@ -1561,14 +1552,14 @@ export function ShowEditor({
     playheadMs: useShowTransportStore.getState().showId === showId
       ? useShowTransportStore.getState().positionMs : 0,
   }), [showId])
-  const agentRecordBinding = useMemo<AgentEditorRecordBinding>(() => recordVersion === 2 ? {
+  const agentRecordBinding = useMemo<AgentEditorRecordBinding>(() => ({
     recordVersion: 2,
     capture: () => preparedV2CaptureRef.current,
     isCurrentCapture: () => {
       const capture = preparedV2CaptureRef.current
       return Boolean(editorAliveRef.current && capture && useShowStore.getState().showV2Pilots[showId] === capture.record)
     },
-  } : { recordVersion: 1 }, [recordVersion, showId])
+  }), [showId])
   const legacyAgentDiagnosticEnabled = useCallback(() => new URL(window.location.href).searchParams.get('agent') === '1', [])
   useAgentEditorLifecycle({
     showId,
@@ -1674,15 +1665,12 @@ export function ShowEditor({
       if (showControlOwnsKeyboardEvent(event.target)) return
       event.preventDefault()
       const store = useShowStore.getState()
-      if (recordVersion === 2) {
-        if (event.shiftKey) void store.redoShowV2Pilot(showId)
-        else void store.undoShowV2Pilot(showId)
-      } else if (event.shiftKey) void store.redoShow(showId)
-      else void store.undoShow(showId)
+      if (event.shiftKey) void store.redoShowV2Pilot(showId)
+      else void store.undoShowV2Pilot(showId)
     }
     document.addEventListener('keydown', handleHistoryShortcut)
     return () => document.removeEventListener('keydown', handleHistoryShortcut)
-  }, [readOnly, recordVersion, showId])
+  }, [readOnly, showId])
   const controllerProvider = getControllerProvider()
   const controllerStatus = useSyncExternalStore(
     (onChange) => controllerProvider.subscribe(onChange),
@@ -3002,45 +2990,26 @@ export function ShowEditor({
     return () => window.clearTimeout(timeout)
   }, [artifactCompilationInput, deferredArtifactCompilationInput])
   const artifactCompilationReady = artifactCompilationInput === deferredArtifactCompilationInput
-  const effectiveArtifactCompilationInput =
-    deferredArtifactCompilationInput?.show.id === showId
-      ? deferredArtifactCompilationInput
-      : null
-  const compiledShow = effectiveArtifactCompilationInput?.show ?? null
-  const deliveredShow: { id: string; name: string } | null = recordVersion === 2 ? lessonProjectionV2 : compiledShow
+  const deliveredShow: { id: string; name: string } | null = lessonProjectionV2
   // The authored-v2 artifact comes from the same closed preparation the Stage
   // reads, so the Source code readout and its diagnostics describe one compile
   // rather than a second editor-local one (#1065).
   const compiled = useMemo<CompiledShowState>(() => {
-    if (recordVersion === 2) {
-      const prepared = presentationV2Capture?.prepared
-      // A prepared v2 Show uses the same ordered delivery refusals as the
-      // route artifact builder. Before preparation, coverage can still surface.
-      const artifactBlocker = prepared?.status === 'ready'
-        ? showV2DeliveryRefusal(prepared.bundle)
-          ?? portableTargetPixelBlocker(savedShowV2?.outputContract.kind, activeControllerProfile?.lastKnownPixelCount)
+    const prepared = presentationV2Capture?.prepared
+    // A prepared v2 Show uses the same ordered delivery refusals as the
+    // route artifact builder. Before preparation, coverage can still surface.
+    const artifactBlocker = prepared?.status === 'ready'
+      ? showV2DeliveryRefusal(prepared.bundle)
+        ?? portableTargetPixelBlocker(savedShowV2?.outputContract.kind, activeControllerProfile?.lastKnownPixelCount)
+        ?? undefined
+      : savedShowV2
+        ? installationCoverageBlockingMessage(validateInstallationCoverageV2(savedShowV2))
+          ?? portableTargetPixelBlocker(savedShowV2.outputContract.kind, activeControllerProfile?.lastKnownPixelCount)
           ?? undefined
-        : savedShowV2
-          ? installationCoverageBlockingMessage(validateInstallationCoverageV2(savedShowV2))
-            ?? portableTargetPixelBlocker(savedShowV2.outputContract.kind, activeControllerProfile?.lastKnownPixelCount)
-            ?? undefined
-          : undefined
-      if (prepared?.status === 'ready') return { artifact: prepared.bundle.artifact, error: null, artifactBlocker }
-      return { artifact: null, error: prepared?.status === 'refused' ? prepared.message : null, artifactBlocker }
-    }
-    return effectiveArtifactCompilationInput
-      ? compileShowForArtifact(
-          effectiveArtifactCompilationInput.show,
-          effectiveArtifactCompilationInput.userPatterns,
-          effectiveArtifactCompilationInput.controllerZones,
-          effectiveArtifactCompilationInput.libraries,
-          {
-            stageDimension: effectiveArtifactCompilationInput.stageDimension,
-            targetPixelCount: effectiveArtifactCompilationInput.targetPixelCount,
-          },
-        )
-      : { artifact: null, error: null }
-  }, [activeControllerProfile?.lastKnownPixelCount, effectiveArtifactCompilationInput, presentationV2Capture, recordVersion, savedShowV2])
+        : undefined
+    if (prepared?.status === 'ready') return { artifact: prepared.bundle.artifact, error: null, artifactBlocker }
+    return { artifact: null, error: prepared?.status === 'refused' ? prepared.message : null, artifactBlocker }
+  }, [activeControllerProfile?.lastKnownPixelCount, presentationV2Capture, savedShowV2])
   const patternControlsByCellId = useMemo(() => Object.fromEntries((activeShow?.cells ?? []).map((cell) => {
     const saved = cell.pattern.kind === 'user'
       ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}
@@ -3418,23 +3387,14 @@ export function ShowEditor({
   // through its own export owner rather than the artifact bytes alone (#1065).
   const inspectableShowExport = useMemo(() => {
     if (!compiled.artifact) return null
-    if (recordVersion === 2) {
-      if (!lessonProjectionV2) return null
-      const exported = buildShowEpeExportV2(lessonProjectionV2, compiled.artifact.code, {
-        stampedAt: new Date(lessonProjectionV2.updatedAt),
-        userMaps,
-        attribution: compiled.artifact.attribution,
-      })
-      return exported.status === 'exported' ? exported : null
-    }
-    return compiledShow
-      ? buildShowEpeExport(compiledShow, compiled.artifact.code, {
-          stampedAt: new Date(compiledShow.updatedAt),
-          userMaps,
-          attribution: compiled.artifact.attribution,
-        })
-      : null
-  }, [compiledShow, compiled.artifact, recordVersion, lessonProjectionV2, userMaps])
+    if (!lessonProjectionV2) return null
+    const exported = buildShowEpeExportV2(lessonProjectionV2, compiled.artifact.code, {
+      stampedAt: new Date(lessonProjectionV2.updatedAt),
+      userMaps,
+      attribution: compiled.artifact.attribution,
+    })
+    return exported.status === 'exported' ? exported : null
+  }, [compiled.artifact, lessonProjectionV2, userMaps])
   // The pressure numerator is the delivered total (generated source plus
   // delivery header) — the same bytes the gauge and inventory report (#63).
   const compilePressure = useMemo(() => compiled.artifact
@@ -3451,7 +3411,7 @@ export function ShowEditor({
     : null
   const artifactInventory = useMemo(() => {
     if (!compiled.artifact || !inspectableShowExport) return null
-    const describedRecord = recordVersion === 2 ? lessonProjectionV2 : compiledShow
+    const describedRecord = lessonProjectionV2
     if (!describedRecord) return null
     const inventory = buildDeliveredShowSourceInventory(
       compiled.artifact.summary.sourceInventory,
@@ -3461,16 +3421,14 @@ export function ShowEditor({
     return {
       inventory,
       model: buildShowArtifactInventoryModel(inventory, {
-        patterns: recordVersion === 2
-          ? describeShowArtifactPatternUses(
-              projectShowEditorArtifactPatternUsesV2(describedRecord as ShowRecordV2),
-              inventory,
-            )
-          : describeShowArtifactPatterns(describedRecord as ShowRecord, inventory),
+        patterns: describeShowArtifactPatternUses(
+          projectShowEditorArtifactPatternUsesV2(describedRecord),
+          inventory,
+        ),
         budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
       }),
     }
-  }, [compiledShow, compiled.artifact, inspectableShowExport, recordVersion, lessonProjectionV2])
+  }, [compiled.artifact, inspectableShowExport, lessonProjectionV2])
   const activeControllerMapDim = activeController?.mapDim ?? null
   const showArtifactId = `show:${showId}`
   const showControllerPushResult = controllerArtifactPushResult?.artifactId === showArtifactId
@@ -3586,91 +3544,25 @@ export function ShowEditor({
       : null
 
   const buildCurrentCompilationSnapshot = (): ShowCompilationSnapshot | null => {
-    if (recordVersion === 2) {
-      const record = lessonProjectionV2
-      const v2Artifact = compiled.artifact
-      if (!record || !v2Artifact || compiled.artifactBlocker) return null
-      const v2Maps = useMapStore.getState().userMaps
-      const exportWith = (options: ShowEpeExportOptions): ShowEpeExport | null => {
-        const result = buildShowEpeExportV2(record, v2Artifact.code, {
-          userMaps: v2Maps,
-          attribution: v2Artifact.attribution,
-          ...options,
-        })
-        return result.status === 'exported' ? result : null
-      }
-      const canonicalExport = exportWith({ stampedAt: new Date(record.updatedAt) })
-      if (!canonicalExport) return null
-      return {
-        showId: record.id,
-        name: record.name,
-        stampedAt: record.updatedAt,
-        artifact: v2Artifact,
-        canonicalExport,
-        exportWith,
-      }
+    const record = lessonProjectionV2
+    const v2Artifact = compiled.artifact
+    if (!record || !v2Artifact || compiled.artifactBlocker) return null
+    const v2Maps = useMapStore.getState().userMaps
+    const exportWith = (options: ShowEpeExportOptions): ShowEpeExport | null => {
+      const result = buildShowEpeExportV2(record, v2Artifact.code, {
+        userMaps: v2Maps,
+        attribution: v2Artifact.attribution,
+        ...options,
+      })
+      return result.status === 'exported' ? result : null
     }
-    const showState = useShowStore.getState()
-    const resolvedShow = showState.resolveEditableShow(showId)
-    const currentPatterns = usePatternStore.getState().userPatterns
-    const currentLibrarySet = compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries)
-    let currentShow = resolvedShow ?? activeShow
-    const referencePatterns = useShowEditorSessionStore.getState().referencePatternsByShowId[showId]
-    if (currentShow && referencePatterns && builtInSlotGroups) {
-      currentShow = applyShowPatternSlotSelections(currentShow, builtInSlotGroups, referencePatterns, (ref) => (
-        ref.kind === 'stock' ? resolveStockPatternId(ref.id) : currentPatterns.find((pattern) => pattern.id === ref.id)?.name
-      ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, currentPatterns), currentLibrarySet))
-    }
-    if (!currentShow) return null
-
-    const currentMaps = useMapStore.getState().userMaps
-    const currentProfiles = useControllerProfileStore.getState().profiles
-    const controllerState = useControllerStore.getState()
-    const currentActiveIp = controllerState.activeIp
-    const currentController = currentActiveIp ? controllerState.controllers[currentActiveIp] : undefined
-    const currentTargetProfile = currentShow.outputContract?.kind === 'portable-2d'
-      ? undefined
-      : currentShow.targetControllerProfileId
-        ? currentProfiles.find((profile) => profile.id === currentShow.targetControllerProfileId)
-        : currentProfiles[0]
-    const currentActiveProfile = currentController
-      ? findProfileForLiveController(currentProfiles, currentController) ?? undefined
-      : currentTargetProfile
-    const currentStageMap = currentShow.stageMapId
-      ? [...STOCK_MAPS, ...currentMaps].find((map) => map.id === currentShow.stageMapId)
-      : undefined
-    const currentCompiled = compileShowForArtifact(
-      currentShow,
-      currentPatterns,
-      resolveShowCompilationControllerZones(currentShow),
-      currentLibrarySet,
-      {
-        stageDimension: currentStageMap?.dim,
-        targetPixelCount: currentShow.outputContract?.kind === 'portable-2d'
-          ? currentActiveProfile?.lastKnownPixelCount
-          : undefined,
-      },
-    )
-    if (!currentCompiled.artifact || currentCompiled.artifactBlocker) return null
-    const show = currentShow
-    const artifact = currentCompiled.artifact
-    const canonicalExport = buildShowEpeExport(show, artifact.code, {
-      stampedAt: new Date(show.updatedAt),
-      userMaps: currentMaps,
-      attribution: artifact.attribution,
-    })
-    const exportWith = (options: ShowEpeExportOptions): ShowEpeExport | null => buildShowEpeExport(show, artifact.code, {
-      userMaps: currentMaps,
-      attribution: artifact.attribution,
-      ...options,
-    })
-    // No pressure gate here: blocked output must stay previewable and
-    // inspectable (View code). Export and delivery paths gate themselves.
+    const canonicalExport = exportWith({ stampedAt: new Date(record.updatedAt) })
+    if (!canonicalExport) return null
     return {
-      showId: show.id,
-      name: show.name,
-      stampedAt: show.updatedAt,
-      artifact,
+      showId: record.id,
+      name: record.name,
+      stampedAt: record.updatedAt,
+      artifact: v2Artifact,
       canonicalExport,
       exportWith,
     }
@@ -3861,24 +3753,12 @@ export function ShowEditor({
   const editorRecordId = legacyShow?.id ?? savedShowV2!.id
 
   const exportAuthoredShowFile = async () => {
-    if (recordVersion === 2) {
-      if (!savedShowV2) return
-      const { filename, bundle } = buildShowFileBundle(savedShowV2, {
-        patterns: userPatterns,
-        maps: userMaps,
-        libraries: userLibraries,
-      }, { appVersion: __PXLBLZ_APP_VERSION__ })
-      const bytes = await serializeShowFileBundle(bundle)
-      downloadBrowserFile(filename, Uint8Array.from(bytes), 'application/gzip')
-      return
-    }
-    if (!legacyShow) return
-    const { filename, bundle } = buildShowFileBundle(legacyShow, {
+    if (!savedShowV2) return
+    const { filename, bundle } = buildShowFileBundle(savedShowV2, {
       patterns: userPatterns,
       maps: userMaps,
-    }, {
-      appVersion: __PXLBLZ_APP_VERSION__,
-    })
+      libraries: userLibraries,
+    }, { appVersion: __PXLBLZ_APP_VERSION__ })
     const bytes = await serializeShowFileBundle(bundle)
     downloadBrowserFile(filename, Uint8Array.from(bytes), 'application/gzip')
   }
@@ -4028,9 +3908,7 @@ export function ShowEditor({
     ? () => {
         if (savingBuiltInCopy) return
         setSavingBuiltInCopy(true)
-        const clone = recordVersion === 2
-          ? duplicateShowV2Row(showId, lessonProjectionV2 ?? savedShowV2 ?? undefined)
-          : duplicateShow(showId, legacyShow ?? undefined)
+        const clone = duplicateShowV2Row(showId, lessonProjectionV2 ?? savedShowV2 ?? undefined)
         void clone.then((copy) => {
           if (!copy) return
           void openShow(copy.id)
@@ -4173,18 +4051,18 @@ export function ShowEditor({
           )}
         </div>
       )}
-      {(recordVersion === 2 ? showV2SaveFailure : showSaveFailure)?.showId === showId && (
+      {showV2SaveFailure?.showId === showId && (
         <SaveFailureNotice
           testId="show-save-failure"
           message="Couldn't save this Show. The last edit was reverted."
-          onRetry={() => void (recordVersion === 2 ? retryShowV2SaveFailure() : retryShowSaveFailure())}
-          onDismiss={recordVersion === 2 ? dismissShowV2SaveFailure : dismissShowSaveFailure}
+          onRetry={() => void retryShowV2SaveFailure()}
+          onDismiss={dismissShowV2SaveFailure}
         />
       )}
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
-        {(legacyShow || (recordVersion === 2 && savedShowV2)) && builtInContext?.note && showNoteOpen && (
-          recordVersion === 2 && lessonProjectionV2 ? (
+        {savedShowV2 && builtInContext?.note && showNoteOpen && (
+          lessonProjectionV2 ? (
             <ShowLiveStrip
               key={showId}
               note={builtInContext.note}
@@ -4199,25 +4077,6 @@ export function ShowEditor({
               canReset={Boolean(builtInSlotGroups?.some((group, index) => {
                 const selected = selectedReferencePatterns?.[index]
                 const authored = showLessonAuthoredSlotPatternV2(savedShowV2, group)
-                return selected && authored && (selected.kind !== authored.kind || selected.id !== authored.id)
-              }))}
-              onReset={() => clearReferencePatterns(showId)}
-            />
-          ) : legacyShow ? (
-            <ShowLiveStrip
-              key={showId}
-              note={builtInContext.note}
-              showId={showId}
-              narrationAt={(positionMs) => showLessonNarrationV1(legacyShow, builtInContext.reference, positionMs)}
-              authoredPatternFor={(group) => showLessonAuthoredSlotPatternV1(legacyShow, group)}
-              patternSlots={builtInSlotGroups}
-              patternOptions={referencePatternOptions}
-              selections={selectedReferencePatterns}
-              onSelectPattern={requestPatternSlotSelection}
-              onCollapse={() => setShowNoteOpen(showId, false)}
-              canReset={Boolean(builtInSlotGroups?.some((group, index) => {
-                const selected = selectedReferencePatterns?.[index]
-                const authored = editableShow ? showLessonAuthoredSlotPatternV1(editableShow, group) : undefined
                 return selected && authored && (selected.kind !== authored.kind || selected.id !== authored.id)
               }))}
               onReset={() => clearReferencePatterns(showId)}
@@ -5642,20 +5501,14 @@ function useShowTransportClock(showId: string | null, durationMs: number, clockA
 
 function ShowTimelineHistoryCommands({
   showId,
-  recordVersion,
   readOnly,
 }: {
   showId: string
-  recordVersion: 1 | 2
   readOnly: boolean
 }) {
-  const undoShow = useShowStore((state) => state.undoShow)
-  const redoShow = useShowStore((state) => state.redoShow)
   const undoShowV2 = useShowStore((state) => state.undoShowV2Pilot)
   const redoShowV2 = useShowStore((state) => state.redoShowV2Pilot)
-  const history = useShowStore((state) => recordVersion === 2
-    ? state.showV2Histories[showId]
-    : state.showHistories[showId])
+  const history = useShowStore((state) => state.showV2Histories[showId])
   const undoEnabled = !readOnly && Boolean(history?.past.length)
   const redoEnabled = !readOnly && Boolean(history?.future.length)
   return <>
@@ -5666,7 +5519,7 @@ function ShowTimelineHistoryCommands({
       title="Undo Show edit (Command/Ctrl+Z)"
       disabled={!undoEnabled}
       className={showTimelineToolbarControlClass({ enabled: undoEnabled })}
-      onClick={() => void (recordVersion === 2 ? undoShowV2(showId) : undoShow(showId))}
+      onClick={() => void undoShowV2(showId)}
     >
       <Undo2 size={12} aria-hidden />
     </Button>
@@ -5677,7 +5530,7 @@ function ShowTimelineHistoryCommands({
       title="Redo Show edit (Command/Ctrl+Shift+Z)"
       disabled={!redoEnabled}
       className={showTimelineToolbarControlClass({ enabled: redoEnabled })}
-      onClick={() => void (recordVersion === 2 ? redoShowV2(showId) : redoShow(showId))}
+      onClick={() => void redoShowV2(showId)}
     >
       <Redo2 size={12} aria-hidden />
     </Button>
@@ -8151,7 +8004,7 @@ function ShowTimelineWorkspace({
             captureV2ClipEdit={captureV2ClipEdit}
             onCommitV2ClipTemporal={onCommitV2ClipTemporal}
           />
-          <ShowTimelineHistoryCommands showId={showId} recordVersion={recordVersion} readOnly={readOnly} />
+          <ShowTimelineHistoryCommands showId={showId} readOnly={readOnly} />
           {!readOnly && (
             <Button
               size="icon-xs"

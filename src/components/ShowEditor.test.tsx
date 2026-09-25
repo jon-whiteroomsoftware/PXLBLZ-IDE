@@ -39,7 +39,7 @@ import {
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import type { ControllerProfile } from '@/engine/controllerProfile'
-import type { MapRecord, MixinRecord, PatternRecord, ShowCell, ShowRecord } from '@/engine/personalContentRecords'
+import type { MapRecord, PatternRecord, ShowCell, ShowRecord } from '@/engine/personalContentRecords'
 import { validateShowRecordV2, type ShowRecordV2 } from '@/engine/showCompositionV2'
 import { editShowZoneV2 } from '@/engine/showZonesV2'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
@@ -141,41 +141,6 @@ function createTransitionMenuShow(
     })),
   }
   return show
-}
-
-function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
-  const patterns = new Map<string, PatternRecord>()
-  const maps = new Map<string, MapRecord>()
-  const mixins = new Map<string, MixinRecord>()
-  const shows = new Map(seedShows.map((show) => [show.id, show]))
-  const controllers = new Map<string, ControllerProfile>()
-  return {
-    id: 'memory-test',
-    listPatterns: async () => [...patterns.values()],
-    createPattern: async (record) => { patterns.set(record.id, record) },
-    updatePattern: async (id, changes) => { patterns.set(id, { ...patterns.get(id)!, ...changes }) },
-    deletePattern: async (id) => { patterns.delete(id) },
-    listMaps: async () => [...maps.values()],
-    createMap: async (record) => { maps.set(record.id, record) },
-    updateMap: async (id, changes) => { maps.set(id, { ...maps.get(id)!, ...changes }) },
-    deleteMap: async (id) => { maps.delete(id) },
-    listMixins: async () => [...mixins.values()],
-    createMixin: async (record) => { mixins.set(record.id, record) },
-    updateMixin: async (id, changes) => { mixins.set(id, { ...mixins.get(id)!, ...changes }) },
-    deleteMixin: async (id) => { mixins.delete(id) },
-    listShows: async () => [...shows.values()],
-    createShow: async (record) => { shows.set(record.id, record) },
-    updateShow: async (id, changes) => { shows.set(id, { ...shows.get(id)!, ...changes }) },
-    deleteShow: async (id) => { shows.delete(id) },
-    listControllerProfiles: async () => [...controllers.values()],
-    createControllerProfile: async (profile) => { controllers.set(profile.id, profile) },
-    updateControllerProfile: async (id, changes) => { controllers.set(id, { ...controllers.get(id)!, ...changes }) },
-    deleteControllerProfile: async (id) => { controllers.delete(id) },
-    getLastActive: async () => undefined,
-    setLastActive: async () => {},
-    getDemoOverrides: async () => undefined,
-    setDemoOverrides: async () => {},
-  }
 }
 
 class ConnectedControllerProvider extends NullControllerProvider {
@@ -2787,75 +2752,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     // Applying keeps the boundary position rather than restoring, as v1 does.
     expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
     expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
-  })
-
-  // v1 only: its whole-boundary fixture has no v2 form (unsupported-boundary-transition); the v2 behaviour is covered by the #1111-A2 tests.
-  it('authors boundary speed and repeat scales as multipliers while persisting raw values (#610)', async () => {
-    const user = userEvent.setup()
-    const show = createDefaultShow('show-boundary-domain-units', 'Boundary domain units', 1000)
-    show.scenes = [
-      { ...show.scenes[0], sampleTargets: { repeatScale: 1 } },
-      { ...show.scenes[1], sampleTargets: { repeatScale: 2 } },
-    ]
-    show.cells[1] = {
-      ...show.cells[1],
-      adaptations: { ...show.cells[1].adaptations, timeScale: 0.25 },
-    }
-    show.transitions = [{
-      ...show.transitions![0],
-      propertyTransitions: {
-        timeScale: {
-          fromByCellId: { [show.cells[1].id]: 0.5 },
-          durationMs: 1_000,
-        },
-        sample: {
-          repeatScale: { from: 1.5, durationMs: 1_000 },
-        },
-      },
-    }]
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-
-    render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', {
-      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
-    }))
-    await user.click(screen.getByText('Advanced transition controls'))
-
-    const inspector = screen.getByRole('region', { name: 'Transition properties' })
-    const crossfadeSource = within(inspector).getByRole('combobox', { name: 'Crossfade source' })
-    expect(crossfadeSource).toHaveClass('border-0', 'border-b', 'bg-transparent')
-    expect(crossfadeSource.closest('[data-crossfade-source]')).toHaveClass('border-t', 'bg-transparent')
-    expect(within(inspector).getByLabelText('Crossfade evaluation cost')).toHaveClass('text-zinc-500')
-    expect(within(inspector).getByLabelText('Crossfade evaluation cost')).not.toHaveClass('text-emerald-300/80')
-    const advanced = screen.getByText('Advanced transition controls').closest('details')!
-    expect(advanced).toHaveClass('border-t', 'bg-transparent')
-    expect(advanced).not.toHaveClass('rounded', 'bg-zinc-950/35')
-    expect(within(advanced).getByTestId('transition-cost-tag')).toHaveTextContent('cost · expensive')
-    expect(within(advanced).queryByTestId('transition-cost-footer')).not.toBeInTheDocument()
-    const speed = within(advanced).getByRole('region', { name: 'Animation speed transition' })
-    expect(speed).toHaveClass('border-t', 'bg-transparent')
-    expect(speed).not.toHaveClass('rounded', 'bg-violet-400/[0.035]')
-    const sharedPropertyColumns = within(speed).getByTestId('advanced-property-columns')
-    expect(sharedPropertyColumns).toHaveClass('grid-cols-2')
-    expect(within(sharedPropertyColumns).getAllByText(/^(Duration|Easing)$/).map((label) => label.textContent))
-      .toEqual(['Duration', 'Easing'])
-    expect(within(speed).getByRole('textbox', { name: 'Animation speed duration seconds exact time' })).toBeVisible()
-    expect(within(speed).getByRole('combobox', { name: 'Animation speed easing' })).toBeVisible()
-    expect(within(speed).getByRole('checkbox', { name: 'Animate speed for main' })).toHaveClass('accent-live')
-
-    expect(screen.getByRole('textbox', { name: 'Animation speed start main exact multiplier' })).toHaveValue('0.5')
-    expect(screen.getByRole('textbox', { name: 'Animation speed target main exact multiplier' })).toHaveValue('0.25')
-    expect(screen.getByRole('textbox', { name: 'Repeat scale start exact multiplier' })).toHaveValue('1.5')
-
-    changeCommittedNumber('Animation speed target main exact multiplier', '0x')
-    changeCommittedNumber('Repeat scale start exact multiplier', '2x')
-
-    await waitFor(() => {
-      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
-      expect(saved.cells[1].adaptations.timeScale).toBe(0)
-      expect(saved.transitions?.[0].propertyTransitions?.sample?.repeatScale?.from).toBe(2)
-    })
   })
 
   it('edits the incoming Clip brightness from the boundary destination row (#1111-A2)', async () => {
