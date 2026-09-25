@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1129",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Connected a fake live Controller (64 px) and opened its popover: stock Show 101 shows Run and Save enabled. Then seeded the #849 renderer-pressure fixture (every Zone's overlay doubled) as /studio/shows/show-1129-r1-pressure, connected the same Controller: Run and Save are disabled and 'Output blocked: Peak: 6 Patterns per pixel (limit 4).' is shown.",
+  "captures": [
+    ".wrsp/ui-proof/1129-r1-delivery-ready.png",
+    ".wrsp/ui-proof/1129-r1-delivery-pressure-blocked.png"
+  ],
+  "capturedAtCommit": "2f1f64d5bc11f7266e6f93b2d16907a04bffa295"
+}
