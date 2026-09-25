@@ -17,6 +17,7 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
     // showPatternSlotTestFixture.ts), so the 19 -> 7 exchange, 181 globals
     // and 264 cache words are unchanged; only the byte figures moved with the
     // shipping reference's linear ramps and lower speed values.
+    // Re-measured 2026-09-25 (#1042 4-4c): both subjects now convert through the v1 import adapter and compile on the v2 path. The qualification fixture is byte-identical; the 205 fixture drops its two boundary brightness ramps, which v2 does not convert off the flat route (#1091), and its figures are byte-equal to the v1 compile of the same stripped subject.
     expect(issue546Report.fixtures).toMatchObject([
       {
         id: 'fixture-property-slot-qualification',
@@ -32,15 +33,15 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
       },
       {
         id: 'fixture-installation-composition',
-        baseline: { sourceBytes: 73_288, physicalMachines: 12 },
+        baseline: { sourceBytes: 66_876, physicalMachines: 12 },
         selected: {
-          sourceBytes: 66_119,
+          sourceBytes: 59_491,
           physicalMachines: 10,
           auxiliaryCacheWords: 216,
           persistentGlobals: 251,
-          remainingArtifactBytes: 2265,
+          remainingArtifactBytes: 8893,
         },
-        sourceChangePercent: expect.closeTo(-9.78, 1),
+        sourceChangePercent: expect.closeTo(-11.04, 1),
       },
     ])
   })

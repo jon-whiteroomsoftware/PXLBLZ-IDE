@@ -7,19 +7,25 @@ import { createFastReplayRuntime } from '../../src/engine/fastReplay'
 import { nativeDimension } from '../../src/engine/loadPattern'
 import type { ShowRecord } from '../../src/engine/personalContentRecords'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
-import { compileShowForArtifact } from '../../src/engine/showPreviewArtifact'
+import type { ShowRecordV2 } from '../../src/engine/showCompositionV2'
+import type { ShowCompileRecipeSourceLookup } from '../../src/engine/showModel'
+import { sourceForShowPatternRef } from '../../src/engine/showPreviewArtifact'
+import { convertShowRecordV1ToV2 } from '../../src/engine/showRecordV1ToV2'
 import { createInstallationCompositionFixture } from '../../src/engine/showInstallationTestFixture'
 import { createPropertySlotQualificationShow } from '../../src/engine/showPatternSlotTestFixture'
+import { compileShowV2RecordState } from './showV2Fixture'
 
 export type Issue546FixtureId =
   // The 2026-08-02 showcase rebuild consolidated the shipping Property
   // Animation reference to shared voices (#514/#536 ceilings). Its
   // per-scene-instance shape lives on as a compiler fixture so this census
   // keeps measuring the same subject.
+  // Remove its stray top-level timeScale, which v1 schema rejects and v1 compilation ignored.
   | 'fixture-property-slot-qualification'
   // The #363 Learn recast removed 205 Installation Composition from the
   // catalogue. Its exact shape lives on as a compiler fixture so this census
   // keeps measuring the same subject.
+  // Remove boundary brightness ramps, which v2 refuses on non-flat Shows (#1091).
   | 'fixture-installation-composition'
 
 interface AstNode {
@@ -96,16 +102,42 @@ const fixtureIds: Issue546FixtureId[] = [
   'fixture-installation-composition',
 ]
 
-function fixture(id: Issue546FixtureId): ShowRecord {
-  if (id === 'fixture-installation-composition') return createInstallationCompositionFixture()
-  return createPropertySlotQualificationShow()
+function v1SourceLookup(show: ShowRecord): ShowCompileRecipeSourceLookup {
+  const source = (ref: Parameters<typeof sourceForShowPatternRef>[0]) => sourceForShowPatternRef(ref, [])
+  return {
+    byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source(cell.pattern)])),
+    byPatternInstanceId: Object.fromEntries([
+      ...(show.composition?.patternInstances ?? []),
+      ...(show.composition?.groupDefinitions ?? []).flatMap((group) => group.patternInstances),
+    ].map((instance) => [instance.id, source(instance.pattern)])),
+    stageDimension: 2,
+  }
+}
+
+function fixture(id: Issue546FixtureId): ShowRecordV2 {
+  const show = id === 'fixture-installation-composition'
+    ? createInstallationCompositionFixture()
+    : createPropertySlotQualificationShow()
+  if (id === 'fixture-installation-composition') {
+    show.transitions?.forEach((transition) => { delete transition.propertyTransitions })
+  } else {
+    show.composition?.patternInstances.forEach((instance) => {
+      delete (instance as typeof instance & { timeScale?: number }).timeScale
+    })
+  }
+  const result = convertShowRecordV1ToV2(show, v1SourceLookup(show))
+  if (result.status !== 'converted') {
+    const issues = result.issues.map((issue) => `${issue.path}: ${issue.message}`).join('; ')
+    throw new Error(`Issue #546 fixture did not convert: ${id}: ${issues}`)
+  }
+  return result.record
 }
 
 export function issue546Artifact(
   id: Issue546FixtureId,
   patternSlotSharing: 'none' | 'force',
 ): GeneratedShowArtifact {
-  const compiled = compileShowForArtifact(fixture(id), [], undefined, {}, {
+  const compiled = compileShowV2RecordState(fixture(id), {
     stageDimension: 2,
     patternSlotSharing,
   })
@@ -117,9 +149,8 @@ const mapPoints = Array.from({ length: 2_000 }, (_, index) => ({
   sample: [(index % 50) / 49, Math.floor(index / 50) / 39],
 }))
 
-function showDurationMs(show: ShowRecord): number {
-  const transitions = new Map((show.transitions ?? []).map((transition) => [transition.afterSceneId, transition.durationMs]))
-  return show.scenes.reduce((sum, scene) => sum + scene.durationMs + (transitions.get(scene.id) ?? 0), 0)
+function showDurationMs(show: ShowRecordV2): number {
+  return show.composition.showEndMs
 }
 
 function percentile(sorted: number[], proportion: number): number {
@@ -128,7 +159,7 @@ function percentile(sorted: number[], proportion: number): number {
 
 function local2000Timing(
   artifact: GeneratedShowArtifact,
-  show: ShowRecord,
+  show: ShowRecordV2,
   fidelity: 'fast' | 'fidelity',
 ) {
   const replay = createFastReplayRuntime({
@@ -153,7 +184,7 @@ function local2000Timing(
   }
 }
 
-function representation(artifact: GeneratedShowArtifact, show: ShowRecord) {
+function representation(artifact: GeneratedShowArtifact, show: ShowRecordV2) {
   const resources = artifact.summary.resources
   return {
     sourceBytes: artifact.summary.artifactBytes,
