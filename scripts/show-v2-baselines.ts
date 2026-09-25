@@ -220,11 +220,11 @@ export function firstDifferentRuntimeFrame(key: string, committed: RuntimeFrames
     const before = committed.frames[sample] ?? []
     const after = fresh.frames[sample] ?? []
     for (let index = 0; index < Math.max(before.length, after.length); index++) {
-      if (Object.is(before[index], after[index])) continue
-      const a = before[index]
-      const b = after[index]
+      const a = JSON.stringify(before[index])
+      const b = JSON.stringify(after[index])
+      if (a === b) continue
       const ms = committed.sampledMs[sample] ?? fresh.sampledMs[sample]
-      return `${key} runtime frame at ${ms} ms, value ${index}: committed ${a}, now ${b} (|Δ| ${Math.abs(a - b)})`
+      return `${key} runtime frame at ${ms} ms, value ${index}: committed ${a}, now ${b} (|Δ| ${Math.abs(before[index] - after[index])})`
     }
   }
   return undefined

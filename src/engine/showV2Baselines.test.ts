@@ -165,6 +165,16 @@ describe('#1042 v2 baselines', () => {
   it('names the first changed sample and pixel value', () => {
     expect(firstDifferentRuntimeFrame(
       'stock:sample',
+      { sampledMs: [0, 250], frames: [[0, 2], [3, 4]] },
+      { sampledMs: [0, 250], frames: [[-0, 2], [3, 4.25]] },
+    )).toBe('stock:sample runtime frame at 250 ms, value 1: committed 4, now 4.25 (|Δ| 0.25)')
+    expect(firstDifferentRuntimeFrame(
+      'stock:sample',
+      { sampledMs: [0], frames: [[null as unknown as number]] },
+      { sampledMs: [0], frames: [[NaN]] },
+    )).toBeUndefined()
+    expect(firstDifferentRuntimeFrame(
+      'stock:sample',
       { sampledMs: [0, 250], frames: [[1, 2], [3, 4]] },
       { sampledMs: [0, 250], frames: [[1, 2], [3, 4.25]] },
     )).toBe('stock:sample runtime frame at 250 ms, value 1: committed 4, now 4.25 (|Δ| 0.25)')
