@@ -69,14 +69,17 @@ import {
   showRoutingLayoutKindLabel,
 } from '@/engine/showModel'
 import {
-  portableTargetPixelBlocker,
   sourceForShowPatternRef,
   type CompiledShowState,
 } from '@/engine/showPreviewArtifact'
 import { type ShowPropertyLaneProjection } from '@/engine/showPropertyLaneProjection'
-import { installationCoverageBlockingMessage, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
-import { validateInstallationCoverageV2 } from '@/engine/showInstallationCoverageV2'
-import { showV2DeliveryRefusal } from '@/engine/showV2RouteDelivery'
+import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
+import {
+  assessShowV2DeliveryPressure,
+  compileShowV2ForDelivery,
+  exportShowV2ForDelivery,
+  prepareShowV2ForController,
+} from '@/engine/showV2ControllerDelivery'
 import { resolveBundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
   projectResolvedShowClipSummary,
@@ -2412,22 +2415,11 @@ export function ShowEditor({
   // The authored-v2 artifact comes from the same closed preparation the Stage
   // reads, so the Source code readout and its diagnostics describe one compile
   // rather than a second editor-local one (#1065).
-  const compiled = useMemo<CompiledShowState>(() => {
-    const prepared = presentationV2Capture?.prepared
-    // A prepared v2 Show uses the same ordered delivery refusals as the
-    // route artifact builder. Before preparation, coverage can still surface.
-    const artifactBlocker = prepared?.status === 'ready'
-      ? showV2DeliveryRefusal(prepared.bundle)
-        ?? portableTargetPixelBlocker(savedShowV2?.outputContract.kind, activeControllerProfile?.lastKnownPixelCount)
-        ?? undefined
-      : savedShowV2
-        ? installationCoverageBlockingMessage(validateInstallationCoverageV2(savedShowV2))
-          ?? portableTargetPixelBlocker(savedShowV2.outputContract.kind, activeControllerProfile?.lastKnownPixelCount)
-          ?? undefined
-        : undefined
-    if (prepared?.status === 'ready') return { artifact: prepared.bundle.artifact, error: null, artifactBlocker }
-    return { artifact: null, error: prepared?.status === 'refused' ? prepared.message : null, artifactBlocker }
-  }, [activeControllerProfile?.lastKnownPixelCount, presentationV2Capture, savedShowV2])
+  const compiled = useMemo<CompiledShowState>(() => compileShowV2ForDelivery({
+    record: savedShowV2,
+    prepared: presentationV2Capture?.prepared,
+    targetPixelCount: activeControllerProfile?.lastKnownPixelCount,
+  }), [activeControllerProfile?.lastKnownPixelCount, presentationV2Capture, savedShowV2])
   useLayoutEffect(() => {
     const updateOverflow = () => {
       const scroll = showEditorPaneRef.current?.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
@@ -2616,27 +2608,16 @@ export function ShowEditor({
   // The delivered-source inventory the gauge reports is measured from the same
   // export the Show would deliver, so each backing measures its own record
   // through its own export owner rather than the artifact bytes alone (#1065).
-  const inspectableShowExport = useMemo(() => {
-    if (!compiled.artifact) return null
-    if (!lessonProjectionV2) return null
-    const exported = buildShowEpeExportV2(lessonProjectionV2, compiled.artifact.code, {
-      stampedAt: new Date(lessonProjectionV2.updatedAt),
-      userMaps,
-      attribution: compiled.artifact.attribution,
-    })
-    return exported.status === 'exported' ? exported : null
-  }, [compiled.artifact, lessonProjectionV2, userMaps])
+  const inspectableShowExport = useMemo(
+    () => exportShowV2ForDelivery(lessonProjectionV2, { artifact: compiled.artifact }, userMaps),
+    [compiled.artifact, lessonProjectionV2, userMaps],
+  )
   // The pressure numerator is the delivered total (generated source plus
   // delivery header) — the same bytes the gauge and inventory report (#63).
-  const compilePressure = useMemo(() => compiled.artifact
-    ? assessShowCompilePressure({
-        deliveredSourceBytes: inspectableShowExport
-          ? deliveredShowSourceBytes(inspectableShowExport.source)
-          : compiled.artifact.summary.artifactBytes,
-        budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
-        worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
-      })
-    : null, [compiled.artifact, inspectableShowExport])
+  const compilePressure = useMemo(
+    () => assessShowV2DeliveryPressure({ artifact: compiled.artifact }, inspectableShowExport),
+    [compiled.artifact, inspectableShowExport],
+  )
   const showExport = !compiled.artifactBlocker && compilePressure?.status !== 'blocked'
     ? inspectableShowExport
     : null
@@ -2673,39 +2654,14 @@ export function ShowEditor({
     () => buildShowControllerCompatibilityContext(activeControllerProfile, userMaps, activeInstalledMap, STOCK_MAPS),
     [activeControllerProfile, activeInstalledMap, userMaps],
   )
-  const preparedControllerArtifact = useMemo(() => {
-    if (compiled.artifactBlocker) {
-      return { value: null, error: compiled.artifactBlocker }
-    }
-    if (!inspectableShowExport) return { value: null, error: null }
-    try {
-      const prepared = prepareShowControllerArtifact(
-        inspectableShowExport.source,
-        activeControllerMapDim,
-        activeControllerFirmware,
-        controllerCompatibilityContext,
-      )
-      // Preparation can append a renderer adapter, so re-measure the source
-      // the Controller actually receives (#63 review follow-up). Bytes only:
-      // renderer pressure was already assessed in compilePressure above.
-      const preparedPressure = compiled.artifact
-        ? assessShowCompilePressure({
-            deliveredSourceBytes: deliveredShowSourceBytes(prepared.source),
-            budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
-            worstInstantRenderersPerPixel: 0,
-          })
-        : null
-      if (preparedPressure?.status === 'blocked') {
-        return { value: null, error: preparedPressure.blocks.join(' ') }
-      }
-      return { value: prepared, error: null }
-    } catch (error) {
-      return {
-        value: null,
-        error: error instanceof Error ? error.message : 'Could not prepare Show for Controller',
-      }
-    }
-  }, [activeControllerFirmware, activeControllerMapDim, compiled.artifact, compiled.artifactBlocker, controllerCompatibilityContext, inspectableShowExport])
+  const preparedControllerArtifact = useMemo(() => prepareShowV2ForController({
+    artifact: compiled.artifact,
+    artifactBlocker: compiled.artifactBlocker,
+  }, inspectableShowExport, {
+    mapDim: activeControllerMapDim,
+    firmwareVersion: activeControllerFirmware,
+    compatibility: controllerCompatibilityContext,
+  }), [activeControllerFirmware, activeControllerMapDim, compiled.artifact, compiled.artifactBlocker, controllerCompatibilityContext, inspectableShowExport])
   const preparedDeliverySnapshot = useMemo<ShowDeliverySnapshot | null>(() => {
     if (
       !deliveryControllerSession
