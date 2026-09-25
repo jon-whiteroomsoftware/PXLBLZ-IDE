@@ -10,6 +10,7 @@ import { buildShowEpeExport } from './showEpeExport'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { createDefaultShow, showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { lowerShowCompositionV2ForCompile, prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import { editShowClipTemporalV2 } from './showClipTemporalV2'
 import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { emitShowPropertyTrackExpression, evaluateShowPropertyTrack } from './showPropertyAnimation'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
@@ -21,6 +22,7 @@ import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { applyShowCommandV2 } from './showCommandsV2/registry'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { showAnimationCommandFixture } from '../test/showAnimationCommandFixture'
+import { showSplitClipFixture } from '../test/showSplitClipFixture'
 import type { MapPoint } from './maps/types'
 import type { ShowRecord } from './personalContentRecords'
 
@@ -2085,6 +2087,70 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
     }
   }
   const windowTimes = [30000, 31000, 31999]
+
+  const splitBoundaryRecord = () => {
+    const show = showSplitClipFixture()
+    show.transitions![0] = { ...show.transitions![0], kind: 'crossfade', durationMs: 2000, crossfadePolicy: 'live-live' }
+    delete show.composition!.scenes[1].zones[0].main[0].logicalClipId
+    const converted = convertShowRecordV1ToV2(show, {
+      byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
+    })
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    return converted.record
+  }
+  const splitAt16000 = (record: ShowRecordV2) => {
+    const result = editShowClipTemporalV2(record, { kind: 'split', clipId: 'clip-b', atMs: 16000, rightClipId: 'clip-b-right' })
+    expect(result.status, result.status === 'refused' ? result.message : '').toBe('changed')
+    return result.record
+  }
+  const instanceValue = (record: ShowRecordV2, sectionId: string, sectionStartMs: number, instanceId: string, atMs: number) => {
+    const lowered = lowerShowCompositionV2ForCompile(record, lookupFor(record)).show
+    const scene = lowered.composition!.scenes.find(candidate => candidate.sceneId === sectionId)!
+    const track = scene.propertyTracks!.find(candidate => candidate.target.kind === 'instance-time-scale' && candidate.target.instanceId === instanceId)!
+    return evaluateShowPropertyTrack(track, atMs - sectionStartMs)
+  }
+
+  it('preserves each held instance value when Split adds a section beside the whole-output boundary (#1109)', () => {
+    const before = splitBoundaryRecord()
+    const after = splitAt16000(before)
+    const prepared = prepareShowV2ForCompile(after, lookupFor(after), { libraries: LIBRARIES })
+    expect(prepared.status).toBe('ready')
+    if (prepared.status !== 'ready') return
+    expect(compileShow(prepared.recipe, LIBRARIES).code.length).toBeGreaterThan(0)
+    for (const track of before.composition.propertyTracks.filter(track => track.target.kind === 'instance-time-scale')) {
+      if (track.target.kind !== 'instance-time-scale') continue
+      for (const atMs of [16000, 22500, 27000, 29999, 30000]) {
+        // The real lowering's v1 evaluator reads each Scene's local clock.
+        expect(instanceValue(after, 'v2-section:1', 16000, track.target.instanceId, atMs), `${track.id}@${atMs}`)
+          .toBeCloseTo(instanceValue(before, 'v2-section:0', 0, track.target.instanceId, atMs), 12)
+      }
+    }
+  })
+
+  it('refuses Split when an instance track has an authored key inside the whole-output tail (#1109)', () => {
+    const before = splitBoundaryRecord()
+    const track = before.composition.propertyTracks.find(candidate => candidate.id === 'track-inst')!
+    track.keyframes.push({ id: 'authored-tail', timeMs: 31000, value: 1, easing: { curve: 'linear' } })
+    expect(validateShowRecordV2(before)).toEqual([])
+    const after = splitAt16000(before)
+    const prepared = prepareShowV2ForCompile(after, lookupFor(after), { libraries: LIBRARIES })
+    expect(prepared.status).toBe('refused')
+    if (prepared.status === 'refused') expect(prepared.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'compiler-ineligible', message: 'Keyframe time must stay inside its Scene.' }),
+    ]))
+  })
+
+  it('refuses Split when an instance track remains active beyond the whole-output tail (#1109)', () => {
+    const before = splitBoundaryRecord()
+    before.composition.propertyTracks.find(candidate => candidate.id === 'track-inst')!.activeDurationMs = 40000
+    expect(validateShowRecordV2(before)).toEqual([])
+    const after = splitAt16000(before)
+    const prepared = prepareShowV2ForCompile(after, lookupFor(after), { libraries: LIBRARIES })
+    expect(prepared.status).toBe('refused')
+    if (prepared.status === 'refused') expect(prepared.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'compiler-ineligible', message: 'Keyframe time must stay inside its Scene.' }),
+    ]))
+  })
 
   it('holds a Clip-targeted track cut before the outgoing whole-output Transition at its section end', () => {
     const record = animationRecord()

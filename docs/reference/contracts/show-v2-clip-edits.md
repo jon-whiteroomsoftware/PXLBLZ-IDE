@@ -115,8 +115,11 @@ The owner validates the complete preimage and final candidate. Times must be saf
 integer milliseconds within Show End. Collisions and invalid references refuse
 atomically. A no-op returns the original valid record without running an edit.
 
-Move, Trim, Extend and Split currently require no Transition records, no Group
-occurrences and one full-Show Layout occurrence. The Clip's Zone must be present
+Split retargets outgoing Transition endpoints, then validates the candidate
+and Transition placement (RL08–RL10). Move and Trim/Extend handle attached
+and joined Transitions and converted-boundary repair. Move, Trim, Extend and
+Split currently require no Group occurrences and one full-Show Layout
+occurrence. The Clip's Zone must be present
 in that Layout. Linked duplicate instead accepts those topologies when the
 complete candidate remains valid: it leaves existing Transitions unchanged,
 uses materialized Groups for collision and identity ownership, and checks the
@@ -124,6 +127,8 @@ new Clip's full contribution against Layout availability. A Layout without
 logical routing or explicit ranges uses the existing nominal-Zone fallback.
 General Transition, Group, Layout and Insert Time orchestration remains with
 their dedicated owners.
+A whole-output boundary's held instance tail lowers inside the outgoing Scene,
+while authored instance motion inside the window refuses (#1103, #1109).
 
 `deriveShowRestartEventsV2` materializes Group Clips, derives one event from
 each restarting Clip's effective instance, materialized Clip identity and first

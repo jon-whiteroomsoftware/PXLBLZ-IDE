@@ -4270,37 +4270,28 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
   })
 
-  // v2 port blocked by #1109: with boundary transition-scene-1 selected, v2 refuses Split as undeliverable instead of splitting clip-b.
-  it.each<'transition' | 'zone' | 'zone-layout'>(['transition'])('splits at the playhead with a %s selected (#992)', async kind => {
+  it('splits at the playhead with a transition selected (#992)', async () => {
     const user = userEvent.setup()
     const show = showSplitClipFixture()
-    if (kind === 'transition') {
-      show.transitions![0] = { ...show.transitions![0], kind: 'crossfade', durationMs: 2000, crossfadePolicy: 'live-live' }
-      delete show.composition!.scenes[1].zones[0].main[0].logicalClipId
-    }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-    render(<ShowEditor showId={show.id} />)
+    show.transitions![0] = { ...show.transitions![0], kind: 'crossfade', durationMs: 2000, crossfadePolicy: 'live-live' }
+    delete show.composition!.scenes[1].zones[0].main[0].logicalClipId
+    const editor = openV2EditorForRecord(convertForTest(show))
+    const before = editor.state().record
+    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
-    if (kind === 'zone-layout') await openZoneLayout(user, 'Default')
-    else if (kind === 'zone') {
-      await user.click(screen.getByRole('button', { name: 'Open Zones' }))
-      await user.click(screen.getByRole('button', { name: 'Open zone main properties' }))
-    } else {
-      const boundary = document.querySelector<HTMLElement>('[data-show-selection-key="transition:transition-scene-1"]')
-      expect(boundary).not.toBeNull()
-      await user.click(boundary!)
-    }
-    expect(useShowEditorViewStore.getState().selection.kind).toBe(kind)
+    const boundary = document.querySelector<HTMLElement>('[data-show-selection-key="transition:transition-scene-1"]')
+    expect(boundary).not.toBeNull()
+    await user.click(boundary!)
+    expect(useShowEditorViewStore.getState().selection.kind).toBe('transition')
     await user.keyboard('{Escape}')
-    expect(useShowEditorViewStore.getState().selection.kind).toBe(kind)
+    expect(useShowEditorViewStore.getState().selection.kind).toBe('transition')
     const split = screen.getByRole('button', { name: 'Split at playhead' })
     expect(split).not.toHaveAttribute('aria-disabled', 'true')
     await user.click(split)
-    await waitFor(() => expect(useShowStore.getState().shows[0].composition!.scenes[0].zones[0].main.find(clip => clip.id === 'clip-b')?.durationMs).toBe(4000))
+    await waitFor(() => expect(editor.state().record.composition.clips.find(clip => clip.id === 'clip-b')?.durationMs).toBe(4000))
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Undo Show edit' }))
-    await waitFor(() => expect(useShowStore.getState().shows[0]).toEqual({ ...show, updatedAt: expect.any(Number) }))
+    await waitFor(() => expect(editor.state().record).toEqual({ ...before, updatedAt: expect.any(Number) }))
   })
   it.each(['zone', 'zone-layout'] as const)('splits at the playhead with a %s selected (#992)', kind => splitsWithSelection(kind))
   async function splitsWithSelection(kind: 'transition' | 'zone' | 'zone-layout') {
