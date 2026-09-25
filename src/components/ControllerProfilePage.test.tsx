@@ -2230,12 +2230,8 @@ describe('ControllerProfilePage', () => {
 
   it('prefers an exact personal Show source over a built-in legacy alias', async () => {
     const profile = seedProfile()
-    const personalShow = {
-      ...stockShowById('stock-show-remix-coronal-mass-ejection')!.show,
-      id: 'teaser-cme-01',
-      name: 'My original CME Show',
-    }
-    useShowStore.setState({ shows: [personalShow], showsLoaded: true })
+    const personalShow = { id: 'teaser-cme-01', name: 'My original CME Show', updatedAt: 1 }
+    useShowStore.setState({ showV2Rows: [personalShow], showsLoaded: true })
     renderLiveProgramInventory(profile, {
       storageId: 'personal-show-alias-precedence-test',
       programs: [{ id: 'REMIX1', name: 'Coronal Mass Ejection' }],

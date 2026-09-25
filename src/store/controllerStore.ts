@@ -56,7 +56,7 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useLibraryStore } from '@/store/libraryStore'
-import { STOCK_MAPS, useMapStore, openMapForPushState } from '@/store/mapStore'
+import { useMapStore, openMapForPushState } from '@/store/mapStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
@@ -74,10 +74,11 @@ import {
   type ControllerReconciliationJob,
 } from '@/engine/controllerReconciliation'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import { useShowStore } from '@/store/showStore'
-import { compileShowForArtifact, resolveShowCompilationControllerZones } from '@/engine/showPreviewArtifact'
-import { buildShowEpeExport } from '@/engine/showEpeExport'
-import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
+import { resolveShowV2StageMap } from '@/store/showV2StageMap'
+import {
+  prepareShowV2ControllerDelivery,
+  type ShowV2ControllerDelivery,
+} from '@/engine/showV2ControllerDelivery'
 import {
   assessShowCompilePressure,
   type ShowCompilePressureInput,
@@ -1175,69 +1176,58 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const provider = providers.get(live.ip) ?? (get().activeIp === live.ip ? getControllerProvider() : null)
           if (!provider) return
 
-          const [programs, bindings, pushRecords, config] = await Promise.all([
+          // A failed Show list rejects the reconciliation with the other
+          // reads: planning on a partial set would unmanage its Shows (#1129).
+          const personalContent = getPersonalContentProvider()
+          const [programs, bindings, pushRecords, config, showRecords] = await Promise.all([
             provider.listPrograms(),
             getControllerBindings(),
             getPushRecords(),
             provider.getConfig().catch(() => null),
+            personalContent.listShowDocumentsV2?.() ?? Promise.resolve([]),
           ])
           const patternState = usePatternStore.getState()
           const libraryState = useLibraryStore.getState()
           const mapState = useMapStore.getState()
-          const showArtifacts = useShowStore.getState().shows.flatMap((show) => {
-            const stageMap = show.stageMapId
-              ? [...STOCK_MAPS, ...mapState.userMaps].find((map) => map.id === show.stageMapId)
-              : undefined
-            const compiled = compileShowForArtifact(
-              show,
-              patternState.userPatterns,
-              resolveShowCompilationControllerZones(show),
-              Object.fromEntries(libraryState.userLibraries.map((library) => [library.name, library.src])),
-              {
-                stageDimension: stageMap?.dim,
-                targetPixelCount: profile.lastKnownPixelCount,
-              },
-            )
-            if (!compiled.artifact || compiled.artifactBlocker) return []
+          // Every saved v2 Show through the editor's delivery chain; a refused
+          // Show is neither pushed nor counted as managed (#1129).
+          const showArtifacts = showRecords.flatMap((record) => {
+            let delivery: ShowV2ControllerDelivery
             try {
-              const canonical = buildShowEpeExport(show, compiled.artifact.code, {
-                stampedAt: new Date(show.updatedAt),
-                userMaps: mapState.userMaps,
-                attribution: compiled.artifact.attribution,
+              delivery = prepareShowV2ControllerDelivery({
+                record,
+                dependencies: {
+                  patterns: patternState.userPatterns,
+                  libraries: libraryState.userLibraries,
+                  maps: mapState.userMaps,
+                  profiles,
+                  stageMap: resolveShowV2StageMap(record.stageMapId, mapState.userMaps),
+                },
+                targetPixelCount: profile.lastKnownPixelCount,
+                controller: {
+                  mapDim: live.mapDim,
+                  firmwareVersion: live.firmwareVersion,
+                  compatibility: profile.lastKnownPixelCount === undefined
+                    ? {}
+                    : { pixelCount: profile.lastKnownPixelCount },
+                },
               })
-              const prepared = prepareShowControllerArtifact(
-                canonical.source,
-                live.mapDim,
-                live.firmwareVersion,
-                profile.lastKnownPixelCount === undefined
-                  ? {}
-                  : { pixelCount: profile.lastKnownPixelCount },
-              )
-              if (prepared.blocked) return []
-              // Gate on what the Controller actually receives: preparation can
-              // append a renderer adapter, so the prepared source is measured,
-              // not the canonical export (#63 review follow-up).
-              const pressure = assessShowCompilePressure({
-                deliveredSourceBytes: deliveredShowSourceBytes(prepared.source),
-                budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
-                worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
-              })
-              if (pressure.status === 'blocked') return []
-              const bindingKey = `show:${show.id}`
-              return [{
-                bindingKey,
-                name: show.name,
-                source: prepared.source,
-                artifactStamp: prepared.artifactStamp,
-                profileSignature: controllerProfileArtifactSignature(
-                  profile,
-                  bindingKey,
-                  { mapDim: live.mapDim },
-                ),
-              }]
             } catch {
               return []
             }
+            if (delivery.status !== 'ready') return []
+            const bindingKey = `show:${record.id}`
+            return [{
+              bindingKey,
+              name: record.name,
+              source: delivery.source,
+              artifactStamp: delivery.artifactStamp,
+              profileSignature: controllerProfileArtifactSignature(
+                profile,
+                bindingKey,
+                { mapDim: live.mapDim },
+              ),
+            }]
           })
           const artifacts = [
             ...patternState.userPatterns.map((pattern) => ({

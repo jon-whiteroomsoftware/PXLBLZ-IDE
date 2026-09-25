@@ -59,7 +59,13 @@ import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
 import { stampArtifact } from '@/engine/artifactStamp'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { createShowWithOutputContract } from '@/engine/showModel'
-import { createPortableShowOutputContract } from '@/engine/showOutputContract'
+import {
+  createInstallationShowOutputContract,
+  createPortableShowOutputContract,
+} from '@/engine/showOutputContract'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
+import { convertForTest } from '@/test/showEditorV2Harness'
+import { prepareShowV2ControllerDelivery } from '@/engine/showV2ControllerDelivery'
 import { encodeMapData } from '@/engine/mapPush'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
@@ -241,12 +247,66 @@ function memoryControllerMetadataStorage(): ControllerMetadataStorage {
   }
 }
 
-function setControllerProfiles(profiles: ControllerProfile[]): void {
+function setControllerProfiles(profiles: ControllerProfile[], showsV2: ShowRecordV2[] = []): void {
   setPersonalContentProvider({
     ...demoPersonalContentProvider,
     id: 'controller-profile-test',
     listControllerProfiles: async () => profiles,
+    listShowDocumentsV2: async () => showsV2,
   })
+}
+
+function managedShowProfile(): ControllerProfile {
+  return {
+    ...defaultControllerProfile({
+      id: 'profile-1',
+      deviceId: 'pixelblaze_pb32_managed',
+      ip: '10.0.0.5',
+    }),
+    keepPatternsUpToDate: true,
+  }
+}
+
+// The #514 fixture as a saved v2 record: a Portable Show on stock ShapeShifter.
+function portableShowV2(): ShowRecordV2 {
+  const show = createShowWithOutputContract(
+    'show-portable',
+    'Portable arena',
+    createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1_024 }),
+    1,
+  )
+  show.cells = show.cells.map((cell) => ({
+    ...cell,
+    pattern: { kind: 'stock', id: 'ShapeShifter' },
+    patternName: 'ShapeShifter',
+  }))
+  return convertForTest(show)
+}
+
+async function bindManagedShow(profileSignature: string): Promise<void> {
+  await setControllerBindings({ '10.0.0.5': { 'show:show-portable': 'SHOW0001' } })
+  await setPushRecords({
+    '10.0.0.5': {
+      'show:show-portable': {
+        transforms: [],
+        profileSignature,
+        artifactHash: 'old-hash',
+        stampedAt: '2026-07-12T00:00:00.000Z',
+        name: 'Portable arena',
+      },
+    },
+  })
+}
+
+async function connectManagedController(): Promise<FakeProvider> {
+  await store().addController({
+    id: 'pixelblaze_pb32_managed',
+    address: '10.0.0.5',
+    name: 'Managed Controller',
+  })
+  const provider = created.get('10.0.0.5')!
+  provider.programs = [{ id: 'SHOW0001', name: 'Portable arena' }]
+  return provider
 }
 
 function makeReconcilingBytecode(byteLength = 16): Uint8Array {
@@ -507,54 +567,125 @@ describe('controllerStore (keyed)', () => {
     })
   })
 
-  it('excludes Portable Shows from reconciliation when the Controller exceeds 2,000 pixels (#514)', async () => {
-    const profile = {
-      ...defaultControllerProfile({
-        id: 'profile-1',
-        deviceId: 'pixelblaze_pb32_managed',
-        ip: '10.0.0.5',
-      }),
-      keepPatternsUpToDate: true,
-      lastKnownPixelCount: 2_001,
-    }
-    setControllerProfiles([profile])
-    const show = createShowWithOutputContract(
-      'show-portable',
-      'Portable arena',
-      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1_024 }),
-      1,
-    )
-    show.cells = show.cells.map((cell) => ({
-      ...cell,
-      pattern: { kind: 'stock', id: 'ShapeShifter' },
-      patternName: 'ShapeShifter',
-    }))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-    await setControllerBindings({ '10.0.0.5': { 'show:show-portable': 'SHOW0001' } })
-    await setPushRecords({
-      '10.0.0.5': {
-        'show:show-portable': {
-          transforms: [],
-          profileSignature: 'old-signature',
-          artifactHash: 'old-hash',
-          stampedAt: '2026-07-12T00:00:00.000Z',
-          name: 'Portable arena',
-        },
-      },
+  it('reconciles a saved v2 Show and counts it as managed once current (#1129)', async () => {
+    const profile = { ...managedShowProfile(), lastKnownPixelCount: 1_024 }
+    const record = portableShowV2()
+    setControllerProfiles([profile], [record])
+    await bindManagedShow('old-signature')
+    const provider = await connectManagedController()
+
+    await store().reconcileControllerProfile('profile-1')
+
+    const signature = controllerProfileArtifactSignature(profile, 'show:show-portable', { mapDim: 2 })
+    const delivery = prepareShowV2ControllerDelivery({
+      record,
+      dependencies: { patterns: [], libraries: [], maps: [], profiles: [profile], stageMap: null },
+      targetPixelCount: 1_024,
+      controller: { mapDim: 2, firmwareVersion: undefined, compatibility: { pixelCount: 1_024 } },
+    })
+    if (delivery.status !== 'ready') throw new Error(`fixture refused: ${delivery.message}`)
+    expect(provider.saved.map((write) => write.opts.id)).toEqual(['SHOW0001'])
+    expect(provider.compiledSources).toHaveLength(1)
+    expect(provider.compiledSources[0]).toContain(delivery.source)
+    expect((await getPushRecords())['10.0.0.5']['show:show-portable']).toMatchObject({
+      profileSignature: signature,
+      name: 'Portable arena',
+      showOutputContract: delivery.artifactStamp.showOutputContract,
+    })
+    expect(store().controllerReconciliations['profile-1']).toMatchObject({
+      phase: 'current',
+      managedCount: 1,
+      unmanagedCount: 0,
     })
 
-    await store().addController({
-      id: 'pixelblaze_pb32_managed',
-      address: '10.0.0.5',
-      name: 'Managed Controller',
+    provider.saved = []
+    provider.compiledSources = []
+    await store().reconcileControllerProfile('profile-1')
+
+    expect(provider.saved).toEqual([])
+    expect(provider.compiledSources).toEqual([])
+    expect(store().controllerReconciliations['profile-1']).toMatchObject({
+      phase: 'current',
+      managedCount: 1,
+      unmanagedCount: 0,
+      completedCount: 1,
     })
-    const provider = created.get('10.0.0.5')!
-    provider.programs = [{ id: 'SHOW0001', name: 'Portable arena' }]
+  })
+
+  it('excludes Portable v2 Shows from reconciliation when the Controller exceeds 2,000 pixels (#514, #1129)', async () => {
+    setControllerProfiles([{ ...managedShowProfile(), lastKnownPixelCount: 2_001 }], [portableShowV2()])
+    await bindManagedShow('old-signature')
+    const provider = await connectManagedController()
 
     await store().reconcileControllerProfile('profile-1')
 
     expect(provider.saved).toEqual([])
     expect(provider.compiledSources).toEqual([])
+  })
+
+  it('skips an undeliverable v2 Show: not saved and not counted as managed (#1129)', async () => {
+    const record = convertForTest(createShowWithOutputContract(
+      'show-portable',
+      'Portable arena',
+      createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+      1,
+    ))
+    const layout = record.zoneLayouts.find((candidate) => !candidate.logical)!
+    layout.zones = [{ ...layout.zones[0], ranges: [{ start: 0, end: 3 }] }]
+    setControllerProfiles([{ ...managedShowProfile(), lastKnownPixelCount: 8 }], [record])
+    await bindManagedShow('old-signature')
+    const provider = await connectManagedController()
+
+    await store().reconcileControllerProfile('profile-1')
+
+    expect(provider.saved).toEqual([])
+    expect(provider.compiledSources).toEqual([])
+    expect(store().controllerReconciliations['profile-1']).toMatchObject({
+      managedCount: 0,
+      unmanagedCount: 1,
+    })
+  })
+
+  it('fails the reconciliation when the saved v2 Shows cannot be listed (#1129)', async () => {
+    const profile = managedShowProfile()
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'controller-profile-test',
+      listControllerProfiles: async () => [profile],
+      listShowDocumentsV2: async () => { throw new Error('Show list unavailable') },
+    })
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-1',
+        name: 'Managed Pattern',
+        src: 'export function render(index) { hsv(index, 1, 1) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    await bindManagedShow('old-signature')
+    const bindings = { '10.0.0.5': { 'show:show-portable': 'SHOW0001', 'pat-1': 'MANAGED1' } }
+    await setControllerBindings(bindings)
+    const provider = await connectManagedController()
+    provider.programs = [
+      { id: 'SHOW0001', name: 'Portable arena' },
+      { id: 'MANAGED1', name: 'Managed Pattern' },
+    ]
+
+    await expect(store().reconcileControllerProfile('profile-1')).rejects.toThrow('Show list unavailable')
+
+    expect(provider.saved).toEqual([])
+    expect(provider.compiledSources).toEqual([])
+    // The pending state the connection scheduled is left as it was: no plan.
+    expect(store().controllerReconciliations['profile-1']).toEqual({
+      phase: 'pending',
+      managedCount: 0,
+      unmanagedCount: 0,
+      completedCount: 0,
+      programs: [],
+    })
+    expect(await getControllerBindings()).toEqual(bindings)
   })
 
   it('detectExtension records global extension presence', async () => {
