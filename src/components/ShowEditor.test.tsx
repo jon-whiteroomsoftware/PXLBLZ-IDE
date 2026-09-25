@@ -52,6 +52,8 @@ import { showSplitClipFixture } from '@/test/showSplitClipFixture'
 import { convertForTest, openV2EditorForRecord } from '@/test/showEditorV2Harness'
 import { boundaryClipDeletionFixture } from '@/test/showBoundaryClipDeletionFixture'
 import { useShowEditorViewStore } from '@/store/showEditorViewStore'
+import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolkitPresentation'
+import { replaceShowBoundaryTransition } from '@/engine/showTransitionAuthoring'
 
 // The pressure/blocked compile-bar tests need a show decisively over the
 // activation budget. Real fixtures keep shrinking as the compiler improves
@@ -2843,6 +2845,35 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const mappedPalette = screen.getByRole('dialog', { name: 'Choose Transition' })
     expect(within(mappedPalette).getByRole('button', { name: 'Use Star Transition' })).toBeInTheDocument()
     expect(within(mappedPalette).getByRole('button', { name: 'Use Split Transition' })).toBeInTheDocument()
+  })
+
+  it('omits the 2D-only Direction from a Linear Transition inspector when the Show has no Stage map (#1122)', async () => {
+    const user = userEvent.setup()
+    const linear = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+      .find((item) => item.key === 'transition:wipe:linear')!
+    // The converter refuses a directional Wipe without a map, so each Show
+    // converts on the 2D plane; the no-map case then loses its Stage map.
+    const mappedLinearShow = (id: string, name: string): ShowRecordV2 => {
+      const source = { ...createDefaultShow(id, name, 1000), stageMapId: 'plane' }
+      return convertForTest(replaceShowBoundaryTransition(source, source.transitions![0].id, linear), {}, 2)
+    }
+    const openInspector = async (record: ShowRecordV2) => {
+      const editor = openV2EditorForRecord(record)
+      useShowTransportStore.getState().openShow(record.id, 62_000)
+      const view = render(<ShowEditor showId={editor.showId} />)
+      await user.click(screen.getByRole('button', { name: /Transition between TestPattern1D and CometLoom$/ }))
+      return { view, inspector: screen.getByRole('region', { name: 'Transition properties' }) }
+    }
+
+    const noMap = await openInspector({
+      ...mappedLinearShow('show-no-map-inspector-1122', 'No map inspector'),
+      stageMapId: null,
+    })
+    expect(within(noMap.inspector).queryByRole('textbox', { name: 'Direction exact direction' })).not.toBeInTheDocument()
+    noMap.view.unmount()
+
+    const mapped = await openInspector(mappedLinearShow('show-2d-map-inspector-1122', '2D map inspector'))
+    expect(within(mapped.inspector).getByRole('textbox', { name: 'Direction exact direction' })).toBeInTheDocument()
   })
 
   it('edits the incoming Clip brightness from the boundary destination row (#1111-A2)', async () => {

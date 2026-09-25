@@ -3528,6 +3528,7 @@ export function ShowEditor({
                   selection={detail.selection}
                   transformEnabled={stageDimension === 2}
                   stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
+                  transitionStageDimensions={transitionStageDimension}
                   patternOptions={patternOptions}
                   patternControlsByInstanceId={patternControlsByInstanceId}
                   compiledOutputEffects={compiled.artifact?.summary.outputEffects}
@@ -8866,6 +8867,7 @@ function ContextualInspector({
   selection,
   transformEnabled,
   stageDimensions,
+  transitionStageDimensions,
   patternOptions,
   patternControlsByInstanceId,
   compiledOutputEffects,
@@ -8906,6 +8908,9 @@ function ContextualInspector({
   selection: ShowSelection
   transformEnabled: boolean
   stageDimensions: 1 | 2 | 3
+  // Transitions fall back to 1D when the Stage map is gone (#1122); Clip
+  // Effects keep the 2D fallback in stageDimensions.
+  transitionStageDimensions: 1 | 2 | 3
   patternOptions: ShowPatternOption[]
   patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
   compiledOutputEffects?: import('@/engine/showCompiler').ShowCompileSummary['outputEffects']
@@ -9267,7 +9272,7 @@ function ContextualInspector({
         <BoundaryTransitionInspector
           key={selection.transitionId}
           value={boundary}
-          stageDimensions={stageDimensions}
+          stageDimensions={transitionStageDimensions}
           // A v2 side names its Pattern instance, which is what automatable
           // control metadata is keyed by on this backing.
           patternControlsBySourceId={patternControlsByInstanceId}
