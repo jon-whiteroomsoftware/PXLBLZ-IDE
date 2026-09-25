@@ -116,9 +116,6 @@ function learn100V2(): ShowRecordV2 {
     layoutOccurrences: [
       occurrence(1, 'layout-main', 0, 16_000),
     ],
-    markers: [
-      chapter('scene-marker:tour', 0, 'Tour'),
-    ],
   })
 }
 
@@ -148,9 +145,6 @@ function learn101V2(): ShowRecordV2 {
     ],
     layoutOccurrences: [
       occurrence(1, 'layout-main', 0, 16_000),
-    ],
-    markers: [
-      chapter('scene-marker:timeline', 0, 'Timeline'),
     ],
   })
 }
@@ -194,9 +188,6 @@ function learn102V2(): ShowRecordV2 {
         propertyKey('mandala-settle', 16_500, 0.45),
       ]),
     ],
-    markers: [
-      chapter('scene-marker:passages', 0, 'Passages'),
-    ],
   })
 }
 
@@ -228,9 +219,6 @@ function learn103V2(): ShowRecordV2 {
     ],
     layoutOccurrences: [
       occurrence(1, 'layout-main', 0, 15_000),
-    ],
-    markers: [
-      chapter('scene-marker:poses', 0, 'Poses'),
     ],
   })
 }
@@ -282,9 +270,6 @@ function learn104V2(): ShowRecordV2 {
     ],
     layoutOccurrences: [
       occurrence(1, 'layout-main', 0, 16_000),
-    ],
-    markers: [
-      chapter('scene-marker:stacks', 0, 'Stacks'),
     ],
   })
 }
@@ -394,9 +379,6 @@ function learn106V2(): ShowRecordV2 {
         propertyKey('sky-black', 30_000, 0),
       ]),
     ],
-    markers: [
-      chapter('scene-marker:arc', 0, 'Arc'),
-    ],
   })
 }
 
@@ -448,9 +430,6 @@ function learn201V2(): ShowRecordV2 {
         propertyKey('flies-depart', 9_000, 0.65),
         propertyKey('flies-gone', 12_000, 0),
       ]),
-    ],
-    markers: [
-      chapter('scene-marker:layers', 0, 'Layers'),
     ],
   })
 }
@@ -514,9 +493,6 @@ function learn202V2(): ShowRecordV2 {
         propertyKey('width-half', 5_500, 0.5),
       ]),
     ],
-    markers: [
-      chapter('scene-marker:viewport', 0, 'Viewport'),
-    ],
   })
 }
 
@@ -550,9 +526,6 @@ function learn203V2(): ShowRecordV2 {
     ],
     layoutOccurrences: [
       occurrence(1, 'layout-main', 0, 16_000),
-    ],
-    markers: [
-      chapter('scene-marker:lifecycle', 0, 'Lifecycle'),
     ],
   })
 }
@@ -593,9 +566,6 @@ function learn204V2(): ShowRecordV2 {
     ],
     layoutOccurrences: [
       occurrence(1, 'layout-main', 0, 15_000),
-    ],
-    markers: [
-      chapter('scene-marker:presentation', 0, 'Presentation'),
     ],
   })
 }
@@ -690,9 +660,6 @@ function learn205V2(): ShowRecordV2 {
     layoutOccurrences: [
       occurrence(1, 'layout-main', 0, 16_000),
     ],
-    markers: [
-      chapter('scene-marker:reuse', 0, 'Reuse'),
-    ],
   })
 }
 
@@ -773,9 +740,6 @@ function learn207V2(): ShowRecordV2 {
     layoutOccurrences: [
       occurrence(1, 'layout-main', 0, 20_000),
     ],
-    markers: [
-      chapter('scene-marker:silhouettes', 0, 'Silhouettes'),
-    ],
   })
 }
 
@@ -823,9 +787,6 @@ function learn301V2(): ShowRecordV2 {
     ],
     layoutOccurrences: [
       occurrence(1, 'layout-stage', 0, 14_000),
-    ],
-    markers: [
-      chapter('scene-marker:stage', 0, 'One stage'),
     ],
   })
 }
@@ -990,9 +951,6 @@ function learn303V2(): ShowRecordV2 {
         propertyKey('echo-depart', 14_000, 0.6),
         propertyKey('echo-gone', 15_500, 0),
       ]),
-    ],
-    markers: [
-      chapter('scene-marker:score', 0, 'Score'),
     ],
   })
 }

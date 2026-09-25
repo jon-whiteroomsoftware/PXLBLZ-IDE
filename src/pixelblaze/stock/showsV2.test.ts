@@ -24,6 +24,24 @@ import { classify, compareValues } from '../../../scripts/show-v2-native-parity'
 
 const NATIVE_CASES = STOCK_SHOWS_V2.map(record => [record.id, record] as const)
 
+// A single-passage Show carries no chapter: its lone whole-Show chapter was redundant (#1097 item 6).
+const SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS = new Set([
+  'stock-show-100-getting-around',
+  'stock-show-101-clips-cuts-blank-time',
+  'stock-show-102-transitions-values',
+  'stock-show-103-clip-transform',
+  'stock-show-104-effects-and-ordering',
+  'stock-show-106-built-from-basics',
+  'stock-show-201-layers-property-animation',
+  'stock-show-202-content-clip-viewport',
+  'stock-show-203-pattern-instance-lifecycle',
+  'stock-show-204-presentation-modes',
+  'stock-show-205-groups-linked-reuse',
+  'stock-show-207-aperture-shapes-edges',
+  'stock-show-301-installation-mapping',
+  'stock-show-303-compile-simplify-deliver',
+])
+
 describe('native v2 stock catalogue census', () => {
   it('lists the same Shows in the same order as the pinned legacy catalogue', () => {
     expect(STOCK_SHOWS_V2).toHaveLength(40)
@@ -70,6 +88,11 @@ describe.each(NATIVE_CASES)('native v2 stock Show %s', (id, record) => {
     const legacy = stockShowById(id)!
     const scenes = projectShowTimeline(legacy.show).scenes
     const chapters = showChaptersV2(record)
+    if (SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS.has(id)) {
+      expect(scenes).toHaveLength(1)
+      expect(record.composition.markers.filter(marker => marker.role === 'chapter')).toEqual([])
+      return
+    }
     expect(chapters.map(chapter => chapter.name)).toEqual(scenes.map(scene => scene.scene.name))
     expect(chapters.map(chapter => chapter.timeMs)).toEqual(scenes.map(scene => scene.startMs))
     for (const marker of record.composition.markers) {
@@ -82,6 +105,13 @@ describe.each(NATIVE_CASES)('native v2 stock Show %s', (id, record) => {
     const converted = convertShowRecordV1ToV2(legacy.show)
     expect(converted.status).toBe('converted')
     if (converted.status !== 'converted') return
+    if (SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS.has(id)) {
+      // The legacy Scene label converts to the one whole-Show chapter the native Show omits.
+      const [wholeShow, ...rest] = converted.record.composition.markers
+      expect(wholeShow).toMatchObject({ role: 'chapter', timeMs: 0, origin: 'converted-scene-label' })
+      expect(rest).toEqual([])
+      converted.record.composition.markers = []
+    }
     const semantic = (candidate: ShowRecordV2) => ({ ...structuredClone(candidate), updatedAt: 0 })
     // This catalogue authors its chapter Markers, its Transitions and its Layout
     // occurrences natively, so only the converted record carries the three #1065
