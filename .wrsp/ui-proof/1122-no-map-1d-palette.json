@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1122",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1122-missing-map-boundary",
+  "operation": "Set-up: through the local API, copied an existing boundary-Transition proof Show with stageMapId pointing at a map that does not exist (the editor shows 'The saved stage map is gone'). Opened the crossfade boundary Transition and clicked Change: the Choose Transition palette offers only Cut, Crossfade, Through color, Linear, Pixel and Block; Star, Split and the other 2D-only shapes are absent.",
+  "captures": [".wrsp/ui-proof/1122-no-map-1d-palette.png"],
+  "capturedAtCommit": "41390ddc0eedb52507ad472d68cc9947c31894c3"
+}
