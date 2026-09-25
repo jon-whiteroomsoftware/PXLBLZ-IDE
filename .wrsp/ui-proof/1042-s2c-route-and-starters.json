@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows",
+  "operation": "In an authenticated synthetic browser session on the committed S2c tip, created a personal v2 Show, reopened it from the Shows rail without a query parameter, and opened built-in Quadrille from that rail. Exported the personal Show through Show actions, imported its .pxlshow through the Shows rail, and observed the imported Show listed and open as Untitled Show (2).",
+  "captures": [
+    ".wrsp/ui-proof/1042-s2c-1-personal.png",
+    ".wrsp/ui-proof/1042-s2c-2-builtin.png",
+    ".wrsp/ui-proof/1042-s2c-3-imported.png"
+  ],
+  "capturedAtCommit": "2faf8052eb515ed61f4f9bfad9a4816eef79f103"
+}
