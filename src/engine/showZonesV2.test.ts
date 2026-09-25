@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { flatV1Show } from '../test/showV2TracerFixture'
+import { LIBRARIES } from '../pixelblaze/libs'
+import { compileShow } from './showCompiler'
 import { commandFixtureV2 } from './showCommandsV2/fixtures'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import {
@@ -10,6 +13,8 @@ import {
 import { showLayoutZoneIdAtTimeV2, validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { createInstallationShowOutputContract } from './showOutputContract'
 import { prepareShowStageV2 } from './showPreparedStageV2'
+import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
+import { addShowZone, removeShowZone, showRecordToCompileRecipe, spanShowCellZones } from './showModel'
 import { editShowZoneV2 } from './showZonesV2'
 
 /**
@@ -73,6 +78,24 @@ function moveClipB(value: ShowRecordV2): void {
   clip.startMs = 5_000
   for (const key of clip.appearance.keys) key.timeMs = 5_000
 }
+
+function spanningFlatShow(sceneSpan: 1 | 2, zoneSpan: 1 | 2 = 2) {
+  let source = flatV1Show()
+  source = addShowZone(source, { name: 'Zone B' })
+  source.cells[0].sceneSpan = sceneSpan
+  if (zoneSpan === 2) source = spanShowCellZones(source, 'cell-a', 2)
+  else source.cells[0].zoneId = source.zones[1].id
+  return source
+}
+
+function convertedFlatShow(source: ReturnType<typeof flatV1Show>): ShowRecordV2 {
+  const converted = convertShowRecordV1ToV2(source, { byCellId: { 'cell-a': 'source', 'cell-other': 'source' } })
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  expect(validateShowRecordV2(converted.record)).toEqual([])
+  return converted.record
+}
+
+const flatSource = 'export function render2D(index, x, y) { rgb(x, y, 0) }'
 
 const spare = { id: 'spare', name: 'Spare', nominalPixelCount: 8, color: '#22c55e' }
 
@@ -279,6 +302,74 @@ describe('removing a Zone', () => {
     expect(result.record.composition.propertyTracks).toEqual([])
     expect(result.record.zones.map(zone => zone.id)).toEqual(['right'])
     expect(validateShowRecordV2(reopen(result.record))).toEqual([])
+  })
+
+  it('keeps the surviving Zone part of a converted spanning Cell and another Clip', () => {
+    const source = spanningFlatShow(1)
+    source.cells.push({ ...structuredClone(source.cells[0]), id: 'cell-other', sceneId: 'scene-b', sceneSpan: 1, zoneSpan: 1 })
+    const converted = convertedFlatShow(source)
+    const before = converted.composition.clips.filter(clip => clip.logicalClipId === 'cell-a')
+    expect(before).toHaveLength(2)
+    const kept = before.find(clip => clip.zoneId === source.zones[0].id)!
+    const other = converted.composition.clips.find(clip => clip.logicalClipId !== 'cell-a')!
+    expect(other).toBeDefined()
+    const removed = editShowZoneV2(converted, { kind: 'remove', zoneId: source.zones[1].id })
+    expect(removed.status).toBe('changed')
+    if (removed.status !== 'changed') return
+    expect(removed.record.composition.clips.find(clip => clip.id === kept.id)).toEqual(kept)
+    expect(removed.record.composition.clips.find(clip => clip.id === other.id)).toEqual(other)
+    expect(validateShowRecordV2(removed.record)).toEqual([])
+
+    const v1Removed = removeShowZone(source, source.zones[1].id)
+    const v1Recipe = showRecordToCompileRecipe(v1Removed, { byCellId: { 'cell-a': flatSource, 'cell-other': flatSource }, stageDimension: 2 })
+    const v1Artifact = compileShow(v1Recipe, LIBRARIES)
+    const prepared = prepareShowV2ForCompile(removed.record, {
+      byCellId: {}, byPatternInstanceId: { 'cell-a': flatSource, 'cell-other': flatSource }, stageDimension: 2,
+    })
+    expect(prepared.status).toBe('ready')
+    if (prepared.status !== 'ready') return
+    const v2Artifact = compileShow(prepared.recipe, LIBRARIES)
+    expect(v1Artifact.code.length).toBeGreaterThan(0)
+    expect(v2Artifact.code.length).toBeGreaterThan(0)
+    const normalizedV1Removed = structuredClone(v1Removed)
+    for (const cell of normalizedV1Removed.cells) {
+      if (cell.zoneMode === undefined) delete cell.zoneMode
+    }
+    const v1Converted = convertedFlatShow(normalizedV1Removed)
+    const v1Kept = v1Converted.composition.clips.find(clip => clip.instanceId === kept.instanceId)
+    expect(v1Kept).toBeDefined()
+    expect(removed.record.composition.clips.find(clip => clip.id === kept.id)).toMatchObject({
+      startMs: v1Kept?.startMs,
+      durationMs: v1Kept?.durationMs,
+    })
+  })
+
+  it('keeps both surviving Zone parts of a converted spanning Cell split across two Scenes', () => {
+    const source = spanningFlatShow(2)
+    source.routingLayouts.push({ ...structuredClone(source.routingLayouts[0]), id: 'layout-b', name: 'Second layout' })
+    source.transitions.push({ id: 'route', afterSceneId: 'scene-a', kind: 'routing', layoutId: 'layout-b', durationMs: 0, easing: { curve: 'linear' } })
+    const converted = convertedFlatShow(source)
+    const parts = converted.composition.clips.filter(clip => clip.logicalClipId === 'cell-a')
+    expect(parts).toHaveLength(4)
+    const kept = parts.filter(clip => clip.zoneId === source.zones[0].id)
+    expect(kept).toHaveLength(2)
+    const result = editShowZoneV2(converted, { kind: 'remove', zoneId: source.zones[1].id })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.clips).toEqual(kept)
+    expect(result.record.composition.clips.every(clip => clip.logicalClipId === 'cell-a')).toBe(true)
+    expect(validateShowRecordV2(result.record)).toEqual([])
+  })
+
+  it('removes every part of a converted Cell confined to the removed Zone', () => {
+    const source = spanningFlatShow(2, 1)
+    const converted = convertedFlatShow(source)
+    expect(converted.composition.clips).toHaveLength(2)
+    const result = editShowZoneV2(converted, { kind: 'remove', zoneId: source.zones[1].id })
+    expect(result.status).toBe('changed')
+    if (result.status !== 'changed') return
+    expect(result.record.composition.clips).toEqual([])
+    expect(validateShowRecordV2(result.record)).toEqual([])
   })
 
   it('merges per-Clip carrier plans across a layout-split group', () => {

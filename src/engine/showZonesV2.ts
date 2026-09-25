@@ -1,5 +1,5 @@
 import type { ShowZone } from './personalContentRecords'
-import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
+import { showV2LogicalClipSegmentIds, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { deleteShowGroupOccurrenceV2 } from './showGroupEditsV2'
 import { editShowLayerV2 } from './showLayersV2'
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
@@ -200,35 +200,43 @@ function removeZone(
   }
 
   for (const group of clipGroups.values()) {
-    const clipId = group[0]
-    const merged: ShowTransitionCarrierRampProjectionPlanV2[] = []
-    let hasPlan = false
-    for (const memberId of group) {
-      const entry = plans.find(candidate => candidate.clipId === memberId)
-      if (!entry) continue
-      hasPlan = true
-      for (const item of entry.propertyRampProjections) {
-        if (!merged.some(existing => existing.transitionId === item.transitionId)) merged.push(item)
+    const remaining = group.filter(clipId => working.composition.clips.some(clip => clip.id === clipId))
+    if (remaining.length === 0) continue
+    const whollyRemoved = showV2LogicalClipSegmentIds(working.composition, remaining[0])
+      .every(clipId => working.composition.clips.some(clip => clip.id === clipId && clip.zoneId === zone.id))
+    const targets = whollyRemoved ? [remaining] : remaining.map(clipId => [clipId])
+    for (const target of targets) {
+      const clipId = target[0]
+      const merged: ShowTransitionCarrierRampProjectionPlanV2[] = []
+      let hasPlan = false
+      for (const memberId of target) {
+        const entry = plans.find(candidate => candidate.clipId === memberId)
+        if (!entry) continue
+        hasPlan = true
+        for (const item of entry.propertyRampProjections) {
+          if (!merged.some(existing => existing.transitionId === item.transitionId)) merged.push(item)
+        }
       }
+      const outcome = editShowTransitionV2(working, {
+        kind: 'delete-clip',
+        clipId,
+        ...(whollyRemoved ? {} : { scope: 'segment' as const }),
+        ...(hasPlan ? { propertyRampProjections: merged } : {}),
+      })
+      if (outcome.status !== 'changed') {
+        const carrier = outcome.status === 'refused' && outcome.code === 'unsupported-property-carrier'
+        return refuse(carrier ? 'unsupported-property-carrier' : 'unsupported-content', outcome.status === 'refused'
+          ? `Clip "${clipId}" cannot be removed with Zone "${zone.id}": ${outcome.message}`
+          : `Clip "${clipId}" was not removed with Zone "${zone.id}".`)
+      }
+      working = outcome.record
+      affected.affectedClipIds.push(...outcome.affectedClipIds)
+      affected.affectedTransitionIds.push(...outcome.affectedTransitionIds)
+      affected.affectedTrackIds.push(...outcome.affectedTrackIds)
+      affected.affectedInstanceIds.push(...outcome.affectedInstanceIds)
+      affected.affectedKeyframeIds.push(...outcome.affectedKeyframeIds)
+      for (const id of outcome.removedIds) removedIds.add(id)
     }
-    const outcome = editShowTransitionV2(working, {
-      kind: 'delete-clip',
-      clipId,
-      ...(hasPlan ? { propertyRampProjections: merged } : {}),
-    })
-    if (outcome.status !== 'changed') {
-      const carrier = outcome.status === 'refused' && outcome.code === 'unsupported-property-carrier'
-      return refuse(carrier ? 'unsupported-property-carrier' : 'unsupported-content', outcome.status === 'refused'
-        ? `Clip "${clipId}" cannot be removed with Zone "${zone.id}": ${outcome.message}`
-        : `Clip "${clipId}" was not removed with Zone "${zone.id}".`)
-    }
-    working = outcome.record
-    affected.affectedClipIds.push(...outcome.affectedClipIds)
-    affected.affectedTransitionIds.push(...outcome.affectedTransitionIds)
-    affected.affectedTrackIds.push(...outcome.affectedTrackIds)
-    affected.affectedInstanceIds.push(...outcome.affectedInstanceIds)
-    affected.affectedKeyframeIds.push(...outcome.affectedKeyframeIds)
-    for (const id of outcome.removedIds) removedIds.add(id)
   }
 
   for (const layer of record.composition.layers.filter(candidate => candidate.zoneId === zone.id)) {

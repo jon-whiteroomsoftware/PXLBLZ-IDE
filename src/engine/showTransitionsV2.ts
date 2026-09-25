@@ -43,7 +43,7 @@ export type ShowTransitionEditIntentV2 =
   | { kind: 'resize-trailing'; clipId: string; endMs: number }
   | { kind: 'resize-leading'; clipId: string; startMs: number }
   | { kind: 'reset-to-cut'; transitionId: string; propertyRampProjections?: readonly ShowTransitionRampProjectionV2[] }
-  | { kind: 'delete-clip'; clipId: string; propertyRampProjections?: readonly ShowTransitionCarrierRampProjectionPlanV2[] }
+  | { kind: 'delete-clip'; clipId: string; scope?: 'logical-clip' | 'segment'; propertyRampProjections?: readonly ShowTransitionCarrierRampProjectionPlanV2[] }
 
 export type ShowTransitionEditRefusalV2 =
   | 'invalid-record'
@@ -120,10 +120,12 @@ export function editShowTransitionV2(
   if (intent.kind === 'delete-clip') {
     const clip = record.composition.clips.find(candidate => candidate.id === intent.clipId)
     if (!clip) return refuse('missing-clip', `Clip "${intent.clipId}" does not exist.`)
-    // A `--layout-N` segment carries its v1 logical Clip in `logicalClipId`;
-    // deleting one segment deletes every segment in one edit, as v1 does
-    // (#1068 item 1b). A Clip without the field deletes alone.
-    const removedClipIds = showV2LogicalClipSegmentIds(record.composition, clip.id)
+    // A segment delete removes one physical part of a logical Clip; its other
+    // parts keep their logicalClipId (#1111-E review). Default deletion removes
+    // every linked part in one edit, as v1 does (#1068 item 1b).
+    const removedClipIds = intent.scope === 'segment'
+      ? [clip.id]
+      : showV2LogicalClipSegmentIds(record.composition, clip.id)
     const removedClipIdSet = new Set(removedClipIds)
     const removedTransitions = record.composition.transitions.filter(transition => (
       transitionEndpoints(transition).all.some(endpoint => removedClipIdSet.has(endpoint))

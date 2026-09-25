@@ -217,6 +217,62 @@ describe('v2 Transition ownership', () => {
     expect(projectShowTransitionJunctionsV2(reopen(reset.record))).toEqual([expect.objectContaining({ kind: 'cut', atMs: 500 })])
   })
 
+  it('deletes a Clip and its Transition without retaining ghost identity on re-add', () => {
+    const source = convertedTransitionShow()
+    const before = structuredClone(source)
+    const deleted = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'in' })
+    expect(deleted).toMatchObject({
+      status: 'changed', affectedClipIds: ['in'], affectedTransitionIds: ['transition-crossfade'],
+      removedIds: ['in', 'in-instance', 'transition-crossfade'],
+    })
+    if (deleted.status !== 'changed') return
+    expect(source).toEqual(before)
+    expect(deleted.record.composition.showEndMs).toBe(source.composition.showEndMs)
+    expect(deleted.record.composition.clips.find(clip => clip.id === 'out')).toEqual(source.composition.clips.find(clip => clip.id === 'out'))
+    expect(deleted.record.composition.transitions).toEqual([])
+
+    const readded = reopen(deleted.record)
+    // The delete collected the orphaned instance (#1100); the re-add brings its own.
+    readded.composition.patternInstances.push(structuredClone(source.composition.patternInstances.find(instance => instance.id === 'in-instance')!))
+    readded.composition.clips.push({
+      ...structuredClone(source.composition.clips.find(clip => clip.id === 'in')!),
+      id: 'replacement',
+      startMs: 400,
+      appearance: { keys: [{
+        ...structuredClone(source.composition.clips.find(clip => clip.id === 'in')!.appearance.keys[0]),
+        id: 'replacement:appearance:1',
+        timeMs: 400,
+      }] },
+    })
+    expect(validateShowRecordV2(readded)).toEqual([])
+    expect(projectShowTransitionJunctionsV2(reopen(readded))).toEqual([
+      expect.objectContaining({ kind: 'cut', atMs: 400, fromClipId: 'out', toClipId: 'replacement' }),
+    ])
+    expect(readded.composition.transitions).toEqual([])
+  })
+
+  it('deletes one logical Clip part and its incident Transition with segment scope', () => {
+    const source = crossZoneWholeOutputShow()
+    for (const clip of source.composition.clips) clip.logicalClipId = 'spanning-cell'
+    expect(validateShowRecordV2(source)).toEqual([])
+
+    const segment = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'out', scope: 'segment' })
+    expect(segment.status).toBe('changed')
+    if (segment.status !== 'changed') return
+    expect(segment.affectedClipIds).toEqual(['out'])
+    expect(segment.affectedTransitionIds).toEqual(['whole'])
+    expect(segment.record.composition.clips).toEqual([source.composition.clips.find(clip => clip.id === 'in')])
+    expect(segment.record.composition.transitions).toEqual([])
+    expect(validateShowRecordV2(segment.record)).toEqual([])
+
+    const logical = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'out' })
+    expect(logical.status).toBe('changed')
+    if (logical.status !== 'changed') return
+    expect(logical.affectedClipIds).toEqual(['in', 'out'])
+    expect(logical.record.composition.clips).toEqual([])
+    expect(validateShowRecordV2(logical.record)).toEqual([])
+  })
+
   it('drops a Clip value ramp when resetting its visual Transition', () => {
     const source = convertedTransitionShow()
     const transition = source.composition.transitions[0]
@@ -268,40 +324,6 @@ describe('v2 Transition ownership', () => {
     expect(track.keyframes[0].curveSegment).toMatchObject({ sourceDurationMs: 400, elapsedOffsetMs: 0 })
     expect(evaluateShowPropertyTrackV2(track, 299)).toBeCloseTo(expected!)
     expect(validateShowRecordV2(reopen(resized.record))).toEqual([])
-  })
-
-  it('deletes a Clip and its Transition without retaining ghost identity on re-add', () => {
-    const source = convertedTransitionShow()
-    const before = structuredClone(source)
-    const deleted = editShowTransitionV2(source, { kind: 'delete-clip', clipId: 'in' })
-    expect(deleted).toMatchObject({
-      status: 'changed', affectedClipIds: ['in'], affectedTransitionIds: ['transition-crossfade'],
-      removedIds: ['in', 'in-instance', 'transition-crossfade'],
-    })
-    if (deleted.status !== 'changed') return
-    expect(source).toEqual(before)
-    expect(deleted.record.composition.showEndMs).toBe(source.composition.showEndMs)
-    expect(deleted.record.composition.clips.find(clip => clip.id === 'out')).toEqual(source.composition.clips.find(clip => clip.id === 'out'))
-    expect(deleted.record.composition.transitions).toEqual([])
-
-    const readded = reopen(deleted.record)
-    // The delete collected the orphaned instance (#1100); the re-add brings its own.
-    readded.composition.patternInstances.push(structuredClone(source.composition.patternInstances.find(instance => instance.id === 'in-instance')!))
-    readded.composition.clips.push({
-      ...structuredClone(source.composition.clips.find(clip => clip.id === 'in')!),
-      id: 'replacement',
-      startMs: 400,
-      appearance: { keys: [{
-        ...structuredClone(source.composition.clips.find(clip => clip.id === 'in')!.appearance.keys[0]),
-        id: 'replacement:appearance:1',
-        timeMs: 400,
-      }] },
-    })
-    expect(validateShowRecordV2(readded)).toEqual([])
-    expect(projectShowTransitionJunctionsV2(reopen(readded))).toEqual([
-      expect.objectContaining({ kind: 'cut', atMs: 400, fromClipId: 'out', toClipId: 'replacement' }),
-    ])
-    expect(readded.composition.transitions).toEqual([])
   })
 
   it('moves unequal whole-output contributors and a converging successor once while global owners stay fixed', () => {
