@@ -605,27 +605,27 @@ queue limits, transport identity and revocation acknowledgement.
 
 ## Version-2 records (#1039)
 
-The editor route declares which record version it holds when it mounts the
-shared admission, and everything downstream follows that one declaration. This
-is the whole of what keeps specification section 10's forbidden window closed:
-a command never reaches a record whose version its catalogue does not address.
+The shared admission holds only a version-2 record (#1042). This is the whole
+of what keeps specification section 10's forbidden window closed: a command
+never reaches a record whose version its catalogue does not address.
 
-`createAgentEditorAdmission` takes that declaration and, for a version-2
-record, the route's own prepared Stage capture. It then resolves the open v2
-working copy instead of the v1 collection, so `read_show` answers v2 for a v2
-record; captures the complete validated record as the operation snapshot
-rather than projecting a flat Show; takes its dependency baseline from the v2
-Pattern sites; and resolves a replacement Pattern through the same captured
-bundle the inspector uses. The stable diagnostic resize retry and the typed
-exact resize diagnostic each qualified one exact v1 `resize_clip` and existed
-only for version-1 records; #1042 Phase 3a removed both.
+`createAgentEditorAdmission` takes the route's own prepared Stage capture. It
+resolves the open v2 working copy, so `read_show` answers v2; captures the
+complete validated record as the operation snapshot; takes its dependency
+baseline from the v2 Pattern sites; and resolves a replacement Pattern through
+the same captured bundle the inspector uses. An editor mounted without a v2
+working copy admits nothing: `getShow` and `beginRequest` return `undefined`,
+with no fallback to another record. The stable diagnostic resize retry and the
+typed exact resize diagnostic existed only for version-1 records; #1042 Phase
+3a removed both.
 
-`agentPrivateExecutor` folds whichever catalogue owns the captured record.
-The two report the same three outcomes in different shapes, and version 2 maps
-onto the executor's vocabulary without loss: `changed`, `unchanged` and
-`refused` become `changed`, `noop` and `refused` with the issues intact, a
-refusal's record is the caller's own unchanged private copy, and a refusal
-keeps the private candidate open for correction exactly as before.
+`agentPrivateExecutor` applies commands through the v2 catalogue only, and a
+captured record that is not version 2 refuses with
+`unsupported-schema-version`. The catalogue maps onto the executor's
+vocabulary without loss: `changed`, `unchanged` and `refused` become
+`changed`, `noop` and `refused` with the issues intact, a refusal's record is
+the caller's own unchanged private copy, and a refusal keeps the private
+candidate open for correction.
 
 A caller-supplied `ShowRecordV2` adopts through `showV2CandidateAdmission`,
 constructed by the Show store with its own session, input wait, revisions and
@@ -656,7 +656,7 @@ The dependency step also carries the Installation physical-coverage rule.
 `validateShowAuthoringV2` classifies it exactly as `validateShowAuthoring`
 does: a physical Zone Layout that does not own every output pixel exactly once
 is a delivery warning with no diagnostic code, so the Show stays authorable and
-the candidate is admitted. Delivery is where v1 refuses it, and
+the candidate is admitted. Delivery refuses it:
 `buildShowV2RouteArtifacts` returns the same
 `installationCoverageBlockingMessage` `compileShowForArtifact` produces. The
 prepared-edit owners that can introduce the fault - `set_output_contract`, the

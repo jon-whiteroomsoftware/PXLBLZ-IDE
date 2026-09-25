@@ -266,3 +266,20 @@ it('refuses a duplicate begin key and keeps one private operation', () => {
   expect(context.send({ kind: 'begin_edit', intent: 'Again' }).code).toBe('finished')
   expect(context.send({ kind: 'begin_edit', intent: 'Other' }, 'second').code).toBe('busy')
 })
+
+it('admits nothing for a Show with no v2 working copy, even when a v1 record of it is loaded', () => {
+  const showId = `v2-agent-absent-${++index}`
+  window.history.replaceState(null, '', `/studio/shows/${showId}?agent=1`)
+  useShowStore.setState({ shows: [{ ...convertibleV1Show(), id: showId }] })
+  const admission = createAgentEditorAdmission(showId, () => ({ playheadMs: 0 }), undefined, undefined, { recordVersion: 2, capture: () => null })
+  close = () => admission.close()
+  expect(useShowStore.getState().showV2Pilots[showId]).toBeUndefined()
+  expect(admission.getShow()).toBeUndefined()
+  expect(admission.beginRequest('op', 'Rename', [])).toBeUndefined()
+  expect(useShowStore.getState().readShowEdit(admission.sessionId, 'op')).toBeUndefined()
+  const scope = { bindingId: 'binding', sessionId: admission.sessionId }
+  const executor = createAgentPrivateExecutor(scope, createAgentPrivateAdmissionOwner(admission))
+  expect(executor.deliver({ ...scope, operationId: 'op', deliveryId: 'd0', sequence: 0, payload: { kind: 'begin_edit', intent: 'Rename' } }).code).not.toBe('begun')
+  expect(useShowStore.getState().showV2Histories[showId]).toBeUndefined()
+  expect(useShowStore.getState().shows[0].name).toBe('Convertible')
+})

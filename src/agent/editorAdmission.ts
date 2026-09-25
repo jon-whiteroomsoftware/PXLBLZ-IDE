@@ -1,17 +1,16 @@
-import Ajv, { type ErrorObject } from 'ajv'
-import schemaText from '../../schemas/show-record.schema.json?raw'
-import type { ShowPatternRef, ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowPatternRef } from '@/engine/personalContentRecords'
 import type { ShowEditRequest, ShowEditReceipt, ShowEditCompletion } from '@/engine/showEditAdmission'
 import type { ShowInputWaitReceipt } from '@/engine/showInputWait'
-import { captureShowAuthoringBaseline, validateShowAuthoring, type ShowAuthoringBaseline } from '@/engine/showAuthoringValidation'
+import type { ShowAuthoringBaseline } from '@/engine/showAuthoringValidation'
 import { captureAgentShowSnapshotV2, captureShowAuthoringBaselineV2 } from '@/engine/showAuthoringValidationV2'
-import { isShowRecordV2, type ShowDocument } from '@/engine/showDocument'
+import type { ShowDocument } from '@/engine/showDocument'
+import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { resolveCapturedShowPatternReplacementV2 } from '@/engine/showV2ClipReplacementModel'
 import type { ShowV2PilotPreparedCapture } from '@/store/showV2PreparedEditAdmission'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useLibraryStore } from '@/store/libraryStore'
-import { useMapStore, STOCK_MAPS } from '@/store/mapStore'
+import { useMapStore } from '@/store/mapStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -22,56 +21,7 @@ import {
 } from '@/engine/agentDiscovery'
 export type AgentApplyPhase = 'admitted' | 'adopted' | 'settled' | 'rejected' | 'failed'
 export type AgentAdmissionObserver = (request: ShowEditRequest, phase: AgentApplyPhase, show: ShowDocument | undefined, historyDepth: number) => void
-import { captureAgentShowSnapshot } from '@/engine/agentShowSnapshot'
-import { showEditDiagnosticInput, type ShowEditDiagnosticCode, type ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
-import type { ShowEditValidationResult } from '@/store/showStore'
-
-const structural = new Ajv({ allErrors: true, strict: false, strictNumbers: true }).compile(JSON.parse(schemaText))
-
-const schemaCodes: Partial<Record<string, ShowEditDiagnosticCode>> = {
-  required: 'schema-required',
-  type: 'schema-type',
-  enum: 'schema-enum',
-  const: 'schema-const',
-  minimum: 'schema-minimum',
-  maximum: 'schema-maximum',
-  exclusiveMinimum: 'schema-exclusive-minimum',
-  exclusiveMaximum: 'schema-exclusive-maximum',
-  minLength: 'schema-min-length',
-  maxLength: 'schema-max-length',
-  pattern: 'schema-pattern',
-  format: 'schema-format',
-  additionalProperties: 'schema-additional-properties',
-  uniqueItems: 'schema-unique-items',
-  minItems: 'schema-min-items',
-  maxItems: 'schema-max-items',
-  oneOf: 'schema-one-of',
-  anyOf: 'schema-any-of',
-  allOf: 'schema-all-of',
-}
-
-function schemaErrorPath(error: ErrorObject): string | undefined {
-  let path = error.instancePath
-  if (error.keyword === 'required' && typeof error.params.missingProperty === 'string') {
-    path += `/${error.params.missingProperty.replace(/~/g, '~0').replace(/\//g, '~1')}`
-  }
-  return path || undefined
-}
-
-function rawSchemaDiagnostic(errors: ErrorObject[] | null | undefined): ShowEditDiagnosticInput {
-  return showEditDiagnosticInput('raw-schema', (errors?.length ? errors : [{ keyword: '', instancePath: '', params: {}, schemaPath: '' } as ErrorObject]).map(error => {
-    const path = schemaErrorPath(error)
-    return { code: schemaCodes[error.keyword] ?? 'schema-invalid', ...(path ? { path } : {}) }
-  }))
-}
-
-const authoringFallback: Record<'structure' | 'composition' | 'missing-reference' | 'metadata' | 'delivery', ShowEditDiagnosticCode> = {
-  structure: 'structure-invalid',
-  composition: 'composition-invalid',
-  'missing-reference': 'reference-unavailable',
-  metadata: 'metadata-unavailable',
-  delivery: 'delivery-invalid',
-}
+import { showEditDiagnosticInput, type ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
 
 const metadataInvalidatedDiagnostic = (): ShowEditDiagnosticInput => showEditDiagnosticInput('metadata-invalidation', [{ code: 'metadata-invalidated' }])
 /** Observe actual URL changes synchronously, including remove/restore ABA. Does
@@ -94,17 +44,14 @@ export function observeAgentLocation(listener: () => void): () => void {
 }
 
 /**
- * Which record version this editor holds, and - for a v2 record - its prepared
- * capture (#1039).
+ * The v2 record's prepared capture (#1039, #1042).
  *
- * The version is declared by the route that mounts the admission rather than
- * guessed from the store, so the editor and the commands attached to it are
- * always the same version for one Show (specification section 10). The capture
- * is the route's own prepared context: the same object its typed UI intents
- * adopt through, so a command sequence and a manual edit are checked against
- * one Stage preparation.
+ * The capture is the route's own prepared context: the same object its typed UI
+ * intents adopt through, so a command sequence and a manual edit are checked
+ * against one Stage preparation.
  */
 export interface AgentEditorRecordBinding {
+  /** Ignored: the admission holds only a v2 record. 2d-2d removes it. */
   recordVersion?: 1 | 2
   capture?: () => ShowV2PilotPreparedCapture | null
   /** Trusted route-lifetime and captured-dependency check the v2 admission calls back into. */
@@ -116,14 +63,13 @@ export interface AgentEditorRecordBinding {
 export function createAgentEditorAdmission(showId: string, getContext: () => unknown, bindFieldActivity?: (acquire: () => () => void) => () => void, onObservation?: AgentAdmissionObserver, binding: AgentEditorRecordBinding = {}) {
   const store = () => useShowStore.getState()
   const pathname = window.location.pathname
-  const v2 = binding.recordVersion === 2
   const sessionId = store().beginShowEditSession(showId)
-  /** The one record this editor holds, in the version the route declared. */
-  const resolveShow = (): ShowDocument | undefined => (v2 ? store().showV2Pilots[showId] : store().resolveEditableShow(showId))
+  /** The one record this editor holds. Without a v2 working copy nothing is admitted. */
+  const resolveShow = (): ShowRecordV2 | undefined => store().showV2Pilots[showId]
   const capture = (): ShowV2PilotPreparedCapture | null => binding.capture?.() ?? null
   let retired = false
   const listeners = new Set<() => void>()
-  const entries = new Map<string, { request: ShowEditRequest; show: ShowDocument; context: unknown; baseline: ShowAuthoringBaseline; invalidated: boolean }>()
+  const entries = new Map<string, { request: ShowEditRequest; show: ShowRecordV2; context: unknown; baseline: ShowAuthoringBaseline; invalidated: boolean }>()
   let metadataStops: Array<() => void> = []
   const releaseMetadata = () => {
     if ([...entries.values()].some(entry => store().readShowEdit(sessionId, entry.request.operationId)?.status === 'pending')) return
@@ -131,8 +77,7 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     metadataStops = []
   }
   const observe = (request: ShowEditRequest, phase: AgentApplyPhase) => {
-    const histories = v2 ? store().showV2Histories : store().showHistories
-    onObservation?.(request, phase, resolveShow(), histories[showId]?.past.length ?? 0)
+    onObservation?.(request, phase, resolveShow(), store().showV2Histories[showId]?.past.length ?? 0)
   }
   const observedSettlement = new Set<string>()
   const observedApplication = new Set<string>()
@@ -204,28 +149,6 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       useMapStore.subscribe((a, b) => { if (a.userMaps !== b.userMaps) invalidate() }),
     ]
   }
-  /** The Stage dimension a v1 snapshot projects at; a v2 record resolves its own. */
-  const v1StageDimension = (record: ShowRecord): 1 | 2 | 3 => (
-    [...STOCK_MAPS, ...useMapStore.getState().userMaps].find(map => map.id === record.stageMapId)?.dim === 3 ? 3 : 2
-  )
-  const authoringBaseline = (show: ShowDocument): ShowAuthoringBaseline => (
-    isShowRecordV2(show) ? captureShowAuthoringBaselineV2(show, metadata()) : captureShowAuthoringBaseline(show, metadata())
-  )
-  const validate = (candidate: ShowRecord, entry: { show: ShowRecord; baseline: ShowAuthoringBaseline }, stage: 'authoring' | 'normalized'): ShowEditValidationResult => {
-    const stageMap = [...STOCK_MAPS, ...useMapStore.getState().userMaps].find(map => map.id === candidate.stageMapId)
-    if (candidate.stageMapId && candidate.stageMapId !== entry.show.stageMapId && (!stageMap || (stageMap.dim !== 2 && stageMap.dim !== 3))) {
-      return { valid: false, diagnostic: showEditDiagnosticInput(stage, [{ code: 'map-metadata-unavailable', path: JSON.stringify(['stageMap', candidate.stageMapId]) }]) }
-    }
-    const result = validateShowAuthoring(candidate, { ...metadata(), baseline: entry.baseline, allowExistingMissing: true, stageDimension: stageMap?.dim === 3 ? 3 : 2 })
-    if (result.valid) return { valid: true }
-    return {
-      valid: false,
-      diagnostic: showEditDiagnosticInput(stage, result.errors.map(issue => ({
-        code: issue.diagnosticCode ?? authoringFallback[issue.code],
-        ...(issue.path ? { path: issue.path } : {}),
-      }))),
-    }
-  }
   const invalid = (request?: ShowEditRequest): ShowEditReceipt => ({
     request: request ?? { operationId: '', payloadKey: '', referenceContext: '', targets: [], sessionId, showId, baseRevision: -1 },
     status: 'refused', reason: 'identity-mismatch',
@@ -248,9 +171,9 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
   return {
     sessionId, available, close,
     onClose(listener: () => void) { if (retired) listener(); else listeners.add(listener); return () => { listeners.delete(listener) } },
-    /** The record this editor holds, in its own version: `read_show` returns v2 for a v2 record. */
+    /** The v2 record this editor holds; `read_show` returns it. */
     getShow() { return available() ? structuredClone(resolveShow()) : undefined },
-    recordVersion: v2 ? 2 as const : 1 as const,
+    recordVersion: 2 as const,
     getEditorFocus() { return available() ? structuredClone(getContext()) : undefined },
     getPatterns(filter: AgentPatternDiscoveryFilter = {}) {
       if (!available()) return undefined
@@ -266,21 +189,12 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
     captureCommandContext() {
       if (!available()) return undefined
       const { stock, personal, libraries } = capturePatternMetadata()
-      if (v2) {
-        // The v2 catalogue resolves a Pattern through the route's own captured
-        // bundle, so a command and the inspector replace a Pattern identically.
-        const prepared = capture()
-        if (!prepared) return undefined
-        return {
-          commandContext: { resolvePattern: (ref: { kind: string; id: string }) => resolveCapturedShowPatternReplacementV2(prepared, ref as ShowPatternRef) },
-          retainedBytes: new TextEncoder().encode(JSON.stringify({ stock, personal, libraries })).byteLength,
-        }
-      }
+      // The v2 catalogue resolves a Pattern through the route's own captured
+      // bundle, so a command and the inspector replace a Pattern identically.
+      const prepared = capture()
+      if (!prepared) return undefined
       return {
-        commandContext: {
-          source: (ref: { kind: string; id: string }) => ref.kind === 'stock' ? stock[resolveStockPatternId(ref.id)] : personal[ref.id],
-          libraries,
-        },
+        commandContext: { resolvePattern: (ref: { kind: string; id: string }) => resolveCapturedShowPatternReplacementV2(prepared, ref as ShowPatternRef) },
         retainedBytes: new TextEncoder().encode(JSON.stringify({ stock, personal, libraries })).byteLength,
       }
     },
@@ -289,18 +203,15 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       const prior = entries.get(operationId)
       const current = prior?.show ?? structuredClone(resolveShow())
       if (!current) return undefined
-      // A v2 record is already the one representation commands read; a v1 flat
-      // Show is projected into a composition before an agent can address it.
-      const show = prior?.show ?? (isShowRecordV2(current)
-        ? captureAgentShowSnapshotV2(current)
-        : captureAgentShowSnapshot(current, metadata().source, v1StageDimension(current)))
+      // A v2 record is already the one representation commands read.
+      const show = prior?.show ?? captureAgentShowSnapshotV2(current)
       if (!show) return undefined
       const context = prior?.context ?? structuredClone(getContext())
       const identity = { operationId, payloadKey: JSON.stringify({ utterance, history }), referenceContext: JSON.stringify(context), targets: [showId] }
       if (new TextEncoder().encode(JSON.stringify({ show, context, request: { ...identity, sessionId, showId, baseRevision: Number.MAX_SAFE_INTEGER } })).byteLength > maxCaptureBytes) return undefined
       const result = store().beginShowEdit(sessionId, identity)
       if (result.status !== 'pending') return undefined
-      if (!prior) entries.set(operationId, { request: result.request, show, context, baseline: authoringBaseline(show), invalidated: false })
+      if (!prior) entries.set(operationId, { request: result.request, show, context, baseline: captureShowAuthoringBaselineV2(show, metadata()), invalidated: false })
       watchMetadata()
       return structuredClone({ request: result.request, show, context })
     },
@@ -309,35 +220,20 @@ export function createAgentEditorAdmission(showId: string, getContext: () => unk
       if (!request || request.sessionId !== sessionId) return invalid(request)
       const entry = entries.get(request.operationId)
       if (!entry || JSON.stringify(request) !== JSON.stringify(entry.request)) return invalid(request)
-      if (v2) {
-        const prepared = capture()
-        // The Stage capture is the editor's own; without it there is nothing to
-        // check this candidate against and nothing to adopt it into.
-        if (!prepared) return store().invalidateShowEditCandidate(request) ?? invalid(request)
-        const existingV2 = store().readShowEditCandidate(sessionId, request.operationId)
-        if (existingV2?.status === 'pending') observe(request, 'admitted')
-        const receipt = store().deliverShowV2EditCandidate({
-          request, candidate, capture: prepared, baseline: entry.baseline,
-          isCurrent: () => (binding.isCurrentCapture?.() ?? true) && capture() === prepared,
-          invalidated: () => entry.invalidated,
-        })
-        observeOutcome(receipt)
-        releaseMetadata()
-        return receipt
-      }
-      const v1Entry = entry as typeof entry & { show: ShowRecord }
+      const prepared = capture()
+      // The Stage capture is the editor's own; without it there is nothing to
+      // check this candidate against and nothing to adopt it into.
+      if (!prepared) return store().invalidateShowEditCandidate(request) ?? invalid(request)
       const existing = store().readShowEditCandidate(sessionId, request.operationId)
       if (existing?.status === 'pending') observe(request, 'admitted')
-      const result = store().deliverShowEditCandidate(request, candidate,
-        next => entry.invalidated ? { valid: false, diagnostic: metadataInvalidatedDiagnostic() } : validate(next, v1Entry, 'normalized'),
-        raw => {
-          if (entry.invalidated) return { valid: false, diagnostic: metadataInvalidatedDiagnostic() }
-          if (!structural(raw)) return { valid: false, diagnostic: rawSchemaDiagnostic(structural.errors) }
-          return validate(raw as ShowRecord, v1Entry, 'authoring')
-        })
-      observeOutcome(result)
+      const receipt = store().deliverShowV2EditCandidate({
+        request, candidate, capture: prepared, baseline: entry.baseline,
+        isCurrent: () => (binding.isCurrentCapture?.() ?? true) && capture() === prepared,
+        invalidated: () => entry.invalidated,
+      })
+      observeOutcome(receipt)
       releaseMetadata()
-      return result
+      return receipt
     },
     complete(request: ShowEditRequest, completion: ShowEditCompletion) {
       if (!available()) return { request, status: 'retired' } as const

@@ -1,31 +1,23 @@
 // @vitest-environment jsdom
-import { createDefaultShow } from '@/engine/showModel'
-import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
+import { resetPersonalContentProvider } from '@/engine/personalContentProvider'
 import { showInitialState, useShowStore } from '@/store/showStore'
+import { agentV2Record, openAgentV2Show, type AgentV2Writes } from '@/test/agentAdmissionV2Harness'
 import { createAgentEditorAdmission } from './agentEditorAdmission'
 
-import type { ShowRecord } from '@/engine/personalContentRecords'
-import type { ShowDocument } from '@/engine/showDocument'
-
-/** These diagnostics drive a v1 editor; the shared admission is version-agnostic (#1039). */
-const v1 = (show: ShowDocument): ShowRecord => show as ShowRecord
-
 const state = () => useShowStore.getState()
-const snapshot = () => structuredClone({ shows: state().shows, history: state().showHistories })
+const snapshot = () => structuredClone({ shows: state().showV2Pilots, history: state().showV2Histories })
 let stop = () => {}
-let writes = vi.fn()
+let writes: AgentV2Writes
 beforeEach(() => {
   window.history.replaceState(null, '', '/studio/shows/test?agent=1')
   useShowStore.setState(showInitialState)
-  const show = createDefaultShow('test', 'Original')
   writes = vi.fn(async () => {})
-  setPersonalContentProvider({ updateShow: writes, listShows: async () => [show] } as unknown as PersonalContentProvider)
 })
-afterEach(() => { stop(); resetPersonalContentProvider(); vi.unstubAllGlobals() })
+afterEach(() => { stop(); stop = () => {}; resetPersonalContentProvider(); vi.unstubAllGlobals() })
 async function setup() {
-  await state().loadShows()
-  const api = createAgentEditorAdmission('test', () => ({ playheadMs: 0 }))
-  stop = api.close
+  const opened = await openAgentV2Show(agentV2Record(), writes)
+  const api = createAgentEditorAdmission('test', () => ({ playheadMs: 0 }), undefined, undefined, opened.binding)
+  stop = () => { api.close(); opened.binding.stop() }
   return api
 }
 it.each(['', '?agent', '?agent=0', '?agent=true', '?agent=2', '?agent=1'])('admits an ordinary or legacy Show URL %s', async query => {
@@ -36,8 +28,8 @@ it.each(['', '?agent', '?agent=0', '?agent=true', '?agent=2', '?agent=1'])('admi
 it('registers before inference and refuses edit-undo ABA without another history/save', async () => {
   const api = await setup()
   const captured = api.beginRequest('op', 'rename', [])!
-  await state().updateShow('test', { ...v1(captured.show), name: 'Manual' })
-  await state().undoShow('test')
+  await state().updateShowV2Pilot('test', { ...captured.show, name: 'Manual' })
+  await state().undoShowV2Pilot('test')
   const before = snapshot()
   expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request)).toMatchObject({ status: 'refused', reason: 'revision-conflict' })
   expect(snapshot()).toEqual(before)
@@ -50,10 +42,10 @@ it('adopts once, retains truthful settlement and rejects tokenless mutation', as
   expect(api.applyShow(candidate, captured.request)).toMatchObject({ status: 'applied', settlement: 'saving' })
   expect(api.applyShow(candidate, captured.request)).toMatchObject({ status: 'applied' })
   await vi.waitFor(() => expect(api.readOutcome(captured.request)).toMatchObject({ status: 'applied', settlement: 'saved' }))
-  expect(state().showHistories.test.past).toHaveLength(1)
+  expect(state().showV2Histories.test.past).toHaveLength(1)
   expect(writes).toHaveBeenCalledTimes(1)
   expect(api.applyShow({ ...candidate, name: 'Bypass' }, undefined)).toMatchObject({ status: 'refused' })
-  expect(state().shows[0].name).toBe('Agent')
+  expect(state().showV2Pilots.test.name).toBe('Agent')
 })
 it('preserves pending work across legacy query changes', async () => {
   const api = await setup()
@@ -106,29 +98,6 @@ it('retains a raw schema diagnostic through the actual editor admission owner', 
   expect(writes).not.toHaveBeenCalled()
 })
 
-it('retains an actionable zero-duration Scene diagnostic without adopting any partial edit', async () => {
-  const api = await setup()
-  const captured = api.beginRequest('semantic', 'break duration', [])!
-  const candidate = structuredClone(v1(captured.show))
-  candidate.scenes[0].durationMs = 0
-  const before = snapshot()
-  const result = api.applyShow(candidate, captured.request)
-  expect(result).toMatchObject({
-    status: 'refused', reason: 'invalid-candidate',
-    diagnostic: {
-      stage: 'authoring',
-      issues: [{
-        category: 'structure',
-        code: 'invalid-scene-duration',
-        message: 'Scene duration must be a positive safe integer.',
-        path: JSON.stringify(['scene', candidate.scenes[0].id, 'durationMs']),
-      }],
-    },
-  })
-  expect(api.readOutcome(captured.request)).toBe(result)
-  expect(snapshot()).toEqual(before)
-  expect(writes).not.toHaveBeenCalled()
-})
 it('completes noncandidate turns without authoring a noop and enforces the retained table cap', async () => {
   const api = await setup()
   for (let index = 0; index < 256; index++) {
@@ -138,7 +107,7 @@ it('completes noncandidate turns without authoring a noop and enforces the retai
   }
   expect(api.beginRequest('overflow', 'question', [])).toBeUndefined()
   expect(writes).not.toHaveBeenCalled()
-  expect(state().showHistories.test).toBeUndefined()
+  expect(state().showV2Histories.test.past).toEqual([])
 })
 it('binds completion, cancellation, reads and candidates to the original immutable envelope', async () => {
   const api = await setup()
@@ -166,8 +135,8 @@ it('does not suppress an adopted save when the overlay closes', async () => {
   api.close()
   settle()
   await new Promise(resolve => setTimeout(resolve, 0))
-  expect(state().shows[0].name).toBe('Agent')
-  expect(state().showHistories.test.past).toHaveLength(1)
+  expect(state().showV2Pilots.test.name).toBe('Agent')
+  expect(state().showV2Histories.test.past).toHaveLength(1)
   expect(api.readOutcome(captured.request)).toBeUndefined()
 })
 it.each(['library', 'map'] as const)('rejects %s metadata change/restore without side effects', async kind => {
@@ -195,8 +164,8 @@ it.each(['library', 'map'] as const)('rejects %s metadata change/restore without
 it('refuses newly missing Pattern references at final authoring validation', async () => {
   const api = await setup()
   const captured = api.beginRequest('op', 'rename', [])!
-  const candidate = structuredClone(v1(captured.show))
-  candidate.cells[0].pattern = { kind: 'user', id: 'missing' }
+  const candidate = structuredClone(captured.show)
+  candidate.composition.patternInstances[0].pattern = { kind: 'user', id: 'missing' }
   const before = snapshot()
   expect(api.applyShow(candidate, captured.request).status).toBe('refused')
   expect(snapshot()).toEqual(before)
@@ -209,11 +178,11 @@ it.each(['rolled-back', 'superseded'] as const)('reports delayed failed save as 
   const captured = api.beginRequest('op', 'rename', [])!
   expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request)).toMatchObject({ status: 'applied', settlement: 'saving' })
   await vi.waitFor(() => expect(writes).toHaveBeenCalledTimes(1))
-  const later = expected === 'superseded' ? state().updateShow('test', { ...state().shows[0], name: 'Manual' }) : undefined
+  const later = expected === 'superseded' ? state().updateShowV2Pilot('test', { ...state().showV2Pilots.test, name: 'Manual' }) : undefined
   reject(new Error('synthetic save failure'))
   await later
   await vi.waitFor(() => expect(api.readOutcome(captured.request)).toMatchObject({ status: 'applied', settlement: expected }))
-  expect(state().shows[0].name).toBe(expected === 'superseded' ? 'Manual' : 'Original')
+  expect(state().showV2Pilots.test.name).toBe(expected === 'superseded' ? 'Manual' : 'Original')
 })
 it('exports and reopens the adopted Show and Undo restores only its one candidate', async () => {
   const api = await setup()
@@ -224,13 +193,13 @@ it('exports and reopens the adopted Show and Undo restores only its one candidat
   await vi.waitFor(() => expect(api.readOutcome(captured.request)).toMatchObject({ status: 'applied', settlement: 'saved' }))
   vi.stubGlobal('Blob', (await import('node:buffer')).Blob)
   const { buildShowFileBundle, serializeShowFileBundle, parseShowFileBundle } = await import('@/engine/showFileBundle')
-  const current = structuredClone(state().shows[0])
-  const { bundle } = buildShowFileBundle(current, { patterns: [], maps: [] }, { appVersion: 'B2' })
-  const reopened = await parseShowFileBundle(await serializeShowFileBundle(bundle), { preserveAuthoringPhysicalRanges: true })
+  const current = structuredClone(state().showV2Pilots.test)
+  const { bundle } = buildShowFileBundle(current, { patterns: [], maps: [], libraries: [] }, { appVersion: 'B2' })
+  const reopened = await parseShowFileBundle(await serializeShowFileBundle(bundle), { acceptV2: true })
   expect(reopened.show).toEqual(current)
-  expect(state().showHistories.test.past).toHaveLength(1)
-  await state().undoShow('test')
-  expect(state().shows[0]).toEqual({ ...original, updatedAt: state().shows[0].updatedAt })
+  expect(state().showV2Histories.test.past).toHaveLength(1)
+  await state().undoShowV2Pilot('test')
+  expect(state().showV2Pilots.test).toEqual({ ...original, updatedAt: state().showV2Pilots.test.updatedAt })
 })
 
 it('refuses a newly unavailable Stage Map reference', async () => {
@@ -246,8 +215,8 @@ it.each(['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 
     const captured = api.beginRequest(action, 'question', [])!
     if (action === 'hydrate') await state().loadShows()
     else {
-      await state().updateShow('test', { ...v1(captured.show), name: 'Manual ' + action })
-      if (action === 'aba') await state().undoShow('test')
+      await state().updateShowV2Pilot('test', { ...captured.show, name: 'Manual ' + action })
+      if (action === 'aba') await state().undoShowV2Pilot('test')
     }
     expect(state().showRevisions.test).toBeGreaterThan(captured.request.baseRevision)
     const before = snapshot()
@@ -280,8 +249,8 @@ it('waits for overlapping synthetic activity, captures once, and adopts only aft
   expect(writes).not.toHaveBeenCalled()
   state().releaseShowEditActivity(dirty)
   await vi.waitFor(() => expect(api.readOutcome(captured.request)).toMatchObject({ status: 'applied', settlement: 'saved' }))
-  expect(state().shows[0].name).toBe('Agent')
-  expect(state().showHistories.test.past).toHaveLength(1)
+  expect(state().showV2Pilots.test.name).toBe('Agent')
+  expect(state().showV2Histories.test.past).toHaveLength(1)
   expect(writes).toHaveBeenCalledTimes(1)
 })
 
@@ -305,7 +274,7 @@ it.each(['cancel', 'timeout', 'metadata', 'manual', 'close'] as const)('terminal
       const second = api.beginRequest('second', 'rename', [])!
       expect(api.applyShow({ ...second.show, name: 'Second' }, second.request).status).toBe('waiting')
       api.cancel(second.request)
-    } else if (action === 'manual') await state().updateShow('test', { ...v1(captured.show), name: 'Manual' })
+    } else if (action === 'manual') await state().updateShowV2Pilot('test', { ...captured.show, name: 'Manual' })
     else api.close()
     const before = snapshot()
     const count = writes.mock.calls.length
@@ -320,12 +289,13 @@ it.each(['cancel', 'timeout', 'metadata', 'manual', 'close'] as const)('terminal
 
 it.each([false, true])('bounds raw validation time only when activity actually requires waiting (%s)', async active => {
   const api = await setup()
-  const authoring = await import('@/engine/showAuthoringValidation')
-  const original = authoring.validateShowAuthoring
+  // The v2 raw check before any wait is the record structure validator.
+  const authoring = await import('@/engine/showCompositionV2')
+  const original = authoring.validateShowRecordV2Structure
   const captured = api.beginRequest('timing', 'rename', [])!
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
   const token = active ? state().acquireShowEditActivity(api.sessionId, 'test', 'drag') : undefined
-  const spy = vi.spyOn(authoring, 'validateShowAuthoring').mockImplementation((...args) => { vi.advanceTimersByTime(5001); return original(...args) })
+  const spy = vi.spyOn(authoring, 'validateShowRecordV2Structure').mockImplementation((...args) => { vi.advanceTimersByTime(5001); return original(...args) })
   try {
     const result = api.applyShow({ ...captured.show, name: 'Agent' }, captured.request)
     expect(result).toMatchObject(active ? { status: 'refused', reason: 'interaction-timeout' } : { status: 'applied' })
@@ -400,46 +370,7 @@ it('records a foreign-Show candidate refusal once and releases metadata', async 
 })
 
 
-it('projects a flat personal Show for transport without changing the authoritative Undo base', async () => {
-  const { personalLibraryPatternShow, BASELINE_LIBRARY_PATTERN, BASELINE_LIBRARY } = await import('@/agent-harness/baseline/fixtures')
-  const { usePatternStore } = await import('@/store/patternStore')
-  const { useLibraryStore } = await import('@/store/libraryStore')
-  const fixture = personalLibraryPatternShow('test')
-  setPersonalContentProvider({ updateShow: writes, listShows: async () => [fixture] } as unknown as PersonalContentProvider)
-  await state().loadShows()
-  const original = structuredClone(state().shows[0])
-  usePatternStore.setState({ userPatterns: [BASELINE_LIBRARY_PATTERN] })
-  useLibraryStore.setState({ userLibraries: [BASELINE_LIBRARY] })
-  const api = createAgentEditorAdmission('test', () => ({}))
-  stop = api.close
-  const before = snapshot()
-  for (const completion of ['asked', 'refused', 'nothing-applied'] as const) {
-    const captured = api.beginRequest(completion, 'test', [])!
-    expect(captured.show.composition?.patternInstances.some(instance => instance.pattern.id === BASELINE_LIBRARY_PATTERN.id)).toBe(true)
-    expect(api.beginRequest(completion, 'test', [])).toEqual(captured)
-    api.complete(captured.request, completion)
-    expect(snapshot()).toEqual(before)
-    expect(writes).not.toHaveBeenCalled()
-  }
-  const captured = api.beginRequest('apply', 'rename', [])!
-  expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('applied')
-  await vi.waitFor(() => expect(api.readOutcome(captured.request)).toMatchObject({ settlement: 'saved' }))
-  expect(state().showHistories.test.past).toEqual([original])
-  await state().undoShow('test')
-  expect(state().shows[0]).toEqual(expect.objectContaining({ ...original, updatedAt: expect.any(Number) }))
-})
-
-it('refuses unavailable flat sources without opening a request or writing', async () => {
-  const api = await setup()
-  const show = state().shows[0]
-  useShowStore.setState({ shows: [{ ...show, cells: show.cells.map(cell => ({ ...cell, pattern: { kind: 'user' as const, id: 'unavailable' } })) }] })
-  const before = snapshot()
-  expect(api.beginRequest('missing', 'rename', [])).toBeUndefined()
-  expect(snapshot()).toEqual(before)
-  expect(writes).not.toHaveBeenCalled()
-})
-
-it.each(['Pattern', 'Library', 'Map'] as const)('keeps %s metadata ABA guarded after flat projection', async kind => {
+it.each(['Pattern', 'Library', 'Map'] as const)('keeps %s metadata ABA guarded after capture', async kind => {
   const api = await setup()
   const captured = api.beginRequest('metadata', 'rename', [])!
   expect(captured.show.composition).toBeDefined()
@@ -463,16 +394,4 @@ it.each(['Pattern', 'Library', 'Map'] as const)('keeps %s metadata ABA guarded a
   expect(api.applyShow({ ...captured.show, name: 'Agent' }, captured.request).status).toBe('refused')
   expect(snapshot()).toEqual(before)
   expect(writes).not.toHaveBeenCalled()
-})
-
-it('retains an imported prototype-named cell with its exact personal Pattern source', async () => {
-  const { captureAgentShowSnapshot } = await import('./agentShowSnapshot')
-  const original = createDefaultShow('odd-id', 'Imported')
-  original.cells[0].id = '__proto__'
-  original.cells[0].pattern = { kind: 'user', id: 'exact' }
-  const before = structuredClone(original)
-  const { DEMOS, resolveStockPatternId } = await import('@/pixelblaze/stock/patterns')
-  const captured = captureAgentShowSnapshot(original, ref => ref.id === 'exact' ? 'export function render3D(index, x, y, z) { hsv(x, y, z) }' : DEMOS[resolveStockPatternId(ref.id)], 3)
-  expect(captured?.composition?.patternInstances[0].pattern).toEqual({ kind: 'user', id: 'exact' })
-  expect(original).toEqual(before)
 })

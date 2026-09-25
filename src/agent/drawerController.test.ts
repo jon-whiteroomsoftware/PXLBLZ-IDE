@@ -3,8 +3,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { createProductionDrawerController, type DrawerChannelEvent, type DrawerChannelPort } from './drawerController'
 import { useAgentDrawerStore } from './drawerStore'
 import { createAgentEditorAdmission } from './editorAdmission'
-import { createDefaultShow } from '@/engine/showModel'
-import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
+import { resetPersonalContentProvider } from '@/engine/personalContentProvider'
+import { agentV2Record, openAgentV2Show } from '@/test/agentAdmissionV2Harness'
 import { createAgentPrivateExecutor, type PrivateEditResult } from '@/engine/agentPrivateExecutor'
 import { createAgentPrivateAdmissionOwner } from './privateAdmissionOwner'
 import { showInitialState, useShowStore } from '@/store/showStore'
@@ -430,12 +430,11 @@ it('preserves a newer draft and cancels a late admission after original dispatch
 it('the refusal barrier prevents a late real private candidate from entering history or saving', async () => {
   window.history.replaceState(null, '', '/studio/shows/show?agent=1')
   useShowStore.setState(showInitialState)
-  const show = createDefaultShow('show', 'Original'), writes = vi.fn(async () => {})
-  setPersonalContentProvider({ updateShow: writes, listShows: async () => [show] } as unknown as PersonalContentProvider)
-  await useShowStore.getState().loadShows()
-  const admission = createAgentEditorAdmission('show', () => ({}))
+  const { writes, binding } = await openAgentV2Show(agentV2Record('show'))
+  const show = structuredClone(useShowStore.getState().showV2Pilots.show)
+  const admission = createAgentEditorAdmission('show', () => ({}), undefined, undefined, binding)
   const f = fixture(admission)
-  stop = () => { f.controller.dispose(); admission.close() }
+  stop = () => { f.controller.dispose(); admission.close(); binding.stop() }
   f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'builtin', agentName: 'Built-in' } })
   f.builtin.mockImplementation(async body => body.action === 'begin' ? { code: 'started', operationId: 'op' } : { code: 'halted', dispatch: 'not_attempted' })
   f.controller.dispatch({ type: 'draft', text: 'Rename' }); f.controller.submit()
@@ -448,8 +447,8 @@ it('the refusal barrier prevents a late real private candidate from entering his
   f.emit({ type: 'delivery', delivery, result, request: executor.getRequest('op') })
   executor.deliver({ ...delivery, deliveryId: 'd1', sequence: 1, payload: { kind: 'command', name: 'rename_show', arguments: { name: 'Must not adopt' } } })
   expect(executor.deliver({ ...delivery, deliveryId: 'd2', sequence: 2, payload: { kind: 'commit_edit' } })).toMatchObject({ receipt: { status: 'cancelled' } })
-  expect(useShowStore.getState().shows[0]).toEqual(show)
-  expect(useShowStore.getState().showHistories.show?.past ?? []).toHaveLength(0)
+  expect(useShowStore.getState().showV2Pilots.show).toEqual(show)
+  expect(useShowStore.getState().showV2Histories.show?.past ?? []).toHaveLength(0)
   expect(writes).not.toHaveBeenCalled()
 })
 it('an already-known local saved receipt wins over an invocation refusal marker', async () => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
-import { createDefaultShow } from '@/engine/showModel'
+import { resetPersonalContentProvider } from '@/engine/personalContentProvider'
+import { agentV2Record, openAgentV2Show } from '@/test/agentAdmissionV2Harness'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { controllerProfileInitialState, defaultControllerProfile, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
@@ -17,19 +17,18 @@ const personal = {
   updatedAt: 1,
 }
 
+let binding: Awaited<ReturnType<typeof openAgentV2Show>>['binding']
 beforeEach(async () => {
   window.history.replaceState(null, '', '/studio/shows/show?agent=1')
   useShowStore.setState(showInitialState)
   usePatternStore.setState(patternInitialState)
   useLibraryStore.setState(libraryInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
-  setPersonalContentProvider({
-    listShows: async () => [createDefaultShow('show', 'Discovery')],
-  } as unknown as PersonalContentProvider)
-  await useShowStore.getState().loadShows()
+  binding = (await openAgentV2Show(agentV2Record('show', 'Discovery'))).binding
 })
 
 afterEach(() => {
+  binding.stop()
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
   usePatternStore.setState(patternInitialState)
@@ -38,7 +37,7 @@ afterEach(() => {
 })
 
 it('reads Patterns from one hydrated source/dependency snapshot and fits the relay result cap', () => {
-  const admission = createAgentEditorAdmission('show', () => ({}))
+  const admission = createAgentEditorAdmission('show', () => ({}), undefined, undefined, binding)
   expect(admission.getPatterns()).toBeUndefined()
 
   usePatternStore.setState({ userPatterns: [personal], patternsLoaded: true })
@@ -65,14 +64,14 @@ it('reads Patterns from one hydrated source/dependency snapshot and fits the rel
 it('returns unavailable when a matching Pattern dependency cannot be inspected', () => {
   usePatternStore.setState({ userPatterns: [{ ...personal, src: 'export function render(index) { Missing.paint(index) }' }], patternsLoaded: true })
   useLibraryStore.setState({ userLibraries: [], librariesLoaded: true })
-  const admission = createAgentEditorAdmission('show', () => ({}))
+  const admission = createAgentEditorAdmission('show', () => ({}), undefined, undefined, binding)
 
   expect(admission.getPatterns({ kind: 'user' })).toBeUndefined()
   admission.close()
 })
 
 it('lists only hydrated Controller-profile identities and last-known pixel counts', () => {
-  const admission = createAgentEditorAdmission('show', () => ({}))
+  const admission = createAgentEditorAdmission('show', () => ({}), undefined, undefined, binding)
   expect(admission.getControllerProfiles()).toBeUndefined()
 
   useControllerProfileStore.setState({

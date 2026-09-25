@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { showCommandFixture } from '../test/showCommandFixture'
 import { MAX_AGENT_DELIVERY_RESULT_BYTES } from './agentDeliveryJournal'
 import { createAgentPrivateExecutor, type PrivateEditOwner } from './agentPrivateExecutor'
 import type { ShowEditRequest } from './showEditAdmission'
-import { applyShowCommand } from './showCommands/registry'
+import { applyShowCommandV2 } from './showCommandsV2/registry'
+import { commandFixtureV2, fixtureContext } from './showCommandsV2/fixtures'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
 import type { ShowRecordV2 } from './showCompositionV2'
@@ -11,11 +11,11 @@ import type { ShowRecordV2 } from './showCompositionV2'
 describe('browser private edit executor', () => {
   const scope = { bindingId: 'binding', sessionId: 'session' }
   function setup() {
-    let current = showCommandFixture()
+    let current = commandFixtureV2()
     const request: ShowEditRequest = { ...scope, showId: current.id, operationId: 'binding:op', payloadKey: 'intent', referenceContext: '{}', targets: [current.id], baseRevision: 0 }
     const owner: PrivateEditOwner = {
-      capture: vi.fn(() => ({ request, show: structuredClone(current), context: {}, commandContext: { source: () => undefined }, retainedBytes: 10000 })),
-      apply: vi.fn(show => { current = structuredClone(show); return { status: 'applied', settlement: 'saved' } }),
+      capture: vi.fn(() => ({ request, show: structuredClone(current), context: {}, commandContext: fixtureContext(), retainedBytes: 10000 })),
+      apply: vi.fn(show => { current = structuredClone(show) as ShowRecordV2; return { status: 'applied', settlement: 'saved' } }),
       complete: vi.fn((_request, completion) => ({ status: 'completed', completion })),
       cancel: vi.fn(() => ({ status: 'cancelled' })),
       outcome: vi.fn(() => ({ status: 'applied', settlement: 'saved' })),
@@ -25,7 +25,7 @@ describe('browser private edit executor', () => {
     return { owner, executor, send, current: () => current }
   }
   const begin = { kind: 'begin_edit', intent: 'Shorten the Clip' }
-  const resize = { kind: 'command', name: 'resize_clip', arguments: { clip_id: 'clip-a', duration_ms: 9000 } }
+  const resize = { kind: 'command', name: 'resize_clip', arguments: { clip_id: 'clip-c', duration_ms: 1500 } }
 
   it('keeps commands private and adopts once through the existing owner', () => {
     const { owner, send, current } = setup()
@@ -45,23 +45,22 @@ describe('browser private edit executor', () => {
     expect(send(0, { kind: 'begin_edit', intent: 'Slow both linked Clips' }).code).toBe('begun')
     const result = send(1, {
       kind: 'command', name: 'update_clips', arguments: {
-        schema_version: 1,
         updates: [
-          { clip_id: 'clip-a', properties: { time: { time_scale: 0.5 } } },
-          { clip_id: 'clip-c', properties: { time: { time_scale: 0.5 } } },
+          { clip_id: 'clip-a', instance_properties: { time_scale: 0.5 } },
+          { clip_id: 'clip-b', instance_properties: { time_scale: 0.5 } },
         ],
       },
     })
+    // v2 reports its one affected-entity vocabulary (show-command-semantics.md,
+    // "One affected-entity vocabulary"): both Clips share the one runtime.
     expect(result).toMatchObject({
       code: 'changed',
-      changes: [{
-        description: 'Updated speed on 2 Clips.',
-        details: { directClipIds: ['clip-a', 'clip-c'], linkedClipIds: [], changedPaths: ['time.time_scale'] },
-      }],
+      changes: [{ command: 'update_clips', details: { instances: ['inst-a'] } }],
     })
+    expect((result as unknown as { changes: unknown[] }).changes).toHaveLength(1)
     expect(owner.apply).not.toHaveBeenCalled()
     expect(send(2, { kind: 'commit_edit' })).toMatchObject({ code: 'outcome' })
-    expect(current().composition!.patternInstances.find(instance => instance.id === 'instance-a')!.time.timeScale).toBe(0.5)
+    expect(current().composition.patternInstances.find(instance => instance.id === 'inst-a')!.time.timeScale).toBe(0.5)
     expect(owner.apply).toHaveBeenCalledTimes(1)
   })
 
@@ -70,8 +69,7 @@ describe('browser private edit executor', () => {
     expect(send(0, { kind: 'begin_edit', intent: 'Keep the existing brightness' }).code).toBe('begun')
     expect(send(1, {
       kind: 'command', name: 'update_clips', arguments: {
-        schema_version: 1,
-        updates: [{ clip_id: 'clip-a', properties: { view: { brightness: 1 } } }],
+        updates: [{ clip_id: 'clip-c', appearance: { apply: { scope: 'whole-clip' }, opacity: 1 } }],
       },
     })).toEqual({ code: 'noop', changes: [] })
     expect(send(2, { kind: 'commit_edit' })).toMatchObject({
@@ -88,16 +86,16 @@ describe('browser private edit executor', () => {
     const rename = { kind: 'command', name: 'rename_show', arguments: { name: 'Renamed Show' } }
     expect(send(0, begin).code).toBe('begun')
     expect(send(1, rename).code).toBe('changed')
-    const refusal = send(2, { ...resize, arguments: { clip_id: 'missing', duration_ms: 9000 } })
+    const refusal = send(2, { ...resize, arguments: { clip_id: 'missing', duration_ms: 1500 } })
     expect(refusal.code).toBe('refused')
     expect(current()).toEqual(before)
     expect(owner.complete).not.toHaveBeenCalled()
-    expect(send(3, { ...resize, arguments: { clip_id: 'clip-a', duration_ms: 8000 } }).code).toBe('changed')
+    expect(send(3, { ...resize, arguments: { clip_id: 'clip-c', duration_ms: 1000 } }).code).toBe('changed')
     expect(send(4, { kind: 'commit_edit' })).toMatchObject({ code: 'outcome' })
-    const expectedRename = applyShowCommand(before, 'rename_show', rename.arguments)
-    if (!expectedRename.ok) throw new Error('fixture rename refused')
-    const expectedResize = applyShowCommand(expectedRename.record, 'resize_clip', { clip_id: 'clip-a', duration_ms: 8000 })
-    if (!expectedResize.ok) throw new Error('fixture resize refused')
+    const expectedRename = applyShowCommandV2(before, 'rename_show', rename.arguments, fixtureContext())
+    if (expectedRename.status !== 'changed') throw new Error('fixture rename refused')
+    const expectedResize = applyShowCommandV2(expectedRename.record, 'resize_clip', { clip_id: 'clip-c', duration_ms: 1000 }, fixtureContext())
+    if (expectedResize.status !== 'changed') throw new Error('fixture resize refused')
     expect({ ...current(), updatedAt: before.updatedAt }).toEqual({ ...expectedResize.record, updatedAt: before.updatedAt })
     expect(owner.apply).toHaveBeenCalledTimes(1)
   })
@@ -105,7 +103,7 @@ describe('browser private edit executor', () => {
   it('keeps a refusal-only operation open for empty commit or cancellation', () => {
     const committed = setup()
     committed.send(0, begin)
-    expect(committed.send(1, { ...resize, arguments: { clip_id: 'missing', duration_ms: 9000 } }).code).toBe('refused')
+    expect(committed.send(1, { ...resize, arguments: { clip_id: 'missing', duration_ms: 1500 } }).code).toBe('refused')
     expect(committed.send(2, { kind: 'commit_edit' })).toMatchObject({
       code: 'outcome',
       receipt: { status: 'completed', completion: 'nothing-applied' },
@@ -114,7 +112,7 @@ describe('browser private edit executor', () => {
 
     const cancelled = setup()
     cancelled.send(0, begin)
-    expect(cancelled.send(1, { ...resize, arguments: { clip_id: 'missing', duration_ms: 9000 } }).code).toBe('refused')
+    expect(cancelled.send(1, { ...resize, arguments: { clip_id: 'missing', duration_ms: 1500 } }).code).toBe('refused')
     expect(cancelled.send(2, { kind: 'cancel_edit' })).toMatchObject({ code: 'outcome', receipt: { status: 'cancelled' } })
     expect(cancelled.owner.apply).not.toHaveBeenCalled()
   })
@@ -149,7 +147,7 @@ describe('browser private edit executor', () => {
   it('refuses a begun result whose complete observable envelope exceeds the journal limit', () => {
     const specifiedResultBytes = 1_048_576
     expect(MAX_AGENT_DELIVERY_RESULT_BYTES).toBe(specifiedResultBytes)
-    const show = showCommandFixture()
+    const show = commandFixtureV2()
     const emptyView = { show, context: { padding: '' } }
     const emptyViewBytes = new TextEncoder().encode(JSON.stringify(emptyView)).byteLength
     const context = { padding: 'x'.repeat(specifiedResultBytes - 16 - emptyViewBytes) }
@@ -159,7 +157,7 @@ describe('browser private edit executor', () => {
     let receipt: unknown
     const request: ShowEditRequest = { ...scope, showId: show.id, operationId: 'binding:op', payloadKey: 'intent', referenceContext: '{}', targets: [show.id], baseRevision: 0 }
     const owner: PrivateEditOwner = {
-      capture: vi.fn(() => ({ request, show: structuredClone(show), context, commandContext: { source: () => undefined }, retainedBytes: 1000 })),
+      capture: vi.fn(() => ({ request, show: structuredClone(show), context, commandContext: {}, retainedBytes: 1000 })),
       apply: vi.fn(),
       complete: vi.fn((_request, completion) => (receipt = { status: 'completed', completion })),
       cancel: vi.fn(() => ({ status: 'cancelled' })),
@@ -181,7 +179,7 @@ describe('browser private edit executor', () => {
     const freshRequest: ShowEditRequest = { ...request, ...freshScope, operationId: 'fresh-binding:fresh' }
     const freshOwner: PrivateEditOwner = {
       ...owner,
-      capture: vi.fn(() => ({ request: freshRequest, show: structuredClone(show), context: {}, commandContext: { source: () => undefined }, retainedBytes: 1000 })),
+      capture: vi.fn(() => ({ request: freshRequest, show: structuredClone(show), context: {}, commandContext: {}, retainedBytes: 1000 })),
     }
     const fresh = createAgentPrivateExecutor(freshScope, freshOwner)
     expect(fresh.deliver({ ...freshScope, operationId: 'fresh', deliveryId: 'fresh', sequence: 0, payload: begin }).code).toBe('begun')
@@ -190,9 +188,9 @@ describe('browser private edit executor', () => {
 it('expires cached results without permitting an old delivery to execute again', () => {
   vi.useFakeTimers()
   try {
-    const show = showCommandFixture()
+    const show = commandFixtureV2()
     const request: ShowEditRequest = { operationId: 'binding:op', sessionId: 'session', showId: show.id, baseRevision: 0, payloadKey: '', referenceContext: '{}', targets: [show.id] }
-    const owner: PrivateEditOwner = { capture: vi.fn(() => ({ request, show, context: {}, commandContext: { source: () => undefined }, retainedBytes: 1000 })), apply: vi.fn(), cancel: vi.fn(), complete: vi.fn(), outcome: () => ({ status: 'pending' }) }
+    const owner: PrivateEditOwner = { capture: vi.fn(() => ({ request, show, context: {}, commandContext: {}, retainedBytes: 1000 })), apply: vi.fn(), cancel: vi.fn(), complete: vi.fn(), outcome: () => ({ status: 'pending' }) }
     const executor = createAgentPrivateExecutor({ bindingId: 'binding', sessionId: 'session' }, owner)
     const delivery = { bindingId: 'binding', sessionId: 'session', operationId: 'op', deliveryId: 'd', sequence: 0, payload: { kind: 'begin_edit' } }
     expect(executor.deliver(delivery).code).toBe('begun')

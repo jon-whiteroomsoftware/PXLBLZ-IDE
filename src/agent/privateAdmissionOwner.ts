@@ -3,11 +3,10 @@ import type { createAgentEditorAdmission } from './editorAdmission'
 
 /**
  * The shared local admission remains the only validation, adoption and save
- * owner, for both record versions (#1039).
+ * owner (#1039, #1042).
  *
- * The owner itself is version-independent: it captures whatever record the
- * editor holds, hands it to the executor, and gives the candidate back to the
- * same admission.
+ * The owner captures the v2 record the editor holds, hands it to the executor,
+ * and gives the candidate back to the same admission.
  */
 export function createAgentPrivateAdmissionOwner(admission: ReturnType<typeof createAgentEditorAdmission>): PrivateEditOwner {
   return {

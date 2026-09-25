@@ -4,7 +4,7 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { createSessionToken } from '../../cloudflare/auth'
 import { createAgentBrowserSession } from '../../agent/browserSession'
 import type { createAgentEditorAdmission } from '../../agent/editorAdmission'
-import { showCommandFixture } from '../../test/showCommandFixture'
+import { commandFixtureV2, fixtureContext } from '../../engine/showCommandsV2/fixtures'
 
 let script: string
 const runtimes: Miniflare[] = []
@@ -24,8 +24,8 @@ async function fixture(pauseReceives = false) {
   const request = { sessionId: 'session', showId: 'stock-show-100-getting-around', operationId: 'binding:op', baseRevision: 0, payloadKey: '', referenceContext: '{}', targets: ['clip-a'] }
   const admission = {
     sessionId: 'session', available: () => true, onClose: () => () => {},
-    getShow: showCommandFixture, getEditorFocus: () => ({}), captureCommandContext: () => ({ commandContext: { source: () => undefined }, retainedBytes: 1 }),
-    beginRequest: vi.fn(() => ({ request, show: showCommandFixture(), context: {} })),
+    getShow: commandFixtureV2, getEditorFocus: () => ({}), captureCommandContext: () => ({ commandContext: fixtureContext(), retainedBytes: 1 }),
+    beginRequest: vi.fn(() => ({ request, show: commandFixtureV2(), context: {} })),
     readOutcome: () => ({ request, status: 'pending' }), cancel: vi.fn(() => ({ request, status: 'cancelled' })),
     applyShow: vi.fn(() => ({ request, status: 'applied', settlement: 'draft' })),
     complete: vi.fn((_request: unknown, completion: string) => ({ request, status: 'completed', completion })),

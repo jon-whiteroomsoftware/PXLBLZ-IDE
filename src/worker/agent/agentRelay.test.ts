@@ -83,11 +83,11 @@ it('a surviving terminal receipt releases lost-reply queue capacity without repl
 })
 it.each([false, true])('allows only terminal cancel behind a sent command, with honest missing-browser-delivery outcome (%s)', async received => {
   const { createAgentPrivateExecutor } = await import('../../engine/agentPrivateExecutor')
-  const { showCommandFixture } = await import('../../test/showCommandFixture')
-  const show = showCommandFixture()
+  const { commandFixtureV2, fixtureContext } = await import('../../engine/showCommandsV2/fixtures')
+  const show = commandFixtureV2()
   const request = { operationId: 'binding:op', sessionId: scope.sessionId, showId: show.id, baseRevision: 0, payloadKey: '', referenceContext: '{}', targets: [show.id] }
   const cancel = vi.fn(() => ({ status: 'cancelled', request }))
-  const browser = createAgentPrivateExecutor(scope, { capture: () => ({ request, show, context: {}, commandContext: { source: () => undefined }, retainedBytes: 1000 }), apply: vi.fn(), complete: vi.fn(), cancel, outcome: vi.fn() })
+  const browser = createAgentPrivateExecutor(scope, { capture: () => ({ request, show, context: {}, commandContext: fixtureContext(), retainedBytes: 1000 }), apply: vi.fn(), complete: vi.fn(), cancel, outcome: vi.fn() })
   const relay = new AgentRelay(scope, () => {})
   const original = relay.dispatch(delivery())
   // Before transmission, even terminal cancellation cannot bypass ordering.

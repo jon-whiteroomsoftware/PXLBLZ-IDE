@@ -1,17 +1,12 @@
 import { z } from 'zod'
 import { createDeliveryJournal, MAX_AGENT_DELIVERY_RESULT_BYTES, measureAgentDeliveryResultBytes, type AgentDelivery, type DeliveryScope } from './agentDeliveryJournal'
 import type { ShowEditCompletion, ShowEditRequest } from './showEditAdmission'
-import { applyShowCommand, type ShowCommandChange, type ShowCommandContext } from './showCommands/registry'
-import { applyShowCommandV2, type ShowCommandV2Change, type ShowCommandV2Context } from './showCommandsV2/registry'
+import { applyShowCommandV2, type ShowCommandV2Change, type ShowCommandV2Context, type ShowCommandV2Issue } from './showCommandsV2/registry'
 import { isShowRecordV2, type ShowDocument } from './showDocument'
 import type { AgentMcpResult, AgentMcpResultCode } from './agentMcpResults'
 
-/**
- * The command context for whichever record version this operation captured
- * (#1039). Both are the same trusted browser-owned Pattern metadata boundary;
- * the catalogue that reads it differs with the record.
- */
-export type PrivateEditCommandContext = ShowCommandContext | ShowCommandV2Context
+/** The trusted browser-owned Pattern metadata boundary the v2 catalogue reads (#1039). */
+export type PrivateEditCommandContext = ShowCommandV2Context
 
 export interface PrivateEditOwner {
   capture(operationId: string, intent: string, remainingBytes: number): { request: ShowEditRequest; show: ShowDocument; context: unknown; commandContext: PrivateEditCommandContext; retainedBytes: number } | undefined
@@ -30,30 +25,26 @@ const payloadSchema = z.discriminatedUnion('kind', [
 ])
 interface Operation {
   request: ShowEditRequest
-  private?: { show: ShowDocument; commandContext: PrivateEditCommandContext; changes: Array<ShowCommandChange | ShowCommandV2Change> }
+  private?: { show: ShowDocument; commandContext: PrivateEditCommandContext; changes: ShowCommandV2Change[] }
 }
 
 type CommandOutcome =
-  | { ok: true; record: ShowDocument; changes: Array<ShowCommandChange | ShowCommandV2Change> }
-  | { ok: false; issues: unknown[] }
+  | { ok: true; record: ShowDocument; changes: ShowCommandV2Change[] }
+  | { ok: false; issues: ShowCommandV2Issue[] }
 
 /**
- * Apply one canonical command to the private candidate, through the catalogue
- * that owns the captured record's version (#1039).
+ * Apply one canonical command to the private candidate through the v2
+ * catalogue (#1042). The admission captures only a v2 record, so any other
+ * record refuses rather than reaching a catalogue.
  *
- * The two catalogues report the same three outcomes in different shapes: v1
- * answers `ok`/`record`/`changes` or `ok: false`/`issues`, and v2 answers
- * `status: changed | unchanged | refused` with the record carried on every
- * one. Folding v2 onto this vocabulary loses nothing: a refusal's record is
- * the caller's own unchanged private copy, and `unchanged` is exactly v1's
- * empty change list, which the caller already reports as `noop`.
+ * The catalogue answers `status: changed | unchanged | refused` with the record
+ * carried on every one. Folding it onto `ok` loses nothing: a refusal's record
+ * is the caller's own unchanged private copy, and `unchanged` is an empty
+ * change list, which the caller reports as `noop`.
  */
 function applyPrivateCommand(show: ShowDocument, name: string, input: Record<string, unknown>, context: PrivateEditCommandContext): CommandOutcome {
-  if (!isShowRecordV2(show)) {
-    const result = applyShowCommand(show, name, input, context as ShowCommandContext)
-    return result.ok ? { ok: true, record: result.record, changes: result.changes } : { ok: false, issues: result.issues }
-  }
-  const result = applyShowCommandV2(show, name, input, context as ShowCommandV2Context)
+  if (!isShowRecordV2(show)) return { ok: false, issues: [{ code: 'unsupported-schema-version', message: 'Show commands edit a v2 record only.' }] }
+  const result = applyShowCommandV2(show, name, input, context)
   return result.status === 'refused'
     ? { ok: false, issues: result.issues }
     : { ok: true, record: result.record, changes: result.changes }
