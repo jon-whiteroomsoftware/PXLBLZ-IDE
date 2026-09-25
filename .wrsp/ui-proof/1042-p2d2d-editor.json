@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "On stock Show 101: pressed Play (transport reads 00:00.9/00:16.0 and advances); set MetaballGarden Brightness to 40% (Reset turns amber), pressed Reset (Brightness back to 100%, Reset disabled); opened the Source code readout and connected a fake Controller, whose action row shows Run and Save enabled with no readiness block. On a new personal Show (/PXLBLZ-IDE/studio/shows/<new id>): added an AuroraSphere Clip at 35 s from Add > Clip, deleted it with the Delete key, then pressed Undo and the Clip is back.",
+  "captures": [
+    ".wrsp/ui-proof/1042-p2d2d-play.png",
+    ".wrsp/ui-proof/1042-p2d2d-reset-amber.png",
+    ".wrsp/ui-proof/1042-p2d2d-reset-restored.png",
+    ".wrsp/ui-proof/1042-p2d2d-delivery.png",
+    ".wrsp/ui-proof/1042-p2d2d-clip-added.png",
+    ".wrsp/ui-proof/1042-p2d2d-clip-deleted.png",
+    ".wrsp/ui-proof/1042-p2d2d-clip-undone.png"
+  ],
+  "capturedAtCommit": "a07964a8f08cf441444bd65525f65dc6397fd69d"
+}
