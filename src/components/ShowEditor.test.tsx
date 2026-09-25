@@ -64,6 +64,7 @@ import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
 import { appendShowLayoutInterval } from '@/engine/showLayoutIntervals'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
+import * as preparedStage from '@/engine/showPreparedStageV2'
 import { expectDisabledReason } from '@/components/ui/disabled-reason.testing'
 
 /**
@@ -5773,6 +5774,31 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     fireEvent.change(playhead, { target: { value: '30500' } })
     expect(refusal()).toHaveTextContent('Place the playhead inside a Clip.')
+  })
+
+  it('disables Split with the admission reason when the split would be refused (#1126)', () => {
+    const show = createDefaultShow('show-1126', 'Split dry-run', 1000)
+    const editor = openV2EditorForRecord(convertForTest(show))
+
+    render(<ShowEditor showId={editor.showId} />)
+    // Admission prepares the split candidate from the captured inputs; refusing
+    // that preparation is the admission refusal a click would meet.
+    const candidate = vi.spyOn(preparedStage, 'prepareShowStageFromCapturedInputsV2')
+      .mockReturnValue({ status: 'refused', message: 'Typed candidate boundary' })
+    try {
+      const playhead = screen.getByRole('slider', { name: 'Show playhead' })
+      const split = screen.getByRole('button', { name: 'Split at playhead' })
+      const commands = screen.getByRole('group', { name: 'Timeline commands' })
+
+      fireEvent.change(playhead, { target: { value: '500' } })
+      expect(candidate).toHaveBeenCalled()
+      expect(split).toHaveAttribute('aria-disabled', 'true')
+      expect(split).toHaveAttribute('title', 'Typed candidate boundary')
+      fireEvent.focus(split)
+      expect(within(commands).getByRole('status', { name: 'Split unavailable' }).textContent).toBe('Typed candidate boundary')
+    } finally {
+      candidate.mockRestore()
+    }
   })
 
   it('turns a named routing layout into a two-zone moving split (#405)', async () => {

@@ -5,7 +5,7 @@ import {convertibleV1Show} from '../test/showV2TracerFixture'
 import * as stage from '../engine/showPreparedStageV2'
 import {getPersonalContentProvider,resetPersonalContentProvider,setPersonalContentProvider} from '../engine/personalContentProvider'
 import {showInitialState,useShowStore} from './showStore'
-import {admitShowV2PilotCreateClip,admitShowV2PilotClipTemporal,admitShowV2PilotInsertTime,admitShowV2PilotSetShowEnd} from './showV2PreparedEditAdmission'
+import {admitShowV2PilotCreateClip,admitShowV2PilotClipTemporal,admitShowV2PilotInsertTime,admitShowV2PilotSetShowEnd,checkShowV2ClipTemporal} from './showV2PreparedEditAdmission'
 import type {CreateShowClipIntentV2} from '../engine/showClipCreationV2'
 import type {ShowRecordV2} from '../engine/showCompositionV2'
 beforeEach(()=>{resetPersonalContentProvider();useShowStore.setState(showInitialState)})
@@ -140,4 +140,13 @@ it.each(['fast','fidelity'] as const)('opens saved native choreography and match
 it.each(attempts)('$name retains current ready preimage when changed candidate preparation refuses',async({call})=>{
  const {context,record,write}=setup();const factory=vi.spyOn(stage,'prepareShowStageV2').mockReturnValue({status:'refused',message:'Typed candidate boundary'})
  try{const outcome=await call(context);expect(outcome).toMatchObject({status:'refused',source:'admission',code:'unsupported-pilot-record',message:'Typed candidate boundary'});expect(factory).toHaveBeenCalledTimes(1);expect(write).not.toHaveBeenCalled();expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record);expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([])}finally{factory.mockRestore()}
+})
+it('dry-runs a split with the same admission refusal a commit returns, and without adopting (#1126)',async()=>{
+ const {context,record,write}=setup();const intent={kind:'split' as const,clipId:record.composition.clips[0].id,atMs:6000,rightClipId:'split-dry-run'}
+ const ready=checkShowV2ClipTemporal(context.capture,intent);expect(ready.status).toBe('ready');if(ready.status!=='ready')throw Error('ready');expect(ready.candidate.status).toBe('ready')
+ expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record);expect(write).not.toHaveBeenCalled()
+ const factory=vi.spyOn(stage,'prepareShowStageV2').mockReturnValue({status:'refused',message:'Typed candidate boundary'})
+ try{const checked=checkShowV2ClipTemporal(context.capture,intent);const admitted=await admitShowV2PilotClipTemporal({...context,intent})
+ expect(checked).toMatchObject({status:'refused',source:'admission',code:'unsupported-pilot-record'});expect(admitted).toMatchObject({status:'refused',source:'admission',code:'unsupported-pilot-record'})
+ if(checked.status!=='refused'||admitted.status!=='refused')throw Error('refused');expect(checked.message).toBe(admitted.message);expect(write).not.toHaveBeenCalled()}finally{factory.mockRestore()}
 })

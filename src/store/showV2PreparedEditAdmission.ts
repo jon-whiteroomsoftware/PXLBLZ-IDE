@@ -120,30 +120,33 @@ type CheckedOutcome<R> =
   | { status: 'refused'; source: 'owner'; result: R }
   | { status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string }
 
-// Private closed owner dispatch; the conditional result is determined only by
-// this discriminator. No caller-supplied candidate or transformation is accepted.
-async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPreparedEditContext & C): Promise<CheckedOutcome<OwnerResult<C>>> {
-  const { showId, baseRevision, isCurrent } = request
-  const refuse = (code: AdmissionRefusal, message: string): CheckedOutcome<OwnerResult<C>> => ({ status: 'refused', source: 'admission', code, message })
-  const current = useShowStore.getState().showV2Pilots[showId]
-  if (!current) return refuse('missing-show', 'The v2 Show is no longer open.')
-  const provider = getPersonalContentProvider()
-  const eligible = (): boolean => {
-    try {
-      return request.capture.record === current && isCurrent() && Number.isSafeInteger(baseRevision) && baseRevision >= 0
-        && (useShowStore.getState().showRevisions[showId] ?? 0) === baseRevision
-        && useShowStore.getState().showV2Pilots[showId] === current && getPersonalContentProvider() === provider
-    } catch { return false }
-  }
-  if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
-  if (!provider.replaceShowV2) return refuse('unsupported-provider', 'The active provider does not support v2 Shows.')
-  const command: Command = request
+/**
+ * The synchronous part of a prepared edit against one capture: the owner, then
+ * every capture, staleness, Stage-map and capability check admission applies
+ * before eligibility and adoption. Pure over the capture, so an editor control
+ * can ask the question a click would ask before it enables (#1126).
+ */
+export type ShowV2PreparedEditCheck<R> =
+  | { status: 'ready'; result: R; candidate: ShowPreparedStageResultV2 }
+  | { status: 'unchanged'; result: R }
+  | { status: 'refused'; source: 'owner'; code: string; message: string; result: R }
+  | { status: 'refused'; source: 'admission'; code: AdmissionRefusal; message: string }
+function ownerRefusalText(result: unknown): { code: string; message: string } {
+  const raw = result as { code?: unknown; message?: unknown; issues?: Array<{ code: string; message: string }> }
+  if (typeof raw.code === 'string' && typeof raw.message === 'string') return { code: raw.code, message: raw.message }
+  const issue = raw.issues?.[0]
+  return { code: issue?.code ?? 'invalid-argument', message: issue?.message ?? 'The owner declined this edit.' }
+}
+export function checkShowV2PreparedEdit<C extends Command>(capture: ShowV2PilotPreparedCapture, input: C): ShowV2PreparedEditCheck<OwnerResult<C>> {
+  const refuse = (code: AdmissionRefusal, message: string): ShowV2PreparedEditCheck<OwnerResult<C>> => ({ status: 'refused', source: 'admission', code, message })
+  const current = capture.record
+  const command: Command = input
   const result = (command.owner === 'layout-occurrence'
     ? (command.intent.kind === 'insert-interval'
       ? insertShowLayoutIntervalV2(current, structuredClone(command.intent))
       : editShowLayoutIntervalsV2(current, structuredClone(command.intent)))
     : command.owner === 'group-occurrence'
-        ? groupOccurrenceOwnerResult(current, structuredClone(command.intent), request.capture)
+        ? groupOccurrenceOwnerResult(current, structuredClone(command.intent), capture)
         : command.owner === 'group-replace'
         ? replaceShowGroupDefinitionClipPatternV2(current, structuredClone(command.intent))
         : command.owner === 'create-group'
@@ -155,7 +158,7 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
             : command.owner === 'clip-sharing' || command.owner === 'clip-replace' || command.owner === 'clip-entry-policy'
             ? editShowClipV2(current, structuredClone(command.intent))
             : command.owner === 'instance-properties'
-              ? writeShowInstancePropertiesV2(current, command.intent.clipId, structuredClone(command.intent.properties), capturedPatternResolver(request.capture))
+              ? writeShowInstancePropertiesV2(current, command.intent.clipId, structuredClone(command.intent.properties), capturedPatternResolver(capture))
           : command.owner === 'clip-temporal'
               ? editShowClipTemporalV2(current, structuredClone(command.intent))
               : command.owner === 'insert-time'
@@ -175,9 +178,8 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
                             : command.owner === 'layout-definition'
                               ? editShowZoneLayoutDefinitionV2(current, structuredClone(command.intent))
                               : editShowTransitionV2(current, structuredClone(command.intent))) as OwnerResult<C>
-  if (result.status === 'refused') return { status: 'refused', source: 'owner', result }
+  if (result.status === 'refused') return { status: 'refused', source: 'owner', ...ownerRefusalText(result), result }
   if (result.status === 'unchanged') return { status: 'unchanged', result }
-  const { capture } = request
   const prepared = capture.prepared
   const capturedInputs = capture.inputCapture
   if (capturedInputs?.status === 'invalid') return refuse('unsupported-pilot-record', capturedInputs.message)
@@ -208,6 +210,35 @@ async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPrepared
     || command.owner === 'delete-clip') && isValidatedEmptyShowV2(result.record)
   const expectedCapability = deletingToEmpty ? 'empty' : command.owner === 'create-clip' || prepared.status === 'refused' ? 'ready' : prepared.status
   if (candidate.status !== expectedCapability) return refuse('unsupported-pilot-record', candidate.status === 'refused' ? candidate.message : 'The edit changed the prepared Show capability.')
+  return { status: 'ready', result, candidate }
+}
+export function checkShowV2ClipTemporal(capture: ShowV2PilotPreparedCapture, intent: ShowClipTemporalIntentV2): ShowV2PreparedEditCheck<ShowClipTemporalResultV2> {
+  return checkShowV2PreparedEdit(capture, { owner: 'clip-temporal' as const, intent })
+}
+
+// Private closed owner dispatch; the conditional result is determined only by
+// this discriminator. No caller-supplied candidate or transformation is accepted.
+async function admitPreparedEdit<C extends Command>(request: ShowV2PilotPreparedEditContext & C): Promise<CheckedOutcome<OwnerResult<C>>> {
+  const { showId, baseRevision, isCurrent } = request
+  const refuse = (code: AdmissionRefusal, message: string): CheckedOutcome<OwnerResult<C>> => ({ status: 'refused', source: 'admission', code, message })
+  const current = useShowStore.getState().showV2Pilots[showId]
+  if (!current) return refuse('missing-show', 'The v2 Show is no longer open.')
+  const provider = getPersonalContentProvider()
+  const eligible = (): boolean => {
+    try {
+      return request.capture.record === current && isCurrent() && Number.isSafeInteger(baseRevision) && baseRevision >= 0
+        && (useShowStore.getState().showRevisions[showId] ?? 0) === baseRevision
+        && useShowStore.getState().showV2Pilots[showId] === current && getPersonalContentProvider() === provider
+    } catch { return false }
+  }
+  if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
+  if (!provider.replaceShowV2) return refuse('unsupported-provider', 'The active provider does not support v2 Shows.')
+  // Eligibility pinned the capture to the current record, so the pure check
+  // runs the owner against exactly the record admission would adopt over.
+  const checked = checkShowV2PreparedEdit(request.capture, request as C)
+  if (checked.status === 'refused') return checked.source === 'owner' ? { status: 'refused', source: 'owner', result: checked.result } : checked
+  if (checked.status === 'unchanged') return checked
+  const { result } = checked
   if (!eligible()) return refuse('stale-edit', 'The Show or its dependencies changed. Try the edit again.')
   const saving = useShowStore.getState().updateShowV2Pilot(showId, result.record)
   const adopted = useShowStore.getState().showV2Pilots[showId]

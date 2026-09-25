@@ -379,6 +379,7 @@ import {
   type ShowEditorTimeColumnV2,
   type ShowEditorTimelineCommandSelectionV2,
 } from '@/engine/showEditorTimelinePresentation'
+import { useShowV2SplitDryRun } from './useShowV2SplitDryRun'
 import {
   projectShowEditorArtifactPatternUsesV2,
   projectShowEditorBoundaryTransitionsV2,
@@ -4102,7 +4103,20 @@ function ShowTimelineCommands({
   const groupReasonId = `show-group-reason-${showId}`
   const cloneReasonId = `show-clone-reason-${showId}`
   const [groupReasonOpen, setGroupReasonOpen] = useState(false)
-  const splitCapability = { ...commandsV2.split, code: 'ready' as const }
+  const splitTargetV2 = useMemo(() => resolveShowV2SplitTarget(timelineView, {
+    selection: splitSelectionV2,
+    playheadMs: positionMs,
+    isolatedGroupOccurrenceId,
+  }), [isolatedGroupOccurrenceId, positionMs, splitSelectionV2, timelineView])
+  // The control asks the question the click would ask before it enables (#1126).
+  const splitDryRun = useShowV2SplitDryRun({
+    geometry: commandsV2.split,
+    view: timelineView,
+    targetClipId: splitTargetV2,
+    positionMs,
+    capture: captureV2ClipEdit?.()?.capture ?? null,
+  })
+  const splitCapability = { ...splitDryRun, code: 'ready' as const }
   const cloneCapability = commandsV2.clone
   const cloneSelection = async () => {
     if (!cloneCapability.enabled) return
@@ -4143,11 +4157,7 @@ function ShowTimelineCommands({
             // The landed capability already gates the control; the planner
             // resolves the same target and refuses a rounded-out playhead
             // before any owner runs. Success selects the new right Clip.
-            const target = resolveShowV2SplitTarget(timelineView, {
-              selection: splitSelectionV2,
-              playheadMs: positionMs,
-              isolatedGroupOccurrenceId,
-            })
+            const target = splitTargetV2
             const gesture = captureV2ClipEdit?.()
             if (!target || !gesture) return
             const rightClipId = newPersonalContentId()
