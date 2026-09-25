@@ -4,6 +4,7 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { createShowClipV2 } from './showClipCreationV2'
 import type { ShowRecordV2 } from './showCompositionV2'
 import { addShowClipAtGlobalTimeExtendingShow } from './showTimelineClipAuthoring'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import type { ShowCompositionV1, ShowPatternInstance, ShowRecord } from './personalContentRecords'
 import {
   createShowV2AddClipIntent,
@@ -375,11 +376,11 @@ describe('v1 Add Clip at Show End parity (#1091)', () => {
       patternName: 'TestPattern1D',
       time: { timeScale: 1, timeOffsetMs: 0 },
     }
-    const v1After = addShowClipAtGlobalTimeExtendingShow(
+    const v1After = frozenV1Output('showV2ClipAddPlacement.test.ts::matches the converted v1 extension on Show End, layout and the new Clip::1', () => addShowClipAtGlobalTimeExtendingShow(
       { ...fresh.show, composition: fresh.composition },
       fresh.composition,
       { zoneId: 'z1', globalTimeMs: 20_000, target: { kind: 'main' }, instance, placementId: 'clip-1' },
-    )
+    ))
     const scrubbed = structuredClone(v1After)
     if (scrubbed.composition && 'executionModel' in scrubbed.composition
       && (scrubbed.composition as { executionModel?: string }).executionModel === undefined) {

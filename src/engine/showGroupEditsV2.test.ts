@@ -36,6 +36,7 @@ import {
   validateShowGroupSelection,
 } from './showGroupModel'
 import { updateShowGroupClipInspector } from './showGroupClipInspectorModel'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { propertyEditGroupRecord } from '../test/showV2PropertyEditsFixture'
 import type { ShowRecord } from './personalContentRecords'
@@ -1421,7 +1422,7 @@ function q6GroupedBefore(): ShowRecord {
 
 it('matches the v1-then-convert oracle for a 4000 ms Group Clip duration (#1075 G2a)', () => {
   const before = q6GroupedBefore()
-  const edited = updateShowGroupClipInspector(before, { occurrenceId: 'occ-1', placementId: 'clip-main' }, { local: { durationMs: 4_000 } })
+  const edited = frozenV1Output('showGroupEditsV2.test.ts::matches the v1-then-convert oracle for a 4000 ms Group Clip duration (#1075 G2a)::1', () => updateShowGroupClipInspector(before, { occurrenceId: 'occ-1', placementId: 'clip-main' }, { local: { durationMs: 4_000 } }))
   expect(edited).not.toBe(before)
   const convertedEdited = convertShowRecordV1ToV2(edited)
   expect(convertedEdited.status).toBe('converted')

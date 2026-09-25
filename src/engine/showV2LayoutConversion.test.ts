@@ -8,6 +8,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { validateShowRecordV2 } from './showCompositionV2'
 import { compileShow } from './showCompiler'
 import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { LIBRARIES } from '../pixelblaze/libs'
 import type { ShowRecord } from './personalContentRecords'
 
@@ -212,7 +213,7 @@ it('keeps the mixed e2e 2839 fixture byte-identical through compile and replay i
   }
 })
 
-function mixedBoundaryLayerShow(): ShowRecord {
+function mixedBoundaryLayerShow(testName: string): ShowRecord {
   const source = convertibleV1Show()
   source.scenes = [
     { id: 'scene-a', name: 'Opening', durationMs: 6000 },
@@ -241,10 +242,10 @@ function mixedBoundaryLayerShow(): ShowRecord {
     id: 'boundary', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 2000,
     easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
   }]
-  const withLayer = insertShowLayerTransition(source, source.composition!, {
+  const withLayer = frozenV1Output(`showV2LayoutConversion.test.ts::${testName}::1`, () => insertShowLayerTransition(source, source.composition!, {
     id: 'layer-t', fromPlacementId: 'clip-a', toPlacementId: 'clip-b',
     kind: 'crossfade', durationMs: 1000, easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
-  })
+  }))
   if (withLayer === source.composition) throw new Error('Synthetic layer transition refused')
   source.composition = withLayer
   return source
@@ -252,7 +253,7 @@ function mixedBoundaryLayerShow(): ShowRecord {
 
 it('keeps a synthetic mixed boundary with empty contributors plus a Layer Transition byte-identical (#1080 class 3)', async () => {
   const { runtimeParity } = await import('../../scripts/show-v2-parity')
-  const source = mixedBoundaryLayerShow()
+  const source = mixedBoundaryLayerShow('keeps a synthetic mixed boundary with empty contributors plus a Layer Transition byte-identical (#1080 class 3)')
   const converted = convertShowRecordV1ToV2(source)
   expect(converted.status, JSON.stringify(converted.status === 'refused' ? converted.issues : [])).toBe('converted')
   if (converted.status !== 'converted') throw new Error('synthetic conversion failed')
@@ -271,7 +272,7 @@ it('keeps a synthetic mixed boundary with empty contributors plus a Layer Transi
 })
 
 it('refuses a Layer Transition whose window crosses a section edge in a mixed record (#1080 class 3)', () => {
-  const converted = convertShowRecordV1ToV2(mixedBoundaryLayerShow())
+  const converted = convertShowRecordV1ToV2(mixedBoundaryLayerShow('refuses a Layer Transition whose window crosses a section edge in a mixed record (#1080 class 3)'))
   if (converted.status !== 'converted') throw new Error('synthetic conversion failed')
   const record = structuredClone(converted.record)
   const layer = record.composition.transitions.find(transition => transition.wholeOutput === undefined)!
@@ -310,5 +311,4 @@ it('refuses a Layer Transition whose window crosses a section edge in a mixed re
     })]),
   })
 })
-
 

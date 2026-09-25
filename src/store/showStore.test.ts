@@ -2,6 +2,7 @@ import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
 import { STOCK_SHOWS_V2, stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { V1_STOCK_SHOWS } from '@/test/v1StockShowsFixture'
+import { frozenV1Output } from '@/test/v1AuthoringOracles'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { transitionV1Show } from '../test/showV2TracerFixture'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
@@ -818,10 +819,10 @@ describe('showStore (#318)', () => {
     const moved = expectAcceptedShowAuthoringEdit({
       show,
       composition: authored,
-      edit: (input) => moveShowClipAtGlobalTime(show, input, {
+      edit: (input) => frozenV1Output('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::1', () => moveShowClipAtGlobalTime(show, input, {
         owner,
         target: { kind: 'main', zoneId, globalStartMs: 27_000 },
-      }),
+      })),
       assertProjection: (projection) => {
         const layers = projection.zones[0].layers
         expect(layers[layers.length - 1]?.clips[0]).toMatchObject({
@@ -836,11 +837,11 @@ describe('showStore (#318)', () => {
     const resized = expectAcceptedShowAuthoringEdit({
       show,
       composition: moved,
-      edit: (input) => resizeShowClipAtGlobalTime(show, input, {
+      edit: (input) => frozenV1Output('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::2', () => resizeShowClipAtGlobalTime(show, input, {
         owner,
         globalStartMs: 27_000,
         durationMs: 8_000,
-      }),
+      })),
       assertProjection: (projection) => {
         const layers = projection.zones[0].layers
         expect(layers[layers.length - 1]?.clips[0]).toMatchObject({
@@ -856,11 +857,11 @@ describe('showStore (#318)', () => {
     const edited = expectAcceptedShowAuthoringEdit({
       show,
       composition: resized,
-      edit: (input) => splitShowClipAtGlobalTime(show, input, {
+      edit: (input) => frozenV1Output('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::3', () => splitShowClipAtGlobalTime(show, input, {
         owner,
         globalTimeMs: 33_000,
         newPlacementId: 'logical-right',
-      }),
+      })),
       assertProjection: (projection) => {
         expect(projection.zones[0].layers
           .flatMap((layer) => layer.clips)

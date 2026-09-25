@@ -18,6 +18,7 @@ import {
   type ShowClipInspectorValue,
 } from './showClipInspectorModel'
 import { projectShowGroupClipInspector } from './showGroupClipInspectorModel'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import {
   buildShowPropertyAnimationOptions,
   projectShowPropertyAnimationEditorContext,
@@ -445,7 +446,7 @@ describe.each(grouped)('$key Group Clip inspector', testCase => {
   it('presents the same Group-child Clip-detail values', () => {
     expect(children.length).toBeGreaterThan(0)
     for (const child of children) {
-      const v1 = projectShowGroupClipInspector(source, child)
+      const v1 = frozenV1Output(`showEditorPresentationEquivalence.test.ts::presents the same Group-child Clip-detail values::${testCase.key}::${child.occurrenceId}:${child.placementId}`, () => projectShowGroupClipInspector(source, child))
       const v2 = projectShowEditorInspectorPresentationV2(record, child.atMs)
         .groupsByOccurrenceId[child.occurrenceId]?.clipsById[child.placementId]
       expect(v1, `v1 value for ${child.occurrenceId}:${child.placementId}`).not.toBeNull()
@@ -457,7 +458,7 @@ describe.each(grouped)('$key Group Clip inspector', testCase => {
 
   it('summarizes the same Group Property-animation rows in Show time', () => {
     for (const child of children) {
-      const v1Value = projectShowGroupClipInspector(source, child)!
+      const v1Value = frozenV1Output(`showEditorPresentationEquivalence.test.ts::summarizes the same Group Property-animation rows in Show time::${testCase.key}::${child.occurrenceId}:${child.placementId}`, () => projectShowGroupClipInspector(source, child))!
       const v1Context = projectShowPropertyAnimationEditorContext(source, v1Value, child)
       const v2 = projectShowEditorInspectorPresentationV2(record, child.atMs)
         .groupsByOccurrenceId[child.occurrenceId]!.clipsById[child.placementId]!
@@ -685,7 +686,7 @@ describe.each(manifest.corpus)('$key Stage presentation', testCase => {
     )
     for (const timeMs of stageProbeTimes(source, testCase.fixedTimeMs)) {
       expect(presentation.diagnosticFrameAt(null, timeMs).rects, `${testCase.key}@${timeMs}`)
-        .toEqual(v1(timeMs).rects)
+        .toEqual(frozenV1Output(`showEditorPresentationEquivalence.test.ts::presents the same unfocused Stage Zone rectangles over Show time::${testCase.key}::${testCase.key}@${timeMs}`, () => v1(timeMs).rects))
     }
   })
 })
@@ -718,7 +719,7 @@ describe.each(composed)('$key Stage Clip diagnostics', testCase => {
       for (const timeMs of stageProbeTimes(source, testCase.fixedTimeMs)) {
         const label = `${testCase.key}/${entry.clipId}@${timeMs}`
         const points = presentation.diagnosticFrameAt(focus, timeMs).clipPoints
-        expect(points, label).toEqual(v1(timeMs).clipPoints)
+        expect(points, label).toEqual(frozenV1Output(`showEditorPresentationEquivalence.test.ts::shows the same focused Clip geometry for the same instants::${testCase.key}::${label}`, () => v1(timeMs).clipPoints))
         if (points) drawn += 1
       }
     }
@@ -762,7 +763,7 @@ describe.each(grouped)('$key Stage Group Clip diagnostics', testCase => {
       for (const timeMs of stageProbeTimes(source, testCase.fixedTimeMs)) {
         const label = `${testCase.key}/${child.occurrenceId}:${child.placementId}@${timeMs}`
         const points = presentation.diagnosticFrameAt(focus, timeMs).clipPoints
-        expect(points, label).toEqual(v1(timeMs).clipPoints)
+        expect(points, label).toEqual(frozenV1Output(`showEditorPresentationEquivalence.test.ts::shows the same focused Group-child geometry for the same instants::${testCase.key}::${label}`, () => v1(timeMs).clipPoints))
         if (points) drawn += 1
       }
     }
@@ -804,7 +805,7 @@ describe.each(grouped)('$key Group binding and reuse', testCase => {
    */
   it('counts the same linked Group Pattern-instance uses as the v1 editor', () => {
     for (const child of groupChildOwners(source)) {
-      const v1Value = projectShowGroupClipInspector(source, child)!
+      const v1Value = frozenV1Output(`showEditorPresentationEquivalence.test.ts::counts the same linked Group Pattern-instance uses as the v1 editor::${testCase.key}::${child.occurrenceId}:${child.placementId}`, () => projectShowGroupClipInspector(source, child))!
       const v1Context = projectShowPropertyAnimationEditorContext(source, v1Value, child)!
       const v2 = projectShowEditorInspectorPresentationV2(record, child.atMs)
         .groupsByOccurrenceId[child.occurrenceId]!.clipsById[child.placementId]!

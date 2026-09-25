@@ -13,6 +13,7 @@ import { collectOrphanedShowInstanceV2 } from './showClipsV2'
 import { commandFixtureV2 } from './showCommandsV2/fixtures'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { resizeShowLayerTransition, resetShowLayerTransitionToCut } from './showLayerTransitionAuthoring'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { createDefaultShow, removeShowBoundaryTransition, removeShowClip } from './showModel'
 import type { ShowRecord } from './personalContentRecords'
 import {
@@ -911,8 +912,8 @@ describe('owned-track shift across a converted Scene-span activation (#1068)', (
   ])('keeps the Scene-span activation and moves the keys on %s, as v1 then convert does', (mode, intent, expectedMandalaStartMs) => {
     const source = stockLesson()
     const v1 = mode === 'resize'
-      ? resizeShowLayerTransition(source, source.composition!, 'transition-horizon-mandala', 500)
-      : resetShowLayerTransitionToCut(source, source.composition!, 'transition-horizon-mandala')
+      ? frozenV1Output(`showTransitionsV2.test.ts::keeps the Scene-span activation and moves the keys on %s, as v1 then convert does::${mode}::1`, () => resizeShowLayerTransition(source, source.composition!, 'transition-horizon-mandala', 500))
+      : frozenV1Output(`showTransitionsV2.test.ts::keeps the Scene-span activation and moves the keys on %s, as v1 then convert does::${mode}::1`, () => resetShowLayerTransitionToCut(source, source.composition!, 'transition-horizon-mandala'))
     const reference = convertLesson({ ...source, composition: structuredClone(v1) })
     const edited = editShowTransitionV2(convertLesson(stockLesson()), intent)
     expect(edited.status).toBe('changed')

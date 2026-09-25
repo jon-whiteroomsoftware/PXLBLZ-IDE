@@ -15,6 +15,7 @@ import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { emitShowPropertyTrackExpression, evaluateShowPropertyTrack } from './showPropertyAnimation'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { continuingV1Show, convertibleV1Show, flatV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
@@ -1838,10 +1839,10 @@ it('refuses an exact-window incoming ramp on the participant Transition of a mix
     id: 'boundary', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 2000,
     easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
   }]
-  const withLayer = insertShowLayerTransition(source, source.composition!, {
+  const withLayer = frozenV1Output('showCompositionLoweringV2.test.ts::refuses an exact-window incoming ramp on the participant Transition of a mixed record (#1080 class 2a repair)::1', () => insertShowLayerTransition(source, source.composition!, {
     id: 'layer-t', fromPlacementId: 'clip-a', toPlacementId: 'clip-b',
     kind: 'crossfade', durationMs: 1000, easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
-  })
+  }))
   if (withLayer === source.composition) throw new Error('Synthetic layer transition refused')
   source.composition = withLayer
   const converted = convertShowRecordV1ToV2(source)
