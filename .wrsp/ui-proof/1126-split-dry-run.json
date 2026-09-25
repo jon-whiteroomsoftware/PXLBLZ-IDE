@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1126",
+  "route": "/PXLBLZ-IDE/studio/shows/f91b7abd-1336-4deb-9f46-fdd4b40a7829",
+  "operation": "Selected the TestPattern1D Clip. At 00:00.0 Split at playhead is aria-disabled with 'Place the playhead inside the selected Clip.'; after moving the playhead to 00:10.0 the split dry-run admits the edit and Split is enabled with 'Split the selected Clip at the playhead.' (capture). No UI-reachable admission refusal remains after #1109, so the disabled-with-admission-reason state is proved by the ShowEditor component test and its revert proof.",
+  "captures": [".wrsp/ui-proof/1126-split-enabled-mid-clip.png"],
+  "capturedAtCommit": "c423e2115ad643e11821b06ad9a5053b33901b13"
+}
