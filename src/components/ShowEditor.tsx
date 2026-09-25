@@ -1,6 +1,5 @@
 import { showDeliveryInvalidationMessage } from '@/engine/showControllerDelivery'
 import { useShowControllerDelivery } from './useShowControllerDelivery'
-import { editShowMarkerFromUI } from '../engine/showExactTimelineMarker'
 import { repeatScaleAt, showV2SampleRepeatLaneVisible } from '../engine/showV2ScalarProperties'
 import { Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
@@ -66,7 +65,6 @@ import { prepareControllerArtifactDelivery } from '@/engine/controllerArtifactDe
 import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 import { trackEvent } from '@/analytics'
 import {
-  addShowRoutingLayout,
   projectShowStrip,
   formatShowRoutingRanges,
   parseShowRoutingRanges,
@@ -172,15 +170,11 @@ import {
 } from '@/engine/showTimelineKeyboard'
 import { claimStudioPreviewSpace } from '@/engine/keyboardShortcuts'
 import {
-  addShowClipAtGlobalTimeExtendingShow,
-  addShowOverlayLayerAcrossTimeline,
   duplicateShowClipAfter,
   duplicateShowClipAtGlobalTime,
   makeShowClipPatternIndependent,
   planShowClipAtGlobalTime,
   planShowClipAtTopmostAvailableLayer,
-  planShowClipDuplicateAfter,
-  planShowClipSplitAtGlobalTime,
   projectShowClipPatternInstanceOwnership,
   rejoinShowClipPatternInstance,
   splitShowClipAtGlobalTime,
@@ -207,7 +201,6 @@ import {
 import { deleteShowClipInShow, type ShowClipDeletionResult } from '@/engine/showClipDeletion'
 import {
   completeShowGroupSelection,
-  createShowGroupFromSelection,
   deleteShowGroupOccurrence,
   duplicateShowGroupOccurrence,
   insertShowGroupLayerTransition,
@@ -218,7 +211,6 @@ import {
   ungroupShowGroupOccurrence,
   updateShowGroupOccurrencePlacement,
   validateShowGroups,
-  validateShowGroupSelection,
   type ShowGroupSelection,
 } from '@/engine/showGroupModel'
 import {
@@ -227,7 +219,6 @@ import {
   type ShowGroupClipOwner,
 } from '@/engine/showGroupClipInspectorModel'
 import {
-  insertShowTime,
   planShowTimeInsertion,
   setShowEndMs,
   showTimelineContentEndMs,
@@ -436,9 +427,6 @@ import { setShowOutputTrails, type SetShowOutputTrailsInput } from '@/engine/sho
 import { normalizeShowClipTransform } from '@/engine/showClipTransform'
 import { validateShowLogicalRouting, type ShowLogicalRouting } from '@/engine/showLogicalRouting'
 import {
-  appendShowLayoutInterval,
-  duplicateShowLayoutInterval,
-  insertShowLayoutInterval,
   makeShowLayoutIntervalUnique,
   projectShowLayoutIntervals,
   showLayoutIntervalAtTime,
@@ -4143,91 +4131,52 @@ export function ShowEditor({
                 }}
                 onSelectGroupCandidates={selectGroupCandidates}
                 onCreateGroup={async (groupSelection) => {
-                  if (recordVersion === 2) {
-                    const capture = preparedV2CaptureRef.current
-                    if (!capture || capture.prepared.status === 'refused') return null
-                    const plan = planShowV2GroupCreation(capture.record, {
-                      clipIds: groupSelection.placementIds,
-                      transitionIds: groupSelection.transitionIds,
-                      name: 'Group',
-                    }, newPersonalContentId)
-                    if (plan.status !== 'ready') return null
-                    const applied = await commitV2CreateGroup({
-                      capture,
-                      baseRevision: useShowStore.getState().showRevisions[showId] ?? 0,
-                      intent: plan.intent,
-                    })
-                    if (!applied) return null
-                    selectTimeline({ kind: 'group', occurrenceId: plan.intent.occurrenceId })
-                    return plan.intent.occurrenceId
-                  }
-                  if (!legacyShow || !timelineComposition) return null
-                  const definitionId = newPersonalContentId()
-                  const occurrenceId = newPersonalContentId()
-                  const composition = createShowGroupFromSelection(timelineComposition, {
-                    selection: groupSelection,
-                    definitionId,
-                    occurrenceId,
+                  const capture = preparedV2CaptureRef.current
+                  if (!capture || capture.prepared.status === 'refused') return null
+                  const plan = planShowV2GroupCreation(capture.record, {
+                    clipIds: groupSelection.placementIds,
+                    transitionIds: groupSelection.transitionIds,
                     name: 'Group',
+                  }, newPersonalContentId)
+                  if (plan.status !== 'ready') return null
+                  const applied = await commitV2CreateGroup({
+                    capture,
+                    baseRevision: useShowStore.getState().showRevisions[showId] ?? 0,
+                    intent: plan.intent,
                   })
-                  if (composition === timelineComposition || validateShowGroups(legacyShow, composition).length > 0) return null
-                  if (!(await tryUpdateShow(legacyShow.id, { ...legacyShow, composition, updatedAt: Date.now() }))) return null
-                  selectTimeline({ kind: 'group', occurrenceId })
-                  return occurrenceId
+                  if (!applied) return null
+                  selectTimeline({ kind: 'group', occurrenceId: plan.intent.occurrenceId })
+                  return plan.intent.occurrenceId
                 }}
                 onDismiss={closeDetailPanel}
                 onDirectManipulationChange={setDetailsSuppressed}
                 onReanchorDetails={reanchorOpenDetails}
                 patternOptions={patternOptions}
-                onAddClipAtPlayhead={async ({ zoneId, layerId, globalTimeMs, target, pattern, patternName }) => {
-                  if (recordVersion === 2) {
-                    const moved = captureV2Move()
-                    if (!moved) return null
-                    const exact = layerId
-                      ? planShowV2ClipAtTime(moved.capture.record, { zoneId, layerId, globalTimeMs })
+                onAddClipAtPlayhead={async ({ zoneId, layerId, globalTimeMs, pattern, patternName }) => {
+                  const moved = captureV2Move()
+                  if (!moved) return null
+                  const exact = layerId
+                    ? planShowV2ClipAtTime(moved.capture.record, { zoneId, layerId, globalTimeMs })
+                    : null
+                  const placed = exact?.enabled ? exact : (
+                    !layerId
+                      ? planShowV2ClipAtTopmostAvailableLayer(moved.capture.record, { zoneId, globalTimeMs })
                       : null
-                    const placed = exact?.enabled ? exact : (
-                      !layerId
-                        ? planShowV2ClipAtTopmostAvailableLayer(moved.capture.record, { zoneId, globalTimeMs })
-                        : null
-                    )
-                    if (!placed) return null
-                    const built = createShowV2AddClipIntent(moved.capture, placed, { pattern, patternName }, newPersonalContentId)
-                    if (built.status === 'refused') return null
-                    const outcome = await admitShowV2PilotCreateClip({
-                      showId,
-                      baseRevision: moved.baseRevision,
-                      capture: moved.capture,
-                      intent: built.intent,
-                      onAdopted: () => {},
-                      isCurrent: () => editorAliveRef.current
-                        && preparedV2CaptureRef.current === moved.capture
-                        && useShowStore.getState().showV2Pilots[showId] === moved.capture.record,
-                    })
-                    return outcome.status === 'applied' ? built.clipId : null
-                  }
-                  if (!legacyShow || !timelineComposition || !target) return null
-                  const instanceId = newPersonalContentId()
-                  const placementId = newPersonalContentId()
-                  const nextShow = addShowClipAtGlobalTimeExtendingShow(
-                    { ...legacyShow, composition: timelineComposition },
-                    timelineComposition,
-                    {
-                    zoneId,
-                    globalTimeMs,
-                    target,
-                    instance: {
-                      id: instanceId,
-                      pattern,
-                      patternName,
-                      time: { timeScale: 1, timeOffsetMs: 0 },
-                    },
-                    placementId,
-                    },
                   )
-                  if (nextShow.composition === timelineComposition) return null
-                  if (!(await tryUpdateShow(legacyShow.id, nextShow))) return null
-                  return placementId
+                  if (!placed) return null
+                  const built = createShowV2AddClipIntent(moved.capture, placed, { pattern, patternName }, newPersonalContentId)
+                  if (built.status === 'refused') return null
+                  const outcome = await admitShowV2PilotCreateClip({
+                    showId,
+                    baseRevision: moved.baseRevision,
+                    capture: moved.capture,
+                    intent: built.intent,
+                    onAdopted: () => {},
+                    isCurrent: () => editorAliveRef.current
+                      && preparedV2CaptureRef.current === moved.capture
+                      && useShowStore.getState().showV2Pilots[showId] === moved.capture.record,
+                  })
+                  return outcome.status === 'applied' ? built.clipId : null
                 }}
                 onMoveCompositionClip={async ({ owner, target, sourceComposition, plannedComposition }) => {
                   if (!legacyShow || !timelineComposition) return false
@@ -4250,45 +4199,29 @@ export function ShowEditor({
                   })
                 }}
                 onAddCompositionLayer={async (zoneId) => {
-                  if (recordVersion === 2) {
-                    if (readOnly) return false
-                    const moved = captureV2Move()
-                    if (!moved) return false
-                    // Rank zero is the bottom Layer, so one more than the
-                    // highest rank in the Zone lands on top, exactly where the
-                    // v1 overlay lands with unshift (#1090).
-                    const rank = moved.capture.record.composition.layers.reduce(
-                      (highest, layer) => (layer.zoneId === zoneId ? Math.max(highest, layer.rank) : highest),
-                      -1,
-                    ) + 1
-                    const outcome = await commitV2LayerEdit({
-                      ...moved,
-                      intent: {
-                        kind: 'add',
-                        layer: {
-                          id: newPersonalContentId(),
-                          zoneId,
-                          name: `Layer ${rank}`,
-                          rank,
-                        },
+                  if (readOnly) return false
+                  const moved = captureV2Move()
+                  if (!moved) return false
+                  // Rank zero is the bottom Layer, so one more than the
+                  // highest rank in the Zone lands on top, exactly where the
+                  // v1 overlay lands with unshift (#1090).
+                  const rank = moved.capture.record.composition.layers.reduce(
+                    (highest, layer) => (layer.zoneId === zoneId ? Math.max(highest, layer.rank) : highest),
+                    -1,
+                  ) + 1
+                  const outcome = await commitV2LayerEdit({
+                    ...moved,
+                    intent: {
+                      kind: 'add',
+                      layer: {
+                        id: newPersonalContentId(),
+                        zoneId,
+                        name: `Layer ${rank}`,
+                        rank,
                       },
-                    })
-                    return outcome.status === 'applied'
-                  }
-                  if (!legacyShow || !timelineComposition) return false
-                  const nextComposition = addShowOverlayLayerAcrossTimeline(legacyShow, timelineComposition, {
-                    zoneId,
-                    layers: timelineComposition.scenes.map((scene) => ({
-                      sceneId: scene.sceneId,
-                      layerId: newPersonalContentId(),
-                    })),
+                    },
                   })
-                  if (nextComposition === timelineComposition) return false
-                  return tryUpdateShow(legacyShow.id, {
-                    ...legacyShow,
-                    composition: nextComposition,
-                    updatedAt: Date.now(),
-                  })
+                  return outcome.status === 'applied'
                 }}
                 onSplitCompositionClip={async (owner, globalTimeMs) => {
                   if (!legacyShow || !timelineComposition) return null
@@ -4354,203 +4287,100 @@ export function ShowEditor({
                   setLayerTransitionTarget(target)
                 }}
                 onInsertTime={async (atMs, durationMs) => {
-                  if (recordVersion === 2) {
-                    if (readOnly) return false
-                    const moved = captureV2Move()
-                    if (!moved) return false
-                    const outcome = await commitV2InsertTime({
-                      ...moved,
-                      intent: { atMs: Math.max(0, Math.round(atMs)), durationMs },
-                    })
-                    return outcome.status === 'applied'
-                  }
-                  if (!legacyShow || !timelineComposition) return false
-                  const basis = { ...legacyShow, composition: timelineComposition }
-                  const plan = planShowTimeInsertion(basis, atMs, durationMs)
-                  if (!plan.enabled) return false
-                  const next = insertShowTime(basis, {
-                    atMs,
-                    durationMs,
-                    newPlacementIdBySourceId: Object.fromEntries(
-                      plan.crossingPlacementIds.map((placementId) => [placementId, newPersonalContentId()]),
-                    ),
+                  if (readOnly) return false
+                  const moved = captureV2Move()
+                  if (!moved) return false
+                  const outcome = await commitV2InsertTime({
+                    ...moved,
+                    intent: { atMs: Math.max(0, Math.round(atMs)), durationMs },
                   })
-                  if (next === basis) return false
-                  return tryUpdateShow(legacyShow.id, next)
+                  return outcome.status === 'applied'
                 }}
                 onAddMarker={async (timeMs) => {
-                  if (recordVersion === 2) {
-                    if (readOnly) return false
-                    const moved = captureV2Move()
-                    if (!moved) return false
-                    // Converted Scene labels are not authored Markers, so the number matches v1's (#1090).
-                    const markerNumber = moved.capture.record.composition.markers.filter(marker => marker.origin !== 'converted-scene-label').length + 1
-                    const outcome = await commitV2MarkerEdit({
-                      ...moved,
-                      intent: {
-                        kind: 'add',
-                        marker: {
-                          id: newPersonalContentId(),
-                          timeMs: Math.max(0, Math.round(timeMs)),
-                          name: `Marker ${markerNumber}`,
-                          color: '#f59e0b',
-                        },
+                  if (readOnly) return false
+                  const moved = captureV2Move()
+                  if (!moved) return false
+                  // Converted Scene labels are not authored Markers, so the number matches v1's (#1090).
+                  const markerNumber = moved.capture.record.composition.markers.filter(marker => marker.origin !== 'converted-scene-label').length + 1
+                  const outcome = await commitV2MarkerEdit({
+                    ...moved,
+                    intent: {
+                      kind: 'add',
+                      marker: {
+                        id: newPersonalContentId(),
+                        timeMs: Math.max(0, Math.round(timeMs)),
+                        name: `Marker ${markerNumber}`,
+                        color: '#f59e0b',
                       },
-                    })
-                    return outcome.status === 'applied' || outcome.status === 'unchanged'
-                  }
-                  if (!legacyShow || !timelineComposition) return false
-                  const basis = { ...legacyShow, composition: timelineComposition }
-                  const markerNumber = (timelineComposition.markers?.length ?? 0) + 1
-                  const result = editShowMarkerFromUI(basis, { kind: 'add', marker: {
-                    id: newPersonalContentId(),
-                    timeMs,
-                    name: `Marker ${markerNumber}`,
-                    color: '#f59e0b',
-                  } })
-                  if (result.status === 'refused') return false
-                  if (result.status === 'noop') return true
-                  return tryUpdateShow(legacyShow.id, result.record)
+                    },
+                  })
+                  return outcome.status === 'applied' || outcome.status === 'unchanged'
                 }}
                 onMoveMarker={async (markerId, timeMs) => {
-                  if (recordVersion === 2) {
-                    if (readOnly) return false
-                    const moved = captureV2Move()
-                    if (!moved) return false
-                    const outcome = await commitV2MarkerEdit({
-                      ...moved,
-                      intent: { kind: 'move', markerId, timeMs: Math.max(0, Math.round(timeMs)) },
-                    })
-                    return outcome.status === 'applied' || outcome.status === 'unchanged'
-                  }
-                  if (!legacyShow || !timelineComposition) return false
-                  const basis = { ...legacyShow, composition: timelineComposition }
-                  const result = editShowMarkerFromUI(basis, { kind: 'move', markerId, timeMs })
-                  if (result.status === 'refused') return false
-                  if (result.status === 'noop') return true
-                  return tryUpdateShow(legacyShow.id, result.record)
+                  if (readOnly) return false
+                  const moved = captureV2Move()
+                  if (!moved) return false
+                  const outcome = await commitV2MarkerEdit({
+                    ...moved,
+                    intent: { kind: 'move', markerId, timeMs: Math.max(0, Math.round(timeMs)) },
+                  })
+                  return outcome.status === 'applied' || outcome.status === 'unchanged'
                 }}
                 onUpdateMarker={async (markerId, patch) => {
-                  if (recordVersion === 2) {
-                    if (readOnly) return false
-                    const moved = captureV2Move()
-                    if (!moved) return false
-                    const outcome = await commitV2MarkerEdit({
-                      ...moved,
-                      intent: {
-                        kind: 'update',
-                        markerId,
-                        patch: patch.timeMs === undefined
-                          ? patch
-                          : { ...patch, timeMs: Math.max(0, Math.round(patch.timeMs)) },
-                      },
-                    })
-                    return outcome.status === 'applied' || outcome.status === 'unchanged'
-                  }
-                  if (!legacyShow || !timelineComposition) return false
-                  const basis = { ...legacyShow, composition: timelineComposition }
-                  const result = editShowMarkerFromUI(basis, { kind: 'update', markerId, patch })
-                  if (result.status === 'refused') return false
-                  if (result.status === 'noop') return true
-                  return tryUpdateShow(legacyShow.id, result.record)
+                  if (readOnly) return false
+                  const moved = captureV2Move()
+                  if (!moved) return false
+                  const outcome = await commitV2MarkerEdit({
+                    ...moved,
+                    intent: {
+                      kind: 'update',
+                      markerId,
+                      patch: patch.timeMs === undefined
+                        ? patch
+                        : { ...patch, timeMs: Math.max(0, Math.round(patch.timeMs)) },
+                    },
+                  })
+                  return outcome.status === 'applied' || outcome.status === 'unchanged'
                 }}
                 onRemoveMarker={async (markerId) => {
-                  if (recordVersion === 2) {
-                    if (readOnly) return false
-                    const moved = captureV2Move()
-                    if (!moved) return false
-                    const outcome = await commitV2MarkerEdit({
-                      ...moved,
-                      intent: { kind: 'remove', markerId },
-                    })
-                    return outcome.status === 'applied' || outcome.status === 'unchanged'
-                  }
-                  if (!legacyShow || !timelineComposition) return false
-                  const basis = { ...legacyShow, composition: timelineComposition }
-                  const result = editShowMarkerFromUI(basis, { kind: 'remove', markerId })
-                  if (result.status === 'refused') return false
-                  if (result.status === 'noop') return true
-                  return tryUpdateShow(legacyShow.id, result.record)
+                  if (readOnly) return false
+                  const moved = captureV2Move()
+                  if (!moved) return false
+                  const outcome = await commitV2MarkerEdit({
+                    ...moved,
+                    intent: { kind: 'remove', markerId },
+                  })
+                  return outcome.status === 'applied' || outcome.status === 'unchanged'
                 }}
                 onSetShowEnd={async (durationMs) => {
-                  if (recordVersion === 2) return commitV2ShowEndTime(durationMs)
-                  if (!legacyShow || !timelineComposition) return false
-                  const basis = { ...legacyShow, composition: timelineComposition }
-                  const next = setShowEndMs(basis, durationMs)
-                  if (next === basis) return false
-                  return tryUpdateShow(legacyShow.id, next)
+                  return commitV2ShowEndTime(durationMs)
                 }}
                 onAppendLayoutInterval={async (sourceLayoutId, durationMs) => {
-                  if (recordVersion === 2) return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'append', durationMs, sourceLayoutId }, newPersonalContentId))
-                  if (!legacyShow || !timelineComposition) return false
-                  // Copy the layout and place its interval as one Show edit:
-                  // a rejected placement persists nothing, and one Undo
-                  // removes both the interval and the definition (#694
-                  // review P2).
-                  const current = useShowStore.getState().resolveEditableShow(legacyShow.id) ?? legacyShow
-                  const withLayout = addShowRoutingLayout(current, undefined, sourceLayoutId)
-                  const layoutId = withLayout.routingLayouts[withLayout.routingLayouts.length - 1].id
-                  const basis = { ...withLayout, composition: timelineComposition }
-                  const next = appendShowLayoutInterval(basis, { layoutId, durationMs })
-                  if (next === basis) return false
-                  return tryUpdateShow(legacyShow.id, next)
+                  return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'append', durationMs, sourceLayoutId }, newPersonalContentId))
                 }}
                 onInsertLayoutInterval={async (sourceLayoutId, durationMs, atMs) => {
-                  if (recordVersion === 2) return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'insert-interval', atMs: Math.round(atMs), durationMs, sourceLayoutId }, newPersonalContentId))
-                  if (!legacyShow || !timelineComposition) return false
-                  const current = useShowStore.getState().resolveEditableShow(legacyShow.id) ?? legacyShow
-                  const withLayout = addShowRoutingLayout(current, undefined, sourceLayoutId)
-                  const layoutId = withLayout.routingLayouts[withLayout.routingLayouts.length - 1].id
-                  const basis = { ...withLayout, composition: timelineComposition }
-                  const next = insertShowLayoutInterval(basis, { layoutId, durationMs, atMs })
-                  if (next === basis) return false
-                  return tryUpdateShow(legacyShow.id, next)
+                  return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'insert-interval', atMs: Math.round(atMs), durationMs, sourceLayoutId }, newPersonalContentId))
                 }}
                 onDuplicateLayoutInterval={async (intervalId, withContent) => {
-                  if (recordVersion === 2) return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'duplicate', occurrenceId: intervalId, content: withContent ? 'copy' : 'empty' }, newPersonalContentId))
-                  if (!legacyShow || !timelineComposition) return false
-                  const basis = { ...legacyShow, composition: timelineComposition }
-                  const next = duplicateShowLayoutInterval(basis, intervalId, { withContent })
-                  if (next === basis) return false
-                  return tryUpdateShow(legacyShow.id, next)
+                  return commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'duplicate', occurrenceId: intervalId, content: withContent ? 'copy' : 'empty' }, newPersonalContentId))
                 }}
                 onMakeLayoutIntervalUnique={async (intervalId) => {
-                  if (recordVersion === 2) return commitV2LayoutPlan((record) => { const name = showV2MakeUniqueLayoutName(record, intervalId); return name === null ? null : planShowV2LayoutEdit(record, { kind: 'make-unique', occurrenceId: intervalId, name }, newPersonalContentId) })
-                  if (!legacyShow || !timelineComposition) return false
-                  const basis = { ...legacyShow, composition: timelineComposition }
-                  const next = makeShowLayoutIntervalUnique(basis, intervalId)
-                  if (next === basis) return false
-                  return tryUpdateShow(legacyShow.id, next)
+                  return commitV2LayoutPlan((record) => { const name = showV2MakeUniqueLayoutName(record, intervalId); return name === null ? null : planShowV2LayoutEdit(record, { kind: 'make-unique', occurrenceId: intervalId, name }, newPersonalContentId) })
                 }}
                 onAddZone={() => {
-                  if (recordVersion === 2) {
-                    timelineWorkspaceRef.current?.focus()
-                    commitV2ZonePlan((record) => planShowV2ZoneAdd(record))
-                    return
-                  }
-                  if (!legacyShow) return
                   timelineWorkspaceRef.current?.focus()
-                  void addZone(legacyShow.id)
+                  commitV2ZonePlan((record) => planShowV2ZoneAdd(record))
+                  return
                 }}
                 onUpdateZone={(zoneId, changes) => {
-                  if (recordVersion === 2) {
-                    commitV2ZonePlan((record) => planShowV2ZoneUpdate(record, zoneId, changes))
-                    return
-                  }
-                  if (!legacyShow) return
-                  void updateZone(legacyShow.id, zoneId, changes)
+                  commitV2ZonePlan((record) => planShowV2ZoneUpdate(record, zoneId, changes))
+                  return
                 }}
                 onRemoveZone={(zoneId) => {
-                  if (recordVersion === 2) {
-                    closeDetailPanel()
-                    closePinnedDetailForSelection({ kind: 'zone', zoneId })
-                    commitV2ZonePlan((record) => planShowV2ZoneRemove(record, zoneId))
-                    return
-                  }
-                  if (!legacyShow) return
                   closeDetailPanel()
                   closePinnedDetailForSelection({ kind: 'zone', zoneId })
-                  void removeZone(legacyShow.id, zoneId)
+                  commitV2ZonePlan((record) => planShowV2ZoneRemove(record, zoneId))
+                  return
                 }}
               />
           </section>
@@ -5545,26 +5375,18 @@ function ShowTimelineCommands({
   isolatedGroupOccurrenceId,
   onSelect,
   onCreateGroup,
-  onSplitCompositionClip,
-  onDuplicateCompositionClip,
   onDuplicateCompositionClipV2,
   onClipFeedback,
   captureV2ClipEdit,
   onCommitV2ClipTemporal,
 }: {
-  // One command surface, read through whichever record backs the editor. The
-  // v1 record and its planners stay inside the v1 branch (#1065).
-  backing:
-    | { recordVersion: 1; show: ShowRecord; composition: ShowCompositionV1 | null }
-    | { recordVersion: 2; showId: string }
+  backing: { showId: string }
   timelineView: ShowTimelineViewModel
   readOnly: boolean
   selection: ShowSelection
   isolatedGroupOccurrenceId: string | null
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
   onCreateGroup: (selection: ShowGroupSelection) => Promise<string | null>
-  onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
-  onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
   onDuplicateCompositionClipV2?: (clipId: string) => Promise<string | null>
   /** Shows a refused v2 edit's reason on its Clip and in the timeline status (#1098). */
   onClipFeedback?: ReportClipFeedback
@@ -5575,11 +5397,8 @@ function ShowTimelineCommands({
     intent: ShowClipTemporalIntentV2
   }) => Promise<ShowV2CommitResult>
 }) {
-  const show = backing.recordVersion === 1 ? backing.show : null
-  const composition = backing.recordVersion === 1 ? backing.composition : null
-  const showId = backing.recordVersion === 1 ? backing.show.id : backing.showId
+  const showId = backing.showId
   const positionMs = useShowTransportStore((state) => state.showId === showId ? state.positionMs : 0)
-  const cloneClip = useShowStore((state) => state.cloneClip)
   const splitSelectionV2 = useMemo<ShowEditorTimelineCommandSelectionV2>(() => selection.kind === 'clip'
     ? { kind: 'clip', clipId: selection.clipId }
     : selection.kind === 'multi'
@@ -5591,108 +5410,26 @@ function ShowTimelineCommands({
       : selection.kind === 'group' || selection.kind === 'group-clip'
         ? { kind: 'group' }
         : { kind: 'other' }, [selection])
-  const commandsV2 = useMemo(() => backing.recordVersion === 2
-    ? projectShowEditorTimelineCommandsV2({
-        view: timelineView,
-        selection: splitSelectionV2,
-        playheadMs: positionMs,
-        isolatedGroupOccurrenceId,
-      })
-    : null, [backing.recordVersion, isolatedGroupOccurrenceId, positionMs, splitSelectionV2, timelineView])
-  const groupPlan = commandsV2
-    ? { ...commandsV2.group, code: 'ready' as const }
-    : composition && selection.kind === 'multi'
-      ? validateShowGroupSelection(composition, selection.groupSelection)
-      : { enabled: false as const, code: 'empty' as const, reason: 'Select two or more Clips to make a Group.' }
+  const commandsV2 = useMemo(() => projectShowEditorTimelineCommandsV2({
+    view: timelineView,
+    selection: splitSelectionV2,
+    playheadMs: positionMs,
+    isolatedGroupOccurrenceId,
+  }), [isolatedGroupOccurrenceId, positionMs, splitSelectionV2, timelineView])
+  const groupPlan = { ...commandsV2.group, code: 'ready' as const }
   const splitReasonId = `show-split-reason-${showId}`
   const [splitReasonOpen, setSplitReasonOpen] = useState(false)
   const groupReasonId = `show-group-reason-${showId}`
   const cloneReasonId = `show-clone-reason-${showId}`
   const [groupReasonOpen, setGroupReasonOpen] = useState(false)
-  const compositionOwner = show && selection.kind === 'clip'
-    ? findTimelineClipOwner(composition, selection.clipId)
-    : null
-  const compositionTimeline = useMemo(() => (
-    show && composition ? projectShowUnifiedTimeline(show, composition) : null
-  ), [composition, show])
-  const compositionClip = compositionOwner
-    ? compositionTimeline?.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
-      .find((clip) => clip.id === compositionOwner.placementId)
-    : null
-  // Explicit Clip selection wins; a stale Clip or non-Clip inspector can
-  // resolve at the playhead. Group and multi selections retain their scope.
-  const fallbackBySelectionKind = {
-    show: true,
-    clip: !compositionOwner,
-    transition: true,
-    zone: true,
-    'zone-layout': true,
-    group: false,
-    'group-clip': false,
-    multi: false,
-  } satisfies Record<ShowSelection['kind'], boolean>
-  const canResolveAtPlayhead = fallbackBySelectionKind[selection.kind]
-  const playheadTarget = canResolveAtPlayhead && compositionTimeline
-    ? projectShowTimelineTraversalTargets(compositionTimeline, isolatedGroupOccurrenceId).find((target) => {
-        if (target.kind !== 'clip') return false
-        const clip = compositionTimeline.zones.flatMap(zone => zone.layers.flatMap(layer => layer.clips))
-          .find(candidate => candidate.id === target.clipId)
-        return clip && !clip.groupOccurrenceId && positionMs > clip.startMs && positionMs < clip.endMs
-      })
-    : null
-  const splitOwner = isolatedGroupOccurrenceId ? null : compositionOwner ?? (playheadTarget?.kind === 'clip'
-    ? findTimelineClipOwner(composition, playheadTarget.clipId)
-    : null)
-  const splitCapability = commandsV2
-    ? { ...commandsV2.split, code: 'ready' as const }
-    : show && splitOwner && composition
-      ? planShowClipSplitAtGlobalTime(show, composition, {
-          owner: splitOwner,
-          globalTimeMs: positionMs,
-        })
-      : { enabled: false as const, code: 'outside-clip' as const, reason: 'Place the playhead inside a Clip.' }
-  const legacyCloneCapability = show
-    ? showCloneCapability(show, selection)
-    : { enabled: false, reason: 'Select one simple Clip to Clone' }
-  const compositionClonePlan = show && compositionOwner && composition
-    ? planShowClipDuplicateAfter(show, composition, {
-        owner: compositionOwner,
-        independent: true,
-      })
-    : null
-  const cloneCapability = commandsV2
-    ? commandsV2.clone
-    : compositionOwner
-      ? compositionClip
-        && compositionClonePlan?.enabled
-        ? { enabled: true, reason: `Duplicate ${compositionClip.patternName} immediately after itself` }
-        : {
-            enabled: false,
-            reason: compositionClonePlan && !compositionClonePlan.enabled
-              ? compositionClonePlan.reason
-              : 'The selected Clip needs empty time after it on this Layer',
-          }
-      : legacyCloneCapability
-
+  const splitCapability = { ...commandsV2.split, code: 'ready' as const }
+  const cloneCapability = commandsV2.clone
   const cloneSelection = async () => {
     if (!cloneCapability.enabled) return
-    if (commandsV2) {
-      // Clone commits a linked duplicate through the clip-sharing door (#1090).
-      if (selection.kind === 'clip') {
-        const copyId = await onDuplicateCompositionClipV2?.(selection.clipId)
-        if (copyId) onSelect({ kind: 'clip', clipId: copyId })
-      }
-      return
-    }
-    if (!show) return
-    if (compositionOwner) {
-      const copyId = await onDuplicateCompositionClip(compositionOwner)
-      if (copyId) onSelect({ kind: 'clip', clipId: copyId })
-      return
-    }
+    // Clone commits a linked duplicate through the clip-sharing door (#1090).
     if (selection.kind === 'clip') {
-      const copy = await cloneClip(show.id, selection.clipId)
-      if (copy) onSelect({ kind: 'clip', clipId: copy.id })
+      const copyId = await onDuplicateCompositionClipV2?.(selection.clipId)
+      if (copyId) onSelect({ kind: 'clip', clipId: copyId })
     }
   }
   const splitEnabled = !readOnly && splitCapability.enabled
@@ -5723,44 +5460,35 @@ function ShowTimelineCommands({
               return
             }
             if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
-            if (backing.recordVersion === 2) {
-              // The landed capability already gates the control; the planner
-              // resolves the same target and refuses a rounded-out playhead
-              // before any owner runs. Success selects the new right Clip,
-              // exactly as the v1 split selects its new placement.
-              const target = resolveShowV2SplitTarget(timelineView, {
-                selection: splitSelectionV2,
-                playheadMs: positionMs,
-                isolatedGroupOccurrenceId,
-              })
-              const gesture = captureV2ClipEdit?.()
-              if (!target || !gesture) return
-              const rightClipId = newPersonalContentId()
-              const gesturePlan = planShowV2ClipSplit(timelineView, {
-                clipId: target,
-                atMs: Math.round(positionMs),
-                rightClipId,
-              })
-              // A refused Split names its reason on the target Clip (#1098).
-              const reportSplitRefusal = (input: ShowV2EditRefusalInput | null) => {
-                if (input) onClipFeedback?.(`clip:${target}`, showV2EditRefusalCopy(input))
-              }
-              if (gesturePlan.kind === 'refuse') {
-                reportSplitRefusal(showV2PlannerRefusalInput('split', gesturePlan.reason))
-                return
-              }
-              if (gesturePlan.kind !== 'temporal') return
-              void onCommitV2ClipTemporal?.({ ...gesture, intent: gesturePlan.intent }).then((applied) => {
-                if (isShowV2Refusal(applied)) reportSplitRefusal(showV2CommitRefusalInput(applied))
-                else if (applied) onSelect({ kind: 'clip', clipId: rightClipId })
-              }).catch(() => {})
+            // The landed capability already gates the control; the planner
+            // resolves the same target and refuses a rounded-out playhead
+            // before any owner runs. Success selects the new right Clip.
+            const target = resolveShowV2SplitTarget(timelineView, {
+              selection: splitSelectionV2,
+              playheadMs: positionMs,
+              isolatedGroupOccurrenceId,
+            })
+            const gesture = captureV2ClipEdit?.()
+            if (!target || !gesture) return
+            const rightClipId = newPersonalContentId()
+            const gesturePlan = planShowV2ClipSplit(timelineView, {
+              clipId: target,
+              atMs: Math.round(positionMs),
+              rightClipId,
+            })
+            // A refused Split names its reason on the target Clip (#1098).
+            const reportSplitRefusal = (input: ShowV2EditRefusalInput | null) => {
+              if (input) onClipFeedback?.(`clip:${target}`, showV2EditRefusalCopy(input))
+            }
+            if (gesturePlan.kind === 'refuse') {
+              reportSplitRefusal(showV2PlannerRefusalInput('split', gesturePlan.reason))
               return
             }
-            if (show && splitOwner) {
-              void onSplitCompositionClip(splitOwner, positionMs).then((placementId) => {
-                if (placementId) onSelect({ kind: 'clip', clipId: placementId })
-              }).catch(() => {})
-            }
+            if (gesturePlan.kind !== 'temporal') return
+            void onCommitV2ClipTemporal?.({ ...gesture, intent: gesturePlan.intent }).then((applied) => {
+              if (isShowV2Refusal(applied)) reportSplitRefusal(showV2CommitRefusalInput(applied))
+              else if (applied) onSelect({ kind: 'clip', clipId: rightClipId })
+            }).catch(() => {})
           }}
         >
           <Scissors size={12} aria-hidden />
@@ -5816,13 +5544,7 @@ function ShowTimelineCommands({
           }}
           onBlur={() => setGroupReasonOpen(false)}
           onClick={() => {
-            // Both backings submit through onCreateGroup.
-            if (commandsV2) {
-              if (groupPlan.enabled && selection.kind === 'multi') void onCreateGroup(selection.groupSelection)
-              else if (!groupPlan.enabled) setGroupReasonOpen(true)
-              return
-            }
-            if (groupPlan.enabled && show && 'placementIds' in groupPlan) void onCreateGroup(groupPlan)
+            if (groupPlan.enabled && selection.kind === 'multi') void onCreateGroup(selection.groupSelection)
             else if (!groupPlan.enabled) setGroupReasonOpen(true)
           }}
         >
@@ -5843,18 +5565,6 @@ function ShowTimelineCommands({
       </span>
     </div>
   )
-}
-
-function showCloneCapability(show: ShowRecord, selection: ShowSelection): { enabled: boolean; reason: string } {
-  if (selection.kind === 'clip') {
-    const cell = show.cells.find((candidate) => candidate.id === selection.clipId)
-    if (!cell) return { enabled: false, reason: 'The selected Clip no longer exists' }
-    if (Math.max(1, cell.sceneSpan) !== 1 || Math.max(1, cell.zoneSpan ?? 1) !== 1) {
-      return { enabled: false, reason: 'Held and multi-zone Clips cannot be cloned yet' }
-    }
-    return { enabled: true, reason: `Clone ${cell.patternName} immediately after itself` }
-  }
-  return { enabled: false, reason: 'Select one simple Clip to Clone' }
 }
 
 function requestShowSeek(showId: string, targetMs: number): void {
@@ -6057,8 +5767,6 @@ function ShowTimelineWorkspace({
   onMoveCompositionClip,
   onDuplicateCompositionClipAtTarget,
   onAddCompositionLayer,
-  onSplitCompositionClip,
-  onDuplicateCompositionClip,
   onDuplicateCompositionClipV2,
   onClipFeedback,
   onResizeCompositionClip,
@@ -7988,17 +7696,13 @@ function ShowTimelineWorkspace({
             </>
           )}
           <ShowTimelineCommands
-            backing={show
-              ? { recordVersion: 1, show, composition: timelineComposition }
-              : { recordVersion: 2, showId }}
+            backing={{ showId }}
             timelineView={timelineView}
             readOnly={readOnly}
             selection={selection}
             isolatedGroupOccurrenceId={isolatedGroupOccurrenceId}
             onSelect={onSelect}
             onCreateGroup={onCreateGroup}
-            onSplitCompositionClip={onSplitCompositionClip}
-            onDuplicateCompositionClip={onDuplicateCompositionClip}
             onDuplicateCompositionClipV2={onDuplicateCompositionClipV2}
             onClipFeedback={onClipFeedback}
             captureV2ClipEdit={captureV2ClipEdit}
