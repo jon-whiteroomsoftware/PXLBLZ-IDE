@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1127",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1127-leading-overlap",
+  "operation": "In the authenticated Playwright harness, converted a two-Clip Installation Show with Clip A at 0–30 s, a crossfade Transition at 30–32 s, and Clip B at 32–62 s. Dragged B's leading edge with Alt to about 29 s, asserted the timeline shows Space taken and the overlap status, and confirmed the stored v2 record stayed unchanged using e2e/tmp-1127-proof.auth.spec.ts.",
+  "captures": [".wrsp/ui-proof/1127-leading-space-taken.png"],
+  "capturedAtCommit": "c9ca2c6bd354630017dcdafa725465aa019fadcf"
+}
