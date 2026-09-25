@@ -3,9 +3,8 @@ import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { createShowClipV2 } from './showClipCreationV2'
 import type { ShowRecordV2 } from './showCompositionV2'
-import { addShowClipAtGlobalTimeExtendingShow } from './showTimelineClipAuthoring'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
-import type { ShowCompositionV1, ShowPatternInstance, ShowRecord } from './personalContentRecords'
+import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
 import {
   createShowV2AddClipIntent,
   planShowV2ClipAtTime,
@@ -369,18 +368,7 @@ describe('v1 Add Clip at Show End parity (#1091)', () => {
     expect(created.status, JSON.stringify(created)).toBe('changed')
     if (created.status !== 'changed') throw new Error('Expected a changed record.')
     const viaPlanner = created.record
-    const fresh = parityV1Input()
-    const instance: ShowPatternInstance = {
-      id: 'inst-9',
-      pattern: { kind: 'stock', id: 'TestPattern1D' },
-      patternName: 'TestPattern1D',
-      time: { timeScale: 1, timeOffsetMs: 0 },
-    }
-    const v1After = frozenV1Output('showV2ClipAddPlacement.test.ts::matches the converted v1 extension on Show End, layout and the new Clip::1', () => addShowClipAtGlobalTimeExtendingShow(
-      { ...fresh.show, composition: fresh.composition },
-      fresh.composition,
-      { zoneId: 'z1', globalTimeMs: 20_000, target: { kind: 'main' }, instance, placementId: 'clip-1' },
-    ))
+    const v1After = frozenV1Output<ShowRecord>('showV2ClipAddPlacement.test.ts::matches the converted v1 extension on Show End, layout and the new Clip::1')
     const scrubbed = structuredClone(v1After)
     if (scrubbed.composition && 'executionModel' in scrubbed.composition
       && (scrubbed.composition as { executionModel?: string }).executionModel === undefined) {

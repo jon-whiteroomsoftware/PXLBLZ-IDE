@@ -9,11 +9,6 @@ import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import { createDefaultShow } from '@/engine/showModel'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { validateShowRecordV2, type ShowRecordV2 } from '@/engine/showCompositionV2'
-import {
-  moveShowClipAtGlobalTime,
-  resizeShowClipAtGlobalTime,
-  splitShowClipAtGlobalTime,
-} from '@/engine/showTimelineClipAuthoring'
 import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
 import { expectAcceptedShowAuthoringEdit } from '@/test/showAuthoringContract'
 import {
@@ -810,19 +805,10 @@ describe('showStore (#318)', () => {
         }],
       })),
     }
-    const owner = {
-      kind: 'main' as const,
-      sceneId: show.scenes[0].id,
-      zoneId,
-      placementId: 'logical-root',
-    }
     const moved = expectAcceptedShowAuthoringEdit({
       show,
       composition: authored,
-      edit: (input) => frozenV1Output('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::1', () => moveShowClipAtGlobalTime(show, input, {
-        owner,
-        target: { kind: 'main', zoneId, globalStartMs: 27_000 },
-      })),
+      edit: () => frozenV1Output<ShowCompositionV1>('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::1'),
       assertProjection: (projection) => {
         const layers = projection.zones[0].layers
         expect(layers[layers.length - 1]?.clips[0]).toMatchObject({
@@ -837,11 +823,7 @@ describe('showStore (#318)', () => {
     const resized = expectAcceptedShowAuthoringEdit({
       show,
       composition: moved,
-      edit: (input) => frozenV1Output('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::2', () => resizeShowClipAtGlobalTime(show, input, {
-        owner,
-        globalStartMs: 27_000,
-        durationMs: 8_000,
-      })),
+      edit: () => frozenV1Output<ShowCompositionV1>('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::2'),
       assertProjection: (projection) => {
         const layers = projection.zones[0].layers
         expect(layers[layers.length - 1]?.clips[0]).toMatchObject({
@@ -857,11 +839,7 @@ describe('showStore (#318)', () => {
     const edited = expectAcceptedShowAuthoringEdit({
       show,
       composition: resized,
-      edit: (input) => frozenV1Output('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::3', () => splitShowClipAtGlobalTime(show, input, {
-        owner,
-        globalTimeMs: 33_000,
-        newPlacementId: 'logical-right',
-      })),
+      edit: () => frozenV1Output<ShowCompositionV1>('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::3'),
       assertProjection: (projection) => {
         expect(projection.zones[0].layers
           .flatMap((layer) => layer.clips)

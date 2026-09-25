@@ -3,7 +3,7 @@
   "source": "v1 authoring owners (showTimelineClipAuthoring, showLayerTransitionAuthoring, showTimelineAuthoring, showExactTimelineMarker, showGroupClipInspectorModel, showStageDiagnostics.createShowStageDiagnostics)",
   "commit": "17bd3c6e",
   "issue": "#1042",
-  "note": "Return values frozen before the owners were deleted. Do not edit by hand; regenerate only while the owners exist, with PXLBLZ_V1_ORACLE_WRITE=1."
+  "note": "Return values frozen at 17bd3c6e before the owners were deleted in #1042 4-4b2. Do not edit."
  },
  "entries": {
   "showCompositionLoweringV2.test.ts::refuses an exact-window incoming ramp on the participant Transition of a mixed record (#1080 class 2a repair)::1": {

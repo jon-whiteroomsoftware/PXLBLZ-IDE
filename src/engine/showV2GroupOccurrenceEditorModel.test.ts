@@ -9,7 +9,6 @@ import { buildShowV2GroupOccurrenceEditorModel, planShowV2GroupOccurrenceEdit, s
 import { projectShowEditorInspectorPresentationV2 } from './showEditorInspectorPresentation'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { completeShowGroupSelection, createShowGroupFromSelection, duplicateShowGroupOccurrence, validateShowGroupSelection } from './showGroupModel'
-import { updateShowGroupClipInspector } from './showGroupClipInspectorModel'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
@@ -232,7 +231,7 @@ function speedTestDependencies() {
 
 it('matches the v1-then-convert oracle for Group Clip brightness (#1075 G2b)', () => {
   const before = g2bGroupedBefore()
-  const edited = frozenV1Output('showV2GroupOccurrenceEditorModel.test.ts::matches the v1-then-convert oracle for Group Clip brightness (#1075 G2b)::1', () => updateShowGroupClipInspector(before, { occurrenceId: 'occ-1', placementId: 'clip-main' }, { view: { brightness: 0.5 } }))
+  const edited = frozenV1Output<ShowRecord>('showV2GroupOccurrenceEditorModel.test.ts::matches the v1-then-convert oracle for Group Clip brightness (#1075 G2b)::1')
   expect(edited).not.toBe(before)
   const convertedEdited = convertShowRecordV1ToV2(edited)
   expect(convertedEdited.status).toBe('converted')
@@ -258,7 +257,7 @@ it('matches the v1-then-convert oracle for Group Clip brightness (#1075 G2b)', (
 
 it('matches the v1-then-convert oracle for a Group Clip control value (#1075 G2b)', () => {
   const before = g2bGroupedBefore()
-  const edited = frozenV1Output('showV2GroupOccurrenceEditorModel.test.ts::matches the v1-then-convert oracle for a Group Clip control value (#1075 G2b)::1', () => updateShowGroupClipInspector(before, { occurrenceId: 'occ-1', placementId: 'clip-main' }, { simulation: { controlTargets: { speedTest: 0.5 } } }))
+  const edited = frozenV1Output<ShowRecord>('showV2GroupOccurrenceEditorModel.test.ts::matches the v1-then-convert oracle for a Group Clip control value (#1075 G2b)::1')
   expect(edited).not.toBe(before)
   const convertedEdited = convertShowRecordV1ToV2(edited)
   expect(convertedEdited.status).toBe('converted')
@@ -284,7 +283,7 @@ it('matches the v1-then-convert oracle for a Group Clip control value (#1075 G2b
 it('matches the v1-then-convert oracle for a Group Clip Effect add (#1075 G2b)', () => {
   const effect = normalizeShowClipEffects([{ id: 'ripple', kind: 'ripple' } as ShowClipEffect])[0] as ShowClipEffect
   const before = g2bGroupedBefore()
-  const edited = frozenV1Output('showV2GroupOccurrenceEditorModel.test.ts::matches the v1-then-convert oracle for a Group Clip Effect add (#1075 G2b)::1', () => updateShowGroupClipInspector(before, { occurrenceId: 'occ-1', placementId: 'clip-main' }, { effects: [effect] }))
+  const edited = frozenV1Output<ShowRecord>('showV2GroupOccurrenceEditorModel.test.ts::matches the v1-then-convert oracle for a Group Clip Effect add (#1075 G2b)::1')
   expect(edited).not.toBe(before)
   const convertedEdited = convertShowRecordV1ToV2(edited)
   expect(convertedEdited.status).toBe('converted')
@@ -307,7 +306,7 @@ it('matches the v1-then-convert oracle for a Group Clip Effect add (#1075 G2b)',
 
 it('matches the v1-then-convert oracle for a Group Clip Viewport enable (#1075 G2b)', () => {
   const before = g2bGroupedBefore()
-  const edited = frozenV1Output('showV2GroupOccurrenceEditorModel.test.ts::matches the v1-then-convert oracle for a Group Clip Viewport enable (#1075 G2b)::1', () => updateShowGroupClipInspector(before, { occurrenceId: 'occ-1', placementId: 'clip-main' }, { viewport: { enabled: true, x: 0.25 } }))
+  const edited = frozenV1Output<ShowRecord>('showV2GroupOccurrenceEditorModel.test.ts::matches the v1-then-convert oracle for a Group Clip Viewport enable (#1075 G2b)::1')
   expect(edited).not.toBe(before)
   const convertedEdited = convertShowRecordV1ToV2(edited)
   expect(convertedEdited.status).toBe('converted')
@@ -589,7 +588,7 @@ it('compares v1-then-convert with the v2 Group replacement owner for a same-cont
   const { resolveCapturedShowPatternReplacementV2 } = await import('./showV2ClipReplacementModel')
   const { replaceShowGroupDefinitionClipPatternV2 } = await import('./showGroupReplacementV2')
   const before = g2bGroupedBefore()
-  const edited = frozenV1Output('showV2GroupOccurrenceEditorModel.test.ts::compares v1-then-convert with the v2 Group replacement owner for a same-controls Pattern (#1075 G2c)::1', () => updateShowGroupClipInspector(before, { occurrenceId: 'occ-1', placementId: 'clip-main' }, { pattern: { ref: { kind: 'stock', id: 'TestPattern2D' }, name: 'TestPattern2D' } }))
+  const edited = frozenV1Output<ShowRecord>('showV2GroupOccurrenceEditorModel.test.ts::compares v1-then-convert with the v2 Group replacement owner for a same-controls Pattern (#1075 G2c)::1')
   expect(edited).not.toBe(before)
   const convertedBefore = convertShowRecordV1ToV2(before)
   expect(convertedBefore.status).toBe('converted')

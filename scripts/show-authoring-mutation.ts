@@ -82,79 +82,6 @@ export interface ResolvedMutationTarget extends MutationTarget {
 
 const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
   target(
-    'show-end',
-    'showTimelineAuthoring.ts',
-    'editShowEndMs',
-    'const durationMs = Math.max(contentEndMs, requestedMs)',
-  ),
-  target(
-    'show-end',
-    'showTimelineAuthoring.ts',
-    'editShowEndMs',
-    'const removedScenes = show.scenes.slice(retainedSceneIndex + 1)',
-  ),
-  target(
-    'show-end',
-    'showTimelineAuthoring.ts',
-    'showEndSuffixIssue',
-    'if (visual[0] && !isNeutralCut(visual[0])) {',
-  ),
-  target(
-    'move',
-    'showTimelineClipAuthoring.ts',
-    'moveShowClip',
-    'if (logicalSegments.length > 1 || targetSlices.length > 1) {',
-  ),
-  target(
-    'move',
-    'showTimelineClipAuthoring.ts',
-    'exactStaticPresentationBases',
-    'if (!extended) return null',
-  ),
-  target(
-    'resize',
-    'showTimelineClipAuthoring.ts',
-    'resizeShowClipAtGlobalTime',
-    [
-      'track.keyframes.forEach((keyframe) => {',
-      '        keyframe.timeMs += offsetMs',
-      '      })',
-    ].join('\n'),
-  ),
-  target(
-    'split',
-    'showTimelineClipAuthoring.ts',
-    'planShowClipSplitAtGlobalTime',
-    'return input.globalTimeMs > startMs && input.globalTimeMs < endMs',
-  ),
-  target(
-    'duplicate',
-    'showTimelineClipAuthoring.ts',
-    'planShowClipDuplicateAfter',
-    'const targetEndMs = targetStartMs + durationMs',
-  ),
-  target(
-    'duplicate',
-    'showTimelineClipAuthoring.ts',
-    'exactStaticPresentationBases',
-    [
-      'if (repartition.requireEverySourceAppearance',
-      '    && new Set(sourceSignatures).size !== selectedSignatures.size) return null',
-    ].join('\n'),
-  ),
-  target(
-    'transition',
-    'showLayerTransitionAuthoring.ts',
-    'insertShowLayerTransition',
-    'if (validateShowComposition(show, draft).length > 0 || hasConcurrentLayerTransitions(show, draft)) return composition',
-  ),
-  target(
-    'transition',
-    'showLayerTransitionAuthoring.ts',
-    'resizeShowLayerTransition',
-    'const deltaMs = durationMs - transition.durationMs',
-  ),
-  target(
     'transition',
     'showTransitionsV2.ts',
     'downstreamClosure',
@@ -243,14 +170,9 @@ export function buildStrykerConfig(repoRoot: string) {
     ignorePatterns: ['.claude', '.agents'],
     mutate: buildShowAuthoringMutationScope(repoRoot).map(({ mutationRange }) => mutationRange),
     testFiles: [
-      'src/engine/showAuthoringMatrix.test.ts',
-      'src/engine/showTimelineClipAuthoring.test.ts',
-      'src/engine/showTimelineClipAppearanceRepartition.test.ts',
       'src/engine/showCompositionModel.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
-      'src/engine/showLayerTransitionAuthoring.test.ts',
       'src/engine/showTransitionsV2.test.ts',
-      'src/engine/showTimelineAuthoring.test.ts',
       'src/engine/showPropertyAnimationV2.test.ts',
       'src/engine/showPropertyTrackTimeMappingV2.test.ts',
     ],

@@ -19,16 +19,12 @@ const FORBIDDEN_MODULES = [
   'src/engine/showClipDeletionBoundaryEligibility.ts',
   'src/engine/showCompositionSplit.ts',
   'src/engine/showClipInvariant.ts',
-  'src/engine/showLayerTransitionAuthoring.ts',
-  'src/engine/showTimelineAuthoring.ts',
-  'src/engine/showTimelineClipAuthoring.ts',
   'src/engine/showLayoutIntervals.ts',
   'src/engine/showCompositionProjection.ts',
   'src/engine/showOverlayLayerAuthoring.ts',
   'src/engine/showClipDeletion.ts',
   'src/engine/showExactClipMove.ts',
   'src/engine/showExactClipResize.ts',
-  'src/engine/showExactTimelineMarker.ts',
   'src/engine/showManualClipResize.ts',
 ]
 const FORBIDDEN_DIRECTORIES = ['src/engine/showCommands/']

@@ -1,6 +1,9 @@
 import { createDefaultShow } from '../engine/showModel'
 import type { ShowCompositionV1, ShowRecord } from '../engine/personalContentRecords'
-import type { ShowTimelineClipOwner } from '../engine/showTimelineClipAuthoring'
+
+type ShowTimelineClipOwner =
+  | { kind: 'main'; sceneId: string; zoneId: string; placementId: string }
+  | { kind: 'overlay'; sceneId: string; zoneId: string; layerId: string; placementId: string }
 
 export function boundaryDeletionPlacement(
   id: string,

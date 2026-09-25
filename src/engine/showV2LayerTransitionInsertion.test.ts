@@ -3,25 +3,20 @@ import { BASELINE_FIXTURES, resolveBaselineFixtureRecord, type BaselineFixture }
 import type { ShowPatternRef, ShowRecord } from './personalContentRecords'
 import type { ShowCompositionV1 } from './personalContentRecords'
 import { projectShowGroupRuntimePatternInstances } from './showGroupModel'
-import {
-  planShowGroupLayerTransitionInsertion,
-  planShowLayerTransitionInsertion,
-  planShowLayerTransitionInsertionForClip,
-  type ShowLayerTransitionClipInsertionPlan,
-} from './showLayerTransitionAuthoring'
 import { convertShowRecordV1ToV2, type ShowV1ToV2Report } from './showRecordV1ToV2'
 import { showV2TransitionJunctionKey } from './showV2TransitionEditorModel'
 import {
   planShowV2GroupLayerTransitionInsertion,
   planShowV2LayerTransitionInsertion,
   planShowV2LayerTransitionInsertionForClip,
+  type ShowLayerTransitionInsertionPlan,
   type ShowV2LayerTransitionClipInsertionPlan,
 } from './showV2LayerTransitionInsertion'
 import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
 import { validateShowRecordV2 } from './showCompositionV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
-import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
+import { projectShowUnifiedTimeline, type ShowUnifiedTimelineJunctionProjection } from './showUnifiedTimelineProjection'
 import { addShowZone, createDefaultShow, type ShowCompileRecipeSourceLookup } from './showModel'
 import { stockMapSpec } from './maps'
 import { projectFlatShowToCompositionV1 } from './showCompositionModel'
@@ -29,6 +24,19 @@ import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { V1_STOCK_SHOWS, v1StockShowById } from '../test/v1StockShowsFixture'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { censusLoweringInputs } from '../../scripts/show-v2-parity'
+
+// Shape of the deleted v1 Clip insertion plan, read from the frozen v1 outputs.
+type ShowLayerTransitionClipTarget = {
+  junction: ShowUnifiedTimelineJunctionProjection
+  fromName: string
+  toName: string
+  side: 'before' | 'after'
+  groupOccurrenceId?: string
+}
+
+type ShowLayerTransitionClipInsertionPlan =
+  | { enabled: true; maxDurationMs: number; target: ShowLayerTransitionClipTarget }
+  | { enabled: false; maxDurationMs: 0; reason: string; target: ShowLayerTransitionClipTarget | null }
 
 // Corpus mirror of scripts/show-v2-parity.ts censusInputs()/censusLoweringInputs()
 // (stock catalogue + agent-baseline fixtures, converted v1 state): the same
@@ -142,10 +150,7 @@ describe('v2 Layer Transition insertion plan (#1075 G4b-2a)', () => {
             const left = layer.clips.find(clip => clip.id === junction.leftClipId)!
             const right = layer.clips.find(clip => clip.id === junction.rightClipId)!
             if (left.groupOccurrenceId ?? right.groupOccurrenceId) continue
-            const v1plan = frozenV1Output(`showV2LayerTransitionInsertion.test.ts::offers room up to the next logical obstruction (#1075 ruling)::${input.corpus}:${input.corpusId}::${junction.fromPlacementId}→${junction.toPlacementId}@${junction.startMs}`, () => planShowLayerTransitionInsertion(show, composition, {
-              fromPlacementId: junction.fromPlacementId,
-              toPlacementId: junction.toPlacementId,
-            }))
+            const v1plan = frozenV1Output<ShowLayerTransitionInsertionPlan>(`showV2LayerTransitionInsertion.test.ts::offers room up to the next logical obstruction (#1075 ruling)::${input.corpus}:${input.corpusId}::${junction.fromPlacementId}→${junction.toPlacementId}@${junction.startMs}`)
             let fromClipId: string
             let toClipId: string
             try {
@@ -455,17 +460,12 @@ function convertedRecord(show: ShowRecord): { record: ShowRecordV2; report: Show
   return { record: conversion.record, report: conversion.report }
 }
 
-function reasonCase(
-  testName: string | null,
+function junctionCase(
   show: ShowRecord,
-  composition: ShowCompositionV1,
   fromPlacementId: string,
   toPlacementId: string,
   atMs: number,
-): { v1plan: ReturnType<typeof planShowLayerTransitionInsertion>; key: string; record: ShowRecordV2 } {
-  const v1plan = testName === null
-    ? planShowLayerTransitionInsertion(show, composition, { fromPlacementId, toPlacementId })
-    : frozenV1Output(`showV2LayerTransitionInsertion.test.ts::${testName}`, () => planShowLayerTransitionInsertion(show, composition, { fromPlacementId, toPlacementId }))
+): { key: string; record: ShowRecordV2 } {
   const { record, report } = convertedRecord(show)
   const key = showV2TransitionJunctionKey({
     atMs,
@@ -474,13 +474,24 @@ function reasonCase(
     fromClipId: clipIdOf(report, fromPlacementId),
     toClipId: clipIdOf(report, toPlacementId),
   })
-  return { v1plan, key, record }
+  return { key, record }
+}
+
+function reasonCase(
+  testName: string,
+  show: ShowRecord,
+  fromPlacementId: string,
+  toPlacementId: string,
+  atMs: number,
+): { v1plan: ShowLayerTransitionInsertionPlan; key: string; record: ShowRecordV2 } {
+  const v1plan = frozenV1Output<ShowLayerTransitionInsertionPlan>(`showV2LayerTransitionInsertion.test.ts::${testName}`)
+  return { v1plan, ...junctionCase(show, fromPlacementId, toPlacementId, atMs) }
 }
 
 describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
   it('refuses across Zone Layouts like v1', () => {
-    const { show, composition } = boundaryFixture()
-    const { v1plan, key, record } = reasonCase('refuses across Zone Layouts like v1::1', show, composition, 'clip-left', 'clip-right', 30_000)
+    const { show } = boundaryFixture()
+    const { v1plan, key, record } = reasonCase('refuses across Zone Layouts like v1::1', show, 'clip-left', 'clip-right', 30_000)
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -490,8 +501,8 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
   })
 
   it('refuses a non-adjacent pair like v1', () => {
-    const { show, composition } = layerFixture()
-    const { v1plan, key, record } = reasonCase('refuses a non-adjacent pair like v1::1', show, composition, 'clip-a', 'clip-c', 2_000)
+    const { show } = layerFixture()
+    const { v1plan, key, record } = reasonCase('refuses a non-adjacent pair like v1::1', show, 'clip-a', 'clip-c', 2_000)
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -501,8 +512,8 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
   })
 
   it('refuses a junction that already has a Transition like v1', () => {
-    const { show, composition } = layerFixture()
-    const { v1plan, key, record } = reasonCase('refuses a junction that already has a Transition like v1::1', show, composition, 'clip-b', 'clip-c', 4_000)
+    const { show } = layerFixture()
+    const { v1plan, key, record } = reasonCase('refuses a junction that already has a Transition like v1::1', show, 'clip-b', 'clip-c', 4_000)
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -525,7 +536,7 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
         view: { mirror: false, phase: 0, brightness: 1 },
       }],
     }]
-    const { v1plan, key, record } = reasonCase('refuses when another Layer starts here like v1::1', show, composition, 'clip-a', 'clip-b', 2_000)
+    const { v1plan, key, record } = reasonCase('refuses when another Layer starts here like v1::1', show, 'clip-a', 'clip-b', 2_000)
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -580,7 +591,7 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
       }],
     }
     show.composition = composition
-    const { v1plan, key, record } = reasonCase('refuses a simultaneous Transition on another Layer like v1::1', show, composition, 'clip-left-a', 'clip-left-b', 4_000)
+    const { v1plan, key, record } = reasonCase('refuses a simultaneous Transition on another Layer like v1::1', show, 'clip-left-a', 'clip-left-b', 4_000)
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -603,11 +614,11 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
         view: { mirror: false, phase: 0, brightness: 1 },
       }],
     }]
-    const first = reasonCase('clamps over a stable unrelated Clip and exhausts like v1::1', show, composition, 'clip-a', 'clip-b', 2_000)
+    const first = reasonCase('clamps over a stable unrelated Clip and exhausts like v1::1', show, 'clip-a', 'clip-b', 2_000)
     expect(first.v1plan).toEqual({ enabled: true, maxDurationMs: 499 })
     expect(planShowV2LayerTransitionInsertion(first.record, first.key)).toEqual(first.v1plan)
     composition.scenes[0].zones[0].overlays[0].placements[0].durationMs = 1_000
-    const second = reasonCase('clamps over a stable unrelated Clip and exhausts like v1::2', show, composition, 'clip-a', 'clip-b', 2_000)
+    const second = reasonCase('clamps over a stable unrelated Clip and exhausts like v1::2', show, 'clip-a', 'clip-b', 2_000)
     expect(second.v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -619,7 +630,7 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
   it('treats a gapped consecutive pair like v1 (already-Transition reason)', () => {
     const { show, composition } = layerFixture()
     composition.transitions = []
-    const { v1plan, key, record } = reasonCase('treats a gapped consecutive pair like v1 (already-Transition reason)::1', show, composition, 'clip-b', 'clip-c', 4_000)
+    const { v1plan, key, record } = reasonCase('treats a gapped consecutive pair like v1 (already-Transition reason)::1', show, 'clip-b', 'clip-c', 4_000)
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -653,8 +664,7 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
         overlays: [],
       }],
     })
-    const { v1plan, key, record } = reasonCase(null, show, composition, 'clip-a', 'clip-b', 2_000)
-    expect(v1plan).toEqual({ enabled: true, maxDurationMs: 1_000 })
+    const { key, record } = junctionCase(show, 'clip-a', 'clip-b', 2_000)
     // Chapter Markers are labels only, so the retired Scene end does not bound
     // v2 (#1075, Jon 2026-09-22). The maximum is what the Transition owner
     // accepts: pushing clip-b exactly onto the converted whole-output
@@ -672,12 +682,8 @@ describe('v2 Layer Transition insertion reasons (#1075 G4b-2a)', () => {
 
 describe('v2 Group Layer Transition insertion plan (#1075 G4b-2a)', () => {
   it('refuses a Group Cut like v1 when another Layer starts here', () => {
-    const { show, composition } = groupFixture({ id: 'unrelated-overlay', startMs: 1_000, durationMs: 1_000 })
-    const v1plan = frozenV1Output('showV2LayerTransitionInsertion.test.ts::refuses a Group Cut like v1 when another Layer starts here::1', () => planShowGroupLayerTransitionInsertion(show, composition, {
-      occurrenceId: 'group-use-clear',
-      fromPlacementId: 'group-use-clear:left',
-      toPlacementId: 'group-use-clear:right',
-    }))
+    const { show } = groupFixture({ id: 'unrelated-overlay', startMs: 1_000, durationMs: 1_000 })
+    const v1plan = frozenV1Output<ShowLayerTransitionInsertionPlan>('showV2LayerTransitionInsertion.test.ts::refuses a Group Cut like v1 when another Layer starts here::1')
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -688,12 +694,8 @@ describe('v2 Group Layer Transition insertion plan (#1075 G4b-2a)', () => {
   })
 
   it('takes the minimum across two linked occurrences like v1', () => {
-    const { show, composition } = groupFixture({ id: 'unrelated-overlay', startMs: 2_500, durationMs: 1_000 })
-    const v1plan = frozenV1Output('showV2LayerTransitionInsertion.test.ts::takes the minimum across two linked occurrences like v1::1', () => planShowGroupLayerTransitionInsertion(show, composition, {
-      occurrenceId: 'group-use-clear',
-      fromPlacementId: 'group-use-clear:left',
-      toPlacementId: 'group-use-clear:right',
-    }))
+    const { show } = groupFixture({ id: 'unrelated-overlay', startMs: 2_500, durationMs: 1_000 })
+    const v1plan = frozenV1Output<ShowLayerTransitionInsertionPlan>('showV2LayerTransitionInsertion.test.ts::takes the minimum across two linked occurrences like v1::1')
     expect(v1plan).toEqual({ enabled: true, maxDurationMs: 1_000 })
     const { record } = convertedRecord(show)
     const v2plan = planShowV2GroupLayerTransitionInsertion(record, 'group-use-clear', 'left', 'right')
@@ -729,12 +731,8 @@ describe('v2 Group Layer Transition insertion plan (#1075 G4b-2a)', () => {
   })
 
   it('reports a missing Group like v1', () => {
-    const { show, composition } = groupFixture({ id: 'unrelated-overlay', startMs: 1_000, durationMs: 1_000 })
-    const v1plan = frozenV1Output('showV2LayerTransitionInsertion.test.ts::reports a missing Group like v1::1', () => planShowGroupLayerTransitionInsertion(show, composition, {
-      occurrenceId: 'group-missing',
-      fromPlacementId: 'group-missing:left',
-      toPlacementId: 'group-missing:right',
-    }))
+    const { show } = groupFixture({ id: 'unrelated-overlay', startMs: 1_000, durationMs: 1_000 })
+    const v1plan = frozenV1Output<ShowLayerTransitionInsertionPlan>('showV2LayerTransitionInsertion.test.ts::reports a missing Group like v1::1')
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -1049,8 +1047,8 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
   }
 
   it('asks for a Clip when nothing is selected, like v1', () => {
-    const { show, composition } = menuFixture([{ id: 'clip-solo', name: 'Solo', startMs: 0, durationMs: 400 }])
-    const v1plan = frozenV1Output('showV2LayerTransitionInsertion.test.ts::asks for a Clip when nothing is selected, like v1::1', () => planShowLayerTransitionInsertionForClip(show, composition, null))
+    const { show } = menuFixture([{ id: 'clip-solo', name: 'Solo', startMs: 0, durationMs: 400 }])
+    const v1plan = frozenV1Output<ShowLayerTransitionClipInsertionPlan>('showV2LayerTransitionInsertion.test.ts::asks for a Clip when nothing is selected, like v1::1')
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -1062,8 +1060,8 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
   })
 
   it('reports a Clip touching nothing, like v1', () => {
-    const { show, composition } = menuFixture([{ id: 'clip-solo', name: 'Solo', startMs: 0, durationMs: 400 }])
-    const v1plan = frozenV1Output('showV2LayerTransitionInsertion.test.ts::reports a Clip touching nothing, like v1::1', () => planShowLayerTransitionInsertionForClip(show, composition, 'clip-solo'))
+    const { show } = menuFixture([{ id: 'clip-solo', name: 'Solo', startMs: 0, durationMs: 400 }])
+    const v1plan = frozenV1Output<ShowLayerTransitionClipInsertionPlan>('showV2LayerTransitionInsertion.test.ts::reports a Clip touching nothing, like v1::1')
     expect(v1plan).toEqual({
       enabled: false,
       maxDurationMs: 0,
@@ -1075,13 +1073,13 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
   })
 
   it('prefers the trailing Cut, like v1', () => {
-    const { show, composition } = menuFixture([
+    const { show } = menuFixture([
       { id: 'clip-left', name: 'Left', startMs: 0, durationMs: 1_000 },
       { id: 'clip-middle', name: 'Middle', startMs: 1_000, durationMs: 1_000 },
       { id: 'clip-right', name: 'Right', startMs: 2_000, durationMs: 1_000 },
       { id: 'clip-far', name: 'Far', startMs: 4_000, durationMs: 1_000 },
     ])
-    const v1plan = frozenV1Output('showV2LayerTransitionInsertion.test.ts::prefers the trailing Cut, like v1::1', () => planShowLayerTransitionInsertionForClip(show, composition, 'clip-middle'))
+    const v1plan = frozenV1Output<ShowLayerTransitionClipInsertionPlan>('showV2LayerTransitionInsertion.test.ts::prefers the trailing Cut, like v1::1')
     if (!v1plan.enabled) throw new Error('expected an enabled v1 trailing plan')
     expect({ side: v1plan.target.side, toName: v1plan.target.toName }).toEqual({ side: 'after', toName: 'Right' })
     const { record, report } = convertedRecord(show)
@@ -1099,12 +1097,12 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
   })
 
   it('falls back to a leading-only Cut, like v1', () => {
-    const { show, composition } = menuFixture([
+    const { show } = menuFixture([
       { id: 'clip-left', name: 'Left', startMs: 0, durationMs: 1_000 },
       { id: 'clip-middle', name: 'Middle', startMs: 1_000, durationMs: 1_000 },
       { id: 'clip-far', name: 'Far', startMs: 4_000, durationMs: 1_000 },
     ])
-    const v1plan = frozenV1Output('showV2LayerTransitionInsertion.test.ts::falls back to a leading-only Cut, like v1::1', () => planShowLayerTransitionInsertionForClip(show, composition, 'clip-middle'))
+    const v1plan = frozenV1Output<ShowLayerTransitionClipInsertionPlan>('showV2LayerTransitionInsertion.test.ts::falls back to a leading-only Cut, like v1::1')
     if (!v1plan.enabled) throw new Error('expected an enabled v1 leading plan')
     expect({ side: v1plan.target.side, fromName: v1plan.target.fromName }).toEqual({ side: 'before', fromName: 'Left' })
     const { record, report } = convertedRecord(show)
@@ -1121,7 +1119,7 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
   })
 
   it('takes an enabled leading Cut over a transitioned trailing junction, like v1', () => {
-    const { show, composition } = menuFixture(
+    const { show } = menuFixture(
       [
         { id: 'clip-left', name: 'Left', startMs: 0, durationMs: 1_000 },
         { id: 'clip-middle', name: 'Middle', startMs: 1_000, durationMs: 1_000 },
@@ -1130,7 +1128,7 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
       ],
       [{ id: 'transition-middle-right', fromClipId: 'clip-middle', toClipId: 'clip-right', durationMs: 500 }],
     )
-    const v1plan = frozenV1Output('showV2LayerTransitionInsertion.test.ts::takes an enabled leading Cut over a transitioned trailing junction, like v1::1', () => planShowLayerTransitionInsertionForClip(show, composition, 'clip-middle'))
+    const v1plan = frozenV1Output<ShowLayerTransitionClipInsertionPlan>('showV2LayerTransitionInsertion.test.ts::takes an enabled leading Cut over a transitioned trailing junction, like v1::1')
     if (!v1plan.enabled) throw new Error('expected an enabled v1 leading plan')
     expect({ side: v1plan.target.side, fromName: v1plan.target.fromName }).toEqual({ side: 'before', fromName: 'Left' })
     const { record, report } = convertedRecord(show)
@@ -1147,8 +1145,8 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
   })
 
   it('plans a Group Clip in isolation, like v1', () => {
-    const { show, composition } = groupFixture({ id: 'unrelated-overlay', startMs: 2_500, durationMs: 1_000 })
-    const v1plan = frozenV1Output('showV2LayerTransitionInsertion.test.ts::plans a Group Clip in isolation, like v1::1', () => planShowLayerTransitionInsertionForClip(show, composition, 'group-use-clear:left'))
+    const { show } = groupFixture({ id: 'unrelated-overlay', startMs: 2_500, durationMs: 1_000 })
+    const v1plan = frozenV1Output<ShowLayerTransitionClipInsertionPlan>('showV2LayerTransitionInsertion.test.ts::plans a Group Clip in isolation, like v1::1')
     if (!v1plan.enabled) throw new Error('expected an enabled v1 Group plan')
     expect(v1plan.target.groupOccurrenceId).toBe('group-use-clear')
     const { record } = convertedRecord(show)

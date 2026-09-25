@@ -12,7 +12,6 @@ import type {
 import type { AutomatablePatternControl } from './showPatternControls'
 import type { ControlSecondsPresentation } from '@/pixelblaze/controlDescriptions'
 import type { ShowClipInspectorValue } from './showClipInspectorModel'
-import type { ShowGroupClipOwner } from './showGroupClipInspectorModel'
 import { projectShowTimeline } from './showModel'
 import {
   evaluateShowPropertyTrack,
@@ -23,6 +22,11 @@ import {
   type ShowPropertyAnimationValidationIssue,
 } from './showPropertyAnimation'
 import { materializeShowGroupOccurrences, validateShowGroups } from './showGroupModel'
+
+export interface ShowGroupClipOwner {
+  occurrenceId: string
+  placementId: string
+}
 
 export type ShowPropertyAnimationValuePresentation = 'number' | 'percentage' | 'multiplier' | 'degrees' | 'turns' | 'phase'
 

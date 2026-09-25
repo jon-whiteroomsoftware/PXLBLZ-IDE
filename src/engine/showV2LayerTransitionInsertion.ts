@@ -8,10 +8,13 @@ import {
   occurrenceBoundaryAfter,
 } from './showGroupsV2'
 import { insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
-import type { ShowLayerTransitionInsertionPlan } from './showLayerTransitionAuthoring'
 import { downstreamClosure, editShowTransitionV2, transitionEndpoints } from './showTransitionsV2'
 import { clipContributionInterval } from './showLayoutIntervalsV2'
 import { showV2TransitionJunctionKey } from './showV2TransitionEditorModel'
+
+export type ShowLayerTransitionInsertionPlan =
+  | { enabled: true; maxDurationMs: number }
+  | { enabled: false; maxDurationMs: 0; reason: string }
 
 const DIFFERENT_LAYOUTS_REASON =
   'These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.'

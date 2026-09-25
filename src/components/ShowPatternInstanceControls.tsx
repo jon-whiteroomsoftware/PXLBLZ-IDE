@@ -11,10 +11,19 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { BoundedNumberField } from '@/components/ui/bounded-number-field'
-import type { ShowClipPatternInstanceOwnership } from '@/engine/showTimelineClipAuthoring'
 import type { ShowSteppedClock } from '@/engine/personalContentRecords'
 import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
 import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
+
+interface ShowClipPatternInstanceOwnership {
+  instanceId: string
+  useCount: number
+  compatibleTargets: Array<{
+    instanceId: string
+    patternName: string
+    useCount: number
+  }>
+}
 
 const JUMPS_PER_SECOND_PRESENTATION = resolveLinearNumberPresentation({
   kindLabel: 'rate',

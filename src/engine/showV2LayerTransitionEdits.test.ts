@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultShow } from './showModel'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
-import {
-  resizeShowLayerTransition,
-  resetShowLayerTransitionToCut,
-} from './showLayerTransitionAuthoring'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { planShowV2TransitionReset } from './showV2TransitionEditorModel'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { newPersonalContentId } from './personalContentMetadata'
+import type { ShowCompositionV1 } from './personalContentRecords'
 
 function layerFixture() {
   const show = createDefaultShow('v2-layer-transition-edits', 'Layer transition edits', 1000)
@@ -68,7 +65,7 @@ const lookup = {
 describe('v2 Layer Transition edits match v1 (#1066)', () => {
   it('resizes a Layer Transition exactly as v1 does', () => {
     const { show, composition } = layerFixture()
-    const resized = frozenV1Output('showV2LayerTransitionEdits.test.ts::resizes a Layer Transition exactly as v1 does::1', () => resizeShowLayerTransition(show, composition as never, 'transition-b-c', 500))
+    const resized = frozenV1Output<ShowCompositionV1>('showV2LayerTransitionEdits.test.ts::resizes a Layer Transition exactly as v1 does::1')
     expect(resized).not.toBe(composition)
     const resizedShow = { ...structuredClone(show), composition: structuredClone(resized) }
     const convertedResized = convertShowRecordV1ToV2(resizedShow)
@@ -97,7 +94,7 @@ describe('v2 Layer Transition edits match v1 (#1066)', () => {
 
   it('resets a Layer Transition to Cut exactly as v1 does', () => {
     const { show, composition } = layerFixture()
-    const reset = frozenV1Output('showV2LayerTransitionEdits.test.ts::resets a Layer Transition to Cut exactly as v1 does::1', () => resetShowLayerTransitionToCut(show, composition as never, 'transition-b-c'))
+    const reset = frozenV1Output<ShowCompositionV1>('showV2LayerTransitionEdits.test.ts::resets a Layer Transition to Cut exactly as v1 does::1')
     expect(reset).not.toBe(composition)
     const resetShow = { ...structuredClone(show), composition: structuredClone(reset) }
     const convertedReset = convertShowRecordV1ToV2(resetShow)

@@ -137,27 +137,20 @@ describe('Show authoring mutation qualification (#597)', () => {
     ])).toThrow(/stale mutation classification/)
   })
 
-  it('resolves a narrow named-function scope for every critical authoring operation', () => {
+  it('resolves a narrow named-function scope for the remaining authoring operations (#1133)', () => {
     const scope = buildShowAuthoringMutationScope(process.cwd())
 
     expect(new Set(scope.map(({ operation }) => operation))).toEqual(new Set([
-      'move',
-      'resize',
-      'split',
-      'duplicate',
       'transition',
       'animation-edit',
-      'show-end',
     ]))
     expect(scope.map(({ functionName }) => functionName)).toEqual(expect.arrayContaining([
-      'moveShowClip',
-      'resizeShowClipAtGlobalTime',
-      'planShowClipSplitAtGlobalTime',
-      'planShowClipDuplicateAfter',
-      'insertShowLayerTransition',
-      'resizeShowLayerTransition',
-      'editShowEndMs',
-      'showEndSuffixIssue',
+      'downstreamClosure',
+      'evaluateShowPropertyKeysV2',
+      'retainedSegment',
+      'insertTrackHold',
+      'deriveShowRestartEventsV2',
+      'propertyTrackIntervalsOverlap',
     ]))
     expect(scope.every(({ mutationRange }) => (
       /^src\/engine\/[^:*]+\.ts:\d+:\d+-\d+:\d+$/.test(mutationRange)
@@ -192,12 +185,8 @@ describe('Show authoring mutation qualification (#597)', () => {
     )
     expect(config).not.toHaveProperty('mutator.excludedMutations')
     expect(config.testFiles).toEqual(expect.arrayContaining([
-      'src/engine/showAuthoringMatrix.test.ts',
-      'src/engine/showTimelineClipAuthoring.test.ts',
       'src/engine/showCompositionModel.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
-      'src/engine/showLayerTransitionAuthoring.test.ts',
-      'src/engine/showTimelineAuthoring.test.ts',
     ]))
   })
 

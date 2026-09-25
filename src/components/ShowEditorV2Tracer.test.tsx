@@ -11,7 +11,6 @@ import { visualWindows } from '@/engine/showTimelineV2'
 import { showBoundaryClipIdentity } from '@/engine/showClipIdentity'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
-import { duplicateShowClipAfter } from '@/engine/showTimelineClipAuthoring'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { convertibleV1Show, transitionV1Show } from '@/test/showV2TracerFixture'
 import { planShowV2LayerTransitionInsertion } from '@/engine/showV2LayerTransitionInsertion'
@@ -212,14 +211,6 @@ const legacy = vi.hoisted(() => {
   }
   return { calls, observe }
 })
-vi.mock('@/engine/showTimelineClipAuthoring', async (importOriginal) => legacy.observe(
-  await importOriginal<typeof import('@/engine/showTimelineClipAuthoring')>(),
-  ['splitShowClipAtGlobalTime', 'duplicateShowClipAfter', 'duplicateShowClipAtGlobalTime'],
-))
-vi.mock('@/engine/showLayerTransitionAuthoring', async (importOriginal) => legacy.observe(
-  await importOriginal<typeof import('@/engine/showLayerTransitionAuthoring')>(),
-  ['moveShowConnectedClipAtGlobalTime', 'moveShowConnectedClipInShowAtGlobalTime'],
-))
 vi.mock('@/engine/showGroupModel', async (importOriginal) => legacy.observe(
   await importOriginal<typeof import('@/engine/showGroupModel')>(),
   ['deleteShowGroupOccurrence'],
@@ -393,26 +384,6 @@ beforeEach(() => {
 afterEach(() => {
   resetControllerProvider()
   resetPersonalContentProvider()
-})
-
-describe('legacy owner observation (#1065)', () => {
-  it('records a legacy owner that silently no-ops with no legacy row open', async () => {
-    // The instrument's own oracle. The owner below runs its real
-    // implementation, changes nothing and persists nothing - which is exactly
-    // why a save count or a provider spy cannot see it, and why the unconnected
-    // command tests assert on this seam instead. The store's own legacy owners
-    // were deleted in #1042 S2a, so only module owners remain observable.
-    const source = resizeBoundaryShow('tracer-owner-seam')
-    const composition = source.composition!
-    const unchanged = duplicateShowClipAfter(source, composition, {
-      owner: { kind: 'main', sceneId: 's1', zoneId: 'z1', placementId: 'not-a-placement' },
-      newPlacementId: 'copy',
-      newInstanceId: 'copy-instance',
-    })
-    expect(unchanged).toBe(composition)
-
-    expect(legacy.calls).toEqual(['duplicateShowClipAfter'])
-  })
 })
 
 describe('v2 tracer settlement routing (#1065)', () => {

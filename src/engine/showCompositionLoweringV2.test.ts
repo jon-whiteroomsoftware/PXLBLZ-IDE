@@ -14,7 +14,6 @@ import { editShowClipTemporalV2 } from './showClipTemporalV2'
 import { evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { emitShowPropertyTrackExpression, evaluateShowPropertyTrack } from './showPropertyAnimation'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { continuingV1Show, convertibleV1Show, flatV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
@@ -25,7 +24,7 @@ import { materializeShowGroupsV2 } from './showGroupsV2'
 import { showAnimationCommandFixture } from '../test/showAnimationCommandFixture'
 import { showSplitClipFixture } from '../test/showSplitClipFixture'
 import type { MapPoint } from './maps/types'
-import type { ShowRecord } from './personalContentRecords'
+import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
 
 const SOURCE = 'export var calls = 0; export function beforeRender(delta) { calls = calls + 1 } export function render(index) { rgb(index / pixelCount, 0.25, 0.75) }'
 const STATEFUL_SOURCE = 'export var saved = calls || 0; export var calls = 0; export var elapsed = 0; export function beforeRender(delta) { calls = calls + 1; elapsed = elapsed + delta / 1000 } export function render(index) { rgb(elapsed, calls / 100, saved) }'
@@ -1839,10 +1838,7 @@ it('refuses an exact-window incoming ramp on the participant Transition of a mix
     id: 'boundary', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 2000,
     easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
   }]
-  const withLayer = frozenV1Output('showCompositionLoweringV2.test.ts::refuses an exact-window incoming ramp on the participant Transition of a mixed record (#1080 class 2a repair)::1', () => insertShowLayerTransition(source, source.composition!, {
-    id: 'layer-t', fromPlacementId: 'clip-a', toPlacementId: 'clip-b',
-    kind: 'crossfade', durationMs: 1000, easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
-  }))
+  const withLayer = frozenV1Output<ShowCompositionV1>('showCompositionLoweringV2.test.ts::refuses an exact-window incoming ramp on the participant Transition of a mixed record (#1080 class 2a repair)::1')
   if (withLayer === source.composition) throw new Error('Synthetic layer transition refused')
   source.composition = withLayer
   const converted = convertShowRecordV1ToV2(source)

@@ -7,10 +7,9 @@ import { createDefaultShow, showRecordToCompileRecipe } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { validateShowRecordV2 } from './showCompositionV2'
 import { compileShow } from './showCompiler'
-import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { LIBRARIES } from '../pixelblaze/libs'
-import type { ShowRecord } from './personalContentRecords'
+import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
 
 function layoutSource() {
   const source = continuingV1Show()
@@ -242,10 +241,7 @@ function mixedBoundaryLayerShow(testName: string): ShowRecord {
     id: 'boundary', afterSceneId: 'scene-a', kind: 'crossfade', durationMs: 2000,
     easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
   }]
-  const withLayer = frozenV1Output(`showV2LayoutConversion.test.ts::${testName}::1`, () => insertShowLayerTransition(source, source.composition!, {
-    id: 'layer-t', fromPlacementId: 'clip-a', toPlacementId: 'clip-b',
-    kind: 'crossfade', durationMs: 1000, easing: { curve: 'linear' }, crossfadePolicy: 'snapshot-live',
-  }))
+  const withLayer = frozenV1Output<ShowCompositionV1>(`showV2LayoutConversion.test.ts::${testName}::1`)
   if (withLayer === source.composition) throw new Error('Synthetic layer transition refused')
   source.composition = withLayer
   return source
