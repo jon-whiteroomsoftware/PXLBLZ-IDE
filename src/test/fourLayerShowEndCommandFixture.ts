@@ -1,6 +1,5 @@
-import { applyShowCommand } from '../engine/showCommands/registry'
 import type { ShowRecord } from '../engine/personalContentRecords'
-import { DEMOS } from '../pixelblaze/stock/patterns'
+import type { ShowRecordV2 } from '../engine/showCompositionV2'
 import { showCommandFixture } from './showCommandFixture'
 
 /**
@@ -29,66 +28,83 @@ export function fourLayerShowEndBaseFixture(): ShowRecord {
   return show
 }
 
-/** The exact public-command sequence used by #1029's admission and compiler proofs. */
-export function applyFourLayerShowEndCommandSequence(current: ShowRecord): ShowRecord {
-  let candidate = current
-  const apply = (command: string, input: Record<string, unknown>) => {
-    const outcome = applyShowCommand(candidate, command, input, {
-      source: ref => DEMOS[ref.id],
-      libraries: {},
-    })
-    if (!outcome.ok) throw new Error(JSON.stringify(outcome.issues))
-    candidate = outcome.record
-    return outcome
-  }
+/** The v2 candidate that the former four-Layer command sequence produced. */
+export function fourLayerShowEndV2Candidate(before: ShowRecordV2): ShowRecordV2 {
+  const candidate = structuredClone(before)
   const corners = [[-0.25, -0.25], [0.25, -0.25], [0.25, 0.25], [-0.25, 0.25]] as const
-  const created = apply('create_layers', {
-    schema_version: 1,
-    layers: corners.map(([x, y]) => ({
-      zone_id: 'zone-1',
-      clips: [{
-        start_ms: 0,
-        duration_ms: 30_000,
-        pattern: { kind: 'stock', id: 'CoronalMassEjection' },
-        properties: {
-          transform: { position_x: x, position_y: y, scale_x: 0.5, scale_y: 0.5 },
-          aperture: { enabled: true, x: x + 0.25, y: y + 0.25, width: 0.5, height: 0.5, edge: 'soft', feather: 0.05 },
+  const zoneId = 'zone-1'
+  const layers = Array.from({ length: 4 }, (_, index) => ({
+    id: `layer:${zoneId}:overlay:${index + 1}`,
+    zoneId,
+    name: `Layer ${index + 2}`,
+    rank: index + 1,
+  }))
+  candidate.composition.showEndMs = 30_000
+  candidate.composition.layers = [
+    { id: `layer:${zoneId}:main`, zoneId, name: 'Main', rank: 0 },
+    ...layers,
+  ]
+  candidate.composition.transitions = []
+  candidate.composition.layoutOccurrences = candidate.composition.layoutOccurrences.map(occurrence => ({
+    ...occurrence, durationMs: 30_000,
+  }))
+  candidate.composition.markers = candidate.composition.markers.filter(marker => marker.timeMs < 30_000)
+  candidate.composition.clips = corners.map(([x, y], index) => {
+    const id = `four-layer-clip-${index + 1}`
+    return {
+      id,
+      instanceId: `four-layer-instance-${index + 1}`,
+      zoneId,
+      layerId: layers[3 - index].id,
+      startMs: 0,
+      durationMs: 30_000,
+      entryPolicy: 'continue' as const,
+      zoneSampleMode: 'span' as const,
+      appearance: { keys: [{
+        id: `${id}:appearance:1`,
+        timeMs: 0,
+        value: {
+          opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+          transform: { positionX: x, positionY: y, rotation: 0, scaleX: 0.5, scaleY: 0.5 },
+          aperture: { enabled: true, x: x + 0.25, y: y + 0.25, width: 0.5, height: 0.5, edge: 'soft' as const, feather: 0.05 },
+          effects: [],
         },
-      }],
-    })),
-  })
-  const layerResults = created.changes[0].details?.layers as Array<{
-    clipResults: Array<{ clipId: string }>
-  }>
-  const clipIds = layerResults.map(layer => layer.clipResults[0].clipId)
-  const originalClipIds = [...new Set(current.composition!.scenes.flatMap(scene => (
-    scene.zones.flatMap(zone => [
-      ...zone.main,
-      ...zone.overlays.flatMap(layer => layer.placements),
-    ])
-  )).map(placement => placement.logicalClipId ?? placement.id))]
-  for (const clip_id of originalClipIds) apply('remove_clip', { clip_id })
-  apply('remove_overlay_layer', { zone_id: 'zone-1', layer_index: 4 })
-  apply('set_show_end', { end_ms: 30_000 })
-  for (let index = 0; index < clipIds.length; index += 1) {
-    const axis = index % 2
-    const next = corners[(index + 1) % corners.length][axis]
-    for (const owner of ['transform', 'viewport'] as const) {
-      const offset = owner === 'viewport' ? 0.25 : 0
-      const coordinate = axis === 0 ? 'x' : 'y'
-      const target = owner === 'viewport'
-        ? `viewport-${coordinate}`
-        : `transform-position-${coordinate}`
-      apply('add_property_track', {
-        clip_id: clipIds[index],
-        target,
-        keyframes: [
-          { time_ms: 0, value: corners[index][axis] + offset, easing: 'linear' },
-          { time_ms: 15_000, value: next + offset, easing: 'linear' },
-          { time_ms: 30_000, value: corners[index][axis] + offset, easing: 'linear' },
-        ],
-      })
+      }] },
     }
-  }
+  }).sort((a, b) => a.id.localeCompare(b.id))
+  candidate.composition.patternInstances = candidate.composition.clips.map(clip => ({
+    id: clip.instanceId,
+    pattern: { kind: 'stock' as const, id: 'CoronalMassEjection' },
+    patternName: 'CoronalMassEjection',
+    time: { timeScale: 1, timeOffsetMs: 0 },
+  })).sort((a, b) => a.id.localeCompare(b.id))
+  candidate.composition.propertyTracks = candidate.composition.clips.flatMap(clip => {
+    const index = corners.findIndex(([x, y]) => (
+      clip.appearance.keys[0].value.transform?.positionX === x
+      && clip.appearance.keys[0].value.transform?.positionY === y
+    ))
+    const axis = index % 2
+    const coordinate = axis === 0 ? 'x' : 'y'
+    const start = corners[index][axis]
+    const next = corners[(index + 1) % corners.length][axis]
+    return (['transform', 'aperture'] as const).map(owner => {
+      const property = owner === 'transform' ? (axis === 0 ? 'positionX' : 'positionY') : coordinate
+      const kind = owner === 'transform' ? 'clip-transform' : 'clip-aperture'
+      const offset = owner === 'aperture' ? 0.25 : 0
+      return {
+        id: `four-layer-track-${index + 1}-${owner}`,
+        target: { kind, clipId: clip.id, property },
+        keyframes: [start, next, start].map((value, keyIndex) => ({
+          id: `four-layer-key-${index + 1}-${owner}-${keyIndex + 1}`,
+          timeMs: keyIndex * 15_000,
+          value: value + offset,
+          easing: { curve: 'linear' as const },
+        })),
+        activeStartMs: 0,
+        activeDurationMs: 30_000,
+      }
+    })
+  }).sort((a, b) => a.id.localeCompare(b.id)) as ShowRecordV2['composition']['propertyTracks']
   return candidate
 }

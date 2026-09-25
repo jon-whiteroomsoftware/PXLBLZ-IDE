@@ -6,12 +6,9 @@ import { compileShow } from './showCompiler'
 import { buildShowEpeExport } from './showEpeExport'
 import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
-import { deleteShowClipInShow } from './showClipDeletion'
 import { layoutOccurrencesBlockedV2 } from './showBoundaryScopeV2'
-import { createDefaultShow, projectShowTimeline, removeShowBoundaryTransition, showLoopDurationMs, showRecordToCompileRecipe, updateShowBoundaryTransition } from './showModel'
+import { createDefaultShow, removeShowBoundaryTransition, updateShowBoundaryTransition } from './showModel'
 import { projectFlatShowToCompositionV1 } from './showCompositionModel'
-import { resizeShowConnectedClipInShowAtGlobalTime } from './showLayerTransitionAuthoring'
-import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { duplicateShowLayoutInterval, projectShowLayoutIntervals } from './showLayoutIntervals'
 import { planShowV2LayoutEdit } from './showV2LayoutEditorModel'
@@ -52,18 +49,6 @@ function reopen(record: ShowRecordV2): ShowRecordV2 {
   const opened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(record))
   if (opened.status !== 'opened') throw new Error(JSON.stringify(opened.issues))
   return opened.record
-}
-
-function v1ProjectedDefaultShow() {
-  const show = createDefaultShow('show-boundary-resize', 'Boundary resize', 1000)
-  const composition = {
-    ...projectFlatShowToCompositionV1(show, {
-      byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, 'export function render(index) { rgb(1, 0, 0) }'])),
-      stageDimension: 1,
-    }),
-    executionModel: 'deterministic-loop' as const,
-  }
-  return { show, composition }
 }
 
 const probeSource = 'export var calls = 0; export var elapsed = 0; export var randomValue = 0; export function beforeRender(delta) { calls++; elapsed += delta; randomValue = random(1) } export function render2D(index, x, y) { rgb(elapsed / 2000, randomValue, 0) }'
@@ -121,22 +106,7 @@ describe('converted Scene-boundary repair on Clip-edge resize (gap 1)', () => {
     expect(validateShowRecordV2(next)).toEqual([])
   })
 
-  it('matches v1 exact resize result: requested scene-local offset, cut, shortened loop', () => {
-    const { show, composition } = v1ProjectedDefaultShow()
-    const resized = resizeShowConnectedClipInShowAtGlobalTime(show, composition, {
-      owner: { kind: 'main', sceneId: show.scenes[1].id, zoneId: show.zones[0].id, placementId: RIGHT },
-      globalStartMs: 36000,
-      durationMs: 26000,
-    })
-    expect(resized).not.toBe(show)
-    expect(resized.transitions).toEqual([expect.objectContaining({ id: BOUNDARY, kind: 'cut', durationMs: 0 })])
-    expect(showLoopDurationMs(resized)).toBe(60000)
-    const unified = projectShowUnifiedTimeline(resized, resized.composition!)
-    expect(unified.zones[0].layers.find(layer => layer.kind === 'main')?.clips.map(clip => [clip.id, clip.startMs, clip.endMs])).toEqual([
-      [LEFT, 0, 30000],
-      [RIGHT, 34000, 60000],
-    ])
-
+  it('reclaims the exact converted-boundary edge and shortens the loop', () => {
     const repaired = editShowClipTemporalV2(convertedDefaultShow(), { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 })
     expect(repaired.status).toBe('changed')
     if (repaired.status !== 'changed') return
@@ -145,7 +115,7 @@ describe('converted Scene-boundary repair on Clip-edge resize (gap 1)', () => {
       [RIGHT, 34000, 60000],
     ])
     expect(repaired.record.composition.transitions).toEqual([])
-    expect(repaired.record.composition.showEndMs).toBe(showLoopDurationMs(resized))
+    expect(repaired.record.composition.showEndMs).toBe(60000)
   })
 
   it('repairs a trailing converted-boundary edge the same way', () => {
@@ -545,73 +515,8 @@ describe('converted boundary repair playback inertness', () => {
       expect(a.exports, `state@${timeMs}`).toEqual(b.exports)
     }
   })
-
-  it('renders a repaired resize with the same frames as the v1 repair', () => {
-    const { show, composition } = v1ProjectedDefaultShow()
-    const v1 = resizeShowConnectedClipInShowAtGlobalTime(show, composition, {
-      owner: { kind: 'main', sceneId: show.scenes[1].id, zoneId: show.zones[0].id, placementId: RIGHT },
-      globalStartMs: 36000,
-      durationMs: 26000,
-    }) as unknown as ReturnType<typeof createDefaultShow>
-    const byCellId = Object.fromEntries(v1.cells.map(cell => [cell.id, probeSource]))
-    const byPatternInstanceId: Record<string, string> = {}
-    for (const instance of v1.composition?.patternInstances ?? []) byPatternInstanceId[instance.id] = probeSource
-    const v1artifact = compileShow(showRecordToCompileRecipe(v1, { byCellId, byPatternInstanceId }), LIBRARIES)
-    const repaired = editShowClipTemporalV2(convertedDefaultShow(), { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 })
-    expect(repaired.status).toBe('changed')
-    if (repaired.status !== 'changed') return
-    const v2 = playback(repaired.record, 'fast')
-    const reopened = parseEpe(buildShowEpeExport(createDefaultShow('v1-stamp', 'V1 stamp', 1), v1artifact.code, { id: 'v1-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
-    expect(reopened.stamp?.kind).toBe('show')
-    if (reopened.stamp?.kind !== 'show') return
-    const v1runtime = createFastReplayRuntime(
-      { ...v1artifact, code: reopened.src, dimension: 2 },
-      { fidelity: 'fast', randomSeed: 1038, mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }] },
-    )
-    for (const timeMs of [0, 29999, 30000, 33999, 34000, 40000, 59999]) {
-      const a = v1runtime.advanceTo(timeMs, { stepMs: 1, forceFullIntermediateRender: true })
-      const b = v2.runtime.advanceTo(timeMs, { stepMs: 1, forceFullIntermediateRender: true })
-      expect(Array.from(a.frame), `frame@${timeMs}`).toEqual(Array.from(b.frame))
-    }
-  })
-
-  it('renders a repaired delete with the same frames as the v1 repair', () => {
-    const { show, composition } = v1ProjectedDefaultShow()
-    const deleted = deleteShowClipInShowV1(show, composition, RIGHT)
-    const byCellId = Object.fromEntries(deleted.cells.map(cell => [cell.id, probeSource]))
-    const byPatternInstanceId: Record<string, string> = {}
-    for (const instance of deleted.composition?.patternInstances ?? []) byPatternInstanceId[instance.id] = probeSource
-    const v1artifact = compileShow(showRecordToCompileRecipe(deleted, { byCellId, byPatternInstanceId }), LIBRARIES)
-    const removed = editShowTransitionV2(convertedDefaultShow(), { kind: 'delete-clip', clipId: RIGHT })
-    expect(removed.status).toBe('changed')
-    if (removed.status !== 'changed') return
-    const v2 = playback(removed.record, 'fast')
-    const reopened = parseEpe(buildShowEpeExport(createDefaultShow('v1-stamp', 'V1 stamp', 1), v1artifact.code, { id: 'v1-delete-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
-    expect(reopened.stamp?.kind).toBe('show')
-    if (reopened.stamp?.kind !== 'show') return
-    const v1runtime = createFastReplayRuntime(
-      { ...v1artifact, code: reopened.src, dimension: 2 },
-      { fidelity: 'fast', randomSeed: 1038, mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }] },
-    )
-    for (const timeMs of [0, 29999, 30000, 32000, 40000, 61999]) {
-      const a = v1runtime.advanceTo(timeMs, { stepMs: 1, forceFullIntermediateRender: true })
-      const b = v2.runtime.advanceTo(timeMs, { stepMs: 1, forceFullIntermediateRender: true })
-      expect(Array.from(a.frame), `frame@${timeMs}`).toEqual(Array.from(b.frame))
-    }
-  })
 })
 
-function deleteShowClipInShowV1(
-  show: ReturnType<typeof createDefaultShow>,
-  composition: ReturnType<typeof v1ProjectedDefaultShow>['composition'],
-  placementId: string,
-) {
-  const zoneId = show.zones[0].id
-  const sceneId = placementId.includes('scene-1') ? show.scenes[0].id : show.scenes[1].id
-  const outcome = deleteShowClipInShow(show, composition, { kind: 'main', sceneId, zoneId, placementId })
-  if (outcome.status !== 'applied') throw new Error(`v1 delete refused: ${outcome.status}`)
-  return outcome.record
-}
 describe('converted Scene-boundary repair moves every Show-time anchor (#1068 P1s)', () => {
   const OVERLAY = 'overlay-probe'
   const LAYOUT_B = 'layout-occurrence:probe-b'
@@ -757,22 +662,14 @@ describe('converted Scene-boundary repair moves every Show-time anchor (#1068 P1
     expect(validateShowRecordV2(next)).toEqual([])
   })
 
-  it('matches v1 scene starts with converted labels after the same repair', () => {
-    const { show, composition } = v1ProjectedDefaultShow()
-    const resized = resizeShowConnectedClipInShowAtGlobalTime(show, composition, {
-      owner: { kind: 'main', sceneId: show.scenes[1].id, zoneId: show.zones[0].id, placementId: RIGHT },
-      globalStartMs: 36000,
-      durationMs: 26000,
-    })
-    const sceneStarts = projectShowTimeline(resized).scenes.map(scene => [scene.sceneId, scene.startMs])
-    expect(sceneStarts[1][1]).toBe(30000)
+  it('moves converted chapter labels to the repaired boundary', () => {
     const repaired = editShowClipTemporalV2(convertedAnchoredShow(), { kind: 'trim', clipId: RIGHT, startMs: 36000, endMs: 62000 })
     expect(repaired.status).toBe('changed')
     if (repaired.status !== 'changed') return
     const labels = repaired.record.composition.markers
       .filter(marker => marker.origin === 'converted-scene-label')
       .sort((left, right) => left.timeMs - right.timeMs)
-    expect(labels.map(marker => marker.timeMs)).toEqual(sceneStarts.map(([, startMs]) => startMs))
+    expect(labels.map(marker => marker.timeMs)).toEqual([0, 30000])
   })
 
   it('moves the minted Scene label with a reclaim and leaves a coinciding authored Marker at its authored time', () => {

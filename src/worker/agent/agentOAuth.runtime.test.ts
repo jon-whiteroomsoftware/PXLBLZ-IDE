@@ -1,5 +1,4 @@
 import { STOCK_SHOW_IDS } from '../../pixelblaze/stock/showIds'
-import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { build } from 'esbuild'
@@ -133,9 +132,7 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   const tools = (await listing.json() as { result: { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] }; outputSchema?: object; annotations?: { readOnlyHint?: boolean } }> } }).result.tools
   expect(tools.map(tool => tool.name).sort()).toEqual(['get_connection', 'list_commands', 'list_patterns', 'list_controller_profiles', 'read_show', 'get_context', 'begin_edit', 'commit_edit', 'get_outcome', 'cancel_edit', ...SHOW_COMMANDS_V2.map(command => command.name)].sort())
   // None of the retired v1-only authoring names is reachable before attachment.
-  const v1Only = SHOW_COMMANDS.filter(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name)).map(command => command.name)
-  expect(v1Only).toContain('add_clip')
-  for (const name of v1Only) expect(tools.map(tool => tool.name), name).not.toContain(name)
+  expect(tools.map(tool => tool.name)).not.toContain('add_clip')
   for (const tool of tools) expect(tool.outputSchema, tool.name).toMatchObject({ type: 'object' })
   for (const name of ['list_patterns', 'list_controller_profiles']) expect(tools.find(tool => tool.name === name)?.annotations?.readOnlyHint).toBe(true)
   // v2 authors Clips and Layers in bounded bulk arrays and addresses every

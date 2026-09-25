@@ -220,10 +220,6 @@ vi.mock('@/engine/showLayerTransitionAuthoring', async (importOriginal) => legac
   await importOriginal<typeof import('@/engine/showLayerTransitionAuthoring')>(),
   ['moveShowConnectedClipAtGlobalTime', 'moveShowConnectedClipInShowAtGlobalTime'],
 ))
-vi.mock('@/engine/showClipDeletion', async (importOriginal) => legacy.observe(
-  await importOriginal<typeof import('@/engine/showClipDeletion')>(),
-  ['deleteShowClipInShow'],
-))
 vi.mock('@/engine/showGroupModel', async (importOriginal) => legacy.observe(
   await importOriginal<typeof import('@/engine/showGroupModel')>(),
   ['deleteShowGroupOccurrence'],

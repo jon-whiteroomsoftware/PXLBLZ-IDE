@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { convertibleV1Show } from '@/test/showV2TracerFixture'
-import { applyFourLayerShowEndCommandSequence, fourLayerShowEndBaseFixture } from '@/test/fourLayerShowEndCommandFixture'
+import { fourLayerShowEndBaseFixture, fourLayerShowEndV2Candidate } from '@/test/fourLayerShowEndCommandFixture'
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
 import * as stage from '@/engine/showPreparedStageV2'
 import { captureShowAuthoringBaselineV2 } from '@/engine/showAuthoringValidationV2'
@@ -368,14 +368,11 @@ it('invalidates a v2 candidate at deletion start even when the provider later re
 
 it('admits, saves, undoes, redoes and reopens the exact four-Layer Show End transaction in v2 (#1029)', async () => {
   const before = fourLayerShowEndBaseFixture()
-  const after = applyFourLayerShowEndCommandSequence(before)
   const convertedBefore = convertShowRecordV1ToV2(before)
-  const convertedAfter = convertShowRecordV1ToV2(after)
   expect(convertedBefore.status, JSON.stringify(convertedBefore)).toBe('converted')
-  expect(convertedAfter.status, JSON.stringify(convertedAfter)).toBe('converted')
-  if (convertedBefore.status !== 'converted' || convertedAfter.status !== 'converted') throw new Error('Conversion')
+  if (convertedBefore.status !== 'converted') throw new Error('Conversion')
   const context = setup({ seed: convertedBefore.record })
-  const candidate = structuredClone(convertedAfter.record)
+  const candidate = fourLayerShowEndV2Candidate(convertedBefore.record)
   candidate.id = context.record.id
   expect(context.deliver(candidate)).toMatchObject({ status: 'applied', settlement: 'saving' })
   await settled()

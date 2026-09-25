@@ -8,8 +8,6 @@ import { convertTransitionClipRampProbe } from '../test/showV2TransitionClipRamp
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { continuingV1Show, convertibleV1Show } from '@/test/showV2TracerFixture'
 import { propertyEditRecord } from '@/test/showV2PropertyEditsFixture'
-import { deleteShowClipInShow } from './showClipDeletion'
-import { showRecordClipCount } from './showClipInvariant'
 import { validateShowComposition } from './showCompositionModel'
 import type { ShowRecord } from './personalContentRecords'
 import {
@@ -266,16 +264,11 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
   // The converter splits one v1 logical Clip into `solo--layout-1` and
   // `solo--layout-2` wherever its Zone is unavailable for part of its span.
   // Both segments carry `logicalClipId: 'solo'`, so v2 counts and deletes the
-  // logical Clip exactly as v1 does (#1068 item 1b): the deduped count is 1,
-  // the editor refuses with Keep one Clip, and a delete with another logical
-  // Clip present removes every segment in one edit.
+  // logical Clip exactly as v1 did (#1068 item 1b): the deduped count is 1,
+  // and a delete with another logical Clip present removes every segment.
   it('counts and deletes a layout-segmented logical Clip as one Clip, like v1 (#1068)', () => {
     const show = layoutSegmentedSingleLogicalClipShow()
     expect(validateShowComposition(show, show.composition!)).toEqual([])
-    expect(showRecordClipCount(show)).toBe(1)
-    expect(deleteShowClipInShow(show, show.composition!, {
-      kind: 'main', sceneId: 'a', zoneId: 'zone', placementId: 'solo',
-    })).toMatchObject({ status: 'refused' })
     const converted = convertShowRecordV1ToV2(show)
     expect(converted.status).toBe('converted')
     if (converted.status !== 'converted') return
@@ -337,8 +330,8 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
     expect(validateShowRecordV2(applied.record)).toEqual([])
   })
 
-  // v1 refuses a delete whose boundary repair meets armed Trails output
-  // effects; the v2 owner has no such guard. Pinned as #1068 gap 6: the
+  // A converted record keeps its armed Trails output effect. The v2 owner
+  // admits its delete under #1068 gap 6: the
   // converted record keeps the armed Trails effect, yet the confirmed plan is
   // ready and the owner applies it. When the gap closes this test fails and
   // forces an update.
@@ -346,9 +339,6 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
     const show = boundaryDeleteFixture()
     show.outputEffects = [{ id: 'trails', kind: 'trails', retention: 0.8 }]
     expect(validateShowComposition(show, show.composition!)).toEqual([])
-    expect(deleteShowClipInShow(show, show.composition!, {
-      kind: 'main', sceneId: 's2', zoneId: 'zone', placementId: 'incoming',
-    })).toMatchObject({ status: 'refused', reason: 'output-feedback-state' })
     const converted = convertShowRecordV1ToV2(show)
     expect(converted.status).toBe('converted')
     if (converted.status !== 'converted') return
@@ -363,8 +353,7 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
     expect(validateShowRecordV2(applied.record)).toEqual([])
   })
 
-  // v1 refuses a delete whose boundary repair meets a Pattern instance shared
-  // across the removed boundary; the v2 owner has no such guard. Pinned as
+  // A shared Pattern instance across the removed boundary is admitted by v2. Pinned as
   // #1068 gap 6: the confirmed plan is ready and the owner applies it. When
   // the gap closes this test fails and forces an update.
   it('admits a shared-instance delete v1 refuses (#1068 gap 6)', () => {
@@ -374,9 +363,6 @@ describe('layout-segmented and guarded deletes (#1068 gaps)', () => {
       placements: [{ id: 'overlay-keep', instanceId: 'i1', startMs: 100, durationMs: 300, view: probeView, opacity: 1 }],
     }]
     expect(validateShowComposition(show, show.composition!)).toEqual([])
-    expect(deleteShowClipInShow(show, show.composition!, {
-      kind: 'main', sceneId: 's2', zoneId: 'zone', placementId: 'incoming',
-    })).toMatchObject({ status: 'refused', reason: 'cross-boundary-shared-instance' })
     const converted = convertShowRecordV1ToV2(show)
     expect(converted.status).toBe('converted')
     if (converted.status !== 'converted') return

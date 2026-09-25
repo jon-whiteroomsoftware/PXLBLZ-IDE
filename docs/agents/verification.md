@@ -1194,13 +1194,12 @@ testing into a second full suite:
 | Resize | Placement-animation keyframes retain their offset from the moved edge |
 | Split | The public plan uses strict interior Clip boundaries |
 | Duplicate | The immediate-after destination retains one complete source-Clip duration and every distinct copied static appearance |
-| Delete | The complete logical Clip, its tracks, and connected Transitions are removed together |
 | Inspector | Timing and colocated placement fields commit or refuse atomically |
 | Transition | Insert validation, resize-delta arithmetic, and v2 hyperedge ripple preserve a valid composition and move each downstream Clip once |
-| Animation track | Shortcut mapping, instance ownership, and post-rounding key-time uniqueness |
 | Animation edit | Batch limits, preimage reference uniqueness, final validation, no-op identity, exact retained-curve offsets, Insert Time boundary mapping, shared Restart coalescing and instance-target overlap |
 | Show End | Authored-content clamping, exact empty-suffix pruning, and meaningful-Boundary refusal |
-| Bulk Clip/Layer authoring | Final-state collision admission, materialized-to-authored Layer identity, atomic property refusal, nested omission, shared-instance conflicts, and distinct-path summary deduplication |
+
+#1042 Phase 4 slice 4-1 removed the v1 command-catalogue targets and four targets with no remaining product call path; 18 targets remain.
 
 The wrapper fails closed when the runner cannot start, omits or malforms its
 JSON report, reports no mutants, leaves a result pending, times out or errors,

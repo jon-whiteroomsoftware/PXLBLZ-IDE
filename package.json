@@ -130,7 +130,6 @@
     "prototype:scene-composition": "tsx scripts/prototypes/show-scene-composition.ts",
     "prepare": "husky",
     "schema:show-record": "node scripts/show-record-schema.mjs",
-    "coverage:show-commands": "npm run check:node && tsx scripts/show-command-coverage.ts",
     "agent:corpus": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/experiment/cli.ts",
     "agent:held-out:verify": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/held-out/verify.ts",
     "agent:smoke": "npm run check:node && tsx src/agent-harness/run.ts src/agent-harness/bridge/smoke.ts",

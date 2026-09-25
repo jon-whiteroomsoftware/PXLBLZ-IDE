@@ -64,13 +64,11 @@ type ShowAuthoringOperation =
   | 'resize'
   | 'split'
   | 'duplicate'
-  | 'delete'
   | 'inspector'
   | 'transition'
   | 'animation-track'
   | 'animation-edit'
   | 'show-end'
-  | 'bulk'
 
 interface MutationTarget {
   operation: ShowAuthoringOperation
@@ -101,46 +99,6 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'showTimelineAuthoring.ts',
     'showEndSuffixIssue',
     'if (visual[0] && !isNeutralCut(visual[0])) {',
-  ),
-  target(
-    'bulk',
-    'showTimelineClipAuthoring.ts',
-    'appendLogicalClipGlobalSpan',
-    [
-      'const layer = layerId',
-      '        ? zone.overlays.find(candidate => candidate.id === layerId)',
-      '        : zone.overlays[input.target.layerIndex]',
-    ].join('\n'),
-  ),
-  target(
-    'bulk',
-    'showTimelineClipAuthoring.ts',
-    'arrangeShowClipsFinalState',
-    'if (issues.length > 0) {',
-  ),
-  target(
-    'bulk',
-    'showCommands/bulkAuthoring.ts',
-    'updateClipsOutcome',
-    "if ('issues' in propertyResult) return { ok: false, issues: propertyResult.issues }",
-  ),
-  target(
-    'bulk',
-    'showCommands/bulkAuthoring.ts',
-    'propertyPatch',
-    "const prior = current.simulation.lightShutter || { rateHz: 8, duty: 0.5, phase: 0, clockBehavior: 'continue' as const }",
-  ),
-  target(
-    'bulk',
-    'showCommands/bulkAuthoring.ts',
-    'validateSharedConflicts',
-    'const exactConflict = a.path === b.path && canonical(a.value) !== canonical(b.value)',
-  ),
-  target(
-    'bulk',
-    'showCommands/bulkAuthoring.ts',
-    'updateClipsOutcome',
-    'const changedPaths = [...new Set(changedByInput.flat())].sort()',
   ),
   target(
     'move',
@@ -185,7 +143,6 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
       '    && new Set(sourceSignatures).size !== selectedSignatures.size) return null',
     ].join('\n'),
   ),
-  target('delete', 'showCompositionModel.ts', 'deleteLogicalPlacement'),
   target(
     'inspector',
     'showClipInspectorModel.ts',
@@ -195,24 +152,6 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
       '        || (desiredStartMs === range.globalStartMs && desiredDurationMs === range.durationMs)',
       '      composition = timingAccepted ? resized : localBasis',
     ].join('\n'),
-  ),
-  target(
-    'inspector',
-    'showCommands/clipProperties.ts',
-    'applyClipProperty',
-    'const after = compactShowClipViewport({ ...segment.viewport, ...viewport })',
-  ),
-  target(
-    'inspector',
-    'showCommands/clipProperties.ts',
-    'applyClipProperty',
-    '.filter(segment => segment.opacity !== opacity)',
-  ),
-  target(
-    'inspector',
-    'showCommands/clipProperties.ts',
-    'applyClipProperty',
-    'const after = { ...segment.transform, ...transform }',
   ),
   target(
     'transition',
@@ -231,51 +170,6 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'showTransitionsV2.ts',
     'downstreamClosure',
     'const required = touchesFrom ? [...endpoints.from, ...endpoints.to] : endpoints.to',
-  ),
-  target(
-    'animation-track',
-    'showCommands/animation.ts',
-    'resolveAnimationTarget',
-    "case 'transform-position-x': target = { kind: 'placement-transform', placementId, property: 'positionX' }; break",
-  ),
-  target(
-    'animation-track',
-    'showCommands/animation.ts',
-    'instanceOwnership',
-    '.filter((placement) => placement.instanceId === instanceId)',
-  ),
-  target(
-    'animation-track',
-    'showCommands/animation.ts',
-    'parseTrackKeyframes',
-    'index > 0 && keyframe.timeMs === keyframes[index - 1].timeMs',
-  ),
-  target(
-    'animation-edit',
-    'showCommands/animation.ts',
-    'parseKeyframeEdits',
-    'value.length < 1 || value.length > 128',
-  ),
-  target(
-    'animation-edit',
-    'showCommands/animation.ts',
-    'parseKeyframeEdits',
-    'if (referenced.has(edit.keyframe_id)) {',
-  ),
-  target(
-    'animation-edit',
-    'showPropertyAnimation.ts',
-    'editShowPropertyKeyframes',
-    [
-      'const issues = validateShowPropertyTracks(show, draft)',
-      '  if (issues.length > 0) return { ok: false, issues }',
-    ].join('\n'),
-  ),
-  target(
-    'animation-edit',
-    'showPropertyAnimation.ts',
-    'editShowPropertyKeyframes',
-    'const changed = JSON.stringify(sourceTrack.keyframes) !== JSON.stringify(finalKeyframes)',
   ),
   target(
     'animation-edit',
@@ -364,19 +258,11 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showTimelineClipAuthoring.test.ts',
       'src/engine/showTimelineClipAppearanceRepartition.test.ts',
       'src/engine/showCompositionModel.test.ts',
-      'src/engine/showCommands/removeClip.test.ts',
-      'src/engine/showCommands/splitClip.test.ts',
-      'src/engine/showCommands/duplicateClip.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
-      'src/engine/showCommands/commands.test.ts',
-      'src/engine/showCommands/clipProperties.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
       'src/engine/showTransitionsV2.test.ts',
       'src/engine/showTimelineAuthoring.test.ts',
-      'src/engine/showCommands/animationExpansion.test.ts',
-      'src/engine/showCommands/bulkAuthoring.test.ts',
-      'src/engine/showCommands/bulkAuthoring.partitions.test.ts',
       'src/engine/showPropertyAnimationV2.test.ts',
       'src/engine/showPropertyTrackTimeMappingV2.test.ts',
     ],

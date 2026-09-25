@@ -141,15 +141,12 @@ describe('Show authoring mutation qualification (#597)', () => {
     const scope = buildShowAuthoringMutationScope(process.cwd())
 
     expect(new Set(scope.map(({ operation }) => operation))).toEqual(new Set([
-      'bulk',
       'move',
       'resize',
       'split',
       'duplicate',
-      'delete',
       'inspector',
       'transition',
-      'animation-track',
       'animation-edit',
       'show-end',
     ]))
@@ -158,15 +155,9 @@ describe('Show authoring mutation qualification (#597)', () => {
       'resizeShowClipAtGlobalTime',
       'planShowClipSplitAtGlobalTime',
       'planShowClipDuplicateAfter',
-      'deleteLogicalPlacement',
       'updateShowClipInspector',
       'insertShowLayerTransition',
       'resizeShowLayerTransition',
-      'resolveAnimationTarget',
-      'instanceOwnership',
-      'parseTrackKeyframes',
-      'parseKeyframeEdits',
-      'editShowPropertyKeyframes',
       'editShowEndMs',
       'showEndSuffixIssue',
     ]))
@@ -206,11 +197,6 @@ describe('Show authoring mutation qualification (#597)', () => {
       'src/engine/showAuthoringMatrix.test.ts',
       'src/engine/showTimelineClipAuthoring.test.ts',
       'src/engine/showCompositionModel.test.ts',
-      'src/engine/showCommands/removeClip.test.ts',
-      'src/engine/showCommands/splitClip.test.ts',
-      'src/engine/showCommands/duplicateClip.test.ts',
-      'src/engine/showCommands/commands.test.ts',
-      'src/engine/showCommands/clipProperties.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
       'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',

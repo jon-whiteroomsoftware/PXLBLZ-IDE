@@ -1,6 +1,5 @@
 import { expect, it, vi } from 'vitest'
 import { runBuiltinTurn } from './builtinTurn'
-import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 const call = (name: string, args: object) => ({ type: 'function_call', call_id: `call-${name}`, name, arguments: JSON.stringify(args) })
 function fixture(outputs: unknown[][]) {
@@ -135,14 +134,11 @@ it('offers the v2 catalogue, tools and reference when the captured record is v2'
   const tools = new Set(calls[0][0].tools.map(tool => tool.name))
   for (const command of SHOW_COMMANDS_V2) expect(tools, command.name).toContain(command.name)
   expect(tools.has('finish_turn')).toBe(true)
-  const onlyV1 = SHOW_COMMANDS.filter(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name))
-  expect(onlyV1.length).toBeGreaterThan(0)
-  for (const command of onlyV1) expect(tools, command.name).not.toContain(command.name)
+  expect(tools).not.toContain('add_clip')
 })
 
 it('refuses a v1 command name against a v2 capture rather than delivering it', async () => {
-  const onlyV1 = SHOW_COMMANDS.find(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name))!
-  const f = fixture([[call(onlyV1.name, {})]])
+  const f = fixture([[call('add_clip', {})]])
   f.deliver.mockImplementation(async (payload: Record<string, unknown>) => {
     f.deliveries.push(payload)
     if (payload.kind === 'begin_edit') return { code: 'begun', show: { id: 'show', version: 2 }, context: {} }

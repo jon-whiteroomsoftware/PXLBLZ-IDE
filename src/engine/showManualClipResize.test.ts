@@ -5,7 +5,6 @@ import { updateShowClipInspector, type ShowClipInspectorOwner } from './showClip
 import { resizeShowClipExactly } from './showExactClipResize'
 import { previewShowClipResize, resizeShowClipManually } from './showManualClipResize'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
-import { applyShowCommand } from './showCommands/registry'
 import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } from './showFileBundle'
 import type { ShowRecord } from './personalContentRecords'
 
@@ -17,8 +16,8 @@ function owner(show: ShowRecord, clipId: string): ShowClipInspectorOwner {
 }
 function withoutStamp(show: ShowRecord) { return { ...show, updatedAt: 0 } }
 
-describe('manual resize consumer convergence (#950)', () => {
-  it.each([false, true])('pairs fixture R exact inspector and canonical command including full preservation (overlay=%s)', async overlay => {
+describe('manual resize consumer (#950)', () => {
+  it.each([false, true])('preserves fixture R through exact inspector resize (overlay=%s)', async overlay => {
     const show = resizeBoundaryShow()
     show.cells[0].restartOnEntry = false
     const zone = show.composition!.scenes[0].zones[0]
@@ -30,20 +29,15 @@ describe('manual resize consumer convergence (#950)', () => {
     const before = structuredClone(show)
     for (const durationMs of [7999, 8000, 8001, 12000, 4000, 0, -1, 4000.4]) {
       const manual = updateShowClipInspector(show, owner(show, 'resize-a'), { local: { durationMs } })
-      const command = applyShowCommand(show, 'resize_clip', { clip_id: 'resize-a', duration_ms: durationMs })
       if (durationMs === 7999 || durationMs === 8000) {
-        expect(command.ok).toBe(true)
-        if (!command.ok) throw new Error('expected exact command')
         const expected = structuredClone(before)
         ;(overlay ? expected.composition!.scenes[0].zones[0].overlays[0].placements : expected.composition!.scenes[0].zones[0].main)[0].durationMs = durationMs
         expect(withoutStamp(manual)).toEqual(withoutStamp(expected))
-        expect(withoutStamp(command.record)).toEqual(withoutStamp(manual))
         expect(validateShowComposition(manual, manual.composition!)).toEqual([])
         const { bundle } = buildShowFileBundle(manual, { patterns: [], maps: [] }, { appVersion: 'test', exportedAt: '2026-09-08T00:00:00Z' })
         expect((await parseShowFileBundle(await serializeShowFileBundle(bundle))).show).toEqual(bundle.show)
       } else {
         expect(manual).toBe(show)
-        expect(command.ok).toBe(durationMs === 4000)
       }
       expect(show).toEqual(before)
     }
@@ -56,7 +50,7 @@ describe('manual resize consumer convergence (#950)', () => {
     expect(resizeShowClipManually(show, show.composition!, { clipId: 'missing', durationMs: 4000 })).toBe(show)
   })
 
-  it('retargets a valid multi-Scene connected Clip through the inspector with complete record parity', () => {
+  it('retargets a valid multi-Scene connected Clip through the inspector', () => {
     const show = resizeBoundaryShow()
     show.cells[0].restartOnEntry = false
     const composition = show.composition!
@@ -68,17 +62,13 @@ describe('manual resize consumer convergence (#950)', () => {
     expect(validateShowComposition(show, composition)).toEqual([])
     const before = structuredClone(show)
     const manual = updateShowClipInspector(show, owner(show, 'resize-a'), { local: { durationMs: 12000 } })
-    const canonical = applyShowCommand(show, 'resize_clip', { clip_id: 'resize-a', duration_ms: 12000 })
-    expect(canonical.ok).toBe(true)
-    if (!canonical.ok) throw new Error('expected connected resize')
-    expect(withoutStamp(manual)).toEqual(withoutStamp(canonical.record))
     expect(projectShowUnifiedTimeline(manual, manual.composition!).zones[0].layers[0].clips.map(clip => [clip.id, clip.startMs, clip.durationMs])).toEqual([['resize-a', 9000, 12000], ['resize-b', 22000, 2000]])
     expect(manual.composition!.transitions).toEqual([{ ...composition.transitions[0], fromPlacementId: 'resize-a--span-third' }])
     expect(validateShowComposition(manual, manual.composition!)).toEqual([])
     expect(show).toEqual(before)
   })
 
-  it('qualifies incoming Transition-to-Cut as manual-only while preserving other connected data', () => {
+  it('handles incoming Transition-to-Cut while preserving other connected data', () => {
     const show = resizeBoundaryShow()
     show.cells[0].restartOnEntry = false
     const composition = show.composition!
@@ -88,9 +78,6 @@ describe('manual resize consumer convergence (#950)', () => {
     const before = structuredClone(show)
     for (const [globalStartMs, durationMs] of [[3500, 1500], [3000, 1000], [3000, 3000]]) {
       const manual = resizeShowClipManually(show, composition, { clipId: 'resize-b', globalStartMs, durationMs })
-      const command = applyShowCommand(show, 'resize_clip', { clip_id: 'resize-b', start_ms: globalStartMs, duration_ms: durationMs })
-      expect(command.ok).toBe(true)
-      if (command.ok) expect(withoutStamp(manual)).toEqual(withoutStamp(command.record))
       expect(validateShowComposition(manual, manual.composition!)).toEqual([])
     }
     const request = { clipId: 'resize-b', globalStartMs: 2000, durationMs: 3000 }

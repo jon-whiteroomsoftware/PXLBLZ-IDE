@@ -1160,10 +1160,8 @@ live rectangle and retained changed selection; clean drafts follow authoritative
 index updates. External Layer-scoped context remains unqualified.
 
 **Coverage gate.** `schemas/show-record.schema.json` is generated from the
-ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact),
-and `npm run coverage:show-commands` regenerates
-`docs/reference/show-command-coverage.md` plus the reviewed snapshot the
-suite enforces. Reading the report: **leaf-declared** paths have a
+ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact).
+Reading the report: **leaf-declared** paths have a
 command whose declared touches address that exact leaf; **subtree-only**
 paths are reached solely through shallower declarations — rewrites that
 carry the leaf along without any command addressing it by name (the legacy

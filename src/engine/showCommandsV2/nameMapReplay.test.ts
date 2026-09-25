@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { SHOW_COMMANDS } from '../showCommands/registry'
 import { SHOW_COMMANDS_V2 } from './registry'
 import { SHOW_COMMAND_V2_NAME_MAP } from './coverage'
 
@@ -14,7 +13,7 @@ import { SHOW_COMMAND_V2_NAME_MAP } from './coverage'
 // own names, so the replay cases below now assert the other half of the same
 // property — that no retired v1 name survives in them, and that every name they
 // do use is one the v2 catalogue registers or a named harness bridge tool. The
-// map itself is still proved complete against the v1 registry above.
+// map still names the retired vocabulary for historical replay coverage.
 
 const repoRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url)))
 
@@ -33,17 +32,9 @@ function namesIn(path: string): string[] {
 }
 
 const v1ByName = new Map(SHOW_COMMAND_V2_NAME_MAP.flatMap(entry => entry.v1 ? [[entry.v1, entry] as const] : []))
-const v1Names = new Set(SHOW_COMMANDS.map(command => command.name))
 const v2Names = new Set(SHOW_COMMANDS_V2.map(command => command.name))
 
 describe('v1 to v2 name map replay', () => {
-  it('maps every registered v1 command exactly once', () => {
-    const missing = [...v1Names].filter(name => !v1ByName.has(name))
-    expect(missing.sort(), 'every registered v1 command needs a map row').toEqual([])
-    const unknown = [...v1ByName.keys()].filter(name => !v1Names.has(name))
-    expect(unknown.sort(), 'the map must not name a command the v1 registry does not register').toEqual([])
-  })
-
   it.each([
     ['the baseline fixture scripts', 'src/agent-harness/baseline/scripts.ts'],
     ['the dictation corpus cases', 'src/agent-harness/experiment/cases.ts'],

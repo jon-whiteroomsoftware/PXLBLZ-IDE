@@ -30,7 +30,6 @@ import { showInitialState, useShowStore } from '../../store/showStore'
 import { usePatternStore } from '../../store/patternStore'
 import { admitShowV2PilotSetShowEnd } from '../../store/showV2PreparedEditAdmission'
 import { STOCK_SHOW_IDS } from '../../pixelblaze/stock/showIds'
-import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 import type { ShowRecordV2 } from '../../engine/showCompositionV2'
 
@@ -205,9 +204,7 @@ it('runs the #1029 sequence over a v2 record through the real MCP path and reope
     // The registered tool surface is the one this v2 record's commands need.
     const listed = new Set((await rpc('tools/list')).result.tools!.map(entry => entry.name))
     for (const command of SHOW_COMMANDS_V2) expect(listed, command.name).toContain(command.name)
-    const onlyV1 = SHOW_COMMANDS.filter(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name))
-    expect(onlyV1.length).toBeGreaterThan(0)
-    for (const command of onlyV1) expect(listed, command.name).not.toContain(command.name)
+    expect(listed).not.toContain('add_clip')
 
     const read = await tool('read_show', { binding_id })
     expect(read.result.structuredContent.code).toBe('read')

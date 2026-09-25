@@ -3,7 +3,6 @@ import { expect, it, vi } from 'vitest'
 import type { WorkerEnv } from '../apiRoutes'
 import { agentMcpRouting } from './agentMcpRouting'
 import { createShowEditSession } from '../../engine/showEditAdmission'
-import { SHOW_COMMANDS } from '../../engine/showCommands/registry'
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 
 const grant = {
@@ -314,9 +313,7 @@ it('describes the production v2 catalogue when no editor is bound (#1042)', asyn
   } as unknown as WorkerEnv
   const tools = new Set(((await (await request(env, 'tools/list')).json()) as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
   for (const command of SHOW_COMMANDS_V2) expect(tools, command.name).toContain(command.name)
-  const v1Only = SHOW_COMMANDS.filter(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name))
-  expect(v1Only.length).toBeGreaterThan(0)
-  for (const command of v1Only) expect(tools, command.name).not.toContain(command.name)
+  expect(tools).not.toContain('add_clip')
 })
 
 it('describes the production v2 catalogue when the binding cannot be read (#1042)', async () => {
@@ -338,7 +335,5 @@ it('lists only the v2 catalogue for a bound connection', async () => {
   } as unknown as WorkerEnv
   const tools = new Set(((await (await request(env, 'tools/list')).json()) as { result: { tools: Array<{ name: string }> } }).result.tools.map(tool => tool.name))
   for (const command of SHOW_COMMANDS_V2) expect(tools, command.name).toContain(command.name)
-  const v1Only = SHOW_COMMANDS.filter(command => !SHOW_COMMANDS_V2.some(entry => entry.name === command.name))
-  expect(v1Only.length).toBeGreaterThan(0)
-  for (const command of v1Only) expect(tools, command.name).not.toContain(command.name)
+  expect(tools).not.toContain('add_clip')
 })

@@ -9,7 +9,6 @@ import type {
 } from './personalContentRecords'
 import { validateShowComposition } from './showCompositionModel'
 import { createDefaultShow } from './showModel'
-import { applyShowCommand } from './showCommands/registry'
 import {
   duplicateShowClipAfter,
   moveShowClipAtGlobalTime,
@@ -120,40 +119,6 @@ function authoredAppearance(value: Placement) {
 }
 
 describe('logical Clip static appearance repartition (#1011, #1017)', () => {
-  it('keeps each divergent Transform after a partial setter followed by canonical move_clip and resize_clip', () => {
-    const movedFixture = fixture('main')
-    const patched = applyShowCommand(
-      { ...movedFixture.show, composition: movedFixture.composition },
-      'set_clip_transform',
-      { clip_id: 'clip', position_y: -0.2 },
-    )
-    expect(patched.ok, JSON.stringify(patched)).toBe(true)
-    if (!patched.ok) throw new Error('partial transform refused')
-    const moved = applyShowCommand(patched.record, 'move_clip', { clip_id: 'clip', start_ms: 18_000 })
-    expect(moved.ok, JSON.stringify(moved)).toBe(true)
-    if (!moved.ok) throw new Error('move refused')
-    expect(directPlacements(moved.record.composition!).map(item => item.transform)).toEqual([
-      { ...firstAppearance.transform, positionY: -0.2 },
-      { ...secondAppearance.transform, positionY: -0.2 },
-    ])
-
-    const resizedFixture = fixture('main')
-    const resizePatched = applyShowCommand(
-      { ...resizedFixture.show, composition: resizedFixture.composition },
-      'set_clip_transform',
-      { clip_id: 'clip', rotation: 0.25 },
-    )
-    expect(resizePatched.ok, JSON.stringify(resizePatched)).toBe(true)
-    if (!resizePatched.ok) throw new Error('partial transform refused')
-    const resized = applyShowCommand(resizePatched.record, 'resize_clip', { clip_id: 'clip', duration_ms: 5_000 })
-    expect(resized.ok, JSON.stringify(resized)).toBe(true)
-    if (!resized.ok) throw new Error('resize refused')
-    expect(directPlacements(resized.record.composition!).map(item => item.transform)).toEqual([
-      { ...firstAppearance.transform, rotation: 0.25 },
-      { ...secondAppearance.transform, rotation: 0.25 },
-    ])
-  })
-
   it.each<OwnerKind>(['main', 'overlay'])('moves an aligned divergent %s profile without flattening either Scene segment', kind => {
     const { show, composition, owner } = fixture(kind)
     const before = structuredClone(composition)
