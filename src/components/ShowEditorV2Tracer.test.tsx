@@ -224,11 +224,6 @@ vi.mock('@/engine/showGroupModel', async (importOriginal) => legacy.observe(
   await importOriginal<typeof import('@/engine/showGroupModel')>(),
   ['deleteShowGroupOccurrence'],
 ))
-vi.mock('@/engine/showManualClipResize', async (importOriginal) => legacy.observe(
-  await importOriginal<typeof import('@/engine/showManualClipResize')>(),
-  ['resizeShowClipManually', 'previewShowClipResize'],
-))
-
 /**
  * The legacy owners the store itself exposes as editor commands. They are
  * wrapped on the live store rather than through a module mock, because the
@@ -6523,11 +6518,10 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
     expect(admission.calls).toEqual([])
   })
 
-  it('renders CLIP with the v1 first-clip label and count on 101', async () => {
-    // Phase 4 deletes this with shows.ts.
-    const { stock, legacyStock } = await renderLessonV2('stock-show-101-clips-cuts-blank-time')
-    const { currentShowClip } = await import('@/engine/showReferenceShow')
-    const clip = currentShowClip(legacyStock.show, 0)!
+  it('renders CLIP with the first-clip label and count on 101', async () => {
+    const { stock, record } = await renderLessonV2('stock-show-101-clips-cuts-blank-time')
+    const { currentShowMainClipV2 } = await import('@/engine/showReferenceNarrationV2')
+    const clip = currentShowMainClipV2(record, 0)!
     const title = stock.note.number ? `${stock.note.number} ${stock.note.title}` : stock.note.title
     const strip = screen.getByRole('region', { name: `${title} live strip` })
     expect(within(strip).getByText('CLIP')).toBeInTheDocument()
@@ -6537,17 +6531,15 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
   })
 
   it('renders INTERVAL on a multi-chapter non-reference lesson', async () => {
-    // Phase 4 deletes this with shows.ts.
-    const { stock, legacyStock } = await renderLessonV2('stock-show-105-portable-zones')
+    const { stock, record } = await renderLessonV2('stock-show-105-portable-zones')
     expect(stock.reference).toBeUndefined()
-    expect(legacyStock.show.scenes.length).toBeGreaterThan(1)
-    const { currentShowScene } = await import('@/engine/showReferenceShow')
-    const scene = currentShowScene(legacyStock.show, 0)!
+    const { currentShowChapterV2 } = await import('@/engine/showReferenceNarrationV2')
+    const scene = currentShowChapterV2(record, 0)!
     const title = stock.note.number ? `${stock.note.number} ${stock.note.title}` : stock.note.title
     const strip = screen.getByRole('region', { name: `${title} live strip` })
     expect(within(strip).getByText('INTERVAL')).toBeInTheDocument()
-    expect(within(strip).getByText(scene.scene.name)).toBeInTheDocument()
-    expect(within(strip).getByText(`${scene.index + 1}/${legacyStock.show.scenes.length}`)).toBeInTheDocument()
+    expect(within(strip).getByText(scene.name)).toBeInTheDocument()
+    expect(within(strip).getByText(`${scene.index + 1}/${scene.count}`)).toBeInTheDocument()
     expect(admission.calls).toEqual([])
   })
 

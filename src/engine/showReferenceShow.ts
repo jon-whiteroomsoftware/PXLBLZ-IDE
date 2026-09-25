@@ -1,5 +1,4 @@
 import type { ShowPatternRef, ShowRecord, ShowTransitionEasing } from './personalContentRecords'
-import { projectShowTimeline } from './showModel'
 import { partitionShowPatternControls } from './showPatternControlPartition'
 
 export interface ShowReferencePatternProjection {
@@ -34,30 +33,6 @@ export interface ShowReferenceGuide {
 export interface ShowPatternSlotGroup {
   cellIds: readonly string[]
   instanceIds: readonly string[]
-}
-
-/** Returns the distinct instance-control animations a slot swap cannot keep. */
-export function showPatternSlotRemovedControlNames(
-  show: ShowRecord,
-  group: ShowPatternSlotGroup,
-  exportedSliderNames: ReadonlySet<string>,
-): string[] {
-  if (!show.composition) return []
-  const propertyTracks = show.composition.scenes.flatMap((scene) => scene.propertyTracks ?? [])
-  const removed = new Set<string>()
-  for (const instanceId of group.instanceIds) {
-    const instance = show.composition.patternInstances.find((candidate) => candidate.id === instanceId)
-    const partition = partitionShowPatternControls(
-      instanceId,
-      instance?.controlTargets,
-      propertyTracks,
-      exportedSliderNames,
-    )
-    for (const track of partition.removedPropertyTracks ?? []) {
-      if (track.target.kind === 'instance-control') removed.add(track.target.exportName)
-    }
-  }
-  return [...removed]
 }
 
 /**
@@ -297,63 +272,4 @@ export function restoreShowReferencePatternSlots(
       }),
     } : edited.composition,
   }
-}
-
-/** Names the Scene at loop time, retaining it through its outgoing boundary. */
-export function currentShowScene(show: ShowRecord, positionMs: number) {
-  const timeline = projectShowTimeline(show)
-  if (timeline.scenes.length === 0) return null
-  const position = timeline.durationMs > 0
-    ? ((positionMs % timeline.durationMs) + timeline.durationMs) % timeline.durationMs
-    : 0
-  let index = 0
-  for (let candidate = 1; candidate < timeline.scenes.length; candidate++) {
-    if (timeline.scenes[candidate].startMs <= position) index = candidate
-  }
-  return { scene: timeline.scenes[index].scene, index }
-}
-
-/** Names the most recently started Clip on a single Scene's first main lane. */
-export function currentShowClip(show: ShowRecord, positionMs: number) {
-  if (show.scenes.length !== 1) return null
-  const scene = show.composition?.scenes.find((candidate) => candidate.sceneId === show.scenes[0].id)
-  const clips = [...(scene?.zones[0]?.main ?? [])].sort((a, b) => a.startMs - b.startMs)
-  if (clips.length === 0) return null
-  const durationMs = projectShowTimeline(show).durationMs
-  const position = durationMs > 0 ? ((positionMs % durationMs) + durationMs) % durationMs : 0
-  let index = 0
-  for (let candidate = 1; candidate < clips.length; candidate++) {
-    if (clips[candidate].startMs <= position) index = candidate
-  }
-  const instance = show.composition?.patternInstances.find((candidate) => candidate.id === clips[index].instanceId)
-  return { patternName: instance?.patternName ?? 'Unknown Pattern', index, count: clips.length }
-}
-
-export function currentShowReferenceExample(
-  show: ShowRecord,
-  guide: ShowReferenceGuide,
-  positionMs: number,
-): ShowReferenceExample | null {
-  const timeline = projectShowTimeline(show)
-  if (timeline.durationMs <= 0) return guide.examples[0] ?? null
-  const position = ((positionMs % timeline.durationMs) + timeline.durationMs) % timeline.durationMs
-
-  const boundaryStarts = timeline.boundaryTransitions
-    .map((boundary) => boundary.startMs)
-    .sort((a, b) => a - b)
-  const candidates = guide.examples.flatMap((example) => {
-    const anchor = example.anchor
-    if (anchor.kind === 'scene') {
-      const scene = timeline.scenes.find((candidate) => candidate.sceneId === anchor.sceneId)
-      const outgoing = timeline.boundaryTransitions.find((candidate) => candidate.afterSceneId === anchor.sceneId)
-      return scene ? [{ example, startMs: scene.startMs, endMs: outgoing?.endMs ?? scene.endMs }] : []
-    }
-    const boundary = timeline.boundaryTransitions.find((candidate) => candidate.id === anchor.transitionId)
-    if (!boundary) return []
-    const nextBoundaryStart = boundaryStarts.find((startMs) => startMs > boundary.startMs)
-    return [{ example, startMs: boundary.startMs, endMs: nextBoundaryStart ?? timeline.durationMs }]
-  }).filter(({ startMs, endMs }) => position >= startMs && position < endMs)
-
-  candidates.sort((a, b) => b.startMs - a.startMs)
-  return candidates[0]?.example ?? null
 }

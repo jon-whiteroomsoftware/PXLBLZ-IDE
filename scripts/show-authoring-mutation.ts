@@ -64,7 +64,6 @@ type ShowAuthoringOperation =
   | 'resize'
   | 'split'
   | 'duplicate'
-  | 'inspector'
   | 'transition'
   | 'animation-track'
   | 'animation-edit'
@@ -141,16 +140,6 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     [
       'if (repartition.requireEverySourceAppearance',
       '    && new Set(sourceSignatures).size !== selectedSignatures.size) return null',
-    ].join('\n'),
-  ),
-  target(
-    'inspector',
-    'showClipInspectorModel.ts',
-    'updateShowClipInspector',
-    [
-      'const timingAccepted = resized !== stagedLocal',
-      '        || (desiredStartMs === range.globalStartMs && desiredDurationMs === range.durationMs)',
-      '      composition = timingAccepted ? resized : localBasis',
     ].join('\n'),
   ),
   target(
@@ -259,7 +248,6 @@ export function buildStrykerConfig(repoRoot: string) {
       'src/engine/showTimelineClipAppearanceRepartition.test.ts',
       'src/engine/showCompositionModel.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
-      'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
       'src/engine/showTransitionsV2.test.ts',
       'src/engine/showTimelineAuthoring.test.ts',

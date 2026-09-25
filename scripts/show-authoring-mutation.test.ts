@@ -145,7 +145,6 @@ describe('Show authoring mutation qualification (#597)', () => {
       'resize',
       'split',
       'duplicate',
-      'inspector',
       'transition',
       'animation-edit',
       'show-end',
@@ -155,7 +154,6 @@ describe('Show authoring mutation qualification (#597)', () => {
       'resizeShowClipAtGlobalTime',
       'planShowClipSplitAtGlobalTime',
       'planShowClipDuplicateAfter',
-      'updateShowClipInspector',
       'insertShowLayerTransition',
       'resizeShowLayerTransition',
       'editShowEndMs',
@@ -198,7 +196,6 @@ describe('Show authoring mutation qualification (#597)', () => {
       'src/engine/showTimelineClipAuthoring.test.ts',
       'src/engine/showCompositionModel.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
-      'src/engine/showClipInspectorModel.test.ts',
       'src/engine/showLayerTransitionAuthoring.test.ts',
       'src/engine/showTimelineAuthoring.test.ts',
     ]))

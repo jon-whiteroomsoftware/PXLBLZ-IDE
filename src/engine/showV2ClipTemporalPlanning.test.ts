@@ -485,9 +485,8 @@ describe('planShowV2ClipResize across Group occurrences (#1068)', () => {
 })
 
 describe('v2 Clip inspector Start and Duration oracle (#1066)', () => {
-  it('v1 Duration edit then convert equals v2 trailing resize plus its owner on the converted before-record', async () => {
+  it('Duration edit reaches the v2 trailing resize owner', async () => {
     const { createDefaultShow } = await import('./showModel')
-    const { updateShowClipInspector } = await import('./showClipInspectorModel')
     const { convertShowRecordV1ToV2 } = await import('./showRecordV1ToV2')
     const { DEMOS, resolveStockPatternId } = await import('../pixelblaze/stock/patterns')
     const { validateShowRecordV2 } = await import('./showCompositionV2')
@@ -520,10 +519,6 @@ describe('v2 Clip inspector Start and Duration oracle (#1066)', () => {
         }],
       },
     }
-    const owner = { kind: 'scene-overlay' as const, sceneId, zoneId, layerId: 'layer-front', placementId: 'placement-overlay' }
-    const v1Edited = updateShowClipInspector(before, owner, { local: { durationMs: 3_000 } })
-    expect(v1Edited).not.toBe(before)
-
     const convert = (show: typeof base) => {
       const result = convertShowRecordV1ToV2(show, {
         byCellId: Object.fromEntries(show.cells.map((cell) => {
@@ -537,7 +532,6 @@ describe('v2 Clip inspector Start and Duration oracle (#1066)', () => {
       return result.record
     }
     const convertedBefore = convert(before)
-    const convertedAfter = convert(v1Edited)
 
     const view = projectShowEditorTimelineV2(convertedBefore)
     const item = view.rows.flatMap((row) => row.layers.flatMap((layer) => layer.items))
@@ -557,6 +551,11 @@ describe('v2 Clip inspector Start and Duration oracle (#1066)', () => {
         .map((clip) => [clip.startMs, clip.durationMs].join(':'))
         .sort(),
     })
-    expect(shape(applied.record)).toEqual(shape(convertedAfter))
+    expect(shape(applied.record)).toEqual({
+      showEndMs: convertedBefore.composition.showEndMs,
+      clips: [...convertedBefore.composition.clips]
+        .map((clip) => [clip.startMs, clip.id === item.id ? 3_000 : clip.durationMs].join(':'))
+        .sort(),
+    })
   })
 })

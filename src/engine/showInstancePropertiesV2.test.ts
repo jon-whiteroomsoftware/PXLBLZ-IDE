@@ -3,7 +3,6 @@ import { applyShowCommandV2 } from './showCommandsV2/registry'
 import { writeShowInstancePropertiesV2 } from './showInstancePropertiesV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
-import { updateShowClipInspector, type ShowClipInspectorOwner } from './showClipInspectorModel'
 import { validateShowComposition } from './showCompositionModel'
 import { propertyEditGroupRecord } from '../test/showV2PropertyEditsFixture'
 import {
@@ -164,7 +163,7 @@ describe('v2 Pattern-instance value owner', () => {
     expect(record).toEqual(before)
   })
 
-  it('matches the v1 untick target and track set by export name (#1069)', () => {
+  it('unticks the target and its track by export name (#1069)', () => {
     const show = convertibleV1Show()
     show.composition!.patternInstances[0].controlTargets = { sliderSpeed: 0.5, sliderHue: 0.3 }
     show.composition!.scenes[0].propertyTracks = [
@@ -172,25 +171,15 @@ describe('v2 Pattern-instance value owner', () => {
       { id: 'hue', target: { kind: 'instance-control', instanceId: 'instance', exportName: 'sliderHue' }, keyframes: [{ id: 'hue-k1', timeMs: 0, value: 0.3, easing: { curve: 'linear' } }, { id: 'hue-k2', timeMs: 1000, value: 0.6, easing: { curve: 'linear' } }] },
     ]
     expect(validateShowComposition(show, show.composition!)).toEqual([])
-    const owner: ShowClipInspectorOwner = { kind: 'scene-main', sceneId: 'scene-a', zoneId: 'zone', placementId: 'clip' }
-    const names = new Set(['sliderSpeed', 'sliderHue'])
-    const v1 = updateShowClipInspector(show, owner, { simulation: { controlTargets: { sliderHue: 0.3 } } }, names)
-    expect(v1).not.toBe(show)
-
     const converted = convertShowRecordV1ToV2(show)
     if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
     const v2 = writeShowInstancePropertiesV2(converted.record, 'clip', { remove_controls: ['sliderSpeed'] }, undefined)
     expect(v2.status).toBe('changed')
     if (v2.status !== 'changed') return
-    const v1Targets = Object.keys(v1.composition!.patternInstances[0].controlTargets ?? {}).sort()
     const v2Targets = Object.keys(v2.record.composition.patternInstances[0].controlTargets ?? {}).sort()
-    expect(v2Targets).toEqual(v1Targets)
-    const v1Tracks = (v1.composition!.scenes[0].propertyTracks ?? [])
-      .flatMap(track => track.target.kind === 'instance-control' ? [track.target.exportName] : []).sort()
     const v2Tracks = v2.record.composition.propertyTracks
       .flatMap(track => track.target.kind === 'instance-control' ? [track.target.exportName] : []).sort()
-    expect(v2Tracks).toEqual(v1Tracks)
-    expect(v1Targets).toEqual(['sliderHue'])
-    expect(v1Tracks).toEqual(['sliderHue'])
+    expect(v2Targets).toEqual(['sliderHue'])
+    expect(v2Tracks).toEqual(['sliderHue'])
   })
 })

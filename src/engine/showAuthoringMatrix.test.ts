@@ -5,7 +5,6 @@ import type {
   ShowPatternInstance,
   ShowRecord,
 } from './personalContentRecords'
-import { updateShowClipInspector } from './showClipInspectorModel'
 import { deleteShowMainPlacement } from './showCompositionModel'
 import {
   insertShowLayerTransition,
@@ -319,31 +318,6 @@ const acceptedOperationCases: MatrixCase[] = [
     },
   },
   {
-    operation: 'inspector edit',
-    partition: 'placement-owned property',
-    arrange: () => {
-      const { show, composition } = mainFixture()
-      return {
-        show,
-        composition,
-        edit: (input) => updateShowClipInspector(
-          { ...show, composition: input },
-          {
-            kind: 'scene-main',
-            sceneId: show.scenes[0].id,
-            zoneId: show.zones[0].id,
-            placementId: 'clip-a',
-          },
-          { view: { brightness: 0.4 } },
-        ).composition!,
-        projectedClipIds: ['clip-a'],
-        assertReferences: (result) => {
-          expect(result.scenes[0].zones[0].main[0].view.brightness).toBe(0.4)
-        },
-      }
-    },
-  },
-  {
     operation: 'Transition edit',
     partition: 'isolated derived Cut',
     arrange: () => {
@@ -469,27 +443,6 @@ const refusedOperationCases: (Omit<MatrixCase, 'arrange'> & {
         show,
         composition,
         edit: (input) => deleteShowMainPlacement(input, mainOwner(show)),
-      }
-    },
-  },
-  {
-    operation: 'inspector edit',
-    partition: 'out-of-bounds duration',
-    arrange: () => {
-      const { show, composition } = mainFixture()
-      return {
-        show,
-        composition,
-        edit: (input) => updateShowClipInspector(
-          { ...show, composition: input },
-          {
-            kind: 'scene-main',
-            sceneId: show.scenes[0].id,
-            zoneId: show.zones[0].id,
-            placementId: 'clip-a',
-          },
-          { local: { durationMs: 1_000_000 } },
-        ).composition!,
       }
     },
   },
@@ -1085,42 +1038,6 @@ describe('Show authoring behavioral matrix (#596)', () => {
         },
       }),
       projectedClipIds: ['clip-a', 'clip-b'],
-    })
-  })
-
-  it('moves a Clip across a Scene boundary and then edits it through the inspector', () => {
-    const { show, composition } = mainFixture()
-    const moved = expectAcceptedStep({
-      show,
-      composition,
-      edit: (input) => moveShowClipAtGlobalTime(show, input, {
-        owner: mainOwner(show),
-        target: {
-          kind: 'main',
-          zoneId: show.zones[0].id,
-          globalStartMs: 34_000,
-        },
-      }),
-      projectedClipIds: ['clip-a'],
-    })
-
-    expectAcceptedStep({
-      show,
-      composition: moved,
-      edit: (input) => updateShowClipInspector(
-        { ...show, composition: input },
-        {
-          kind: 'scene-main',
-          sceneId: show.scenes[1].id,
-          zoneId: show.zones[0].id,
-          placementId: 'clip-a',
-        },
-        { view: { brightness: 0.35 } },
-      ).composition!,
-      projectedClipIds: ['clip-a'],
-      assertReferences: (result) => {
-        expect(result.scenes[1].zones[0].main[0].view.brightness).toBe(0.35)
-      },
     })
   })
 

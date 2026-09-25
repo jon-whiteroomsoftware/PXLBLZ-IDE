@@ -14,7 +14,6 @@ import {
   projectShowEditorTimelineV2,
 } from './showEditorTimelinePresentation'
 import {
-  projectShowClipInspector,
   type ShowClipInspectorOwner,
   type ShowClipInspectorValue,
 } from './showClipInspectorModel'
@@ -24,7 +23,6 @@ import {
   projectShowPropertyAnimationEditorContext,
   projectShowPropertyAnimationOverview,
 } from './showPropertyAnimationEditorModel'
-import { projectShowClipDetailTabs } from './showClipDetailTabs'
 import { projectShowEditorInspectorPresentationV2 } from './showEditorInspectorPresentation'
 import { projectShowEditorStagePresentationV2 } from './showEditorStagePresentation'
 import {
@@ -415,81 +413,6 @@ function visibleClipValue(value: Omit<ShowClipInspectorValue, 'owner'>) {
   }
 }
 
-describe.each(composed)('$key Clip inspector', testCase => {
-  const source = testCase.source
-  const record = convert(source)
-  const owners = ordinaryOwners(source)
-
-  it('resolves every v1 composition placement to one authored v2 Clip', () => {
-    const presentation = projectShowEditorInspectorPresentationV2(record, testCase.fixedTimeMs)
-    expect(owners.length).toBeGreaterThan(0)
-    expect(owners.map(entry => entry.clipId).filter(id => presentation.clipsById[id]))
-      .toEqual(owners.map(entry => entry.clipId))
-  })
-
-  it('presents the same Clip-detail values', () => {
-    for (const entry of owners) {
-      const v1 = projectShowClipInspector(source, entry.owner)
-      const v2 = projectShowEditorInspectorPresentationV2(record, entry.atMs).clipsById[entry.clipId]
-      expect(v1, `v1 value for ${entry.owner.placementId}`).not.toBeNull()
-      expect(v2, `v2 value for ${entry.clipId}`).toBeDefined()
-      expect(visibleClipValue(v2!.value), `${testCase.key}/${entry.clipId}`)
-        .toEqual(visibleClipValue(v1!))
-    }
-  })
-
-  it('offers the same Property-animation targets and current values', () => {
-    for (const entry of owners) {
-      const v1 = projectShowClipInspector(source, entry.owner)!
-      const v2 = projectShowEditorInspectorPresentationV2(record, entry.atMs).clipsById[entry.clipId]!
-      expect(buildShowPropertyAnimationOptions(v2.value), `${testCase.key}/${entry.clipId}`)
-        .toEqual(buildShowPropertyAnimationOptions(v1))
-    }
-  })
-
-  it('partitions the same Clip-detail tabs', () => {
-    for (const entry of owners) {
-      const v1 = projectShowClipInspector(source, entry.owner)!
-      const v2 = projectShowEditorInspectorPresentationV2(record, entry.atMs).clipsById[entry.clipId]!
-      expect(projectShowClipDetailTabs({ value: v2.value, transformEnabled: true }), `${testCase.key}/${entry.clipId}`)
-        .toEqual(projectShowClipDetailTabs({ value: v1, transformEnabled: true }))
-    }
-  })
-
-  it('summarizes the same Property-animation rows in Show time', () => {
-    for (const entry of owners) {
-      const v1Value = projectShowClipInspector(source, entry.owner)!
-      const v1Context = projectShowPropertyAnimationEditorContext(source, v1Value)
-      const v2 = projectShowEditorInspectorPresentationV2(record, entry.atMs).clipsById[entry.clipId]!
-      expect(v1Context, `v1 animation context for ${entry.owner.placementId}`).not.toBeNull()
-      const v1Rows = projectShowPropertyAnimationOverview(
-        v1Context!,
-        buildShowPropertyAnimationOptions(v1Value),
-      )
-      const v2Rows = projectShowPropertyAnimationOverview(
-        {
-          tracks: v2.animation.tracks.map(track => track.editor),
-          trackIssues: {},
-          showTimeOffsetMs: v2.animation.showTimeOffsetMs,
-          instanceUseCount: v2.animation.instanceUseCount,
-        },
-        buildShowPropertyAnimationOptions(v2.value),
-      )
-      expect(v2Rows, `${testCase.key}/${entry.clipId}`).toEqual(v1Rows)
-    }
-  })
-
-  it('counts the same linked uses for an ordinary Pattern instance', () => {
-    for (const entry of owners) {
-      const v1Value = projectShowClipInspector(source, entry.owner)!
-      const v1Context = projectShowPropertyAnimationEditorContext(source, v1Value)!
-      const v2 = projectShowEditorInspectorPresentationV2(record, entry.atMs).clipsById[entry.clipId]!
-      expect(v2.animation.instanceUseCount, `${testCase.key}/${entry.clipId}`)
-        .toBe(v1Context.instanceUseCount)
-    }
-  })
-})
-
 interface GroupChildOwner {
   occurrenceId: string
   placementId: string
@@ -844,31 +767,6 @@ describe.each(grouped)('$key Stage Group Clip diagnostics', testCase => {
       }
     }
     expect(drawn).toBeGreaterThan(0)
-  })
-})
-
-describe.each(composed)('$key held Clip values over time', testCase => {
-  const source = testCase.source
-  const record = convert(source)
-
-  // A v1 placement owns one set of detail values for its whole window. The v2
-  // reader resolves a held appearance key per instant, so it must present the
-  // same values at every instant inside that window.
-  it('holds the same Clip-detail values at every instant inside the Clip window', () => {
-    for (const entry of ordinaryOwners(source)) {
-      const v1 = visibleClipValue(projectShowClipInspector(source, entry.owner)!)
-      const clip = record.composition.clips.find(candidate => candidate.id === entry.clipId)!
-      const instants = [
-        clip.startMs,
-        clip.startMs + 1,
-        clip.startMs + Math.floor(clip.durationMs / 2),
-        clip.startMs + clip.durationMs - 1,
-      ]
-      for (const timeMs of instants) {
-        const v2 = projectShowEditorInspectorPresentationV2(record, timeMs).clipsById[entry.clipId]!
-        expect(visibleClipValue(v2.value), `${testCase.key}/${entry.clipId}@${timeMs}`).toEqual(v1)
-      }
-    }
   })
 })
 

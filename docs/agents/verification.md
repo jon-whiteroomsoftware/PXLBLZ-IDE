@@ -1161,14 +1161,10 @@ end of `showCompositionLowering.test.ts` are the template.
 
 ## Clip detail dialog matrix
 
-The Clip Entity Detail dialog qualifies through a field round-trip contract in
-`src/components/ShowClipEntityDetail.matrix.test.tsx`: every editable
-control's emitted patch is applied through the real inspector engine and
-re-projected, and the result must be exactly what the dialog then displays.
-Scope-capability, read-only, and typed-edit lifecycle sweeps walk the surface
-partitions. The declared partitions, field families, layered fault-sensitivity
-map, and maintenance rule live in
-[`clip-detail-test-matrix.md`](clip-detail-test-matrix.md).
+The v1 Clip detail round-trip matrix was retired in #1042 slice 4-2 with its
+inspector update path. Current v2 inspector controls are exercised through
+`src/components/ShowEditorV2Tracer.test.tsx`; shared capability projection
+remains covered by `src/engine/showClipInspectorModel.test.ts`.
 
 ## Show authoring mutation qualification
 
@@ -1194,12 +1190,11 @@ testing into a second full suite:
 | Resize | Placement-animation keyframes retain their offset from the moved edge |
 | Split | The public plan uses strict interior Clip boundaries |
 | Duplicate | The immediate-after destination retains one complete source-Clip duration and every distinct copied static appearance |
-| Inspector | Timing and colocated placement fields commit or refuse atomically |
 | Transition | Insert validation, resize-delta arithmetic, and v2 hyperedge ripple preserve a valid composition and move each downstream Clip once |
 | Animation edit | Batch limits, preimage reference uniqueness, final validation, no-op identity, exact retained-curve offsets, Insert Time boundary mapping, shared Restart coalescing and instance-target overlap |
 | Show End | Authored-content clamping, exact empty-suffix pruning, and meaningful-Boundary refusal |
 
-#1042 Phase 4 slice 4-1 removed the v1 command-catalogue targets and four targets with no remaining product call path; 18 targets remain.
+#1042 Phase 4 slice 4-1 removed the v1 command-catalogue targets and four targets with no remaining product call path. Slice 4-2 removed the v1 Clip inspector target; 17 targets remain.
 
 The wrapper fails closed when the runner cannot start, omits or malforms its
 JSON report, reports no mutants, leaves a result pending, times out or errors,

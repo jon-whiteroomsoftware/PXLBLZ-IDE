@@ -5,9 +5,7 @@ import { projectFlatShowToCompositionV1WithCellOrigins } from './showComposition
 import {
   applyShowReferencePattern,
   applyShowPatternSlotSelections,
-  currentShowReferenceExample,
   restoreShowReferencePatternSlots,
-  type ShowReferenceGuide,
 } from './showReferenceShow'
 
 describe('Show reference Pattern projection (#506)', () => {
@@ -155,36 +153,6 @@ describe('Show reference Pattern projection (#506)', () => {
     ))?.pattern).toEqual({ kind: 'stock', id: 'TestPattern2D' })
   })
 
-  it('keeps a boundary example current through the following Scene hold', () => {
-    const show = createDefaultShow('show-1', 'Reference Show', 100)
-    const transitionId = show.transitions![0].id
-    const guide: ShowReferenceGuide = {
-      summary: 'Compare one family.',
-      examples: [
-        { id: 'reference', label: 'Reference', detail: 'Unmodified.', anchor: { kind: 'scene', sceneId: 'scene-1' } },
-        { id: 'wipe', label: 'Wipe east', detail: 'Reference -> Selected', anchor: { kind: 'boundary', transitionId } },
-      ],
-    }
-
-    expect(currentShowReferenceExample(show, guide, 1_000)?.id).toBe('reference')
-    expect(currentShowReferenceExample(show, guide, 31_000)?.id).toBe('wipe')
-    expect(currentShowReferenceExample(show, guide, 50_000)?.id).toBe('wipe')
-  })
-
-  it('keeps a Scene example named through its outgoing animated boundary', () => {
-    const show = createDefaultShow('show-1', 'Effect Reference', 100)
-    const guide: ShowReferenceGuide = {
-      summary: 'Compare rendered states.',
-      examples: [{
-        id: 'reference',
-        label: 'Reference',
-        detail: 'Unmodified.',
-        anchor: { kind: 'scene', sceneId: 'scene-1' },
-      }],
-    }
-
-    expect(currentShowReferenceExample(show, guide, 31_000)?.id).toBe('reference')
-  })
 })
 
 it('preserves slot projection when replacement metadata is unavailable but honors known empty exports (#953)', () => {
