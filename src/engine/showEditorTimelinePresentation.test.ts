@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { STOCK_SHOWS_V2 } from '../pixelblaze/stock/showsV2'
+import { convertForTest } from '../test/showEditorV2Harness'
+import { convertibleV1Show } from '../test/showV2TracerFixture'
 import type { ShowRecordV2 } from './showCompositionV2'
 import { resolveShowV2SplitTarget } from './showV2ClipTemporalPlanning'
 import {
@@ -8,6 +11,7 @@ import {
   projectShowEditorTimelineCommandsV2,
   projectShowEditorTimelineV2,
   projectShowEditorTransitionSettingsV2,
+  showEditorTransitionIdsV2,
 } from './showEditorTimelinePresentation'
 
 function record(): ShowRecordV2 {
@@ -87,11 +91,68 @@ describe('projectShowEditorTimelineV2', () => {
     })
   })
 
+function recordWithGroupTransition(): ShowRecordV2 {
+  const record = convertForTest(convertibleV1Show())
+  const { zoneId: _zoneId, ...childClip } = record.composition.clips[0]
+  record.composition.groupDefinitions = [{
+    id: 'definition', name: 'Phrase',
+    patternInstances: structuredClone(record.composition.patternInstances),
+    layers: [{ id: 'group-layer', name: 'Main', rank: 0 }],
+    clips: [{ ...childClip, id: 'child', layerId: 'group-layer' }],
+    transitions: [{
+      id: 'phrase-transition',
+      fromPlacementId: 'child',
+      toPlacementId: 'child',
+      kind: 'crossfade',
+      durationMs: 250,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }],
+    propertyTracks: [],
+  }]
+  record.composition.groupOccurrences = [{
+    id: 'occurrence', definitionId: 'definition',
+    layoutOccurrenceId: record.composition.layoutOccurrences[0].id,
+    zoneId: record.zones[0].id, startMs: 0, translationX: 0, translationY: 0,
+    layerBindings: [{ definitionLayerId: 'group-layer', layerId: record.composition.layers[0].id }],
+    holds: [],
+  }]
+  return record
+}
+
   it('omits the provenance field for a natively authored Transition', () => {
     const view = projectShowEditorTimelineV2(record())
 
     expect(view.transitions).toHaveLength(1)
     expect('origin' in view.transitions[0]!).toBe(false)
+  })
+
+  it('transition id set matches the projected Transition ids for every stock Show (#1124)', () => {
+    const union = new Set<string>()
+    for (const record of STOCK_SHOWS_V2) {
+      const ids = showEditorTransitionIdsV2(record)
+      const view = projectShowEditorTimelineV2(record)
+      expect(ids).toEqual(new Set([
+        ...view.transitions.map(transition => transition.id),
+        ...view.layoutIntervals.flatMap(interval => interval.incomingTransfer ? [interval.incomingTransfer.id] : []),
+      ]))
+      for (const id of ids) union.add(id)
+    }
+    // The catalogue reaches the Layout occurrence source: converted routing
+    // transfers, and native Cuts minted as `layout-cut:` ids.
+    expect(STOCK_SHOWS_V2.some(record => record.composition.layoutOccurrences
+      .some(occurrence => occurrence.incomingTransfer))).toBe(true)
+    expect([...union].some(id => id.startsWith('layout-cut:'))).toBe(true)
+    // No stock Show carries a Group definition Transition, so a converted
+    // record with one supplies the Group occurrence source.
+    const grouped = recordWithGroupTransition()
+    const groupedIds = showEditorTransitionIdsV2(grouped)
+    const groupedView = projectShowEditorTimelineV2(grouped)
+    expect(groupedIds).toEqual(new Set([
+      ...groupedView.transitions.map(transition => transition.id),
+      ...groupedView.layoutIntervals.flatMap(interval => interval.incomingTransfer ? [interval.incomingTransfer.id] : []),
+    ]))
+    expect(groupedIds.has('occurrence:phrase-transition')).toBe(true)
   })
 })
 

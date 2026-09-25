@@ -1,5 +1,6 @@
 import type { ShowGroupSelection } from './showGroupModel'
 import type { ShowRecordV2 } from './showCompositionV2'
+import { showEditorTransitionIdsV2 } from './showEditorTimelinePresentation'
 
 /** Structural counterpart of the editor selection, kept free of store imports. */
 export type ShowSelectionForExistenceV2 =
@@ -22,10 +23,7 @@ export function showSelectionExistsV2(
     return composition.clips.some((clip) => clip.id === selection.clipId)
   }
   if (selection.kind === 'transition') {
-    // Timeline transition ids can come from composition.transitions, a layout occurrence's
-    // incomingTransfer, layout-cut:<occurrenceId>, Zone Layout switches, boundaries, or beat
-    // owners. Until #1124 owns those ids centrally, preserve v2 Transition selections.
-    return true
+    return showEditorTransitionIdsV2(record).has(selection.transitionId)
   }
   if (selection.kind === 'zone') return record.zones.some((zone) => zone.id === selection.zoneId)
   if (selection.kind === 'zone-layout') {

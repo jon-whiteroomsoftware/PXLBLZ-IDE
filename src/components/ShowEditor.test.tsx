@@ -1654,6 +1654,65 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
   })
 
+  it('closes a pinned Transition Detail when its Transition is removed (#1124)', async () => {
+    const user = userEvent.setup()
+    const show = showSplitClipFixture()
+    show.transitions![0] = { ...show.transitions![0], kind: 'crossfade', durationMs: 2000, crossfadePolicy: 'live-live' }
+    delete show.composition!.scenes[1].zones[0].main[0].logicalClipId
+    const editor = openV2EditorForRecord(convertForTest(show))
+
+    render(<ShowEditor showId={editor.showId} />)
+    const boundary = document.querySelector<HTMLElement>('[data-show-selection-key="transition:transition-scene-1"]')
+    expect(boundary).not.toBeNull()
+    await user.click(boundary!)
+
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await user.click(within(panel).getByRole('button', { name: 'Pin Entity Detail Panel' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
+
+    const without = structuredClone(editor.state().record)
+    without.composition.transitions = without.composition.transitions
+      .filter((transition) => transition.id !== 'transition-scene-1')
+    act(() => {
+      useShowStore.setState({ showV2Pilots: { [editor.showId]: without } })
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('closes the Layer Transition popover when its Transition is removed (#1124)', async () => {
+    const user = userEvent.setup()
+    const show = createTransitionMenuShow('show-layer-transition-popover-removal', [
+      { id: 'clip-outgoing', name: 'Outgoing', startMs: 1_000, durationMs: 2_000 },
+      { id: 'clip-incoming', name: 'Incoming', startMs: 5_000, durationMs: 2_000 },
+    ], [
+      { id: 'existing-crossfade', fromClipId: 'clip-outgoing', toClipId: 'clip-incoming', durationMs: 2_000 },
+    ])
+    const editor = openV2EditorForRecord(convertForTest(show))
+
+    render(<ShowEditor showId={editor.showId} />)
+    await user.click(screen.getByRole('button', { name: 'Edit crossfade Transition between Outgoing and Incoming' }))
+    expect(screen.getByRole('dialog', { name: 'Layer Transition Details' })).toBeInTheDocument()
+
+    const transitionId = editor.state().record.composition.transitions.find((transition) =>
+      transition.participants.some((participant) =>
+        participant.fromClipId === 'clip-outgoing' && participant.toClipId === 'clip-incoming'),
+    )?.id
+    if (!transitionId) throw new Error('Layer Transition did not convert')
+    const without = structuredClone(editor.state().record)
+    without.composition.transitions = without.composition.transitions
+      .filter((transition) => transition.id !== transitionId)
+    act(() => {
+      useShowStore.setState({ showV2Pilots: { [editor.showId]: without } })
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Layer Transition Details' })).not.toBeInTheDocument()
+    })
+  })
+
   it('edits an internal Group Transition while its linked definition is isolated (#587)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-group-transition', 'Group transition', 1000)

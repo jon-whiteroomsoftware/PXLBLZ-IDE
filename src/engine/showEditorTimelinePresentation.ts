@@ -3,6 +3,7 @@ import type {
   ShowClipV2,
   ShowGroupDefinitionV2,
   ShowGroupOccurrenceV2,
+  ShowLayoutOccurrenceV2,
   ShowPropertyTargetV2,
   ShowRecordV2,
   ShowTransitionV2,
@@ -20,6 +21,7 @@ import type {
   ShowTimelineItemView,
   ShowTimelineJunctionView,
   ShowTimelineLayerView,
+  ShowTimelineLayoutTransferView,
   ShowTimelinePropertyTrackView,
   ShowTimelineTransitionView,
   ShowTimelineViewModel,
@@ -304,6 +306,47 @@ function groupOccurrenceTransitionsV2(record: ShowRecordV2): ShowTransitionV2[] 
   })
 }
 
+function orderedLayoutOccurrencesV2(record: ShowRecordV2): ShowLayoutOccurrenceV2[] {
+  return [...record.composition.layoutOccurrences]
+    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+}
+
+function layoutIncomingTransferV2(
+  occurrence: ShowLayoutOccurrenceV2,
+  index: number,
+  ordered: readonly ShowLayoutOccurrenceV2[],
+): ShowTimelineLayoutTransferView | null {
+  if (occurrence.incomingTransfer) return {
+    id: occurrence.incomingTransfer.id,
+    fromOccurrenceId: occurrence.incomingTransfer.fromOccurrenceId,
+    durationMs: occurrence.incomingTransfer.durationMs,
+  }
+  if (occurrence.incomingSwitch) return {
+    id: occurrence.incomingSwitch.id,
+    fromOccurrenceId: occurrence.incomingSwitch.fromOccurrenceId,
+    durationMs: 0,
+  }
+  if (index === 0) return null
+  return {
+    id: `layout-cut:${occurrence.id}`,
+    fromOccurrenceId: ordered[index - 1]!.id,
+    durationMs: 0,
+  }
+}
+
+/** Every Transition id the v2 editor can select (#1124). */
+export function showEditorTransitionIdsV2(record: ShowRecordV2): ReadonlySet<string> {
+  const ids = new Set<string>()
+  for (const transition of record.composition.transitions) ids.add(transition.id)
+  for (const transition of groupOccurrenceTransitionsV2(record)) ids.add(transition.id)
+  const ordered = orderedLayoutOccurrencesV2(record)
+  ordered.forEach((occurrence, index) => {
+    const incoming = layoutIncomingTransferV2(occurrence, index, ordered)
+    if (incoming) ids.add(incoming.id)
+  })
+  return ids
+}
+
 /** Every authored item the timeline draws: ordinary Clips and Group children. */
 function authoredTimelineItems(record: ShowRecordV2): AuthoredTimelineItem[] {
   const ordinary = record.composition.clips.map(clip => ordinaryItem(record, clip))
@@ -388,11 +431,11 @@ export function projectShowEditorTimelineV2(record: ShowRecordV2): ShowTimelineV
 
   const transitionViews = transitions.map(transition => projectTransition(transition, itemById))
     .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
-  const orderedLayoutOccurrences = [...record.composition.layoutOccurrences]
-    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+  const orderedLayoutOccurrences = orderedLayoutOccurrencesV2(record)
   const layoutIntervals = orderedLayoutOccurrences
     .map((occurrence, index) => {
       const definition = record.zoneLayouts.find(layout => layout.id === occurrence.layoutId)
+      const incomingTransfer = layoutIncomingTransferV2(occurrence, index, orderedLayoutOccurrences)
       return {
         id: occurrence.id,
         definitionId: occurrence.layoutId,
@@ -411,19 +454,7 @@ export function projectShowEditorTimelineV2(record: ShowRecordV2): ShowTimelineV
         // converted zero-duration switch owns no timed transfer, so it fills
         // this display view with its own identity and duration 0 (#1065). A
         // native Cut owns neither, so it gets a display identity too (#1066).
-        ...(occurrence.incomingTransfer ? { incomingTransfer: {
-          id: occurrence.incomingTransfer.id,
-          fromOccurrenceId: occurrence.incomingTransfer.fromOccurrenceId,
-          durationMs: occurrence.incomingTransfer.durationMs,
-        } } : occurrence.incomingSwitch ? { incomingTransfer: {
-          id: occurrence.incomingSwitch.id,
-          fromOccurrenceId: occurrence.incomingSwitch.fromOccurrenceId,
-          durationMs: 0,
-        } } : index === 0 ? {} : { incomingTransfer: {
-          id: `layout-cut:${occurrence.id}`,
-          fromOccurrenceId: orderedLayoutOccurrences[index - 1]!.id,
-          durationMs: 0,
-        } }),
+        ...(incomingTransfer ? { incomingTransfer } : {}),
         selection: { kind: 'layout-occurrence' as const, occurrenceId: occurrence.id },
       }
     })

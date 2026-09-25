@@ -374,6 +374,7 @@ import {
   projectShowEditorTimelineCommandsV2,
   projectShowEditorTimelineV2,
   projectShowEditorTransitionSettingsV2,
+  showEditorTransitionIdsV2,
   type ShowEditorPropertyLaneV2,
   type ShowEditorTimeColumnV2,
   type ShowEditorTimelineCommandSelectionV2,
@@ -2566,20 +2567,27 @@ export function ShowEditor({
   }, [closeDetailPanel, isolatedGroupOccurrenceId, savedShowV2, setSelection])
   useEffect(() => {
     if (!savedShowV2) return
+    const transitionIds = showEditorTransitionIdsV2(savedShowV2)
     const pinnedSelectionMissing = Boolean(
       pinnedDetail && !showSelectionExistsV2(savedShowV2, pinnedDetail.selection),
     )
     const transientSelectionMissing = detailPanelOpen && !showSelectionExistsV2(savedShowV2, selection)
-    if (!pinnedSelectionMissing && !transientSelectionMissing) return
+    const layerTransitionTargetMissing = Boolean(layerTransitionTarget && (
+      (layerTransitionTarget.transitionId !== undefined && !transitionIds.has(layerTransitionTarget.transitionId))
+      || (layerTransitionTarget.groupOccurrenceId !== undefined && layerTransitionTarget.groupTransitionId !== undefined
+        && !transitionIds.has(`${layerTransitionTarget.groupOccurrenceId}:${layerTransitionTarget.groupTransitionId}`))
+    ))
+    if (!pinnedSelectionMissing && !transientSelectionMissing && !layerTransitionTargetMissing) return
     const timeout = window.setTimeout(() => {
       if (pinnedSelectionMissing) setPinnedDetail(null)
       if (transientSelectionMissing) {
         closeDetailPanel()
         setSelection({ kind: 'show' })
       }
+      if (layerTransitionTargetMissing) setLayerTransitionTarget(null)
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [closeDetailPanel, detailPanelOpen, pinnedDetail, savedShowV2, selection, setSelection])
+  }, [closeDetailPanel, detailPanelOpen, layerTransitionTarget, pinnedDetail, savedShowV2, selection, setSelection])
   const propertyLanesV2 = useMemo(() => (
     lessonProjectionV2
       ? projectShowEditorPropertyLanesV2(lessonProjectionV2, Object.values(patternControlsByInstanceId).flat())
