@@ -176,6 +176,7 @@ describe('personal content provider seam', () => {
     await expect(demoPersonalContentProvider.listMixins()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listLibraries?.()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listShows()).resolves.toEqual([])
+    expect(demoPersonalContentProvider.listShowDocumentsV2).toBeUndefined()
     await expect(demoPersonalContentProvider.listControllerProfiles()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.getLastActive()).resolves.toBeUndefined()
     await expect(demoPersonalContentProvider.getDemoOverrides()).resolves.toBeUndefined()

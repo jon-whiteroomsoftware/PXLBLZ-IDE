@@ -176,6 +176,7 @@ const snapshot = () => structuredClone({ shows: state().shows, histories: state(
 let sessionToRetire: string | undefined
 afterEach(() => { if (sessionToRetire) state().retireShowEditSession(sessionToRetire); sessionToRetire = undefined; resetPersonalContentProvider() })
 
+// V1-ONLY (#1042): v2 has no ShowClipPlacementPad candidate path; deleted with deliverShowEditCandidate.
 it.each(['before-move', 'preview-cancel', 'manual-up', 'manual-cancel'] as const)('settles placement candidate from complete records/history/provider writes: %s', async mode => {
   useShowStore.setState(showInitialState)
   const show = createDefaultShow(`placement-${mode}`, 'Original')

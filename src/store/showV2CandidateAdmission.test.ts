@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { convertibleV1Show } from '@/test/showV2TracerFixture'
+import { applyFourLayerShowEndCommandSequence, fourLayerShowEndBaseFixture } from '@/test/fourLayerShowEndCommandFixture'
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
 import * as stage from '@/engine/showPreparedStageV2'
 import { captureShowAuthoringBaselineV2 } from '@/engine/showAuthoringValidationV2'
 import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '@/engine/personalContentProvider'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import type { ShowPreparedStageDependenciesV2 } from '@/engine/showPreparedStageV2'
 import { showInitialState, useShowStore } from './showStore'
@@ -26,24 +28,29 @@ function voiceDependencies(): ShowPreparedStageDependenciesV2 {
 
 function voiceBaseline(record: ShowRecordV2) {
   return captureShowAuthoringBaselineV2(record, {
-    source: reference => (reference.kind === 'user' && reference.id === 'voice' ? VOICE : undefined),
+    source: reference => (reference.kind === 'user' && reference.id === 'voice' ? VOICE : reference.kind === 'stock' ? DEMOS[reference.id] : undefined),
     libraries: LIBRARIES,
   })
 }
 
-function setup(options: { failSave?: boolean } = {}) {
+function setup(options: { failSave?: boolean; seed?: ShowRecordV2 } = {}) {
   const converted = convertShowRecordV1ToV2(convertibleV1Show())
   if (converted.status !== 'converted') throw new Error('Conversion')
-  const record = converted.record
+  const record = options.seed ? structuredClone(options.seed) : converted.record
   record.id = `candidate-${++index}`
-  for (const instance of record.composition.patternInstances) instance.pattern = { kind: 'user', id: 'voice' }
+  if (!options.seed) for (const instance of record.composition.patternInstances) instance.pattern = { kind: 'user', id: 'voice' }
   const dependencies = voiceDependencies()
   let saved = structuredClone(record)
   const write = vi.fn(async (_id: string, next: ShowRecordV2) => {
     if (options.failSave) throw new Error('save refused')
     saved = structuredClone(next)
   })
-  setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'candidate-test', replaceShowV2: write, listShowDocumentsV2: async () => [structuredClone(saved)] })
+  const deleteShow = vi.fn(async (_id: string) => {})
+  const createShowV2 = vi.fn(async (_record: ShowRecordV2) => {})
+  setPersonalContentProvider({
+    ...getPersonalContentProvider(), id: 'candidate-test', replaceShowV2: write, deleteShow, createShowV2,
+    listShowDocumentsV2: async () => [structuredClone(saved)],
+  })
   useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
   const capture = captureShowStageEditV2(record, dependencies)
   if (capture.prepared.status === 'refused') throw new Error(capture.prepared.message)
@@ -70,7 +77,7 @@ function setup(options: { failSave?: boolean } = {}) {
     return next
   }
   return {
-    record, capture, dependencies, write, sessionId, begin, deliver, edited,
+    record, capture, dependencies, write, deleteShow, createShowV2, sessionId, begin, deliver, edited,
     readSaved: () => saved,
     history: () => useShowStore.getState().showV2Histories[record.id],
     current: () => useShowStore.getState().showV2Pilots[record.id],
@@ -172,6 +179,20 @@ it('refuses a zero-write candidate without a history entry, save or ordering sta
   expect(context.current()).toBe(context.record)
 })
 
+it('keeps a pending candidate current across same-reference edits and exhausted history', async () => {
+  const context = setup()
+  const request = context.begin()
+  const before = context.current()
+  const revision = useShowStore.getState().showRevisions[context.record.id] ?? 0
+  await useShowStore.getState().updateShowV2Pilot(context.record.id, before)
+  expect(await useShowStore.getState().undoShowV2Pilot(context.record.id)).toBe(false)
+  expect(await useShowStore.getState().redoShowV2Pilot(context.record.id)).toBe(false)
+  expect(useShowStore.getState().showRevisions[context.record.id] ?? 0).toBe(revision)
+  expect(context.deliver(context.edited(), 'op-1', { request })).toMatchObject({ status: 'applied' })
+  await settled()
+  expect(context.write).toHaveBeenCalledTimes(1)
+})
+
 it('refuses a candidate the prepared Stage cannot compile', () => {
   const context = setup()
   vi.spyOn(stage, 'prepareShowStageFromCapturedInputsV2').mockReturnValue({ status: 'refused', message: 'compiler refused' })
@@ -256,4 +277,106 @@ it('adopts a lesson draft through the candidate path with a draft settlement and
   expect(useShowStore.getState().readShowEdit(sessionId, 'op-lesson')).toMatchObject({ status: 'applied', settlement: 'draft' })
   expect(context.write).not.toHaveBeenCalled()
   expect(useShowStore.getState().showV2Histories[lessonId]?.past).toHaveLength(1)
+})
+
+it.each([
+  ['sessionId', 'other', 'retired'],
+  ['showId', 'other', 'refused'],
+  ['operationId', 'other', 'refused'],
+  ['payloadKey', 'other', 'refused'],
+  ['referenceContext', 'other', 'refused'],
+  ['targets', ['other'], 'refused'],
+  ['baseRevision', -1, 'refused'],
+  ['retryOf', 'other', 'refused'],
+] as const)('binds v2 noncandidate completion to unchanged %s', (key, value, status) => {
+  const context = setup()
+  const request = context.begin()
+  const result = useShowStore.getState().completeShowEdit({ ...request, [key]: value }, 'asked')
+  expect(result.status).toBe(status)
+  expect(useShowStore.getState().readShowEdit(context.sessionId, request.operationId)?.status).toBe('pending')
+  expect(useShowStore.getState().completeShowEdit(request, 'asked')).toMatchObject({ status: 'completed', completion: 'asked' })
+  expect(context.write).not.toHaveBeenCalled()
+})
+
+it.each(['cancelled', 'retired', 'applied', 'refused'] as const)('preserves a v2 %s terminal receipt on noncandidate completion', async terminal => {
+  const context = setup()
+  const request = context.begin()
+  if (terminal === 'cancelled') useShowStore.getState().cancelShowEdit(context.sessionId, request.operationId)
+  if (terminal === 'retired') useShowStore.getState().retireShowEditSession(context.sessionId)
+  if (terminal === 'applied') {
+    context.deliver(context.edited(), 'op-1', { request })
+    await settled()
+  }
+  if (terminal === 'refused') context.deliver(null, 'op-1', { request })
+  const before = context.current()
+  const writes = context.write.mock.calls.length
+  const prior = useShowStore.getState().readShowEdit(context.sessionId, request.operationId)
+  const result = useShowStore.getState().completeShowEdit(request, 'asked')
+  expect(result.status).toBe(terminal)
+  if (prior) expect(result).toEqual(prior)
+  expect(context.current()).toBe(before)
+  expect(context.write).toHaveBeenCalledTimes(writes)
+})
+
+it('refuses an unknown v2 completion value without consuming the pending operation', () => {
+  const context = setup()
+  const request = context.begin()
+  expect(useShowStore.getState().completeShowEdit(request, 'invented' as never)).toMatchObject({
+    status: 'refused', reason: 'identity-mismatch',
+  })
+  expect(useShowStore.getState().readShowEdit(context.sessionId, request.operationId)?.status).toBe('pending')
+  expect(context.write).not.toHaveBeenCalled()
+})
+
+it('refuses an old v2 candidate after deletion recreates the same Show identity', async () => {
+  const context = setup()
+  const request = context.begin()
+  await useShowStore.getState().removeShow(context.record.id)
+  await useShowStore.getState().addImportedShowV2(structuredClone(context.record))
+  const recreated = useShowStore.getState().showV2Pilots[context.record.id]
+  expect(context.deliver(context.edited(), 'op-1', { request }).status).toMatch(/refused|retired/)
+  expect(useShowStore.getState().showV2Pilots[context.record.id]).toBe(recreated)
+  expect(context.write).not.toHaveBeenCalled()
+  expect(context.deleteShow).toHaveBeenCalledOnce()
+  expect(context.createShowV2).toHaveBeenCalledOnce()
+})
+
+it('invalidates a v2 candidate at deletion start even when the provider later rejects', async () => {
+  const context = setup()
+  const request = context.begin()
+  let rejectDelete!: (cause: Error) => void
+  context.deleteShow.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectDelete = reject }))
+  const deleting = useShowStore.getState().removeShow(context.record.id).catch(() => undefined)
+  expect(context.deliver(context.edited(), 'op-1', { request }).status).toMatch(/refused|retired/)
+  expect(useShowStore.getState().beginShowEdit(context.sessionId, {
+    operationId: 'while-deleting', payloadKey: 'new', referenceContext: 'context', targets: [context.record.id],
+  }).reason).toBe('missing-show')
+  await vi.waitFor(() => expect(context.deleteShow).toHaveBeenCalledOnce())
+  rejectDelete(new Error('offline'))
+  await deleting
+  expect(context.write).not.toHaveBeenCalled()
+})
+
+it('admits, saves, undoes, redoes and reopens the exact four-Layer Show End transaction in v2 (#1029)', async () => {
+  const before = fourLayerShowEndBaseFixture()
+  const after = applyFourLayerShowEndCommandSequence(before)
+  const convertedBefore = convertShowRecordV1ToV2(before)
+  const convertedAfter = convertShowRecordV1ToV2(after)
+  expect(convertedBefore.status, JSON.stringify(convertedBefore)).toBe('converted')
+  expect(convertedAfter.status, JSON.stringify(convertedAfter)).toBe('converted')
+  if (convertedBefore.status !== 'converted' || convertedAfter.status !== 'converted') throw new Error('Conversion')
+  const context = setup({ seed: convertedBefore.record })
+  const candidate = structuredClone(convertedAfter.record)
+  candidate.id = context.record.id
+  expect(context.deliver(candidate)).toMatchObject({ status: 'applied', settlement: 'saving' })
+  await settled()
+  expect(context.readSaved().composition).toEqual(candidate.composition)
+  expect(context.history().past).toEqual([context.record])
+  expect(context.write).toHaveBeenCalledOnce()
+  expect(await useShowStore.getState().undoShowV2Pilot(context.record.id)).toBe(true)
+  expect(context.current().composition).toEqual(context.record.composition)
+  expect(await useShowStore.getState().redoShowV2Pilot(context.record.id)).toBe(true)
+  expect(context.current().composition).toEqual(candidate.composition)
+  const reopened = await useShowStore.getState().reloadShowV2Pilot(context.record.id)
+  expect(reopened?.composition).toEqual(candidate.composition)
 })

@@ -1,6 +1,5 @@
 import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
-import { stockShowById } from '@/pixelblaze/stock/shows'
 import { STOCK_SHOWS_V2, stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { transitionV1Show } from '../test/showV2TracerFixture'
@@ -1031,29 +1030,6 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toEqual(['show-first', 'show-second'])
   })
 
-  it('creates, renames, edits, and deletes shows through the provider', async () => {
-    setPersonalContentProvider(memoryProvider())
-
-    const show = await useShowStore.getState().createNewShow({
-      outputContract: createPortableShowOutputContract({ referenceMapId: null, referencePixelCount: 60 }),
-    })
-    expect(useShowStore.getState().activeShowId).toBeNull()
-    await useShowStore.getState().renameShow(show.id, 'Opening wash')
-    await useShowStore.getState().updateScene(show.id, show.scenes[0].id, { durationMs: 45000 })
-    await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, { mirror: true })
-
-    expect(useShowStore.getState().shows[0]).toMatchObject({
-      id: show.id,
-      name: 'Opening wash',
-      scenes: [expect.objectContaining({ durationMs: 45000 }), expect.any(Object)],
-      cells: [expect.objectContaining({ adaptations: expect.objectContaining({ mirror: true }) }), expect.any(Object)],
-    })
-
-    await useShowStore.getState().removeShow(show.id)
-    expect(useShowStore.getState().shows).toEqual([])
-    expect(useShowStore.getState().activeShowId).toBeNull()
-  })
-
   it('removes a Show clip through the persistence provider', async () => {
     const show = createDefaultShow('show-clip-delete', 'Clip deletion', 1)
     setPersonalContentProvider(memoryProvider([show]))
@@ -1085,73 +1061,33 @@ describe('showStore (#318)', () => {
     }))
   })
 
-  it('persists an exact-zero clip time scale through the provider', async () => {
-    const show = createDefaultShow('show-1', 'Opening wash', 1)
-    const provider = memoryProvider([show])
-    setPersonalContentProvider(provider)
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, { timeScale: 0 })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].cells[0].adaptations.timeScale).toBe(0)
-  })
-
-  it('persists a full-clip light shutter through the provider', async () => {
-    const show = createDefaultShow('show-1', 'Opening wash', 1)
-    const provider = memoryProvider([show])
-    setPersonalContentProvider(provider)
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, {
-      lightShutter: { rateHz: 12, duty: 0.4, phase: 0.2, clockBehavior: 'freeze' },
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].cells[0].adaptations.lightShutter).toEqual({
-      rateHz: 12,
-      duty: 0.4,
-      phase: 0.2,
-      clockBehavior: 'freeze',
-    })
-  })
-
-  it('persists stepped-clock cadence independently from time scale and light shutter', async () => {
-    const show = createDefaultShow('show-1', 'Opening wash', 1)
-    const provider = memoryProvider([show])
-    setPersonalContentProvider(provider)
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, {
-      timeScale: 0.75,
-      steppedClock: { stepMs: 125 },
+  it.each([
+    ['exact-zero time scale', { timeScale: 0 }],
+    ['full-clip light shutter', { lightShutter: { rateHz: 12, duty: 0.4, phase: 0.2, clockBehavior: 'freeze' } }],
+    ['stepped-clock cadence independent of scale and shutter', {
+      timeScale: 0.75, steppedClock: { stepMs: 125 },
       lightShutter: { rateHz: 8, duty: 0.4, phase: 0.2, clockBehavior: 'continue' },
-    })
+    }],
+    ['private time offset', { timeOffsetMs: 750 }],
+  ] as const)('persists v2 instance %s through the provider', async (_name, patch) => {
+    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const { stored } = v2ProviderForPort([converted.record])
+    await useShowStore.getState().loadShows()
+    const opened = await useShowStore.getState().openShowV2Pilot(converted.record.id)
+    if (opened.status !== 'ready') throw new Error('v2 Show did not open')
+    const edited = structuredClone(opened.record)
+    Object.assign(edited.composition.patternInstances[0].time, patch)
+    await useShowStore.getState().updateShowV2Pilot(edited.id, edited)
+    expect(stored[0].composition.patternInstances[0].time).toMatchObject(patch)
+
     useShowStore.setState(showInitialState)
     await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].cells[0].adaptations).toMatchObject({
-      timeScale: 0.75,
-      steppedClock: { stepMs: 125 },
-      lightShutter: { rateHz: 8, duty: 0.4, phase: 0.2, clockBehavior: 'continue' },
-    })
+    const reopened = await useShowStore.getState().openShowV2Pilot(edited.id)
+    expect(reopened).toMatchObject({ status: 'ready' })
+    if (reopened.status !== 'ready') throw new Error('v2 Show did not reopen')
+    expect(reopened.record.composition.patternInstances[0].time).toMatchObject(patch)
   })
-
-  it('persists a per-cell private time offset', async () => {
-    const show = createDefaultShow('show-1', 'Rounds', 1)
-    const provider = memoryProvider([show])
-    setPersonalContentProvider(provider)
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, { timeOffsetMs: 750 })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].cells[0].adaptations.timeOffsetMs).toBe(750)
-  })
-
   it('normalizes legacy entry state and persists split Continue/Restart choices (#415)', async () => {
     const legacy = createDefaultShow('show-1', 'Split Show', 1)
     legacy.cells = legacy.cells.map(({ restartOnEntry: _restartOnEntry, ...cell }) => cell)
@@ -1629,25 +1565,6 @@ describe('showStore (#318)', () => {
 describe('built-in Show session drafts (#363)', () => {
   const STOCK_ID = 'stock-show-101-clips-cuts-blank-time'
 
-  it('edits a built-in Show into an in-memory draft without any provider write', async () => {
-    const provider = memoryProvider()
-    const updateSpy = vi.spyOn(provider, 'updateShow')
-    const createSpy = vi.spyOn(provider, 'createShow')
-    setPersonalContentProvider(provider)
-
-    const base = useShowStore.getState().resolveEditableShow(STOCK_ID)!
-    expect(base.name).toBe('101 Clips, Cuts, and Blank Time')
-
-    await useShowStore.getState().addScene(STOCK_ID)
-
-    const draft = useShowStore.getState().stockShowDrafts[STOCK_ID]
-    expect(draft.scenes).toHaveLength(base.scenes.length + 1)
-    expect(useShowStore.getState().resolveEditableShow(STOCK_ID)).toBe(draft)
-    expect(updateSpy).not.toHaveBeenCalled()
-    expect(createSpy).not.toHaveBeenCalled()
-    expect(stockShowById(STOCK_ID)!.show.scenes).toHaveLength(base.scenes.length)
-  })
-
   it('keeps complete stock draft records and history paired across stale-stamped edits (#948)', async () => {
     memoryProviderV2()
     const now = vi.spyOn(Date, 'now')
@@ -1683,35 +1600,21 @@ describe('built-in Show session drafts (#363)', () => {
     }
   })
 
-  it('resetStockShowDraft discards the draft and its history', async () => {
-    setPersonalContentProvider(memoryProvider())
+  it('keeps a reset v2 lesson draft discarded when its accepted update promise settles (#948)', async () => {
+    const { stored } = memoryProviderV2()
+    const base = stockShowV2ById(STOCK_ID)!
+    await useShowStore.getState().openShowV2Pilot(STOCK_ID)
 
-    await useShowStore.getState().addScene(STOCK_ID)
-    expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toBeDefined()
-
-    useShowStore.getState().resetStockShowDraft(STOCK_ID)
-    expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toBeUndefined()
-    expect(useShowStore.getState().showHistories[STOCK_ID]).toBeUndefined()
-    expect(await useShowStore.getState().undoShow(STOCK_ID)).toBe(false)
-  })
-
-  it('keeps a reset stock draft discarded when its accepted update promise settles (#948)', async () => {
-    const provider = memoryProvider()
-    const updateSpy = vi.spyOn(provider, 'updateShow')
-    setPersonalContentProvider(provider)
-    const base = useShowStore.getState().resolveEditableShow(STOCK_ID)!
-
-    const edit = useShowStore.getState().updateShow(STOCK_ID, {
+    const edit = useShowStore.getState().updateShowV2Pilot(STOCK_ID, {
       ...base,
       name: 'Discarded draft',
       updatedAt: 0,
     })
-    useShowStore.getState().resetStockShowDraft(STOCK_ID)
+    useShowStore.getState().resetShowV2LessonDraft(STOCK_ID)
     await edit
 
-    expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toBeUndefined()
-    expect(useShowStore.getState().showHistories[STOCK_ID]).toBeUndefined()
-    expect(useShowStore.getState().resolveEditableShow(STOCK_ID)).toEqual(base)
-    expect(updateSpy).not.toHaveBeenCalled()
+    expect(useShowStore.getState().showV2Pilots[STOCK_ID]).toEqual(base)
+    expect(useShowStore.getState().showV2Histories[STOCK_ID]).toEqual({ past: [], future: [] })
+    expect(stored).toEqual([])
   })
 })

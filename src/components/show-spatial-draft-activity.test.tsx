@@ -136,6 +136,7 @@ const snapshot = () => structuredClone({ shows: state().shows, histories: state(
 let sessionToRetire: string | undefined
 afterEach(() => { if (sessionToRetire) state().retireShowEditSession(sessionToRetire); sessionToRetire = undefined; resetPersonalContentProvider() })
 
+// V1-ONLY (#1042): v2 has no ShowZoneSpatialSelector candidate path; deleted with deliverShowEditCandidate.
 it.each(['clean', 'cancel', 'save', 'retire'] as const)('settles the spatial draft with complete Show/history/provider preservation: %s', async mode => {
   useShowStore.setState(showInitialState)
   const show = fixture()
