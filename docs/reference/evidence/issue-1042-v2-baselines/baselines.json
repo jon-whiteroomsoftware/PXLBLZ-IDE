@@ -9,8 +9,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-100-getting-around",
-      "recordSha256": "a33c27367b02827b288e592a48083a60133b6a04d91294e39383d57da639e68b",
-      "pxlshowPayloadSha256": "469b1058a391c7ab043f9908a0dec7245f5b5d1fe40a3194a9de31bcc38d50f4",
+      "recordSha256": "20a5273d8a23f916996a71d0e53b04a137a42cef6eb9132f70e68b34a9b0ab64",
+      "pxlshowPayloadSha256": "3f7f108346e2136437f4e41ce78876a61b075a69491441d5e8a38ec326289e92",
       "preparation": {
         "status": "ready"
       },
@@ -36,8 +36,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-101-clips-cuts-blank-time",
-      "recordSha256": "c9bcd29531000453503e1fe68aad6e8c9268143aa4e852e460ff3247e8b83213",
-      "pxlshowPayloadSha256": "486205be2fc8e8193ba6131d4520a6cc8863ea7dec1e1df8f33938b2e4da9645",
+      "recordSha256": "c46ae474306d51610e771d571d02dee2b9e4255cd462b84f51ed0370a242691a",
+      "pxlshowPayloadSha256": "e1802161493f958102faac46ece60b7410429d00ffd1e87ed5b2620998c3de3d",
       "preparation": {
         "status": "ready"
       },
@@ -63,8 +63,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-102-transitions-values",
-      "recordSha256": "3b1833a266abeff26d7781b670a11fe64674942660898ecd666fc344d1695502",
-      "pxlshowPayloadSha256": "62b9e89165da426104c4621770df349cd554e2c03439a388b4cccd361fc6d817",
+      "recordSha256": "6522d0dd3b3bbda8b47bcd3f1cb567e94990f1e8c7115e74594dc8a85413ad0c",
+      "pxlshowPayloadSha256": "91fbdcb50a8e2833e6003482d5acd5b8c6a2bc0f2286ef8b7458859fe353f7de",
       "preparation": {
         "status": "ready"
       },
@@ -92,8 +92,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-103-clip-transform",
-      "recordSha256": "7d51a280b8e5174d6f15f60a8a8989e255ae835a3b7bb2c22fa325e0058546d7",
-      "pxlshowPayloadSha256": "a9835b17364cea597b58e67464a3cd4d7e5e9dc6500a658a81bf10d5ac8b08d6",
+      "recordSha256": "873caad83f4394394bcbe1c6eee29b403c23b09da8cddb543ea0e4f5f20eec16",
+      "pxlshowPayloadSha256": "5747ccab4f9c9e2611b82e95ba2713f2e143adeab8047730497afb9f6ef8c7b0",
       "preparation": {
         "status": "ready"
       },
@@ -119,8 +119,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-104-effects-and-ordering",
-      "recordSha256": "002e781a42e04c4fe1921ba0f8b627de45bd5f4041b89902109455c532d9a27e",
-      "pxlshowPayloadSha256": "89702a9ecc3a32632d46f2928cf7fb4e92e7e78b1700af8401e1358cb8c2d947",
+      "recordSha256": "6c82fe0da0bc4509f32c0d45d1a1ce6df7892b42ddcc1e6cc910476789f66d06",
+      "pxlshowPayloadSha256": "dac7281ab0fde5bdfc78761a206dc310ae07b55a76285c525e84de0e98cb8cab",
       "preparation": {
         "status": "ready"
       },
@@ -173,8 +173,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-106-built-from-basics",
-      "recordSha256": "af000a3057dc47ffcb9101d7f07b3c35d8a943918117e050ca970266b6db90e7",
-      "pxlshowPayloadSha256": "ce30bd887db6b2a4f129aa8def528a4322a75d1f67922133870fb6610b26a7a5",
+      "recordSha256": "18c39b327374f0bd1f92fc214274ba4c46e5f8c708f359faddae96a02916eedc",
+      "pxlshowPayloadSha256": "1d298feafaa15c121fe10fc1c45c245190aec01dcff8aa0d9feceeb77cedd7b6",
       "preparation": {
         "status": "ready"
       },
@@ -203,8 +203,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-201-layers-property-animation",
-      "recordSha256": "5490225a84f036a8b2d440f858316764992b2049b02ca1d5bc298e53c89bcf5c",
-      "pxlshowPayloadSha256": "62eeb2d675218b236b22ffd18c5f569efe769b50b7165c79f4beccafb3d28e6b",
+      "recordSha256": "07c9a9e073cfe95ed867b43bd6f0a456a4848551b19a323652cecf4127ea94fb",
+      "pxlshowPayloadSha256": "3574131a6bda2f86f9ae3d961b486ed922b94bf94a13de21e221431201accdf1",
       "preparation": {
         "status": "ready"
       },
@@ -230,8 +230,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-202-content-clip-viewport",
-      "recordSha256": "d1fa3759e9606bdba04653264d133f9e1fc4f4915afd2db2c2517650d71b17ad",
-      "pxlshowPayloadSha256": "690452a479d9316ac7e6c8339f334a38bffc5281966469cb1058e68baf3d307a",
+      "recordSha256": "3f02199af14d9f8ea7de15e9aff8b68fd94cab32f6f2ba82c42b9655037e68b7",
+      "pxlshowPayloadSha256": "7c6955f1b828db03e532b45db8dfda70aa9e73644d6fa0b0bd7cc5a0bf34eee5",
       "preparation": {
         "status": "ready"
       },
@@ -257,18 +257,18 @@
     {
       "corpus": "stock",
       "id": "stock-show-203-pattern-instance-lifecycle",
-      "recordSha256": "6ff877ae7e646d2e64a452659c45066d12152d1be37ebcc82f81408878bcb44b",
-      "pxlshowPayloadSha256": "aed6bcdcdfa5a844a00d4998058aaab589fb5569d47bace155ee0ae6809aeff2",
+      "recordSha256": "2eb2cc6f7287c59fc5521264819f9b33cce405a58ddc2b5c2f86f9da94ba3ae1",
+      "pxlshowPayloadSha256": "f3877f7d9e653ad2cdb47d125989b1dd8abdce875176f2852f0fce20b4e2b162",
       "preparation": {
         "status": "ready"
       },
       "compiled": {
-        "sourceSha256": "3bdab1f60f391f4cc03c8127ad49858942ba2d2814c0459d32caeb8d93c02ce9",
-        "sourceBytes": 12350
+        "sourceSha256": "54a96cda8a9e36a06c74af7ecc6355569d509707028b1f61d88d18fd97dc3956",
+        "sourceBytes": 14261
       },
       "epe": {
         "status": "exported",
-        "sha256": "526556d4e255cc63ed868ce7fa4ebdd7935e92630aab19cc1e9a438afdd2d005"
+        "sha256": "7699c7d8e379ac023413f1a134d1ce2e4819912918de359cf3d9177e988a204e"
       },
       "runtime": {
         "mode": "fast",
@@ -278,24 +278,24 @@
           8000,
           12000
         ],
-        "framesSha256": "077306bb7b9e46cff538b198ab9b2e5d9f705643341c75c71929c0a956f4d159"
+        "framesSha256": "02c2f3f84520b5cbdfdc02a8368741e14b70219e244765e0b6d1284c6f6257ee"
       }
     },
     {
       "corpus": "stock",
       "id": "stock-show-204-presentation-modes",
-      "recordSha256": "e12f363ae7648454d9f4cab07eedb3713b1d8d6072a665478922a98f2df49e0a",
-      "pxlshowPayloadSha256": "6522b6a00cd6f23592c3f2b034f3d6bb2ab2f0f8d8832c63d083501339dfa4d1",
+      "recordSha256": "4d5de86da9304d26fe78f1e4927f602777974dc581dc98b855338bafd4e611dc",
+      "pxlshowPayloadSha256": "5635627d0d2054cfad167ebb2efb6bd16e418cbb691273c6435761749c9c4bf8",
       "preparation": {
         "status": "ready"
       },
       "compiled": {
-        "sourceSha256": "66a6f3a88e584c155e955edcaed277b6fe49c11c7b617bc9a26a60eef28fa34e",
-        "sourceBytes": 18076
+        "sourceSha256": "718b108fd72b8b1bdc7ddf123654bf74bc90a347fab4165a3ab37dc78d5b079e",
+        "sourceBytes": 28505
       },
       "epe": {
         "status": "exported",
-        "sha256": "2dd871edd6304f61ad0c49d89cb3e26b3e065daeb0034dc0029bc5cba728815b"
+        "sha256": "3cf19258e2f45a94a5f8901efb18821c4be1f15accf0b204ee36bba67a73c54a"
       },
       "runtime": {
         "mode": "fast",
@@ -305,14 +305,14 @@
           7500,
           11250
         ],
-        "framesSha256": "cd9bb978f2e2faca0d49d21d41fd467aa0818acb09fefdeef5c57f514c1b075b"
+        "framesSha256": "b772181da3c03b56011d4b5df512eeae2f4ed14e98531351209746dbbcdaa24b"
       }
     },
     {
       "corpus": "stock",
       "id": "stock-show-205-groups-linked-reuse",
-      "recordSha256": "d33b570138331ed680cd610275e58400ddb898ae1bf52208da607c8c67d750ae",
-      "pxlshowPayloadSha256": "29c8267271ff4747725621e5315d220f88f002d88bb5c807f28ac8ef64e8b37f",
+      "recordSha256": "32c13af777ce63c8284cee9b804a27e76253a42fc7758860fd7bca81af4d347f",
+      "pxlshowPayloadSha256": "3234593295564580bf9e3ad5f442c341836c78dba8f0373404bad47883d24f21",
       "preparation": {
         "status": "ready"
       },
@@ -365,8 +365,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-207-aperture-shapes-edges",
-      "recordSha256": "8cdf578012af0e2fe29445c9c508ecf3e93422f299f1a1cfcb680186516453b7",
-      "pxlshowPayloadSha256": "64c23cab1c22842ba9b4cd28dbc18fc84dc565f7c93a7c0fa6a0416337cbb74b",
+      "recordSha256": "1d6d0fccb04ab79de9be515179c7e606a4054a8d5fdcb651ba41b9a677d2b2fd",
+      "pxlshowPayloadSha256": "ef35c5e263ecd984bbf2fa5c8ded6a212ee521bcd719ae334e2971c0be51f6fa",
       "preparation": {
         "status": "ready"
       },
@@ -392,8 +392,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-301-installation-mapping",
-      "recordSha256": "bd2ea94c1648e6b4757e06ea246ebed8ecaae3833bd8d869ea4b3fa746a47c37",
-      "pxlshowPayloadSha256": "1b47879fa1ee2f8f8a27a0dedbcedce45b779ef04fc4dbddcae57f8443533ec6",
+      "recordSha256": "c015b2ff7679aaeba5457c5ac4793d32e5d5982d0e9d94782dcf8567802d0cee",
+      "pxlshowPayloadSha256": "863eb310b7dd27e37c72a204945828ad698ba5c1bc696339d5a79c7929bd1cab",
       "preparation": {
         "status": "ready"
       },
@@ -446,8 +446,8 @@
     {
       "corpus": "stock",
       "id": "stock-show-303-compile-simplify-deliver",
-      "recordSha256": "04abd5ed461a9632c6b7ec45fb2f2a0c4c6c24c597d7b746a764270bc7b4f2a1",
-      "pxlshowPayloadSha256": "2b293c46956f9190ed81d3dc529042af73a147256de87873b745e811e300afd1",
+      "recordSha256": "d68300e2a2d78ce510f0705ed8156461a3ee67b759aac7ba1df270263b6ef8d4",
+      "pxlshowPayloadSha256": "cf6c3fe2edf4667568189aee774855b9c4ef4ae6afe91088a722e4bc789b1ddb",
       "preparation": {
         "status": "ready"
       },
@@ -473,18 +473,18 @@
     {
       "corpus": "stock",
       "id": "stock-show-showcase-transform-effects",
-      "recordSha256": "01a991c3f724b478814ac74dfdcc7ab260b7fdc6671745f07e21852186885014",
-      "pxlshowPayloadSha256": "57f6cbe30f81a40f422bf20f4202922c7ae7a220db1ff8fccbc500dee01397e6",
+      "recordSha256": "5df8fdf01ef387895069f291c7fd372dc71b591be616df0ddfc10604da91008d",
+      "pxlshowPayloadSha256": "cb37bd2da0b2ddc4855f8e12eb3b6e336232926883f1e71b4486c985ba7b357e",
       "preparation": {
         "status": "ready"
       },
       "compiled": {
-        "sourceSha256": "1bb581ef82cf32f6ce5dca3dbe293df10e0aa37262d5263b91568022183fed92",
+        "sourceSha256": "72d93f274f012861c821511c01646c800d4a57b69e2fa44d258817b7cec9507e",
         "sourceBytes": 30936
       },
       "epe": {
         "status": "exported",
-        "sha256": "d748653d664bf06befd0e74b81a8637ea2978f711275df5db840c26b4c6c61b7"
+        "sha256": "ec61308b41572bd63244f9699cadb339bf7b772bafb4d2316a1466a04dc567e6"
       },
       "runtime": {
         "mode": "fast",
@@ -494,7 +494,7 @@
           11500,
           17250
         ],
-        "framesSha256": "4bba0d8a483b475d177f1911d5cd46a69ee3d8ee7434c9be6369a4ea66780dc6"
+        "framesSha256": "3b21408dcea21145114124e4fc9f28d99dd8ae50fb06c5b8fb3dbf38a7880c39"
       }
     },
     {

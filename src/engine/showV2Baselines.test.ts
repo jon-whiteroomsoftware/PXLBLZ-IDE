@@ -46,7 +46,7 @@ const repoRoot = resolve(__dirname, '../..')
  */
 const BASELINE_DIR = 'docs/reference/evidence/issue-1042-v2-baselines'
 const PINNED_DIGESTS: Record<string, string> = {
-  'baselines.json': '8ee57f9b4f43172824c72e2a65627f234c0f460ae14ab0c61a04e1eeacf3d1e0',
+  'baselines.json': '054808a652ec1d13f775591823539f4ad78442ee91a6f8ee73d2f062aa2d9cb0',
   'fixtures/animation.json': '5fe5e38c50a73ca5ff25305a93063a3f50f673d676c5f78bd38de1b51eb2c5e7',
   'fixtures/groups.json': 'be4db1bb8ba11efba0f1864642c32ffcfee22aabc8de2415a7c839ff6a15e505',
   'fixtures/long-timeline.json': '31ae99370a863d0c9d0afb341ca94c74a6352c49c0b1ea42ee4831a91dbb262d',

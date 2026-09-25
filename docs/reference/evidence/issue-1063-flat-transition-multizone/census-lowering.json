@@ -204,7 +204,7 @@
         "span"
       ],
       "route": "global-sections",
-      "recipeSha256": "e13b40c6c6a656e0639aadd3008fdf1bc7995b9dfa49b264651dc77bcd1f9eaf"
+      "recipeSha256": "5b630159d72f2dc9ff3aa0e8e70666f47f37ade7d93917e35fc5a5ca962be590"
     },
     {
       "census": "converted-v1",
@@ -725,7 +725,7 @@
         "span"
       ],
       "route": "global-sections",
-      "recipeSha256": "e13b40c6c6a656e0639aadd3008fdf1bc7995b9dfa49b264651dc77bcd1f9eaf"
+      "recipeSha256": "5b630159d72f2dc9ff3aa0e8e70666f47f37ade7d93917e35fc5a5ca962be590"
     },
     {
       "census": "native-v2",

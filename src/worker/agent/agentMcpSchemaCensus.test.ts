@@ -14,8 +14,8 @@ type JsonSchema = { properties?: Record<string, JsonSchema>; required?: string[]
 const OBSERVED_PRE_IDENTITY_BYTES = 360_987
 const OBSERVED_IDENTITY_BYTES = 358_419
 const OBSERVED_CONCISE_DESCRIPTION_BYTES = 345_749
-/** The production catalogue's own discovery size: measured at the #1039 flip, re-pinned when #1066 named the converted-boundary re-placement refusal in update_clips (+47 bytes), then #1069 added remove_controls to three command schemas (+624 bytes), #1093 kept remove_controls on update_clips only (-416 bytes), and #1094 retired repeat-per-zone Clip sampling (295,626 to 295,599 bytes, -27). */
-const OBSERVED_V2_DISCOVERY_BYTES = 295_599
+/** The production catalogue's own discovery size: measured at the #1039 flip, re-pinned when #1066 named the converted-boundary re-placement refusal in update_clips (+47 bytes), then #1069 added remove_controls to three command schemas (+624 bytes), #1093 kept remove_controls on update_clips only (-416 bytes), #1094 retired repeat-per-zone Clip sampling (295,626 to 295,599 bytes, -27), and #1111 described the one leading-resize rule in resize_clip (295,599 to 295,690 bytes, +91). */
+const OBSERVED_V2_DISCOVERY_BYTES = 295_690
 
 async function toolsList(catalogue?: 'v1' | 'v2') {
   const response = await agentMcpRouting(new Request('https://app.test/mcp', {

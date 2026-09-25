@@ -125,12 +125,15 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // 303 -13 (+1 reclaimed), Figures -4, Property Animation +64,
     // Geometric apertures +10, Icons +23, Splits -3, and Radial +4.
     // All still fit: no compile failures or ceiling rescues; emission stays off.
+    // #1097 recast (203 plays ShapeShifter, 204 plays Kishimisu): 203 +6 and
+    // 204 +38 member globals with no new reclaimable set, so the weighted
+    // figure dilutes; the reclaim percent stays 0 and emission stays off.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_796,
+      representativeMemberGlobals: 2_840,
       representativeReclaimedGlobals: 22,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00786838, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.00774648, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
