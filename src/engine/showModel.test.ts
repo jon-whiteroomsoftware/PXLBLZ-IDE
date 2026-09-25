@@ -1,8 +1,6 @@
 import {
   addShowRoutingLayout,
   addShowScene,
-  duplicateShowScene,
-  cloneShowCellAfter,
   addShowZone,
   createDefaultShow,
   createShowWithOutputContract,
@@ -13,13 +11,11 @@ import {
   normalizeShowRoutingState,
   parseShowRoutingRanges,
   placeShowClip,
-  moveShowCellToSlot,
   minimumShowSceneDurationMs,
   projectShowStrip,
   projectShowTimeline,
   removeShowClip,
   removeShowRoutingLayout,
-  removeShowScene,
   removeShowZone,
   showLoopDurationMs,
   showSplitCapability,
@@ -27,7 +23,6 @@ import {
   splitShowAtTime,
   spanShowCellZones,
   showCellAtSlot,
-  updateShowCellZoneMode,
   updateShowCellAdaptations,
   updateShowCellControlTarget,
   updateShowCellPattern,
@@ -490,87 +485,6 @@ describe('showModel (#318)', () => {
     expect(split.cells[1].pattern).not.toBe(base.cells[0].pattern)
     expect(split.cells[1].adaptations).not.toBe(base.cells[0].adaptations)
     expect(split.updatedAt).toBeGreaterThan(base.updatedAt)
-  })
-
-  it('duplicates a scene with its cells and preserves the following boundary (#424)', () => {
-    const show = createDefaultShow('show-424-duplicate', 'Duplicate study', 1)
-
-    const duplicated = duplicateShowScene(show, show.scenes[0].id)
-
-    expect(duplicated.scenes).toHaveLength(3)
-    expect(duplicated.scenes[1]).toMatchObject({ name: 'Scene 1 copy', durationMs: show.scenes[0].durationMs })
-    expect(duplicated.cells.find((cell) => cell.sceneId === duplicated.scenes[1].id)).toMatchObject({
-      pattern: show.cells[0].pattern,
-      adaptations: show.cells[0].adaptations,
-      sceneSpan: 1,
-    })
-    expect(duplicated.transitions?.find((transition) => transition.afterSceneId === show.scenes[0].id)).toMatchObject({ kind: 'cut' })
-    expect(duplicated.transitions?.find((transition) => transition.afterSceneId === duplicated.scenes[1].id)).toMatchObject({ kind: 'crossfade' })
-    expectHoleFreeStrip(duplicated)
-  })
-
-  it('clones one simple clip into the immediately following empty slot with independent nested state (#470)', () => {
-    const base = createDefaultShow('show-470-clip-clone', 'Clip clone', 1)
-    const withHole = removeShowClip(base, 'cell-2')
-    withHole.cells[0] = {
-      ...withHole.cells[0],
-      controlTargets: { sliderSpeed: 0.4 },
-      transform: { positionX: 0.25, positionY: -0.5, rotation: -0.125, scaleX: 1.5, scaleY: 0.75 },
-      effects: [{ id: 'effect-1', kind: 'opacity', opacity: 0.6 }],
-    }
-
-    const cloned = cloneShowCellAfter(withHole, 'cell-1')
-    const copy = cloned.cells.find((cell) => cell.id !== 'cell-1')!
-
-    expect(copy).toMatchObject({ sceneId: 'scene-2', zoneId: 'zone-1', sceneSpan: 1, zoneSpan: 1 })
-    expect(copy.id).not.toBe('cell-1')
-    expect(copy.effects?.[0].id).not.toBe('effect-1')
-    expect(copy.pattern).toEqual(withHole.cells[0].pattern)
-    expect(copy.pattern).not.toBe(withHole.cells[0].pattern)
-    expect(copy.adaptations).not.toBe(withHole.cells[0].adaptations)
-    expect(copy.controlTargets).not.toBe(withHole.cells[0].controlTargets)
-    expect(copy.transform).toEqual(withHole.cells[0].transform)
-    expect(copy.transform).not.toBe(withHole.cells[0].transform)
-    expect(copy.effects).not.toBe(withHole.cells[0].effects)
-  })
-
-  it('inserts a Scene when Clip Clone must ripple an occupied following slot (#470)', () => {
-    const occupied = createDefaultShow('show-470-occupied', 'Occupied', 1)
-    const cloned = cloneShowCellAfter(occupied, 'cell-1')
-    const insertedScene = cloned.scenes[1]
-    const copy = cloned.cells.find((cell) => cell.sceneId === insertedScene?.id)
-
-    expect(cloned.scenes).toHaveLength(3)
-    expect(insertedScene).toMatchObject({ durationMs: occupied.scenes[0].durationMs })
-    expect(copy).toMatchObject({ zoneId: 'zone-1', patternName: occupied.cells[0].patternName })
-    expect(copy?.id).not.toBe('cell-1')
-    expect(cloned.scenes[2]?.id).toBe(occupied.scenes[1]?.id)
-  })
-
-  it('refuses clip Clone when the owner spans scenes or zones (#470)', () => {
-    const occupied = createDefaultShow('show-470-occupied', 'Occupied', 1)
-
-    const held = extendShowCell(removeShowClip(occupied, 'cell-2'), 'cell-1', 2)
-    expect(cloneShowCellAfter(held, 'cell-1')).toBe(held)
-
-    const zoned = addShowZone(occupied)
-    const spanned = spanShowCellZones(zoned, 'cell-1', 2)
-    expect(cloneShowCellAfter(spanned, 'cell-1')).toBe(spanned)
-  })
-
-  it('moves one simple clip only to an empty structural slot in its owning zone (#470)', () => {
-    const base = createDefaultShow('show-470-move', 'Move', 1)
-    const withHole = removeShowClip(base, 'cell-2')
-
-    const moved = moveShowCellToSlot(withHole, 'cell-1', 'zone-1', 'scene-2')
-    expect(moved.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({
-      zoneId: 'zone-1',
-      sceneId: 'scene-2',
-    })
-    expect(moveShowCellToSlot(base, 'cell-1', 'zone-1', 'scene-2')).toBe(base)
-
-    const secondZone = addShowZone(withHole)
-    expect(moveShowCellToSlot(secondZone, 'cell-1', 'zone-2', 'scene-2')).toBe(secondZone)
   })
 
   it('rejects split points at boundaries, transitions, and sub-second fragments (#415)', () => {
@@ -1193,48 +1107,6 @@ describe('showModel (#318)', () => {
       zoneSpan: 1,
     })
     expectHoleFreeStrip(next)
-  })
-
-  it('removes scenes by deleting owned cells and clipping spans', () => {
-    const threeScene = addShowScene(createDefaultShow('show-1', 'Untitled Show'))
-    const held = extendShowCell(threeScene, 'cell-1', 3)
-    const removed = removeShowScene(held, 'scene-2')
-
-    expect(removed.scenes.map((scene) => scene.id)).toEqual(['scene-1', 'scene-3'])
-    expect(removed.cells.some((cell) => cell.sceneId === 'scene-2')).toBe(false)
-    expect(removed.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({ sceneSpan: 2 })
-    expect(removed.transitions).toEqual([
-      expect.objectContaining({ afterSceneId: 'scene-1', kind: 'crossfade' }),
-    ])
-    expectHoleFreeStrip(removed)
-  })
-
-  it('re-anchors a holding cell that starts at the removed scene', () => {
-    const held = extendShowCell(createDefaultShow('show-1', 'Untitled Show'), 'cell-1', 2)
-    const removed = removeShowScene(held, 'scene-1')
-
-    expect(removed.scenes.map((scene) => scene.id)).toEqual(['scene-2'])
-    expect(removed.cells).toHaveLength(1)
-    expect(removed.cells[0]).toMatchObject({
-      id: 'cell-1',
-      sceneId: 'scene-2',
-      sceneSpan: 1,
-    })
-    expect(removed.transitions).toEqual([])
-    expectHoleFreeStrip(removed)
-  })
-
-  it('removes the final scene by clearing the new final transition and preserves one-scene shows', () => {
-    const threeScene = addShowScene(createDefaultShow('show-1', 'Untitled Show'))
-    const twoScene = removeShowScene(threeScene, 'scene-3')
-    const oneScene = removeShowScene(twoScene, 'scene-2')
-    const noOp = removeShowScene(oneScene, 'scene-1')
-
-    expect(twoScene.scenes.map((scene) => scene.id)).toEqual(['scene-1', 'scene-2'])
-    expect(oneScene.scenes.map((scene) => scene.id)).toEqual(['scene-1'])
-    expect(noOp).toBe(oneScene)
-    expectHoleFreeStrip(twoScene)
-    expectHoleFreeStrip(oneScene)
   })
 
   it('edits scene duration and non-destructive cell adaptations', () => {
@@ -2247,27 +2119,6 @@ describe('showModel (#318)', () => {
       },
     })
 
-    expect(recipe.clips.filter((clip) => clip.id === 'cell-1')).toHaveLength(1)
-    expect(recipe.routedSceneSequence?.scenes[0].placements).toEqual([
-      expect.objectContaining({ zoneName: 'main', clipId: 'cell-1' }),
-      expect.objectContaining({ zoneName: 'doorframe', clipId: 'cell-1' }),
-    ])
-  })
-
-  it('emits a repeated zone span as one shared member over independent domains', () => {
-    const show = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
-      name: 'doorframe',
-      nominalPixelCount: 12,
-    })
-    const repeated = updateShowCellZoneMode(spanShowCellZones(show, 'cell-1', 2), 'cell-1', 'repeat')
-    const recipe = showRecordToCompileRecipe(repeated, {
-      byCellId: { 'cell-1': DEMOS.TestPattern1D, 'cell-2': DEMOS.CometLoom },
-    })
-
-    expect(repeated.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({
-      zoneSpan: 2,
-      zoneMode: 'repeat',
-    })
     expect(recipe.clips.filter((clip) => clip.id === 'cell-1')).toHaveLength(1)
     expect(recipe.routedSceneSequence?.scenes[0].placements).toEqual([
       expect.objectContaining({ zoneName: 'main', clipId: 'cell-1' }),

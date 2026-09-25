@@ -4,7 +4,6 @@ import {
   addShowZone,
   createDefaultShow,
   createShowWithOutputContract,
-  duplicateShowScene,
   extendShowCell,
   normalizeShowEntryState,
   normalizeShowTransitionState,
@@ -103,18 +102,6 @@ describe('flat Show Scene-composition projection spike (#462)', () => {
     const restartedShow = updateShowCellRestartOnEntry(split, rightCell.id, true)
     const restarted = projectFlatShowComposition(restartedShow, lookup(restartedShow))
     expect(restarted.patternInstances.filter((instance) => instance.compiled)).toHaveLength(2)
-  })
-
-  it('keeps Clone identity policy and top-level Transitions explicit without changing clocks', () => {
-    const base = createDefaultShow('projection-clone', 'Clone', 1)
-    const cloned = duplicateShowScene(base, 'scene-1')
-    const projection = projectFlatShowComposition(cloned, lookup(cloned))
-    const firstTwo = projection.scenes.slice(0, 2).flatMap((scene) => scene.placements)
-
-    expect(firstTwo).toHaveLength(2)
-    expect(firstTwo[0].instanceId).toBe(firstTwo[1].instanceId)
-    expect(projection.scenes[0].outgoingTransitionIds).toEqual(['transition-scene-1'])
-    expect(projection.scenes[1].outgoingTransitionIds).toEqual([`transition-${projection.scenes[1].id}`])
   })
 
   it('projects every routed Scene cell as an active compiled instance (#478)', () => {

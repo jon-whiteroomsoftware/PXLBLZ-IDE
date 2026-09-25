@@ -152,7 +152,7 @@ function ownKeysAre(value: object, allowed: readonly string[]): boolean {
   return keys.length <= allowed.length && keys.every(key => allowed.includes(key))
 }
 
-export function isShowEditDiagnosticInput(value: unknown): value is ShowEditDiagnosticInput {
+function isShowEditDiagnosticInput(value: unknown): value is ShowEditDiagnosticInput {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !ownKeysAre(value, ['stage', 'issues'])) return false
   const input = value as { stage?: unknown; issues?: unknown }
   if (typeof input.stage !== 'string' || !stages.has(input.stage as ShowEditDiagnosticStage) || !Array.isArray(input.issues) || input.issues.length === 0) return false

@@ -1176,19 +1176,6 @@ any new ShowRecord field — whatever tier it would land in, including one a
 blanket allowlist rule would swallow — fails the suite by name until the
 snapshot is regenerated and the diff reviewed.
 
-`showSummaryProjection.ts` renders one compact summary of a Show as the
-editor presents it — Scenes with global ranges, Zones with their layers,
-clips (owner coordinates, pattern names, instances, time ranges), junctions
-(kinds, durations, Layer-transition ids), markers, Zone Layout definitions
-and occurrences, and property tracks with keyframe counts — assembled from
-the existing projections (unified timeline, timeline ranges, Zone Layout
-occurrences), never from the raw record. Every id in the summary is the id
-the matching mutation function accepts; Group children appear materialized
-with their `groupOccurrenceId`, and their occurrence-prefixed ids round-trip
-through the Group authoring functions paired with that occurrence id. The
-projection drives command palettes, diagnostics, and table-driven tests
-without a resolution layer.
-
 ## 20. Timeline editor and Stage preview
 
 **Paused Stage resizing.** Canvas resizing and repainting happen in the same

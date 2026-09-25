@@ -486,68 +486,6 @@ export function addShowScene(show: ShowRecord): ShowRecord {
   })
 }
 
-export function duplicateShowScene(show: ShowRecord, sceneId: string): ShowRecord {
-  show = normalizeShowTransitionState(show)
-  const sceneIndex = show.scenes.findIndex((scene) => scene.id === sceneId)
-  if (sceneIndex === -1) return show
-
-  const sourceScene = show.scenes[sceneIndex]
-  const duplicateId = nextEntityId('scene-', show.scenes)
-  const duplicate: ShowScene = {
-    ...sourceScene,
-    id: duplicateId,
-    name: uniqueSceneName(`${sourceScene.name} copy`, show.scenes),
-  }
-  const scenes = [
-    ...show.scenes.slice(0, sceneIndex),
-    sourceScene,
-    duplicate,
-    ...show.scenes.slice(sceneIndex + 1),
-  ]
-
-  const sceneIndexById = new Map(show.scenes.map((scene, index) => [scene.id, index]))
-  const usedCellIds = new Set(show.cells.map((cell) => cell.id))
-  const cells = show.cells.flatMap((cell) => {
-    const start = sceneIndexById.get(cell.sceneId)
-    if (start == null) return [cell]
-    const end = start + Math.max(1, cell.sceneSpan) - 1
-    if (sceneIndex < start || sceneIndex > end) return [cell]
-    if (end > sceneIndex) return [{ ...cell, sceneSpan: Math.max(1, cell.sceneSpan) + 1 }]
-
-    const cellId = nextStringId('cell-', usedCellIds)
-    usedCellIds.add(cellId)
-    const copy = copyCellForScene(cell, cellId, cell.zoneId, duplicateId, sceneIndex + 1)
-    return [cell, { ...copy, zoneSpan: cell.zoneSpan, zoneMode: cell.zoneMode }]
-  })
-
-  const transitions: ShowBoundaryTransition[] = [
-    ...(show.transitions ?? []).map((transition) => (
-      transition.afterSceneId === sceneId
-        ? {
-            ...transition,
-            id: `${transition.kind === 'routing' ? 'routing' : 'transition'}-${duplicateId}`,
-            afterSceneId: duplicateId,
-          }
-        : transition
-    )),
-    {
-      id: `transition-${sceneId}`,
-      afterSceneId: sceneId,
-      kind: 'cut',
-      durationMs: 0,
-      easing: { curve: 'linear' },
-    },
-  ]
-
-  return normalizeShowTransitionState({
-    ...show,
-    scenes,
-    cells,
-    transitions,
-    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
-  })
-}
-
 /**
  * Split the scene hold containing `atMs`. The operation is atomic: invalid
  * boundaries and transition windows return the original record unchanged.
@@ -628,10 +566,6 @@ export function splitShowAtTime(show: ShowRecord, atMs: number): ShowRecord {
     ...(composition ? { composition } : {}),
     updatedAt: Math.max(Date.now(), show.updatedAt + 1),
   })
-}
-
-export function canSplitShowAtTime(show: ShowRecord, atMs: number): boolean {
-  return showSplitCapability(show, atMs).enabled
 }
 
 export type ShowSplitCapability =
@@ -725,42 +659,6 @@ function showSplitTarget(
   return null
 }
 
-export function removeShowScene(show: ShowRecord, sceneId: string): ShowRecord {
-  if (show.scenes.length <= 1) return show
-  const removedSceneIndex = show.scenes.findIndex((scene) => scene.id === sceneId)
-  if (removedSceneIndex === -1) return show
-  show = normalizeShowTransitionState(show)
-
-  const remainingScenes = show.scenes.filter((scene) => scene.id !== sceneId)
-  const finalSceneId = remainingScenes[remainingScenes.length - 1]?.id
-  const sceneIndexById = new Map(show.scenes.map((scene, index) => [scene.id, index]))
-  const cells = show.cells.flatMap((cell) => {
-    const start = sceneIndexById.get(cell.sceneId)
-    if (start == null) return []
-    const span = Math.max(1, cell.sceneSpan)
-    const end = start + span - 1
-    if (cell.sceneId === sceneId) {
-      const nextSceneId = show.scenes[removedSceneIndex + 1]?.id
-      if (span > 1 && nextSceneId) return [{ ...cell, sceneId: nextSceneId, sceneSpan: span - 1 }]
-      return []
-    }
-    if (start < removedSceneIndex && removedSceneIndex <= end) {
-      return [{ ...cell, sceneSpan: Math.max(1, span - 1) }]
-    }
-    return [cell]
-  })
-
-  return normalizeShowTransitionState({
-    ...show,
-    scenes: remainingScenes,
-    cells,
-    transitions: show.transitions.filter((transition) => (
-      transition.afterSceneId !== sceneId && transition.afterSceneId !== finalSceneId
-    )),
-    updatedAt: Date.now(),
-  })
-}
-
 export function removeShowClip(show: ShowRecord, clipId: string): ShowRecord {
   if (!show.cells.some((cell) => cell.id === clipId)) return show
   if (show.cells.length <= 1) return show
@@ -846,82 +744,6 @@ export function placeShowClip(
   return {
     ...show,
     cells: [...show.cells, cell],
-    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
-  }
-}
-
-/**
- * Clone one independently editable, single-slot clip immediately after itself.
- * An empty following slot is reused. Otherwise a Scene is inserted so later
- * global time ripples without replacing another Clip. Held and multi-zone Clips
- * remain unsupported because their ownership cannot be split implicitly.
- */
-export function cloneShowCellAfter(show: ShowRecord, cellId: string): ShowRecord {
-  const source = show.cells.find((cell) => cell.id === cellId)
-  if (!source || Math.max(1, source.sceneSpan) !== 1 || Math.max(1, source.zoneSpan ?? 1) !== 1) return show
-  const sourceSceneIndex = show.scenes.findIndex((scene) => scene.id === source.sceneId)
-  const destinationScene = show.scenes[sourceSceneIndex + 1]
-  if (sourceSceneIndex < 0) return show
-
-  if (!destinationScene || showCellAtSlot(show, source.zoneId, destinationScene.id)) {
-    const originalCellIds = new Set(show.cells.map((cell) => cell.id))
-    const duplicated = duplicateShowScene(show, source.sceneId)
-    const insertedScene = duplicated.scenes[sourceSceneIndex + 1]
-    if (!insertedScene) return show
-    return {
-      ...duplicated,
-      cells: [
-        ...duplicated.cells.filter((cell) => originalCellIds.has(cell.id)),
-        cloneShowCellIntoScene(duplicated, source, insertedScene.id),
-      ],
-    }
-  }
-
-  const copy = cloneShowCellIntoScene(show, source, destinationScene.id)
-  return {
-    ...show,
-    cells: [...show.cells, copy],
-    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
-  }
-}
-
-function cloneShowCellIntoScene(show: ShowRecord, source: ShowCell, sceneId: string): ShowCell {
-  const usedEffectIds = new Set(show.cells.flatMap((cell) => (cell.effects ?? []).map((effect) => effect.id)))
-  const effects = source.effects?.map((effect) => {
-    const id = nextStringId('effect-', usedEffectIds)
-    usedEffectIds.add(id)
-    return { ...effect, id } as ShowClipEffect
-  })
-  const copy: ShowCell = {
-    ...source,
-    id: nextEntityId('cell-', show.cells),
-    sceneId,
-    sceneSpan: 1,
-    zoneSpan: 1,
-    pattern: { ...source.pattern },
-    adaptations: cloneShowCellAdaptations(source.adaptations),
-    ...(source.controlTargets ? { controlTargets: { ...source.controlTargets } } : {}),
-    ...(source.transform ? { transform: { ...source.transform } } : {}),
-    ...(effects ? { effects } : {}),
-  }
-  return copy
-}
-
-/** Move one simple clip to an explicit empty Scene slot without changing Zone ownership. */
-export function moveShowCellToSlot(
-  show: ShowRecord,
-  cellId: string,
-  zoneId: string,
-  sceneId: string,
-): ShowRecord {
-  const source = show.cells.find((cell) => cell.id === cellId)
-  if (!source || Math.max(1, source.sceneSpan) !== 1 || Math.max(1, source.zoneSpan ?? 1) !== 1) return show
-  if (source.zoneId !== zoneId || source.sceneId === sceneId) return show
-  if (!show.scenes.some((scene) => scene.id === sceneId)) return show
-  if (showCellAtSlot(show, zoneId, sceneId)) return show
-  return {
-    ...show,
-    cells: show.cells.map((cell) => cell.id === cellId ? { ...cell, sceneId } : cell),
     updatedAt: Math.max(Date.now(), show.updatedAt + 1),
   }
 }
@@ -1083,20 +905,6 @@ function showCellIntersects(
     && zoneStart < cellZoneStart + Math.max(1, cell.zoneSpan ?? 1)
     && cellSceneStart < sceneStart + sceneSpan
     && sceneStart < cellSceneStart + Math.max(1, cell.sceneSpan)
-}
-
-export function updateShowCellZoneMode(
-  show: ShowRecord,
-  cellId: string,
-  zoneMode: NonNullable<ShowCell['zoneMode']>,
-): ShowRecord {
-  return {
-    ...show,
-    cells: show.cells.map((cell) => cell.id === cellId && (cell.zoneSpan ?? 1) > 1
-      ? { ...cell, zoneMode: zoneMode === 'repeat' ? 'repeat' : 'span' }
-      : cell),
-    updatedAt: Date.now(),
-  }
 }
 
 export function updateShowCellPattern(
@@ -2828,60 +2636,6 @@ function sceneToGridColumn(index: number): number {
 // and the editors expose min 0 - the old floor here was a vestige of the
 // pre-compiler scene-strip editor (#318) that silently rewrote authored
 // sub-second fades (#823).
-/**
- * Forfeits the deterministic-loop stamp whenever an edit changes the cast -
- * top-level or group Pattern instances. The exact-reset proof (#823 wrap
- * census) binds to the authored cast, so any source change, addition, or
- * removal invalidates it regardless of which authoring op made it. Applied
- * centrally at the store's update choke point.
- */
-export function forfeitShowExecutionModelOnCastChange(previous: ShowRecord, next: ShowRecord): ShowRecord {
-  if (next.composition?.executionModel === undefined) return next
-  // First materialization carries no prior claim to invalidate: stamping a
-  // freshly materialized composition is a deliberate authoring act (#586).
-  if (!previous.composition) return next
-  const castOf = (record: ShowRecord) => JSON.stringify([
-    record.composition?.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id]) ?? null,
-    record.composition?.groupDefinitions?.map((definition) => (
-      definition.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id])
-    )) ?? null,
-    // Each Group occurrence materializes its own runtime instances, so the
-    // occurrence roster is part of the effective cast: duplicating or
-    // deleting one changes what the wrap census proved.
-    record.composition?.groupOccurrences?.map((occurrence) => (
-      [occurrence.id, occurrence.definitionId]
-    )) ?? null,
-  ])
-  if (castOf(previous) === castOf(next)) return next
-  return { ...next, composition: { ...next.composition, executionModel: undefined } }
-}
-
-/**
- * The inverse guard: an update whose cast still equals the previous record's
- * cast keeps the previous deterministic-loop stamp, even when intermediate
- * transient state (a Try-with projection unwound through Clip Detail rather
- * than the slot picker) dropped it. Cast-equality is the same fingerprint the
- * forfeiture uses, so the pair is idempotent and symmetric (#823 review).
- */
-export function reconcileShowExecutionModelOnCastReturn(previous: ShowRecord, next: ShowRecord): ShowRecord {
-  if (!previous.composition?.executionModel || !next.composition) return next
-  if (next.composition.executionModel !== undefined) return next
-  if (castFingerprint(previous) !== castFingerprint(next)) return next
-  return { ...next, composition: { ...next.composition, executionModel: previous.composition.executionModel } }
-}
-
-function castFingerprint(record: ShowRecord): string {
-  return JSON.stringify([
-    record.composition?.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id]) ?? null,
-    record.composition?.groupDefinitions?.map((definition) => (
-      definition.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id])
-    )) ?? null,
-    record.composition?.groupOccurrences?.map((occurrence) => (
-      [occurrence.id, occurrence.definitionId]
-    )) ?? null,
-  ])
-}
-
 function clampTransitionDuration(durationMs: number): number {
   return Math.max(0, Math.round(durationMs))
 }
@@ -3181,14 +2935,6 @@ function copyCellForScene(
     },
     ...(source.controlTargets ? { controlTargets: { ...source.controlTargets } } : {}),
     restartOnEntry: false,
-  }
-}
-
-function cloneShowCellAdaptations(adaptations: ShowCellAdaptations): ShowCellAdaptations {
-  return {
-    ...adaptations,
-    ...(adaptations.lightShutter ? { lightShutter: { ...adaptations.lightShutter } } : {}),
-    ...(adaptations.steppedClock ? { steppedClock: { ...adaptations.steppedClock } } : {}),
   }
 }
 
