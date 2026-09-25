@@ -86,7 +86,7 @@ it.each(['record', 'revision', 'provider', 'lifetime'] as const)('refuses stale 
   const result = await admitShowV2PilotAppearanceEdit({ ...capture, intent: { kind: 'appearance', clipId: 'clip', scope: 'whole-clip', patch: { opacity: .5 } } })
   expect(result).toMatchObject({ status: 'refused', code: 'stale-edit' }); emptyEffects(result); expect(write).not.toHaveBeenCalled()
 })
-it('delegates each Effect operation once and refuses unsupported held opposite-order output before adoption', async () => {
+it('delegates each Effect operation once and the owner refuses held opposite-order reorder before adoption', async () => {
   const { record, context, write, saved } = setup(), clipId = record.composition.clips[0].id
   const submit = (fields: object) => admitShowV2PilotAppearanceEdit({ ...context(), intent: { clipId, scope: 'whole-clip', ...fields } as ShowClipAppearanceEditIntentV2 })
   expect((await submit({ kind: 'add-effect', effect: { id: 'hue', kind: 'hue', turns: .1 } })).status).toBe('applied')
@@ -100,6 +100,6 @@ it('delegates each Effect operation once and refuses unsupported held opposite-o
   const captured = context(); expect(captured.capture.prepared.status).toBe('ready')
   const outcome = await admitShowV2PilotAppearanceEdit({ ...captured, intent: { kind: 'reorder-effect', clipId,
     scope: 'selected-time', atMs: 200, keyIdentity: { kind: 'insert', appearanceKeyId: 'opposite-key' }, effectId: 'invert', effectKind: 'invert', targetEffectId: 'hue', targetEffectKind: 'hue', edge: 'before' } })
-  expect(outcome).toMatchObject({ status: 'refused', source: 'admission', code: 'unsupported-pilot-record' }); emptyEffects(outcome)
+  expect(outcome).toMatchObject({ status: 'refused', source: 'owner', code: 'effect-order-conflict' }); emptyEffects(outcome)
   expect(write).toHaveBeenCalledTimes(4); expect(useShowStore.getState().showV2Pilots[record.id]).toBe(current)
 })

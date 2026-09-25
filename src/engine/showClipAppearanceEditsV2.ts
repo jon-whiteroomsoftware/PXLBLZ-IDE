@@ -45,13 +45,11 @@ export function separateEffectOrderFromSharedClipsV2(record: ShowRecordV2, clipI
   for (let i = 0; i < keys.length; i++) {
     for (let j = i + 1; j < keys.length; j++) {
       const left = keys[i].value.effects ?? [], right = keys[j].value.effects ?? []
-      const shared = new Set(left.map(effect => effect.id).filter(id => right.some(effect => effect.id === id)))
-      if (shared.size > 1 && (showEffectOrderConflicts(left.filter(effect => shared.has(effect.id)), right.filter(effect => shared.has(effect.id)))
-        || showEffectOrderConflicts(right.filter(effect => shared.has(effect.id)), left.filter(effect => shared.has(effect.id))))) return { status: 'conflict' }
+      if (showEffectOrderConflicts(left, right) || showEffectOrderConflicts(right, left)) return { status: 'conflict' }
     }
   }
   const conflicting = new Set<string>()
-  for (const sibling of record.composition.clips) {
+  for (const sibling of materializeShowGroupsV2(record).composition.clips) {
     if (sibling.id === clip.id || sibling.instanceId !== clip.instanceId) continue
     for (const key of keys) for (const other of sibling.appearance.keys) {
       const effects = key.value.effects ?? [], otherEffects = other.value.effects ?? []
@@ -84,6 +82,11 @@ export function separateEffectOrderFromSharedClipsV2(record: ShowRecordV2, clipI
   for (const track of next.composition.propertyTracks) {
     if (track.target.kind === 'clip-effect' && track.target.clipId === clip.id) {
       track.target.effectId = reidentifiedEffectIds[track.target.effectId] ?? track.target.effectId
+    }
+  }
+  for (const transition of next.composition.transitions) for (const ramp of transition.propertyRamps) {
+    if (ramp.target.kind === 'clip-effect' && ramp.target.clipId === clip.id) {
+      ramp.target.effectId = reidentifiedEffectIds[ramp.target.effectId] ?? ramp.target.effectId
     }
   }
   return { status: 'ready', record: next, reidentifiedEffectIds }
@@ -216,7 +219,10 @@ export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipA
   const newEffectIds = new Set(Object.values(reidentifiedEffectIds ?? {}))
   const reidentifiedTrackIds = next.composition.propertyTracks.filter(track => track.target.kind === 'clip-effect'
     && track.target.clipId === clip.id && newEffectIds.has(track.target.effectId)).map(track => track.id)
+  const reidentifiedTransitionIds = next.composition.transitions.filter(transition => transition.propertyRamps.some(ramp =>
+    ramp.target.kind === 'clip-effect' && ramp.target.clipId === clip.id && newEffectIds.has(ramp.target.effectId))).map(transition => transition.id).sort()
   return { status: 'changed', record: next, ...empty, affectedClipIds: [clip.id], affectedAppearanceKeyIds, reidentifiedEffectIds,
+    affectedTransitionIds: reidentifiedTransitionIds,
     affectedTrackIds: [...removedTrackIds, ...reidentifiedTrackIds].sort(), removedIds: removedTrackIds,
     affectedPropertyKeyIds: removedTracks.flatMap(track => track.keyframes.map(keyframe => keyframe.id)).sort() }
 }

@@ -73,6 +73,98 @@ function emptyAffected(result: ReturnType<typeof editShowClipAppearanceV2>) {
   for (const [key, value] of Object.entries(result)) if (key.startsWith('affected') || ['removedIds', 'discardedControlTargets'].includes(key)) expect(value).toEqual([])
 }
 
+it('refuses a selected-time reorder that would invert the Clip merge by appending a private Effect (#1131)', () => {
+  const record = fixture(), keys = record.composition.clips[0].appearance.keys
+  const h: ShowClipEffect = { id: 'h', kind: 'hue', turns: .1 }
+  const i: ShowClipEffect = { id: 'i', kind: 'invert', amount: .2 }
+  const d: ShowClipEffect = { id: 'd', kind: 'brightness', brightness: .8 }
+  for (const key of keys) key.value.effects = [structuredClone(h), structuredClone(i)]
+  keys[1].value.effects!.push(structuredClone(d))
+  const preimage = prepare(record)
+  expect(preimage.status, JSON.stringify(preimage)).toBe('ready')
+  const before = structuredClone(record)
+  const result = editShowClipAppearanceV2(record, { kind: 'reorder-effect', clipId: 'clip', scope: 'selected-time', atMs: 400,
+    keyIdentity: { kind: 'retain', appearanceKeyId: keys[1].id }, effectId: 'd', effectKind: 'brightness', targetEffectId: 'h', targetEffectKind: 'hue', edge: 'before' })
+  expect(result).toMatchObject({ status: 'refused', code: 'effect-order-conflict' })
+  expect(result.record).toBe(record)
+  expect(record).toEqual(before)
+  emptyAffected(result)
+  expect(prepare(result.record).status).toBe('ready')
+})
+
+it('separates Effect order from a Group occurrence bound to the edited Pattern instance (#1131)', () => {
+  const record = fixture(), clip = record.composition.clips[0]
+  const h: ShowClipEffect = { id: 'h', kind: 'hue', turns: .1 }
+  const i: ShowClipEffect = { id: 'i', kind: 'invert', amount: .2 }
+  clip.durationMs = 500
+  for (const key of clip.appearance.keys) { key.timeMs /= 2; key.value.effects = [structuredClone(h), structuredClone(i)] }
+  record.composition.groupDefinitions = [{ id: 'group', name: 'Group', patternInstances: [{ ...structuredClone(record.composition.patternInstances[0]), id: 'slot' }],
+    layers: [{ id: 'local-layer', name: 'Local', rank: 0 }], clips: [{ id: 'child', instanceId: 'slot', layerId: 'local-layer', startMs: 0, durationMs: 200,
+      entryPolicy: 'restart', zoneSampleMode: 'span', appearance: { keys: [{ ...structuredClone(clip.appearance.keys[0]), id: 'local-key', timeMs: 0 }] } }],
+    transitions: [], propertyTracks: [] }]
+  record.composition.groupOccurrences = [{ id: 'use', definitionId: 'group', zoneId: 'zone', layoutOccurrenceId: record.composition.layoutOccurrences[0].id,
+    startMs: 500, translationX: 0, translationY: 0, holds: [], instanceBindings: { slot: 'instance' },
+    layerBindings: [{ definitionLayerId: 'local-layer', layerId: clip.layerId }] }]
+  expect(prepare(record).status).toBe('ready')
+  const before = structuredClone(record)
+  const result = editShowClipAppearanceV2(record, intent('reorder-effect', { effectId: 'h', effectKind: 'hue',
+    targetEffectId: 'i', targetEffectKind: 'invert', edge: 'after' }))
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  expect(result.reidentifiedEffectIds).toEqual({ h: 'h@clip', i: 'i@clip' })
+  expect(result.record.composition.clips[0].appearance.keys[0].value.effects?.map(effect => effect.id)).toEqual(['i@clip', 'h@clip'])
+  expect(result.record.composition.groupDefinitions).toEqual(before.composition.groupDefinitions)
+  expect(record).toEqual(before)
+  const prepared = prepare(result.record)
+  expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
+})
+
+it('retargets the edited Clip Transition ramp when shared Effect order changes (#1131)', () => {
+  const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade', 'live-live'))
+  if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+  const record = converted.record, transition = record.composition.transitions[0]
+  const incoming = record.composition.clips.find(clip => clip.id === transition.participants[0].toClipId)!
+  const outgoing = record.composition.clips.find(clip => clip.id === transition.participants[0].fromClipId)!
+  const h: ShowClipEffect = { id: 'h', kind: 'hue', turns: .1 }
+  const i: ShowClipEffect = { id: 'i', kind: 'invert', amount: .2 }
+  outgoing.instanceId = incoming.instanceId
+  for (const clip of [outgoing, incoming]) for (const key of clip.appearance.keys) key.value.effects = [structuredClone(h), structuredClone(i)]
+  transition.propertyRamps = [{ participantId: transition.participants[0].id,
+    target: { kind: 'clip-effect', clipId: incoming.id, effectId: 'h', effectKind: 'hue', parameterId: 'turns' }, from: .1,
+    easing: { curve: 'linear' } }]
+  const preimage = prepare(record)
+  expect(preimage).toMatchObject({ status: 'refused', issues: [{ code: 'unsupported-transition-property-ramp' }] })
+  const before = structuredClone(record)
+  const result = editShowClipAppearanceV2(record, { kind: 'reorder-effect', clipId: incoming.id, scope: 'whole-clip',
+    effectId: 'h', effectKind: 'hue', targetEffectId: 'i', targetEffectKind: 'invert', edge: 'after' })
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  expect(result.reidentifiedEffectIds).toEqual({ h: `h@${incoming.id}`, i: `i@${incoming.id}` })
+  expect(result.record.composition.transitions[0].propertyRamps[0].target).toMatchObject({ clipId: incoming.id, effectId: `h@${incoming.id}` })
+  expect(result.affectedTransitionIds).toEqual([transition.id])
+  expect(validateShowRecordV2(result.record)).toEqual([])
+  expect(record).toEqual(before)
+  const prepared = prepare(result.record)
+  expect(prepared).toMatchObject({ status: 'refused', issues: [{ code: 'unsupported-transition-property-ramp' }] })
+})
+
+it('keeps compatible held stacks without reidentifying Effects during a parameter update (#1131)', () => {
+  const record = fixture(), keys = record.composition.clips[0].appearance.keys
+  const h: ShowClipEffect = { id: 'h', kind: 'hue', turns: .1 }
+  const i: ShowClipEffect = { id: 'i', kind: 'invert', amount: .2 }
+  const d: ShowClipEffect = { id: 'd', kind: 'brightness', brightness: .8 }
+  for (const key of keys) key.value.effects = [structuredClone(h), structuredClone(i)]
+  keys[1].value.effects!.push(structuredClone(d))
+  expect(prepare(record).status).toBe('ready')
+  const before = structuredClone(record)
+  const result = editShowClipAppearanceV2(record, intent('update-effect', { effectId: 'h', effectKind: 'hue', parameter: 'turns', value: .3 }))
+  expect(result.status, JSON.stringify(result)).toBe('changed')
+  expect(result.reidentifiedEffectIds).toBeUndefined()
+  expect(result.record.composition.clips[0].appearance.keys.map(key => key.value.effects?.map(effect => effect.id)))
+    .toEqual([['h', 'i'], ['h', 'i', 'd'], ['h', 'i']])
+  expect(record).toEqual(before)
+  const prepared = prepare(result.record)
+  expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
+})
+
 it('mints collision-free Effect ids across held keys and retargets only edited Clip tracks (#1131)', () => {
   const record = fixture(), clip = record.composition.clips[0]
   const dim: ShowClipEffect = { id: 'dim', kind: 'brightness', brightness: .4 }

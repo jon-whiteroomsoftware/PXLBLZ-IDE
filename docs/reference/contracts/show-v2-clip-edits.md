@@ -401,11 +401,13 @@ Duplicate inserts each span's own source value immediately after its source and
 keeps animation attached to the original. Reorder requires an explicit same-stage
 target ID/kind and before/after position in every stack, preserving other stage
 slots. No guessed partial operation, Effect removal or animation cascade exists.
-When a whole-Clip reorder conflicts with another Clip sharing its Pattern
-instance, the edited Clip's conflicting Effects receive fresh IDs across all
-its held keys and its Clip Effect Property tracks follow those IDs. A selected-time
-reorder that disagrees with another key of the same Clip refuses atomically with
-`effect-order-conflict`.
+The owner compares full Effect stacks in both directions across the edited Clip's
+held keys, including inversions that their merge would create. A selected-time
+reorder that disagrees with another key refuses atomically with
+`effect-order-conflict`. When a whole-Clip reorder conflicts with another Clip
+sharing its Pattern instance, including a bound Group-occurrence Clip, the edited
+Clip's conflicting Effects receive fresh IDs across all its held keys. Its Clip
+Effect Property tracks and Transition property ramps follow those IDs.
 
 The complete candidate must pass raw/materialized ownership, Layout availability,
 RL08–RL10 placement and numeric Effect target/Transition-ramp descriptor checks.
