@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1129",
+  "route": "/PXLBLZ-IDE/studio/controllers/e2e-1129-r2-controller",
+  "operation": "Seeded a personal v2 Show 'Personal R2 arena' and bound it to a program that the fake live Controller (64 px) and its push record both name 'R2SHOW'. The profile's Saved PXLBLZ Patterns lists the row as 'Personal R2 arena'; clicking it opens /studio/shows/show-1129-r2-personal.",
+  "captures": [
+    ".wrsp/ui-proof/1129-r2-saved-programs-listed.png",
+    ".wrsp/ui-proof/1129-r2-saved-programs-routed.png"
+  ],
+  "capturedAtCommit": "2d1cbc0adbd302660e851175bef151468b9424d9"
+}
