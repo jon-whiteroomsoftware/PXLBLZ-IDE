@@ -7,7 +7,7 @@ function fixture() {
   const resolve = vi.fn(async () => identity as AgentClaim | undefined)
   const connect = vi.fn(async () => ({ code: 'bound' }))
   const allowance = vi.fn(async (_command: Record<string, unknown>) => ({ code: 'activated', operationId: 'operation' }))
-  const deliver = vi.fn(async (_identity: AgentClaim, _envelope: Record<string, unknown>) => ({ code: 'begun', show: {}, context: {} }))
+  const deliver = vi.fn(async (_identity: AgentClaim, _envelope: Record<string, unknown>) => ({ code: 'begun', show: { version: 2 }, context: {} }))
   const query = vi.fn(async () => ({ code: 'outcome', receipt: { status: 'pending' } }))
   const provider = vi.fn(async () => ({ ok: true as const, output: [{ type: 'function_call', call_id: 'done', name: 'finish_turn', arguments: '{"outcome":"apply","message":"Requested edit"}' }] }))
   return { resolve, connect, allowance, deliver, query, provider }
