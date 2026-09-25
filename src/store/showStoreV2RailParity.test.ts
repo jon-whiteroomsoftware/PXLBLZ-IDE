@@ -20,10 +20,6 @@ import {
  */
 const CONTRACT = createInstallationShowOutputContract({ outputMapId: null, pixelCount: 60 })
 
-function gate(enabled: boolean): void {
-  window.history.replaceState({}, '', enabled ? '/studio?show-v2-editor=1' : '/studio')
-}
-
 function provider(seed: ShowRecordV2[] = []) {
   const stored = [...seed]
   const deleted: string[] = []
@@ -50,11 +46,9 @@ function provider(seed: ShowRecordV2[] = []) {
 beforeEach(() => {
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
-  gate(true)
 })
 afterEach(() => {
   resetPersonalContentProvider()
-  gate(false)
 })
 
 describe('renaming a v2 row from the rail', () => {
@@ -182,7 +176,6 @@ describe('v2 row hydration (#1042)', () => {
   afterEach(() => resetPersonalContentProvider())
 
   it('loads stored v2 rows without asking for the retired v1 list', async () => {
-    gate(true)
     useShowStore.setState(showInitialState)
     const row = createShowV2WithOutputContract('v2-only', 'Only v2', CONTRACT, 1)
     setPersonalContentProvider({

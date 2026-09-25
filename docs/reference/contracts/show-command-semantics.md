@@ -850,8 +850,8 @@ the MCP server registers a single tool; a built-in turn reads it off its own
 capture.
 
 An unbound connection - or one whose binding cannot be read - describes **v2**,
-because since #1039 flipped `SHOW_V2_ROUTE_DEFAULT` that is the production
-editor's authored vocabulary: a fresh Show is v2 and the operator conversion
+because since #1039 v2 is the production Show path unconditionally, and no route
+constant selects it. The production editor authors v2: a fresh Show is v2 and the operator conversion
 moves the rest. Discovery before attachment is therefore 59 tools and 52
 mutations rather than v1's 64 and 57, measured in
 `agentMcpSchemaCensus.test.ts`. A connection that then binds to a row storage

@@ -147,7 +147,6 @@ import { useStudioPlaceStore } from '@/store/studioPlaceStore'
 import { useStudioEntityDrawerStore } from '@/store/studioEntityDrawerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 import { AgentDrawerWorkspace } from '@/components/agent/AgentDrawer'
-import { opensOnShowV2Route } from '@/engine/showV2RouteGate'
 
 function Splitter({
   onDrag,
@@ -421,16 +420,12 @@ function StudioApp() {
   const showV2Rows = useShowStore((s) => s.showV2Rows)
   const leaveShowWorkspace = useShowStore((s) => s.leaveShowWorkspace)
   const openShowV2Pilot = useShowStore((s) => s.openShowV2Pilot)
-  // Which record backs one routed Show (#1039). A stored version-2 document or
-  // a native v2 built-in opens on the v2 backing; an unconverted v1 row is not
-  // opened (#1042). The agent binding the open editor registers carries the
-  // same answer, so a Show's editor and its commands are never different
-  // versions.
+  // A stored v2 row or native v2 built-in opens on the v2 backing. Any other
+  // id is not opened (#1042). The agent binding carries the same record version
+  // as the editor, so its commands follow that backing.
   const routedShowOpensOnV2 = useCallback(
-    (showId: string) => opensOnShowV2Route({
-      storedV2: showV2Rows.some((row) => row.id === showId),
-      stockV2: stockShowV2ById(showId) !== undefined,
-    }),
+    (showId: string) => showV2Rows.some((row) => row.id === showId)
+      || stockShowV2ById(showId) !== undefined,
     [showV2Rows],
   )
   const renameShowV2Pilot = useShowStore((s) => s.renameShowV2Pilot)

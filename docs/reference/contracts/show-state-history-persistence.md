@@ -235,14 +235,10 @@ store revisions; existing manual replacement callers retain their original API.
 
 ## The version-2 route, and what a still-version-1 row does
 
-[`showV2RouteGate.ts`](../../../src/engine/showV2RouteGate.ts) answers both
-halves of this since #1039 flipped `SHOW_V2_ROUTE_DEFAULT` to `true`.
-
-`isShowV2RouteEnabled` is now unconditionally yes, and the consumers that must
-move together ask it: fresh-Show creation, the Show list, the store's
-version-2 listing and `.pxlshow` import. `opensOnShowV2Route` then answers per
-routed Show, and that is what keeps specification section 10's two rules
-compatible. A stored version-2 document opens on the version-2 editor. A row
+Since #1039, v2 is the production Show path: fresh-Show creation, the Show
+list, the store's version-2 listing and `.pxlshow` import use it. A stored
+version-2 document or native v2 built-in opens on the v2 backing in the one
+editor. A row
 storage still holds as version 1 is not opened at all since #1042 Phase 1b: the
 Worker refuses the version-1 list and version-1 writes with 410
 `show-v1-retired`, and the row's route shows the ordinary missing-Show message.
@@ -251,9 +247,8 @@ rewrites it; `npm run show:v2-migrate` is the only writer that converts one
 (#1105). So for any one Show the editor, its history, its save queue and its
 command catalogue are one version, and no mixed window exists.
 
-The development-only `show-v2-editor=1` preview opens an unconverted row on the
-version-2 editor by converting it in memory. It writes nothing - no provider
-call, no row - and a production build ignores it however the URL is written.
+An id with no stored v2 row and no native v2 built-in is not opened. There is
+no preview parameter.
 
 Sparse patch remains version 1. So does `shows`: a version-2 row never enters
 that collection. The store lists those rows separately as `showV2Rows` -

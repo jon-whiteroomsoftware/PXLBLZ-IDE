@@ -152,6 +152,19 @@ describe('ensureWorkspaceStarters', () => {
     })
   })
 
+  it('keeps the last-active Show when v2 Shows are the only existing content', async () => {
+    const memory = createMemoryProvider()
+    const inventory = { ...emptyInventory(), showIds: ['existing-v2-show'] }
+
+    await expect(ensureWorkspaceStarters(memory.provider, inventory, 123)).resolves.toBe(true)
+
+    expect(memory.patterns).toEqual([{ ...STARTER_PATTERN, updatedAt: 123 }])
+    expect(memory.maps).toEqual([{ ...STARTER_MAP, updatedAt: 123 }])
+    expect(memory.mixins).toEqual([{ ...STARTER_MIXIN, updatedAt: 123 }])
+    expect(memory.libraries).toEqual([{ ...STARTER_LIBRARY, updatedAt: 123 }])
+    expect(memory.lastActiveWrites).toEqual([])
+  })
+
   it('finishes only missing records after a partial seed', async () => {
     const memory = createMemoryProvider({ version: 1, initialized: ['patterns'] })
     memory.patterns.push({ ...STARTER_PATTERN, updatedAt: 100 })

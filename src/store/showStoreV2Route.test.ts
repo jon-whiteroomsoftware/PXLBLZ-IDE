@@ -11,15 +11,10 @@ import {
 } from '@/engine/personalContentProvider'
 
 /**
- * The Show list, fresh-Show creation and imported v2 Shows behind the one
- * route gate (#1056 slice 6). The v1 collections stay exactly as they are: a
- * v2 row is listed beside them, never inside `shows`.
+ * The Show list, fresh-Show creation and imported v2 Shows (#1039).
+ * A v2 row is listed separately from the retired v1 `shows` collection.
  */
 const CONTRACT = createInstallationShowOutputContract({ outputMapId: null, pixelCount: 60 })
-
-function gate(enabled: boolean): void {
-  window.history.replaceState({}, '', enabled ? '/studio?show-v2-editor=1' : '/studio')
-}
 
 function provider(overrides: Partial<PersonalContentProvider> = {}): {
   created: ShowRecordV2[]
@@ -41,33 +36,26 @@ function provider(overrides: Partial<PersonalContentProvider> = {}): {
 beforeEach(() => {
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
-  gate(false)
 })
 afterEach(() => {
   resetPersonalContentProvider()
-  gate(false)
   vi.restoreAllMocks()
 })
 
-describe('the gated v2 Show list', () => {
-  it('lists stored v2 rows beside the v1 list however the URL is written (#1039)', async () => {
+describe('the v2 Show list', () => {
+  it('lists stored v2 rows beside the v1 list (#1039)', async () => {
     const record = createShowV2WithOutputContract('listed', 'Listed v2', CONTRACT, 1)
     const { stored } = provider()
     stored.push(record)
 
-    // The gate is the production default now, so the listing no longer depends
-    // on the development preview parameter: a converted row is offered to every
-    // user, beside whatever is still stored as v1.
     await useShowStore.getState().loadShows()
     expect(useShowStore.getState().showV2Rows).toEqual([{ id: 'listed', name: 'Listed v2', updatedAt: 1 }])
 
-    gate(true)
     await useShowStore.getState().loadShows()
     expect(useShowStore.getState().showV2Rows).toEqual([{ id: 'listed', name: 'Listed v2', updatedAt: 1 }])
   })
 
   it('survives a provider that cannot list v2 documents at all', async () => {
-    gate(true)
     provider({ listShowDocumentsV2: undefined })
     await useShowStore.getState().loadShows()
     expect(useShowStore.getState().showV2Rows).toEqual([])
@@ -75,7 +63,6 @@ describe('the gated v2 Show list', () => {
   })
 
   it('reports a failed v2 listing as no rows rather than failing the workspace load', async () => {
-    gate(true)
     provider({ listShowDocumentsV2: async () => { throw new Error('offline') } })
     await useShowStore.getState().loadShows()
     expect(useShowStore.getState().showV2Rows).toEqual([])
@@ -85,7 +72,6 @@ describe('the gated v2 Show list', () => {
 
 describe('creating and importing a v2 Show', () => {
   it('persists a native fresh v2 Show, opens it in memory and lists it', async () => {
-    gate(true)
     const { created } = provider()
     const record = await useShowStore.getState().createNewShowV2({ name: 'Fresh', outputContract: CONTRACT })
 
@@ -100,7 +86,6 @@ describe('creating and importing a v2 Show', () => {
   })
 
   it('names a fresh Show uniquely across both listings', async () => {
-    gate(true)
     provider()
     const first = await useShowStore.getState().createNewShowV2({ outputContract: CONTRACT })
     const second = await useShowStore.getState().createNewShowV2({ outputContract: CONTRACT })
@@ -109,7 +94,6 @@ describe('creating and importing a v2 Show', () => {
   })
 
   it('refuses to create or import when the workspace cannot store v2 records', async () => {
-    gate(true)
     provider({ createShowV2: undefined })
     await expect(useShowStore.getState().createNewShowV2({ outputContract: CONTRACT }))
       .rejects.toThrow('This workspace cannot store version-2 Shows.')
@@ -117,7 +101,6 @@ describe('creating and importing a v2 Show', () => {
   })
 
   it('validates an imported v2 record before it reaches the provider', async () => {
-    gate(true)
     const { created } = provider()
     const record = createShowV2WithOutputContract('imported', 'Imported', CONTRACT, 1)
     await useShowStore.getState().addImportedShowV2(record)

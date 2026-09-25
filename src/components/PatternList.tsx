@@ -78,7 +78,6 @@ import { parseShowFileBundle } from '@/engine/showFileBundle'
 import { applyShowImportPlan, planShowImport, ShowImportPlanError, type ShowImportPlan } from '@/engine/showImportPlan'
 import { applyShowImportPlanV2, planShowImportV2, type ShowImportPlanV2 } from '@/engine/showImportPlanV2'
 import { convertAppliedShowImportV1 } from '@/engine/showImportV1Conversion'
-import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
 import { searchEntityOrganization } from '@/engine/entityOrganization'
 
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
@@ -289,13 +288,9 @@ export function PatternList({
     if (!file) return
     e.target.value = ''
     void file.arrayBuffer().then(async (buffer) => {
-      // Behind the route gate a version-2 file is accepted and planned through
-      // the isolated v2 adapters; a version-1 file keeps its own planner, here
-      // and after activation (specification section 10).
-      const acceptV2 = isShowV2RouteEnabled()
-      const bundle = acceptV2
-        ? await parseShowFileBundle(new Uint8Array(buffer), { acceptV2: true })
-        : await parseShowFileBundle(new Uint8Array(buffer))
+      // A version-2 file plans through the v2 adapters; a version-1 file keeps
+      // its own planner (specification section 10).
+      const bundle = await parseShowFileBundle(new Uint8Array(buffer), { acceptV2: true })
       const showNames = useShowStore.getState().showV2Rows.map((row) => row.name)
       const plan = bundle.version === 2
         ? planShowImportV2(bundle, {
@@ -555,8 +550,7 @@ export function PatternList({
           mapIds: useMapStore.getState().userMaps.map((map) => map.id),
           mixinIds: useMixinStore.getState().userMixins.map((mixin) => mixin.id),
           libraryIds: useLibraryStore.getState().userLibraries.map((library) => library.id),
-          // v1 Show rows are retired; the v1 list is always empty (#1042).
-          showIds: [],
+          showIds: useShowStore.getState().showV2Rows.map((row) => row.id),
           controllerIds: useControllerProfileStore.getState().profiles.map((profile) => profile.id),
         }).catch((error) => {
           console.warn('Could not finish new-workspace starter creation', error)

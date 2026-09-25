@@ -129,10 +129,6 @@ function memoryProviderV2(seed: ShowRecordV2[] = []) {
   return { provider, stored, deleted }
 }
 
-function gateV2(enabled: boolean): void {
-  window.history.replaceState({}, '', enabled ? '/studio?show-v2-editor=1' : '/studio')
-}
-
 function v2ProviderForPort(seedV2: ShowRecordV2[] = []) {
   const stored = [...seedV2.map((record) => structuredClone(record))]
   const provider = {
@@ -176,7 +172,6 @@ beforeEach(() => {
   useMapStore.setState(mapInitialState)
 })
 
-afterEach(() => gateV2(false))
 
 describe('showStore (#318)', () => {
   /* #1042 P2c-1a deletions (COVERED/REPRESENTATION): each deleted v1 test is covered by the cited v2 test.
@@ -971,7 +966,6 @@ describe('showStore (#318)', () => {
   })
 
   it('persists and reloads configured Shows only when final creation is requested (#434)', async () => {
-    gateV2(true)
     const { stored } = memoryProviderV2()
     const portable = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
 

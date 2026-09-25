@@ -369,27 +369,10 @@ describe('App smoke test', () => {
     expect(screen.getAllByText('Show not found').length).toBeGreaterThan(0)
   })
 
-  it('mounts the opt-in v2 Show route when the ordinary v1 list excludes its record', () => {
-    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
-    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    setStudioLocation(`/studio/shows/${converted.record.id}?show-v2-editor=1`)
-    seedSignedInWorkspace()
-    useShowStore.setState({
-      showsLoaded: true,
-      showV2Pilots: { [converted.record.id]: converted.record },
-    })
-
-    render(<App />)
-
-    expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Select Outgoing' })).toBeInTheDocument()
-    expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
-  })
-
   it('keeps an explicit v2 editor route', async () => {
     const sourceA = { ...transitionV1Show('crossfade'), id: 'pilot-active-a', name: 'Ordinary active A' }
     const sourceB = { ...transitionV1Show('crossfade'), id: 'pilot-active-b', name: 'Explicit pilot B' }
-    setStudioLocation(`/studio/shows/${sourceB.id}?show-v2-editor=1`)
+    setStudioLocation(`/studio/shows/${sourceB.id}`)
     seedSignedInWorkspace()
     seedStoredV2Shows([sourceA, sourceB])
 
@@ -808,10 +791,11 @@ describe('routing (#308)', () => {
       listShowDocumentsV2: async () => [structuredClone(persisted)],
       replaceShowV2,
     } as unknown as PersonalContentProvider)
-    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-editor=1`)
+    setStudioLocation(`/studio/shows/${legacy.id}`)
     seedSignedInWorkspace()
     useShowStore.setState({
       showsLoaded: true,
+      showV2Rows: [{ id: legacy.id, name: converted.record.name, updatedAt: converted.record.updatedAt }],
       showV2Pilots: { [legacy.id]: converted.record },
       showV2Histories: { [legacy.id]: { past: [], future: [] } },
     })
@@ -849,9 +833,12 @@ describe('routing (#308)', () => {
       listShowDocumentsV2: async () => [structuredClone(converted.record)],
       replaceShowV2,
     } as unknown as PersonalContentProvider)
-    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-editor=1`)
+    setStudioLocation(`/studio/shows/${legacy.id}`)
     seedSignedInWorkspace()
-    useShowStore.setState({ showsLoaded: true })
+    useShowStore.setState({
+      showsLoaded: true,
+      showV2Rows: [{ id: legacy.id, name: converted.record.name, updatedAt: converted.record.updatedAt }],
+    })
     const opened = await useShowStore.getState().openShowV2Pilot(legacy.id)
     if (opened.status !== 'ready') throw new Error(JSON.stringify(opened.issues))
     await useShowStore.getState().updateShowV2Pilot(legacy.id, edited.record)
@@ -898,9 +885,12 @@ describe('routing (#308)', () => {
       listShowDocumentsV2: async () => [structuredClone(converted.record)],
       replaceShowV2,
     } as unknown as PersonalContentProvider)
-    setStudioLocation(`/studio/shows/${legacy.id}?show-v2-editor=1`)
+    setStudioLocation(`/studio/shows/${legacy.id}`)
     seedSignedInWorkspace()
-    useShowStore.setState({ showsLoaded: true })
+    useShowStore.setState({
+      showsLoaded: true,
+      showV2Rows: [{ id: legacy.id, name: converted.record.name, updatedAt: converted.record.updatedAt }],
+    })
     const opened = await useShowStore.getState().openShowV2Pilot(legacy.id)
     if (opened.status !== 'ready') throw new Error(JSON.stringify(opened.issues))
 

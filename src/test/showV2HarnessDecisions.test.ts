@@ -58,7 +58,7 @@ describe('routedShowIdFromUrl', () => {
     expect(routedShowIdFromUrl('http://localhost:5174/PXLBLZ-IDE/studio/shows/abc')).toBe('abc')
   })
   it('ignores query strings and hashes', () => {
-    expect(routedShowIdFromUrl('studio/shows/abc?show-v2-editor=1#panel')).toBe('abc')
+    expect(routedShowIdFromUrl('studio/shows/abc?other=1#panel')).toBe('abc')
   })
   it('returns null for the list route and non-Studio urls', () => {
     expect(routedShowIdFromUrl('studio/shows')).toBeNull()

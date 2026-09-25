@@ -910,8 +910,8 @@ refusal or no-op. The
 [audit scope map](evidence/issue-1038-audit/scope-map.md) records which
 behaviors are proved and which residuals are still carried.
 
-**Which record backs the open editor.** `SHOW_V2_ROUTE_DEFAULT` is `true`, so
-version 2 is the ordinary Show path: a fresh Show is authored as a
+**Which record backs the open editor.** Since #1039, version 2 is the ordinary
+Show path: a fresh Show is authored as a
 `ShowRecordV2`, the Show list reads stored version-2 documents only,
 `.pxlshow` import accepts either version and stores a version-1 file as a
 converted version-2 record, and an unbound MCP
@@ -928,9 +928,8 @@ A built-in Show opens on its native version-2 catalogue record as a session-only
 lesson draft that writes nothing (#1067). Until #1066 connects
 the remaining edits, a version-2 record in that editor has only the ordinary
 Clip move connected; every other command is fenced to an internal no-change
-result. `?show-v2-editor=1` remains a development-only preview of an
-unconverted row on the version-2 backing, which converts in memory and writes
-nothing; a production build ignores it.
+result. A stored v2 row or native v2 built-in supplies the editor's v2 backing;
+an id with neither record is not opened.
 
 The rest of this section records what the rejected v2 editor route offered
 before #1065 unmounted it; #1067 removes those components. Its Show inspector

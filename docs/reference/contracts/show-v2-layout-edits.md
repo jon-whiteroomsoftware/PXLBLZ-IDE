@@ -1,12 +1,11 @@
 # Additive v2 Layout occurrence edit contract
 
 `editShowLayoutIntervalsV2(record, intent)` owns immutable Layout occurrence,
-routing-transfer and Show End edits for the provisional v2 engine. Production v1
-commands, editor history, persistence and export still do not call it. Its landed
-consumers are `admitShowV2PilotLayoutOccurrenceEdit` and
-`admitShowV2PilotSetShowEnd` on the gated `?show-v2-editor=1` route (removed by #1067 Stage 1)
-([occurrence adoption](show-v2-layout-occurrence-adoption.md)); coordinated
-production adoption remains #1039's work.
+routing-transfer and Show End edits for the v2 engine. Its editor consumers are
+`admitShowV2PilotLayoutOccurrenceEdit` and `admitShowV2PilotSetShowEnd` on
+the v2 backing selected by a stored v2 row or native v2 built-in
+([occurrence adoption](show-v2-layout-occurrence-adoption.md)). There is no
+preview parameter.
 
 ## Result and ownership boundary
 

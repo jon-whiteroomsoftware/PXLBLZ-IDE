@@ -24,7 +24,6 @@ import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { cloneValidShowRecordV2 } from '@/engine/showDocument'
 import { applyShowCommandV2 } from '@/engine/showCommandsV2/registry'
 import { createShowV2WithOutputContract } from '@/engine/showCreationV2'
-import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
 import type { ShowV1ToV2Issue } from '@/engine/showRecordV1ToV2'
 import {
   editedHistory,
@@ -378,7 +377,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     const listProvider = getPersonalContentProvider()
     const listGeneration = showV2WorkspaceGeneration
     const hydration = (async () => {
-    const v2Rows = isShowV2RouteEnabled() && listProvider.listShowDocumentsV2
+    const v2Rows = listProvider.listShowDocumentsV2
       ? (await listProvider.listShowDocumentsV2().catch(() => []))
         .map((record): ShowV2ListRow => ({ id: record.id, name: record.name, updatedAt: record.updatedAt }))
       : []

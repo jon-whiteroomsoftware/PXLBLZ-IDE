@@ -49,7 +49,7 @@ The existing timeline still has v1 branches for Scene-local grid geometry, Layou
 
 ## Which record backs the open editor
 
-`ShowEditor` is the routed editor. `opensOnShowV2Route` selects backing per record; `SHOW_V2_ROUTE_DEFAULT` enables the v2 path for fresh Shows, v2 list rows and `.pxlshow` imports of either version. Since #1042 Phase 1b a stored v1 row is neither converted on read nor opened: the Worker refuses the v1 list and v1 writes with 410 `show-v1-retired`, and the row waits in D1 for the operator conversion (`npm run show:v2-migrate`, #1105). See `src/engine/showV2RouteGate.ts:1-92`, `src/App.tsx` (`v2EditorShowId`, `activeShow`) and `src/worker/routes/shows/showV1Retired.ts`.
+`ShowEditor` is the routed editor. Since #1039, v2 is the production path for fresh Shows, stored v2 rows and `.pxlshow` imports of either version. A stored v2 row or native v2 built-in supplies its backing. Since #1042 Phase 1b a stored v1 row is neither converted on read nor opened: the Worker refuses the v1 list and v1 writes with 410 `show-v1-retired`, and the row waits in D1 for the operator conversion (`npm run show:v2-migrate`, #1105). See `src/App.tsx` (`v2EditorShowId`, `activeShow`) and `src/worker/routes/shows/showV1Retired.ts`.
 
 | Routed Show | Editor backing |
 | --- | --- |
@@ -59,7 +59,7 @@ The existing timeline still has v1 branches for Scene-local grid geometry, Layou
 
 The route supplies `recordVersion={activeShowV2Pilot ? 2 : 1}`; version 1 remains only for a built-in Show with no native v2 record. The agent admission binding declares that version, reads the corresponding record, and reports it through `read_show`; its commands therefore follow the editor backing. See `src/App.tsx:945-951`, `src/agent/editorAdmission.ts:100-123`, and `src/agent/editorAdmission.ts:267-272`.
 
-`?show-v2-editor=1` still has one development use: an unconverted row can be projected into a v2 backing in memory for the open session. It writes nothing, and a production build ignores the parameter. See `src/engine/showV2RouteGate.ts:46-92`.
+An id with no stored v2 row and no native v2 built-in is not opened. There is no preview parameter.
 
 ## Edit doors
 

@@ -29,6 +29,7 @@ import type { ShowRecord } from '@/engine/personalContentRecords'
 import { convertibleV1Show } from '@/test/showV2TracerFixture'
 import { createShowV2WithOutputContract } from '@/engine/showCreationV2'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
+import * as workspaceStarters from '@/engine/workspaceStarters'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import type { LastActive } from '@/engine/personalContentProvider'
@@ -250,6 +251,23 @@ async function selectDimension(
 }
 
 describe('PatternList', () => {
+  it('passes stored v2 Show ids to workspace starter inventory', async () => {
+    mockPatterns = []
+    mockShowsV2 = [createShowV2WithOutputContract(
+      'existing-v2-show', 'Existing v2 Show',
+      createInstallationShowOutputContract({ outputMapId: null, pixelCount: 60 }), 1,
+    )]
+    const starterSpy = vi.spyOn(workspaceStarters, 'ensureWorkspaceStarters').mockResolvedValue(false)
+
+    render(<PatternList />)
+
+    await waitFor(() => expect(starterSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ showIds: ['existing-v2-show'] }),
+    ))
+    starterSpy.mockRestore()
+  })
+
   it('persists exact broken source before opening another Pattern (#818)', async () => {
     const first = { ...SEED_PATTERN, id: 'first', name: 'First Pattern', src: '// first' }
     const second = { ...SEED_PATTERN, id: 'second', name: 'Second Pattern', src: '// second' }
@@ -1246,7 +1264,7 @@ describe('PatternList', () => {
     const V2_CONTRACT = createInstallationShowOutputContract({ outputMapId: null, pixelCount: 60 })
 
     async function renderShowsRail() {
-      setStudioLocation('/studio?show-v2-editor=1')
+      setStudioLocation('/studio')
       const user = userEvent.setup()
       render(<PatternList />)
       await switchRailMode('Shows')
