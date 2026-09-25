@@ -1194,7 +1194,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(panel.getByText('Independent', { exact: true })).toBeVisible()
   })
 
-  test('Option-drags an independent Clip duplicate onto another Layer (#668)', async ({ page }) => {
+  test('Option-drags a linked Clip duplicate onto another Layer (#668)', async ({ page }) => {
     const id = `playwright-option-drag-${Date.now()}`
     const show = {
       ...legacyShowFixture(id, 'Option-drag duplicate', [{ start: 0, end: 59 }]),
@@ -1272,12 +1272,13 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Select Option Copy Rings' })).toHaveCount(2)
     await waitForCurrentShow(page, (saved) => {
       const composition = saved.composition
-      if (composition.patternInstances.length !== 2) return false
+      if (composition.patternInstances.length !== 1) return false
       const sourceClips = composition.clips.filter((clip) => storedClipLayerRank(saved, clip) === 0)
       const copiedClips = composition.clips.filter((clip) => (storedClipLayerRank(saved, clip) ?? 0) > 0)
       return sourceClips.length === 1
         && sourceClips[0]?.instanceId === 'instance-source'
         && copiedClips.length === 1
+        && copiedClips[0]?.instanceId === 'instance-source'
     })
 
     await page.keyboard.press('Control+z')
