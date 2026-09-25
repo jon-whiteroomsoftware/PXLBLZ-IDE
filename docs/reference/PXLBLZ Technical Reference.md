@@ -136,8 +136,8 @@ at 0.7 x grid width; caption at most 0.8 x preview width), and
 `resolveGalleryShowGeometry` / `prepareGalleryShow`, which resolve the Show's
 own stage map — at its output contract's count for an installation Show, at
 `GALLERY_SHOW_PIXEL_COUNT` (2,000) for a portable one — with 'contain'
-normalization and compile it through `compileShowForPreview` exactly as the
-stage preview does. `gallerySubject.ts` resolves a Pattern or a Show to one
+normalization and compile the native v2 record through
+`captureShowStageEditV2`, as the v2 Stage preview does. `gallerySubject.ts` resolves a Pattern or a Show to one
 runtime shape (prepared artifact, geometry, look, keyframe key, pixel cost), so
 `GalleryLivePreview` has a single code path; a Show card adds a loop
 thermometer driven from the runtime's elapsed time. `GalleryPage` inserts

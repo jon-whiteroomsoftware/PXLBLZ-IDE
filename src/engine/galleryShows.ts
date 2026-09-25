@@ -5,12 +5,13 @@
 // Show's Gallery pixel count) and look (more diffusion) differ.
 import { applyNormalizeMode, type MapPoint } from './maps'
 import type { PreparedFastReplay } from './fastReplay'
-import { showLoopDurationMs } from './showModel'
-import { compileShowForPreview, resolveShowCompilationControllerZones } from './showPreviewArtifact'
+import { projectShowEditorTimelineV2 } from './showEditorTimelinePresentation'
+import { captureShowStageEditV2 } from './showPreparedStageV2'
 import { showChaptersV2, type ShowChapterV2 } from './showChaptersV2'
-import { stockShowById, type StockShow } from '@/pixelblaze/stock/shows'
+import { stockShowCatalogueById, type StockShowTrack } from '@/pixelblaze/stock/showCatalogueV2'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { resolveMap } from '@/store/mapStore'
+import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 
 export interface GalleryShow {
   id: string
@@ -68,10 +69,11 @@ export function galleryShowById(id: string): GalleryShow | undefined {
   return GALLERY_SHOWS.find((show) => show.id === id)
 }
 
-export function galleryShowStock(show: GalleryShow): StockShow {
-  const stock = stockShowById(show.id)
-  if (!stock) throw new Error(`Gallery Show "${show.id}" is not a stock Show.`)
-  return stock
+function galleryShowSource(show: GalleryShow) {
+  const record = stockShowV2ById(show.id)
+  const catalogue = stockShowCatalogueById(show.id)
+  if (!record || !catalogue) throw new Error(`Gallery Show "${show.id}" is not a stock Show.`)
+  return { record, catalogue }
 }
 
 export interface GalleryShowFacts {
@@ -80,18 +82,18 @@ export interface GalleryShowFacts {
   loopMs: number
   loopSeconds: number
   zoneCount: number
-  track: StockShow['track']
+  track: StockShowTrack
 }
 
 export function galleryShowFacts(show: GalleryShow): GalleryShowFacts {
-  const stock = galleryShowStock(show)
-  const loopMs = showLoopDurationMs(stock.show)
+  const stock = galleryShowSource(show)
+  const loopMs = projectShowEditorTimelineV2(stock.record).showEndMs
   return {
-    title: stock.name,
+    title: stock.catalogue.name,
     loopMs,
     loopSeconds: Math.round(loopMs / 1000),
-    zoneCount: stock.show.zones.length,
-    track: stock.track,
+    zoneCount: stock.record.zones.length,
+    track: stock.catalogue.track,
   }
 }
 
@@ -99,10 +101,8 @@ export function galleryShowFacts(show: GalleryShow): GalleryShowFacts {
  * The Show's narrative chapters, for the reading card and the Live caption
  * (#1040). Chapters come from the prepared native v2 record's `role: chapter`
  * Markers in their deterministic `(timeMs, id)` order; general Markers never
- * appear. Playback, compilation and the Gallery's stored keyframes still run on
- * the pinned v1 record until #1039 activates v2, so this is a narration
- * projection, not a second playback source. A Show with no chapters returns an
- * empty list rather than a synthesized label.
+ * appear. A Show with no chapters returns an empty list rather than a
+ * synthesized label.
  */
 export function galleryShowChapters(show: GalleryShow): ShowChapterV2[] {
   const record = stockShowV2ById(show.id)
@@ -121,7 +121,7 @@ export interface GalleryShowGeometry {
  * only lays out correctly at that count. Portable Shows scale to the Gallery
  * count. */
 export function galleryShowPixelCount(show: GalleryShow): number {
-  const contract = galleryShowStock(show).show.outputContract
+  const contract = galleryShowSource(show).record.outputContract
   return contract?.kind === 'installation' && contract.pixelCount > 0 ? contract.pixelCount : GALLERY_SHOW_PIXEL_COUNT
 }
 
@@ -132,8 +132,8 @@ export function resolveGalleryShowGeometry(
   show: GalleryShow,
   pixelCount = galleryShowPixelCount(show),
 ): GalleryShowGeometry {
-  const stock = galleryShowStock(show)
-  const map = resolveMap(stock.show.stageMapId ?? 'plane', [])
+  const stock = galleryShowSource(show)
+  const map = resolveMap(stock.record.stageMapId ?? 'plane', [])
   const resolved = applyNormalizeMode(map.resolve(Math.max(1, pixelCount)), 'contain')
   const mapPoints: MapPoint[] = resolved.map((point) => {
     const raw = point.pos ?? point.sample
@@ -163,19 +163,21 @@ export function stageAspect(mapPoints: readonly MapPoint[], dim: number): number
 
 /** Compile the Show for preview exactly as the stage preview does. */
 export function prepareGalleryShow(show: GalleryShow, geometry: GalleryShowGeometry): PreparedFastReplay {
-  const stock = galleryShowStock(show)
-  const compiled = compileShowForPreview(
-    stock.show,
-    [],
-    resolveShowCompilationControllerZones(stock.show),
-    {},
-    { stageDimension: geometry.dim },
-  )
-  if (!compiled.artifact) throw new Error(compiled.error ?? `Gallery Show "${show.id}" did not compile.`)
+  const { record } = galleryShowSource(show)
+  const capture = captureShowStageEditV2(record, {
+    patterns: [], libraries: [], maps: [], profiles: [],
+    stageMap: resolveShowV2StageMap(record.stageMapId, []),
+  })
+  if (capture.prepared.status !== 'ready') {
+    throw new Error(capture.prepared.status === 'refused'
+      ? capture.prepared.message
+      : `Gallery Show "${show.id}" did not compile.`)
+  }
+  const { artifact } = capture.prepared.bundle
   return {
-    code: compiled.artifact.code,
-    fxCode: compiled.artifact.fxCode,
-    metadata: compiled.artifact.metadata,
+    code: artifact.code,
+    fxCode: artifact.fxCode,
+    metadata: artifact.metadata,
     dimension: geometry.dim === 3 ? 3 : 2,
   }
 }
