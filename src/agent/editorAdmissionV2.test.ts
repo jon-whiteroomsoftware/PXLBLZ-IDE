@@ -75,7 +75,6 @@ function setup(options: { failSave?: boolean; patterns?: typeof PATTERN[]; obser
     if (current && current !== capture.record) capture = captureOf(current)
   })
   const admission = createAgentEditorAdmission(record.id, () => ({ playheadMs: 0 }), undefined, options.observe, {
-    recordVersion: 2,
     capture: () => capture,
     isCurrentCapture: () => useShowStore.getState().showV2Pilots[record.id] === capture.record,
   })
@@ -271,7 +270,7 @@ it('admits nothing for a Show with no v2 working copy, even when a v1 record of 
   const showId = `v2-agent-absent-${++index}`
   window.history.replaceState(null, '', `/studio/shows/${showId}?agent=1`)
   useShowStore.setState({ shows: [{ ...convertibleV1Show(), id: showId }] })
-  const admission = createAgentEditorAdmission(showId, () => ({ playheadMs: 0 }), undefined, undefined, { recordVersion: 2, capture: () => null })
+  const admission = createAgentEditorAdmission(showId, () => ({ playheadMs: 0 }), undefined, undefined, { capture: () => null })
   close = () => admission.close()
   expect(useShowStore.getState().showV2Pilots[showId]).toBeUndefined()
   expect(admission.getShow()).toBeUndefined()

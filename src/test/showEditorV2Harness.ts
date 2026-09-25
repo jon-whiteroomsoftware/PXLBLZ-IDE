@@ -9,7 +9,7 @@ import type { ShowRecord } from '@/engine/personalContentRecords'
 /**
  * The shared v2 Show editor harness (#1042). Component tests open the editor on
  * a v2 pilot row with `openV2EditorForRecord`, then render
- * `<ShowEditor showId={editor.showId} recordVersion={2} />`.
+ * `<ShowEditor showId={editor.showId} />`.
  */
 
 export interface EditorState {

@@ -448,7 +448,7 @@ describe('legacy owner observation (#1065)', () => {
 describe('v2 tracer settlement routing (#1065)', () => {
   it('a v2 no-change move preview clears when the drag leaves the lane (#1067)', async () => {
     const editor = openV2Editor('tracer-native-no-change-leave')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
     const lane = surface.lane('main')
@@ -466,7 +466,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
 
   it("a v2 Shift pointer-drag that resolves to the Clip's own start keeps the move preview and commits nothing (#1067)", async () => {
     const editor = openV2Editor('tracer-shift-no-change')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
     const restorePointerTarget = pointPointerAt(surface.lane('main'))
@@ -487,7 +487,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
   it('a v2 Shift pointer-drag paints tenths and commits the move (#1067)', async () => {
     const editor = openV2Editor('tracer-shift-tenths')
     useShowEditorSessionStore.setState({ snapEnabled: false, markersVisible: false, markerSnapEnabled: false })
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
     const restorePointerTarget = pointPointerAt(surface.lane('main'))
@@ -513,7 +513,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
 
   it('settles the one qualified same-Layer move through the v2 door only', async () => {
     const editor = openV2Editor('tracer-qualified-move')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
 
@@ -546,7 +546,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
 
   it('duplicates a Clip on an Alt drag as a linked copy', async () => {
     const editor = openV2Editor('tracer-alt-duplicate')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-a').layerId)!.id
     const sourceInstanceId = authoredClip(before.record, 'resize-a').instanceId
@@ -592,7 +592,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
 
   it('allocates duplicate identities once, on drop, across repeated previews', async () => {
     const editor = openV2Editor('tracer-alt-duplicate-identity')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
     const identities = vi.mocked(newPersonalContentId)
@@ -616,7 +616,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
     const record = propertyEditGroupRecord()
     record.id = 'tracer-group-alt-duplicate'
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('clip')
     const groupClip = document.querySelector<HTMLElement>('[data-show-group-occurrence="occ-0"]')
@@ -638,7 +638,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
   it('duplicates a Clip onto a collapsed Zone as a linked copy', async () => {
     const editor = openV2EditorForRecord(twoZoneV2Record('tracer-alt-collapsed-duplicate'))
     useShowEditorSessionStore.getState().setZoneCollapsed(editor.showId, 'z2', true)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const sourceInstanceId = authoredClip(before.record, 'overlay-a').instanceId
     const surface = zoneDropSurface('overlay-a')
@@ -677,7 +677,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
 
   it('moves an unjoined Clip across Layers without asking (#1069)', async () => {
     const editor = openV2Editor('tracer-cross-layer')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-a').layerId)!.id
     const surface = dragSurface('resize-a')
@@ -721,7 +721,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
     }]
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-b').layerId)!.id
     const surface = dragSurface('resize-b')
@@ -760,7 +760,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
 
   it('submits one settlement per gesture when the drop repeats', async () => {
     const editor = openV2Editor('tracer-duplicate-settlement')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
 
@@ -794,7 +794,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
     // "exactly one submission" assertions therefore rest on the guard, not on
     // an inert drag surface.
     const editor = openV2Editor('tracer-second-gesture')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const first = editor.state()
 
     const forward = dragSurface('resize-a')
@@ -845,7 +845,7 @@ describe('v2 tracer settlement routing (#1065)', () => {
     },
   ])('refuses a settlement that outlived $fence', async ({ disturb }) => {
     const editor = openV2Editor('tracer-stale-settlement')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const surface = dragSurface('resize-a')
 
     // The capture the tracer fences on is taken here, at gesture start.
@@ -880,7 +880,7 @@ describe('v2 tracer history routing (#1065)', () => {
     'dispatches Undo from %s against the v2 backing',
     async (surface) => {
       const editor = openV2Editor(`tracer-undo-${surface.includes('keyboard') ? 'key' : 'toolbar'}`)
-      render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+      render(<ShowEditor showId={editor.showId} />)
       const preimage = editor.state().record
       const drag = dragSurface('resize-a')
       drag.fire(drag.clip, 'dragstart', 0)
@@ -922,7 +922,7 @@ describe('v2 tracer unconnected commands (#1065)', () => {
     const record = propertyEditGroupRecord()
     record.id = 'tracer-group-unconnected-delete'
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => { useShowEditorViewStore.getState().setSelection({ kind: 'group', occurrenceId: 'occ-0' }) })
     await act(async () => {})
     const before = editor.state()
@@ -941,7 +941,7 @@ describe('v2 tracer unconnected commands (#1065)', () => {
 
   it('keeps the Clip edge handles rendered on a v2 backing', async () => {
     const editor = openV2Editor('tracer-resize-handles')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectFirstClip(editor.showId)
     // The handles are still rendered: connecting the gesture hides no v1
     // affordance. Their behavior is proved in the slice-1 suite below.
@@ -977,7 +977,7 @@ describe('v2 clip sharing (#1090 slice A)', () => {
 
   it('clones the selected Clip as a linked copy through the clip-sharing door', async () => {
     const editor = openV2Editor('tracer-clone-linked')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectResizeA(editor.showId)
     const before = editor.state()
     const source = authoredClip(before.record, 'resize-a')
@@ -1018,7 +1018,7 @@ describe('v2 clip sharing (#1090 slice A)', () => {
     // resize-a 1000-5000 is followed by resize-b at 7000: 2000 ms of room
     // cannot hold a 4000 ms copy, so the landed capability refuses.
     const editor = openV2EditorForRecord(connectedV2Record('tracer-clone-no-room'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectResizeA(editor.showId)
     const before = editor.state()
     const button = timelineCommand('Clone selection')
@@ -1034,7 +1034,7 @@ describe('v2 clip sharing (#1090 slice A)', () => {
   it('makes a shared Clip independent through the clip-sharing door', async () => {
     // resize-a and resize-b share one CometLoom instance on this fixture.
     const editor = openV2Editor('tracer-make-independent')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectResizeA(editor.showId)
     expect(screen.getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Shared by 2 Clips')
     const before = editor.state()
@@ -1061,7 +1061,7 @@ describe('v2 clip sharing (#1090 slice A)', () => {
     // resize-a and resize-b run the same CometLoom Pattern on independent
     // instances, so resize-a can rejoin resize-b's instance.
     const editor = openV2EditorForRecord(connectedV2Record('tracer-rejoin'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectResizeA(editor.showId)
     const before = editor.state()
     const targetInstanceId = authoredClip(before.record, 'resize-b').instanceId
@@ -1087,7 +1087,7 @@ describe('v2 clip sharing (#1090 slice A)', () => {
 
   it('offers no independence write on a Clip that is already independent', async () => {
     const editor = openV2Editor('tracer-already-independent')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'clip', clipId: 'overlay-a' })
@@ -1247,7 +1247,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('opens the boundary panel from a participant-scope junction the user clicks', async () => {
     const { source, record } = convertedFreshBoundary('tracer-boundary-fresh')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     // The real gesture, not a store selection: a participant-scope converted
@@ -1267,7 +1267,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('reads supported advanced rows from the authored record', async () => {
     const { source, record } = convertedAdvancedBoundary('tracer-boundary-advanced')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -1308,7 +1308,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
       { participantId: participant.id, target: { kind: 'clip-view', clipId: incoming.id, property: 'brightness' }, from: 0.4, durationMs: 500 },
     ]
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     fireEvent.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
@@ -1338,7 +1338,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('Pattern control and Transform rows are hidden on v2 (#1091 B3b)', async () => {
     const { record } = convertedAdvancedBoundary('tracer-boundary-hidden-rows')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between CometLoom and CometLoom',
     }))
@@ -1355,7 +1355,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   ])('enabling the $label row writes a $label ramp (#1091 B3a)', async ({ label, targetKind }) => {
     const { record } = convertedFreshBoundary(`tracer-boundary-${label}-write`)
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     fireEvent.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
@@ -1381,7 +1381,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('writes a Crossfade source change through the transition-edit door', async () => {
     const { record } = convertedAdvancedBoundary('tracer-boundary-settings-write')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -1414,7 +1414,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('removes a boundary Transition to a Cut through the transition-edit door', async () => {
     const { record } = convertedFreshBoundary('tracer-boundary-remove')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -1440,7 +1440,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('reads a native whole-output Transition through the same boundary panel', async () => {
     const { source, record } = nativeWholeOutputBoundary('tracer-boundary-whole-output')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     // The whole-output Transition is reachable from the junction it names, the
@@ -1463,7 +1463,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('opens the existing boundary Change palette without reaching an owner', async () => {
     const { record } = convertedAdvancedBoundary('tracer-boundary-palette')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -1484,7 +1484,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('applies a palette choice through the transition-edit door', async () => {
     const { record } = convertedFreshBoundary('tracer-boundary-palette-apply')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -1522,7 +1522,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     expect(resized.status).toBe('changed')
     if (resized.status !== 'changed') throw new Error(JSON.stringify(resized))
     const editor = openV2EditorForRecord(resized.record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -1590,7 +1590,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   it('renders a one-sided fade-out boundary once selected, with the empty side as Empty', async () => {
     const record = convertedOneSidedBoundary('tracer-boundary-fade-out', 'fade-out')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     // No junction is drawn for a one-sided boundary (reported gap for Jon),
@@ -1624,7 +1624,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('reads a converted Layer Transition through the existing popover', async () => {
     const record = convertedLayerTransitions('tracer-layer-popover')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     fireEvent.click(screen.getByRole('button', {
       name: 'Edit wipe Transition between EventHorizon and SignalMandala',
@@ -1645,7 +1645,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('retimes a converted Layer Transition through the existing popover', async () => {
     const record = convertedLayerTransitions('tracer-layer-resize')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -1671,7 +1671,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('keeps the popover open when the door refuses a retime, as v1 does', async () => {
     const record = convertedLayerTransitions('tracer-layer-resize-refused')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -1698,7 +1698,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('resets a converted Layer Transition to Cut through the existing popover', async () => {
     const record = convertedLayerTransitions('tracer-layer-reset')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -1722,7 +1722,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('reads a Group-local Transition through the same popover inside Group isolation', async () => {
     const record = convertedGroupLocalTransition('tracer-group-local-popover')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     // v1 reaches a Group's internals only through isolation, and so does this.
@@ -1774,7 +1774,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
       id: 'tracer-group-reset-refusal',
       replaceShowV2: failingWrite,
     } as unknown as PersonalContentProvider)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     // v1 reaches a Group's internals only through isolation, and so does this.
@@ -1805,7 +1805,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('retimes a Group-local Transition through the group-occurrence door inside Group isolation', async () => {
     const record = convertedGroupLocalTransition('tracer-group-local-resize')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     // v1 reaches a Group's internals only through isolation, and so does this.
@@ -1836,7 +1836,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('draws the authored Group-local Transition pictogram on its own junction', async () => {
     const record = convertedGroupLocalTransition('tracer-group-local-pictogram')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     const child = screen.getAllByRole('button', { name: 'Select Group Mandala pulse' })[0]
@@ -1898,7 +1898,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('opens the Layer Transition palette on a v2 Cut with the plan maximum', async () => {
     const record = cutV2Record('tracer-v2-cut-palette')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     const palette = openCutPalette()
@@ -1916,7 +1916,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('inserts a crossfade on a v2 Cut through the transition-edit door', async () => {
     const record = cutV2Record('tracer-v2-cut-insert')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     const palette = openCutPalette()
@@ -1950,7 +1950,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('clamps an over-maximum duration to the plan maximum on a v2 Cut', async () => {
     const record = cutV2Record('tracer-v2-cut-clamp')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const plan = planShowV2LayerTransitionInsertion(record, cutV2JunctionKey())
     if (!plan.enabled) throw new Error('expected room after the Cut')
@@ -1989,7 +1989,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
     const plan = planShowV2LayerTransitionInsertion(record, cutV2JunctionKey())
     if (plan.enabled) throw new Error('expected a disabled plan')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     const palette = openCutPalette()
@@ -2016,7 +2016,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
       id: 'tracer-v2-cut-refusal',
       replaceShowV2: failingWrite,
     } as unknown as PersonalContentProvider)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     const palette = openCutPalette()
@@ -2092,7 +2092,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('opens the Layer Transition palette on a Group Cut inside isolation', async () => {
     const record = groupCutV2Record('tracer-group-cut-palette')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     const palette = await openGroupCutPalette()
@@ -2109,7 +2109,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
   it('inserts a crossfade on a Group Cut through the group-occurrence door', async () => {
     const record = groupCutV2Record('tracer-group-cut-insert')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const definitionId = groupCutDefinitionId(record)
     const layerId = before.record.composition.groupDefinitions.find((definition) => definition.id === definitionId)!.layers[0]!.id
@@ -2161,7 +2161,7 @@ describe('v2 Layer Transition popover (#1065)', () => {
       id: 'tracer-group-cut-refusal',
       replaceShowV2: failingWrite,
     } as unknown as PersonalContentProvider)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     const palette = await openGroupCutPalette()
@@ -2211,7 +2211,7 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
   it('enables the Add-menu Transition on a selected Clip and opens the palette', async () => {
     const record = addMenuCutRecord('tracer-v2-add-transition-palette')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(clipButton('out'))
     await act(async () => {})
     const before = editor.state()
@@ -2230,7 +2230,7 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
   it('inserts a crossfade from the Add menu through the transition-edit door', async () => {
     const record = addMenuCutRecord('tracer-v2-add-transition-insert')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(clipButton('out'))
     await act(async () => {})
     const before = editor.state()
@@ -2267,7 +2267,7 @@ describe('v2 Add-menu Transition command (#1075 G4b-2d)', () => {
   it('disables the Add-menu Transition with Select a Clip first when nothing is selected', async () => {
     const record = addMenuCutRecord('tracer-v2-add-transition-unselected')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     openAddMenu()
@@ -2293,7 +2293,7 @@ describe('v2 time grid columns (#1065)', () => {
   // Pinned literals are the v1 renders recorded before the v1 backing was removed.
   function renderGrid(record: ShowRecordV2): string {
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     return screen.getByTestId('show-timeline-grid').getAttribute('style') ?? ''
   }
 
@@ -2444,7 +2444,7 @@ async function selectClipAt(showId: string, name: string, index: number, positio
 describe('v2 clip temporal commands (#1066)', () => {
   it('trims a free trailing edge through the clip-temporal door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-trim'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     await resizeDrag('TestPattern1D', 'end', 0, 40, 30)
 
@@ -2461,7 +2461,7 @@ describe('v2 clip temporal commands (#1066)', () => {
 
   it('extends a free trailing edge through the clip-temporal door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-extend'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     await resizeDrag('TestPattern1D', 'end', 0, 40, 60)
 
@@ -2477,7 +2477,7 @@ describe('v2 clip temporal commands (#1066)', () => {
 
   it('resizes a joined trailing edge through the connected trailing form', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-resize-trailing'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     await resizeDrag('CometLoom', 'end', 0, 40, 60)
 
@@ -2496,7 +2496,7 @@ describe('v2 clip temporal commands (#1066)', () => {
 
   it('resizes a joined leading edge through the connected leading form', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-resize-leading'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     await resizeDrag('CometLoom', 'start', 1, 40, 30)
 
@@ -2513,7 +2513,7 @@ describe('v2 clip temporal commands (#1066)', () => {
 
   it('treats an Alt resize away from a Layer-Transition join as the connected form (#1068)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-alt-layer-away'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     // CometLoom resize-b starts at 7000 on a 200 px / 20000 ms lane, so +10 px
     // asks for 8000: away from the incoming join-a-b window. Alt escapes
@@ -2534,7 +2534,7 @@ describe('v2 clip temporal commands (#1066)', () => {
 
   it('keeps the connected leading form for the same resize without Alt (#1066)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-plain-away'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     // 20 ms per px on the wide lane: +50 px asks for 8000, clear of the
     // 200 ms magnet threshold around the 7000 and 9000 structural times.
@@ -2552,7 +2552,7 @@ describe('v2 clip temporal commands (#1066)', () => {
 
   it('treats a plain free-edge resize like the Alt free resize (#1066)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-plain-trim'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     // 20 ms per px: -50 px asks for 13000, clear of the 12000/14000 edges.
     await resizeDrag('TestPattern1D', 'end', 0, 700, 650, false, 1000)
@@ -2569,7 +2569,7 @@ describe('v2 clip temporal commands (#1066)', () => {
 
   it('keeps the untouched edge exact when a leading boundary lands on a half-millisecond (#1066)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-half-ms-leading'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const beforeEndMs = authoredClip(before.record, 'overlay-a').startMs + authoredClip(before.record, 'overlay-a').durationMs
     // 100 ms per px on the 200 px lane: +5.005 px asks for a 12500.5 ms
@@ -2605,7 +2605,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
   it('repairs an Alt resize that pulls a converted-boundary leading edge away (#1068)', async () => {
     const { record } = convertedFreshBoundary('slice1-boundary-alt-away')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const clipId = convertedClipIdByPattern(record, 'CometLoom')
     // CometLoom starts at 32000 on a 200 px / 62000 ms lane, so +10 px asks
@@ -2631,7 +2631,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
   it('repairs the same boundary-away resize without Alt (#1068)', async () => {
     const { record } = convertedFreshBoundary('slice1-boundary-plain-away')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const clipId = convertedClipIdByPattern(record, 'CometLoom')
     // 62 ms per px on the wide lane: +50 px asks for 35100, which the plain
@@ -2655,7 +2655,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
   it('repairs an Alt resize that pulls a converted-boundary trailing edge away (#1068)', async () => {
     const { record } = convertedFreshBoundary('slice1-boundary-trailing-away')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const clipId = convertedClipIdByPattern(record, 'TestPattern1D')
     // -10 px asks for end 26900: away from the outgoing converted-boundary
@@ -2681,7 +2681,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
   it('refuses a resize that grows a converted-boundary Clip into the boundary (#1068)', async () => {
     const { record } = convertedFreshBoundary('slice1-boundary-toward')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const clipId = convertedClipIdByPattern(record, 'CometLoom')
     // -1 px asks for 31690: toward the incoming window, which would grow the
@@ -2705,7 +2705,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     for (const transition of record.composition.transitions) delete transition.origin
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     // 20 ms per px on the wide lane: +50 px asks for 8000, away from the
     // incoming window. No provenance means a natively authored join, which
@@ -2725,7 +2725,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('moves a joined Clip within its Layer without asking (#1069)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-move-connected'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
 
@@ -2750,7 +2750,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('confirms a cross-Layer drop that removes a Transition on v2 (#1069)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-connected-reroute'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const zoneId = authoredClip(before.record, 'resize-a').zoneId
     const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-a').layerId)!.id
@@ -2788,7 +2788,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('reanchors a pinned Clip detail after confirming a cross-Layer drop (#1069)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-pinned-reroute'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const originalClip = clipButton('resize-a')
     fireEvent.click(originalClip)
     const detail = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
@@ -2819,7 +2819,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('cancels a cross-Layer drop with no write (#1069)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-connected-cancel'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
 
@@ -2839,7 +2839,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('splits the selected Clip at the playhead and selects the right half', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-split'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipAt(editor.showId, 'CometLoom', 1, 8_000)
     const before = editor.state()
     const button = timelineCommand('Split at playhead')
@@ -2872,7 +2872,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('splits a joined Clip with the outgoing endpoint following the right half', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-split-joined'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipAt(editor.showId, 'CometLoom', 0, 3_000)
     const before = editor.state()
 
@@ -2899,7 +2899,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
   it('settles a collapsed-Zone drop of a free Clip on the Zone bottom Layer (#1066)', async () => {
     const editor = openV2EditorForRecord(twoZoneV2Record('slice1-collapsed-drop'))
     useShowEditorSessionStore.getState().setZoneCollapsed(editor.showId, 'z2', true)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = zoneDropSurface('overlay-a')
     const collapsed = surface.collapsedZone('z2')
@@ -2933,7 +2933,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('settles a cross-Zone drop of a free Clip as a placement replacement (#1066)', async () => {
     const editor = openV2EditorForRecord(twoZoneV2Record('slice1-cross-zone'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = zoneDropSurface('overlay-a')
 
@@ -2959,7 +2959,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('lands an Alt cross-Layer drop on the rounded millisecond v1 lands on (#1066)', async () => {
     const editor = openV2Editor('tracer-alt-cross-layer')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const overlayLayerId = before.record.composition.layers.find((layer) => layer.id !== authoredClip(before.record, 'resize-a').layerId)!.id
     const surface = dragSurface('resize-a')
@@ -2988,7 +2988,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('lands an Alt cross-Zone drop on the rounded millisecond v1 lands on (#1066)', async () => {
     const editor = openV2EditorForRecord(twoZoneV2Record('slice1-alt-cross-zone'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = zoneDropSurface('overlay-a')
 
@@ -3016,7 +3016,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
   it('lands an Alt collapsed-Zone drop on the rounded millisecond v1 lands on (#1066)', async () => {
     const editor = openV2EditorForRecord(twoZoneV2Record('slice1-alt-collapsed-drop'))
     useShowEditorSessionStore.getState().setZoneCollapsed(editor.showId, 'z2', true)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = zoneDropSurface('overlay-a')
     const collapsed = surface.collapsedZone('z2')
@@ -3047,7 +3047,7 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
 
   it('lands an Alt same-Layer drag of a joined Clip on the rounded connected start (#1066)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice1-alt-move-connected'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
 
@@ -3138,7 +3138,7 @@ async function selectClipByName(name: string, index: number): Promise<void> {
 describe('v2 clip delete (#1066 slice 2)', () => {
   it('deletes a free Clip through the inspector Delete control', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice2-inspector-delete'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
@@ -3156,7 +3156,7 @@ describe('v2 clip delete (#1066 slice 2)', () => {
 
   it('deletes a free Clip through keyboard Delete', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice2-keyboard-delete'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
@@ -3173,7 +3173,7 @@ describe('v2 clip delete (#1066 slice 2)', () => {
 
   it('deletes a free Clip through keyboard Backspace', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice2-backspace-delete'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
@@ -3189,7 +3189,7 @@ describe('v2 clip delete (#1066 slice 2)', () => {
 
   it('confirms a joined Clip before removing it with its Transition', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice2-connected-delete'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     const before = editor.state()
     expect(before.record.composition.transitions.map((transition) => transition.id)).toEqual(['join-a-b'])
@@ -3219,7 +3219,7 @@ describe('v2 clip delete (#1066 slice 2)', () => {
     single.composition.transitions = []
     single.composition.propertyTracks = []
     const editor = openV2EditorForRecord(single)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const clipId = single.composition.clips[0].id
     fireEvent.click(document.querySelector<HTMLElement>(`[data-show-selection-key="clip:${clipId}"]`)!)
     await act(async () => {})
@@ -3252,7 +3252,7 @@ describe('v2 clip delete (#1066 slice 2)', () => {
     }]
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     expect(screen.getAllByRole('button', { name: 'Select CometLoom' })).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'Select TestPattern1D' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Undo Show edit' })).toBeDisabled()
@@ -3343,7 +3343,7 @@ function layoutSplitV2Record(id: string): ShowRecordV2 {
 describe('v2 logical-clip delete (#1068 item 1b)', () => {
   it('deletes every layout-split segment in one edit and undoes to both', async () => {
     const editor = openV2EditorForRecord(layoutSplitV2Record('slice2-logical-delete'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:solo--layout-1"]')!)
     await act(async () => {})
     const before = editor.state()
@@ -3366,7 +3366,7 @@ describe('v2 logical-clip delete (#1068 item 1b)', () => {
 
   it('refuses a missing Clip with no write and keeps record identity', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice2-missing-clip'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const { useShowEditorViewStore: view } = await import('@/store/showEditorViewStore')
     act(() => { view.getState().setSelection({ kind: 'clip', clipId: 'missing' }) })
     await act(async () => {})
@@ -3483,7 +3483,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('stores header Brightness through the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-brightness'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
@@ -3503,7 +3503,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('a whole-Clip Brightness write on a multi-segment Clip confirms, then writes every segment (#1069)', async () => {
     const editor = openV2EditorForRecord(multiSegmentAppearanceRecord('slice5-brightness-confirm'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
     const keysBefore = before.record.composition.clips.find(clip => clip.id === 'overlay-a')!.appearance.keys
@@ -3534,7 +3534,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('cancelling the multi-segment write writes nothing (#1069)', async () => {
     const editor = openV2EditorForRecord(multiSegmentAppearanceRecord('slice5-brightness-cancel'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
@@ -3567,7 +3567,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('a Group child multi-segment write confirms before overwriting the definition segments (#1069)', async () => {
     const editor = openV2EditorForRecord(await multiSegmentGroupAppearanceRecord('group-held-brightness-confirm'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -3598,7 +3598,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('cancelling a Group child multi-segment write writes nothing (#1069)', async () => {
     const editor = openV2EditorForRecord(await multiSegmentGroupAppearanceRecord('group-held-brightness-cancel'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -3620,7 +3620,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('stores header Opacity through the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-opacity'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
@@ -3639,7 +3639,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('stores Pattern-tab Speed through the instance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-speed'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
     const before = editor.state()
@@ -3660,7 +3660,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('enables a Pattern control target through the instance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-control-enable'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
     const before = editor.state()
@@ -3680,7 +3680,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('edits a Pattern control target value through the instance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-control-value'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
 
@@ -3704,7 +3704,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('unticking a control target with no lane removes it without asking (#1069)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice4-control-remove-plain'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
 
@@ -3742,7 +3742,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
       activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'lane-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lane-speed-b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] })
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
     const before = editor.state()
@@ -3776,7 +3776,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
       activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'lane-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lane-speed-b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] })
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
     const before = editor.state()
@@ -3811,7 +3811,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
       activeStartMs: 0, activeDurationMs: 400, keyframes: [{ id: 'lane-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lane-speed-b', timeMs: 400, value: 0.8, easing: { curve: 'linear' } }] })
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -3856,7 +3856,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
       activeStartMs: 0, activeDurationMs: 400, keyframes: [{ id: 'lane-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lane-speed-b', timeMs: 400, value: 0.8, easing: { curve: 'linear' } }] })
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -3878,7 +3878,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('checks and clears the stutter clock through the instance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-stutter'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
 
@@ -3907,7 +3907,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('stores Playback evaluation through the instance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-evaluation'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Playback')
     const before = editor.state()
@@ -3928,7 +3928,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('stores Playback phase through the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-phase'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Playback')
     const before = editor.state()
@@ -3948,7 +3948,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('stores a strobe presentation through the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-presentation'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Playback')
     const before = editor.state()
@@ -3971,7 +3971,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('enables Blink through the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-blink'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Playback')
     const before = editor.state()
@@ -3994,7 +3994,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('stores Place Content X through the appearance door', async () => {
     const editor = openV2EditorForRecord(stagedV2Record('slice3-transform-x'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Place')
     const before = editor.state()
@@ -4014,7 +4014,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('stores Place rotation through the appearance door', async () => {
     const editor = openV2EditorForRecord(stagedV2Record('slice3-rotation'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Place')
     const before = editor.state()
@@ -4034,7 +4034,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('enables the aperture from the Place summary through the appearance door', async () => {
     const editor = openV2EditorForRecord(stagedV2Record('slice3-aperture-enable'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Place')
     const before = editor.state()
@@ -4058,7 +4058,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('stores an ellipse silhouette and edge width through the appearance door', async () => {
     const editor = openV2EditorForRecord(stagedV2Record('slice3-aperture-shape'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Place')
 
@@ -4092,7 +4092,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('clamps a sub-minimum Edge width on v2 as v1 does (#1069)', async () => {
     const editor = openV2EditorForRecord(stagedV2Record('slice3-aperture-shape'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Place')
 
@@ -4119,7 +4119,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('adds a Ripple Effect through the palette and the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-add'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Effects')
     const before = editor.state()
@@ -4143,7 +4143,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('edits a Ripple parameter through the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-param'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Effects')
 
@@ -4168,7 +4168,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('writes a packed shadow color edit on v2 (#1069)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-param'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Effects')
 
@@ -4199,7 +4199,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('removes one Effect and leaves the Clip through the appearance door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-remove'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Effects')
 
@@ -4223,7 +4223,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('duplicates and reorders Effects through the overflow menu', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-effect-duplicate'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Effects')
 
@@ -4278,7 +4278,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('adds and removes Mirror through its fixed Transform row', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-mirror'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Effects')
 
@@ -4312,7 +4312,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('refuses header Start timing with no write and keeps record identity', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-timing-refuse'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
@@ -4327,7 +4327,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 
   it('refuses a Source pattern swap with no write and keeps record identity', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice3-pattern-refuse'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
     const before = editor.state()
@@ -4368,7 +4368,7 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
 describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
   it('stores Restart on entry through the entry-policy door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice4-entry-restart'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Playback')
     const before = editor.state()
@@ -4390,7 +4390,7 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
 
   it('replaces a sole-user Pattern with no independence mint', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice4-replace-sole'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Pattern')
     const before = editor.state()
@@ -4421,7 +4421,7 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
     record.composition.propertyTracks.push({ id: 'lost-speed', target: { kind: 'instance-control', instanceId: 'resize-instance', exportName: 'sliderSpeed' },
       activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'lost-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lost-speed-b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] })
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
     const pattern = screen.getByRole('combobox', { name: 'Source pattern' })
@@ -4441,7 +4441,7 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
       activeStartMs: 0, activeDurationMs: 1000, keyframes: [{ id: 'lost-speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } }, { id: 'lost-speed-b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' } }] })
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
     const before = editor.state()
@@ -4467,7 +4467,7 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
     const record = connectedV2Record('slice4-replace-lossy-cancel')
     record.composition.patternInstances.find(instance => instance.id === 'resize-instance')!.controlTargets = { sliderSpeed: 0.5 }
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     showTab('Pattern')
     const before = editor.state()
@@ -4484,7 +4484,7 @@ describe('v2 clip entry policy and replacement (#1066 slice 4)', () => {
 
   it('refuses an unresolvable Source pattern with no write', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice4-replace-unresolvable'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     // The option exists in the catalogue, but its source cannot be bundled,
     // so trusted resolution refuses and nothing is submitted.
     act(() => {
@@ -4547,7 +4547,7 @@ function installationV2Record(id: string): ShowRecordV2 {
 describe('v2 show end and show metadata (#1066 slice 6)', () => {
   it('paints the dragged Show End label from the v2 record while dragging (row 98)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice6-end-preview'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const handle = screen.getByRole('button', { name: 'Show End at 20 seconds' })
     const surface = screen.getByLabelText('Timeline Markers and Show End')
     vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
@@ -4580,7 +4580,7 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
 
   it('sets Show End from the details seconds field through the set-show-end door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice6-end-field'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Show End at 20 seconds' }))
     })
@@ -4605,7 +4605,7 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
 
   it('refuses a Show End that would cut protected content with no write', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice6-end-refuse'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Show End at 20 seconds' }))
     })
@@ -4631,7 +4631,7 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
 
   it('enables Trails through the show-metadata door (row 796)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice6-trails'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     openShowProperties()
     const before = editor.state()
 
@@ -4650,7 +4650,7 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
 
   it('retunes the portable reference pixels through the show-metadata door (row 1469)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice6-portable-pixels'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     openShowProperties()
     expect(editor.state().record.outputContract).toMatchObject({
       kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 256,
@@ -4676,7 +4676,7 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
 
   it('clears the portable reference map through the show-metadata door (row 1469)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice6-portable-map'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     openShowProperties()
     const before = editor.state()
 
@@ -4709,7 +4709,7 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
         profilesLoaded: true,
       })
     })
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     openShowProperties()
     const select = screen.getByRole('combobox', { name: 'Target controller' })
     const before = editor.state()
@@ -4752,7 +4752,7 @@ describe('v2 target profile (#1091 item 4)', () => {
     record.targetControllerProfileId = 'profile-2'
     openV2EditorForRecord(record)
     twoProfiles()
-    render(<ShowEditor showId={record.id} recordVersion={2} />)
+    render(<ShowEditor showId={record.id} />)
     await act(async () => {})
 
     // No live Controller, so the compatibility surface reads the record's
@@ -4768,7 +4768,7 @@ describe('v2 target profile (#1091 item 4)', () => {
     record.targetControllerProfileId = 'profile-2'
     openV2EditorForRecord(record)
     twoProfiles()
-    render(<ShowEditor showId={record.id} recordVersion={2} />)
+    render(<ShowEditor showId={record.id} />)
     await act(async () => {})
 
     expect(compatibilityProfiles.calls.length).toBeGreaterThan(0)
@@ -4790,7 +4790,7 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
 
   it('adds a Zone from the Zone Map popover through the zone door', async () => {
     const editor = openV2EditorForRecord(twoZoneV2Record('slice7-d2-add'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Open Zone Map' }))
     await act(async () => {})
     const dialog = screen.getByRole('dialog', { name: 'Zone Map' })
@@ -4809,7 +4809,7 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
 
   it('retunes a Zone pixel count through the show-metadata door', async () => {
     const editor = openV2EditorForRecord(installationV2Record('slice7-d2-pixels'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Open Zones' }))
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: 'Open zone Main properties' }))
@@ -4831,7 +4831,7 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
 
   it('removes a Zone from its inspector through the zone door', async () => {
     const editor = openV2EditorForRecord(twoZoneV2Record('slice7-d2-remove-zone'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Open Zones' }))
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: 'Open zone Second properties' }))
@@ -4852,7 +4852,7 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
     const base = commandFixtureV2()
     base.id = 'slice7-d2-duplicate'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
     await act(async () => {})
     const before = editor.state()
@@ -4879,7 +4879,7 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
       composition: { ...base.composition, layoutOccurrences: [{ id: 'interval-1', layoutId: 'phys', startMs: 0, durationMs: 5_000, parameters: {} }, { id: 'interval-2', layoutId: 'phys', startMs: 5_000, durationMs: 5_000, parameters: {} }] },
     }
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Edit Physical ranges Zone Layout' }))
     await act(async () => {})
     const before = editor.state()
@@ -4903,7 +4903,7 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
     const base = commandFixtureV2()
     base.id = 'slice7-d2-remove-unused'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
     await act(async () => {})
     const { useShowEditorViewStore: view } = await import('@/store/showEditorViewStore')
@@ -4925,7 +4925,7 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
     const base = commandFixtureV2()
     base.id = 'slice7-d2-remove-used'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
     await act(async () => {})
     const before = editor.state()
@@ -4946,7 +4946,7 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
 
   it('refuses a Zone rename to a taken name, with no write', async () => {
     const editor = openV2EditorForRecord(twoZoneV2Record('slice7-d2-rename-taken'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Open Zones' }))
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: 'Open zone Second properties' }))
@@ -4991,7 +4991,7 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
       },
     }
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Open Zones' }))
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: `Open zone ${zoneName} properties` }))
@@ -5048,7 +5048,7 @@ describe('v2 save-failure notice (#1066 slice 12)', () => {
       showV2Histories: { [record.id]: { past: [], future: [] } },
       showRevisions: { [record.id]: 0 },
     })
-    render(<ShowEditor showId={record.id} recordVersion={2} />)
+    render(<ShowEditor showId={record.id} />)
 
     await act(async () => {
       await expect(useShowStore.getState().updateShowV2Pilot(record.id, { ...record, name: 'Lost edit' }))
@@ -5109,7 +5109,7 @@ describe('v2 header export (#1066 slice 12)', () => {
     const editor = openV2Editor('v2-header-export')
     const write = vi.spyOn(download, 'downloadBrowserFile').mockImplementation(() => {})
     try {
-      render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+      render(<ShowEditor showId={editor.showId} />)
       fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
       fireEvent.click(screen.getByRole('menuitem', { name: 'Export Show file…' }))
       await waitFor(() => expect(write).toHaveBeenCalledTimes(1))
@@ -5141,7 +5141,7 @@ describe('v2 header export (#1066 slice 12)', () => {
 describe('v2 property animation (#1066 slice 10)', () => {
   it('stores a Brightness animation through the property door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('slice10-brightness'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
@@ -5172,7 +5172,7 @@ describe('v2 Zone Layouts lane split cell (#1066 slice 9a)', () => {
     const record = structuredClone(stockShowV2ById('stock-show-reference-property-animation')!)
     record.id = 'tracer-lane-split-cell'
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await act(async () => {})
     const lane = screen.getByRole('group', { name: 'Zone Layouts lane' })
     const cells = within(lane).getAllByRole('button', { name: 'Edit Moving split X Zone Layout' })
@@ -5193,7 +5193,7 @@ describe('v2 Zone Layouts lane split cell (#1066 slice 9a)', () => {
       zone.id === first ? { ...zone, color: '#123456' } : zone.id === second ? { ...zone, color: '#abcdef' } : zone
     ))
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await act(async () => {})
     const lane = screen.getByRole('group', { name: 'Zone Layouts lane' })
     const [cell] = within(lane).getAllByRole('button', { name: 'Edit Moving split X Zone Layout' })
@@ -5211,7 +5211,7 @@ describe('v2 boundary scalar ramp edits (#1066 slice 9c2a)', () => {
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
     const record = convertForTest(structuredClone(stock.show) as ShowRecord)
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     const junctions = screen.getAllByRole('button', { name: 'Edit crossfade Transition between LineDancer2D and LineDancer2D' })
@@ -5248,7 +5248,7 @@ describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
 
   function renderV2(source: ShowRecord): void {
     const editor = openV2EditorForRecord(convertForTest(source))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
   }
 
   it("reads each section's repeat scale in the cells for the same Show", async () => {
@@ -5312,7 +5312,7 @@ describe('v2 fixes A (#1066)', () => {
     const record = convertForTest(source)
     const savedEndMs = record.composition.showEndMs
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const styleBefore = screen.getByTestId('show-timeline-grid').getAttribute('style') ?? ''
     expect(styleBefore).toContain('grid-template-columns:')
@@ -5355,7 +5355,7 @@ describe('v2 fixes A (#1066)', () => {
     const transition = record.composition.transitions[0]
     expect(transition.durationMs).toBe(2000)
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -5384,7 +5384,7 @@ describe('v2 fixes A (#1066)', () => {
     transition.propertyRamps = [{ target: { kind: 'show-repeat-scale' }, from: 1, durationMs: 800 }]
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', { name: /Edit crossfade Transition between/ }))
@@ -5409,7 +5409,7 @@ describe('v2 fixes A (#1066)', () => {
   it('commits nothing for an unchanged boundary Duration', async () => {
     const { record } = convertedFreshBoundary('fixa-boundary-duration-unchanged')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -5427,7 +5427,7 @@ describe('v2 fixes A (#1066)', () => {
   it('still sends a boundary settings change through the transition-edit door', async () => {
     const { record } = convertedAdvancedBoundary('fixa-boundary-settings')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', {
@@ -5456,7 +5456,7 @@ describe('v2 fixes A (#1066)', () => {
     source.id = 'fixa-coverage-banner'
     const record = convertForTest(source)
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await act(async () => {})
     expect(editor.state()).toBeDefined()
     const tray = () => within(screen.getByTestId('show-compile-bar'))
@@ -5568,7 +5568,7 @@ describe('v2 marquee selection and Make Group (#1066 L2583)', () => {
 
   async function marqueeAndMakeGroup(id: string): Promise<OpenV2Editor> {
     const editor = openGroupMarqueeEditor(id)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     marqueeOverBothClips()
     await act(async () => {})
     fireEvent.click(groupCommand())
@@ -5578,7 +5578,7 @@ describe('v2 marquee selection and Make Group (#1066 L2583)', () => {
 
   it('selects both Clips with the marquee and enables Make Group', async () => {
     const editor = openGroupMarqueeEditor('v2-marquee-selects')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     marqueeOverBothClips()
     await act(async () => {})
@@ -5654,7 +5654,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.composition.layoutOccurrences[0]!.durationMs = 2_000
     record.composition.groupOccurrences[1]!.startMs = 1_000
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(0)
     expect(screen.getByText('2 linked occurrences')).toBeInTheDocument()
     const before = editor.state()
@@ -5690,7 +5690,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.id = 'tracer-group-make-unique'
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(0)
     const before = editor.state()
     const previousDefinitionId = before.record.composition.groupDefinitions[0]!.id
@@ -5721,7 +5721,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.id = 'tracer-group-ungroup'
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(0)
     const before = editor.state()
     const definitionClipCount = before.record.composition.groupDefinitions[0]!.clips.length
@@ -5759,7 +5759,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     const definition = cloned.composition.groupDefinitions.find((candidate) => candidate.id === source.definitionId)!
     source.startMs = lastLayoutEndMs - groupOccurrenceDuration(definition, source)
     const editor = openV2EditorForRecord(cloned)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(1)
     const before = editor.state()
 
@@ -5778,7 +5778,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.composition.layoutOccurrences[0]!.durationMs = 2_000
     record.composition.groupOccurrences[1]!.startMs = 1_000
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(0)
     const before = editor.state()
     const source = before.record.composition.groupOccurrences.find((occurrence) => occurrence.id === 'occ-0')!
@@ -5806,7 +5806,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.composition.layoutOccurrences[0]!.durationMs = 2_000
     record.composition.groupOccurrences[1]!.startMs = 1_000
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(0)
     const before = editor.state()
 
@@ -5830,7 +5830,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.composition.groupOccurrences[1]!.startMs = 1_000
     record.composition.layers.push({ id: 'layer:zone:overlay:2', zoneId: 'zone', name: 'Extra', rank: 2 })
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(0)
     const before = editor.state()
     const occurrence = before.record.composition.groupOccurrences.find((candidate) => candidate.id === 'occ-0')!
@@ -5856,7 +5856,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.composition.layoutOccurrences[0]!.durationMs = 2_000
     record.composition.groupOccurrences[1]!.startMs = 1_000
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(0)
     const before = editor.state()
 
@@ -5874,7 +5874,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     record.composition.groupOccurrences = record.composition.groupOccurrences.filter((occurrence) => occurrence.id === 'occ-0')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(0)
     const before = editor.state()
     expect(before.record.composition.groupOccurrences).toHaveLength(1)
@@ -5898,7 +5898,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     record.composition.groupOccurrences = record.composition.groupOccurrences.filter((occurrence) => occurrence.id === 'occ-0')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectGroupOccurrence(0)
     const before = editor.state()
     expect(before.record.composition.groupOccurrences).toHaveLength(1)
@@ -5921,7 +5921,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.id = 'tracer-group-clip-duration'
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -5945,7 +5945,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.id = 'tracer-group-clip-brightness'
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -5969,7 +5969,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
       instance.patternName = 'CometLoom'
     }
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -5990,7 +5990,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.id = 'tracer-group-clip-animation'
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -6019,7 +6019,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.id = 'tracer-group-clip-speed-reopen'
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -6070,7 +6070,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
       ],
     }]
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     const before = editor.state()
@@ -6100,7 +6100,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
       ],
     }]
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: 'Edit Brightness animation' }))
@@ -6130,7 +6130,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.id = 'tracer-group-clip-pattern-replace'
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -6164,7 +6164,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     }
     record.composition.groupDefinitions[0]!.patternInstances[0]!.controlTargets = { sliderSpeed: 0.5 }
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'group-clip', occurrenceId: 'occ-0', placementId: 'child' })
@@ -6198,7 +6198,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     }
     record.composition.groupDefinitions[0]!.patternInstances[0]!.controlTargets = { sliderSpeed: 0.5 }
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     showTab('Pattern')
@@ -6223,7 +6223,7 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     record.composition.layoutOccurrences[0]!.durationMs = 2_000
     record.composition.groupOccurrences[1]!.startMs = 1_000
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    render(<ShowEditor showId={editor.showId} readOnly />)
     await selectGroupOccurrence(0)
     const before = editor.state()
 
@@ -6299,7 +6299,7 @@ describe('v2 split-position lane buttons (#1066 L2332)', () => {
   it('renders one split button per boundary whose destination section follows the first', async () => {
     const record = splitFreshRecord('split-lane-buttons')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await act(async () => {})
     const buttons = splitButtons()
     expect(buttons).toHaveLength(1)
@@ -6311,7 +6311,7 @@ describe('v2 split-position lane buttons (#1066 L2332)', () => {
   it('selects the boundary Transition when its split button is clicked', async () => {
     const record = splitFreshRecord('split-lane-select')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await act(async () => {})
     const transitionId = record.composition.transitions[0].id
     fireEvent.click(screen.getByRole('button', { name: /^Edit split position at / }))
@@ -6324,7 +6324,7 @@ describe('v2 split-position lane buttons (#1066 L2332)', () => {
     source.id = 'split-lane-no-split'
     const record = convertForTest(source)
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await act(async () => {})
     expect(screen.getByRole('group', { name: 'Zone Layouts lane' })).toBeInTheDocument()
     expect(splitButtons()).toHaveLength(0)
@@ -6348,7 +6348,7 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
     const base = commandFixtureV2()
     base.id = 'slice8a-duplicate'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const dialog = await openLayoutActionsAt(base.id, 5_001)
     const before = editor.state()
 
@@ -6370,7 +6370,7 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
     const base = commandFixtureV2()
     base.id = 'slice8a-make-unique'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const dialog = await openLayoutActionsAt(base.id, 5_001)
     const before = editor.state()
 
@@ -6399,7 +6399,7 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
     const base = commandFixtureV2()
     base.id = 'slice8a-inspector-make-unique'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone-layout', layoutId: 'both', intervalId: 'interval-1' })
@@ -6435,7 +6435,7 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
     // Layout with a single use, so the inspector hides Make Unique.
     base.composition.layoutOccurrences[1]!.layoutId = 'left-only'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Edit Moving split X Zone Layout' }))
     await act(async () => {})
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone-layout', layoutId: 'both', intervalId: 'interval-1' })
@@ -6459,7 +6459,7 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
     const base = commandFixtureV2()
     base.id = 'slice8a-duplicate-clips'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const dialog = await openLayoutActionsAt(base.id, 5_001)
     const before = editor.state()
     const source = before.record.composition.layoutOccurrences.find((occurrence) => occurrence.id === 'interval-2')!
@@ -6509,7 +6509,7 @@ describe('v2 lesson Live strip (#1066 11c2a)', () => {
         }
       : undefined
     if (withNote) useShowEditorSessionStore.getState().setShowNoteOpen(editor.showId, true)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} builtInContext={builtInContext} />)
+    render(<ShowEditor showId={editor.showId} builtInContext={builtInContext} />)
     await act(async () => {})
     return { stock, record, editor }
   }
@@ -6856,7 +6856,7 @@ describe('v2 lesson Reset built-in Show (#1066 t54)', () => {
     expect(useShowStore.getState().isShowV2LessonDraft(id)).toBe(true)
     render(<ShowEditor
       showId={id}
-      recordVersion={2}
+     
       builtInContext={{
         track: stock.track,
         lesson: stock.lesson,
@@ -6921,7 +6921,7 @@ describe('v2 lesson header Clone (#1091 item 3)', () => {
     const lesson = stockShowV2ById(id)!
     render(<ShowEditor
       showId={id}
-      recordVersion={2}
+     
       builtInContext={{
         track: stock.track,
         lesson: stock.lesson,
@@ -6981,7 +6981,7 @@ describe('v2 Layout occurrence Append (#1066 slice 8b-1)', () => {
     const base = commandFixtureV2()
     base.id = 'slice8b1-append'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const dialog = await openLayoutActionsAt(base.id, 5_001)
     const before = editor.state()
     const showEndMs = before.record.composition.showEndMs
@@ -7040,7 +7040,7 @@ describe('v2 Layout occurrence Insert here (#1066 slice 8b-2b)', () => {
     const base = commandFixtureV2()
     base.id = 'slice8b2b-insert'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const dialog = await openLayoutActionsAt(base.id, 5_001)
     const before = editor.state()
     const showEndMs = before.record.composition.showEndMs
@@ -7087,7 +7087,7 @@ describe('v2 Layout occurrence Insert here (#1066 slice 8b-2b)', () => {
     const base = commandFixtureV2()
     base.id = 'slice8b2b-insert-fractional'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const dialog = await openLayoutActionsAt(base.id, 5000.4)
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Insert here' }))
@@ -7135,7 +7135,7 @@ describe('v2 View code and Download .epe (#1066)', () => {
   it('shows the v2 generated pattern and returns to the Show', async () => {
     const record = freshV2Record('v2-viewcode-show')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await act(async () => {})
 
     fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
@@ -7162,7 +7162,7 @@ describe('v2 View code and Download .epe (#1066)', () => {
     const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     try {
-      render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+      render(<ShowEditor showId={editor.showId} />)
       await act(async () => {})
 
       fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
@@ -7202,7 +7202,7 @@ describe('v2 Zone Layout routing transfers (#1066)', () => {
     const base = commandFixtureV2()
     base.id = 'routing-transfer-flow'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const handle = screen.getByRole('button', { name: 'Select Moving split X routing interval 1' })
     expect(handle).toBeInTheDocument()
     const before = editor.state()
@@ -7259,7 +7259,7 @@ describe('v2 Zone Layout routing transfers (#1066)', () => {
     const base = commandFixtureV2()
     base.id = 'routing-transfer-readonly'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    render(<ShowEditor showId={editor.showId} readOnly />)
     fireEvent.click(screen.getByRole('button', { name: 'Select Moving split X routing interval 1' }))
     await act(async () => {})
     const before = editor.state()
@@ -7279,7 +7279,7 @@ describe('v2 Zone Layout routing transfers (#1066)', () => {
     const base = commandFixtureV2()
     base.id = 'routing-transfer-round'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Select Moving split X routing interval 1' }))
     await act(async () => {})
     const duration = within(routingPanel()).getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })
@@ -7298,7 +7298,7 @@ describe('v2 Zone Layout routing transfers (#1066)', () => {
     const base = commandFixtureV2()
     base.id = 'routing-transfer-remove-cut'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     expect(before.record.composition.layoutOccurrences).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Select Moving split X routing interval 1' }))
@@ -7316,7 +7316,7 @@ describe('v2 Zone Layout routing transfers (#1066)', () => {
     const base = commandFixtureV2()
     base.id = 'routing-transfer-duration-zero'
     const editor = openV2EditorForRecord(base)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Select Moving split X routing interval 1' }))
     await act(async () => {})
     const duration = within(routingPanel()).getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })
@@ -7343,7 +7343,7 @@ describe('v2 Clip inspector Start and Duration (#1066)', () => {
 
   it('sets a free Clip Duration through the temporal door, matching a trailing drag resize', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('inspector-duration-free'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
     expect(authoredClip(before.record, 'overlay-a').startMs).toBe(12_000)
@@ -7375,7 +7375,7 @@ describe('v2 Clip inspector Start and Duration (#1066)', () => {
 
   it('moves a free Clip Start through the temporal door with duration unchanged', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('inspector-start-free'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
     expect(authoredClip(before.record, 'overlay-a').startMs).toBe(12_000)
@@ -7398,7 +7398,7 @@ describe('v2 Clip inspector Start and Duration (#1066)', () => {
 
   it('routes a joined Clip Duration through the transition-resize door, exactly as the drag does', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('inspector-duration-joined'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     const before = editor.state()
     expect(authoredClip(before.record, 'resize-a').startMs).toBe(1_000)
@@ -7427,7 +7427,7 @@ describe('v2 Clip inspector Start and Duration (#1066)', () => {
 
   it('reverts no-change and refused values with no door call and record identity', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('inspector-timing-refused'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
 
@@ -7453,7 +7453,7 @@ describe('v2 Clip inspector Start and Duration (#1066)', () => {
     const clip = record.composition.clips.find((candidate) => candidate.id === fromId)!
     const instance = record.composition.patternInstances.find((candidate) => candidate.id === clip.instanceId)!
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName(instance.patternName, 0)
     const before = editor.state()
 
@@ -7472,7 +7472,7 @@ describe('v2 boundary palette live preview (#1066 5c)', () => {
 
   async function openBoundaryPalette(record: ShowRecordV2): Promise<OpenV2Editor> {
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: JUNCTION }))
     await act(async () => {})
     useShowTransportStore.getState().openShow(record.id, record.composition.showEndMs)
@@ -7577,7 +7577,7 @@ describe('v2 Add Clip (#1090 slice B)', () => {
   it('adds one Clip from the Add menu at a free playhead', async () => {
     const user = userEvent.setup()
     const editor = openV2Editor('add-clip-free')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 5_000 }))
 
@@ -7614,7 +7614,7 @@ describe('v2 Add Clip (#1090 slice B)', () => {
     const record = v2TracerRecord('add-clip-blocked')
     record.composition.clips.find((clip) => clip.id === 'resize-b')!.durationMs = 12_000
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 13_000 }))
 
@@ -7627,7 +7627,7 @@ describe('v2 Add Clip (#1090 slice B)', () => {
   it('adds a Clip at Show End and extends the Show on v2 (#1091)', async () => {
     const user = userEvent.setup()
     const editor = openV2Editor('add-clip-show-end')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const showEndMs = before.record.composition.showEndMs
     act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: showEndMs }))
@@ -7708,7 +7708,7 @@ function mockMarkerSurface(): void {
 describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
   it('adds a Marker at the playhead from the ruler source through the marker door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('sliceC-marker-add'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 4023.6 }))
     const before = editor.state()
 
@@ -7740,7 +7740,7 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
 
   it('moves a Marker through the marker door', async () => {
     const editor = openV2EditorForRecord(markerSliceCRecord('sliceC-marker-move'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     mockMarkerSurface()
     const before = editor.state()
 
@@ -7763,7 +7763,7 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
 
   it('renames a Marker through the marker door', async () => {
     const editor = openV2EditorForRecord(markerSliceCRecord('sliceC-marker-rename'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha at 5 seconds' }))
@@ -7787,7 +7787,7 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
 
   it('removes a Marker through the marker door', async () => {
     const editor = openV2EditorForRecord(markerSliceCRecord('sliceC-marker-remove'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha at 5 seconds' }))
@@ -7809,7 +7809,7 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
 
   it('refuses a move on a Marker id that does not exist with no write', async () => {
     const editor = openV2EditorForRecord(markerSliceCRecord('sliceC-marker-refuse'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     mockMarkerSurface()
     const button = screen.getByRole('button', { name: 'Alpha at 5 seconds' })
     fireEvent.pointerDown(button, { pointerId: 1, clientX: 50 })
@@ -7837,7 +7837,7 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
 
   it('inserts Time on a v2 Show at a free time through the insert-time door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('sliceC-insert'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 10000 }))
     const before = editor.state()
 
@@ -7867,7 +7867,7 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
 
   it('inserts Time from a fractional playhead rounded to whole milliseconds', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('sliceC-insert-fractional'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 4023.6 }))
     const before = editor.state()
 
@@ -7893,7 +7893,7 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
 
   it('disables Insert strictly inside a visual Transition window with the owner message', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('sliceC-insert-refuse'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     // The join-a-b crossfade owns (5000, 7000); 6000 is strictly inside it.
     act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 6000 }))
     const before = editor.state()
@@ -7906,7 +7906,7 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
 
   it('adds a Layer to the target Zone through the layer door', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('sliceC-layer'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to Show' }))
@@ -7974,7 +7974,7 @@ describe('v2 Add Clip and Add Layer resolve the Zone from the Layout at the play
   it('adds one Clip from the Add menu in Zone B at 6 s', async () => {
     const user = userEvent.setup()
     const editor = openV2EditorForRecord(layoutZoneSliceCRecord('sliceC-layout-clip'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 6_000 }))
 
@@ -8003,7 +8003,7 @@ describe('v2 Add Clip and Add Layer resolve the Zone from the Layout at the play
 
   it('adds a Layer in Zone B at 6 s', async () => {
     const editor = openV2EditorForRecord(layoutZoneSliceCRecord('sliceC-layout-layer'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     act(() => useShowTransportStore.setState({ showId: editor.showId, positionMs: 6_000 }))
 
@@ -8045,7 +8045,7 @@ describe('v2 restart availability (#1091)', () => {
     const source = stockShowV2ById('stock-show-302-installation-composition')
     if (!source) throw new Error('Missing stock show 302')
     const editor = openV2EditorForRecord(structuredClone(source))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectStockClip('hero-windows')
     showTab('Playback')
 
@@ -8069,7 +8069,7 @@ describe('v2 restart availability (#1091)', () => {
     const source = stockShowV2ById('stock-show-101-clips-cuts-blank-time')
     if (!source) throw new Error('Missing stock show 101')
     const editor = openV2EditorForRecord(structuredClone(source))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectStockClip('clip-garden')
     showTab('Playback')
 
@@ -8127,7 +8127,7 @@ function sizedMainLane(): HTMLElement {
 describe('v2 timeline refusal feedback (#1098)', () => {
   it('re-anchors Details after an applied open-lane move (oracle control)', async () => {
     const editor = openV2Editor('refusal-reanchor-control')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const surface = dragSurface('resize-a')
 
     surface.fire(surface.clip, 'dragstart', 0)
@@ -8143,7 +8143,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
 
   it('names an occupied-range move drop on the dragged Clip and writes nothing', async () => {
     const editor = openV2Editor('refusal-move-occupied')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
     expect(timelineStatus()).toBeNull()
@@ -8171,7 +8171,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
 
   it('names an occupied range when a leading resize closes its Transition (#1127)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('refusal-leading-overlap'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
 
     // A ends at 5 s; B starts at 7 s. Pull B through the 5–7 s Transition to 4 s.
@@ -8192,7 +8192,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
 
   it('names an occupied-range Alt duplicate on the dragged Clip and writes nothing', async () => {
     const editor = openV2Editor('refusal-duplicate-occupied')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
 
@@ -8216,7 +8216,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
 
   it('names an occupied-range move preview on release when no drop fires', async () => {
     const editor = openV2Editor('refusal-move-occupied-release')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const surface = dragSurface('resize-a')
 
     surface.fire(surface.clip, 'dragstart', 0)
@@ -8233,7 +8233,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
 
   it('names an Alt-duplicate preview refused after a mid-drag Show End change as a changed Show, on release', async () => {
     const editor = openV2Editor('refusal-duplicate-show-end-race')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
 
@@ -8273,7 +8273,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     overlay.durationMs = record.composition.showEndMs - overlay.startMs
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(clipButton('overlay-a'))
     await act(async () => {})
     const before = editor.state()
@@ -8301,7 +8301,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     ]
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = zoneDropSurface('overlay-a')
 
@@ -8320,7 +8320,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
 
   it('names a Split whose playhead rounds onto the Clip edge', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('refusal-split-edge'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     // 0.3 ms inside resize-b's start: the capability sees an interior
     // playhead, and the planner rounds it onto the edge.
     await selectClipAt(editor.showId, 'CometLoom', 1, 7_000.3)
@@ -8341,7 +8341,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     const [window] = visualWindows(record)
     expect(window).toBeDefined()
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const lane = sizedMainLane()
     const midMs = (window.startMs + window.endMs) / 2
@@ -8357,7 +8357,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
 
   it('names a move commit whose capture went stale as a changed Show', async () => {
     const editor = openV2Editor('refusal-move-stale')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const surface = dragSurface('resize-a')
 
@@ -8402,7 +8402,7 @@ function clipDetail(): HTMLElement {
 describe('v2 panel refusal feedback (#1098)', () => {
   it('names an inspector Duration that overlaps the next Clip, restores the field, and clears on the next accepted edit', async () => {
     const editor = openV2Editor('panel-refusal-overlap')
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('CometLoom', 0)
     const before = editor.state()
     expect(authoredClip(before.record, 'resize-a').durationMs).toBe(4_000)
@@ -8439,7 +8439,7 @@ describe('v2 panel refusal feedback (#1098)', () => {
     }))
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     showTab('Effects')
     const before = editor.state()
@@ -8456,7 +8456,7 @@ describe('v2 panel refusal feedback (#1098)', () => {
     record.id = 'panel-refusal-group-start'
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!)
     await act(async () => {})
     const before = editor.state()
@@ -8476,7 +8476,7 @@ describe('v2 panel refusal feedback (#1098)', () => {
   it('names a Layer Transition retime past Show End and keeps the popover open', async () => {
     const record = convertedLayerTransitions('panel-refusal-retime')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     fireEvent.click(screen.getByRole('button', {
       name: 'Edit wipe Transition between EventHorizon and SignalMandala',
@@ -8504,7 +8504,7 @@ describe('v2 panel refusal feedback (#1098)', () => {
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
     const record = convertForTest(structuredClone(stock.show) as ShowRecord)
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
     const junctions = screen.getAllByRole('button', { name: 'Edit crossfade Transition between LineDancer2D and LineDancer2D' })
     fireEvent.click(junctions[junctions.length - 1])
@@ -8529,7 +8529,7 @@ describe('v2 panel refusal feedback (#1098)', () => {
 
   it('names an inspector commit that another writer overtook as a changed Show', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('panel-refusal-race'))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await selectClipByName('TestPattern1D', 0)
     const before = editor.state()
     // Another writer lands between the inspector's plan and its door.
@@ -8556,7 +8556,7 @@ async function openLastPropertyAnimationBoundary(id: string): Promise<{ editor: 
   const record = convertForTest(structuredClone(stock.show) as ShowRecord)
   record.id = id
   const editor = openV2EditorForRecord(record)
-  render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+  render(<ShowEditor showId={editor.showId} />)
   const junctions = screen.getAllByRole('button', { name: 'Edit crossfade Transition between LineDancer2D and LineDancer2D' })
   fireEvent.click(junctions[junctions.length - 1])
   await act(async () => {})
@@ -8590,7 +8590,7 @@ describe('v2 refused panel field edits revert their draft (#1098)', () => {
     // (A converted boundary instead grows Show End, so it never refuses here.)
     const { record } = nativeWholeOutputBoundary('panel-revert-boundary-duration')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: /Edit crossfade Transition between/ }))
     await act(async () => {})
     const before = editor.state()
@@ -8631,7 +8631,7 @@ describe('v2 refused panel field edits revert their draft (#1098)', () => {
   it('bounds Base Layer at the rebinding limit, and names and restores a rank with no Layer below it', async () => {
     const record = await gappedGroupRecord('panel-revert-base-layer')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!)
     await act(async () => {})
     const before = editor.state()
@@ -8659,7 +8659,7 @@ describe('v2 refused panel field edits revert their draft (#1098)', () => {
   it('restores a Group offset whose commit another writer overtook', async () => {
     const record = await gappedGroupRecord('panel-revert-group-offset')
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!)
     await act(async () => {})
     const before = editor.state()
@@ -8683,7 +8683,7 @@ describe('v2 refused panel field edits revert their draft (#1098)', () => {
     record.id = 'panel-revert-group-clip-pattern'
     for (const instance of [...record.composition.patternInstances, ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances)]) delete instance.controlTargets
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Select Group Definition' })[0]!, { detail: 2 })
     await act(async () => {})
     showTab('Pattern')
@@ -8718,7 +8718,7 @@ describe('v2 Group Transition popover refusal per occurrence (#1098)', () => {
     const record = convertForTest(source)
     expect(record.composition.groupOccurrences.map((occurrence) => occurrence.id)).toEqual(['occurrence-first', 'occurrence-second'])
     const editor = openV2EditorForRecord(record)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const junction = (occurrenceId: string) => screen.getAllByRole('button', { name: 'Edit crossfade Transition between SignalMandala and SignalMandala' })
       .find((button) => button.getAttribute('data-show-group-occurrence') === occurrenceId)!
     const popover = () => screen.getByRole('dialog', { name: 'Layer Transition Details' })

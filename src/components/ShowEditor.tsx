@@ -51,7 +51,6 @@ import { PatternCombobox, type PatternComboboxOption } from '@/components/Patter
 import { ShowLossConfirmDialog } from '@/components/ShowLossConfirmDialog'
 import { describeConnectedClipMoveLoss, describeControlTargetRemovalLoss, describeHeldSegmentOverwrite, describePatternReplacementCost, describePatternReplacementLoss } from '@/engine/showLossConfirmationText'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
-import { showRecordClipCount } from '@/engine/showClipInvariant'
 import { isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
@@ -65,20 +64,15 @@ import { trackEvent } from '@/analytics'
 import {
   formatShowRoutingRanges,
   parseShowRoutingRanges,
-  showLoopDurationMs,
   transitionCost,
   ZONE_COLORS,
   showRoutingLayoutKindLabel,
 } from '@/engine/showModel'
 import {
   portableTargetPixelBlocker,
-  resolveShowCompilationControllerZones,
   sourceForShowPatternRef,
   type CompiledShowState,
 } from '@/engine/showPreviewArtifact'
-import {
-  projectFlatShowToCompositionV1WithCellOrigins,
-} from '@/engine/showCompositionModel'
 import { type ShowPropertyLaneProjection } from '@/engine/showPropertyLaneProjection'
 import { installationCoverageBlockingMessage, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { validateInstallationCoverageV2 } from '@/engine/showInstallationCoverageV2'
@@ -96,7 +90,7 @@ import {
   type ShowClipTimelineGlyph,
 } from '@/engine/showClipSummary'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
-import { type ShowClipInspectorOwner, type ShowClipInspectorPatch } from '@/engine/showClipInspectorModel'
+import { type ShowClipInspectorPatch } from '@/engine/showClipInspectorModel'
 import {
   buildShowPropertyAnimationOptions,
   type ShowPropertyAnimationChange,
@@ -132,22 +126,11 @@ import {
 } from '@/engine/showTimelineKeyboard'
 import { claimStudioPreviewSpace } from '@/engine/keyboardShortcuts'
 import {
-  type ShowTimelineClipOwner,
-} from '@/engine/showTimelineClipAuthoring'
-import {
   createShowV2AddClipIntent,
   planShowV2ClipAtTime,
   planShowV2ClipAtTopmostAvailableLayer,
 } from '@/engine/showV2ClipAddPlacement'
-import {
-  showLayerTransitionsConnectedToClip,
-} from '@/engine/showLayerTransitionAuthoring'
-import { deleteShowClipInShow, type ShowClipDeletionResult } from '@/engine/showClipDeletion'
-import {
-  deleteShowGroupOccurrence,
-  projectShowGroupRuntimePatternInstances,
-  type ShowGroupSelection,
-} from '@/engine/showGroupModel'
+import { type ShowGroupSelection } from '@/engine/showGroupModel'
 import { type ShowEpeExport, type ShowEpeExportOptions } from '@/engine/showEpeExport'
 import { buildShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
 import {
@@ -163,9 +146,6 @@ import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { showKeyboardSeekStepMs } from '@/engine/showKeyboardSeek'
 import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
 import {
-  applyShowPatternSlotSelections,
-  restoreShowReferencePatternSlots,
-  showPatternSlotRemovedControlNames,
   type ShowPatternSlotGroup,
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
@@ -466,7 +446,6 @@ type ClipFeedback = {
 }
 
 type ClipFeedbackCopy = Pick<ClipFeedback, 'label' | 'status' | 'statusName'>
-type ShowClipDeletionRefusal = Extract<ShowClipDeletionResult, { status: 'refused' }>
 
 // A v2 timeline commit resolves `true` when the edit applied, `false` when it
 // changed nothing, or with the refusal, which the caller maps to user copy (#1098).
@@ -513,52 +492,6 @@ const UNAVAILABLE_CLIP_DELETE_FEEDBACK: ClipFeedbackCopy = {
   statusName: CLIP_DELETE_STATUS_NAME,
 }
 
-function blockedDeleteCopyForRefusal(
-  show: ShowRecord,
-  refusal: ShowClipDeletionRefusal,
-): ClipFeedbackCopy {
-  if (refusal.reason === 'cross-boundary-shared-instance') {
-    return {
-      label: 'Cannot delete: shared animation state',
-      status: 'Cannot delete: shared animation state',
-      statusName: CLIP_DELETE_STATUS_NAME,
-    }
-  }
-  const blockedIds = new Set(refusal.details ?? [])
-  const trailsIsBlocking = refusal.reason === 'output-feedback-state'
-    && show.outputEffects?.some((effect) => (
-      effect.kind === 'trails' && (blockedIds.size === 0 || blockedIds.has(effect.id))
-    ))
-  if (trailsIsBlocking) {
-    return {
-      label: 'Cannot delete while Trails is enabled.',
-      status: 'Cannot delete while Trails is enabled.',
-      statusName: CLIP_DELETE_STATUS_NAME,
-    }
-  }
-  return {
-    label: 'Cannot delete this Clip.',
-    status: 'Cannot delete this Clip.',
-    statusName: CLIP_DELETE_STATUS_NAME,
-  }
-}
-
-function blockedDeleteSelectionKey(
-  composition: ShowCompositionV1,
-  owner: ShowTimelineClipOwner,
-): string {
-  for (const scene of composition.scenes) {
-    for (const zone of scene.zones) {
-      const direct = [
-        ...zone.main,
-        ...zone.overlays.flatMap((layer) => layer.placements),
-      ].find((placement) => placement.id === owner.placementId)
-      if (direct) return `clip:${direct.logicalClipId ?? direct.id}`
-    }
-  }
-  return `clip:${owner.placementId}`
-}
-
 function showSelectionKey(selection: ShowSelection): string {
   if (selection.kind === 'clip') return `clip:${selection.clipId}`
   if (selection.kind === 'transition') return `transition:${selection.transitionId}`
@@ -580,52 +513,6 @@ function sameShowSelection(left: ShowSelection, right: ShowSelection): boolean {
   return showSelectionKey(left) === showSelectionKey(right)
 }
 
-function showGroupOccurrenceExists(
-  show: ShowRecord,
-  composition: ShowCompositionV1 | null | undefined,
-  occurrenceId: string,
-): boolean {
-  const occurrence = composition?.groupOccurrences?.find((candidate) => candidate.id === occurrenceId)
-  if (!occurrence) return false
-  return show.scenes.some((scene) => scene.id === occurrence.sceneId)
-    && show.zones.some((zone) => zone.id === occurrence.zoneId)
-    && Boolean(composition?.scenes.some((scene) => (
-      scene.sceneId === occurrence.sceneId
-      && scene.zones.some((zone) => zone.zoneId === occurrence.zoneId)
-    )))
-}
-
-function showSelectionExists(
-  show: ShowRecord,
-  composition: ShowCompositionV1 | null | undefined,
-  selection: ShowSelection,
-): boolean {
-  if (selection.kind === 'show') return true
-  if (selection.kind === 'clip') {
-    return show.cells.some((cell) => cell.id === selection.clipId)
-      || Boolean(findTimelineClipOwner(composition, selection.clipId))
-  }
-  if (selection.kind === 'transition') {
-    return show.transitions.some((transition) => transition.id === selection.transitionId)
-  }
-  if (selection.kind === 'zone') return show.zones.some((zone) => zone.id === selection.zoneId)
-  if (selection.kind === 'zone-layout') {
-    return show.routingLayouts.some((layout) => layout.id === selection.layoutId)
-  }
-  if (selection.kind === 'group') {
-    return showGroupOccurrenceExists(show, composition, selection.occurrenceId)
-  }
-  if (selection.kind === 'group-clip') {
-    if (!showGroupOccurrenceExists(show, composition, selection.occurrenceId)) return false
-    const occurrence = composition?.groupOccurrences?.find((candidate) => candidate.id === selection.occurrenceId)
-    const definition = composition?.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
-    return Boolean(definition?.placements.some((placement) => placement.id === selection.placementId))
-  }
-  return selection.groupSelection.placementIds.every((placementId) => (
-    Boolean(findTimelineClipOwner(composition, placementId))
-  ))
-}
-
 function showSelectionTraversalTarget(selection: ShowSelection): ShowTimelineTraversalTarget | null {
   if (selection.kind === 'clip') return { kind: 'clip', clipId: selection.clipId }
   if (selection.kind === 'group') return { kind: 'group', occurrenceId: selection.occurrenceId }
@@ -645,55 +532,6 @@ function findShowSelectionAnchor(selection: ShowSelection): HTMLElement | null {
   const key = showSelectionKey(selection)
   return [...document.querySelectorAll<HTMLElement>('[data-show-selection-key]')]
     .find((element) => element.dataset.showSelectionKey === key) ?? null
-}
-
-function findCompositionClipOwner(
-  composition: ShowCompositionV1 | null | undefined,
-  placementId: string,
-): ShowClipInspectorOwner | null {
-  if (!composition) return null
-  for (const scene of composition.scenes) {
-    for (const zone of scene.zones) {
-      if (zone.main.some((placement) => placement.id === placementId)) {
-        return { kind: 'scene-main', sceneId: scene.sceneId, zoneId: zone.zoneId, placementId }
-      }
-      for (const layer of zone.overlays) {
-        if (layer.placements.some((placement) => placement.id === placementId)) {
-          return {
-            kind: 'scene-overlay',
-            sceneId: scene.sceneId,
-            zoneId: zone.zoneId,
-            layerId: layer.id,
-            placementId,
-          }
-        }
-      }
-    }
-  }
-  return null
-}
-
-function findTimelineClipOwner(
-  composition: ShowCompositionV1 | null | undefined,
-  placementId: string,
-): ShowTimelineClipOwner | null {
-  const owner = findCompositionClipOwner(composition, placementId)
-  if (!owner) return null
-  if (owner.kind === 'global') return null
-  return owner.kind === 'scene-main'
-    ? {
-        kind: 'main',
-        sceneId: owner.sceneId,
-        zoneId: owner.zoneId,
-        placementId: owner.placementId,
-      }
-    : {
-        kind: 'overlay',
-        sceneId: owner.sceneId,
-        zoneId: owner.zoneId,
-        layerId: owner.layerId,
-        placementId: owner.placementId,
-      }
 }
 
 type ShowPatternOption = {
@@ -1099,9 +937,7 @@ interface ShowCompilationSnapshot {
 
 export function ShowEditor({
   showId,
-  recordVersion = 1,
   autoPlay = false,
-  showOverride,
   readOnly = false,
   builtInContext,
   headerGuideTarget = null,
@@ -1113,9 +949,7 @@ export function ShowEditor({
   onOpenStagePreview,
 }: {
   showId: string
-  recordVersion?: 1 | 2
   autoPlay?: boolean
-  showOverride?: ShowRecord
   readOnly?: boolean
   builtInContext?: {
     track: 'portable' | 'installation'
@@ -1137,9 +971,7 @@ export function ShowEditor({
     usePreviewStore.getState().setRunning(autoPlay)
   }, [showId, autoPlay])
 
-  const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const savedShowV2 = useShowStore((state) => state.showV2Pilots[showId])
-  const stockShowDraft = useShowStore((state) => state.stockShowDrafts[showId])
   const isShowV2LessonDraft = useShowStore((state) => state.isShowV2LessonDraft)
   const showV2History = useShowStore((state) => state.showV2Histories[showId])
   // A v2 lesson draft is session-only state in showV2Pilots/showV2Histories
@@ -1149,7 +981,6 @@ export function ShowEditor({
   const isV2LessonDraft = isShowV2LessonDraft(showId)
   const hasStockDraft = isV2LessonDraft
     && showV2History !== undefined && (showV2History.past.length > 0 || showV2History.future.length > 0)
-  const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
   const resetShowV2LessonDraft = useShowStore((state) => state.resetShowV2LessonDraft)
   const duplicateShowV2Row = useShowStore((state) => state.duplicateShowV2Row)
   const openShow = useShowStore((state) => state.openShow)
@@ -1157,12 +988,9 @@ export function ShowEditor({
   const personalWorkspaceAuthenticated = useWorkspaceStore((state) => state.personalWorkspaceAuthenticated)
   const agentCapabilities = useWorkspaceStore((state) => state.agentCapabilities)
   const [savingBuiltInCopy, setSavingBuiltInCopy] = useState(false)
-  const persistShow = useShowStore((state) => state.updateShow)
   const showV2SaveFailure = useShowStore((state) => state.showV2SaveFailure)
   const dismissShowV2SaveFailure = useShowStore((state) => state.dismissShowV2SaveFailure)
   const retryShowV2SaveFailure = useShowStore((state) => state.retryShowV2SaveFailure)
-  const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
-  const removeZone = useShowStore((state) => state.removeZone)
   const showNoteOpen = useShowEditorSessionStore((state) => (
     state.showNoteOpenById[showId] ?? builtInContext?.note?.defaultOpen ?? false
   ))
@@ -1189,22 +1017,22 @@ export function ShowEditor({
   ), [userPatterns])
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
-  const preparedV2Dependencies = useMemo(() => recordVersion === 2 ? {
+  const preparedV2Dependencies = useMemo(() => ({
     patterns: userPatterns,
     libraries: userLibraries,
     maps: userMaps,
     profiles: controllerProfiles,
     stageMap: resolveShowV2StageMap(savedShowV2?.stageMapId, userMaps),
-  } : null, [controllerProfiles, recordVersion, savedShowV2?.stageMapId, userLibraries, userMaps, userPatterns])
+  }), [controllerProfiles, savedShowV2?.stageMapId, userLibraries, userMaps, userPatterns])
   const preparedV2Capture = useMemo(() => (
-    recordVersion === 2 && savedShowV2 && preparedV2Dependencies
+    savedShowV2 && preparedV2Dependencies
       ? captureShowStageEditV2(savedShowV2, preparedV2Dependencies)
       : null
-  ), [preparedV2Dependencies, recordVersion, savedShowV2])
+  ), [preparedV2Dependencies, savedShowV2])
   const preparedV2CaptureRef = useRef(preparedV2Capture)
   preparedV2CaptureRef.current = preparedV2Capture
   const lessonProjectionV2 = useMemo(() => (
-    recordVersion === 2 && savedShowV2 && builtInSlotGroups && selectedReferencePatterns
+    savedShowV2 && builtInSlotGroups && selectedReferencePatterns
       ? applyShowPatternSlotSelectionsV2(
           savedShowV2,
           builtInSlotGroups,
@@ -1213,41 +1041,41 @@ export function ShowEditor({
           exportedSliderNamesFor,
         )
       : savedShowV2
-  ), [builtInSlotGroups, exportedSliderNamesFor, recordVersion, savedShowV2, selectedReferencePatterns, slotPatternNameFor])
+  ), [builtInSlotGroups, exportedSliderNamesFor, savedShowV2, selectedReferencePatterns, slotPatternNameFor])
   const presentationV2Capture = useMemo(() => (
-    recordVersion === 2 && lessonProjectionV2 && preparedV2Dependencies
+    lessonProjectionV2 && preparedV2Dependencies
       ? lessonProjectionV2 === savedShowV2
         ? preparedV2Capture
         : captureShowStageEditV2(lessonProjectionV2, preparedV2Dependencies)
       : null
-  ), [lessonProjectionV2, preparedV2Capture, preparedV2Dependencies, recordVersion, savedShowV2])
+  ), [lessonProjectionV2, preparedV2Capture, preparedV2Dependencies, savedShowV2])
   const timelineViewV2 = useMemo(() => (
-    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorTimelineV2(lessonProjectionV2) : null
-  ), [recordVersion, lessonProjectionV2])
+    lessonProjectionV2 ? projectShowEditorTimelineV2(lessonProjectionV2) : null
+  ), [lessonProjectionV2])
   // The time grid's own columns. v1 reads them off its Scenes inside the
   // workspace; a v2 backing resolves the same section and boundary spans from
   // the authored record, so the same Show lays out in the same CSS tracks
   // whichever version stores it (#1065).
   const timeColumnsV2 = useMemo(() => (
-    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorTimeColumnsV2(lessonProjectionV2) : null
-  ), [recordVersion, lessonProjectionV2])
+    lessonProjectionV2 ? projectShowEditorTimeColumnsV2(lessonProjectionV2) : null
+  ), [lessonProjectionV2])
   const transitionSettingsV2 = useMemo(() => (
-    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorTransitionSettingsV2(lessonProjectionV2) : null
-  ), [recordVersion, lessonProjectionV2])
+    lessonProjectionV2 ? projectShowEditorTransitionSettingsV2(lessonProjectionV2) : null
+  ), [lessonProjectionV2])
   // Which Transitions v1's boundary surfaces own, read from the authored
   // record. Both the inspector panel and the Change palette gate on this, so it
   // is projected once here rather than twice further down (#1065).
   const boundaryTransitionsV2 = useMemo(() => (
-    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorBoundaryTransitionsV2(lessonProjectionV2) : null
-  ), [recordVersion, lessonProjectionV2])
+    lessonProjectionV2 ? projectShowEditorBoundaryTransitionsV2(lessonProjectionV2) : null
+  ), [lessonProjectionV2])
   const boundaryTransitionIdsV2 = useMemo(() => (
     boundaryTransitionsV2 ? new Set(Object.keys(boundaryTransitionsV2)) : null
   ), [boundaryTransitionsV2])
   // The timeline caption reads each Clip at its own authored start, so it stays
   // independent of the playhead exactly as the v1 caption is (#1065).
   const clipSummarySourcesV2 = useMemo(() => (
-    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorTimelineClipSummarySourcesV2(lessonProjectionV2) : null
-  ), [recordVersion, lessonProjectionV2])
+    lessonProjectionV2 ? projectShowEditorTimelineClipSummarySourcesV2(lessonProjectionV2) : null
+  ), [lessonProjectionV2])
   const activeIp = useControllerStore((state) => state.activeIp)
   const activeController = useControllerStore((state) => (state.activeIp ? state.controllers[state.activeIp] : undefined))
   const controllerPushing = useControllerStore((state) => state.pushing)
@@ -1289,7 +1117,6 @@ export function ShowEditor({
   const pendingDeliveryRef = useRef<ShowDeliverySnapshot | null>(null)
   const preparedDeliverySnapshotRef = useRef<ShowDeliverySnapshot | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
-  const [compositionClipPendingDelete, setCompositionClipPendingDelete] = useState<ShowTimelineClipOwner | null>(null)
   const [v2ClipPendingDelete, setV2ClipPendingDelete] = useState<string | null>(null)
   const [pendingPatternSlotSelection, setPendingPatternSlotSelection] = useState<PendingPatternSlotSelection | null>(null)
   const [pendingV2Replacement, setPendingV2Replacement] = useState<PendingV2Replacement | null>(null)
@@ -1392,7 +1219,6 @@ export function ShowEditor({
       ? useShowTransportStore.getState().positionMs : 0,
   }), [showId])
   const agentRecordBinding = useMemo<AgentEditorRecordBinding>(() => ({
-    recordVersion: 2,
     capture: () => preparedV2CaptureRef.current,
     isCurrentCapture: () => {
       const capture = preparedV2CaptureRef.current
@@ -1479,7 +1305,6 @@ export function ShowEditor({
     setDetailsSuppressed(false)
     setTransitionPaletteId(null)
     setLayerTransitionTarget(null)
-    setCompositionClipPendingDelete(null)
     setV2ClipPendingDelete(null)
     setPendingPatternSlotSelection(null)
     setPendingV2Replacement(null)
@@ -1532,58 +1357,18 @@ export function ShowEditor({
       : null
   ), [activeControllerLiveEpoch, connectedControllerAddress, connectedControllerId])
 
-  const canonicalStockShow = builtInContext ? stockShowById(showId)?.show : undefined
-  // Every v1 derivation below hangs off this record, so the v2 backing starts
-  // from null: a stock Show id that also exists in the catalogue must not quietly
-  // supply a legacy record to the v2 editor (#1065).
-  // The declared backing owns which record this editor reads and writes, not
-  // whether a v1 row happens to be cached under the same id (#1065). Only a
-  // recordVersion 1 editor resolves a legacy record at all.
-  const editableShow = recordVersion === 1
-    ? stockShowDraft ?? savedShow ?? canonicalStockShow ?? showOverride ?? null
-    : null
   const afterSceneIdByTransitionId = useMemo<Readonly<Record<string, string>>>(() => (
     Object.fromEntries((stockShowById(showId)?.show.transitions ?? []).map((transition) => [transition.id, transition.afterSceneId]))
   ), [showId])
-  const activeShow = useMemo(() => (
-    editableShow && builtInSlotGroups && selectedReferencePatterns
-      ? applyShowPatternSlotSelections(
-          editableShow,
-          builtInSlotGroups,
-          selectedReferencePatterns,
-          slotPatternNameFor,
-          exportedSliderNamesFor,
-        )
-      : editableShow
-  ), [editableShow, builtInSlotGroups, selectedReferencePatterns, slotPatternNameFor, exportedSliderNamesFor])
   const requestPatternSlotSelection = useCallback((slotIndex: number, pattern: ShowPatternRef) => {
     const group = builtInSlotGroups?.[slotIndex]
     const patternName = slotPatternNameFor(pattern)
     if (!group || !patternName) return
     const sliderNames = exportedSliderNamesFor(pattern)
     if (sliderNames === null) return
-    if (recordVersion === 2) {
-      if (!lessonProjectionV2) return
-      const removedControlNames = showPatternSlotRemovedControlNamesV2(
-        lessonProjectionV2,
-        group,
-        sliderNames,
-      )
-      if (removedControlNames.length === 0) {
-        setReferencePattern(showId, slotIndex, pattern)
-        return
-      }
-      setPendingPatternSlotSelection({
-        slotIndex,
-        pattern,
-        patternName,
-        removedControlNames: removedControlNames.map(patternControlDisplayName),
-      })
-      return
-    }
-    if (!activeShow) return
-    const removedControlNames = showPatternSlotRemovedControlNames(
-      activeShow,
+    if (!lessonProjectionV2) return
+    const removedControlNames = showPatternSlotRemovedControlNamesV2(
+      lessonProjectionV2,
       group,
       sliderNames,
     )
@@ -1597,81 +1382,9 @@ export function ShowEditor({
       patternName,
       removedControlNames: removedControlNames.map(patternControlDisplayName),
     })
-  }, [activeShow, builtInSlotGroups, exportedSliderNamesFor, lessonProjectionV2, recordVersion, setReferencePattern, showId, slotPatternNameFor])
-  // Every legacy whole-record write funnels through here, so this is the one
-  // place a v2 backing is fenced off from the v1 save path (#1065). An
-  // unconnected v2 write resolves as an internal no-change result: no record,
-  // no history entry, no queued save, and no visible disabling.
-  const updateShow = useCallback((id: string, next: ShowRecord) => {
-    if (recordVersion !== 1) return Promise.resolve()
-    let persisted = next
-    if (editableShow && builtInSlotGroups && selectedReferencePatterns) {
-      // A deliberate Pattern reassignment in Clip Detail supersedes the slot
-      // picker: that slot's transient selection clears and the edit persists
-      // as authored. Slots the edit left alone stay transient - restore
-      // strips them back to the authored Pattern before the draft saves.
-      // Restore reads only slot ids, so the kept groups merge into one
-      // projection.
-      const patternAt = (show: ShowRecord | null, instanceId: string) => (
-        show?.composition?.patternInstances.find((instance) => instance.id === instanceId)?.pattern
-      )
-      const cellPatternAt = (show: ShowRecord | null, cellId: string) => (
-        show?.cells.find((cell) => cell.id === cellId)?.pattern
-      )
-      const patternEquals = (a?: ShowCell['pattern'], b?: ShowCell['pattern']) => (
-        Boolean(a && b && a.kind === b.kind && a.id === b.id)
-      )
-      // In a superseded group only the deliberately reassigned member keeps
-      // the edit; sibling members are still transient and must strip back to
-      // the authored Pattern like any kept slot (#63 review P2).
-      const restoreCellIds: string[] = []
-      const restoreInstanceIds: string[] = []
-      let restorePattern: ShowCell['pattern'] | undefined
-      builtInSlotGroups.forEach((group, index) => {
-        const selection = selectedReferencePatterns[index]
-        if (!selection) return
-        const reassigned = group.instanceIds.some((instanceId) => {
-          const before = patternAt(activeShow, instanceId)
-          const after = patternAt(next, instanceId)
-          return before && after && !patternEquals(before, after)
-        })
-        if (reassigned) setReferencePattern(showId, index, null)
-        const untouched = (current: ShowCell['pattern'] | undefined) => (
-          !reassigned || patternEquals(current, selection)
-        )
-        const cellIds = group.cellIds.filter((cellId) => untouched(cellPatternAt(next, cellId)))
-        const instanceIds = group.instanceIds.filter((instanceId) => untouched(patternAt(next, instanceId)))
-        if (cellIds.length > 0 || instanceIds.length > 0) {
-          restorePattern ??= selection
-          restoreCellIds.push(...cellIds)
-          restoreInstanceIds.push(...instanceIds)
-        }
-      })
-      if (restorePattern) {
-        persisted = restoreShowReferencePatternSlots(next, editableShow, {
-          pattern: restorePattern,
-          patternName: slotPatternNameFor(restorePattern) ?? '',
-          cellIds: restoreCellIds,
-          instanceIds: restoreInstanceIds,
-        })
-      }
-    }
-    // Persistence failures must stay observable here: awaited callers gate
-    // follow-up work (selecting a created placement, closing an Add flow) on
-    // this promise. The rollback and showSaveFailure notice (#792) own
-    // user-facing reporting.
-    return persistShow(id, persisted)
-  }, [editableShow, persistShow, builtInSlotGroups, recordVersion, selectedReferencePatterns, activeShow, setReferencePattern, showId, slotPatternNameFor])
-  // Fire-and-forget edits discard the promise; consuming the rejection here
-  // keeps a routine offline save (already rolled back and reported through
-  // showSaveFailure, #792) from doubling as an uncaught browser error.
-  const updateShowInBackground = useCallback((id: string, next: ShowRecord) => {
-    updateShow(id, next).catch(() => {})
-  }, [updateShow])
-  const transportDurationMs = recordVersion === 2
-    ? timelineViewV2?.showEndMs ?? 0
-    : activeShow ? showLoopDurationMs(activeShow) : 0
-  useShowTransportClock(recordVersion === 2 ? savedShowV2?.id ?? null : activeShow?.id ?? null, transportDurationMs, transportClockActive)
+  }, [builtInSlotGroups, exportedSliderNamesFor, lessonProjectionV2, setReferencePattern, showId, slotPatternNameFor])
+  const transportDurationMs = timelineViewV2?.showEndMs ?? 0
+  useShowTransportClock(savedShowV2?.id ?? null, transportDurationMs, transportClockActive)
   const captureV2Move = useCallback(() => {
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return null
@@ -1871,14 +1584,14 @@ export function ShowEditor({
     return outcome.status === 'applied'
   }, [showId])
   const commitV2LayoutPlan = useCallback((build: (record: ShowRecordV2) => ReturnType<typeof planShowV2LayoutEdit> | null): Promise<boolean> => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return Promise.resolve(false)
+    if (!savedShowV2 || readOnly) return Promise.resolve(false)
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return Promise.resolve(false)
     const plan = build(capture.record)
     if (!plan || plan.status === 'refused') return Promise.resolve(false)
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     return commitV2LayoutOccurrenceEdit({ capture, baseRevision, intent: plan.intent })
-  }, [commitV2LayoutOccurrenceEdit, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2LayoutOccurrenceEdit, readOnly, savedShowV2, showId])
   const commitV2ClipDelete = useCallback(async (input: {
     capture: ShowV2PilotPreparedCapture
     baseRevision: number
@@ -2053,7 +1766,7 @@ export function ShowEditor({
   // submitting the definition edit; cancellation writes nothing (#1069).
   const commitV2GroupClipPattern = useCallback((occurrenceId: string, clipId: string, ref: ShowPatternRef): EditRefusalResult<boolean | void> => {
     // Every refusal names a reason in the Group Clip inspector (#1098).
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
+    if (!savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     const definitionId = capture.record.composition.groupOccurrences.find((candidate) => candidate.id === occurrenceId)?.definitionId
@@ -2074,11 +1787,11 @@ export function ShowEditor({
     if (plan.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     return commitV2GroupReplacement({ capture, baseRevision, intent: plan.intent }).then(panelCommitRefusal, () => {})
-  }, [commitV2GroupReplacement, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2GroupReplacement, readOnly, savedShowV2, showId])
   const confirmV2Replacement = useCallback(() => {
     const pending = pendingV2Replacement
     setPendingV2Replacement(null)
-    if (!pending || recordVersion !== 2 || !savedShowV2 || readOnly) return
+    if (!pending || !savedShowV2 || readOnly) return
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
@@ -2091,11 +1804,11 @@ export function ShowEditor({
     if (!definitionId) return
     const plan = planShowV2GroupReplacementEdit(capture, definitionId, pending.clipId, pending.reference, newPersonalContentId)
     if (plan.status === 'ready') void commitV2GroupReplacement({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
-  }, [commitV2ClipReplacement, commitV2GroupReplacement, pendingV2Replacement, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2ClipReplacement, commitV2GroupReplacement, pendingV2Replacement, readOnly, savedShowV2, showId])
   const confirmV2ControlRemoval = useCallback(() => {
     const pending = pendingV2ControlRemoval
     setPendingV2ControlRemoval(null)
-    if (!pending || recordVersion !== 2 || !savedShowV2 || readOnly) return
+    if (!pending || !savedShowV2 || readOnly) return
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
@@ -2113,11 +1826,11 @@ export function ShowEditor({
       { controlLabels: Object.fromEntries(controls.map((control) => [control.exportName, control.label])) })
     if (plan.kind !== 'instance-properties') return
     void commitV2InstanceProperties({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
-  }, [commitV2GroupOccurrenceEdit, commitV2InstanceProperties, pendingV2ControlRemoval, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2GroupOccurrenceEdit, commitV2InstanceProperties, pendingV2ControlRemoval, readOnly, savedShowV2, showId])
   const confirmV2HeldSegmentOverwrite = useCallback(() => {
     const pending = pendingV2HeldSegmentOverwrite
     setPendingV2HeldSegmentOverwrite(null)
-    if (!pending || recordVersion !== 2 || !savedShowV2 || readOnly) return
+    if (!pending || !savedShowV2 || readOnly) return
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
@@ -2132,7 +1845,7 @@ export function ShowEditor({
     const plan = planShowV2ClipInspectorPatch(capture.record, pending.clipId, pending.patch)
     if (plan.kind !== 'appearance') return
     void commitV2ClipAppearance({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
-  }, [commitV2ClipAppearance, commitV2GroupOccurrenceEdit, pendingV2HeldSegmentOverwrite, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2ClipAppearance, commitV2GroupOccurrenceEdit, pendingV2HeldSegmentOverwrite, readOnly, savedShowV2, showId])
   // Slice 6 connects Show End through the same plumbing: one accepted write
   // is one history entry and one save. The drag preview never writes and the
   // commit never reads preview state, so a keyboard set with no drag still
@@ -2209,7 +1922,7 @@ export function ShowEditor({
   }, [showId])
   const commitV2ClipInspectorPatch = useCallback((clipId: string, patch: ShowClipInspectorPatch): EditRefusalResult<boolean | void> => {
     // Every refusal, including these early returns, names a reason (#1098).
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
+    if (!savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     // Inspector Start and Duration reuse the timeline drag's planners, as v1's
@@ -2310,7 +2023,7 @@ export function ShowEditor({
     // the draft) from anything else (keep the draft), exactly as the legacy
     // chokepoint's contract reads. A refusal settles with its reason (#1098).
     return commit.then(panelCommitRefusal, () => {})
-  }, [builtInSlotGroups, commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2ClipTemporal, commitV2InstanceProperties, commitV2TransitionResize, readOnly, recordVersion, savedShowV2, setReferencePattern, showId, timelineViewV2])
+  }, [builtInSlotGroups, commitV2ClipAppearance, commitV2ClipEntryPolicy, commitV2ClipReplacement, commitV2ClipTemporal, commitV2InstanceProperties, commitV2TransitionResize, readOnly, savedShowV2, setReferencePattern, showId, timelineViewV2])
   // Slice 5a connects the boundary Transition settings writes (the Transition
   // parameter editor and the Crossfade source select) through the
   // transition-edit door. Refused and no-op changes return synchronously so
@@ -2319,7 +2032,7 @@ export function ShowEditor({
   const commitV2BoundaryTransitionChanges = useCallback((transitionId: string, changes: ShowTransitionChanges): EditRefusalResult<boolean | void> => {
     // Every refusal, including these early returns, names a reason; a no-change
     // value returns false so the field restores silently (#1098).
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
+    if (!savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return panelRefusal(PANEL_UNAVAILABLE)
     const { durationMs, ...settingsChanges } = changes
@@ -2347,12 +2060,12 @@ export function ShowEditor({
     if (plan.status !== 'ready') return resized ?? false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     return commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent }).then(panelCommitRefusal, () => undefined)
-  }, [commitV2TransitionEdit, commitV2TransitionResize, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2TransitionEdit, commitV2TransitionResize, readOnly, savedShowV2, showId])
   // Slice 5d connects the boundary Transition Remove through the same door:
   // v1 turns the boundary into a Cut, which on this backing is the owner's
   // reset-to-cut, and closes the panel once it is gone (#1066).
   const commitV2BoundaryTransitionRemove = useCallback((transitionId: string): void => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+    if (!savedShowV2 || readOnly) return
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return
     const plan = planShowV2TransitionReset(capture.record, transitionId, newPersonalContentId)
@@ -2363,9 +2076,9 @@ export function ShowEditor({
       closeDetailPanel()
       closePinnedDetailForSelection({ kind: 'transition', transitionId })
     }).catch(() => {})
-  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2TransitionEdit, readOnly, recordVersion, savedShowV2, showId])
+  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2TransitionEdit, readOnly, savedShowV2, showId])
   const commitV2RoutingTransferUpdate = useCallback((occurrenceId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>): void => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+    if (!savedShowV2 || readOnly) return
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return
     const occurrence = capture.record.composition.layoutOccurrences.find((candidate) => candidate.id === occurrenceId)
@@ -2418,13 +2131,13 @@ export function ShowEditor({
       if (intent.transfer !== null) selectTimeline({ kind: 'transition', transitionId: intent.transfer.id })
       else selectTimeline({ kind: 'transition', transitionId: `layout-cut:${occurrenceId}` })
     }).catch(() => {})
-  }, [commitV2LayoutPlan, readOnly, recordVersion, savedShowV2, selectTimeline, showId])
+  }, [commitV2LayoutPlan, readOnly, savedShowV2, selectTimeline, showId])
   const commitV2RoutingTransferRemove = useCallback((occurrenceId: string): void => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return
+    if (!savedShowV2 || readOnly) return
     void commitV2LayoutPlan((record) => planShowV2LayoutEdit(record, { kind: 'remove-switch', occurrenceId }, newPersonalContentId)).then((applied) => {
       if (applied) selectTimeline({ kind: 'show' })
     }).catch(() => {})
-  }, [commitV2LayoutPlan, readOnly, recordVersion, savedShowV2, selectTimeline])
+  }, [commitV2LayoutPlan, readOnly, savedShowV2, selectTimeline])
   // Slice 10 connects ordinary-Clip Property animation through the property
   // door, line for line on the inspector chokepoint above: refused and no-op
   // plans return false synchronously so the popover reverts its draft, and an
@@ -2432,7 +2145,7 @@ export function ShowEditor({
   // stays boolean because the inspector prop is typed `(change) => boolean |
   // void` and the draft popover treats anything but false as accepted (#1066).
   const commitV2PropertyAnimationChange = useCallback((clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange): boolean => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    if (!savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2PropertyAnimationChange(capture.record, clipId, frame, change, newPersonalContentId)
@@ -2440,13 +2153,13 @@ export function ShowEditor({
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     void commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent })
     return true
-  }, [commitV2PropertyEdit, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2PropertyEdit, readOnly, savedShowV2, showId])
   // #1075 G3 connects Group-child Property animation through the property
   // door with the definition owner: refused and no-op plans return false
   // synchronously so the popover reverts its draft, and an accepted change
   // fires one property admission and returns true.
   const commitV2GroupPropertyAnimationChange = useCallback((occurrenceId: string, clipId: string, change: ShowPropertyAnimationChange): boolean => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    if (!savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2GroupPropertyAnimationChange(capture.record, occurrenceId, clipId, change, newPersonalContentId)
@@ -2454,12 +2167,12 @@ export function ShowEditor({
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     void commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent })
     return true
-  }, [commitV2PropertyEdit, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2PropertyEdit, readOnly, savedShowV2, showId])
   // Slice 5b connects the boundary palette's Apply through the same door: the
   // choice is planned exactly as v1 normalizes it, and a new duration retimes
   // the loop inside the same edit (#1066).
   const commitV2BoundaryPaletteApply = useCallback((transitionId: string, item: ShowToolkitPresentationItem, presetId?: string, stageDimensions: 1 | 2 | 3 = 2): boolean => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    if (!savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2BoundaryPaletteApply(capture.record, transitionId, showTransitionChangesForPresentation(item, presetId, stageDimensions), newPersonalContentId)
@@ -2467,13 +2180,13 @@ export function ShowEditor({
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     void commitV2TransitionEdit({ capture, baseRevision, intent: plan.intent })
     return true
-  }, [commitV2TransitionEdit, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2TransitionEdit, readOnly, savedShowV2, showId])
   // Slice 6 chokepoints: a refused or no-op Show-level edit resolves
   // synchronously (or as a resolved false) so the committing surface reverts
   // instead of showing a value that was never stored. The plan reads the
   // prepared capture, never preview state (#1066).
   const commitV2ShowEndTime = useCallback((durationMs: number): Promise<boolean> => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return Promise.resolve(false)
+    if (!savedShowV2 || readOnly) return Promise.resolve(false)
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return Promise.resolve(false)
     const plan = planShowV2SetShowEnd(capture.record, durationMs)
@@ -2483,19 +2196,19 @@ export function ShowEditor({
       (outcome) => outcome.status === 'applied',
       () => false,
     )
-  }, [commitV2SetShowEnd, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2SetShowEnd, readOnly, savedShowV2, showId])
   const commitV2ShowMetadataEdit = useCallback((
     capture: ShowV2PilotPreparedCapture,
     plan: ShowV2ShowMetadataPlan,
   ): boolean | Promise<void> => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    if (!savedShowV2 || readOnly) return false
     if (capture.prepared.status === 'refused') return false
     if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
     return commitV2ShowMetadata({ capture, baseRevision, intent: plan.intent }).then(() => {}, () => {})
-  }, [commitV2ShowMetadata, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2ShowMetadata, readOnly, savedShowV2, showId])
   const commitV2ZonePlan = useCallback((build: (record: ShowRecordV2) => ShowV2ZonePlan): boolean => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    if (!savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = build(capture.record)
@@ -2510,9 +2223,9 @@ export function ShowEditor({
     }
     void commitV2LayoutDefinitionEdit({ capture, baseRevision, intent: plan.intent })
     return true
-  }, [commitV2LayoutDefinitionEdit, commitV2ShowMetadataEdit, commitV2ZoneEdit, readOnly, recordVersion, savedShowV2, showId])
+  }, [commitV2LayoutDefinitionEdit, commitV2ShowMetadataEdit, commitV2ZoneEdit, readOnly, savedShowV2, showId])
   const requestDeleteClipV2 = useCallback((clipId: string, connectedDeletionConfirmed = false): boolean => {
-    if (recordVersion !== 2 || !savedShowV2 || readOnly) return false
+    if (!savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') {
       reportClipFeedback(`clip:${clipId}`, UNAVAILABLE_CLIP_DELETE_FEEDBACK)
@@ -2544,7 +2257,7 @@ export function ShowEditor({
       }
     }).catch(() => {})
     return true
-  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2ClipDelete, recordVersion, readOnly, reportClipFeedback, savedShowV2, showId])
+  }, [closeDetailPanel, closePinnedDetailForSelection, commitV2ClipDelete, readOnly, reportClipFeedback, savedShowV2, showId])
   const requestV2GroupOccurrenceEdit = useCallback((request: ShowV2GroupOccurrenceRequest): EditRefusalResult<boolean | void> => {
     if (readOnly) return panelRefusal(PANEL_UNAVAILABLE)
     const capture = preparedV2CaptureRef.current
@@ -2607,7 +2320,7 @@ export function ShowEditor({
       () => false,
     )
   }, [commitV2GroupOccurrenceEdit, readOnly, showId])
-  const targetProfileOwner = recordVersion === 2 ? savedShowV2 : activeShow
+  const targetProfileOwner = savedShowV2
   const targetProfileOwnerId = targetProfileOwner?.targetControllerProfileId
   const targetProfile = targetProfileOwner?.outputContract?.kind === 'portable-2d'
     ? undefined
@@ -2618,106 +2331,18 @@ export function ShowEditor({
     ? findProfileForLiveController(controllerProfiles, activeController) ?? undefined
     : targetProfile
 
-  const requestDeleteClip = useCallback((
-    targetSelection: Extract<ShowSelection, { kind: 'clip' }>,
-    composition: ShowCompositionV1 | null | undefined,
-    owner: ShowTimelineClipOwner | null,
-    connectedDeletionConfirmed = false,
-  ): boolean => {
-    if (recordVersion === 2) return requestDeleteClipV2(targetSelection.clipId, connectedDeletionConfirmed)
-    if (recordVersion !== 1 || !activeShow || readOnly) return false
-    if (showRecordClipCount(activeShow) <= 1) {
-      reportClipFeedback(showSelectionKey(targetSelection), LAST_CLIP_DELETE_FEEDBACK)
-      return true
-    }
-    if (!composition || !owner) {
-      reportClipFeedback(showSelectionKey(targetSelection), UNAVAILABLE_CLIP_DELETE_FEEDBACK)
-      return true
-    }
-    if (
-      !connectedDeletionConfirmed
-      && showLayerTransitionsConnectedToClip(composition, owner.placementId).length > 0
-    ) {
-      setCompositionClipPendingDelete(owner)
-      return true
-    }
-    const deletion = deleteShowClipInShow(activeShow, composition, owner)
-    if (deletion.status !== 'applied') {
-      reportClipFeedback(
-        blockedDeleteSelectionKey(composition, owner),
-        blockedDeleteCopyForRefusal(activeShow, deletion),
-      )
-      return true
-    }
-    closeDetailPanel()
-    closePinnedDetailForSelection(targetSelection)
-    updateShowInBackground(activeShow.id, { ...deletion.record, updatedAt: Date.now() })
-    return true
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, reportClipFeedback, requestDeleteClipV2, updateShowInBackground])
-
-  const requestDeleteSelection = useCallback((
-    targetSelection: ShowSelection,
-    visibleComposition?: ShowCompositionV1 | null,
-    visibleSourceCellIdByPlacementId?: Record<string, string>,
-  ): boolean => {
-    if (recordVersion === 2) {
-      if (readOnly) return false
-      if (targetSelection.kind === 'group') {
-        const occurrenceId = targetSelection.occurrenceId
-        const record = preparedV2CaptureRef.current?.record
-        if (!record?.composition.groupOccurrences.some((occurrence) => occurrence.id === occurrenceId)) return false
-        requestV2GroupOccurrenceEdit({ kind: 'delete-occurrence', occurrenceId })
-        return true
-      }
-      if (targetSelection.kind !== 'clip') return false
-      return requestDeleteClipV2(targetSelection.clipId, false)
-    }
-    if (recordVersion !== 1 || !activeShow || readOnly) return false
-    if (targetSelection.kind === 'transition') {
-      const transition = activeShow.transitions?.find((candidate) => candidate.id === targetSelection.transitionId)
-      if (!transition || transition.kind === 'cut') return false
-      closeDetailPanel()
-      closePinnedDetailForSelection(targetSelection)
-      void removeBoundaryTransition(activeShow.id, transition.id)
-      return true
-    }
-    if (targetSelection.kind === 'clip') {
-      const compositionOwner = findTimelineClipOwner(activeShow.composition, targetSelection.clipId)
-      const visibleCompositionOwner = findTimelineClipOwner(visibleComposition, targetSelection.clipId)
-      const legacyClipId = activeShow.cells.some((cell) => cell.id === targetSelection.clipId)
-        ? targetSelection.clipId
-        : visibleSourceCellIdByPlacementId?.[targetSelection.clipId]
-      const legacyClipExists = Boolean(
-        legacyClipId && activeShow.cells.some((cell) => cell.id === legacyClipId),
-      )
-      if (!compositionOwner && !visibleCompositionOwner && !legacyClipExists) {
-        return requestDeleteClip(targetSelection, null, null)
-      }
-      return requestDeleteClip(
-        targetSelection,
-        activeShow.composition ?? visibleComposition,
-        compositionOwner ?? visibleCompositionOwner,
-      )
-    }
+  const requestDeleteSelection = useCallback((targetSelection: ShowSelection): boolean => {
+    if (readOnly) return false
     if (targetSelection.kind === 'group') {
-      if (!activeShow.composition?.groupOccurrences?.some((occurrence) => occurrence.id === targetSelection.occurrenceId)) return false
-      const composition = deleteShowGroupOccurrence(activeShow.composition, targetSelection.occurrenceId)
-      if (composition === activeShow.composition) return false
-      closeDetailPanel()
-      closePinnedDetailForSelection(targetSelection)
-      setSelection({ kind: 'show' })
-      updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+      const occurrenceId = targetSelection.occurrenceId
+      const record = preparedV2CaptureRef.current?.record
+      if (!record?.composition.groupOccurrences.some((occurrence) => occurrence.id === occurrenceId)) return false
+      requestV2GroupOccurrenceEdit({ kind: 'delete-occurrence', occurrenceId })
       return true
     }
-    if (targetSelection.kind === 'zone') {
-      if (activeShow.zones.length <= 1 || !activeShow.zones.some((zone) => zone.id === targetSelection.zoneId)) return false
-      closeDetailPanel()
-      closePinnedDetailForSelection(targetSelection)
-      void removeZone(activeShow.id, targetSelection.zoneId)
-      return true
-    }
-    return false
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, recordVersion, removeBoundaryTransition, removeZone, requestDeleteClip, requestDeleteClipV2, requestV2GroupOccurrenceEdit, setSelection, updateShowInBackground])
+    if (targetSelection.kind !== 'clip') return false
+    return requestDeleteClipV2(targetSelection.clipId, false)
+  }, [readOnly, requestDeleteClipV2, requestV2GroupOccurrenceEdit])
   useEffect(() => {
     if (!clipFeedback) return
     const timeout = window.setTimeout(() => setClipFeedback(null), 1100)
@@ -2785,34 +2410,6 @@ export function ShowEditor({
           ? `Spatial selection needs the map's ${savedStageFixedCount} points to match the ${spatialBackingContract.pixelCount}-pixel output.`
           : null
     : null
-  const compilationControllerZones = useMemo(
-    () => activeShow ? resolveShowCompilationControllerZones(activeShow) : undefined,
-    [activeShow],
-  )
-  const artifactCompilationInput = useMemo(() => activeShow ? {
-    show: activeShow,
-    userPatterns,
-    libraries: compileLibrarySet,
-    controllerZones: compilationControllerZones,
-    stageDimension,
-    targetPixelCount: activeShow.outputContract?.kind === 'portable-2d'
-      ? activeControllerProfile?.lastKnownPixelCount
-      : undefined,
-  } : null, [
-    activeControllerProfile?.lastKnownPixelCount,
-    activeShow,
-    compilationControllerZones,
-    compileLibrarySet,
-    stageDimension,
-    userPatterns,
-  ])
-  const [deferredArtifactCompilationInput, setDeferredArtifactCompilationInput] = useState(artifactCompilationInput)
-  useEffect(() => {
-    if (deferredArtifactCompilationInput === artifactCompilationInput) return
-    const timeout = window.setTimeout(() => setDeferredArtifactCompilationInput(artifactCompilationInput), 0)
-    return () => window.clearTimeout(timeout)
-  }, [artifactCompilationInput, deferredArtifactCompilationInput])
-  const artifactCompilationReady = artifactCompilationInput === deferredArtifactCompilationInput
   const deliveredShow: { id: string; name: string } | null = lessonProjectionV2
   // The authored-v2 artifact comes from the same closed preparation the Stage
   // reads, so the Source code readout and its diagnostics describe one compile
@@ -2833,40 +2430,6 @@ export function ShowEditor({
     if (prepared?.status === 'ready') return { artifact: prepared.bundle.artifact, error: null, artifactBlocker }
     return { artifact: null, error: prepared?.status === 'refused' ? prepared.message : null, artifactBlocker }
   }, [activeControllerProfile?.lastKnownPixelCount, presentationV2Capture, savedShowV2])
-  const timelineProjection = useMemo<{
-    composition: ShowCompositionV1
-    sourceCellIdByPlacementId: Record<string, string>
-  } | null>(() => {
-    if (!activeShow) return null
-    if (activeShow.composition) {
-      return {
-        composition: activeShow.composition,
-        sourceCellIdByPlacementId: {},
-      }
-    }
-    try {
-      const projection = projectFlatShowToCompositionV1WithCellOrigins(activeShow, {
-        byCellId: Object.fromEntries(activeShow.cells.map((cell) => {
-          const source = cell.pattern.kind === 'user'
-            ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.src
-            : DEMOS[resolveStockPatternId(cell.pattern.id)]
-          if (source === undefined) throw new Error(`Pattern source unavailable for Clip ${cell.id}.`)
-          return [cell.id, source]
-        })),
-        stageDimension,
-      })
-      return {
-        ...projection,
-        composition: {
-          ...projection.composition,
-          executionModel: 'deterministic-loop',
-        },
-      }
-    } catch {
-      return null
-    }
-  }, [activeShow, stageDimension, userPatterns])
-  const timelineComposition = timelineProjection?.composition ?? null
   useLayoutEffect(() => {
     const updateOverflow = () => {
       const scroll = showEditorPaneRef.current?.querySelector<HTMLElement>('[data-testid="show-editor-scroll"]')
@@ -2930,106 +2493,51 @@ export function ShowEditor({
       window.cancelAnimationFrame(frame)
       observer.disconnect()
     }
-  }, [onTimelineMinimumHeightChange, onTimelineContentHeightChange, showId, showNoteOpen, timelineComposition])
+  }, [onTimelineMinimumHeightChange, onTimelineContentHeightChange, showId, showNoteOpen])
   useEffect(() => {
     // The v2 backing names the authored Clip, and inside a Group the occurrence
     // that owns it, so the Stage outline survives edits and history (#1065).
-    if (recordVersion === 2) {
-      if (!savedShowV2) {
-        setDiagnosticFocus(null)
-        return
-      }
-      if (selection.kind === 'clip') {
-        const clip = savedShowV2.composition.clips.find((candidate) => candidate.id === selection.clipId)
-        if (clip) {
-          setDiagnosticFocus({
-            recordVersion: 2,
-            showId: savedShowV2.id,
-            zoneId: clip.zoneId,
-            clipId: clip.id,
-            occurrenceId: null,
-          })
-          return
-        }
-      }
-      if (selection.kind === 'group-clip') {
-        const occurrence = savedShowV2.composition.groupOccurrences
-          .find((candidate) => candidate.id === selection.occurrenceId)
-        if (occurrence) {
-          setDiagnosticFocus({
-            recordVersion: 2,
-            showId: savedShowV2.id,
-            zoneId: occurrence.zoneId,
-            clipId: selection.placementId,
-            occurrenceId: occurrence.id,
-          })
-          return
-        }
-      }
+    if (!savedShowV2) {
       setDiagnosticFocus(null)
       return
     }
-    if (!activeShow) {
-      setDiagnosticFocus(null)
-      return
-    }
-
     if (selection.kind === 'clip') {
-      const owner = findTimelineClipOwner(timelineComposition, selection.clipId)
-      const sourceCellId = timelineProjection?.sourceCellIdByPlacementId[selection.clipId]
-      const cell = activeShow.cells.find((candidate) => candidate.id === (sourceCellId ?? selection.clipId))
-      if (owner) {
+      const clip = savedShowV2.composition.clips.find((candidate) => candidate.id === selection.clipId)
+      if (clip) {
         setDiagnosticFocus({
-          showId: activeShow.id,
-          sceneId: owner.sceneId,
-          zoneId: owner.zoneId,
-          placementId: sourceCellId ?? owner.placementId,
-        })
-        return
-      }
-      if (cell) {
-        setDiagnosticFocus({
-          showId: activeShow.id,
-          sceneId: cell.sceneId,
-          zoneId: cell.zoneId,
-          placementId: cell.id,
+          recordVersion: 2,
+          showId: savedShowV2.id,
+          zoneId: clip.zoneId,
+          clipId: clip.id,
+          occurrenceId: null,
         })
         return
       }
     }
-
     if (selection.kind === 'group-clip') {
-      const occurrence = timelineComposition?.groupOccurrences
-        ?.find((candidate) => candidate.id === selection.occurrenceId)
+      const occurrence = savedShowV2.composition.groupOccurrences
+        .find((candidate) => candidate.id === selection.occurrenceId)
       if (occurrence) {
         setDiagnosticFocus({
-          showId: activeShow.id,
-          sceneId: occurrence.sceneId,
+          recordVersion: 2,
+          showId: savedShowV2.id,
           zoneId: occurrence.zoneId,
-          placementId: `${occurrence.id}:${selection.placementId}`,
+          clipId: selection.placementId,
+          occurrenceId: occurrence.id,
         })
         return
       }
     }
-
     setDiagnosticFocus(null)
-  }, [activeShow, recordVersion, savedShowV2, selection, setDiagnosticFocus, timelineComposition, timelineProjection?.sourceCellIdByPlacementId])
+  }, [savedShowV2, selection, setDiagnosticFocus])
   // Controls are discovered from the Pattern source, so each backing only has to
   // name its own runtime instances; the discovery below is shared (#1065).
-  const controlSourceInstances = useMemo(() => {
-    if (recordVersion === 2) {
-      return lessonProjectionV2
-        ? materializeShowGroupsV2(lessonProjectionV2).composition.patternInstances
-          .map((instance) => ({ id: instance.id, pattern: instance.pattern }))
-        : []
-    }
-    return timelineComposition
-      ? [
-          ...timelineComposition.patternInstances,
-          ...projectShowGroupRuntimePatternInstances(timelineComposition),
-        ].map((instance) => ({ id: instance.id, pattern: instance.pattern }))
+  const controlSourceInstances = useMemo(() => (
+    lessonProjectionV2
+      ? materializeShowGroupsV2(lessonProjectionV2).composition.patternInstances
+        .map((instance) => ({ id: instance.id, pattern: instance.pattern }))
       : []
-  }, [recordVersion, lessonProjectionV2, timelineComposition])
+  ), [lessonProjectionV2])
   const patternControlsByInstanceId = useMemo(() => Object.fromEntries(controlSourceInstances.map((instance) => {
     try {
       return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {}, instance.pattern.kind === 'stock' ? resolveStockPatternId(instance.pattern.id) : undefined)]
@@ -3043,30 +2551,20 @@ export function ShowEditor({
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
       const target = event.target
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
-      if (requestDeleteSelection(
-        selection,
-        timelineComposition,
-        timelineProjection?.sourceCellIdByPlacementId,
-      )) event.preventDefault()
+      if (requestDeleteSelection(selection)) event.preventDefault()
     }
     document.addEventListener('keydown', handleDelete)
     return () => document.removeEventListener('keydown', handleDelete)
-  }, [requestDeleteSelection, selection, timelineComposition, timelineProjection?.sourceCellIdByPlacementId])
+  }, [requestDeleteSelection, selection])
   useEffect(() => {
     if (!isolatedGroupOccurrenceId) return
     // Isolation survives only while its Group still resolves. The authored-v2
     // record answers that from its own composition; reading the v1 sidecar
     // there would bounce straight back out of an isolation that is valid.
-    const occurrence = recordVersion === 2
-      ? savedShowV2?.composition.groupOccurrences
-        .find((candidate) => candidate.id === isolatedGroupOccurrenceId)
-      : timelineComposition?.groupOccurrences
-        ?.find((candidate) => candidate.id === isolatedGroupOccurrenceId)
-    const definition = recordVersion === 2
-      ? savedShowV2?.composition.groupDefinitions
-        .find((candidate) => candidate.id === occurrence?.definitionId)
-      : timelineComposition?.groupDefinitions
-        ?.find((candidate) => candidate.id === occurrence?.definitionId)
+    const occurrence = savedShowV2?.composition.groupOccurrences
+      .find((candidate) => candidate.id === isolatedGroupOccurrenceId)
+    const definition = savedShowV2?.composition.groupDefinitions
+      .find((candidate) => candidate.id === occurrence?.definitionId)
     if (occurrence && definition) return
     const timeout = window.setTimeout(() => {
       closeDetailPanel()
@@ -3074,18 +2572,13 @@ export function ShowEditor({
       setSelection({ kind: 'show' })
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [closeDetailPanel, isolatedGroupOccurrenceId, recordVersion, savedShowV2, setSelection, timelineComposition])
+  }, [closeDetailPanel, isolatedGroupOccurrenceId, savedShowV2, setSelection])
   useEffect(() => {
-    if (recordVersion === 2 ? !savedShowV2 : !activeShow) return
+    if (!savedShowV2) return
     const pinnedSelectionMissing = Boolean(
-      pinnedDetail && (recordVersion === 2 && savedShowV2
-        ? !showSelectionExistsV2(savedShowV2, pinnedDetail.selection)
-        : !showSelectionExists(activeShow!, timelineComposition, pinnedDetail.selection)),
+      pinnedDetail && !showSelectionExistsV2(savedShowV2, pinnedDetail.selection),
     )
-    const transientSelectionMissing = detailPanelOpen
-      && (recordVersion === 2 && savedShowV2
-        ? !showSelectionExistsV2(savedShowV2, selection)
-        : !showSelectionExists(activeShow!, timelineComposition, selection))
+    const transientSelectionMissing = detailPanelOpen && !showSelectionExistsV2(savedShowV2, selection)
     if (!pinnedSelectionMissing && !transientSelectionMissing) return
     const timeout = window.setTimeout(() => {
       if (pinnedSelectionMissing) setPinnedDetail(null)
@@ -3095,20 +2588,20 @@ export function ShowEditor({
       }
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [activeShow, closeDetailPanel, detailPanelOpen, pinnedDetail, recordVersion, savedShowV2, selection, setSelection, timelineComposition])
+  }, [closeDetailPanel, detailPanelOpen, pinnedDetail, savedShowV2, selection, setSelection])
   const propertyLanesV2 = useMemo(() => (
-    recordVersion === 2 && lessonProjectionV2
+    lessonProjectionV2
       ? projectShowEditorPropertyLanesV2(lessonProjectionV2, Object.values(patternControlsByInstanceId).flat())
       : null
-  ), [patternControlsByInstanceId, recordVersion, lessonProjectionV2])
+  ), [patternControlsByInstanceId, lessonProjectionV2])
   const sampleRepeatAtV2 = useMemo(() => (
-    recordVersion === 2 && lessonProjectionV2 && showV2SampleRepeatLaneVisible(lessonProjectionV2)
+    lessonProjectionV2 && showV2SampleRepeatLaneVisible(lessonProjectionV2)
       ? (timeMs: number) => repeatScaleAt(lessonProjectionV2, timeMs)
       : null
-  ), [recordVersion, lessonProjectionV2])
+  ), [lessonProjectionV2])
   const zoneMapV2 = useMemo(() => (
-    recordVersion === 2 && lessonProjectionV2 ? projectShowEditorZoneMapV2(lessonProjectionV2) : null
-  ), [recordVersion, lessonProjectionV2])
+    lessonProjectionV2 ? projectShowEditorZoneMapV2(lessonProjectionV2) : null
+  ), [lessonProjectionV2])
   const layerTransitionPlan = layerTransitionTarget?.v2Cut && savedShowV2
       ? planShowV2LayerTransitionInsertion(preparedV2Capture?.record ?? savedShowV2, layerTransitionTarget.v2Cut.junctionKey)
       : layerTransitionTarget?.v2GroupCut && savedShowV2
@@ -3119,18 +2612,9 @@ export function ShowEditor({
             layerTransitionTarget.v2GroupCut.toClipId,
           )
         : null
-  const pendingConnectedTransitions = timelineComposition && compositionClipPendingDelete
-    ? showLayerTransitionsConnectedToClip(timelineComposition, compositionClipPendingDelete.placementId)
-    : []
-  const pendingConnectedTransitionsV2 = savedShowV2 && v2ClipPendingDelete
-    ? showV2ConnectedTransitionIds(savedShowV2, v2ClipPendingDelete)
-    : []
-  const pendingConnectedCount = compositionClipPendingDelete
-    ? pendingConnectedTransitions.length
-    : pendingConnectedTransitionsV2.length
-  const endInspectorPreview = () => {
-    if (activeShow) useShowPreviewOverrideStore.getState().clear(activeShow.id)
-  }
+  const pendingConnectedCount = savedShowV2 && v2ClipPendingDelete
+    ? showV2ConnectedTransitionIds(savedShowV2, v2ClipPendingDelete).length
+    : 0
   // The delivered-source inventory the gauge reports is measured from the same
   // export the Show would deliver, so each backing measures its own record
   // through its own export owner rather than the artifact bytes alone (#1065).
@@ -3226,8 +2710,7 @@ export function ShowEditor({
   }, [activeControllerFirmware, activeControllerMapDim, compiled.artifact, compiled.artifactBlocker, controllerCompatibilityContext, inspectableShowExport])
   const preparedDeliverySnapshot = useMemo<ShowDeliverySnapshot | null>(() => {
     if (
-      !artifactCompilationReady
-      || !deliveryControllerSession
+      !deliveryControllerSession
       || !deliveredShow
       || !compiled.artifact
       || compiled.artifactBlocker
@@ -3243,7 +2726,6 @@ export function ShowEditor({
     }
   }, [
     activeIp,
-    artifactCompilationReady,
     compiled.artifact,
     compiled.artifactBlocker,
     deliveredShow,
@@ -3361,11 +2843,9 @@ export function ShowEditor({
     lastRunProgramId: activeIp ? lastRunProgramId[activeIp]?.[showArtifactId] : undefined,
     activeProgramId,
   })
-  const deliveryBlocker = !artifactCompilationReady
-    ? 'Rebuilding Show...'
-    : compiled.error
-      ? presentShowDiagnostic(compiled.error)
-      : compiled.artifactBlocker
+  const deliveryBlocker = compiled.error
+    ? presentShowDiagnostic(compiled.error)
+    : compiled.artifactBlocker
         ? presentShowDiagnostic(compiled.artifactBlocker)
         : compilePressure?.status === 'blocked'
           ? compilePressure.blocks.join(' ')
@@ -3485,21 +2965,14 @@ export function ShowEditor({
     })),
   ]
 
-  if (!activeShow && !(recordVersion === 2 && savedShowV2 && timelineViewV2)) {
+  if (!(savedShowV2 && timelineViewV2)) {
     return (
       <div className="flex h-full items-center justify-center bg-zinc-950/40 font-mono text-xs text-zinc-500">
         Show not found
       </div>
     )
   }
-  // The v1 record, its whole-record update wrappers and every legacy pure
-  // mutation owner stay private to the v1 backing (#1065). A v2 write that this
-  // tracer has not connected reaches `null` here and returns an internal
-  // no-change result, so it never produces a record, a history entry or a save.
-  // The version fence is the declared backing, repeated here so a legacy write
-  // cannot become reachable through some other record source later.
-  const legacyShow: ShowRecord | null = recordVersion === 1 ? activeShow : null
-  const editorRecordId = legacyShow?.id ?? savedShowV2!.id
+  const editorRecordId = savedShowV2.id
 
   const exportAuthoredShowFile = async () => {
     if (!savedShowV2) return
@@ -3660,7 +3133,6 @@ export function ShowEditor({
           disabled={!hasStockDraft && !selectedReferencePatterns}
           onClick={() => {
             if (isV2LessonDraft) resetShowV2LessonDraft(showId)
-            else resetStockShowDraft(showId)
             clearReferencePatterns(showId)
           }}
         >
@@ -4045,7 +3517,7 @@ export function ShowEditor({
             // this the panel drops the Clip body layout and sizes to content
             // where v1 fills the available height (#1065).
             const detailIsV2Clip = Boolean(
-              recordVersion === 2 && detailClipId
+              detailClipId
                 && savedShowV2?.composition.clips.some((clip) => clip.id === detailClipId),
             )
             const detailIsClip = detail.selection.kind === 'group-clip' || detailIsV2Clip
@@ -4137,7 +3609,6 @@ export function ShowEditor({
                   onRemoveRoutingTransferV2={commitV2RoutingTransferRemove}
                   onPropertyAnimationChangeV2={commitV2PropertyAnimationChange}
                   onGroupPropertyAnimationChangeV2={commitV2GroupPropertyAnimationChange}
-                  onPreviewEnd={endInspectorPreview}
                   onMakePatternIndependentV2={(clipId) => {
                     // Independence and rejoin reach the v2 clip-sharing door;
                     // an unchanged or refused plan writes nothing, as v1
@@ -4388,7 +3859,7 @@ export function ShowEditor({
               onClose={() => setLayerTransitionTarget(null)}
             />
           )}
-          <AlertDialogRoot open={compositionClipPendingDelete !== null || v2ClipPendingDelete !== null} onOpenChange={(open) => { if (!open) { setCompositionClipPendingDelete(null); setV2ClipPendingDelete(null) } }}>
+          <AlertDialogRoot open={v2ClipPendingDelete !== null} onOpenChange={(open) => { if (!open) setV2ClipPendingDelete(null) }}>
             <AlertDialogContent className="z-[90]">
               <AlertDialogTitle>Remove connected Clip?</AlertDialogTitle>
               <AlertDialogDescription>
@@ -4400,17 +3871,7 @@ export function ShowEditor({
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
-                    if (compositionClipPendingDelete && timelineComposition) {
-                      requestDeleteClip(
-                        { kind: 'clip', clipId: compositionClipPendingDelete.placementId },
-                        timelineComposition,
-                        compositionClipPendingDelete,
-                        true,
-                      )
-                    } else if (v2ClipPendingDelete) {
-                      requestDeleteClipV2(v2ClipPendingDelete, true)
-                    }
-                    setCompositionClipPendingDelete(null)
+                    if (v2ClipPendingDelete) requestDeleteClipV2(v2ClipPendingDelete, true)
                     setV2ClipPendingDelete(null)
                   }}
                 >
@@ -9451,7 +8912,6 @@ function ContextualInspector({
   onRemoveRoutingTransferV2,
   onPropertyAnimationChangeV2,
   onGroupPropertyAnimationChangeV2,
-  onPreviewEnd,
   onMakePatternIndependentV2,
   onRejoinPatternV2,
   onRemoveClipV2,
@@ -9492,7 +8952,6 @@ function ContextualInspector({
   onRemoveRoutingTransferV2?: (occurrenceId: string) => void
   onPropertyAnimationChangeV2?: (clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange) => boolean
   onGroupPropertyAnimationChangeV2?: (occurrenceId: string, clipId: string, change: ShowPropertyAnimationChange) => boolean
-  onPreviewEnd: () => void
   onMakePatternIndependentV2?: (clipId: string) => void
   onRejoinPatternV2?: (clipId: string, targetInstanceId: string) => void
   onRemoveClipV2?: (clipId: string) => void
@@ -9632,7 +9091,6 @@ function ContextualInspector({
               if (selection.kind !== 'group-clip') return false
               return onGroupPropertyAnimationChangeV2?.(selection.occurrenceId, selection.placementId, change) ?? false
             }}
-          onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
           // A Group Clip use reports its shared runtime without offering a
           // refused write, exactly as v1 passes instanceOwnership={null} for

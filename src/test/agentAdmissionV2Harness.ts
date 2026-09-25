@@ -53,7 +53,6 @@ export function agentV2Binding(showId: string): AgentEditorRecordBinding & { sto
     if (current && current !== capture.record) capture = captureOf(current)
   })
   return {
-    recordVersion: 2,
     capture: () => capture,
     isCurrentCapture: () => useShowStore.getState().showV2Pilots[showId] === capture.record,
     stop,

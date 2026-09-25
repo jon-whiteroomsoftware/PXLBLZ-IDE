@@ -51,8 +51,6 @@ export function observeAgentLocation(listener: () => void): () => void {
  * against one Stage preparation.
  */
 export interface AgentEditorRecordBinding {
-  /** Ignored: the admission holds only a v2 record. 2d-2d removes it. */
-  recordVersion?: 1 | 2
   capture?: () => ShowV2PilotPreparedCapture | null
   /** Trusted route-lifetime and captured-dependency check the v2 admission calls back into. */
   isCurrentCapture?: () => boolean

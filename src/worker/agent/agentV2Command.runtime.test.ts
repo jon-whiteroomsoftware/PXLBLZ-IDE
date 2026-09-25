@@ -171,7 +171,6 @@ it('runs the #1029 sequence over a v2 record through the real MCP path and reope
     if (current && current !== capture.record) capture = captureShowStageEditV2(current, dependencies)
   })
   const admission = createAgentEditorAdmission(record.id, () => ({ playheadMs: 0 }), undefined, undefined, {
-    recordVersion: 2,
     capture: () => capture,
     isCurrentCapture: () => useShowStore.getState().showV2Pilots[record.id] === capture.record,
   })
@@ -301,7 +300,6 @@ async function boundEditor(options: { failSave?: boolean } = {}) {
     if (current && current !== capture.record) capture = captureShowStageEditV2(current, dependencies)
   })
   const admission = createAgentEditorAdmission(record.id, () => ({ playheadMs: 0 }), undefined, undefined, {
-    recordVersion: 2,
     capture: () => capture,
     isCurrentCapture: () => useShowStore.getState().showV2Pilots[record.id] === capture.record,
   })

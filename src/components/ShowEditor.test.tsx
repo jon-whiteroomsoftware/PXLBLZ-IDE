@@ -214,7 +214,7 @@ describe('ShowEditor (#318)', () => {
     const twoClips = createDefaultShow('show-disabled-reasons', 'Disabled reasons', 1000)
     const show = removeShowClip(twoClips, 'cell-2')
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const describedReason = (control: HTMLElement) => {
       const id = control.getAttribute('aria-describedby')
@@ -280,7 +280,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       librariesLoaded: true,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     const source = screen.getByRole('combobox', { name: 'Source pattern' })
     await user.click(source)
@@ -299,7 +299,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   })
 
   it('renders the missing-Show fallback for an unknown route (#849)', () => {
-    render(<ShowEditor showId="missing-show" recordVersion={2} />)
+    render(<ShowEditor showId="missing-show" />)
 
     expect(screen.getByText('Show not found')).toBeInTheDocument()
   })
@@ -309,7 +309,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-clip-diagnostic-focus', 'Clip diagnostic focus', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
 
     // v2 focus names the Clip, not a Scene placement (ShowEditor.tsx v2 clip focus); the converter renames cell-1's placement.
@@ -326,7 +326,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-unified-workspace', 'Unified workspace', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
     const toolbar = within(timeline).getByRole('toolbar', { name: 'Show timeline controls' })
@@ -348,7 +348,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-boundary-identity', 'Boundary identity', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
     }))
@@ -363,7 +363,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-scene-control-removal', 'Control removal', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Select CometLoom' }))
 
     const inspector = screen.getByRole('region', { name: 'Clip properties' })
@@ -376,7 +376,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-flat-timeline', 'Flat timeline', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
     const layer = clip.closest('[data-show-layer-kind]')!
@@ -397,7 +397,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-toolbar-states', 'Toolbar states', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const add = screen.getByRole('button', { name: 'Add to Show' })
     const split = screen.getByRole('button', { name: 'Split at playhead' })
@@ -426,7 +426,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-unified-marker-mode', 'Unified marker mode', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const hideMarkers = screen.getByRole('button', { name: 'Hide Markers' })
     expect(hideMarkers).toHaveAttribute('aria-pressed', 'true')
@@ -443,7 +443,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-unified-time-canvas', 'Unified time canvas', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const finalClip = screen.getByRole('button', { name: 'Select CometLoom' })
     const clipTimeCanvas = finalClip.parentElement
@@ -522,7 +522,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-zone-disclosure', 'Zone disclosure', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
     expect(within(timeline).queryByRole('button', { name: /zone main properties/i })).not.toBeInTheDocument()
@@ -564,7 +564,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
     await user.click(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Open Zone Map' }))
@@ -585,7 +585,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
 
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
@@ -616,7 +616,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     const grid = screen.getByTestId('show-timeline-grid')
     // The map no longer hosts panel-opening rows (#694), and opening it
@@ -645,7 +645,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     const grid = screen.getByTestId('show-timeline-grid')
 
@@ -669,7 +669,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     const grid = screen.getByTestId('show-timeline-grid')
     expect(within(grid).getByText('24px')).toBeInTheDocument()
@@ -691,7 +691,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     await user.click(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Collapse zone accent' }))
 
@@ -721,7 +721,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     usePreviewStore.setState({ isRunning: false })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     const grid = screen.getByTestId('show-timeline-grid')
 
@@ -756,7 +756,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     const grid = screen.getByTestId('show-timeline-grid')
 
@@ -790,7 +790,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    const { unmount } = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const { unmount } = render(<ShowEditor showId={editor.showId} />)
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
 
     expect(within(timeline).getAllByRole('button', { name: /^Collapse zone / })).toHaveLength(2)
@@ -818,7 +818,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(useShowEditorSessionStore.getState().collapsedZoneIdsByShowId[show.id]).toEqual(['zone-2'])
 
     unmount()
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     expect(screen.getByRole('img', { name: 'Collapsed zone accent timeline' })).toBeInTheDocument()
   })
 
@@ -827,7 +827,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-zone-layout-authoring', 'Zone Layout authoring', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.queryByRole('button', { name: 'Add routing layout' })).not.toBeInTheDocument()
@@ -855,7 +855,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 0 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
@@ -888,7 +888,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = addShowZone(createDefaultShow('show-zone-map-marquee', 'Zone map marquee', 1000), { name: 'accent' })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     await user.click(screen.getByRole('button', { name: 'Open Zone Map' }))
     const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
@@ -905,7 +905,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 10_000 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
@@ -953,7 +953,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 0 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
     const dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
@@ -975,7 +975,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = appendShowLayoutInterval(once, { layoutId: base.routingLayouts[1].id, durationMs: 5_000 })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const first = screen.getByRole('button', { name: 'Select Physical ranges routing interval 1' })
     const second = screen.getByRole('button', { name: 'Select Physical ranges routing interval 2' })
@@ -1001,7 +1001,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 31_000 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Time' }))
@@ -1017,7 +1017,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 4_023 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const markerSource = screen.getByRole('button', { name: 'Add Marker at playhead' })
     expect(screen.getByTestId('show-timeline-ruler')).not.toContainElement(markerSource)
@@ -1057,7 +1057,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-marker-drag-create', 'Marker drag create', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const markerSource = screen.getByRole('button', { name: 'Add Marker at playhead' })
     const ruler = screen.getByTestId('show-timeline-ruler')
@@ -1096,7 +1096,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-marker-drag-grid', 'Marker drag grid', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const markerSource = screen.getByRole('button', { name: 'Add Marker at playhead' })
     const ruler = screen.getByTestId('show-timeline-ruler')
@@ -1131,7 +1131,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 4_023 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
     const marker = await screen.findByRole('button', { name: 'Marker 1 at 4.023 seconds' })
 
@@ -1165,7 +1165,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-end-grid', 'Show End grid', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const surface = screen.getByLabelText('Timeline Markers and Show End')
     vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
@@ -1192,7 +1192,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 4_023 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
 
     expect(await screen.findByRole('status', { name: 'Marker added at playhead' })).toHaveTextContent('Marker added')
@@ -1207,7 +1207,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 10_000 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
 
     const marker = await screen.findByRole('button', { name: 'Marker 1 at 10 seconds' })
@@ -1236,7 +1236,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 10_000 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
     await user.click(screen.getByRole('button', { name: 'Marker 1 at 10 seconds' }))
 
@@ -1252,7 +1252,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-end-visuals', 'Show End visuals', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const anchor = screen.getByTestId('show-timeline-end-anchor')
     const scrollRegion = screen.getByTestId('show-timeline-scroll-region')
@@ -1303,7 +1303,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     useShowTransportStore.setState({ showId: show.id, positionMs: 10_000 })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
 
@@ -1326,7 +1326,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-end-edit', 'Show End', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Show End at 62 seconds' }))
     const details = screen.getByRole('dialog', { name: 'Show End details' })
@@ -1353,7 +1353,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-end-drag', 'Show End drag', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const surface = screen.getByLabelText('Timeline Markers and Show End')
     vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
@@ -1418,7 +1418,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
     expect(within(timeline).getByRole('button', { name: 'Select Composition-only Rings' })).toBeInTheDocument()
@@ -1456,7 +1456,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Select Group Pulse phrase' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
@@ -1552,7 +1552,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.doubleClick(screen.getByRole('button', { name: 'Select Group Pulse phrase' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
 
@@ -1632,7 +1632,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.doubleClick(screen.getByRole('button', { name: 'Select Group Accent phrase' }))
     await user.click(screen.getByRole('button', { name: 'Pin Entity Detail Panel' }))
     await user.click(within(screen.getByRole('status', { name: 'Group isolation: Accent phrase' }))
@@ -1719,7 +1719,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     fireEvent.doubleClick(screen.getAllByRole('button', { name: 'Select Group Transition phrase' })[0])
 
     const transitions = screen.getAllByRole('button', {
@@ -1770,7 +1770,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     ])
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Select Solo' }))
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
@@ -1790,7 +1790,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     ])
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Select Outgoing' }))
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
@@ -1815,7 +1815,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(validateShowRecordV2(record)).toEqual([])
     const editor = openV2EditorForRecord(record)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Select Penultimate' }))
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
@@ -1834,7 +1834,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     ])
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Select Middle' }))
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
@@ -1865,7 +1865,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     ])
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Select Middle' }))
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
@@ -1916,7 +1916,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     // The converter also carries the empty Scene boundary as a whole-output Transition (spec §10 row 1),
     // so the Cut's own Transitions are the ones whose participants join these Clips.
     const cutTransitions = () => editor.state().record.composition.transitions
@@ -2027,7 +2027,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     // v2 keeps Clips flat with a layerId; the converter keeps the overlay's name (showRecordV1ToV2.ts).
     const clipsOn = (onOverlay: boolean) => {
       const record = editor.state().record
@@ -2153,7 +2153,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const saved = () => editor.state().record.composition.clips.find((clip) => clip.id === 'placement-drag-modifiers')
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const clip = screen.getByRole('button', { name: 'Select Modifier Rings' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
     Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
@@ -2210,7 +2210,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     expect(editor.state().record.composition.transitions.map((transition) => transition.id)).toContain('transition-scene-1')
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
     Object.defineProperty(layer, 'getBoundingClientRect', {
       value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
@@ -2276,7 +2276,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getAllByRole('button', { name: 'Select Refusal source' })[0])
 
     const start = screen.getByRole('textbox', { name: 'Start seconds exact time' })
@@ -2302,7 +2302,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-domain-slider-detail', 'Domain slider detail', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
 
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
@@ -2329,7 +2329,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     usePreviewStore.setState({ isRunning: false })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
 
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
@@ -2409,7 +2409,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Clip' }))
 
@@ -2432,7 +2432,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const user = userEvent.setup()
     const show = createDefaultShow('show-selected-clip-ring', 'Selected Clip ring', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
     await user.click(clip)
@@ -2447,7 +2447,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-properties-route', 'Properties route', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
@@ -2499,7 +2499,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select Summary Rings' })
     expect(within(clip).getByText('.5–1x')).toBeInTheDocument()
@@ -2545,7 +2545,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getAllByRole('button', { name: 'Select CometLoom' })[0])
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     const summary = within(panel).getByRole('region', { name: 'Clip summary' })
@@ -2630,7 +2630,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     const summary = within(panel).getByRole('region', { name: 'Clip summary' })
@@ -2663,7 +2663,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    render(<ShowEditor showId={editor.showId} readOnly />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     const summary = within(panel).getByRole('region', { name: 'Clip summary' })
@@ -2698,7 +2698,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }]
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select CometLoom' })
     expect(within(clip).getByText('.5–1x')).toBeInTheDocument()
@@ -2717,7 +2717,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     useShowTransportStore.getState().openShow(show.id, 62_000)
     useShowTransportStore.getState().setPosition(show.id, 5_000)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
     }))
@@ -2771,7 +2771,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const participant = editor.state().record.composition.transitions[0].participants[0]
     const before = structuredClone(editor.state().record)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
     }))
@@ -2811,7 +2811,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const participant = editor.state().record.composition.transitions[0].participants[0]
     const before = structuredClone(editor.state().record)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', {
       name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
     }))
@@ -2879,7 +2879,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clips = screen.getAllByRole('button', { name: 'Select Summary Rings' })
     expect(within(clips[0]).getByText('75%')).toBeInTheDocument()
@@ -2917,7 +2917,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const clip = screen.getByRole('button', { name: 'Select Draggable Rings' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
     Object.defineProperty(clip, 'getBoundingClientRect', {
@@ -3002,7 +3002,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       markerSnapEnabled: false,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const clip = screen.getByRole('button', { name: 'Select Cancel Source' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
     Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
@@ -3093,7 +3093,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       markerSnapEnabled: true,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.getByRole('button', { name: 'Snap playhead' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'Snap target at 13.333 seconds' })).toBeInTheDocument()
@@ -3177,7 +3177,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       markerSnapEnabled: true,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select Short Marker Magnet' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -3262,7 +3262,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       markerSnapEnabled: false,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select Drop Contract' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -3350,7 +3350,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       markerSnapEnabled: true,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select Gutter Magnet' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -3421,7 +3421,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Layer' }))
 
@@ -3494,7 +3494,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const clip = screen.getByRole('button', { name: 'Select Zone Traveler' })
     const layers = document.querySelectorAll<HTMLElement>('[data-show-layer-kind="main"]')
     const targetLayer = layers[1]
@@ -3581,7 +3581,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const clip = screen.getByRole('button', { name: 'Select Resizable Rings' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
     Object.defineProperty(layer, 'getBoundingClientRect', {
@@ -3618,7 +3618,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       } as unknown as PersonalContentProvider)
     }
     const writes = () => editor.state().v2Writes + failedWrites
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const lane = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
     Object.defineProperty(lane, 'getBoundingClientRect', {
       value: () => ({ left: 0, right: 200, top: 0, bottom: 40, width: 200, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
@@ -3651,7 +3651,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it.each(['metadata', 'composition'] as const)('refuses an old resize listener after a current %s edit (#950)', async (kind) => {
     const show = createDefaultShow('stale-resize', 'Stale resize', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const lane = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
     Object.defineProperty(lane, 'getBoundingClientRect', {
       value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
@@ -3712,7 +3712,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       markerSnapEnabled: true,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select Marker Trim' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -3796,7 +3796,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       markerSnapEnabled: false,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select Playhead Trim' })
     const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -3833,7 +3833,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(record)
     const before = structuredClone(editor.state().record)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const selectedClip = screen.getByRole('button', { name: 'Select starter-b' })
     fireEvent.click(selectedClip)
     selectedClip.focus()
@@ -3855,7 +3855,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = structuredClone(editor.state().record)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const selectedClip = screen.getByRole('button', { name: 'Select CometLoom' })
     expect(selectedClip).toHaveAttribute(
       'data-show-selection-key',
@@ -3890,7 +3890,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-delete-flat-first-starter', 'Delete first starter', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     await user.keyboard('{Delete}')
 
@@ -3912,7 +3912,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-delete-flat-inspector', 'Delete flat inspector', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select CometLoom' }))
     await user.click(screen.getByRole('button', { name: 'Delete clip CometLoom' }))
 
@@ -3945,7 +3945,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       patternsLoaded: true,
     })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const selectedClip = screen.getByRole('button', { name: 'Select CometLoom' })
     fireEvent.click(selectedClip)
     act(() => usePatternStore.setState({ userPatterns: [] }))
@@ -3971,7 +3971,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = structuredClone(editor.state().record)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const firstProjectedPlacement = screen.getAllByRole('button', { name: 'Select TestPattern1D' })
       .find((button) => button.getAttribute('data-show-selection-key') === 'clip:placement-cell-1-scene-1')
     expect(firstProjectedPlacement).toBeDefined()
@@ -4000,7 +4000,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = structuredClone(editor.state().record)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const projectedPlacements = screen.getAllByRole('button', { name: 'Select TestPattern1D' })
     expect(projectedPlacements).toHaveLength(2)
     await user.click(projectedPlacements[0])
@@ -4057,7 +4057,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-add-menu', 'Add menu', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.queryByRole('button', { name: 'Add Clip at playhead' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add Layer' })).not.toBeInTheDocument()
@@ -4092,7 +4092,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = showSplitClipFixture()
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = editor.state().record
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
     await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
     await waitFor(() => {
@@ -4128,7 +4128,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = editor.state().record
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 5000))
     await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
     await waitFor(() => {
@@ -4155,7 +4155,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = editor.state().record
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, atMs))
     const split = screen.getByRole('button', { name: 'Split at playhead' })
     expect(split).toHaveAttribute('aria-disabled', 'true')
@@ -4173,7 +4173,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     delete show.composition!.scenes[1].zones[0].main[0].logicalClipId
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = editor.state().record
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
     const boundary = document.querySelector<HTMLElement>('[data-show-selection-key="transition:transition-scene-1"]')
     expect(boundary).not.toBeNull()
@@ -4199,7 +4199,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = editor.state().record
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
     if (kind === 'zone-layout') await openZoneLayout(user, 'Default')
     else if (kind === 'zone') {
@@ -4228,7 +4228,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = showSplitClipFixture()
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = editor.state().record
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 16000))
     if (partition === 'multi') {
       // v2 creates multi selection through the marquee; this row exercises
@@ -4259,7 +4259,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = editor.state().record
     const onLayer = (record: ShowRecordV2, layerId: string) => record.composition.clips.filter(clip => clip.layerId === layerId)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 5000))
     await user.click(document.querySelector<HTMLElement>('[data-show-selection-key="clip:clip-ov"]')!)
     await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
@@ -4295,7 +4295,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       })),
     }
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 3_500))
     await user.click(screen.getByRole('button', { name: 'Select Command Rings' }))
     await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
@@ -4347,7 +4347,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select Cut Crossing Rings' }))
     const clone = screen.getByRole('button', { name: 'Clone selection' })
     expect(clone).toBeEnabled()
@@ -4371,7 +4371,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-537-trails-ui', 'Trails UI', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
 
     const enabled = screen.getByRole('checkbox', { name: 'Enable Trails' })
@@ -4397,7 +4397,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const stock = STOCK_SHOWS[0]
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    render(<ShowEditor showId={editor.showId} readOnly />)
 
     expect(screen.getByText('Built-in Show')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Show preview/ })).toBeInTheDocument()
@@ -4412,7 +4412,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const stock = STOCK_SHOWS[0]
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    render(<ShowEditor showId={editor.showId} readOnly />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
     expect(screen.queryByRole('menuitem', { name: 'Clone' })).not.toBeInTheDocument()
@@ -4423,7 +4423,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-actions-keyboard', 'Show actions keyboard', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     const detailPanel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     expect(detailPanel).toBeInTheDocument()
@@ -4466,7 +4466,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-204-presentation-modes')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const stutter = screen.getAllByRole('button', { name: 'Select Kishimisu' })
       .find((button) => button.getAttribute('data-show-selection-key') === 'clip:clip-stutter')!
     await user.click(stutter)
@@ -4528,7 +4528,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const user = userEvent.setup()
     const editor = openV2EditorForRecord(convertForTest(legacyTwoClipShow('legacy-two-clip-show')))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    render(<ShowEditor showId={editor.showId} readOnly />)
 
     const signal = screen.getByRole('button', { name: 'Select SignalMandala' })
     const compass = screen.getByRole('button', { name: 'Select CompassRose' })
@@ -4559,7 +4559,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = { ...legacyTwoClipShow('show-issue-615') }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Select SignalMandala' }))
     expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
@@ -4604,7 +4604,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       },
     }
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly builtInContext={builtInContext} />)
+    render(<ShowEditor showId={editor.showId} readOnly builtInContext={builtInContext} />)
 
     const strip = screen.getByRole('region', { name: '101 Clips and Crossfade live strip' })
     expect(strip).toHaveClass('h-8', 'shrink-0')
@@ -4653,7 +4653,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     render(<div style={{ width: 367 }}>
       <ShowEditor
         showId={editor.showId}
-        recordVersion={2}
+       
         readOnly
         builtInContext={{
           track: stock.track,
@@ -4681,7 +4681,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     render(<ShowEditor
       showId={editor.showId}
-      recordVersion={2}
+     
       builtInContext={{
         track: stock.track,
         lesson: stock.lesson,
@@ -4751,7 +4751,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     render(<ShowEditor
       showId={editor.showId}
-      recordVersion={2}
+     
       builtInContext={{
         track: stock.track,
         lesson: stock.lesson,
@@ -4818,7 +4818,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       reference: stock.reference,
     }
 
-    const editor = render(<ShowEditor showId={v2.showId} recordVersion={2} builtInContext={builtInContext} />)
+    const editor = render(<ShowEditor showId={v2.showId} builtInContext={builtInContext} />)
 
     await user.click(screen.getByRole('combobox', { name: 'Try with Pattern' }))
     await user.click(screen.getByRole('option', { name: 'Caustics' }))
@@ -4838,7 +4838,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
 
     editor.unmount()
-    render(<ShowEditor showId={v2.showId} recordVersion={2} builtInContext={builtInContext} />)
+    render(<ShowEditor showId={v2.showId} builtInContext={builtInContext} />)
     expect(screen.getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Reset built-in Show' }))
@@ -4859,7 +4859,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-105-portable-zones')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const handles = screen.getAllByRole('separator', { name: /^Resize .+ (start|end)$/ })
     expect(handles.length).toBeGreaterThanOrEqual(8)
@@ -4882,7 +4882,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(stock.id)!))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    render(<ShowEditor showId={editor.showId} readOnly />)
 
     const lane = screen.getByRole('group', { name: 'SignalMandala brightness animation for Main' })
     const inlineLabel = within(lane).getByTestId('show-property-lane-inline-label')
@@ -4898,7 +4898,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     // v2 Property tracks are flat on the composition (showCompositionV2.ts propertyTracks).
     const track = () => editor.state().record.composition.propertyTracks[0]
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     await user.click(within(panel).getByRole('button', { name: 'Animate Brightness' }))
@@ -4968,7 +4968,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-animation-navigation', 'Animation navigation', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     await user.click(within(panel).getByRole('tab', { name: /^Playback/ }))
@@ -4998,7 +4998,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show.stageMapId = 'plane'
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     await user.click(within(panel).getByRole('tab', { name: /^Place/ }))
@@ -5087,7 +5087,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const labelFor = (accessibleName: string) => within(
       screen.getByRole('group', { name: accessibleName }),
@@ -5158,7 +5158,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     expect(screen.queryByText('Unsupported Property')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Animations/ })).not.toBeInTheDocument()
@@ -5178,7 +5178,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-scroll', 'Long Show', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.getByTestId('show-editor-scroll')).toHaveClass('overflow-auto', 'scrollbar-hidden')
     expect(screen.getByTestId('show-compile-bar')).toHaveClass('overflow-x-auto', 'scrollbar-hidden')
@@ -5189,7 +5189,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     usePreviewStore.setState({ isRunning: false })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'Fit timeline to Show' }), { code: 'Space' })
     expect(usePreviewStore.getState().isRunning).toBe(true)
@@ -5200,7 +5200,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     usePreviewStore.setState({ isRunning: false })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const playhead = screen.getByRole('slider', { name: 'Show playhead' })
     playhead.focus()
@@ -5214,7 +5214,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     usePreviewStore.setState({ isRunning: false })
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const navigator = screen.getByRole('slider', { name: 'Pan visible timeline range' })
     navigator.focus()
@@ -5226,7 +5226,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('seeks five seconds with arrows from ordinary Show page content without timeline focus (#63)', () => {
     const show = createDefaultShow('show-global-keyboard-seek', 'Global keyboard seek', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     act(() => usePreviewStore.setState({ isRunning: true }))
     act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
@@ -5241,7 +5241,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('leaves global Arrow and A Show shortcuts inactive in text-entry controls (#63)', () => {
     const show = createDefaultShow('show-editable-keyboard-guard', 'Editable keyboard guard', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
     const input = document.createElement('input')
@@ -5266,7 +5266,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   ])('leaves %s+Arrow available to the browser or focused page content (#63)', (_name, modifier) => {
     const show = createDefaultShow('show-modified-arrow-guard', 'Modified Arrow guard', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
     fireEvent.keyDown(document.body, { key: 'ArrowRight', ...modifier })
@@ -5280,7 +5280,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('ignores a global Arrow while transport is transiently open on another Show (#63)', () => {
     const show = createDefaultShow('show-transport-owner', 'Transport owner', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     useShowTransportStore.getState().openShow('other-show', 62_000)
     useShowTransportStore.getState().setPosition('other-show', 25_000)
@@ -5303,7 +5303,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   ])('leaves Arrow ownership with an %s Show rail folder (#63)', (_state, expanded, key) => {
     const show = createDefaultShow('show-rail-folder-arrow-guard', 'Rail folder Arrow guard', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const folder = document.createElement('li')
     folder.setAttribute('role', 'treeitem')
@@ -5324,7 +5324,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('clamps arrow-key Show seeks at the Show boundaries (#602)', () => {
     const show = createDefaultShow('show-keyboard-seek-clamp', 'Keyboard seek clamp', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
     act(() => useShowTransportStore.getState().setPosition(show.id, 2_000))
@@ -5340,7 +5340,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-keyboard-speed', 'Keyboard speed', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
     usePreviewStore.setState({ isRunning: false, speed: 4 })
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     fireEvent.keyDown(document, { key: '1' })
     expect(usePreviewStore.getState()).toMatchObject({ speed: 1, isRunning: false })
@@ -5368,21 +5368,21 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     useShowStore.setState((state) => ({
       showV2Pilots: { ...state.showV2Pilots, [secondShow.id]: convertForTest(secondShow) },
     }))
-    const view = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const view = render(<ShowEditor showId={editor.showId} />)
 
     fireEvent.keyDown(document, { key: '3' })
     expect(usePreviewStore.getState().speed).toBe(3)
-    view.rerender(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    view.rerender(<ShowEditor showId={editor.showId} />)
     expect(usePreviewStore.getState().speed).toBe(3)
 
-    view.rerender(<ShowEditor showId={secondShow.id} recordVersion={2} />)
+    view.rerender(<ShowEditor showId={secondShow.id} />)
     expect(usePreviewStore.getState().speed).toBe(1)
   })
 
   it('traverses Clips in timeline order with Tab and Shift-Tab and wraps (#588)', () => {
     const show = createDefaultShow('show-keyboard-traversal', 'Keyboard traversal', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const first = screen.getByRole('button', { name: 'Select TestPattern1D' })
     const second = screen.getByRole('button', { name: 'Select CometLoom' })
@@ -5399,7 +5399,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('leaves native Tab traversal intact inside the Timeline toolbar (#592)', () => {
     const show = createDefaultShow('show-toolbar-tab', 'Toolbar Tab', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const zones = screen.getByRole('button', { name: 'Open Zones' })
     zones.focus()
@@ -5413,7 +5413,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-focused-transport', 'Focused transport', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
     usePreviewStore.setState({ isRunning: false })
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const goToStart = screen.getByRole('button', { name: 'Go to Show start' })
     await user.click(goToStart)
@@ -5430,7 +5430,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('accelerates held arrow keys on the Show playhead and commits on release', () => {
     const show = createDefaultShow('show-keyboard-hold', 'Keyboard hold', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const playhead = screen.getByRole('slider', { name: 'Show playhead' })
     act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
 
@@ -5455,7 +5455,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('scrubs the playhead at a tenth of the gain while Shift is held (#667)', async () => {
     const show = createDefaultShow('show-playhead-fine', 'Playhead fine scrub', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const playhead = screen.getByRole('slider', { name: 'Show playhead' })
     act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
     // The input extends 8px past each ruler edge: 636px rect = 620px track
@@ -5489,7 +5489,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('keeps the direct playhead drag incremental after Shift is released (#667)', async () => {
     const show = createDefaultShow('show-direct-playhead-fine', 'Direct playhead fine', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
 
     const hitTarget = screen.getByTestId('show-timeline-playhead-hit-target')
@@ -5518,7 +5518,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-shortcut-scope', 'Shortcut scope', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
     usePreviewStore.setState({ isRunning: false })
-    const view = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const view = render(<ShowEditor showId={editor.showId} />)
     // The mount resets the speed (#1097); this test's subject is that no shortcut fires after unmount.
     act(() => usePreviewStore.setState({ speed: 4 }))
     act(() => useShowTransportStore.getState().setPosition(show.id, 5_000))
@@ -5541,7 +5541,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-1', 'Opening wash', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Show playhead' })).toHaveAttribute('max', '62000')
@@ -5580,7 +5580,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-direct-playhead', 'Direct playhead drag', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const hitTarget = screen.getByTestId('show-timeline-playhead-hit-target')
     const track = hitTarget.parentElement!
@@ -5612,7 +5612,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-63-snap', 'Snapping', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const toggle = screen.getByRole('button', { name: 'Snap playhead' })
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
@@ -5638,7 +5638,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-resume-scrub', 'Resume after scrub', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     act(() => usePreviewStore.getState().setRunning(true))
 
     const playhead = screen.getByRole('slider', { name: 'Show playhead' })
@@ -5657,7 +5657,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-473', 'Split guidance', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const playhead = screen.getByRole('slider', { name: 'Show playhead' })
     const split = screen.getByRole('button', { name: 'Split at playhead' })
@@ -5694,7 +5694,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'split-x')
 
@@ -5721,7 +5721,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'checker')
 
@@ -5753,7 +5753,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'rings')
 
@@ -5781,7 +5781,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'pinwheel')
 
@@ -5815,7 +5815,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'wave')
 
@@ -5855,7 +5855,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'soft-split')
 
@@ -5887,7 +5887,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = addShowZone(show, { name: 'alternate' })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.getByRole('group', { name: 'Zone Layouts lane' })).toBeInTheDocument()
     expect(screen.getByText('Left / right stripes')).toBeInTheDocument()
@@ -5910,7 +5910,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show.scenes[0].routingTargets = { splitPosition: 0.37 }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     const lane = screen.getByRole('group', { name: 'Zone Layouts lane' })
     expect(lane.firstElementChild).toHaveClass('bg-zinc-950', 'tracking-[0.14em]', 'text-zinc-600')
@@ -5935,7 +5935,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     )
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.queryByRole('group', { name: 'Zone Layouts lane' })).not.toBeInTheDocument()
   })
@@ -5949,7 +5949,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = updateShowCellAdaptations(show, show.cells[0].id, { timeScale: 0.75 })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.queryByRole('group', { name: 'Animation speed lane for main' })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Animation speed lane for edge' })).not.toBeInTheDocument()
@@ -6022,7 +6022,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    const narrow = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const narrow = render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(/Controller transforms \+[\d.]+ KB/)
     expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toBeInTheDocument()
@@ -6031,7 +6031,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     usePanelPreferencesStore.setState({ expanded: {} })
     const outlet = document.createElement('div')
     document.body.append(outlet)
-    const desktop = render(<ShowSourceOutletContext.Provider value={{ enabled: true, target: outlet, setTarget: () => {} }}><ShowEditor showId={editor.showId} recordVersion={2} /></ShowSourceOutletContext.Provider>)
+    const desktop = render(<ShowSourceOutletContext.Provider value={{ enabled: true, target: outlet, setTarget: () => {} }}><ShowEditor showId={editor.showId} /></ShowSourceOutletContext.Provider>)
     expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toHaveAttribute('aria-label', measuredLabel)
     expect(screen.queryByLabelText(/^Show source .* advisory\.$/i)).not.toBeInTheDocument()
     desktop.unmount()
@@ -6116,7 +6116,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     setControllerProvider(new ConnectedControllerProvider())
 
     const editor = openV2EditorForRecord(convertForTest(show))
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.getByTestId('show-compile-bar')).not.toHaveTextContent('Controller transforms')
   })
@@ -6569,11 +6569,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       showV2Pilots: { ...state.showV2Pilots, [secondShow.id]: convertForTest(secondShow) },
     }))
 
-    const view = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const view = render(<ShowEditor showId={editor.showId} />)
     await user.click(getShowAction('View code'))
     expect(screen.getByText('Generated pattern - Generated first')).toBeInTheDocument()
 
-    view.rerender(<ShowEditor showId={secondShow.id} recordVersion={2} />)
+    view.rerender(<ShowEditor showId={secondShow.id} />)
 
     expect(screen.queryByText('Generated pattern - Generated first')).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
@@ -6590,7 +6590,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       .mockResolvedValue(new Uint8Array([1, 2, 3]))
 
     try {
-      render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+      render(<ShowEditor showId={editor.showId} />)
       await user.click(getShowAction('View code'))
       expect(screen.getByText('Generated pattern - Inspected snapshot')).toBeInTheDocument()
 
@@ -6740,7 +6740,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }]
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.queryByText(/Unknown library namespace "SDF"/i)).not.toBeInTheDocument()
     expect(getShowAction('View code')).toBeEnabled()
@@ -6827,14 +6827,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('relocates identical inventory into Source while preserving the narrow footer (#968)', () => {
     usePanelPreferencesStore.setState({ expanded: { 'show-strip:source': true } })
     const editor = openV2EditorForRecord(qualifiedPropertyRecordV2())
-    const narrow = render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    const narrow = render(<ShowEditor showId={editor.showId} readOnly />)
     fireEvent.focus(screen.getByRole('button', { name: /show source inventory/i }))
     const oldBody = document.querySelector('.show-source-inventory-body')!.textContent
     const oldGauge = screen.getByLabelText(/^Show source .* advisory\.$/i).getAttribute('aria-label')
     narrow.unmount()
     const outlet = document.createElement('div')
     document.body.append(outlet)
-    const desktop = render(<ShowSourceOutletContext.Provider value={{ enabled: true, target: outlet, setTarget: () => {} }}><ShowEditor showId={editor.showId} recordVersion={2} readOnly /></ShowSourceOutletContext.Provider>)
+    const desktop = render(<ShowSourceOutletContext.Provider value={{ enabled: true, target: outlet, setTarget: () => {} }}><ShowEditor showId={editor.showId} readOnly /></ShowSourceOutletContext.Provider>)
     expect(screen.queryByTestId('show-compile-bar')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Source code' })).toHaveAttribute('aria-expanded', 'true')
     expect(outlet.querySelector('.show-source-inventory-body')!.textContent).toBe(oldBody)
@@ -6847,7 +6847,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('reports an exact proportional Show source inventory from keyboard-equivalent focus (#545, #756)', () => {
     const editor = openV2EditorForRecord(qualifiedPropertyRecordV2())
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    render(<ShowEditor showId={editor.showId} readOnly />)
 
     const compileBar = screen.getByTestId('show-compile-bar')
     expect(compileBar).toHaveTextContent(/[\d.]+ KB \/ 29\.3 KB/)
@@ -6910,7 +6910,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     blockedShow.id = 'show-over-budget'
     const editor = openV2EditorForRecord(blockedShow)
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     // Source size is advisory. The Show remains previewable, inspectable, and
     // exportable so the Controller compiler can make the real fit decision.
@@ -6928,7 +6928,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const easing = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-easing')!
     const editor = openV2EditorForRecord(structuredClone(stockShowV2ById(easing.id)!))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} readOnly />)
+    render(<ShowEditor showId={editor.showId} readOnly />)
     await user.click(screen.getByRole('button', { name: /show source inventory/i }))
 
     const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
@@ -6943,14 +6943,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     usePatternStore.setState({ userPatterns: portable.patterns })
     const portableEditor = openV2EditorForRecord(convertForTest(portable.show, Object.fromEntries(portable.patterns.map((pattern) => [pattern.id, pattern.src]))))
 
-    const rendered = render(<ShowEditor showId={portableEditor.showId} recordVersion={2} />)
+    const rendered = render(<ShowEditor showId={portableEditor.showId} />)
 
     expect(screen.queryByText(/Delivered UTF-8 source is 80% or more of the source-size proxy/)).not.toBeInTheDocument()
 
     rendered.unmount()
     const installationEditor = openV2EditorForRecord(convertForTest(installation.show, Object.fromEntries(installation.patterns.map((pattern) => [pattern.id, pattern.src]))))
     usePatternStore.setState({ userPatterns: installation.patterns })
-    render(<ShowEditor showId={installationEditor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={installationEditor.showId} />)
 
     expect(screen.getByText('Peak: 4 Patterns per pixel.')).toBeInTheDocument()
     expect(screen.queryByText(/worst instant:/i)).not.toBeInTheDocument()
@@ -6964,7 +6964,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = { ...createDefaultShow('show-1', 'Portable field', 1000), stageMapId: 'plane', outputContract: contract }
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByText('Portable · Resolution-independent 2D')).toBeInTheDocument()
@@ -6986,7 +6986,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     show = addShowZone(show, { name: 'bottom-right' })
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByText('Compatible 2D mapped surfaces at variable resolution.')).toBeInTheDocument()
@@ -7044,7 +7044,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       }],
     })
 
-    const view = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const view = render(<ShowEditor showId={editor.showId} />)
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
     expect(within(timeline).getByText('56px')).toBeInTheDocument()
@@ -7054,7 +7054,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     view.unmount()
     const reloaded = openV2EditorForRecord(structuredClone(editor.state().record))
     useShowEditorSessionStore.setState(showEditorSessionInitialState)
-    render(<ShowEditor showId={reloaded.showId} recordVersion={2} />)
+    render(<ShowEditor showId={reloaded.showId} />)
     const reloadedTimeline = screen.getByRole('region', { name: 'Show timeline' })
     await user.click(within(reloadedTimeline).getByRole('button', { name: 'Open Zones' }))
     expect(within(reloadedTimeline).getByText('56px')).toBeInTheDocument()
@@ -7069,7 +7069,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     )
     const editor = openV2EditorForRecord(convertForTest(show))
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(screen.getByRole('button', { name: 'Show properties' })).toBeEnabled()
     expect(getShowAction('View code')).toBeDisabled()
@@ -7119,7 +7119,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
 
     expect(getShowAction('View code')).toBeDisabled()
     expect(getShowAction('Download .epe')).toBeDisabled()
@@ -7144,7 +7144,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     if (selections) {
       useShowEditorSessionStore.setState({ referencePatternsByShowId: { [stock.id]: selections } })
     }
-    render(<ShowEditor showId={editor.showId} recordVersion={2} builtInContext={stock} />)
+    render(<ShowEditor showId={editor.showId} builtInContext={stock} />)
     expect(screen.getByRole('button', { name: 'Reset built-in Show' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Patterns (3)' }))
     const reset = within(screen.getByRole('dialog', { name: 'Try with Pattern' })).getByRole('button', { name: 'Reset' })
@@ -7162,7 +7162,7 @@ describe('authored timeline candidate activity (#949)', () => {
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = structuredClone(editor.state().record)
     window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
-    const mounted = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const mounted = render(<ShowEditor showId={editor.showId} />)
     const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
     const captured = api.beginRequest('resize-activity', 'Rename', [])!
     const lane = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
@@ -7204,7 +7204,7 @@ describe('timeline Marker and Show End activity (#949)', () => {
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = structuredClone(editor.state().record)
     window.history.replaceState(null, '', `/studio/shows/${show.id}`)
-    render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    render(<ShowEditor showId={editor.showId} />)
     const handle = screen.getByRole('button', { name: kind === 'create' ? 'Add Marker at playhead' : kind === 'move' ? 'Cue at 1 seconds' : 'Show End at 20 seconds' })
     fireEvent.pointerDown(handle, { pointerId: 1, clientX: 40, altKey: true })
     act(() => window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`))
@@ -7232,7 +7232,7 @@ describe('Clip move activity (#949)', () => {
     const editor = openV2EditorForRecord(convertForTest(show))
     const before = structuredClone(editor.state().record)
     window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
-    const mounted = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const mounted = render(<ShowEditor showId={editor.showId} />)
     const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
     const clip = screen.getAllByRole('button', { name: 'Select CometLoom' })[0]
     const drag = (type: string) => {
@@ -7269,7 +7269,7 @@ it.each(['click', 'cancel'] as const)('keeps a below-threshold Marker release ow
   const editor = openV2EditorForRecord(convertForTest(show))
   const before = structuredClone(editor.state().record)
   window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
-  const mounted = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+  const mounted = render(<ShowEditor showId={editor.showId} />)
   const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
   const captured = api.beginRequest('click', 'Rename', [])!
   const handle = screen.getByRole('button', { name: 'Add Marker at playhead' })
@@ -7305,7 +7305,7 @@ describe('timeline settlement ordering (#949)', () => {
     const persist = async (_id: string, _record: ShowRecordV2) => {}
     const writes = vi.spyOn(provider, 'replaceShowV2')
     window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
-    const mounted = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    const mounted = render(<ShowEditor showId={editor.showId} />)
     const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
     return { show, editor, before, provider, persist, writes, mounted, api }
   }
@@ -7511,7 +7511,7 @@ it.each([1, 2])('releases a below-threshold auxiliary Marker button %s without w
   const editor = openV2EditorForRecord(convertForTest(show))
   const before = structuredClone(editor.state().record)
   window.history.replaceState(null, '', `/studio/shows/${show.id}?agent=1`)
-  const mounted = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+  const mounted = render(<ShowEditor showId={editor.showId} />)
   const api = (window as unknown as { __pxlblzEditor: ReturnType<typeof import('@/dev/agentEditorAdmission').createAgentEditorAdmission> }).__pxlblzEditor
   const handle = screen.getByRole('button', { name: 'Add Marker at playhead' })
   fireEvent.pointerDown(handle, { pointerId: 1, button, clientX: 40 })
@@ -7583,7 +7583,7 @@ it.each((['Show', 'Library', 'map', 'profile', 'output', 'navigation', 'unmount'
           case 'map': useMapStore.setState({ userMaps: [{ ...map, points: [[0, 1], [1, 0]], updatedAt: 2 }] }); break
           case 'profile': useControllerProfileStore.setState({ profiles: [{ ...profile, lastKnownPixelCount: 120, updatedAt: 2 }] }); break
           case 'output': useShowStore.setState((state) => ({ showV2Pilots: { ...state.showV2Pilots, [show.id]: convertForTest({ ...show, outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 120 }) }, { 'delivery-pattern': patternSource }, 2) } })); break
-          case 'navigation': changed.id = 'next-delivery-955'; useShowStore.setState((state) => ({ showV2Pilots: { ...state.showV2Pilots, [changed.id]: convertForTest(changed, { 'delivery-pattern': patternSource }, 2) } })); view.rerender(<ShowEditor showId={changed.id} recordVersion={2} />); break
+          case 'navigation': changed.id = 'next-delivery-955'; useShowStore.setState((state) => ({ showV2Pilots: { ...state.showV2Pilots, [changed.id]: convertForTest(changed, { 'delivery-pattern': patternSource }, 2) } })); view.rerender(<ShowEditor showId={changed.id} />); break
           case 'unmount': view.unmount(); break
           case 'same Show remount': view.rerender(<ShowDeliveryHarness key='replacement' showId={show.id} />); break
           case 'Controller reconnect': useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], liveEpoch: 1 } } })); break
@@ -7619,7 +7619,7 @@ it.each(['cancel', 'Escape', 'outside', 'close', 'run', 'save'] as const)(
     setControllerProvider(new ConnectedControllerProvider())
     const jpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockResolvedValue(new Uint8Array([1, 2, 3]))
     try {
-      const view = render(<><ShowEditor showId={show.id} recordVersion={2} /><ControllerActionRow /></>)
+      const view = render(<><ShowEditor showId={show.id} /><ControllerActionRow /></>)
       const row = within(screen.getByTestId('controller-action-row'))
       expect(row.getByText('Popover Show')).toBeInTheDocument()
       await user.click(row.getByRole('button', { name: action === 'save' ? 'Save' : 'Run' }))
@@ -7630,7 +7630,7 @@ it.each(['cancel', 'Escape', 'outside', 'close', 'run', 'save'] as const)(
         case 'cancel': await user.click(screen.getByRole('button', { name: 'Cancel' })); break
         case 'Escape': await user.keyboard('{Escape}'); break
         case 'outside': fireEvent.mouseDown(document.body); break
-        case 'close': view.rerender(<ShowEditor showId={show.id} recordVersion={2} />); break
+        case 'close': view.rerender(<ShowEditor showId={show.id} />); break
         default: await user.click(screen.getByRole('button', { name: 'Send anyway' }))
       }
       expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
@@ -7656,7 +7656,7 @@ it('runs a warning-free Show directly from the popover and fails closed after ro
   useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: show.id } } })
   useControllerStore.setState({ controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67' } }, activeIp: '10.0.0.5', pushGeneratedArtifact })
   setControllerProvider(new ConnectedControllerProvider())
-  render(<><ShowEditor showId={show.id} recordVersion={2} /><ControllerActionRow /></>)
+  render(<><ShowEditor showId={show.id} /><ControllerActionRow /></>)
   const run = within(screen.getByTestId('controller-action-row')).getByRole('button', { name: 'Run' })
   await user.click(run)
   expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
@@ -7680,7 +7680,7 @@ it.each(['run', 'save'] as const)(
     setControllerProvider(new ConnectedControllerProvider())
     const jpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg').mockResolvedValue(new Uint8Array([1, 2, 3]))
     try {
-      render(<><ShowEditor showId={show.id} recordVersion={2} /><ControllerActionRow /></>)
+      render(<><ShowEditor showId={show.id} /><ControllerActionRow /></>)
       const label = mode === 'save' ? 'Save' : 'Run'
       await user.click(within(screen.getByTestId('controller-action-row')).getByRole('button', { name: label }))
       await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1))
@@ -7701,16 +7701,16 @@ it.each(['run', 'save'] as const)(
 it('omits the Show entity-header Controller delivery row (#997)', () => {
   const show = createDefaultShow('header-retired-997', 'Header retired', 1)
   const editor = openV2EditorForRecord(convertForTest(show))
-  render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+  render(<ShowEditor showId={editor.showId} />)
   expect(screen.queryByTestId('controller-deployment-identity')).not.toBeInTheDocument()
   expect(screen.queryByTestId('run-on-controller')).not.toBeInTheDocument()
   expect(screen.queryByTestId('save-to-controller')).not.toBeInTheDocument()
 })
 
 // The delivery consumer is the Controller popover; the editor only publishes its prepared owner.
-function ShowDeliveryHarness({ showId, recordVersion = 2 }: { showId: string; recordVersion?: 1 | 2 }) {
+function ShowDeliveryHarness({ showId }: { showId: string }) {
   useLayoutEffect(() => {
     useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: showId } } })
   }, [showId])
-  return <><ShowEditor showId={showId} recordVersion={recordVersion} /><ControllerActionRow /></>
+  return <><ShowEditor showId={showId} /><ControllerActionRow /></>
 }

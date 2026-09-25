@@ -924,7 +924,6 @@ function StudioApp() {
   const activeShowEditor = activeShowRecord ? (
     <ShowEditor
       showId={activeShowRecord.id}
-      recordVersion={2}
       autoPlay={galleryEntryPlayback && activeShowRecord.id === 'stock-show-remix-quadrille'}
       builtInContext={routedStockShow ? {
         track: routedStockShow.track,
