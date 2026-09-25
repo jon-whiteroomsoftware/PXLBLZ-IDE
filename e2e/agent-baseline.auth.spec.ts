@@ -840,7 +840,10 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
     await waitForAccepted(page, requestId)
     await page.getByRole('treeitem', { name: other.name, exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`${other.id}\\?agent=1$`))
-    await expect(page.getByTestId('agent-chat-panel')).toHaveCount(0)
+    // #1102: A fresh destination panel mounts under ?agent=1.
+    await expect(page.getByTestId('agent-chat-panel')).toBeVisible()
+    await expect(page.getByTestId('agent-chat-log')).not.toContainText(RESIZE_UTTERANCE)
+    await expect.poll(() => overlayRequests(page)).toEqual([])
     await page.getByRole('treeitem', { name: 'Untitled Show', exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`${showId}\\?agent=1$`))
     await page.waitForTimeout(BRIDGE_DELAY_MS + 1_000)
