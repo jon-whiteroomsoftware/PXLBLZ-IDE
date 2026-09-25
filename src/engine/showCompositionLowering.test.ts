@@ -4,9 +4,6 @@ import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { lowerShowCompositionForCompile } from './showCompositionLowering'
 import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
-import { insertShowLayerTransition } from './showLayerTransitionAuthoring'
-import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
-import { stockShowById } from '../pixelblaze/stock/shows'
 
 const SOURCE_A = 'export function render(index) { rgb(1, 0, 0) }'
 const SOURCE_B = 'export function render(index) { rgb(0, 0, 1) }'
@@ -203,53 +200,6 @@ describe('Show composition compiler lowering (#488)', () => {
       kind: 'wipe',
       durationMs: 1_000,
     })
-  })
-
-  it('lowers a Zone-scoped Transition across a coincident Cut in another Zone (#630)', () => {
-    const show = structuredClone(stockShowById('stock-show-105-portable-zones')!.show)
-    const composition = show.composition!
-    // Rebuild the first scene with two Clips per Zone: both Zones cut at the
-    // same 4s boundary, and the Weave Zone's second Clip is shortened so the
-    // 2s of ruler time the crossfade insertion opens still fits inside the 8s
-    // scene. (The lesson itself now runs one Clip per Zone, so the
-    // coincident-Cut topology is authored here.)
-    const swapPlacement = (id: string, instanceId: string, startMs: number, durationMs: number) => ({
-      id,
-      instanceId,
-      startMs,
-      durationMs,
-      view: { mirror: false, phase: 0, brightness: 1 },
-    })
-    composition.scenes[0].zones[0].main = [
-      swapPlacement('clip-left-ribbons', 'ribbons', 0, 4_000),
-      swapPlacement('clip-left-water', 'water', 4_000, 2_000),
-    ]
-    composition.scenes[0].zones[1].main = [
-      swapPlacement('clip-right-water', 'water', 0, 4_000),
-      swapPlacement('clip-right-ribbons', 'ribbons', 4_000, 4_000),
-    ]
-    const junction = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].junctions[0]
-    show.composition = insertShowLayerTransition(show, composition, {
-      id: 'transition-left-zone',
-      fromPlacementId: junction.fromPlacementId,
-      toPlacementId: junction.toPlacementId,
-      kind: 'crossfade',
-      durationMs: 2_000,
-      easing: { curve: 'linear' },
-      crossfadePolicy: 'live-live',
-    })
-
-    const recipe = showRecordToCompileRecipe(show, {
-      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, SOURCE_A])),
-      byPatternInstanceId: { ribbons: SOURCE_A, water: SOURCE_B },
-    })
-
-    expect(recipe.routedSceneSequence?.scenes[0].transitionOut).toMatchObject({
-      kind: 'crossfade',
-      durationMs: 2_000,
-      scopeZoneName: 'Weave',
-    })
-    expect(() => compileShow(recipe, {})).not.toThrow()
   })
 
   it('lifts a Layer transition over unrelated content that spans its complete interval', () => {

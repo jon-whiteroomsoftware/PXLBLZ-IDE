@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
+import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
+import { resolveShowV2StageMap } from '@/store/showV2StageMap'
+import { captureShowStageEditV2 } from './showPreparedStageV2'
+import type { ShowRecordV2 } from './showCompositionV2'
+import type { GeneratedShowArtifact } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
-import { compileShowForArtifact } from './showPreviewArtifact'
 
 // #822: every Luma Sources beat is bare for its first half, then brought
 // alive by one animated property. Compiling a trackless clone gives the
@@ -13,7 +16,13 @@ const MAP_POINTS = Array.from({ length: 256 }, (_, index) => ({
   sample: [(index % 16) / 15, Math.floor(index / 16) / 15] as [number, number],
 }))
 
-function checksumAt(artifact: NonNullable<ReturnType<typeof compileShowForArtifact>['artifact']>, timeMs: number): string {
+function compileRecordV2(record: ShowRecordV2): GeneratedShowArtifact {
+  const capture = captureShowStageEditV2(record, { patterns: [], libraries: [], maps: [], profiles: [], stageMap: resolveShowV2StageMap(record.stageMapId, []) })
+  if (capture.prepared.status !== 'ready') throw new Error('stock v2 Show failed preparation')
+  return capture.prepared.bundle.artifact
+}
+
+function checksumAt(artifact: GeneratedShowArtifact, timeMs: number): string {
   const runtime = createFastReplayRuntime({
     code: artifact.code,
     fxCode: artifact.fxCode,
@@ -25,27 +34,27 @@ function checksumAt(artifact: NonNullable<ReturnType<typeof compileShowForArtifa
 
 describe('Luma Sources showcase animation contract (#822)', () => {
   it('holds each beat bare for its first half and animates its second half', () => {
-    const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-luma-sources')!
-    const animated = compileShowForArtifact(fixture.show, [], undefined, {}, { stageDimension: 2 })
-    expect(animated.error).toBeNull()
+    const record = stockShowV2ById('stock-show-showcase-luma-sources')!
+    const animated = compileRecordV2(record)
 
-    const bareShow = structuredClone(fixture.show)
-    for (const sceneEntry of bareShow.composition!.scenes) delete sceneEntry.propertyTracks
-    const bare = compileShowForArtifact(bareShow, [], undefined, {}, { stageDimension: 2 })
-    expect(bare.error).toBeNull()
+    // The Scene-local property tracks live on the Show-level track list on
+    // v2 (ShowCompositionV2.propertyTracks): clearing it gives the bare baseline.
+    const bareRecord = structuredClone(record)
+    bareRecord.composition.propertyTracks = []
+    const bare = compileRecordV2(bareRecord)
 
     for (let index = 0; index < 8; index++) {
       const start = index * 4_000
       // 1.5 s in: still inside the bare half - identical to the trackless clone.
       expect(
-        checksumAt(animated.artifact!, start + 1_500),
+        checksumAt(animated, start + 1_500),
         `beat ${index + 1} bare half`,
-      ).toBe(checksumAt(bare.artifact!, start + 1_500))
+      ).toBe(checksumAt(bare, start + 1_500))
       // 3.5 s in: the animation must have moved the image away from bare.
       expect(
-        checksumAt(animated.artifact!, start + 3_500),
+        checksumAt(animated, start + 3_500),
         `beat ${index + 1} animated half`,
-      ).not.toBe(checksumAt(bare.artifact!, start + 3_500))
+      ).not.toBe(checksumAt(bare, start + 3_500))
     }
   })
 })

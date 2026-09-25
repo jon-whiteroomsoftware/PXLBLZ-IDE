@@ -7,7 +7,8 @@ import {
   projectShowPropertyTrackLane,
   unprojectShowPropertyLaneValue,
 } from './showPropertyLaneProjection'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
+import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
+import { projectShowEditorPropertyLanesV2 } from './showEditorTimelinePresentation'
 import type { ShowCompositionV1 } from './personalContentRecords'
 
 describe('Show property lane projection (#483)', () => {
@@ -78,13 +79,15 @@ describe('Show property lane projection (#483)', () => {
     expect(lane.samples.find((sample) => sample.timeMs === 1_000)?.value).toBeCloseTo(0.35)
   })
 
-  it('projects only genuine Scene-local change into parent Show-time coordinates', () => {
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
-    const lanes = projectGlobalShowScenePropertyLanes(stock.show)
+  it('projects only genuine Clip-local change into Show-time coordinates', () => {
+    const record = stockShowV2ById('stock-show-102-transitions-values')!
+    const lanes = projectShowEditorPropertyLanesV2(record)
 
     expect(lanes).toHaveLength(1)
     expect(lanes[0]).toMatchObject({
-      sceneId: 'passages',
+      // The v2 lane id names the owning Zone and track where v1 named the
+      // owning Scene (ShowEditorPropertyLaneV2.id).
+      id: 'track:zone-1:track-mandala-brightness',
       zoneId: 'zone-1',
       label: 'SignalMandala brightness',
       // Owning Clip and property stay separable so lane naming can drop or
@@ -200,8 +203,8 @@ describe('Show property lane projection (#483)', () => {
   })
 
   it('names Effect lanes by kind and parameter without repeating the kind (#63)', () => {
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
-    const labels = new Set(projectGlobalShowScenePropertyLanes(stock.show).map((lane) => lane.propertyLabel))
+    const record = stockShowV2ById('stock-show-showcase-transform-effects')!
+    const labels = new Set(projectShowEditorPropertyLanesV2(record).map((lane) => lane.propertyLabel))
 
     expect(labels).toContain('translate x')
     expect(labels).toContain('scale x')

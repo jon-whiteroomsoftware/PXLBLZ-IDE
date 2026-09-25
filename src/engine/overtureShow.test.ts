@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
-import { compileShowForArtifact } from './showPreviewArtifact'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
+import { stockShowCatalogueById } from '@/pixelblaze/stock/showCatalogueV2'
+import { resolveShowV2StageMap } from '@/store/showV2StageMap'
+import { captureShowStageEditV2 } from './showPreparedStageV2'
+import type { ShowRecordV2 } from './showCompositionV2'
+import type { GeneratedShowArtifact } from './showCompiler'
 import { SOURCE_STOCK_MAPS } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 // #840: Overture plays the rebuilt Proscenium arch stage at 128 BPM with
@@ -20,7 +24,17 @@ const MAP_POINTS = SOURCE_STOCK_MAPS.find((m) => m.id === 'proscenium-stage-2d')
 const STAGE = [250, 499] as const
 const ARCH = [500, 749] as const
 
-type Artifact = NonNullable<ReturnType<typeof compileShowForArtifact>['artifact']>
+type Artifact = GeneratedShowArtifact
+
+function compileRecordV2(record: ShowRecordV2): Artifact {
+  const capture = captureShowStageEditV2(record, { patterns: [], libraries: [], maps: [], profiles: [], stageMap: resolveShowV2StageMap(record.stageMapId, []) })
+  if (capture.prepared.status !== 'ready') throw new Error('stock v2 Show failed preparation')
+  return capture.prepared.bundle.artifact
+}
+
+function compiledArtifact(): Artifact {
+  return compileRecordV2(stockShowV2ById('stock-show-remix-overture')!)
+}
 
 function frameAt(artifact: Artifact, timeMs: number) {
   const runtime = createFastReplayRuntime({
@@ -43,48 +57,47 @@ function columnsOf(pixels: number[][]): number[][] {
 }
 
 describe('Overture Installation show (#840)', () => {
-  const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-remix-overture')
+  const catalogue = stockShowCatalogueById('stock-show-remix-overture')
+  const record = stockShowV2ById('stock-show-remix-overture')
 
   it('is catalogued as the second installation: three instances, one physical layout, four scenes, 48.75 s', () => {
-    expect(fixture).toBeDefined()
-    expect(fixture!.name).toBe('Overture Installation')
-    expect(fixture!.collection).toBe('installations')
-    expect(fixture!.order).toBe(2)
-    const show = fixture!.show
-    expect(show.composition!.patternInstances).toHaveLength(3)
-    expect(new Set(show.composition!.patternInstances.map((entry) => entry.patternName)))
+    expect(catalogue).toBeDefined()
+    expect(record).toBeDefined()
+    expect(catalogue!.name).toBe('Overture Installation')
+    expect(record!.name).toBe('Overture Installation')
+    expect(catalogue!.collection).toBe('installations')
+    expect(catalogue!.order).toBe(2)
+    expect(record!.composition.patternInstances).toHaveLength(3)
+    expect(new Set(record!.composition.patternInstances.map((entry) => entry.patternName)))
       .toEqual(new Set(['LumaMarquee', 'LumaRings']))
-    expect(show.routingLayouts).toHaveLength(1)
-    expect(show.routingLayouts[0].zones).toEqual([
+    expect(record!.zoneLayouts).toHaveLength(1)
+    expect(record!.zoneLayouts[0].zones).toEqual([
       { zoneId: 'zone-1', ranges: [{ start: 250, end: 499 }] },
       { zoneId: 'zone-2', ranges: [{ start: 500, end: 749 }] },
       { zoneId: 'zone-3', ranges: [{ start: 0, end: 249 }, { start: 750, end: 999 }] },
     ])
-    expect(show.scenes).toHaveLength(4)
-    expect(show.composition!.durationMs).toBe(48_750)
+    // Converted Scene labels persist as chapter markers, one per Scene.
+    expect(record!.composition.markers.filter((marker) => marker.role === 'chapter')).toHaveLength(4)
+    expect(record!.composition.showEndMs).toBe(48_750)
     // The whole score is scheduling: no property tracks anywhere, and every
     // boundary is a Cut (a 900 ms wipe measured +33 KB of unrolled emission).
-    expect(show.composition!.scenes.every((entry) => (entry.propertyTracks ?? []).length === 0)).toBe(true)
-    expect((show.transitions ?? []).every((transition) => transition.kind === 'cut')).toBe(true)
+    // On v2 a Cut is the absence of a Transition, so no boundary owns one.
+    expect(record!.composition.propertyTracks).toHaveLength(0)
+    expect(record!.composition.transitions).toEqual([])
   })
 
   it('compiles deterministically inside the activation envelope', () => {
-    const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
-    expect(compiled.error).toBeNull()
-    expect(compiled.artifact!.code.length).toBeLessThan(66_000)
-    const again = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
-    expect(again.artifact!.code).toBe(compiled.artifact!.code)
-    const first = frameAt(compiled.artifact!, 3_000)
-    const second = frameAt(compiled.artifact!, 3_000)
+    const artifact = compiledArtifact()
+    expect(artifact.code.length).toBeLessThan(66_000)
+    const again = compiledArtifact()
+    expect(again.code).toBe(artifact.code)
+    const first = frameAt(artifact, 3_000)
+    const second = frameAt(artifact, 3_000)
     expect(second.checksum).toBe(first.checksum)
   })
 
   describe('rendered phrase contracts', () => {
-    const compiled = compileShowForArtifact(
-      STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-remix-overture')!.show,
-      [], undefined, {}, { stageDimension: 2 },
-    )
-    const artifact = compiled.artifact!
+    const artifact = compiledArtifact()
 
     it('ignition confines the gold chase to the arch walk', () => {
       const { pixels } = frameAt(artifact, 3_000)

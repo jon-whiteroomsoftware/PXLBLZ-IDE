@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
+import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
+import { stockShowCatalogueById } from '../pixelblaze/stock/showCatalogueV2'
+import { resolveShowV2StageMap } from '@/store/showV2StageMap'
+import { captureShowStageEditV2 } from './showPreparedStageV2'
+import type { ShowRecordV2 } from './showCompositionV2'
+import type { GeneratedShowArtifact } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
-import { compileShowForArtifact } from './showPreviewArtifact'
+
 
 // #832: Quadrille holds Line Dancer 2D inside its full-field bloom by
 // choreography alone. The pattern's look rides zoom = wave(time(0.075)), a
@@ -21,7 +26,17 @@ const MAP_POINTS = Array.from({ length: 256 }, (_, index) => ({
 const PHRASE_MS = 6_400
 const SCENE_STARTS = Array.from({ length: 8 }, (_, index) => index * PHRASE_MS)
 
-type Artifact = NonNullable<ReturnType<typeof compileShowForArtifact>['artifact']>
+type Artifact = GeneratedShowArtifact
+
+function compileRecordV2(record: ShowRecordV2): Artifact {
+  const capture = captureShowStageEditV2(record, { patterns: [], libraries: [], maps: [], profiles: [], stageMap: resolveShowV2StageMap(record.stageMapId, []) })
+  if (capture.prepared.status !== 'ready') throw new Error('stock v2 Show failed preparation')
+  return capture.prepared.bundle.artifact
+}
+
+function compiledArtifact(): Artifact {
+  return compileRecordV2(stockShowV2ById('stock-show-remix-quadrille')!)
+}
 
 function frameAt(artifact: Artifact, timeMs: number) {
   const runtime = createFastReplayRuntime({
@@ -50,26 +65,27 @@ function darkFraction(pixels: number[][]): number {
 }
 
 describe('Quadrille portable show (#832)', () => {
-  const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-remix-quadrille')
 
   it('is catalogued as the second portable Show with two instances, one layout, eight phrases', () => {
-    expect(fixture).toBeDefined()
-    expect(fixture!.collection).toBe('portable-shows')
-    expect(fixture!.order).toBe(2)
-    const composition = fixture!.show.composition!
+    const catalogue = stockShowCatalogueById('stock-show-remix-quadrille')
+    const record = stockShowV2ById('stock-show-remix-quadrille')
+    expect(catalogue).toBeDefined()
+    expect(record).toBeDefined()
+    expect(catalogue!.collection).toBe('portable-shows')
+    expect(catalogue!.order).toBe(2)
+    const composition = record!.composition
     expect(composition.patternInstances).toHaveLength(2)
     expect(composition.patternInstances.map((entry) => entry.pattern.id).sort())
       .toEqual(['LineDancer2D', 'WavyBands'])
-    expect(fixture!.show.routingLayouts).toHaveLength(1)
-    expect(fixture!.show.scenes).toHaveLength(6)
-    expect(composition.durationMs).toBe(8 * PHRASE_MS)
+    expect(record!.zoneLayouts).toHaveLength(1)
+    // Converted Scene labels persist as chapter markers, one per Scene.
+    expect(composition.markers.filter((marker) => marker.role === 'chapter')).toHaveLength(6)
+    expect(composition.showEndMs).toBe(8 * PHRASE_MS)
   })
 
   it('compiles, and renders deterministically', () => {
-    const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
-    expect(compiled.error).toBeNull()
-    expect(compiled.artifactBlocker).toBeUndefined()
-    const artifact = compiled.artifact!
+    // Preparation reaching ready is the v2 proof of no error or blocker.
+    const artifact = compiledArtifact()
     expect(artifact.summary).toMatchObject({
       steadyStateRenderersPerPixel: 2,
       worstInstantRenderersPerPixel: 4,
@@ -93,16 +109,13 @@ describe('Quadrille portable show (#832)', () => {
   })
 
   it('proves the generated render path is state-pure for deterministic replay (#847)', () => {
-    const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
-
-    expect(compiled.artifact!.metadata).toMatchObject({
+    expect(compiledArtifact().metadata).toMatchObject({
       deterministicReplay: { intermediateRender: 'state-pure' },
     })
   })
 
   it('mirrors the same live Wavy Bands frame across the center seam once the quarters condense', () => {
-    const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
-    const { pixels } = frameAt(compiled.artifact!, SCENE_STARTS[1] + 3_200)
+    const { pixels } = frameAt(compiledArtifact(), SCENE_STARTS[1] + 3_200)
     // The NE quadrant mirrors the NW instance placement, so the stage is
     // symmetric about the vertical center seam: (col, row) vs (15-col, row).
     for (const row of [2, 7, 13]) {
@@ -118,8 +131,7 @@ describe('Quadrille portable show (#832)', () => {
   })
 
   it('holds the bloom in solid phrases and keeps laced phrases lit', () => {
-    const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
-    const artifact = compiled.artifact!
+    const artifact = compiledArtifact()
     // Two clock regimes. The solid-dancer entrance (phrase 3 at 12.8 s)
     // runs the shaped clock: mid-dwell the quadrant is a full field with
     // almost no dark pixels. Laced phrases run the constant edge rate -
@@ -135,8 +147,7 @@ describe('Quadrille portable show (#832)', () => {
   })
 
   it('surfaces the lace in the turnaround, and the black key fills its gaps with the bands', () => {
-    const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
-    const artifact = compiled.artifact!
+    const artifact = compiledArtifact()
     // The lace is soft-edged, so its dark fraction breathes as the
     // turnaround runs; judge the window's peak, not one instant.
     const TURNAROUND_SAMPLES = [4_800, 5_200, 5_600]
@@ -154,14 +165,16 @@ describe('Quadrille portable show (#832)', () => {
   })
 
   it('animates every phrase against a trackless clone', () => {
-    const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
-    const bareShow = structuredClone(fixture!.show)
-    for (const sceneEntry of bareShow.composition!.scenes) delete sceneEntry.propertyTracks
-    const bare = compileShowForArtifact(bareShow, [], undefined, {}, { stageDimension: 2 })
-    expect(bare.error).toBeNull()
+    const record = stockShowV2ById('stock-show-remix-quadrille')!
+    const compiled = compileRecordV2(record)
+    // The Scene-local property tracks live on the Show-level track list on
+    // v2 (ShowCompositionV2.propertyTracks): clearing it gives the bare baseline.
+    const bareRecord = structuredClone(record)
+    bareRecord.composition.propertyTracks = []
+    const bare = compileRecordV2(bareRecord)
     // The dancer's shaped clock is a track: without it the turnaround
     // never happens and the frames diverge.
-    expect(frameAt(compiled.artifact!, SCENE_STARTS[2] + 5_000).checksum)
-      .not.toBe(frameAt(bare.artifact!, SCENE_STARTS[2] + 5_000).checksum)
+    expect(frameAt(compiled, SCENE_STARTS[2] + 5_000).checksum)
+      .not.toBe(frameAt(bare, SCENE_STARTS[2] + 5_000).checksum)
   })
 })
