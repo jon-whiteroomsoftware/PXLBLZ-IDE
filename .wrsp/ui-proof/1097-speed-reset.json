@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1097",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1097-speed-b",
+  "operation": "In the authenticated Playwright harness, opened Show A, pressed key 3 for 3x, and measured 6.0s of Show time over 2.00s wall time (3.00x). Switched to Show B through the Shows list, pressed Play, and measured 2.0s over 2.01s wall time (0.99x); asserted each rate within 25% before capturing Show B's 00:02.2 readout.",
+  "captures": [".wrsp/ui-proof/1097-speed-reset.png"],
+  "capturedAtCommit": "d905524a638b0c2efa3e68d5f84c02a55193001c"
+}

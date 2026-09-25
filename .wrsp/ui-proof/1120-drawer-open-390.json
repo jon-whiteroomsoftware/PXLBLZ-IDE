@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1120",
+  "route": "/PXLBLZ-IDE/studio/shows/806fb41c-ec04-4c85-89b0-1cbde21494c0",
+  "operation": "In the authenticated Playwright harness, created a personal Installation Show, resized to 390x844, opened the Shows list, and rested the pointer over its drawer for 1.5 seconds. Asserted data-drawer-mode=open before capture.",
+  "captures": [".wrsp/ui-proof/1120-drawer-open-390.png"],
+  "capturedAtCommit": "d905524a638b0c2efa3e68d5f84c02a55193001c"
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1111",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1111d-ramp",
+  "operation": "In the authenticated Playwright harness, converted the v1 boundary animation-speed ramp fixture through seedShowV2 and opened the stored v2 Show. Asserted CometLoom's timeline caption and title show animated speed .5–1x, then selected the Clip and asserted Detail's Clip summary reads Animation speed 0.5–1x before capturing each state.",
+  "captures": [
+    ".wrsp/ui-proof/1111d-ramp-summary.png",
+    ".wrsp/ui-proof/1111d-ramp-summary-detail.png"
+  ],
+  "capturedAtCommit": "d905524a638b0c2efa3e68d5f84c02a55193001c"
+}

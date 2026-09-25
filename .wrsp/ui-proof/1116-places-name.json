@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1116",
+  "route": "/PXLBLZ-IDE/studio/shows/d08db483-76df-4bd9-8898-7278eb7d04d5",
+  "operation": "In the authenticated Playwright harness as a synthetic user, created and renamed a personal v2 Installation Show to Proof Places Show, opened Places, and asserted the Shows option contains that name and does not contain the Show id before capture.",
+  "captures": [".wrsp/ui-proof/1116-places-name.png"],
+  "capturedAtCommit": "d905524a638b0c2efa3e68d5f84c02a55193001c"
+}

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1111",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1111c-extend",
+  "operation": "In the authenticated Playwright harness, converted a v1 Installation Show with Clip A at 0–30s, a crossfade Transition at 30–32s, and Clip B at 32–62s. With Snap on, dragged B's leading edge to 30s; asserted the saved v2 record keeps B's 62s end and removes the Transition. On fresh copy /PXLBLZ-IDE/studio/shows/proof-1111c-refuse, used Alt to drag B's leading edge to 29s; asserted the saved record still has B at 32–62s and the Transition, and the page says \"This edit isn't possible here.\"",
+  "captures": [
+    ".wrsp/ui-proof/1111c-leading-extend-before.png",
+    ".wrsp/ui-proof/1111c-leading-extend-after.png",
+    ".wrsp/ui-proof/1111c-leading-extend-refused.png"
+  ],
+  "capturedAtCommit": "d905524a638b0c2efa3e68d5f84c02a55193001c"
+}
