@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Opened stock Show 101 in the editor, dragged the last RibbonLoom Clip from 12s to 11.5s, undid and redid the move with the timeline buttons (captured after redo), then expanded Source code to show the artifact inventory and exported the .pxlshow file (101-clips-cuts-and-blank-time.pxlshow, 845 bytes gzip; captured after export), with no page errors.",
+  "captures": [
+    ".wrsp/ui-proof/1042-p2d2a-after-redo.png",
+    ".wrsp/ui-proof/1042-p2d2a-after-export.png"
+  ],
+  "capturedAtCommit": "b80f7ddd4fddda282288a7967b2c3710de3a80d5"
+}
