@@ -187,6 +187,29 @@ export async function waitForV2BarrierSave(page: Page, id: string, timeoutMs = 1
   }
 }
 
+/** Use when a gesture enqueues more than one save and the test must observe a specific stored value. */
+export async function waitForStoredShowV2(
+  page: Page,
+  id: string,
+  predicate: (record: ShowRecordV2) => boolean,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  let lastStoredRevision: number | undefined
+  for (;;) {
+    const record = await findStoredShowV2(page, id)
+    lastStoredRevision = record?.updatedAt
+    if (record !== undefined && predicate(record)) {
+      observedSaveStamp.set(id, record.updatedAt)
+      return
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`The v2 run never observed the expected stored value for Show ${id} within ${timeoutMs}ms; last stored revision ${String(lastStoredRevision)}`)
+    }
+    await page.waitForTimeout(100)
+  }
+}
+
 /**
  * Whether the stored version-2 document still carries its pre-gesture anchor revision (#1066).
  *

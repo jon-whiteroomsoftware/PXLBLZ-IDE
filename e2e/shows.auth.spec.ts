@@ -8,7 +8,7 @@ import { squareWorkspaceShow } from './fixtures/showWorkspace'
 import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { createShowWithOutputContract } from '../src/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
-import { findStoredShowV2, listStoredShowsV2, seedShowV2, storedShowV2RevisionMatchesAnchor, waitForV2BarrierSave } from './support/showBackingRecords'
+import { findStoredShowV2, listStoredShowsV2, seedShowV2, storedShowV2RevisionMatchesAnchor, waitForStoredShowV2, waitForV2BarrierSave } from './support/showBackingRecords'
 
 test.describe('authenticated Show authoring', () => {
   test('sends a v2 Show from the Controller popover and delivers its artifact (#1114)', async ({ page }) => {
@@ -1535,11 +1535,12 @@ test.describe('authenticated Show authoring', () => {
     // second edit's PUT is not dispatched until the first resolves, and
     // page.reload() would discard it. Observe the persisted value before
     // navigating; the assertion after the reload stays on visible state.
-    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
-      scene.zones?.some((zone) => zone.main?.some((placement) => (
-        placement.effects?.some((effect) => effect.kind === 'ripple' && effect.amount === 0.2)
-      )))
-    )) === true)
+    const id = new URL(page.url()).pathname.split('/').at(-1)!
+    await waitForStoredShowV2(page, id, (record) => record.composition.clips.some((clip) => (
+      clip.appearance.keys.some((key) => key.value.effects?.some((effect) => (
+        effect.kind === 'ripple' && effect.amount === 0.2
+      )) === true)
+    )))
 
     await page.reload()
     const reloaded = await openClipEffects(page, 'TestPattern1D')
