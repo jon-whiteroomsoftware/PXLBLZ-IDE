@@ -21,7 +21,6 @@ it('classifies the complete public MCP result-code domain', () => {
     invalid_payload: true,
     invalid_request: true,
     no_live_editor: true,
-    not_qualified: true,
     occupied: true,
     out_of_order: true,
     refused: true,
