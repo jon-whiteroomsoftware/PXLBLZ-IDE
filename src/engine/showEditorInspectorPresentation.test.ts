@@ -620,6 +620,40 @@ describe('Transition Clip-value ramp summary tracks (#1111-D)', () => {
     }
   })
 
+  /** Two participants on two Layers whose incoming Clips share one Pattern instance. */
+  function sharedInstanceParticipants(named: 0 | 1) {
+    const source = convertDefault(rampedShow())
+    const transition = source.composition.transitions[0]!
+    const first = transition.participants[0]!
+    const layer = source.composition.layers.find(candidate => candidate.id === first.layerId)!
+    const upper = { ...layer, id: `${layer.id}-upper`, name: `${layer.name} upper`, rank: layer.rank + 1 }
+    source.composition.layers.push(upper)
+    for (const clipId of [first.fromClipId, first.toClipId]) {
+      const clip = source.composition.clips.find(candidate => candidate.id === clipId)!
+      source.composition.clips.push({ ...structuredClone(clip), id: `${clip.id}-upper`, layerId: upper.id })
+    }
+    const second = {
+      ...first,
+      id: `${first.id}-upper`,
+      layerId: upper.id,
+      fromClipId: `${first.fromClipId}-upper`,
+      toClipId: `${first.toClipId}-upper`,
+    }
+    transition.participants.push(second)
+    transition.propertyRamps[0]!.participantId = [first, second][named]!.id
+    expect(validateShowRecordV2(source)).toEqual([])
+    return { source, incomingClipIds: [first.toClipId, second.toClipId] }
+  }
+
+  it.each([0, 1] as const)('gives a shared-instance speed ramp only to the Clip of participant %i it names', (named) => {
+    const { source, incomingClipIds } = sharedInstanceParticipants(named)
+    const at = source.composition.clips.find(clip => clip.id === incomingClipIds[0])!.startMs
+    const presentation = projectShowEditorInspectorPresentationV2(source, at)
+    const other = named === 0 ? 1 : 0
+    expect(presentation.clipsById[incomingClipIds[named]!]!.animation.rampSummaryTracks).toHaveLength(1)
+    expect(presentation.clipsById[incomingClipIds[other]!]!.animation.rampSummaryTracks).toEqual([])
+  })
+
   it('has no summary tracks for a record without ramps', () => {
     const source = convertDefault(createDefaultShow('show-no-ramp', 'No ramp', 1000))
     for (const clip of source.composition.clips) {

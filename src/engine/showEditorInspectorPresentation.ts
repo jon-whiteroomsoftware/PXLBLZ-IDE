@@ -9,7 +9,7 @@ import type {
   ShowRecordV2,
   ShowTransitionV2,
 } from './showCompositionV2'
-import { isShowTransitionClipValueRampV2 } from './showCompositionV2'
+import { isShowTransitionClipValueRampV2, showTransitionClipRampParticipantV2 } from './showCompositionV2'
 import {
   defaultGroupRuntimeIdV2,
   groupOccurrenceDuration,
@@ -18,7 +18,6 @@ import {
   occurrenceBoundaryBefore,
 } from './showGroupsV2'
 import { normalizePersistedShowEasing } from './showEasing'
-import { transitionEndpoints } from './showTransitionsV2'
 import { normalizeShowClipEvaluationPolicy } from './showClipInspectorModel'
 import { normalizeShowClipEffects } from './showEffects'
 import { normalizeShowClipTransform } from './showClipTransform'
@@ -354,8 +353,10 @@ function ordinaryAnimation(
 
 /**
  * A Transition's Clip-value ramps on this Clip, as read-only summary tracks.
- * A ramp belongs to the Clip through the Transition's incoming endpoints, not
- * by time overlap: a converted boundary Transition sits in the gap before it.
+ * A ramp belongs to the Clip through the incoming endpoint of the participant
+ * it resolves to, not by time overlap: a converted boundary Transition sits in
+ * the gap before it, and a sibling participant sharing the Pattern instance
+ * gets no copy.
  * The window opens at the Transition's start and runs for the ramp's own
  * duration, defaulting to the Transition's, exactly as the compiler reads it
  * (`showModel.ts:2742`, `durationMs ?? boundary.durationMs`; the compiler
@@ -373,7 +374,7 @@ function transitionRampSummaryTracks(
     const transitionEasing = normalizePersistedShowEasing(transition.easing)
     return transition.propertyRamps.flatMap((ramp, index): ShowPropertyAnimationTrack[] => {
       if (!isShowTransitionClipValueRampV2(ramp)) return []
-      if (!transitionEndpoints(transition).to.includes(clip.id)) return []
+      if (showTransitionClipRampParticipantV2(transition, ramp)?.toClipId !== clip.id) return []
       if (!targetBelongsToClip(ramp.target, clip.id, clip.instanceId)) return []
       const endMs = startMs + (ramp.durationMs ?? transition.durationMs)
       // Keys may fall before the Clip (negative times); the summary reads only target and values.
@@ -1200,9 +1201,7 @@ export function projectShowEditorBoundaryTransitionsV2(
     })
     const propertyTransitions: NonNullable<ShowTransitionSettingsCarrier['propertyTransitions']> = { ...(ramps ?? {}) }
     for (const ramp of transition.propertyRamps.filter(isShowTransitionClipValueRampV2)) {
-      const participant = ramp.participantId !== undefined
-        ? transition.participants.find(candidate => candidate.id === ramp.participantId)
-        : transition.participants.length === 1 ? transition.participants[0] : undefined
+      const participant = showTransitionClipRampParticipantV2(transition, ramp)
       const incoming = participant && clipsById.get(participant.toClipId)
       if (!incoming) continue
       const property = ramp.target.kind === 'instance-time-scale' && ramp.target.instanceId === incoming.instanceId

@@ -20,6 +20,7 @@ import { compileShow, ShowRestartEligibilityError, type ShowRecipe } from './sho
 import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
 import {
   isShowTransitionClipValueRampV2,
+  showTransitionClipRampParticipantV2,
   validateShowRecordV2,
   type ShowClipV2,
   type ShowPropertyTargetV2,
@@ -1280,9 +1281,7 @@ function attachTransitionClipRampsV2(show: ShowRecord, record: ShowRecordV2): vo
     for (const ramp of clipRamps) {
       const isSpeed = ramp.target.kind === 'instance-time-scale'
       const key = isSpeed ? 'timeScale' as const : 'brightness' as const
-      const participant = ramp.participantId !== undefined
-        ? transition.participants.find(candidate => candidate.id === ramp.participantId)
-        : transition.participants.length === 1 ? transition.participants[0] : undefined
+      const participant = showTransitionClipRampParticipantV2(transition, ramp)
       if (!participant) throw new Error(`Transition clip ramp names an unknown participant on Transition "${transition.id}".`)
       const incoming = clipById.get(participant.toClipId)
       if (!incoming) throw new Error(`Transition clip ramp has no incoming Clip for Transition "${transition.id}".`)

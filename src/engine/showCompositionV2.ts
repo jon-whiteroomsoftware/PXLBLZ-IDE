@@ -145,6 +145,20 @@ export function isShowTransitionClipValueRampV2(ramp: ShowTransitionPropertyRamp
     || (ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness')
 }
 
+/**
+ * The participant a Clip-value ramp animates: the one it names, or the only
+ * participant when it names none. Validation, lowering and the editor summary
+ * all resolve through this rule.
+ */
+export function showTransitionClipRampParticipantV2(
+  transition: Pick<ShowTransitionV2, 'participants'>,
+  ramp: ShowTransitionPropertyRampV2,
+): ShowTransitionParticipantV2 | undefined {
+  return ramp.participantId !== undefined
+    ? transition.participants.find(candidate => candidate.id === ramp.participantId)
+    : transition.participants.length === 1 ? transition.participants[0] : undefined
+}
+
 export function retimeShowTransitionRampsV2(transition: ShowTransitionV2, newDurationMs: number): ShowTransitionPropertyRampV2[] {
   return transition.propertyRamps.map(ramp => {
     if (ramp.durationMs === undefined) return structuredClone(ramp)
@@ -583,9 +597,7 @@ export function validateShowRecordV2Domain(record: ShowRecordV2, derivedStructur
         addIssue(issues, rampPath, 'invalid-transition', 'A Transition speed or brightness ramp belongs to a participant.')
         return
       }
-      const participant = ramp.participantId !== undefined
-        ? transition.participants.find(candidate => candidate.id === ramp.participantId)
-        : transition.participants.length === 1 ? transition.participants[0] : undefined
+      const participant = showTransitionClipRampParticipantV2(transition, ramp)
       if (!participant) {
         addIssue(issues, rampPath, 'invalid-transition', 'Name the participant this ramp animates.')
         return
