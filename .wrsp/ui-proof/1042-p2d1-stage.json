@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Opened the stock Show 101 Clips, Cuts, and Blank Time, then created a new personal Installation Show from the Shows list; for each, captured the editor with its v2 Stage preview rendering and no 'Show not found' fallback, with no page errors.",
+  "captures": [
+    ".wrsp/ui-proof/1042-p2d1-stage-stock.png",
+    ".wrsp/ui-proof/1042-p2d1-stage-personal.png"
+  ],
+  "capturedAtCommit": "04a9c85e1825f20123420f4dd92dc150e26ecd9f"
+}
