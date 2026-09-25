@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1124",
+  "route": "/PXLBLZ-IDE/studio/shows/f91b7abd-1336-4deb-9f46-fdd4b40a7829",
+  "operation": "Opened the crossfade boundary Transition between TestPattern1D and CometLoom; the Layer Transition popover shows Crossfade with Duration and Reset to Cut (first capture). Clicked Reset to Cut, which removes the Transition: the popover is gone and the boundary is a Cut (second capture).",
+  "captures": [".wrsp/ui-proof/1124-transition-popover-open.png", ".wrsp/ui-proof/1124-transition-popover-closed.png"],
+  "capturedAtCommit": "b13c86ba2518625de1b0ca3df249b07f384d5481"
+}
