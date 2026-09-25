@@ -3,7 +3,8 @@
 // instance the same clip id and then merged their Effect lists by id, so the
 // emitted Color & output chain took its sequence from whichever placement was
 // seen first. Both placements rendered the same picture with no error.
-// V2 does not yet support shared Effect ids in opposite orders (#1131).
+// V2 authoring prevents shared Effect ids in opposite orders (#1131), while
+// direct record writes still reach the lowering backstop.
 import { describe, expect, it } from 'vitest'
 import type { ShowClipEffect } from './personalContentRecords'
 import { createFastReplayRuntime } from './fastReplay'
@@ -15,6 +16,7 @@ import { showEffectOrderBaseInstanceId, showEffectOrderConflicts, showEffectOrde
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
+import { applyShowCommandV2 } from './showCommandsV2/registry'
 
 const DIM_ID = 'shared-dim'
 const CUTOFF_ID = 'shared-cutoff'
@@ -85,6 +87,59 @@ describe('Effect order conflict detection (#363)', () => {
       ? { id, kind, turns: 0.25 }
       : { id, kind, x: 0.3, y: 0 }
   )
+
+  it('duplicates a shared Clip and reorders its Effects without losing compile readiness (#1131)', () => {
+    const show = opposedOrderShow()
+    show.composition.clips = show.composition.clips.filter(clip => clip.id !== 'clip-threshold-brightness')
+    const source = show.composition.clips.find(clip => clip.id === 'clip-brightness-threshold')!
+    source.appearance.keys[0].value.effects = [dim, cutoff]
+    const duplicated = applyShowCommandV2(show, 'duplicate_clip', { clip_id: source.id, start_ms: 12_000 })
+    expect(duplicated.status, JSON.stringify(duplicated)).toBe('changed')
+    if (duplicated.status !== 'changed') return
+    const copy = duplicated.record.composition.clips.find(clip => clip.startMs === 12_000)!
+    const reordered = applyShowCommandV2(duplicated.record, 'move_clip_effect', {
+      clip_id: copy.id, effect_id: DIM_ID, target_effect_id: CUTOFF_ID, edge: 'after', apply: { scope: 'whole-clip' },
+    })
+    expect(reordered.status, JSON.stringify(reordered)).toBe('changed')
+    if (reordered.status !== 'changed') return
+    const prepared = prepareShowV2ForCompile(reordered.record, nativeStockSourceLookupV2(reordered.record), { libraries: LIBRARIES })
+    expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
+    expect(reordered.changes[0].description).toContain(`Effect ids made unique on this Clip: ${CUTOFF_ID}→${CUTOFF_ID}@${copy.id}, ${DIM_ID}→${DIM_ID}@${copy.id}`)
+    expect(reordered.record.composition.clips.find(clip => clip.id === source.id)!.appearance.keys[0].value.effects!.map(effect => effect.id)).toEqual([DIM_ID, CUTOFF_ID])
+    expect(reordered.record.composition.clips.find(clip => clip.id === copy.id)!.appearance.keys[0].value.effects!.map(effect => effect.id)).toEqual([`${CUTOFF_ID}@${copy.id}`, `${DIM_ID}@${copy.id}`])
+    expect(checksumAt(reordered.record, 10_000)).not.toBe(checksumAt(reordered.record, 14_000))
+    expect(checksumAt(reordered.record, 10_000)).toBe(checksumAt(duplicated.record, 10_000))
+    expect(checksumAt(reordered.record, 14_000)).not.toBe(checksumAt(duplicated.record, 14_000))
+  })
+
+  it('retargets only the copied Clip Effect track and compiles its animated value (#1131)', () => {
+    const show = opposedOrderShow()
+    show.composition.clips = show.composition.clips.filter(clip => clip.id !== 'clip-threshold-brightness')
+    const source = show.composition.clips.find(clip => clip.id === 'clip-brightness-threshold')!
+    source.appearance.keys[0].value.effects = [dim, cutoff]
+    show.composition.propertyTracks.push({ id: 'dim-track', target: { kind: 'clip-effect', clipId: source.id, effectId: DIM_ID, effectKind: 'brightness', parameterId: 'brightness' },
+      activeStartMs: 8_000, activeDurationMs: 4_000, keyframes: [
+        { id: 'dim-start', timeMs: 8_000, value: 0.37, easing: { curve: 'linear' } },
+        { id: 'dim-end', timeMs: 12_000, value: 0.37, easing: { curve: 'linear' } },
+      ] })
+    const duplicated = applyShowCommandV2(show, 'duplicate_clip', { clip_id: source.id, start_ms: 12_000 })
+    expect(duplicated.status, JSON.stringify(duplicated)).toBe('changed')
+    if (duplicated.status !== 'changed') return
+    const copy = duplicated.record.composition.clips.find(clip => clip.startMs === 12_000)!
+    const reordered = applyShowCommandV2(duplicated.record, 'move_clip_effect', {
+      clip_id: copy.id, effect_id: DIM_ID, target_effect_id: CUTOFF_ID, edge: 'after', apply: { scope: 'whole-clip' },
+    })
+    expect(reordered.status, JSON.stringify(reordered)).toBe('changed')
+    if (reordered.status !== 'changed') return
+    const tracks = reordered.record.composition.propertyTracks.filter(track => track.target.kind === 'clip-effect')
+    expect(tracks.find(track => track.target.kind === 'clip-effect' && track.target.clipId === source.id)!.target)
+      .toMatchObject({ effectId: DIM_ID })
+    expect(tracks.find(track => track.target.kind === 'clip-effect' && track.target.clipId === copy.id)!.target)
+      .toMatchObject({ effectId: `${DIM_ID}@${copy.id}` })
+    expect(reordered.changes[0].details.tracks).toContain(tracks.find(track => track.target.kind === 'clip-effect' && track.target.clipId === copy.id)!.id)
+    const artifact = compileOrderingShow(reordered.record)
+    expect(artifact.code).toContain('0.37')
+  })
 
   it('detects an inversion the merge itself would introduce', () => {
     // The merge keeps the first sequence and appends unseen ids, so [scale, hue]
@@ -171,7 +226,8 @@ describe('Clip Effect ordering across placements of one instance (#363)', () => 
   })
 
   it('refuses shared Effect ids in opposite orders across one instance (#1131)', () => {
-    // When #1131 is fixed, this becomes the shared-id version of the three tests above.
+    // Directly authored conflict remains refused; the duplicate-and-reorder
+    // command test above proves #1131 authoring prevents this state.
     const show = sharedIdOrderingShow()
     const prepared = prepareShowV2ForCompile(show, nativeStockSourceLookupV2(show), { libraries: LIBRARIES })
     expect(prepared.status).toBe('refused')

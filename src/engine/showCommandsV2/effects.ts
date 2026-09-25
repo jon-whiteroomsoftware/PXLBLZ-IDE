@@ -63,7 +63,7 @@ function withEffectCommand(
   record: ShowRecordV2,
   input: Record<string, unknown>,
   build: (target: AppearanceTarget) => ShowClipAppearanceEditIntentV2 | { message: string },
-  describe: (affected: { clips: string[]; appearanceKeys: string[] }) => string,
+  describe: (affected: { clips: string[]; appearanceKeys: string[] }, reidentifiedEffectIds?: Record<string, string>) => string,
 ): ShowCommandV2Outcome {
   const clipId = input.clip_id as string
   if (!record.composition.clips.some(clip => clip.id === clipId)) return unknownClip(record, command, clipId)
@@ -71,7 +71,9 @@ function withEffectCommand(
   if ('message' in target) return invalidArgument(record, command, target.message, '$.apply')
   const intent = build(target)
   if ('message' in intent) return invalidArgument(record, command, intent.message)
-  return adoptOwnerResult(command, record, editShowClipAppearanceV2(record, intent), describe, clipId)
+  const result = editShowClipAppearanceV2(record, intent)
+  return adoptOwnerResult(command, record, result,
+    affected => describe(affected, result.status === 'changed' ? result.reidentifiedEffectIds : undefined), clipId)
 }
 
 /** Resolve the one Effect with this identity inside the selected held stacks. */
@@ -190,7 +192,9 @@ const moveClipEffect: ShowCommandV2Descriptor = {
     return withEffectCommand('move_clip_effect', record, input, target => ({
       ...target, kind: 'reorder-effect', effectId, effectKind: kind,
       targetEffectId: targetEffectId!, targetEffectKind: targetKind, edge,
-    }), affected => `Effect ${effectId} on Clip ${clipId} reordered; appearance keys ${describeIds(affected.appearanceKeys)}.`)
+    }), (affected, reidentified) => `Effect ${effectId} on Clip ${clipId} reordered; appearance keys ${describeIds(affected.appearanceKeys)}.`
+      + (reidentified && Object.keys(reidentified).length
+        ? ` Effect ids made unique on this Clip: ${Object.entries(reidentified).map(([oldId, newId]) => `${oldId}→${newId}`).join(', ')}.` : ''))
   },
 }
 

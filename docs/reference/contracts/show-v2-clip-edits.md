@@ -401,6 +401,11 @@ Duplicate inserts each span's own source value immediately after its source and
 keeps animation attached to the original. Reorder requires an explicit same-stage
 target ID/kind and before/after position in every stack, preserving other stage
 slots. No guessed partial operation, Effect removal or animation cascade exists.
+When a whole-Clip reorder conflicts with another Clip sharing its Pattern
+instance, the edited Clip's conflicting Effects receive fresh IDs across all
+its held keys and its Clip Effect Property tracks follow those IDs. A selected-time
+reorder that disagrees with another key of the same Clip refuses atomically with
+`effect-order-conflict`.
 
 The complete candidate must pass raw/materialized ownership, Layout availability,
 RL08–RL10 placement and numeric Effect target/Transition-ramp descriptor checks.
@@ -420,10 +425,10 @@ preserved structurally; participant Effect ramps currently refuse final
 preparation as an existing unsupported ramp family. Final preparation and
 compilation eligibility remain separate caller boundaries. The landed
 global-section adapter preserves presentation-owner runs for differing held
-View/Effect values while keeping shared private runtime identity. Opposing Effect
-orders can still require legacy recipe variants, which native preparation refuses
-to admit as additional runtimes. This remains unresolved representation work,
-not an accepted product limitation. Keyed instance controls can also make
+View/Effect values while keeping shared private runtime identity. Directly written
+opposing orders of shared Effect IDs can still require legacy recipe variants,
+which native preparation refuses to admit as additional runtimes. Keyed instance
+controls can also make
 Freeze/Strobe compilation unavailable under the existing static-cache restriction.
 This owner neither widens compilation nor claims those artifacts ready.
 

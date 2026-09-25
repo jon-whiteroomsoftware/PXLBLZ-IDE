@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { validateShowRecordV2, parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
-import { editShowClipAppearanceV2, type ShowClipAppearanceEditIntentV2 } from './showClipAppearanceEditsV2'
+import { editShowClipAppearanceV2, separateEffectOrderFromSharedClipsV2, type ShowClipAppearanceEditIntentV2 } from './showClipAppearanceEditsV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { compileShow } from './showCompiler'
@@ -72,6 +72,35 @@ function intent(kind: ShowClipAppearanceEditIntentV2['kind'], fields: object): S
 function emptyAffected(result: ReturnType<typeof editShowClipAppearanceV2>) {
   for (const [key, value] of Object.entries(result)) if (key.startsWith('affected') || ['removedIds', 'discardedControlTargets'].includes(key)) expect(value).toEqual([])
 }
+
+it('mints collision-free Effect ids across held keys and retargets only edited Clip tracks (#1131)', () => {
+  const record = fixture(), clip = record.composition.clips[0]
+  const dim: ShowClipEffect = { id: 'dim', kind: 'brightness', brightness: .4 }
+  const cutoff: ShowClipEffect = { id: 'cutoff', kind: 'threshold', threshold: .2, amount: 1 }
+  for (const key of clip.appearance.keys) key.value.effects = [structuredClone(cutoff), structuredClone(dim)]
+  const sibling = structuredClone(clip)
+  sibling.id = 'sibling'
+  sibling.startMs = 1000
+  sibling.appearance.keys.forEach(key => { key.timeMs += 1000; key.id += '-sibling'; key.value.effects = [structuredClone(dim), structuredClone(cutoff)] })
+  record.composition.clips.push(sibling)
+  record.composition.markers.push({ id: 'dim@clip', name: 'Reserved identity', timeMs: 100 })
+  record.composition.propertyTracks.push({ id: 'dim-animation', target: { kind: 'clip-effect', clipId: clip.id, effectId: 'dim', effectKind: 'brightness', parameterId: 'brightness' },
+    activeStartMs: 0, activeDurationMs: 1000, keyframes: [
+      { id: 'dim-first', timeMs: 0, value: .2, easing: { curve: 'linear' } },
+      { id: 'dim-last', timeMs: 1000, value: .6, easing: { curve: 'linear' } },
+    ] })
+  const before = structuredClone(record)
+  const result = separateEffectOrderFromSharedClipsV2(record, clip.id)
+  expect(result.status).toBe('ready')
+  if (result.status !== 'ready') return
+  expect(result.reidentifiedEffectIds).toEqual({ cutoff: 'cutoff@clip', dim: 'dim@clip~2' })
+  expect(result.record.composition.clips[0].appearance.keys.map(key => key.value.effects!.map(effect => effect.id)))
+    .toEqual(Array.from({ length: 3 }, () => ['cutoff@clip', 'dim@clip~2']))
+  expect(result.record.composition.clips[1]).toEqual(sibling)
+  expect(result.record.composition.propertyTracks.find(track => track.id === 'dim-animation')!.target)
+    .toMatchObject({ clipId: clip.id, effectId: 'dim@clip~2' })
+  expect(record).toEqual(before)
+})
 it('applies finite whole-Clip fields without flattening held keys or changing shared instance animation', () => {
   const record = fixture(), before = structuredClone(record)
   const preimage = prepare(record)

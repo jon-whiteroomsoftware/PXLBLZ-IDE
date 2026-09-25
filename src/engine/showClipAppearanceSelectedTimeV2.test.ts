@@ -281,23 +281,17 @@ it('duplicates the selected authored value while nonlinear animation remains att
   compareDelivered(result.record, expected)
 })
 
-it('reorders only the selected same-stage siblings and preserves other stages and later held stacks', () => {
+it('refuses a selected-time reorder that reverses Effects held elsewhere in the Clip (#1131)', () => {
   const record = fixture()
   record.composition.clips[0].appearance.keys[0].value.effects = [{ id: 'hue', kind: 'hue', turns: .1 }, { id: 'pose', kind: 'rotate', turns: .1 }, { id: 'other', kind: 'invert', amount: .3 }]
   expect(prepare(record).status).toBe('ready')
   const before = structuredClone(record)
   const result = editShowClipAppearanceV2(record, selected('reorder-effect', 200, { effectId: 'hue', effectKind: 'hue', targetEffectId: 'other', targetEffectKind: 'invert', edge: 'after' }))
-  expect(result.status, JSON.stringify(result)).toBe('changed')
-  const expected = structuredClone(before)
-  expected.composition.clips[0].appearance.keys.splice(1, 0, { id: 'selected-200', timeMs: 200,
-    value: { ...structuredClone(before.composition.clips[0].appearance.keys[0].value), effects: [{ id: 'other', kind: 'invert', amount: .3 }, { id: 'pose', kind: 'rotate', turns: .1 }, { id: 'hue', kind: 'hue', turns: .1 }] } })
-  expect(reopen(result.record)).toEqual(expected)
+  // #1131 brief: a selected-time inversion now refuses at the appearance owner.
+  expect(result.status, JSON.stringify(result)).toBe('refused')
+  if (result.status === 'refused') expect(result.code).toBe('effect-order-conflict')
+  expect(result.record).toBe(record)
   expect(record).toEqual(before)
-  // Opposing Effect orders currently allocate legacy recipe ~fx members. This
-  // is an unresolved adapter integration case, not supported reorder parity.
-  const admitted = prepare(result.record)
-  expect(admitted.status).toBe('refused')
-  if (admitted.status === 'refused') expect(admitted.issues[0].code).toBe('unsupported-runtime-sharing')
 })
 
 it('delivers an admitted selected-key reorder with one runtime and preserves other stages', () => {
@@ -315,7 +309,7 @@ it('delivers an admitted selected-key reorder with one runtime and preserves oth
   compareDelivered(result.record, expected)
 })
 
-it('documents the unresolved opposite-order adapter gap against independently authored adjacent runs', () => {
+it('keeps the lowering refusal for directly authored opposite Effect orders (#1131)', () => {
   const record = fixture(), clip = record.composition.clips[0]
   record.composition.propertyTracks = []
   clip.appearance.keys.splice(1)
@@ -323,18 +317,18 @@ it('documents the unresolved opposite-order adapter gap against independently au
   expect(prepare(record).status).toBe('ready')
   const before = structuredClone(record)
   const result = editShowClipAppearanceV2(record, selected('reorder-effect', 200, { effectId: 'hue', effectKind: 'hue', targetEffectId: 'invert', targetEffectKind: 'invert', edge: 'after' }))
-  expect(result.status).toBe('changed')
-  expect(validateShowRecordV2(reopen(result.record))).toEqual([])
+  // #1131 brief: the owner refuses this path; the adjacent record below is written directly.
+  expect(result.status).toBe('refused')
+  if (result.status === 'refused') expect(result.code).toBe('effect-order-conflict')
+  expect(result.record).toBe(record)
   const adjacent = structuredClone(before), first = adjacent.composition.clips[0]
   first.durationMs = 200
   adjacent.composition.clips.push({ ...structuredClone(clip), id: 'adjacent', startMs: 200, durationMs: 800,
     appearance: { keys: [{ id: 'adjacent-key', timeMs: 200, value: { ...structuredClone(clip.appearance.keys[0].value), effects: [structuredClone(clip.appearance.keys[0].value.effects![1]), structuredClone(clip.appearance.keys[0].value.effects![0])] } }] } })
   expect(validateShowRecordV2(reopen(adjacent))).toEqual([])
-  for (const candidate of [result.record, adjacent]) {
-    const admission = prepare(candidate)
-    expect(admission.status).toBe('refused')
-    if (admission.status === 'refused') expect(admission.issues[0].code).toBe('unsupported-runtime-sharing')
-  }
+  const admission = prepare(adjacent)
+  expect(admission.status).toBe('refused')
+  if (admission.status === 'refused') expect(admission.issues[0].code).toBe('unsupported-runtime-sharing')
   expect(record).toEqual(before)
 })
 

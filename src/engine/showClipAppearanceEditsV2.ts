@@ -4,7 +4,7 @@ import type { ShowClipEditRefusalV2, ShowClipEditResultV2 } from './showClipsV2'
 import type { ShowTimelineEditAffectedV2 } from './showTimelineV2'
 import { clipContributionInterval, validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { firstShowTransitionPlacementRestrictionV2 } from './showTransitionPlacementV2'
-import { normalizeShowClipEffects, showEffectParameterNames } from './showEffects'
+import { normalizeShowClipEffects, showEffectOrderConflicts, showEffectParameterNames } from './showEffects'
 import { showClipEffectParameters, showClipEffectParameterValue, showClipEffectPersistedField, showClipEffectStage, updateShowClipEffectParameter } from './showEffectAuthoring'
 import { parseColorValue } from './colorValue'
 import { NEUTRAL_SHOW_CLIP_TRANSFORM } from './showClipTransform'
@@ -31,14 +31,70 @@ export type ShowClipAppearanceEditIntentV2 = Target & (
   | ({ kind: 'reorder-effect'; targetEffectId: string; targetEffectKind: ShowClipEffect['kind']; edge: 'before' | 'after' } & EffectTarget)
   | ({ kind: 'remove-effect' } & EffectTarget)
 )
-export type ShowClipAppearanceEditResultV2 = ShowClipEditResultV2 & ShowTimelineEditAffectedV2
+export type ShowClipAppearanceEditResultV2 = (
+  | Exclude<ShowClipEditResultV2, { status: 'refused' }>
+  | (Omit<Extract<ShowClipEditResultV2, { status: 'refused' }>, 'code'> & { code: ShowClipEditRefusalV2 | 'effect-order-conflict' })
+) & ShowTimelineEditAffectedV2 & { reidentifiedEffectIds?: Record<string, string> }
+
+/** Keep one Clip's held keys and every Clip on its instance on one Effect chain. */
+export function separateEffectOrderFromSharedClipsV2(record: ShowRecordV2, clipId: string):
+  | { status: 'conflict' }
+  | { status: 'ready'; record: ShowRecordV2; reidentifiedEffectIds: Record<string, string> } {
+  const clip = record.composition.clips.find(candidate => candidate.id === clipId)!
+  const keys = clip.appearance.keys
+  for (let i = 0; i < keys.length; i++) {
+    for (let j = i + 1; j < keys.length; j++) {
+      const left = keys[i].value.effects ?? [], right = keys[j].value.effects ?? []
+      const shared = new Set(left.map(effect => effect.id).filter(id => right.some(effect => effect.id === id)))
+      if (shared.size > 1 && (showEffectOrderConflicts(left.filter(effect => shared.has(effect.id)), right.filter(effect => shared.has(effect.id)))
+        || showEffectOrderConflicts(right.filter(effect => shared.has(effect.id)), left.filter(effect => shared.has(effect.id))))) return { status: 'conflict' }
+    }
+  }
+  const conflicting = new Set<string>()
+  for (const sibling of record.composition.clips) {
+    if (sibling.id === clip.id || sibling.instanceId !== clip.instanceId) continue
+    for (const key of keys) for (const other of sibling.appearance.keys) {
+      const effects = key.value.effects ?? [], otherEffects = other.value.effects ?? []
+      if (!showEffectOrderConflicts(effects, otherEffects) && !showEffectOrderConflicts(otherEffects, effects)) continue
+      for (const effect of effects) if (otherEffects.some(candidate => candidate.id === effect.id && candidate.kind === effect.kind)) conflicting.add(effect.id)
+    }
+  }
+  if (!conflicting.size) return { status: 'ready', record, reidentifiedEffectIds: {} }
+  const next = structuredClone(record)
+  const used = new Set<string>()
+  const collectIds = (value: unknown): void => {
+    if (Array.isArray(value)) { value.forEach(collectIds); return }
+    if (!value || typeof value !== 'object') return
+    for (const [name, child] of Object.entries(value)) {
+      if (name === 'id' && typeof child === 'string') used.add(child)
+      else collectIds(child)
+    }
+  }
+  collectIds(record)
+  const reidentifiedEffectIds: Record<string, string> = {}
+  for (const oldId of [...conflicting].sort()) {
+    const base = `${oldId}@${clip.id}`
+    let fresh = base, suffix = 2
+    while (used.has(fresh)) fresh = `${base}~${suffix++}`
+    used.add(fresh)
+    reidentifiedEffectIds[oldId] = fresh
+  }
+  const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
+  for (const key of edited.appearance.keys) for (const effect of key.value.effects ?? []) effect.id = reidentifiedEffectIds[effect.id] ?? effect.id
+  for (const track of next.composition.propertyTracks) {
+    if (track.target.kind === 'clip-effect' && track.target.clipId === clip.id) {
+      track.target.effectId = reidentifiedEffectIds[track.target.effectId] ?? track.target.effectId
+    }
+  }
+  return { status: 'ready', record: next, reidentifiedEffectIds }
+}
 
 /** Explicit held-value authoring; retained animation and runtime owners stay authored. */
 export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipAppearanceEditIntentV2): ShowClipAppearanceEditResultV2 {
   const empty = { affectedClipIds: [] as [], affectedInstanceIds: [], affectedTransitionIds: [], affectedTrackIds: [] as [],
     affectedLayoutDefinitionIds: [], affectedLayoutOccurrenceIds: [], affectedGroupDefinitionIds: [], affectedGroupOccurrenceIds: [],
     affectedLayerIds: [], affectedMarkerIds: [], affectedAppearanceKeyIds: [], affectedPropertyKeyIds: [], removedIds: [], discardedControlTargets: [] }
-  const refuse = (code: ShowClipEditRefusalV2, message: string): ShowClipAppearanceEditResultV2 => ({ status: 'refused', record, code, message, ...empty })
+  const refuse = (code: ShowClipEditRefusalV2 | 'effect-order-conflict', message: string): ShowClipAppearanceEditResultV2 => ({ status: 'refused', record, code, message, ...empty })
   const invalid = validateShowRecordV2(record)[0]
   if (invalid) return refuse('invalid-record', `${invalid.path}: ${invalid.message}`)
   if (!object(intent) || !['whole-clip', 'selected-time'].includes(intent.scope) || typeof intent.clipId !== 'string' || !intent.clipId.length) return refuse('invalid-intent', 'Give an ordinary Clip and explicit appearance scope.')
@@ -89,7 +145,7 @@ export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipA
         return !source || !target || showClipEffectStage(source) !== showClipEffectStage(target)
       })) return refuse('invalid-intent', 'Give exact source and same-stage destination Effects in every selected held stack.')
   } else if (intent.kind !== 'appearance') return refuse('invalid-intent', 'Unsupported appearance operation.')
-  const next = structuredClone(record)
+  let next = structuredClone(record)
   const edited = next.composition.clips.find(candidate => candidate.id === clip.id)!
   if (intent.scope === 'selected-time' && intent.keyIdentity.kind === 'insert') {
     edited.appearance.keys.push(structuredClone(selectedKeys[0]))
@@ -126,6 +182,13 @@ export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipA
     }
     if (JSON.stringify(key.value) !== before) affectedAppearanceKeyIds.push(key.id)
   }
+  let reidentifiedEffectIds: Record<string, string> | undefined
+  if (intent.kind === 'reorder-effect' && affectedAppearanceKeyIds.length) {
+    const separated = separateEffectOrderFromSharedClipsV2(next, clip.id)
+    if (separated.status === 'conflict') return refuse('effect-order-conflict', 'This Clip already uses these Effects in a different order at another time. Reorder them for the whole Clip instead.')
+    next = separated.record
+    reidentifiedEffectIds = separated.reidentifiedEffectIds
+  }
   // Legacy `remove_clip_effect` pruned every Scene Property track whose
   // placement-effect target no longer resolved on that logical Clip
   // (`pruneRemovedEffectPropertyTracks`). The v2 cascade is exactly that, read
@@ -150,8 +213,11 @@ export function editShowClipAppearanceV2(record: ShowRecordV2, intent: ShowClipA
   const restriction = firstShowTransitionPlacementRestrictionV2(next)
   if (restriction) return refuse('compiler-ineligible', restriction.message)
   if (!affectedAppearanceKeyIds.length) return { status: 'unchanged', record, ...empty }
-  return { status: 'changed', record: next, ...empty, affectedClipIds: [clip.id], affectedAppearanceKeyIds,
-    affectedTrackIds: removedTrackIds, removedIds: removedTrackIds,
+  const newEffectIds = new Set(Object.values(reidentifiedEffectIds ?? {}))
+  const reidentifiedTrackIds = next.composition.propertyTracks.filter(track => track.target.kind === 'clip-effect'
+    && track.target.clipId === clip.id && newEffectIds.has(track.target.effectId)).map(track => track.id)
+  return { status: 'changed', record: next, ...empty, affectedClipIds: [clip.id], affectedAppearanceKeyIds, reidentifiedEffectIds,
+    affectedTrackIds: [...removedTrackIds, ...reidentifiedTrackIds].sort(), removedIds: removedTrackIds,
     affectedPropertyKeyIds: removedTracks.flatMap(track => track.keyframes.map(keyframe => keyframe.id)).sort() }
 }
 

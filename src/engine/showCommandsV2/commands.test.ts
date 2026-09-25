@@ -684,6 +684,41 @@ describe('v2 Marker, Effect and animation commands', () => {
     expect(removedEffect.record.composition.clips[0].appearance.keys[0].value.effects!.map(effect => effect.id)).toEqual([effectId])
   })
 
+  it('keeps Effect ids and the ordinary message when a reorder has no conflicting sibling (#1131)', () => {
+    const record = commandFixtureV2()
+    const source = record.composition.clips.find(clip => clip.id === 'clip-c')!
+    source.appearance.keys[0].value.effects = [
+      { id: 'dim', kind: 'brightness', brightness: 0.4 },
+      { id: 'cutoff', kind: 'threshold', threshold: 0.2, amount: 1 },
+    ]
+    const reordered = changed(applyShowCommandV2(record, 'move_clip_effect', {
+      clip_id: source.id, effect_id: 'dim', target_effect_id: 'cutoff', edge: 'after', apply: { scope: 'whole-clip' },
+    }))
+    expect(reordered.record.composition.clips.find(clip => clip.id === source.id)!.appearance.keys[0].value.effects!.map(effect => effect.id))
+      .toEqual(['cutoff', 'dim'])
+    expect(reordered.changes[0].description).not.toContain('Effect ids made unique')
+    expect(record.composition.clips.find(clip => clip.id === source.id)!.appearance.keys[0].value.effects!.map(effect => effect.id))
+      .toEqual(['dim', 'cutoff'])
+  })
+
+  it('keeps Effect ids when a shared sibling has the same relative order (#1131)', () => {
+    const record = commandFixtureV2()
+    const source = record.composition.clips.find(clip => clip.id === 'clip-a')!
+    const sibling = record.composition.clips.find(clip => clip.id === 'clip-b')!
+    source.appearance.keys[0].value.effects = [
+      { id: 'dim', kind: 'brightness', brightness: 0.4 },
+      { id: 'middle', kind: 'invert', amount: 0.3 },
+      { id: 'cutoff', kind: 'threshold', threshold: 0.2, amount: 1 },
+    ]
+    sibling.appearance.keys[0].value.effects = [structuredClone(source.appearance.keys[0].value.effects[0]), structuredClone(source.appearance.keys[0].value.effects[2])]
+    const reordered = changed(applyShowCommandV2(record, 'move_clip_effect', {
+      clip_id: source.id, effect_id: 'middle', target_effect_id: 'cutoff', edge: 'after', apply: { scope: 'whole-clip' },
+    }))
+    expect(reordered.record.composition.clips.find(clip => clip.id === source.id)!.appearance.keys[0].value.effects!.map(effect => effect.id))
+      .toEqual(['dim', 'cutoff', 'middle'])
+    expect(reordered.changes[0].description).not.toContain('Effect ids made unique')
+  })
+
   it('passes the appearance owner refusal code through update_clip_effect', () => {
     const record = commandFixtureV2()
     const added = changed(applyShowCommandV2(record, 'add_clip_effect', {
