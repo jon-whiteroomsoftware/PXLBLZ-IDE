@@ -340,7 +340,7 @@ it.each(['cancel', 'retire', 'departure', 'remount', 'wrong-session', 'wrong-sho
   if (mode === 'retire') store().retireShowEditSession(sessionId)
   if (mode === 'departure') {
     // Explicit departure retires the session; a same-id reopen cannot revive it.
-    await store().openShow(null)
+    store().leaveShowWorkspace()
     store().beginShowEditSession(context.record.id)
   }
   if (mode === 'remount') store().beginShowEditSession(context.record.id)

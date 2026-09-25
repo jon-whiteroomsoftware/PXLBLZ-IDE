@@ -4404,7 +4404,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByRole('button', { name: 'Show properties' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Split at playhead' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clone selection' })).toBeDisabled()
-    expect(editor.state().legacyShows).toEqual([])
     expect(editor.state().v2Writes).toBe(0)
   })
 

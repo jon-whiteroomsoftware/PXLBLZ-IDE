@@ -125,11 +125,11 @@ describe('showEditorSessionStore (#470)', () => {
     const session = useShowEditorSessionStore.getState()
     session.setDiagnostic('zoneOutlines', true)
     session.setDiagnostic('clipOutlines', true)
-    session.setDiagnosticFocus({ showId: 'show-1', sceneId: 'scene-2', zoneId: 'zone-3', placementId: 'clip-4' })
+    session.setDiagnosticFocus({ recordVersion: 2, showId: 'show-1', zoneId: 'zone-3', clipId: 'clip-4', occurrenceId: null })
 
     expect(useShowEditorSessionStore.getState()).toMatchObject({
       diagnostics: { zoneOutlines: true, clipOutlines: true, otherZoneGuides: false },
-      diagnosticFocus: { showId: 'show-1', sceneId: 'scene-2', zoneId: 'zone-3', placementId: 'clip-4' },
+      diagnosticFocus: { recordVersion: 2, showId: 'show-1', zoneId: 'zone-3', clipId: 'clip-4', occurrenceId: null },
     })
 
     const merged = mergePersistedShowEditorSession({

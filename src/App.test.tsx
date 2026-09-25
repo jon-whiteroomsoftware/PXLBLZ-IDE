@@ -176,9 +176,7 @@ function seedStoredV2Shows(shows: ShowRecord[]): ShowRecordV2[] {
     return converted.record
   })
   useShowStore.setState({
-    shows: [],
     showsLoaded: true,
-    activeShowId: null,
     showV2Rows: records.map((record) => ({ id: record.id, name: record.name, updatedAt: record.updatedAt })),
     showV2Pilots: Object.fromEntries(records.map((record) => [record.id, record])),
     showV2Histories: Object.fromEntries(records.map((record) => [record.id, { past: [], future: [] }])),
@@ -273,9 +271,7 @@ describe('App smoke test', () => {
     setStudioLocation(`/studio/shows/${converted.record.id}`)
     seedSignedInWorkspace()
     useShowStore.setState({
-      shows: [],
       showsLoaded: true,
-      activeShowId: null,
       showV2Rows: [{ id: converted.record.id, name: converted.record.name, updatedAt: 1 }],
       showV2Pilots: { [converted.record.id]: converted.record },
     })
@@ -305,7 +301,7 @@ describe('App smoke test', () => {
     })
     setStudioLocation(`/studio/shows/${id}`)
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [], showsLoaded: true, activeShowId: null, showV2Rows: [], showV2Pilots: {} })
+    useShowStore.setState({ showsLoaded: true, showV2Rows: [], showV2Pilots: {} })
 
     render(<App />)
 
@@ -364,7 +360,7 @@ describe('App smoke test', () => {
     } as unknown as PersonalContentProvider)
     setStudioLocation('/studio/shows/' + missingId)
     seedSignedInWorkspace()
-    useShowStore.setState({ showsLoaded: true, activeShowId: null, showV2Rows: [], showV2Pilots: {} })
+    useShowStore.setState({ showsLoaded: true, showV2Rows: [], showV2Pilots: {} })
 
     render(<App />)
 
@@ -379,9 +375,7 @@ describe('App smoke test', () => {
     setStudioLocation(`/studio/shows/${converted.record.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
     useShowStore.setState({
-      shows: [],
       showsLoaded: true,
-      activeShowId: null,
       showV2Pilots: { [converted.record.id]: converted.record },
     })
 
@@ -392,28 +386,12 @@ describe('App smoke test', () => {
     expect(screen.queryByText('Show not found')).not.toBeInTheDocument()
   })
 
-  it('clears a stale active Show when a different stored v2 row is routed (#1039)', async () => {
-    const a = { ...transitionV1Show('crossfade'), id: 'still-active-row', name: 'Still active' }
-    const b = { ...transitionV1Show('crossfade'), id: 'routed-v2-row', name: 'Routed v2' }
-    setStudioLocation(`/studio/shows/${b.id}`)
-    seedSignedInWorkspace()
-    seedStoredV2Shows([a, b])
-    useShowStore.setState({ activeShowId: a.id })
-
-    render(<App />)
-
-    expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument()
-    await waitFor(() => expect(useShowStore.getState().activeShowId).toBeNull())
-    expect(window.location.pathname).toBe(`/studio/shows/${b.id}`)
-  })
-
-  it('keeps an explicit v2 editor route when the ordinary active Show is stale', async () => {
+  it('keeps an explicit v2 editor route', async () => {
     const sourceA = { ...transitionV1Show('crossfade'), id: 'pilot-active-a', name: 'Ordinary active A' }
     const sourceB = { ...transitionV1Show('crossfade'), id: 'pilot-active-b', name: 'Explicit pilot B' }
     setStudioLocation(`/studio/shows/${sourceB.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
     seedStoredV2Shows([sourceA, sourceB])
-    useShowStore.setState({ activeShowId: sourceA.id })
 
     render(<App />)
     await act(async () => { await Promise.resolve() })
@@ -528,7 +506,6 @@ describe('App smoke test', () => {
     await waitFor(() => expect(useStudioPlaceStore.getState().remembered.shows).toBe(show.id))
     await choosePlace('Docs')
     act(() => usePatternStore.setState({ activeDemoName: null, activePatternId: starter.id }))
-    act(() => useShowStore.setState({ activeShowId: hydratedShow.id }))
     expect(useStudioPlaceStore.getState().remembered.patterns).toBe(pattern.id)
     expect(useStudioPlaceStore.getState().remembered.shows).toBe(show.id)
     const trigger = within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Docs' })
@@ -835,7 +812,6 @@ describe('routing (#308)', () => {
     seedSignedInWorkspace()
     useShowStore.setState({
       showsLoaded: true,
-      activeShowId: legacy.id,
       showV2Pilots: { [legacy.id]: converted.record },
       showV2Histories: { [legacy.id]: { past: [], future: [] } },
     })
@@ -875,7 +851,7 @@ describe('routing (#308)', () => {
     } as unknown as PersonalContentProvider)
     setStudioLocation(`/studio/shows/${legacy.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
-    useShowStore.setState({ showsLoaded: true, activeShowId: legacy.id })
+    useShowStore.setState({ showsLoaded: true })
     const opened = await useShowStore.getState().openShowV2Pilot(legacy.id)
     if (opened.status !== 'ready') throw new Error(JSON.stringify(opened.issues))
     await useShowStore.getState().updateShowV2Pilot(legacy.id, edited.record)
@@ -924,7 +900,7 @@ describe('routing (#308)', () => {
     } as unknown as PersonalContentProvider)
     setStudioLocation(`/studio/shows/${legacy.id}?show-v2-editor=1`)
     seedSignedInWorkspace()
-    useShowStore.setState({ showsLoaded: true, activeShowId: legacy.id })
+    useShowStore.setState({ showsLoaded: true })
     const opened = await useShowStore.getState().openShowV2Pilot(legacy.id)
     if (opened.status !== 'ready') throw new Error(JSON.stringify(opened.issues))
 
@@ -1204,7 +1180,7 @@ describe('routing (#308)', () => {
     const stock = STOCK_SHOW_CATALOGUE.find((candidate) => candidate.id === 'stock-show-reference-wipe-transitions')!
     setStudioLocation(`/studio/shows/${stock.id}`)
     seedSignedInWorkspace()
-    useShowStore.setState({ shows: [], showsLoaded: true, activeShowId: null })
+    useShowStore.setState({ showsLoaded: true })
     useShowEditorSessionStore.getState().setShowNoteOpen(stock.id, true)
 
     render(<App />)
@@ -1258,7 +1234,6 @@ describe('routing (#308)', () => {
     setStudioLocation(`/studio/shows/${show.id}`)
     seedSignedInWorkspace()
     seedStoredV2Shows([show])
-    useShowStore.setState({ activeShowId: show.id })
     const showApp = render(<App />)
 
     const showTrigger = within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Shows' })
@@ -1528,7 +1503,6 @@ describe('routing (#308)', () => {
       activePatternId: record.id,
     })
     seedStoredV2Shows([show])
-    useShowStore.setState({ activeShowId: show.id })
     useControllerStore.setState({
       artifactPushResult: {
         ok: false,

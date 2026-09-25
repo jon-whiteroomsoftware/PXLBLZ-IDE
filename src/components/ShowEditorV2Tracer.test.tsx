@@ -287,7 +287,6 @@ function expectNoWrite(before: EditorState, after: EditorState): void {
   expect(after.revision).toBe(before.revision)
   expect(after.v2Writes).toBe(0)
   expect(after.legacyWrites).toBe(0)
-  expect(after.legacyShows).toEqual([])
 }
 
 // ── Gesture surface ──────────────────────────────────────────────────────────
@@ -511,7 +510,6 @@ describe('v2 tracer settlement routing (#1065)', () => {
     expect(after.history.future).toEqual([])
     // The legacy door stays shut, and no legacy backing appears under this id.
     expect(after.legacyWrites).toBe(0)
-    expect(after.legacyShows).toEqual([])
   })
 
   it('duplicates a Clip on an Alt drag as a linked copy', async () => {
@@ -672,7 +670,6 @@ describe('v2 tracer settlement routing (#1065)', () => {
     expect(after.history.past).toEqual([before.record])
     expect(after.history.future).toEqual([])
     expect(after.legacyWrites).toBe(0)
-    expect(after.legacyShows).toEqual([])
     expect(legacy.calls).toEqual([])
   })
 
@@ -2355,7 +2352,6 @@ function expectOneEdit(before: EditorState, after: EditorState): void {
   expect(after.revision).toBe(before.revision + 1)
   expect(after.v2Writes).toBe(before.v2Writes + 1)
   expect(after.legacyWrites).toBe(0)
-  expect(after.legacyShows).toEqual([])
   expect(legacy.calls).toEqual([])
 }
 
@@ -5009,9 +5005,7 @@ describe('v2 save-failure notice (#1066 slice 12)', () => {
       setLastActive: async () => {},
     } as unknown as PersonalContentProvider)
     useShowStore.setState({
-      shows: [],
       showsLoaded: true,
-      activeShowId: null,
       showV2Pilots: { [record.id]: record },
       showV2Histories: { [record.id]: { past: [], future: [] } },
       showRevisions: { [record.id]: 0 },
@@ -6856,7 +6850,6 @@ describe('v2 lesson Reset built-in Show (#1066 t54)', () => {
     expect(useShowStore.getState().showV2Histories[id]).toEqual({ past: [], future: [] })
     expect(v2Writes).not.toHaveBeenCalled()
     expect(legacyWrites).not.toHaveBeenCalled()
-    expect(useShowStore.getState().shows).toEqual([])
   })
 })
 
@@ -6928,7 +6921,6 @@ describe('v2 lesson header Clone (#1091 item 3)', () => {
       .toEqual({ kind: 'stock', id: 'Kishimisu' })
     expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toContain(copy.id)
     expect(legacyWrites).not.toHaveBeenCalled()
-    expect(useShowStore.getState().shows).toEqual([])
   })
 })
 
@@ -6944,6 +6936,25 @@ describe('v2 Layout occurrence Append (#1066 slice 8b-1)', () => {
     await act(async () => {})
     return screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
   }
+
+  it('S2b reports this Show\'s refused layout action when another Show records a save failure', async () => {
+    const base = commandFixtureV2()
+    base.id = 'layout-other-show-failure'
+    const editor = openV2EditorForRecord(base)
+    render(<ShowEditor showId={editor.showId} />)
+    const dialog = await openLayoutActionsAt(base.id, 5_001)
+    const before = editor.state()
+    admission.beforeDoor = () => useShowStore.setState({
+      showRevisions: { [editor.showId]: before.revision + 1 },
+      showV2SaveFailure: { showId: 'another-show', record: before.record },
+    })
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Append' }))
+
+    await waitFor(() => expect(within(dialog).getByRole('alert'))
+      .toHaveTextContent('That operation is not available at this time.'))
+    expect(editor.state().record).toBe(before.record)
+  })
 
   it('appends a copied Zone Layout interval through the layout-occurrence door', async () => {
     const base = commandFixtureV2()

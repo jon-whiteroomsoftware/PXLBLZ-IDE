@@ -4821,7 +4821,7 @@ function ShowTimelineWorkspace({
       // A fresh save failure means persistence refused the edit, not the
       // timeline structure; the rollback notice owns that report (#792).
       const failureAfter = useShowStore.getState().showV2SaveFailure
-      if (failureAfter && failureAfter !== failureBefore) return
+      if (failureAfter && failureAfter.showId === showId && failureAfter !== failureBefore) return
       setLayoutActionError('That operation is not available at this time. Move the playhead outside a Transition and leave enough room to split occupied Clips.')
     }).catch(() => {})
   }

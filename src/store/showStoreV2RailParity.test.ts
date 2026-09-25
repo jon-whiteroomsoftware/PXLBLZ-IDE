@@ -9,7 +9,6 @@ import {
   setPersonalContentProvider,
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
-import { ShowV1RetiredError } from '@/engine/remotePersonalContentProvider'
 
 /**
  * A stored v2 row is an ordinary personal Show in the Shows rail (#1039).
@@ -153,7 +152,6 @@ describe('trashing a v2 row from the rail', () => {
     const { stored, deleted } = provider([createShowV2WithOutputContract('row', 'Doomed', CONTRACT, 1)])
     await useShowStore.getState().loadShows()
     await useShowStore.getState().openShowV2Pilot('row')
-    useShowStore.setState({ activeShowId: 'row' })
 
     await useShowStore.getState().removeShow('row')
 
@@ -162,7 +160,6 @@ describe('trashing a v2 row from the rail', () => {
     expect(useShowStore.getState().showV2Rows).toEqual([])
     expect(useShowStore.getState().showV2Pilots.row).toBeUndefined()
     expect(useShowStore.getState().showV2Histories.row).toBeUndefined()
-    expect(useShowStore.getState().activeShowId).toBeNull()
   })
 
   it('keeps the row when the provider refuses the delete', async () => {
@@ -181,36 +178,25 @@ describe('trashing a v2 row from the rail', () => {
   })
 })
 
-describe('hydration behind the retired v1 list (#1042)', () => {
+describe('v2 row hydration (#1042)', () => {
   afterEach(() => resetPersonalContentProvider())
 
-  it('loads the stored v2 rows when the provider refuses the v1 list as retired', async () => {
+  it('loads stored v2 rows without asking for the retired v1 list', async () => {
     gate(true)
     useShowStore.setState(showInitialState)
     const row = createShowV2WithOutputContract('v2-only', 'Only v2', CONTRACT, 1)
     setPersonalContentProvider({
       id: 'v1-retired',
-      listShows: () => Promise.reject(new ShowV1RetiredError()),
+      listShows: () => Promise.reject(new Error('retired v1 list must not be read')),
       listShowDocumentsV2: async () => [structuredClone(row)],
     } as unknown as PersonalContentProvider)
 
     await useShowStore.getState().loadShows()
 
     expect(useShowStore.getState()).toMatchObject({
-      shows: [],
       showsLoaded: true,
       showV2Rows: [{ id: 'v2-only', name: 'Only v2', updatedAt: 1 }],
     })
   })
 
-  it('still rejects hydration for any other v1 list failure', async () => {
-    useShowStore.setState(showInitialState)
-    setPersonalContentProvider({
-      id: 'v1-offline',
-      listShows: () => Promise.reject(new Error('offline')),
-      listShowDocumentsV2: async () => [],
-    } as unknown as PersonalContentProvider)
-
-    await expect(useShowStore.getState().loadShows()).rejects.toThrow('offline')
-  })
 })

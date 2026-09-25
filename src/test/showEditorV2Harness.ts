@@ -18,7 +18,6 @@ export interface EditorState {
   revision: number
   v2Writes: number
   legacyWrites: number
-  legacyShows: readonly ShowRecord[]
 }
 
 export interface OpenV2Editor {
@@ -49,9 +48,7 @@ export function openV2EditorForRecord(record: ShowRecordV2): OpenV2Editor {
     setLastActive: async () => {},
   } as unknown as PersonalContentProvider)
   useShowStore.setState({
-    shows: [],
     showsLoaded: true,
-    activeShowId: null,
     showV2Pilots: { [record.id]: record },
     showV2Histories: { [record.id]: { past: [], future: [] } },
     showRevisions: { [record.id]: 0 },
@@ -66,7 +63,6 @@ export function openV2EditorForRecord(record: ShowRecordV2): OpenV2Editor {
         revision: store.showRevisions[record.id] ?? 0,
         v2Writes: v2Writes.mock.calls.length,
         legacyWrites: legacyWrites.mock.calls.length,
-        legacyShows: store.shows,
       }
     },
   }

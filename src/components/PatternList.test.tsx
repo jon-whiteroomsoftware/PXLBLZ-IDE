@@ -735,8 +735,6 @@ describe('PatternList', () => {
     render(<PatternList />)
 
     await waitFor(() => expect(useShowStore.getState().showsLoaded).toBe(true))
-    expect(useShowStore.getState().shows).toEqual([])
-    expect(useShowStore.getState().activeShowId).toBeNull()
     expect(requests.some((request) => request.url === '/api/shows')).toBe(false)
   })
 
@@ -832,8 +830,8 @@ describe('PatternList', () => {
     await user.click(await screen.findByRole('button', { name: 'Add show' }))
     await user.click(await screen.findByRole('button', { name: 'New show' }))
 
-    expect(useShowStore.getState().showCreation).toEqual({ previousShowId: null })
-    expect(useShowStore.getState().shows).toEqual([])
+    expect(useShowStore.getState().showCreation).toBe(true)
+    expect(useShowStore.getState().showV2Rows).toEqual([])
     expect(requests.some(({ url, init }) => url === '/api/shows' && init?.method === 'POST')).toBe(false)
     expect(window.location.pathname).toBe('/studio/shows')
   })
@@ -863,7 +861,7 @@ describe('PatternList', () => {
     await user.click(screen.getByText('101 Clips, Cuts, and Blank Time'))
 
     expect(window.location.pathname).toBe('/studio/shows/stock-show-101-clips-cuts-blank-time')
-    expect(useShowStore.getState().shows).toEqual([])
+    expect(useShowStore.getState().showV2Rows).toEqual([])
     expect(requests.some(({ url, init }) => url === '/api/shows' && init?.method === 'POST')).toBe(false)
   })
 
@@ -1242,8 +1240,7 @@ describe('PatternList', () => {
 
   /**
    * A stored v2 row is a personal Show in the Shows rail (#1039). Its rename,
-   * duplicate and Empty Trash actions are the ones a v1 row offers, and the
-   * persisted organization is reconciled against both stored versions.
+   * duplicate and Empty Trash actions operate on its persisted organization.
    */
   describe('the Shows rail with stored v2 rows', () => {
     const V2_CONTRACT = createInstallationShowOutputContract({ outputMapId: null, pixelCount: 60 })
@@ -1271,10 +1268,9 @@ describe('PatternList', () => {
         return screen.getByRole('tree', { name: 'Shows' })
       }
 
-      it('marks the routed v2 row selected while a different v2 Show stays active', async () => {
+      it('marks only the routed v2 row selected', async () => {
         await renderRailWithRows()
         act(() => {
-          useShowStore.setState({ activeShowId: 'v2-stale' })
           useRouterStore.getState().navigate({ kind: 'studio', entity: { kind: 'shows', id: 'v2-open' } })
         })
 
@@ -1284,10 +1280,9 @@ describe('PatternList', () => {
           .toHaveAttribute('aria-selected', 'false')
       })
 
-      it('falls through to activeShowId on a stock Show route', async () => {
+      it('selects no personal row on a stock Show route', async () => {
         await renderRailWithRows()
         act(() => {
-          useShowStore.setState({ activeShowId: 'v2-stale' })
           useRouterStore.getState().navigate({
             kind: 'studio',
             entity: { kind: 'shows', id: 'stock-show-101-clips-cuts-blank-time' },
@@ -1295,17 +1290,13 @@ describe('PatternList', () => {
         })
 
         expect(within(personalShowsTree()).getByRole('treeitem', { name: /Stale v2/ }))
-          .toHaveAttribute('aria-selected', 'true')
+          .toHaveAttribute('aria-selected', 'false')
         expect(within(personalShowsTree()).getByRole('treeitem', { name: /Open v2/ }))
           .toHaveAttribute('aria-selected', 'false')
       })
 
       it('selects no v2 row on a route with a null entity id', async () => {
         await renderRailWithRows()
-        act(() => {
-          useShowStore.setState({ activeShowId: null })
-        })
-
         const selected = within(personalShowsTree())
           .getAllByRole('treeitem')
           .filter((item) => item.getAttribute('aria-selected') === 'true')
@@ -1465,7 +1456,6 @@ describe('version-1 Show file import (#1042)', () => {
       .toEqual([{ kind: 'user', id: createdPatternId }])
     expect(writes()).not.toContainEqual(['/api/shows', 'POST'])
     expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toEqual([stored.id])
-    expect(useShowStore.getState().shows).toEqual([])
     expect(window.location.pathname).toBe(`/studio/shows/${stored.id}`)
   })
 

@@ -44,7 +44,7 @@ import {
   profileMatchesLive,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
-import { personalShowIds, useShowStore } from '@/store/showStore'
+import { useShowStore } from '@/store/showStore'
 import { useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -131,10 +131,8 @@ export function PatternList({
   // Stored v2 rows the list offers behind the one route gate (#1056 slice 6).
   const userShowsV2 = useShowStore((s) => s.showV2Rows)
   const duplicateShowV2Row = useShowStore((s) => s.duplicateShowV2Row)
-  const activeShowId = useShowStore((s) => s.activeShowId)
   const loadShows = useShowStore((s) => s.loadShows)
   const beginShowCreation = useShowStore((s) => s.beginShowCreation)
-  const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
   const removeShow = useShowStore((s) => s.removeShow)
   const addImportedShowV2 = useShowStore((s) => s.addImportedShowV2)
@@ -159,15 +157,11 @@ export function PatternList({
     && STOCK_SHOW_CATALOGUE.some((item) => item.id === route.entity?.id)
     ? route.entity.id
     : null
-  // A stored version-2 row is held outside the v1 Show store, so `activeShowId`
-  // stays null while its editor is open (#1039). The rail marks the open row
-  // from the same explicit versioned route identity the editor mounts on, so a
-  // Show stored either way shows one selected row (#1065).
+  // The routed v2 Show identity selects its personal rail row.
   const activeRoutedShowV2Id = route.kind === 'studio' && route.entity?.kind === 'shows'
     && userShowsV2.some((show) => show.id === route.entity?.id)
     ? route.entity.id
     : null
-  const activePersonalShowId = activeRoutedShowV2Id ?? activeShowId
   const createShowFromController = useShowStore((s) => s.createShowFromController)
   // Any profile can seed a new Show: since #775 the action wires target
   // identity, Stage map, and pixel count — zones are carved inside the Show.
@@ -582,10 +576,8 @@ export function PatternList({
       }
       await loadOrganization('patterns', usePatternStore.getState().userPatterns.map((pattern) => pattern.id))
       if (cancelled) return
-      // Both stored versions are personal Shows in this one list; reconciling
-      // the startup load against the v1 ids alone pruned every v2 row out of
-      // its folder and persisted the pruned organization (#1039).
-      await loadOrganization('shows', personalShowIds(useShowStore.getState()))
+      // The rail's personal Shows are the v2 rows (#1039).
+      await loadOrganization('shows', useShowStore.getState().showV2Rows.map((row) => row.id))
       if (cancelled) return
       await loadOrganization('maps', useMapStore.getState().userMaps.map((map) => map.id))
       if (cancelled) return
@@ -604,7 +596,6 @@ export function PatternList({
       const last = await getPersonalContentProvider().getLastActive().catch(() => undefined)
       const { userPatterns, setActiveLibrary } = usePatternStore.getState()
       const { userLibraries, openExistingLibrary } = useLibraryStore.getState()
-      const { shows, openShow } = useShowStore.getState()
       const { setSource, setIsReadOnly } = useEditorStore.getState()
       if (!last) {
         openDemoPattern(DEFAULT_DEMO_NAME)
@@ -624,8 +615,6 @@ export function PatternList({
           setIsReadOnly(true)
           useEditorStore.getState().setEditorFlavor('library')
         }
-      } else if (last.type === 'show') {
-        if (shows.some((show) => show.id === last.id)) openShow(last.id)
       }
     }
     void hydratePersonalContent()
@@ -914,7 +903,7 @@ export function PatternList({
       closeMixinEditor()
       closeLibraryEditor()
       closeDocs()
-      void openShow(null)
+      useShowStore.getState().leaveShowWorkspace()
       navigate({ kind: 'studio', entity: { kind: 'shows', id: item.id } })
     })
   }
@@ -990,9 +979,8 @@ export function PatternList({
     for (const showId of showIds) await removeShow(showId)
     await mutateOrganization(
       'shows',
-      // Both stored versions are personal Shows in this one list; reconciling
-      // against the v1 ids alone would prune every surviving v2 row (#1039).
-      personalShowIds(useShowStore.getState()),
+      // The rail's personal Shows are the v2 rows (#1039).
+      useShowStore.getState().showV2Rows.map((row) => row.id),
       emptyEntityOrganizationTrash,
     )
     if (route.kind === 'studio' && route.entity?.kind === 'shows' && showIds.includes(route.entity.id ?? '')) {
@@ -1235,7 +1223,7 @@ export function PatternList({
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             userShowsV2={userShowsV2}
             onOpenShowV2={(id) => { openShowV2Route(id); onEntityChosen?.() }}
-            activeShowId={activePersonalShowId}
+            activeShowId={activeRoutedShowV2Id}
             stockShows={STOCK_SHOW_CATALOGUE}
             activeStockShowId={activeStockShowId}
             showStockShows={showStockShows}

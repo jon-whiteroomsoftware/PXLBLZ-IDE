@@ -1,19 +1,13 @@
 import { create } from 'zustand'
 import { trackEntityCreated } from '@/analytics'
-import {
-  importedStageMapIdForController,
-  normalizeShowEntryState,
-  normalizeShowTransitionState,
-} from '@/engine/showModel'
+import { importedStageMapIdForController } from '@/engine/showModel'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
-import { ShowV1RetiredError } from '@/engine/remotePersonalContentProvider'
 import type { ShowRecord, ShowOutputContract } from '@/engine/personalContentRecords'
 import { type ControllerProfile } from '@/engine/controllerProfile'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 import { useMapStore } from '@/store/mapStore'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
-import { normalizeShowComposition } from '@/engine/showCompositionModel'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import {
   createShowEditSession,
@@ -34,7 +28,6 @@ import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
 import type { ShowV1ToV2Issue } from '@/engine/showRecordV1ToV2'
 import {
   editedHistory,
-  hasQueuedShowPersistence,
   nextShowOrderingStamp,
   queueShowPersistence,
   redoHistory,
@@ -73,11 +66,8 @@ interface ShowState {
   readShowEdit: (sessionId: string, operationId: string) => ShowEditReceipt | undefined
   completeShowEdit: (request: ShowEditRequest, completion: import('@/engine/showEditAdmission').ShowEditCompletion) => ShowEditReceipt
   cancelShowEdit: (sessionId: string, operationId: string) => ShowEditReceipt | undefined
-  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
-  shows: ShowRecord[]
   showsLoaded: boolean
-  activeShowId: string | null
-  showCreation: { previousShowId: string | null } | null
+  showCreation: boolean
   showV2Pilots: Record<string, ShowRecordV2>
   showV2Histories: Record<string, ShowV2History>
   showV2SaveFailure: { showId: string; record: ShowRecordV2 } | null
@@ -91,9 +81,7 @@ interface ShowState {
    */
   showV2LessonDraftIds: Record<string, true>
   /**
-   * The stored v2 rows the Show list offers behind the route gate (#1056
-   * slice 6). A v2 row is absent from `shows`, which stays v1-typed until
-   * #1039, so the list reads this alongside it rather than through it.
+   * The stored v2 rows the Show list offers.
    */
   showV2Rows: ShowV2ListRow[]
   /** A native fresh v2 Show, created and persisted behind the route gate. */
@@ -110,14 +98,7 @@ interface ShowState {
   createShowFromController: (profile: ControllerProfile) => Promise<ShowRecordV2>
   beginShowCreation: () => void
   cancelShowCreation: () => void
-  openShow: (id: string | null) => Promise<void>
-  /**
-   * Drop the v1 selection without touching a session another editor holds.
-   * The routed v2 editor and the v1 store share one edit session slot, so
-   * `openShow(null)` would retire the v2 route's session; this retires only
-   * a session that belongs to the row being deselected (#1039).
-   */
-  clearActiveShowSelection: () => void
+  leaveShowWorkspace: () => void
   renameShow: (id: string, name: string) => Promise<void>
   removeShow: (id: string) => Promise<void>
   /**
@@ -161,15 +142,6 @@ interface ShowState {
 
 export type ShowV2History = DocumentHistory<ShowRecordV2>
 
-/**
- * Every personal Show the rail lists, in both stored versions (#1039). The
- * organization the rail persists is keyed by these ids, so reconciling it
- * against one collection alone prunes the other's rows.
- */
-export function personalShowIds(state: { shows: ShowRecord[]; showV2Rows: ShowV2ListRow[] }): string[] {
-  return [...state.shows.map((show) => show.id), ...state.showV2Rows.map((row) => row.id)]
-}
-
 /** What the Show list needs of a stored v2 row: its identity and its name. */
 export interface ShowV2ListRow {
   id: string
@@ -181,10 +153,8 @@ export type { ShowRecord }
 
 export const showInitialState = {
   showRevisions: {} as Record<string, number>,
-  shows: [] as ShowRecord[],
   showsLoaded: false,
-  activeShowId: null as string | null,
-  showCreation: null as { previousShowId: string | null } | null,
+  showCreation: false,
   showV2Pilots: {} as Record<string, ShowRecordV2>,
   showV2Histories: {} as Record<string, ShowV2History>,
   showV2SaveFailure: null as { showId: string; record: ShowRecordV2 } | null,
@@ -408,21 +378,11 @@ export const useShowStore = create<ShowState>()((set, get) => {
     const listProvider = getPersonalContentProvider()
     const listGeneration = showV2WorkspaceGeneration
     const hydration = (async () => {
-    // The remote provider refuses the retired v1 list (#1042); a workspace
-    // then holds no v1 rows and hydrates from the v2 list alone.
-    const shows = (await listProvider.listShows().catch((error: unknown) => {
-      if (error instanceof ShowV1RetiredError) return []
-      throw error
-    }))
-      .map(normalizeShowRecord)
-    // The v2 rows the list offers beside them. They are a separate read
-    // because `shows` stays v1-typed until #1039, and the gate keeps the
-    // list and the editor route switching together (specification §10).
     const v2Rows = isShowV2RouteEnabled() && listProvider.listShowDocumentsV2
       ? (await listProvider.listShowDocumentsV2().catch(() => []))
         .map((record): ShowV2ListRow => ({ id: record.id, name: record.name, updatedAt: record.updatedAt }))
       : []
-    // Rows list newest first, as v1 does (#1117).
+    // Rows list newest first (#1117).
     v2Rows.sort((a, b) => b.updatedAt - a.updatedAt)
     // A workspace that changed while the rows were read owns its own listing.
     const currentWorkspace = showV2WorkspaceGeneration === listGeneration
@@ -430,10 +390,8 @@ export const useShowStore = create<ShowState>()((set, get) => {
     inputWait.invalidate()
     set((state) => ({
       ...(currentWorkspace ? { showV2Rows: v2Rows } : {}),
-      ...reconcileHydratedShows(state, shows),
       showRevisions: Object.fromEntries(
-        [...new Set([...Object.keys(state.showRevisions), ...state.shows.map((show) => show.id), ...shows.map((show) => show.id)])]
-          .map((id) => [id, (state.showRevisions[id] ?? 0) + 1]),
+        Object.keys(state.showRevisions).map((id) => [id, state.showRevisions[id] + 1]),
       ),
       showsLoaded: true,
     }))
@@ -450,7 +408,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     const provider = getPersonalContentProvider()
     if (!provider.createShowV2) throw new Error('This workspace cannot store version-2 Shows.')
     const id = newPersonalContentId()
-    const taken = [...get().shows.map((show) => show.name), ...get().showV2Rows.map((row) => row.name)]
+    const taken = get().showV2Rows.map((row) => row.name)
     const name = uniquePatternName(input?.name?.trim() || 'Untitled Show', taken)
     const record = createShowV2WithOutputContract(id, name, input.outputContract)
     await get().addImportedShowV2(record)
@@ -481,7 +439,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
 
   createShowFromController: async (profile) => {
     const id = newPersonalContentId()
-    const taken = [...get().shows.map((show) => show.name), ...get().showV2Rows.map((row) => row.name)]
+    const taken = get().showV2Rows.map((row) => row.name)
     const name = uniquePatternName(`${profile.name} Show`, taken)
     const stageMapId = importedStageMapIdForController(profile, useMapStore.getState().userMaps)
     const pixelCount = profile.lastKnownPixelCount ?? 60
@@ -504,34 +462,17 @@ export const useShowStore = create<ShowState>()((set, get) => {
   beginShowCreation: () => {
     if (get().showCreation) return
     if (editSession) get().retireShowEditSession(editSession.sessionId)
-    set({ showCreation: { previousShowId: get().activeShowId } })
+    set({ showCreation: true })
   },
 
   cancelShowCreation: () => {
-    const creation = get().showCreation
-    if (!creation) return
-    set({ activeShowId: creation.previousShowId, showCreation: null })
+    if (!get().showCreation) return
+    set({ showCreation: false })
   },
 
-  clearActiveShowSelection: () => {
-    const previous = get().activeShowId
-    if (previous === null) return
-    if (editSession && editSession.showId === previous) get().retireShowEditSession(editSession.sessionId)
-    set({ activeShowId: null, showCreation: null })
-  },
-
-  openShow: async (id) => {
-    if (id === null) {
-      if (editSession) get().retireShowEditSession(editSession.sessionId)
-      set({ activeShowId: null, showCreation: null })
-      return
-    }
-    if (get().activeShowId === id) return
-    const show = get().shows.find((candidate) => candidate.id === id)
-    if (!show) return
-    if (editSession && editSession.showId !== id) get().retireShowEditSession(editSession.sessionId)
-    set({ activeShowId: id, showCreation: null })
-    getPersonalContentProvider().setLastActive({ type: 'show', id }).catch(() => {})
+  leaveShowWorkspace: () => {
+    if (editSession) get().retireShowEditSession(editSession.sessionId)
+    set({ showCreation: false })
   },
 
   renameShow: async (id, name) => {
@@ -547,8 +488,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     showsPendingDeletion.add(id)
     set((state) => revisionPatch(state, id))
     try {
-      // One delete serves both versions: the stored row is addressed by id and
-      // the session state a v2 Show holds is forgotten with the v1 state.
+      // The persisted v2 row and its session state are removed together.
       await deletePersistedShow(id)
       lastPersistedShowV2Pilots.delete(id)
       set((state) => {
@@ -559,12 +499,10 @@ export const useShowStore = create<ShowState>()((set, get) => {
         const showV2LessonDraftIds = { ...state.showV2LessonDraftIds }
         delete showV2LessonDraftIds[id]
         return {
-          shows: state.shows.filter((show) => show.id !== id),
           showV2Rows: state.showV2Rows.filter((row) => row.id !== id),
           showV2Pilots,
           showV2Histories,
           showV2LessonDraftIds,
-          activeShowId: state.activeShowId === id ? null : state.activeShowId,
           ...(state.showV2SaveFailure?.showId === id ? { showV2SaveFailure: null } : {}),
         }
       })
@@ -585,7 +523,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
         ? (await provider.listShowDocumentsV2()).find((record) => record.id === sourceId)
         : undefined)
     if (!source) return null
-    const taken = [...get().shows.map((show) => show.name), ...get().showV2Rows.map((row) => row.name)]
+    const taken = get().showV2Rows.map((row) => row.name)
     const record = cloneValidShowRecordV2({
       ...source,
       id: newPersonalContentId(),
@@ -756,37 +694,6 @@ export const useShowStore = create<ShowState>()((set, get) => {
     },
   }
 })
-
-function reconcileHydratedShows(state: Pick<ShowState, 'shows'>, hydrated: ShowRecord[]): Pick<ShowState, 'shows'> {
-  const hydratedIds = new Set(hydrated.map((show) => show.id))
-  const shows = hydrated.map((show) => {
-    const current = state.shows.find((candidate) => candidate.id === show.id)
-    const keepPending = hasQueuedShowPersistence(show.id)
-      && current !== undefined
-      && current.updatedAt >= show.updatedAt
-    return keepPending ? current! : show
-  })
-
-  // A list snapshot may omit a record whose local write has not reached the
-  // provider yet. Keep that accepted replacement until its queued outcome is
-  // known.
-  for (const current of state.shows) {
-    if (!hydratedIds.has(current.id) && hasQueuedShowPersistence(current.id)) shows.push(current)
-  }
-  return { shows: shows.sort((a, b) => b.updatedAt - a.updatedAt) }
-}
-
-function normalizeShowRecord(show: ShowRecord): ShowRecord {
-  const normalized = normalizeShowEntryState(normalizeShowTransitionState(show))
-  return normalized.composition
-    ? { ...normalized, composition: normalizeShowComposition(normalized, normalized.composition) }
-    : withoutComposition(normalized)
-}
-
-function withoutComposition(show: ShowRecord): ShowRecord {
-  const { composition: _composition, ...flat } = show
-  return flat
-}
 
 async function deletePersistedShow(id: string): Promise<void> {
   await queueShowPersistence(id, () => getPersonalContentProvider().deleteShow(id))

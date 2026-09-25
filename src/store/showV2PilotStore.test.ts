@@ -40,7 +40,6 @@ describe('opt-in v2 Show route adoption', () => {
       status: 'ready',
       record: converted.record,
     })
-    expect(state().activeShowId).toBeNull()
     expect(state().showV2Pilots[converted.record.id]).toEqual(converted.record)
   })
 
@@ -54,18 +53,16 @@ describe('opt-in v2 Show route adoption', () => {
       listShows: async () => [],
       listShowDocumentsV2,
     } as unknown as PersonalContentProvider)
-    useShowStore.setState({ activeShowId: 'previous-selection' })
 
     const opening = state().openShowV2Pilot(converted.record.id)
     await vi.waitFor(() => expect(listShowDocumentsV2).toHaveBeenCalledTimes(1))
     state().beginShowCreation()
-    expect(state().showCreation).toEqual({ previousShowId: 'previous-selection' })
+    expect(state().showCreation).toBe(true)
 
     delayedList.resolve([structuredClone(converted.record)])
     await expect(opening).resolves.toMatchObject({ status: 'ready' })
 
-    expect(state().showCreation).toEqual({ previousShowId: 'previous-selection' })
-    expect(state().activeShowId).toBe('previous-selection')
+    expect(state().showCreation).toBe(true)
     expect(state().showV2Pilots[converted.record.id]).toEqual(converted.record)
   })
 
@@ -126,7 +123,6 @@ describe('opt-in v2 Show route adoption', () => {
 
     expect(state().showV2Pilots).toEqual({})
     expect(state().showV2Histories).toEqual({})
-    expect(state().activeShowId).not.toBe(first.record.id)
 
     await expect(state().openShowV2Pilot(second.record.id)).resolves.toMatchObject({
       status: 'ready',
@@ -167,28 +163,27 @@ describe('opt-in v2 Show route adoption', () => {
     expect(state().showV2Pilots[second.record.id].name).toBe('Reload account B')
   })
 
-  it('opens a converted pilot only after the current workspace hydration publishes its v1 source', async () => {
-    // Ported seed to v2: hydration gates on the v1 list (empty) before reading the converted row.
-    // Converter preserves id (showRecordV1ToV2.ts:421), so currentSource.id opens the converted record.
+  it('opens a converted pilot only after the current workspace hydrates its v2 row', async () => {
     const currentSource = { ...transitionV1Show('crossfade'), name: 'Hydrated workspace source' }
     const convertedForHydration = convertShowRecordV1ToV2(currentSource)
     if (convertedForHydration.status !== 'converted') throw new Error(JSON.stringify(convertedForHydration.issues))
-    const pendingShows = deferred<ReturnType<typeof transitionV1Show>[]>()
-    const listShowDocumentsV2 = vi.fn(async () => [structuredClone(convertedForHydration.record)])
+    const pendingShows = deferred<ShowRecordV2[]>()
+    const listShowDocumentsV2 = vi.fn()
+      .mockImplementationOnce(() => pendingShows.promise)
+      .mockResolvedValue([structuredClone(convertedForHydration.record)])
     setPersonalContentProvider({
       id: 'hydrating-workspace',
-      listShows: () => pendingShows.promise,
+      listShows: async () => [],
       listShowDocumentsV2,
     } as unknown as PersonalContentProvider)
 
     const hydration = state().loadShows()
     const opening = state().openShowV2Pilot(currentSource.id)
-    await Promise.resolve()
+    await vi.waitFor(() => expect(listShowDocumentsV2).toHaveBeenCalledTimes(1))
 
-    expect(listShowDocumentsV2).not.toHaveBeenCalled()
     expect(state().showV2Pilots).toEqual({})
 
-    pendingShows.resolve([])
+    pendingShows.resolve([structuredClone(convertedForHydration.record)])
     await hydration
     await expect(opening).resolves.toMatchObject({
       status: 'ready',

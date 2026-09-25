@@ -168,23 +168,7 @@ function deferred(): {
   return { promise, resolve, reject }
 }
 
-function personalShow(showId: string): ShowRecord {
-  return useShowStore.getState().shows.find((show) => show.id === showId)!
-}
-
-function persistedShow(record: ShowRecord): Record<string, unknown> {
-  return {
-    ...record,
-    composition: record.composition ?? null,
-    outputEffects: record.outputEffects,
-    targetControllerProfileId: record.targetControllerProfileId,
-    importMetadata: record.importMetadata,
-  }
-}
-
 void projectShowUnifiedTimeline;
-void personalShow;
-void persistedShow;
 
 beforeEach(() => {
   resetPersonalContentProvider()
@@ -954,25 +938,36 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().showV2Pilots[id].composition).toEqual(edited.record.composition)
   })
 
-  /* COVERED: "undoes and redoes draft edits entirely in memory" — src/store/showV2LessonDraft.test.ts:64. */
-  it('keeps Show creation provisional and restores the previously open Show on cancel (#434)', async () => {
-    const previous = createDefaultShow('show-previous', 'Previous', 1)
-    setPersonalContentProvider(memoryProvider([previous]))
-    useShowStore.setState({ shows: [previous], activeShowId: previous.id, showsLoaded: true })
+  it('keeps Show creation provisional and preserves the open v2 Show on cancel (#434)', () => {
+    const previous = structuredClone(STOCK_SHOWS_V2[0])
+    useShowStore.setState({ showV2Pilots: { [previous.id]: previous }, showsLoaded: true })
 
     useShowStore.getState().beginShowCreation()
-    expect(useShowStore.getState()).toMatchObject({
-      shows: [previous],
-      activeShowId: previous.id,
-      showCreation: { previousShowId: previous.id },
-    })
+    expect(useShowStore.getState().showCreation).toBe(true)
+    expect(useShowStore.getState().showV2Pilots[previous.id]).toEqual(previous)
 
     useShowStore.getState().cancelShowCreation()
-    expect(useShowStore.getState()).toMatchObject({
-      shows: [previous],
-      activeShowId: previous.id,
-      showCreation: null,
-    })
+    expect(useShowStore.getState().showCreation).toBe(false)
+    expect(useShowStore.getState().showV2Pilots[previous.id]).toEqual(previous)
+  })
+
+  it('leaves Show creation', () => {
+    useShowStore.getState().beginShowCreation()
+    useShowStore.getState().leaveShowWorkspace()
+    expect(useShowStore.getState().showCreation).toBe(false)
+  })
+
+  it('retires the current edit session when leaving the Show workspace', () => {
+    const show = structuredClone(STOCK_SHOWS_V2[0])
+    useShowStore.setState({ showV2Pilots: { [show.id]: show } })
+    const sessionId = useShowStore.getState().beginShowEditSession(show.id)
+    const operationId = 'leave-workspace-operation'
+    expect(useShowStore.getState().beginShowEdit(sessionId, {
+      operationId, payloadKey: 'rename', referenceContext: 'original', targets: ['name'],
+    }).status).toBe('pending')
+
+    useShowStore.getState().leaveShowWorkspace()
+    expect(useShowStore.getState().readShowEdit(sessionId, operationId)).toBeUndefined()
   })
 
   it('persists and reloads configured Shows only when final creation is requested (#434)', async () => {
@@ -1119,8 +1114,6 @@ describe('showStore (#318)', () => {
     expect(createShowV2).toHaveBeenCalledExactlyOnceWith(seeded)
     expect(createShow).not.toHaveBeenCalled()
     expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toContain(seeded.id)
-    expect(useShowStore.getState().shows).toEqual([])
-    expect(useShowStore.getState().activeShowId).toBeNull()
   })
 
   it('seeds and persists a show stage map from controller imports', async () => {
@@ -1185,7 +1178,7 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().showV2Pilots[seeded.id]).toEqual(seeded)
   })
 
-  it('names a controller-seeded Show uniquely across v1 and v2 rows', async () => {
+  it('names a controller-seeded Show uniquely across v2 rows', async () => {
     memoryProviderV2()
     await useShowStore.getState().createNewShowV2({
       name: 'North Arch Show',

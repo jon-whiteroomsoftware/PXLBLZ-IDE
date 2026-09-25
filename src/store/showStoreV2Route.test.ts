@@ -60,13 +60,10 @@ describe('the gated v2 Show list', () => {
     // user, beside whatever is still stored as v1.
     await useShowStore.getState().loadShows()
     expect(useShowStore.getState().showV2Rows).toEqual([{ id: 'listed', name: 'Listed v2', updatedAt: 1 }])
-    expect(useShowStore.getState().shows).toEqual([])
 
     gate(true)
     await useShowStore.getState().loadShows()
     expect(useShowStore.getState().showV2Rows).toEqual([{ id: 'listed', name: 'Listed v2', updatedAt: 1 }])
-    // The v1 collection is untouched: a v2 record is never a `ShowRecord`.
-    expect(useShowStore.getState().shows).toEqual([])
   })
 
   it('survives a provider that cannot list v2 documents at all', async () => {
@@ -100,7 +97,6 @@ describe('creating and importing a v2 Show', () => {
     // It is immediately editable: the route reads the same in-memory record.
     expect(state.showV2Pilots[record.id]).toEqual(record)
     expect(state.showV2Histories[record.id]).toEqual({ past: [], future: [] })
-    expect(state.shows).toEqual([])
   })
 
   it('names a fresh Show uniquely across both listings', async () => {

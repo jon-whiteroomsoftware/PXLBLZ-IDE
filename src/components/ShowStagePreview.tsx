@@ -220,7 +220,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
   const layout: StageLayout = stage ? stage.layout : preparedBundle!.presentation.layout
   const effectiveSoloZoneId = layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
   // The Stage reads only authored v2 Clip identity (#1042).
-  const stageDiagnosticFocus = diagnosticFocus?.recordVersion === 2 ? diagnosticFocus : null
+  const stageDiagnosticFocus = diagnosticFocus
   const diagnosticFrameAtTime = useMemo(() => (
     stage ? (positionMs: number) => stage.diagnosticFrameAt(stageDiagnosticFocus, positionMs) : null
   ), [stage, stageDiagnosticFocus])

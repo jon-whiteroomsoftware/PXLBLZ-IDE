@@ -416,13 +416,11 @@ function StudioApp() {
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const liveControllers = useControllerStore((s) => s.controllers)
   const renameControllerProfile = useControllerStore((s) => s.renameControllerProfile)
-  const activeShowId = useShowStore((s) => s.activeShowId)
   const showsLoaded = useShowStore((s) => s.showsLoaded)
   const showV2Pilots = useShowStore((s) => s.showV2Pilots)
   const showV2Rows = useShowStore((s) => s.showV2Rows)
-  const openShow = useShowStore((s) => s.openShow)
+  const leaveShowWorkspace = useShowStore((s) => s.leaveShowWorkspace)
   const openShowV2Pilot = useShowStore((s) => s.openShowV2Pilot)
-  const clearActiveShowSelection = useShowStore((s) => s.clearActiveShowSelection)
   // Which record backs one routed Show (#1039). A stored version-2 document or
   // a native v2 built-in opens on the v2 backing; an unconverted v1 row is not
   // opened (#1042). The agent binding the open editor registers carries the
@@ -641,19 +639,8 @@ function StudioApp() {
       else if (LIBRARIES[entityId] && !(editingLibrary?.kind === 'stock' && editingLibrary.id === entityId)) {
         openStockLibrary(entityId)
       }
-    } else if (currentRoute.kind === 'studio' && currentRoute.entity !== null && currentRoute.entity.kind === 'shows' && currentRoute.entity.id !== null) {
-      const entityId = currentRoute.entity.id
-      if (stockShowCatalogueById(entityId)) {
-        if (activeShowId !== null) void openShow(null)
-      } else if (routedShowOpensOnV2(entityId)) {
-        // A stored v2 row is held outside the v1 Show selection; leaving a
-        // selection active would keep the rail on it and let the URL sync
-        // steer back to it (#1039). The v2 route's edit session is never
-        // retired from here.
-        if (activeShowId !== null && activeShowId !== entityId) clearActiveShowSelection()
-      }
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, routedShowOpensOnV2, activeShowId, activeLibraryName, userPatterns, openShow, clearActiveShowSelection])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, routedShowOpensOnV2, activeLibraryName, userPatterns])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -675,13 +662,6 @@ function StudioApp() {
       const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: patternState.activeDemoName } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     } else if (
-      activeShowId !== null &&
-      (current.entity === null || current.entity.kind === 'shows') &&
-      !(current.entity?.kind === 'shows' && current.entity.id !== null && routedShowOpensOnV2(current.entity.id))
-    ) {
-      const target: Route = { kind: 'studio', entity: { kind: 'shows', id: activeShowId } }
-      if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
-    } else if (
       activeLibraryName !== null &&
       (current.entity === null || current.entity.kind === 'libraries')
     ) {
@@ -690,7 +670,7 @@ function StudioApp() {
       const target: Route = { kind: 'studio', entity: { kind: 'libraries', id: targetId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     }
-  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, editingLibrary, navigate, routedShowOpensOnV2])
+  }, [activePatternId, activeDemoName, activeLibraryName, editingLibrary, navigate])
 
   // Signed-out cold Studio goes through a one-time welcome/sign-in gate. A
   // pattern-detail handoff may carry an active built-in demo into Studio (#310),
@@ -1544,9 +1524,8 @@ function StudioApp() {
                       // A fresh Show is authored natively as v2, in the same
                       // two-Clip two-sided Crossfade shape (#1056 slice 6).
                       const createdV2 = await createNewShowV2(input)
-                      // A v2 record holds no v1 selection; this also ends the
-                      // creation flow.
-                      void openShow(null)
+                      // Leaving the Show workspace ends the creation flow.
+                      leaveShowWorkspace()
                       navigate({ kind: 'studio', entity: { kind: 'shows', id: createdV2.id } })
                       studioDrawerRef.current?.closeAfterEntitySelection()
                     }}
