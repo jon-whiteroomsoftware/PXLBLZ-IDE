@@ -1,15 +1,14 @@
 // Provenance: pxlblz-v3 test/exportShow.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
 import { parseEpe } from '@/engine/epeImport'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '@/pixelblaze/stock/showsV2'
 import { exportShowDocument } from '../shows/exportShow.js'
-import { toShowRecordV2 } from './support/convertFixture.js'
 
 const STAMP = '2026-08-14T00:00:00.000Z'
 
 describe('exportShowDocument (#15)', () => {
   it('exports a stock Show as an .epe that round-trips through parseEpe', () => {
-    const show = toShowRecordV2(structuredClone(STOCK_SHOWS[0].show), STOCK_SHOWS[0].name)
+    const show = structuredClone(STOCK_SHOWS_V2[0])
     const result = exportShowDocument(show, [], { stampedAt: STAMP })
     expect(result.ok, JSON.stringify(result).slice(0, 300)).toBe(true)
     if (!result.ok) return
@@ -37,7 +36,7 @@ describe('exportShowDocument (#15)', () => {
   })
 
   it('is deterministic when the stamp time is injected', () => {
-    const show = toShowRecordV2(structuredClone(STOCK_SHOWS[0].show), STOCK_SHOWS[0].name)
+    const show = structuredClone(STOCK_SHOWS_V2[0])
     const first = exportShowDocument(show, [], { stampedAt: STAMP, epeId: 'fixed-id' })
     const second = exportShowDocument(show, [], { stampedAt: STAMP, epeId: 'fixed-id' })
     expect(JSON.stringify(second)).toBe(JSON.stringify(first))

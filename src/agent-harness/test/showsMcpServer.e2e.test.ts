@@ -3,11 +3,10 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '@/pixelblaze/stock/showsV2'
 import { commandFixtureV2 } from '@/engine/showCommandsV2/fixtures'
 import { SHOW_COMMANDS_V2 } from '@/engine/showCommandsV2/registry'
 import { createShowsServer } from '../mcp/showsServer.js'
-import { toShowRecordV2 } from './support/convertFixture.js'
 
 // End-to-end over a real MCP client/server pair: registration, discovery,
 // and the tools through the protocol layer. The subject is a version-2 record
@@ -31,7 +30,7 @@ describe('pxlblz-shows MCP server (#7)', () => {
   }
 
   /** The stock catalogue entry as the version-2 record the app's converter makes. */
-  const stockShowV2 = () => toShowRecordV2(structuredClone(STOCK_SHOWS[0].show), STOCK_SHOWS[0].name)
+  const stockShowV2 = () => structuredClone(STOCK_SHOWS_V2[0])
 
   it('advertises the catalogue\'s bounded domains and rejects malformed protocol arguments', async () => {
     const tools = await client.listTools()

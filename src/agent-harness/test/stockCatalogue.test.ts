@@ -1,6 +1,6 @@
 // Provenance: pxlblz-v3 test/stockCatalogue.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '@/pixelblaze/stock/showsV2'
 import {
   extractHeaderDescription,
   getStockPattern,
@@ -26,10 +26,14 @@ describe('stock catalogue (#10)', () => {
 
   it('covers every stock pattern the stock Shows reference', () => {
     const ids = new Set(listing.map((entry) => entry.id))
-    for (const item of STOCK_SHOWS) {
-      for (const cell of item.show.cells) {
-        if (cell.pattern.kind === 'stock') {
-          expect(ids.has(cell.pattern.id), `${item.name}: ${cell.pattern.id}`).toBe(true)
+    for (const record of STOCK_SHOWS_V2) {
+      const instances = [
+        ...record.composition.patternInstances,
+        ...record.composition.groupDefinitions.flatMap((definition) => definition.patternInstances),
+      ]
+      for (const { pattern } of instances) {
+        if (pattern.kind === 'stock') {
+          expect(ids.has(pattern.id), `${record.name}: ${pattern.id}`).toBe(true)
         }
       }
     }

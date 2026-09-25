@@ -1,8 +1,7 @@
 // Provenance: pxlblz-v3 test/measureShow.test.ts at 9ecd481f (adapted mechanically; see src/agent-harness/PROVENANCE.md)
 import { describe, expect, it } from 'vitest'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '@/pixelblaze/stock/showsV2'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
-import { toShowRecordV2 } from './support/convertFixture.js'
 import { measureShowDocument, showTimelineDurationMs } from '../telemetry/measure.js'
 
 const STROBE_SOURCE = `
@@ -72,8 +71,8 @@ const inlineShow = (patternId: string): ShowRecordV2 => ({
   updatedAt: 0,
 })
 
-/** The stock catalogue entry as the version-2 record the app's converter makes. */
-const stockShowV2 = () => toShowRecordV2(structuredClone(STOCK_SHOWS[0].show), STOCK_SHOWS[0].name)
+/** The first native version-2 stock catalogue entry. */
+const stockShowV2 = () => structuredClone(STOCK_SHOWS_V2[0])
 
 describe('measureShowDocument (#12)', () => {
   it('measures a stock Show over its own timeline with the gate passing', () => {

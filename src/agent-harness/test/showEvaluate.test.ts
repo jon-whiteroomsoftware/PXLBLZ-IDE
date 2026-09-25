@@ -2,12 +2,11 @@
 import { describe, expect, it } from 'vitest'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '@/pixelblaze/stock/showsV2'
 import { compileShowDocument, validateShowDocument } from '../shows/evaluate.js'
 import { createSessionStore } from '../grammar/session.js'
-import { toShowRecordV2 } from './support/convertFixture.js'
 
-const stockShow = (): ShowRecordV2 => toShowRecordV2(structuredClone(STOCK_SHOWS[0].show), STOCK_SHOWS[0].name)
+const stockShow = (): ShowRecordV2 => structuredClone(STOCK_SHOWS_V2[0])
 
 // Rewires the first Pattern instance to a user-pattern reference and returns the
 // stock source that reference should resolve to when supplied inline.
