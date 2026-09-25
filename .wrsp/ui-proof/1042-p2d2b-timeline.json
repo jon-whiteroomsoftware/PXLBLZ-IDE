@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "On stock Show 101, dragged a Clip and undid the move, resized another Clip's trailing edge, added a Marker at the playhead, and duplicated a Clip. The five captures show each resulting state.",
+  "captures": [
+    ".wrsp/ui-proof/1042-p2d2b-timeline-dragged.png",
+    ".wrsp/ui-proof/1042-p2d2b-timeline-undo.png",
+    ".wrsp/ui-proof/1042-p2d2b-timeline-resized.png",
+    ".wrsp/ui-proof/1042-p2d2b-timeline-marker.png",
+    ".wrsp/ui-proof/1042-p2d2b-timeline-duplicate.png"
+  ],
+  "capturedAtCommit": "b41b21fe1c89b46eefa30ab2fb512a098fa55ecd"
+}
