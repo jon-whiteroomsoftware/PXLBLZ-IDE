@@ -38,13 +38,14 @@ const VOLATILE_FIELDS = ['updatedAt'] as const
 
 export type RepresentationDifference = {
   path: string
-  classification: 'volatile-record-stamp' | 'conversion-provenance' | 'unclassified'
+  classification: 'volatile-record-stamp' | 'conversion-provenance' | 'retired-single-passage-chapter' | 'unclassified'
   rationale: string
   native: unknown
   converted: unknown
 }
 
 const VOLATILE_RATIONALE = 'The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.'
+const RETIRED_SINGLE_PASSAGE_CHAPTER_RATIONALE = 'A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin "converted-scene-label", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.'
 const UNCLASSIFIED_RATIONALE = 'No accepted classification covers this difference; the native builder and the converted pinned legacy record disagree on authored content.'
 
 /**
@@ -73,8 +74,10 @@ const ROUTING_DIRECTIONS = new Set(['forward', 'reverse'])
 const EASING_DIRECTIONS = new Set(['in', 'out', 'in-out'])
 
 /**
- * The one admitted asymmetry is a native *absence* against a recognized
- * converted value at one of the four exact paths. A field the native builder
+ * The one admitted provenance asymmetry is a native *absence* against a
+ * recognized converted value at one of the four exact paths; the retired
+ * single-passage chapter (#1097) is the only other admitted absence, classified
+ * separately in `classify`. A field the native builder
  * actually authors, the reverse asymmetry, an unknown value, and every
  * difference inside an authored object all fall through to `unclassified` and
  * still fail the report.
@@ -296,6 +299,15 @@ export function classify(differences: Array<{ path: string; native: unknown; con
         converted: '<volatile wall-clock stamp>',
       }
     }
+    if (isRetiredSinglePassageChapter(difference, differences)) {
+      return {
+        path: difference.path,
+        classification: 'retired-single-passage-chapter' as const,
+        rationale: RETIRED_SINGLE_PASSAGE_CHAPTER_RATIONALE,
+        native: difference.native,
+        converted: difference.converted,
+      }
+    }
     const provenance = conversionProvenanceKind(difference)
     if (provenance) {
       return {
@@ -314,6 +326,21 @@ export function classify(differences: Array<{ path: string; native: unknown; con
       converted: difference.converted,
     }
   })
+}
+
+/**
+ * The whole converted chapter a single-passage native Show omits (#1097 item 6):
+ * the first and only Marker difference in the record, a native absence against
+ * a chapter at 0 ms that the converter created from the lone Scene label.
+ */
+function isRetiredSinglePassageChapter(
+  difference: { path: string; native: unknown; converted: unknown },
+  differences: Array<{ path: string; native: unknown; converted: unknown }>,
+): boolean {
+  if (difference.path !== '/composition/markers/0' || difference.native !== undefined) return false
+  const converted = difference.converted
+  if (!isPlainObject(converted) || converted.role !== 'chapter' || converted.timeMs !== 0 || converted.origin !== 'converted-scene-label') return false
+  return differences.every(other => other === difference || !other.path.startsWith('/composition/markers/'))
 }
 
 function semanticSha(record: ShowRecordV2): string {

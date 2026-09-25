@@ -105,13 +105,6 @@ describe.each(NATIVE_CASES)('native v2 stock Show %s', (id, record) => {
     const converted = convertShowRecordV1ToV2(legacy.show)
     expect(converted.status).toBe('converted')
     if (converted.status !== 'converted') return
-    if (SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS.has(id)) {
-      // The legacy Scene label converts to the one whole-Show chapter the native Show omits.
-      const [wholeShow, ...rest] = converted.record.composition.markers
-      expect(wholeShow).toMatchObject({ role: 'chapter', timeMs: 0, origin: 'converted-scene-label' })
-      expect(rest).toEqual([])
-      converted.record.composition.markers = []
-    }
     const semantic = (candidate: ShowRecordV2) => ({ ...structuredClone(candidate), updatedAt: 0 })
     // This catalogue authors its chapter Markers, its Transitions and its Layout
     // occurrences natively, so only the converted record carries the three #1065
@@ -123,8 +116,14 @@ describe.each(NATIVE_CASES)('native v2 stock Show %s', (id, record) => {
     // metadata the native builder authored, and every other field difference all
     // remain failures. The stamp is normalized on both sides, so nothing here
     // may be classified as volatile either.
+    // A single-passage Show additionally omits the whole-Show chapter the legacy
+    // Scene label still converts to (#1097 item 6): exactly one such difference
+    // there, and none anywhere else.
     const differences = classify(compareValues(semantic(record), semantic(converted.record)))
-    expect(differences.filter(difference => difference.classification !== 'conversion-provenance')
+    expect(differences.filter(difference => difference.classification === 'retired-single-passage-chapter'), id)
+      .toHaveLength(SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS.has(id) ? 1 : 0)
+    expect(differences.filter(difference => difference.classification !== 'conversion-provenance'
+      && difference.classification !== 'retired-single-passage-chapter')
       .map(difference => `${difference.path}: ${JSON.stringify(difference.native)} vs ${JSON.stringify(difference.converted)}`), id)
       .toEqual([])
     // The native side authors none of the three, so every classified difference

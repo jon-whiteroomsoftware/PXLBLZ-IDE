@@ -3,9 +3,10 @@ import { classify, compareValues } from './show-v2-native-parity'
 
 // The native/converted harness is only as honest as this classifier: anything it
 // admits stops failing the report, so each accepted shape is pinned exactly.
-// Four conversion-metadata kinds (#1065, #1066) are admitted and nothing else. Each is
-// admitted only as a native *absence* against a recognized converted value, at
-// its own exact path; every other difference stays unclassified and fails.
+// Four conversion-metadata kinds (#1065, #1066) and the retired single-passage
+// chapter (#1097) are admitted and nothing else. Each is admitted only as a
+// native *absence* against a recognized converted value, at its own exact path;
+// every other difference stays unclassified and fails.
 const markerOrigin = { path: '/composition/markers/3/origin', native: undefined, converted: 'converted-scene-label' }
 const boundaryOrigin = { path: '/composition/transitions/0/origin', native: undefined, converted: 'converted-boundary-transition' }
 const layerOrigin = { path: '/composition/transitions/2/origin', native: undefined, converted: 'converted-layer-transition' }
@@ -274,5 +275,31 @@ describe('the authored repeat-scale provenance (#1066)', () => {
       { path: '/composition/markers/0/origin', native: undefined, converted: 'converted-authored-repeat-scale' },
     ]
     expect(classifications(differences)).toEqual(differences.map(() => 'unclassified'))
+  })
+})
+
+describe('the retired single-passage chapter (#1097)', () => {
+  const chapter = { id: 'scene-marker:scene-1', name: 'Getting around', timeMs: 0, role: 'chapter', origin: 'converted-scene-label' }
+  const authored = { id: 'scene-marker:scene-1', name: 'Getting around', timeMs: 0, role: 'chapter' }
+  const retired = { path: '/composition/markers/0', native: undefined, converted: chapter }
+
+  it('admits exactly the converted whole-Show chapter a native Show omits, with its own rationale', () => {
+    const [classified] = classify([retired])
+    expect(classified.classification).toBe('retired-single-passage-chapter')
+    expect(classified.rationale).toMatch(/#1097/)
+    expect(classified.converted).toEqual(chapter)
+  })
+
+  it('refuses every neighbouring shape', () => {
+    const cases = [
+      [{ ...retired, converted: { ...chapter, timeMs: 500 } }],
+      [{ ...retired, converted: authored }],
+      [{ ...retired, converted: { ...chapter, role: 'reference' } }],
+      [{ ...retired, native: authored }],
+      [retired, { path: '/composition/markers/1', native: undefined, converted: { ...chapter, timeMs: 4000 } }],
+    ]
+    for (const differences of cases) {
+      expect(classifications(differences), JSON.stringify(differences)).toEqual(differences.map(() => 'unclassified'))
+    }
   })
 })

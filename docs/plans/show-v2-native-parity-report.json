@@ -5,7 +5,7 @@
     "specification": "docs/plans/scene-retirement-specification.md",
     "nativeBuilder": "src/pixelblaze/stock/showsV2.ts",
     "pinnedLegacyBuilder": "src/pixelblaze/stock/shows.ts",
-    "provisionalSchemaSha256": "a93d41b4d6242fe41256d79052472af1efabeb174a24908e47532bcd4191671c",
+    "provisionalSchemaSha256": "c59315dc08220d7e9cc923a65939ad64a888efb22ec3dd6b4394ea27108f2d97",
     "recordIdentity": {
       "algorithm": "sha256",
       "excludedVolatileFields": [
@@ -38,7 +38,8 @@
       "classified-difference": 40
     },
     "byClassification": {
-      "conversion-provenance": 287,
+      "conversion-provenance": 273,
+      "retired-single-passage-chapter": 14,
       "volatile-record-stamp": 8
     },
     "exactRuntime": 40,
@@ -50,15 +51,21 @@
     {
       "showId": "stock-show-100-getting-around",
       "showName": "100 Getting Around",
-      "nativeSemanticSha256": "31d4f49d815cd937cf63762810d82961e5feeaf02b8a17b4421746b4655a9855",
+      "nativeSemanticSha256": "28229baea1098d9512a070be2a637f3b89d3dda881fbf7dede9a42df0693d49e",
       "convertedSemanticSha256": "9974b7166cc7c7ebac6f3e123ec5398194a1caf1c1f354bc79b47e7a55423347",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:tour",
+            "timeMs": 0,
+            "name": "Tour",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -428,15 +435,21 @@
     {
       "showId": "stock-show-101-clips-cuts-blank-time",
       "showName": "101 Clips, Cuts, and Blank Time",
-      "nativeSemanticSha256": "087320005342813e1e38a758fe3799c24f40b5002139af7821af7e0565a21525",
+      "nativeSemanticSha256": "362ad6e23ecb6f4fa2491115fd489f1d578ecd26b556a008417423e330f6a8fa",
       "convertedSemanticSha256": "ba7ae2ab127cd05a3af668b2d716878be24984b7f97e71d3172de5e04a534dc0",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:timeline",
+            "timeMs": 0,
+            "name": "Timeline",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -758,15 +771,21 @@
     {
       "showId": "stock-show-102-transitions-values",
       "showName": "102 Transitions and Values",
-      "nativeSemanticSha256": "f578ddc74830efdfc60713f3e5670327cb3b7a5868cd1e1377fa72fb4035ff6b",
+      "nativeSemanticSha256": "487dd6b83d104378a1aa9979a7061c8f52957e51b42166528956d4d2d2874349",
       "convertedSemanticSha256": "eca7d12c3df55ce14d6c3b3a16c01a46058f60b4525af149f13eae443113bb22",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:passages",
+            "timeMs": 0,
+            "name": "Passages",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         },
         {
           "path": "/composition/transitions/0/origin",
@@ -1142,15 +1161,21 @@
     {
       "showId": "stock-show-103-clip-transform",
       "showName": "103 Clip Transform",
-      "nativeSemanticSha256": "4573272fcf1c336b601a43025a8a4c164d73e790d6afc589ca50640eae6d8d33",
+      "nativeSemanticSha256": "b8e9058fe8e7d2701888ce4cb08b1f35a8bd3b738f483f8bedd2accaefbc55e3",
       "convertedSemanticSha256": "6e89dbc1cf5b6f13ef2e1efd14d429f5a590fd09e0fe9a25c4e4b0d9596fca36",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:poses",
+            "timeMs": 0,
+            "name": "Poses",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -1302,15 +1327,21 @@
     {
       "showId": "stock-show-104-effects-and-ordering",
       "showName": "104 Effects and Ordering",
-      "nativeSemanticSha256": "795fcbe46cbc0590f2fbbf549e64ab763f56fc32ca8a3f38132f0a8333bc6c30",
+      "nativeSemanticSha256": "a09548eb6d380ec8aae9230eeb8c2c36f8a0d5f7af46dc9eec28076702f57668",
       "convertedSemanticSha256": "74beff535a09635351e671c7735c1a56971aaf6defec1607b36b0958224f9fe1",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:stacks",
+            "timeMs": 0,
+            "name": "Stacks",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -1844,15 +1875,21 @@
     {
       "showId": "stock-show-106-built-from-basics",
       "showName": "106 Built from Basics",
-      "nativeSemanticSha256": "d748a6abfc5e535f4184f6a832b75a5db18812654494259d57753e3414cc2418",
+      "nativeSemanticSha256": "190064d3778495c3f61d926a2086409ac2623e180b023a4b1cbe6a9a79ff4fe7",
       "convertedSemanticSha256": "3322d873170684aade5ae9865409243504e359baab679484f394dde0a17bab4b",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:arc",
+            "timeMs": 0,
+            "name": "Arc",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         },
         {
           "path": "/composition/transitions/0/origin",
@@ -2270,15 +2307,21 @@
     {
       "showId": "stock-show-201-layers-property-animation",
       "showName": "201 Layers and Property Animation",
-      "nativeSemanticSha256": "89783f0183c238fae872a135c62cbad0263dc161a947bfed638a44ae62899b97",
+      "nativeSemanticSha256": "ef3185d1bf97ec2d19c1b666a69881c09884c8989aa804f4a6836349bb8979d5",
       "convertedSemanticSha256": "76f7fda4db53c3048a9650e84450d6da8cd71fd7afc76fb3449c8482075443a7",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:layers",
+            "timeMs": 0,
+            "name": "Layers",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -2560,15 +2603,21 @@
     {
       "showId": "stock-show-202-content-clip-viewport",
       "showName": "202 Content and Clip Viewport",
-      "nativeSemanticSha256": "cb0ec549ba312925b81111afae9347cbb0dfd1232825522af93e845d06a1c6c3",
+      "nativeSemanticSha256": "c5c6e6a69483eeea520ef0ec5a704a03e0180c5a33fb226def1c69941ff7951c",
       "convertedSemanticSha256": "a7c471d6e7c82eff75461f441fe80ef8585215a4e952d3b5f2c76426285a39bb",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:viewport",
+            "timeMs": 0,
+            "name": "Viewport",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -2958,15 +3007,21 @@
     {
       "showId": "stock-show-203-pattern-instance-lifecycle",
       "showName": "203 Pattern Instance Lifecycle",
-      "nativeSemanticSha256": "27cf1478c8f7788fc17cd12460fd27e02e087485d6a0ba15fc4ddd2751deb3f9",
+      "nativeSemanticSha256": "9995baee15e64e6308c8ebadaff44ecf5d66077e5fb67ae0d806b9b62ae67769",
       "convertedSemanticSha256": "d87c8580bd1050f3dc84000b9e2d567061d06fe1db4698293605628afd260eb9",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:lifecycle",
+            "timeMs": 0,
+            "name": "Lifecycle",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -3194,15 +3249,21 @@
     {
       "showId": "stock-show-204-presentation-modes",
       "showName": "204 Presentation Modes",
-      "nativeSemanticSha256": "eefbd108f5ed6e3f88bc18aa692dc10c4d5f4a74d267f58c2331a6a5877d7326",
+      "nativeSemanticSha256": "ad084cb0d98eb3727292855f4c4f852daaf69918144a050f567104461e41d925",
       "convertedSemanticSha256": "3872800e276ac2a9c19b412d2f314b17c5fd1a1f427e2883615736856d040206",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:presentation",
+            "timeMs": 0,
+            "name": "Presentation",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -3474,15 +3535,21 @@
     {
       "showId": "stock-show-205-groups-linked-reuse",
       "showName": "205 Groups and Linked Reuse",
-      "nativeSemanticSha256": "514ee829f2a73a63844a9171ba7908c771be3321f9fd1364ee1a27cd3c9c3e14",
+      "nativeSemanticSha256": "aeaa3ad14d25e4d45ce5c31810cf9ff50ed28211a2bac94a896e0d085ff162ac",
       "convertedSemanticSha256": "c998fd3e56aa722e6497a2871b6df019ea5e9d77157167c30234a3e9b7f2e071",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:reuse",
+            "timeMs": 0,
+            "name": "Reuse",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -3969,15 +4036,21 @@
     {
       "showId": "stock-show-207-aperture-shapes-edges",
       "showName": "207 Aperture Shapes and Edges",
-      "nativeSemanticSha256": "871a1536c5d8a02a6d2e080ecd1fa1d259fe53ba2aa35fa47629579765db5463",
+      "nativeSemanticSha256": "c48acada1daba6fe3df7b5eb88a1e3dc66ba33ec206411ccdbb8f3f9cae315ae",
       "convertedSemanticSha256": "f8b8555065ac80e97340d8f9d5b1408cd3e0136ca04a0992117cebeb5701c49a",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:silhouettes",
+            "timeMs": 0,
+            "name": "Silhouettes",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -4183,15 +4256,21 @@
     {
       "showId": "stock-show-301-installation-mapping",
       "showName": "301 Installation Mapping",
-      "nativeSemanticSha256": "c4d93b9886cea177d39e5f53235cfa8efa621109ff8fc7001bce69355d3076da",
+      "nativeSemanticSha256": "2466c3a07aac35e7cea7d3754cc90bb02b73e2c5431a1edb1b7993cb13f97434",
       "convertedSemanticSha256": "d3b8c61377282d3c9c735a31c8c15d8052fb102af6e336f657da45e670b2f781",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:stage",
+            "timeMs": 0,
+            "name": "One stage",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
@@ -5051,15 +5130,21 @@
     {
       "showId": "stock-show-303-compile-simplify-deliver",
       "showName": "303 Compile, Simplify, and Deliver",
-      "nativeSemanticSha256": "dfd56e174abbbca9d411615209a91496f1a5190676eb586eaba51a96243eef5f",
+      "nativeSemanticSha256": "5d3907f34d74f1af38149ae401b3d4dcefde3bbc6b0105b96c5d99dd692292aa",
       "convertedSemanticSha256": "da3abd4262a7d1ab16ad279a03b339eb041dc2e67e716d138539e409ec97c863",
       "representation": "classified-difference",
       "representationDifferences": [
         {
-          "path": "/composition/markers/0/origin",
-          "classification": "conversion-provenance",
-          "rationale": "The native builder authors this chapter Marker directly, while the v1 converter records that it created the Marker from a former Scene label (#1065). Provenance carries no choreography, compilation or playback meaning and governs editor visibility alone. Only a native absence against exactly \"converted-scene-label\" on a Marker origin is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
-          "converted": "converted-scene-label"
+          "path": "/composition/markers/0",
+          "classification": "retired-single-passage-chapter",
+          "rationale": "A single-passage native Show authors no chapter: #1097 item 6 removed its redundant whole-Show chapter. The v1 converter still creates that chapter from the lone Scene label. A chapter Marker carries no compilation or playback meaning. Only the exact shape is admitted: a native absence at /composition/markers/0 against a converted chapter Marker at 0 ms with origin \"converted-scene-label\", and no other Marker difference in the same record; any other index, time, role or origin, a Marker the native builder authored, and every other field difference stay unclassified.",
+          "converted": {
+            "id": "scene-marker:score",
+            "timeMs": 0,
+            "name": "Score",
+            "role": "chapter",
+            "origin": "converted-scene-label"
+          }
         }
       ],
       "recipeEqual": true,
