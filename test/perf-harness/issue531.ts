@@ -1,14 +1,7 @@
 // Controlled Show frame-time attribution fixtures for issue #531.
 
-import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
-import { showRecordToCompileRecipe } from '../../src/engine/showModel'
-import {
-  sourceForShowCell,
-  sourceForShowPatternRef,
-} from '../../src/engine/showPreviewArtifact'
 import type { GeneratedShowArtifact, ShowRecipe } from '../../src/engine/showCompiler'
 import { LIBRARIES } from '../../src/pixelblaze/libs'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
 import {
   counterfactualArtifact as issue518Counterfactual,
   issue518Recipe,
@@ -33,6 +26,7 @@ import {
   buildShowAttributionArtifacts,
   type ShowAttributionArtifacts,
 } from './showAttribution'
+import { stockShowV2Recipe } from './showV2Fixture'
 
 export interface Issue531OptimizationReference {
   issue: 518 | 519 | 527 | 528
@@ -58,25 +52,7 @@ export interface Issue531Fixture {
 }
 
 const REDLINE_PIXEL_COUNT = 2_000
-const redline = STOCK_SHOWS.find((candidate) => (
-  candidate.id === 'stock-show-showcase-redline-installation'
-))
-if (!redline) throw new Error('Redline Installation fixture is missing.')
-
-const redlineRecipe = showRecordToCompileRecipe(redline.show, {
-  byCellId: Object.fromEntries(redline.show.cells.map((cell) => [
-    cell.id,
-    sourceForShowCell(cell, []),
-  ])),
-  byPatternInstanceId: Object.fromEntries(
-    (redline.show.composition?.patternInstances ?? []).map((instance) => [
-      instance.id,
-      sourceForShowPatternRef(instance.pattern, []),
-    ]),
-  ),
-  controllerZones: installationPhysicalZones(redline.show),
-  stageDimension: 2,
-})
+const redlineRecipe = stockShowV2Recipe('stock-show-showcase-redline-installation')
 
 function fixture(
   id: Issue531Fixture['id'],

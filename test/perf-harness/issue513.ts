@@ -4,35 +4,21 @@
 import { performance } from 'node:perf_hooks'
 import { createFastReplayRuntime } from '../../src/engine/fastReplay'
 import { nativeDimension } from '../../src/engine/loadPattern'
-import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
-import { compileShowForPreview } from '../../src/engine/showPreviewArtifact'
 import { compilerVintageOptions } from '../../src/engine/showCompilerVintages'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
 import { SOURCE_STOCK_MAPS } from '../../src/pixelblaze/stock/maps/stockCatalogue'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
+import { compileStockShowV2 } from './showV2Fixture'
 
-const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')
-if (!fixture) throw new Error('Redline Installation fixture is missing.')
+const REDLINE_SHOW_ID = 'stock-show-showcase-redline-installation'
 const map = SOURCE_STOCK_MAPS.find((candidate) => candidate.id === 'redline-stage-2d')
 if (!map) throw new Error('Redline Stage map is missing.')
 
-const compile = (frameInvariantHoisting: boolean, renderKernelSpecialization: boolean) => {
-  const compiled = compileShowForPreview(
-    fixture.show,
-    [],
-    installationPhysicalZones(fixture.show),
-    {},
-    {
-      stageDimension: 2,
-      exactSpecializations: true,
-      frameInvariantHoisting,
-      renderKernelSpecialization,
-      ...compilerVintageOptions('issue-513-frame-invariant-plan'),
-    },
-  )
-  if (!compiled.artifact) throw new Error(compiled.error ?? 'Redline Show did not compile.')
-  return compiled.artifact
-}
+const compile = (frameInvariantHoisting: boolean, renderKernelSpecialization: boolean) => compileStockShowV2(REDLINE_SHOW_ID, {
+  exactSpecializations: true,
+  frameInvariantHoisting,
+  renderKernelSpecialization,
+  ...compilerVintageOptions('issue-513-frame-invariant-plan'),
+})
 
 export const selectedArtifact = compile(true, false)
 export const counterfactualArtifact = compile(false, false)
@@ -83,7 +69,7 @@ const equivalence = (['fast', 'fidelity'] as const).map((fidelity) => {
 })
 
 export const report = {
-  fixture: fixture.id,
+  fixture: REDLINE_SHOW_ID,
   pixelCount: mapPoints.length,
   scoreTimesMs,
   selected: {

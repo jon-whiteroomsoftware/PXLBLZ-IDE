@@ -5,31 +5,17 @@ import { performance } from 'node:perf_hooks'
 import { createFastReplayRuntime } from '../../src/engine/fastReplay'
 import { nativeDimension } from '../../src/engine/loadPattern'
 import { compileShow, type GeneratedShowArtifact, type ShowRecipe } from '../../src/engine/showCompiler'
-import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
-import { compileShowForPreview } from '../../src/engine/showPreviewArtifact'
 import { SOURCE_STOCK_MAPS } from '../../src/pixelblaze/stock/maps/stockCatalogue'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
+import { compileStockShowV2 } from './showV2Fixture'
 
 export const ISSUE528_PIXEL_COUNT = 2_000
-const redline = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')
-if (!redline) throw new Error('Redline Installation fixture is missing.')
 const redlineMap = SOURCE_STOCK_MAPS.find((candidate) => candidate.id === 'redline-stage-2d')
 if (!redlineMap) throw new Error('Redline Stage map is missing.')
 
-const compileRedline = (coordinateFieldCaching: boolean) => {
-  const compiled = compileShowForPreview(
-    redline.show,
-    [],
-    installationPhysicalZones(redline.show),
-    {},
-    {
-      stageDimension: 2,
-      coordinateFieldCaching,
-    },
-  )
-  if (!compiled.artifact) throw new Error(compiled.error ?? 'Redline Show did not compile.')
-  return compiled.artifact
-}
+const compileRedline = (coordinateFieldCaching: boolean) => compileStockShowV2(
+  'stock-show-showcase-redline-installation',
+  { coordinateFieldCaching },
+)
 
 export const selectedArtifact = compileRedline(true)
 export const counterfactualArtifact = compileRedline(false)

@@ -4,33 +4,19 @@
 import { performance } from 'node:perf_hooks'
 import { createFastReplayRuntime } from '../../src/engine/fastReplay'
 import { nativeDimension } from '../../src/engine/loadPattern'
-import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
-import { compileShowForPreview } from '../../src/engine/showPreviewArtifact'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
 import { SOURCE_STOCK_MAPS } from '../../src/pixelblaze/stock/maps/stockCatalogue'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
+import { compileStockShowV2 } from './showV2Fixture'
 
-const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')
-if (!fixture) throw new Error('Redline Installation fixture is missing.')
+const REDLINE_SHOW_ID = 'stock-show-showcase-redline-installation'
 const map = SOURCE_STOCK_MAPS.find((candidate) => candidate.id === 'redline-stage-2d')
 if (!map) throw new Error('Redline Stage map is missing.')
 
-const compile = (exactSpecializations: boolean) => {
-  const compiled = compileShowForPreview(
-    fixture.show,
-    [],
-    installationPhysicalZones(fixture.show),
-    {},
-    {
-      stageDimension: 2,
-      exactSpecializations,
-      frameInvariantHoisting: false,
-      renderKernelSpecialization: false,
-    },
-  )
-  if (!compiled.artifact) throw new Error(compiled.error ?? 'Redline Show did not compile.')
-  return compiled.artifact
-}
+const compile = (exactSpecializations: boolean) => compileStockShowV2(REDLINE_SHOW_ID, {
+  exactSpecializations,
+  frameInvariantHoisting: false,
+  renderKernelSpecialization: false,
+})
 
 export const selectedArtifact = compile(true)
 export const counterfactualArtifact = compile(false)
@@ -81,7 +67,7 @@ const equivalence = (['fast', 'fidelity'] as const).map((fidelity) => {
 })
 
 export const report = {
-  fixture: fixture.id,
+  fixture: REDLINE_SHOW_ID,
   pixelCount: mapPoints.length,
   scoreTimesMs,
   selected: {

@@ -108,14 +108,10 @@ Editing `src/pixelblaze/stock/shows.ts` fans out in this order:
 3. **`showDirectColorSinksCatalogue.test.ts`** — pins which Shows are
    direct-sink eligible. Adding one means reviewing the named Precise-mode
    approximation in the Technical Reference.
-4. **`test/perf-harness/issue514.test.ts`, `issue536.test.ts`, `issue540.test.ts`**
+4. **`test/perf-harness/issue514.test.ts`, `issue540.test.ts`**
    — real capacity gates, not pins. `514` rejects Shows over the activation
-   proxy or the 256-global ceiling. `536` compiles at a **frozen compiler
-   vintage** with no kernel or slot sharing, so a Show that is comfortable in
-   production can be over-ceiling there and flip the emission verdict; reshape
-   the fixture rather than accepting a flipped verdict. Adding a stock *Pattern*
-   also moves 514's pattern corpus, 536's member-global totals, and 540's field
-   and shading census.
+   proxy or the 256-global ceiling. Adding a stock *Pattern* also moves 514's
+   pattern corpus and 540's field and shading census.
 5. **`showsV2.test.ts` native census** — entry count, id and name order, Zones,
    Layout definitions and output contracts must match the legacy rows, every
    native record must validate, reopen and compile, its chapter Markers must
