@@ -59,6 +59,7 @@ const analyticsMock = vi.hoisted(() => ({
 
 const showEditorRecordVersions = vi.hoisted(() => [] as Array<1 | 2 | undefined>)
 const showEditorMounts = vi.hoisted(() => ({ count: 0 }))
+const showEditorShowOverrides = vi.hoisted(() => [] as unknown[])
 
 vi.mock('@/components/ShowEditor', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/components/ShowEditor')>()
@@ -67,6 +68,7 @@ vi.mock('@/components/ShowEditor', async (importOriginal) => {
     ShowEditor: (props: Parameters<typeof original.ShowEditor>[0]) => {
       useEffect(() => { showEditorMounts.count += 1 }, [])
       showEditorRecordVersions.push(props.recordVersion)
+      showEditorShowOverrides.push(props.showOverride)
       return <original.ShowEditor {...props} />
     },
   }
@@ -86,6 +88,7 @@ vi.mock('@/engine/authSession', () => ({
 
 beforeEach(() => {
   showEditorRecordVersions.length = 0
+  showEditorShowOverrides.length = 0
   showEditorMounts.count = 0
   analyticsMock.trackEvent.mockReset()
   authSessionMock.getAuthSession.mockReset()
@@ -341,7 +344,7 @@ describe('App smoke test', () => {
 
     try {
       await waitFor(() => expect(showEditorRecordVersions.length).toBeGreaterThan(0))
-      expect(showEditorRecordVersions).not.toContain(1)
+      expect(showEditorRecordVersions.every((version) => version === 2)).toBe(true)
       await waitFor(() => {
         expect(useShowStore.getState().showV2Pilots[id]?.version).toBe(2)
         expect(showEditorRecordVersions).toContain(2)
@@ -355,7 +358,8 @@ describe('App smoke test', () => {
     }
     await waitFor(() => expect(screen.getByTestId('show-editor-scroll')).toBeInTheDocument())
     expect(showEditorMounts.count).toBe(1)
-    expect(showEditorRecordVersions).not.toContain(1)
+    expect(showEditorRecordVersions.every((version) => version === 2)).toBe(true)
+    expect(showEditorShowOverrides.every((override) => override === undefined)).toBe(true)
   })
 
   it('never opens a row still stored as v1; it reads as a missing Show (#1042)', () => {

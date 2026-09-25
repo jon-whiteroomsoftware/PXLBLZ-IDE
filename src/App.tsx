@@ -95,10 +95,6 @@ import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
-import { applyShowPatternSlotSelections } from '@/engine/showReferenceShow'
-import { sourceForShowPatternRef } from '@/engine/showPreviewArtifact'
-import { bundledPatternSliderNames } from '@/engine/showPatternControls'
-import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { captureShowStageEditV2 } from '@/engine/showPreparedStageV2'
 import { projectShowEditorStagePresentationV2, type ShowEditorStagePresentationV2 } from '@/engine/showEditorStagePresentation'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
@@ -440,7 +436,6 @@ function StudioApp() {
     }),
     [showV2Rows],
   )
-  const renameShow = useShowStore((s) => s.renameShow)
   const renameShowV2Pilot = useShowStore((s) => s.renameShowV2Pilot)
   const showCreation = useShowStore((s) => s.showCreation)
   const createNewShowV2 = useShowStore((s) => s.createNewShowV2)
@@ -862,23 +857,6 @@ function StudioApp() {
   const routedStockShow = route.kind === 'studio' && route.entity?.kind === 'shows'
     ? stockShowById(route.entity.id)
     : undefined
-  const selectedReferencePatterns = useShowEditorSessionStore((state) => (
-    routedStockShow ? state.referencePatternsByShowId[routedStockShow.id] : undefined
-  ))
-  const routedStockShowDraft = useShowStore((state) => (
-    routedStockShow ? state.stockShowDrafts[routedStockShow.id] : undefined
-  ))
-  const routedStockShowOverride = useMemo(() => {
-    const base = routedStockShowDraft ?? routedStockShow?.show
-    // Lessons and reference Showcases use the same ordered catalogue groups.
-    // The single reference slot remains a compatibility fallback.
-    const slotGroups = routedStockShow?.patternSlots
-      ?? (routedStockShow?.reference?.patternSlots ? [routedStockShow.reference.patternSlots] : undefined)
-    if (!base || !slotGroups || !selectedReferencePatterns) return base
-    return applyShowPatternSlotSelections(base, slotGroups, selectedReferencePatterns, (ref) => (
-      ref.kind === 'stock' ? ref.id : userPatterns.find((pattern) => pattern.id === ref.id)?.name
-    ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), compileLibrarySet))
-  }, [compileLibrarySet, routedStockShow, routedStockShowDraft, selectedReferencePatterns, userPatterns])
   const routedShowId = showsLoaded && route.kind === 'studio' && route.entity?.kind === 'shows'
     ? route.entity.id
     : null
@@ -889,9 +867,6 @@ function StudioApp() {
   const v2EditorShowId = routedStockV2Id ?? (
     routedShowId !== null && routedShowOpensOnV2(routedShowId) ? routedShowId : null
   )
-  // Only a built-in without a native v2 record still backs the editor with v1;
-  // an unconverted stored v1 row is never opened (#1042).
-  const activeShow = v2EditorShowId !== null ? undefined : routedStockShowOverride
   // A routed v2 row hydrates through the Show store's own open action, which
   // owns the stored read, conversion fallback, history seed and save queue. The
   // editor only ever mounts on that adopted pilot record (#1065).
@@ -901,7 +876,9 @@ function StudioApp() {
   }, [openShowV2Pilot, showV2Pilots, v2EditorShowId])
   const activeShowV2Pilot = v2EditorShowId ? showV2Pilots[v2EditorShowId] : undefined
   const activeShowV2PilotId = activeShowV2Pilot?.id
-  const activeShowRecord = activeShowV2Pilot ?? activeShow
+  // Every routed Show opens on its adopted v2 record; an unconverted stored v1
+  // row is never opened (#1042).
+  const activeShowRecord = activeShowV2Pilot
   const previewShowV2 = useShowPreviewOverrideStore((state) => state.showV2)
   const stageShowV2 = showV2StageRecord(activeShowV2Pilot, previewShowV2)
   // The Stage slot stays presentational: the workspace receives one projected
@@ -947,9 +924,8 @@ function StudioApp() {
   const activeShowEditor = activeShowRecord ? (
     <ShowEditor
       showId={activeShowRecord.id}
-      recordVersion={activeShowV2Pilot ? 2 : 1}
+      recordVersion={2}
       autoPlay={galleryEntryPlayback && activeShowRecord.id === 'stock-show-remix-quadrille'}
-      showOverride={routedStockShowOverride}
       builtInContext={routedStockShow ? {
         track: routedStockShow.track,
         lesson: routedStockShow.lesson,
@@ -1435,15 +1411,13 @@ function StudioApp() {
                   <span className="show-header-title flex min-w-0 items-center gap-1.5">
                     <Film size={14} aria-hidden className="shrink-0 text-zinc-500" />
                     <InlineEntityTitle
-                      name={activeShowV2Pilot?.name ?? activeShow?.name ?? 'Shows'}
+                      name={activeShowV2Pilot?.name ?? 'Shows'}
                       noun="show"
                       onRename={activeShowV2PilotId
                         ? (nextName) => renameShowV2Pilot(activeShowV2PilotId, nextName)
-                        : activeShow && !routedStockShow
-                          ? (nextName) => renameShow(activeShow.id, nextName)
-                          : undefined}
+                        : undefined}
                       takenNames={shows
-                        .filter((show) => show.id !== (activeShowV2Pilot?.id ?? activeShow?.id))
+                        .filter((show) => show.id !== activeShowV2Pilot?.id)
                         .map((show) => show.name)}
                     />
                     {routedStockShow?.note && (
@@ -1598,13 +1572,6 @@ function StudioApp() {
                         <ShowStagePreview
                           kind="editor-v2"
                           stage={activeShowV2Stage}
-                          presentation="strip"
-                          onPreviewAspectChange={setShowStagePreviewAspect}
-                        />
-                      ) : activeShow ? (
-                        <ShowStagePreview
-                          showId={activeShow.id}
-                          showOverride={routedStockShowOverride}
                           presentation="strip"
                           onPreviewAspectChange={setShowStagePreviewAspect}
                         />

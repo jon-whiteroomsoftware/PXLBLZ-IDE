@@ -85,8 +85,9 @@ describe('ShowStagePreview (#339)', () => {
    * REPRESENTATION, deleted here: "does not defer a same-Show Pattern-source
    * change behind an older snapshot (#710)" and "detects an immediate
    * Pattern-source change in a composition instance (#710)" asserted only
-   * `resolveShowStagePreviewInput`, the legacy input's deferral. The editor-v2
-   * Stage takes one projected presentation; the rebuild itself stays covered by
+   * the legacy input's deferral, since deleted with the legacy kind (#1042).
+   * The editor-v2 Stage takes one projected presentation; the rebuild itself
+   * stays covered by
    * "rebuilds a running same-Show preview immediately when its Pattern changes".
    */
   it('lays out the desktop Stage as an aspect-true strip with folded Zone coverage and icon toggles (#967)', async () => {

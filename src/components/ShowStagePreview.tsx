@@ -1,13 +1,7 @@
-import { useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, Eye, EyeOff, Grid2X2, LoaderCircle, Map as MapIcon, Pause, Play, Scan } from 'lucide-react'
-import { useShowStore } from '@/store/showStore'
-import { usePatternStore } from '@/store/patternStore'
-import { useLibraryStore } from '@/store/libraryStore'
-import { useControllerProfileStore } from '@/store/controllerProfileStore'
-import { useMapStore, defaultPixelCountForDim, resolveMap, STOCK_MAPS } from '@/store/mapStore'
 import { usePreviewStore } from '@/store/previewStore'
 import { useCameraStore } from '@/store/cameraStore'
-import { compileShowForPreview, resolveShowCompilationControllerZones } from '@/engine/showPreviewArtifact'
 import {
   createFastReplayRuntime,
   type FastReplayResult,
@@ -20,15 +14,11 @@ import {
   reconstructFastReplayWithCheckpoints,
 } from '@/engine/fastReplayCheckpoints'
 import { createRenderer } from '@/engine/renderer'
-import { applyNormalizeMode, type MapPoint, type PixelMap } from '@/engine/maps'
+import type { MapPoint } from '@/engine/maps'
 import { advanceAutoOrbit, posBounds2D, type OrbitCamera } from '@/engine/camera'
 import {
   applyShowStageMaskPacked,
-  buildShowStageProjection,
   createShowStageMaskPlan,
-  buildShowLogicalStageProjection,
-  showLogicalAspectAdvisory,
-  buildShowStripsLayout,
   type ShowStageMaskPlan,
   type ShowStageProjection,
   type ShowStageZone,
@@ -39,13 +29,6 @@ import {
 } from '@/engine/showStagePresentationV2'
 import { OrbitControls } from '@/components/OrbitControls'
 import { canAdvanceShowPlayback, resolveShowPlaybackStep, useShowTransportStore } from '@/store/showTransportStore'
-import { showLoopDurationMs } from '@/engine/showModel'
-import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
-import {
-  installationPhysicalZones,
-  validateInstallationCoverage,
-} from '@/engine/showInstallationCoverage'
-import type { ShowRecord } from '@/engine/personalContentRecords'
 import { PreviewViewportSection } from '@/components/PreviewDeck'
 import { DeckCell, DeckGrid } from '@/components/Deck'
 import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
@@ -53,18 +36,15 @@ import { ShowStripSection } from '@/components/ShowStripSection'
 import { ShowStripPreviewSection } from '@/components/ShowStripPreviewSection'
 import './ShowStripPanel.css'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
-import { createShowStageDiagnostics } from '@/engine/showStageDiagnostics'
 import {
   createShowStagePerformanceProbe,
   type ShowStagePerformanceProbe,
 } from '@/dev/showStagePerformance'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
-import { recordAgentObservation, showRecordDigest } from '@/dev/agentObservation'
+import { recordAgentObservation } from '@/dev/agentObservation'
 import { runShowStageCaptureSequence } from '@/dev/showStageCapture'
 import { beginCaptureOrbit } from '@/dev/captureOrbit'
 import type { CaptureSequenceOptions, CaptureSequenceResult } from '@/dev/captureSequence'
-import { compileLibraries } from '@/engine/libraries'
-import { LIBRARIES } from '@/pixelblaze/libs'
 import type { ShowPreparedStageBundleV2 } from '@/engine/showPreparedStageV2'
 import type { ShowEditorStagePresentationV2 } from '@/engine/showEditorStagePresentation'
 
@@ -151,19 +131,17 @@ type ShowStagePreviewProps = {
   presentation?: 'pane' | 'strip'
   onPreviewAspectChange?: (aspect: number) => void
 } & (
-  | { kind?: 'legacy'; showId: string; showOverride?: ShowRecord; bundle?: never; stage?: never }
-  | { kind: 'prepared-v2'; bundle: ShowPreparedStageBundleV2; showId?: never; showOverride?: never; stage?: never }
-  | { kind: 'editor-v2'; stage: ShowEditorStagePresentationV2; showId?: never; showOverride?: never; bundle?: never }
+  | { kind: 'prepared-v2'; bundle: ShowPreparedStageBundleV2; stage?: never }
+  | { kind: 'editor-v2'; stage: ShowEditorStagePresentationV2; bundle?: never }
 )
 
 export function ShowStagePreview(input: ShowStagePreviewProps) {
-  // `editor-v2` is the existing editor's authored-v2 backing (#1065): it reads
-  // through the same v1 presentation below, including the static Stage mask and
-  // Zone inventory. `prepared-v2` remains the separate rejected-route input.
+  // `editor-v2` is the editor's authored-v2 backing (#1065), including the
+  // static Stage mask and Zone inventory. `prepared-v2` remains the separate
+  // rejected-route input.
   const stage = input.kind === 'editor-v2' ? input.stage : null
   const preparedBundle = input.kind === 'prepared-v2' ? input.bundle : null
-  const showId = stage?.showId ?? preparedBundle?.record.id ?? input.showId!
-  const showOverride = stage || preparedBundle ? undefined : input.showOverride
+  const showId = stage ? stage.showId : preparedBundle!.record.id
   const { presentation = 'pane', onPreviewAspectChange } = input
   const { setTarget: setSourceTarget } = useContext(ShowSourceOutletContext)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -190,16 +168,6 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
   const performanceOutputRef = useRef<HTMLOutputElement>(null)
   const performancePublishFrameRef = useRef(0)
   const liveSimulatedFramesRef = useRef(0)
-  const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
-  const previewShow = useShowPreviewOverrideStore((state) => state.show?.id === showId ? state.show : null)
-  const resolvedShow = previewShow ?? showOverride ?? savedShow
-  const deferredShow = useDeferredValue(resolvedShow)
-  const show = stage || preparedBundle ? undefined : resolveShowStagePreviewInput(showId, resolvedShow, deferredShow)
-  const userPatterns = usePatternStore((state) => state.userPatterns)
-  const userLibraries = useLibraryStore((state) => state.userLibraries)
-  const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
-  const userMaps = useMapStore((state) => state.userMaps)
-  const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const isRunning = usePreviewStore((state) => state.isRunning)
   const togglePlayback = usePreviewStore((state) => state.toggle)
   const brightness = usePreviewStore((state) => state.brightness)
@@ -224,15 +192,6 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [badgedSeekRequestId, setBadgedSeekRequestId] = useState<number | null>(null)
   const [runtimeRevision, setRuntimeRevision] = useState(0)
-  // The record the current artifact compiled from, for the dev-only
-  // publication observation (#945). Kept in a ref so the runtime effect can
-  // name it without re-running when only the stamp or name changes.
-  const compiledShowRef = useRef<ShowRecord | undefined>(undefined)
-
-  useEffect(() => {
-    compiledShowRef.current = show
-  }, [show])
-
   useEffect(() => {
     viewportWidthRef.current = viewportWidth
     viewportHeightRef.current = viewportHeight
@@ -246,167 +205,35 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
     preview.setDiffusion(preview.diffusionSticky)
   }, [showId])
 
-  const targetProfile = show?.targetControllerProfileId
-    ? controllerProfiles.find((profile) => profile.id === show.targetControllerProfileId)
-    : controllerProfiles[0]
-  const installationCoverage = stage ? stage.installationCoverage : preparedBundle ? preparedBundle.presentation.installationCoverage : show ? validateInstallationCoverage(show) : null
-  const savedPhysicalZones = useMemo(
-    () => show ? installationPhysicalZones(show) : undefined,
-    [show],
-  )
-
-  const stageMaps = useMemo((): StageMapOption[] => [
-    ...STOCK_MAPS
-      .filter((map): map is PixelMap & { dim: 2 | 3 } => map.dim === 2 || map.dim === 3)
-      .map((map) => ({ id: map.id, name: map.name, dim: map.dim, group: 'stock' as const })),
-    ...userMaps
-      .filter((map) => (map.dim === 2 || map.dim === 3) && (map.generator !== 'custom' || (map.points?.length ?? 0) > 0))
-      .map((map) => ({
-        id: map.id,
-        name: map.name,
-        dim: map.dim as 2 | 3,
-        group: 'user' as const,
-        bakedCount: map.points?.length,
-      })),
-  ], [userMaps])
-
+  const installationCoverage = stage ? stage.installationCoverage : preparedBundle!.presentation.installationCoverage
   const selectedStageMap: Omit<StageMapOption, 'group'> | undefined = stage
     ? stage.selectedStageMap ?? undefined
-    : preparedBundle ? preparedBundle.presentation.stageMap ?? undefined : stageMaps.find((map) => map.id === show?.stageMapId)
-  const danglingStageMap = Boolean(show?.stageMapId && !selectedStageMap)
-  const stageIdentityRole = stage ? stage.stageIdentityRole : preparedBundle ? preparedBundle.presentation.stageIdentityRole : show?.outputContract?.kind === 'installation'
-    ? 'Output map'
-    : show?.outputContract?.kind === 'portable-2d'
-      ? 'Reference map'
-      : selectedStageMap
-        ? 'Stage map'
-        : 'Preview layout'
-
-  const compilationControllerZones = useMemo(
-    () => show ? resolveShowCompilationControllerZones(show) : undefined,
-    [show],
-  )
+    : preparedBundle!.presentation.stageMap ?? undefined
+  const stageIdentityRole = stage ? stage.stageIdentityRole : preparedBundle!.presentation.stageIdentityRole
   const compiled = useMemo(
     () => stage
       ? { artifact: stage.artifact, error: stage.error }
-      : preparedBundle
-        ? { artifact: preparedBundle.artifact, error: null }
-        : show
-          ? compileShowForPreview(show, userPatterns, compilationControllerZones, compileLibrarySet, {
-              stageDimension: selectedStageMap?.dim,
-            })
-          : { artifact: null, error: null },
-    [stage, preparedBundle, compilationControllerZones, compileLibrarySet, selectedStageMap?.dim, show, userPatterns],
+      : { artifact: preparedBundle!.artifact, error: null },
+    [stage, preparedBundle],
   )
 
-  const layout = useMemo((): StageLayout | null => {
-    if (stage) return stage.layout
-    if (preparedBundle) return preparedBundle.presentation.layout
-    if (!show) return null
-    if (!selectedStageMap) {
-      const strips = buildShowStripsLayout(show.zones)
-      return {
-        kind: 'strips',
-        mapPoints: strips.mapPoints,
-        draw: { kind: '2d', positions: strips.positions },
-        projection: strips.projection,
-        label: 'Zone strips - generic',
-        note: danglingStageMap ? 'The saved stage map is gone, so this show is previewing as generic strips.' : null,
-      }
-    }
-
-    const map = resolveMap(selectedStageMap.id, userMaps)
-    const zoneTotal = show.zones.reduce((sum, zone) => sum + Math.max(0, Math.floor(zone.nominalPixelCount)), 0)
-    const preferredPixelCount =
-      (show.outputContract?.kind === 'installation' ? show.outputContract.pixelCount : undefined) ??
-      (show.outputContract?.kind === 'portable-2d' ? show.outputContract.referencePixelCount : undefined) ??
-      map.bakedCount ??
-      selectedStageMap.bakedCount ??
-      targetProfile?.lastKnownPixelCount ??
-      (zoneTotal > 0 ? zoneTotal : undefined) ??
-      defaultPixelCountForDim(map.dim)
-    const pixelCount = Math.max(1, preferredPixelCount)
-    const resolved = applyNormalizeMode(map.resolve(pixelCount), 'contain')
-    const mapPoints = resolved.map((point) => {
-      const raw = point.pos ?? point.sample
-      const pos = map.dim === 3
-        ? [raw[0] ?? 0.5, raw[1] ?? 0.5, raw[2] ?? 0.5] as [number, number, number]
-        : [raw[0] ?? 0.5, raw[1] ?? 0.5] as [number, number]
-      return { sample: [...pos], pos }
-    })
-    const logical = show.outputContract?.kind === 'portable-2d'
-      ? show.routingLayouts[0]?.logical
-      : undefined
-    const projection = logical
-      ? buildShowLogicalStageProjection(show.zones, mapPoints, logical, {
-          splitPosition: show.scenes[0]?.routingTargets?.splitPosition ?? 0.5,
-        })
-      : buildShowStageProjection(show.zones, mapPoints.length, {
-          controllerZones: savedPhysicalZones,
-        })
-
-    if (map.dim === 3) {
-      return {
-        kind: 'map',
-        mapPoints,
-        sampleDimension: 3,
-        draw: {
-          kind: '3d',
-          positions: mapPoints.map((point) => point.pos as [number, number, number]),
-        },
-        projection,
-        label: map.name,
-        note: logical ? showLogicalAspectAdvisory(mapPoints, logical) : null,
-      }
-    }
-
-    return {
-      kind: 'map',
-      mapPoints,
-      sampleDimension: 2,
-      draw: {
-        kind: '2d',
-        positions: mapPoints.map((point) => point.pos as [number, number]),
-      },
-      projection,
-      label: map.name,
-      note: logical ? showLogicalAspectAdvisory(mapPoints, logical) : null,
-    }
-  }, [stage, preparedBundle, danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, userMaps])
+  const layout: StageLayout = stage ? stage.layout : preparedBundle!.presentation.layout
   const effectiveSoloZoneId = layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
-  // One focus owner per backing: the v2 Stage reads authored Clip identity, the
-  // v1 Stage keeps its Scene placement. Neither reads the other's shape.
+  // The Stage reads only authored v2 Clip identity (#1042).
   const stageDiagnosticFocus = diagnosticFocus?.recordVersion === 2 ? diagnosticFocus : null
-  // Stable across renders: the diagnostics factory below is memoized on it, and
-  // its frames are read through a transport selector that must not see a new
-  // snapshot every render.
-  const legacyDiagnosticFocus = useMemo(() => (
-    diagnosticFocus && diagnosticFocus.recordVersion !== 2
-      ? {
-          sceneId: diagnosticFocus.sceneId,
-          zoneId: diagnosticFocus.zoneId,
-          placementId: diagnosticFocus.placementId,
-        }
-      : null
-  ), [diagnosticFocus])
-  const diagnosticFrameAtTime = useMemo(() => {
-    if (stage) return (positionMs: number) => stage.diagnosticFrameAt(stageDiagnosticFocus, positionMs)
-    return show && layout?.draw.kind === '2d'
-      ? createShowStageDiagnostics(show, layout.draw.positions, layout.mapPoints, layout.projection, layout.kind === 'map', legacyDiagnosticFocus)
-      : null
-  }, [stage, stageDiagnosticFocus, show, layout, legacyDiagnosticFocus])
+  const diagnosticFrameAtTime = useMemo(() => (
+    stage ? (positionMs: number) => stage.diagnosticFrameAt(stageDiagnosticFocus, positionMs) : null
+  ), [stage, stageDiagnosticFocus])
   const diagnosticFrame = useShowTransportStore(state => diagnosticFrameAtTime?.(state.showId === showId ? state.positionMs : 0) ?? null)
   const diagnosticRects = diagnosticFrame?.rects ?? []
   const focusedDiagnosticPoints = diagnosticFrame?.clipPoints ?? null
-  const selectedDiagnosticClipId = stageDiagnosticFocus
-    ? stageDiagnosticFocus.clipId
-    : legacyDiagnosticFocus?.placementId ?? null
+  const selectedDiagnosticClipId = stageDiagnosticFocus?.clipId ?? null
   const previewAspect = showStagePreviewAspect(layout)
 
   useEffect(() => {
     onPreviewAspectChange?.(previewAspect)
   }, [onPreviewAspectChange, previewAspect])
-  const durationMs = stage ? stage.durationMs : preparedBundle ? preparedBundle.presentation.durationMs : show ? showLoopDurationMs(show) : 0
+  const durationMs = stage ? stage.durationMs : preparedBundle!.presentation.durationMs
   const stageMaskPlan = useMemo(
     () => layout ? createShowStageMaskPlan(layout.projection, layout.mapPoints.length) : null,
     [layout],
@@ -447,7 +274,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
   const activePreparedWindow = useShowTransportStore((state) => (
     preparedStageWindowAt(state.showId === showId ? state.positionMs : 0)
   ))
-  // The editor backing keeps the v1 rule: one static Stage projection owns the
+  // The editor backing keeps one static Stage projection: it owns the
   // mask and the Zone inventory, and only the diagnostics follow authored time.
   const stageZones: ShowStageZone[] = (preparedBundle
     ? activePreparedWindow?.projection.zones
@@ -594,7 +421,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
     }
     const maskStarted = performance.now()
     // The prepared branch masks through the Layout occurrence owning this
-    // frame's own elapsed time; the legacy branch keeps its single plan.
+    // frame's own elapsed time; the editor branch keeps its single plan.
     const preparedWindow = preparedBundle ? preparedStageWindowAt(result.elapsedMs) : null
     const plan = (preparedWindow ? preparedStageMaskPlans?.get(preparedWindow.projection) : null) ?? stageMaskPlan
     const maskedFrame = applyShowStageMaskPacked(result.frame, plan, effectiveSoloZoneIdRef.current)
@@ -742,14 +569,13 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       paintFastFrame(result)
       // Baseline instrumentation (#945): the first frame of a rebuilt
       // runtime is the moment a record's compiled artifact becomes visible.
-      const source = compiledShowRef.current
-      if (import.meta.env.DEV && (stage || preparedBundle || source)) {
+      if (import.meta.env.DEV) {
         recordAgentObservation({
           kind: 'preview-published',
           showId,
           at: Date.now(),
-          digest: stage ? stage.digest : preparedBundle ? preparedBundle.digest : showRecordDigest(source!),
-          updatedAt: stage ? stage.updatedAt : preparedBundle ? preparedBundle.record.updatedAt : source!.updatedAt,
+          digest: stage ? stage.digest : preparedBundle!.digest,
+          updatedAt: stage ? stage.updatedAt : preparedBundle!.record.updatedAt,
         })
       }
     }
@@ -1012,14 +838,6 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [layout])
-
-  if (!show && !preparedBundle && !stage) {
-    return (
-      <div className="flex h-full items-center justify-center bg-zinc-950/40 font-mono text-xs text-zinc-500">
-        Show not found
-      </div>
-    )
-  }
 
   const error = compiled.error ?? runtimeError
   const rendererLabel = fidelity === 'fast' ? 'Fast' : 'Precise'
@@ -1353,43 +1171,6 @@ function ZoneInventoryRows({
       })}
     </div>
   )
-}
-
-export function resolveShowStagePreviewInput(
-  showId: string,
-  resolvedShow: ShowRecord | undefined,
-  deferredShow: ShowRecord | undefined,
-): ShowRecord | undefined {
-  return deferredShow?.id === showId
-    && sameShowPatternSources(resolvedShow, deferredShow)
-    ? deferredShow
-    : resolvedShow
-}
-
-function sameShowPatternSources(
-  left: ShowRecord | undefined,
-  right: ShowRecord | undefined,
-): boolean {
-  if (!left || !right) return left === right
-  if (left.cells.length !== right.cells.length) return false
-  const rightCells = new Map(right.cells.map((cell) => [cell.id, cell.pattern]))
-  if (left.cells.some((cell) => !samePatternRef(cell.pattern, rightCells.get(cell.id)))) return false
-
-  const leftInstances = left.composition?.patternInstances ?? []
-  const rightInstances = right.composition?.patternInstances ?? []
-  if (leftInstances.length !== rightInstances.length) return false
-  const rightInstancePatterns = new Map(rightInstances.map((instance) => [instance.id, instance.pattern]))
-  return leftInstances.every((instance) => samePatternRef(
-    instance.pattern,
-    rightInstancePatterns.get(instance.id),
-  ))
-}
-
-function samePatternRef(
-  left: ShowRecord['cells'][number]['pattern'],
-  right: ShowRecord['cells'][number]['pattern'] | undefined,
-): boolean {
-  return Boolean(right && left.kind === right.kind && left.id === right.id)
 }
 
 function StageDiagnosticToggle({ label, icon, active, onChange }: {
