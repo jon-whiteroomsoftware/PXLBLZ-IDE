@@ -39,8 +39,7 @@
     },
     "byClassification": {
       "conversion-provenance": 273,
-      "retired-single-passage-chapter": 14,
-      "volatile-record-stamp": 8
+      "retired-single-passage-chapter": 14
     },
     "exactRuntime": 40,
     "recipeEqual": 40,
@@ -7951,13 +7950,6 @@
           "classification": "conversion-provenance",
           "rationale": "The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly \"converted-boundary-transition\" or \"converted-layer-transition\" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
           "converted": "converted-boundary-transition"
-        },
-        {
-          "path": "/updatedAt",
-          "classification": "volatile-record-stamp",
-          "rationale": "The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.",
-          "native": 364,
-          "converted": "<volatile wall-clock stamp>"
         }
       ],
       "recipeEqual": true,
@@ -8406,13 +8398,6 @@
           "classification": "conversion-provenance",
           "rationale": "The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly \"converted-boundary-transition\" or \"converted-layer-transition\" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
           "converted": "converted-boundary-transition"
-        },
-        {
-          "path": "/updatedAt",
-          "classification": "volatile-record-stamp",
-          "rationale": "The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.",
-          "native": 364,
-          "converted": "<volatile wall-clock stamp>"
         }
       ],
       "recipeEqual": true,
@@ -9025,13 +9010,6 @@
           "classification": "conversion-provenance",
           "rationale": "The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly \"converted-boundary-transition\" or \"converted-layer-transition\" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
           "converted": "converted-boundary-transition"
-        },
-        {
-          "path": "/updatedAt",
-          "classification": "volatile-record-stamp",
-          "rationale": "The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.",
-          "native": 364,
-          "converted": "<volatile wall-clock stamp>"
         }
       ],
       "recipeEqual": true,
@@ -9412,13 +9390,6 @@
           "classification": "conversion-provenance",
           "rationale": "The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly \"converted-boundary-transition\" or \"converted-layer-transition\" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
           "converted": "converted-boundary-transition"
-        },
-        {
-          "path": "/updatedAt",
-          "classification": "volatile-record-stamp",
-          "rationale": "The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.",
-          "native": 364,
-          "converted": "<volatile wall-clock stamp>"
         }
       ],
       "recipeEqual": true,
@@ -9883,13 +9854,6 @@
           "classification": "conversion-provenance",
           "rationale": "The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly \"converted-boundary-transition\" or \"converted-layer-transition\" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
           "converted": "converted-boundary-transition"
-        },
-        {
-          "path": "/updatedAt",
-          "classification": "volatile-record-stamp",
-          "rationale": "The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.",
-          "native": 364,
-          "converted": "<volatile wall-clock stamp>"
         }
       ],
       "recipeEqual": true,
@@ -10284,13 +10248,6 @@
           "classification": "conversion-provenance",
           "rationale": "The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly \"converted-boundary-transition\" or \"converted-layer-transition\" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
           "converted": "converted-boundary-transition"
-        },
-        {
-          "path": "/updatedAt",
-          "classification": "volatile-record-stamp",
-          "rationale": "The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.",
-          "native": 364,
-          "converted": "<volatile wall-clock stamp>"
         }
       ],
       "recipeEqual": true,
@@ -10659,13 +10616,6 @@
           "classification": "conversion-provenance",
           "rationale": "The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly \"converted-boundary-transition\" or \"converted-layer-transition\" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
           "converted": "converted-boundary-transition"
-        },
-        {
-          "path": "/updatedAt",
-          "classification": "volatile-record-stamp",
-          "rationale": "The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.",
-          "native": 364,
-          "converted": "<volatile wall-clock stamp>"
         }
       ],
       "recipeEqual": true,
@@ -11890,13 +11840,6 @@
           "classification": "conversion-provenance",
           "rationale": "The native builder authors this Transition directly, while the v1 converter records which v1 collection it came from (#1065): a Scene-boundary Transition or a Layer Transition. v1 edits those two families through two different surfaces, and a converted boundary Transition reaches Layer participant scope whenever it does not need whole-output ownership, so structure cannot recover the distinction. Provenance carries no timing, ownership, compilation or playback meaning; lowering strips it before the compiler sees a Transition. Only a native absence against exactly \"converted-boundary-transition\" or \"converted-layer-transition\" is admitted; any other origin value, any origin the native builder authored, and every other field difference stay unclassified.",
           "converted": "converted-boundary-transition"
-        },
-        {
-          "path": "/updatedAt",
-          "classification": "volatile-record-stamp",
-          "rationale": "The pinned legacy builder restamps this Show through updateShowBoundaryTransition, so its converted value is a wall clock. The native builder stamps the deterministic catalogue vintage. The field carries no choreography and is excluded from the semantic identity; the converted value is redacted here to keep the report reproducible.",
-          "native": 364,
-          "converted": "<volatile wall-clock stamp>"
         }
       ],
       "recipeEqual": true,

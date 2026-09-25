@@ -78,10 +78,10 @@ side from the frozen fixture. It reports record representation,
 compile recipe, generated source, compile summary and deterministic Fast/Precise
 output, state and lifecycle at matched global times, and fails on any
 unclassified representation difference or any runtime divergence. Today all 40
-records are recipe-, source- and summary-equal with exact Fast/Precise parity;
-eight differ only in the volatile `updatedAt` stamp, which the legacy builder
-restamps through `updateShowBoundaryTransition` and the native builder pins to
-the catalogue vintage.
+records are recipe-, source- and summary-equal with exact Fast/Precise parity.
+The frozen v1 fixture pins the `updatedAt` stamps the legacy builder once
+restamped through `updateShowBoundaryTransition` to the catalogue vintage, so
+they no longer differ from the native builder.
 
 Changing a stock Show therefore means changing **both** builders and re-running
 both reports. A change to one alone fails `show:v2-native-parity` — that is the
