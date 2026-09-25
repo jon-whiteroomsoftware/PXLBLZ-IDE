@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
-import { stockShowById } from '@/pixelblaze/stock/shows'
+import { v1StockShowById } from '@/test/v1StockShowsFixture'
 import { stockShowCatalogueById, type ShowPatternSlotGroupV2 } from '@/pixelblaze/stock/showCatalogueV2'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { compileLibraries } from './libraries'
@@ -52,7 +52,7 @@ function normalizeKeyOrder(value: unknown): unknown {
 }
 
 function slotGroupsFor(id: string): readonly ShowPatternSlotGroup[] {
-  const stock = stockShowById(id)
+  const stock = v1StockShowById(id)
   if (!stock?.patternSlots) throw new Error(`missing v1 slot groups for ${id}`)
   return stock.patternSlots
 }
@@ -64,7 +64,7 @@ function slotGroupsV2For(id: string): readonly ShowPatternSlotGroupV2[] {
 }
 
 function convertedOracle(id: string, selections: Readonly<Record<number, ShowPatternRef>>): ShowRecordV2 {
-  const stock = stockShowById(id)
+  const stock = v1StockShowById(id)
   if (!stock) throw new Error(`missing v1 stock show ${id}`)
   const projected = applyShowPatternSlotSelections(
     stock.show,

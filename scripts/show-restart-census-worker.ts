@@ -25,16 +25,16 @@ import {
 } from '../src/engine/showRecordV1ToV2'
 import { LIBRARIES } from '../src/pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '../src/pixelblaze/stock/patterns'
-import { STOCK_SHOWS, stockShowById } from '../src/pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS, v1StockShowById } from '../src/test/v1StockShowsFixture'
 
 type CorpusInput = { corpus: 'stock' | 'agent-baseline'; corpusId: string; show: ShowRecord; fixture?: BaselineFixture }
 export function buildShowRestartCensus() {
 const inputs: CorpusInput[] = [
-  ...STOCK_SHOWS.map(item => ({ corpus: 'stock' as const, corpusId: item.id, show: structuredClone(item.show) })),
+  ...V1_STOCK_SHOWS.map(item => ({ corpus: 'stock' as const, corpusId: item.id, show: structuredClone(item.show) })),
   ...BASELINE_FIXTURES.map(fixture => ({
     corpus: 'agent-baseline' as const,
     corpusId: fixture.id,
-    show: resolveBaselineFixtureRecord(fixture, id => stockShowById(id)?.show),
+    show: resolveBaselineFixtureRecord(fixture, id => v1StockShowById(id)?.show),
     fixture,
   })),
 ]
@@ -111,7 +111,7 @@ const report = {
   issue: 1037,
   measuredAt: '2026-09-15',
   method: 'One authored Restart source at a time through prepareShowV2ForCompile; each effective event clip compiled alone.',
-  corpus: { records: inputs.length, stockRecords: STOCK_SHOWS.length, agentBaselineRecords: BASELINE_FIXTURES.length, uniquePatternDependencies: patternRows.length },
+  corpus: { records: inputs.length, stockRecords: V1_STOCK_SHOWS.length, agentBaselineRecords: BASELINE_FIXTURES.length, uniquePatternDependencies: patternRows.length },
   summary: {
     sourceAdmittedPatternDependencies: sourceProfile.summary.admitted,
     sourceRefusedPatternDependencies: sourceProfile.summary.refused,

@@ -15,7 +15,7 @@ import {
 import { projectShowTimeline } from '@/engine/showModel'
 import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
-import { STOCK_SHOWS, stockShowById } from './shows'
+import { V1_STOCK_SHOWS, v1StockShowById } from '@/test/v1StockShowsFixture'
 import { STOCK_SHOWS_V2, stockShowV2ById } from './showsV2'
 import { nativeStockSourceLookupV2 } from './showsV2Compile'
 // The native parity report's classifier is the single definition of an admitted
@@ -45,18 +45,18 @@ const SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS = new Set([
 describe('native v2 stock catalogue census', () => {
   it('lists the same Shows in the same order as the pinned legacy catalogue', () => {
     expect(STOCK_SHOWS_V2).toHaveLength(40)
-    expect(STOCK_SHOWS_V2.map(record => record.id)).toEqual(STOCK_SHOWS.map(entry => entry.id))
-    expect(STOCK_SHOWS_V2.map(record => record.name)).toEqual(STOCK_SHOWS.map(entry => entry.name))
+    expect(STOCK_SHOWS_V2.map(record => record.id)).toEqual(V1_STOCK_SHOWS.map(entry => entry.id))
+    expect(STOCK_SHOWS_V2.map(record => record.name)).toEqual(V1_STOCK_SHOWS.map(entry => entry.name))
   })
 
   it('resolves every catalogue entry by id and refuses an unknown one', () => {
-    for (const entry of STOCK_SHOWS) expect(stockShowV2ById(entry.id)?.id, entry.id).toBe(entry.id)
+    for (const entry of V1_STOCK_SHOWS) expect(stockShowV2ById(entry.id)?.id, entry.id).toBe(entry.id)
     expect(stockShowV2ById('stock-show-does-not-exist')).toBeUndefined()
     expect(stockShowV2ById(null)).toBeUndefined()
   })
 
   it('keeps every Zone, Layout definition and output contract the legacy entry declares', () => {
-    for (const entry of STOCK_SHOWS) {
+    for (const entry of V1_STOCK_SHOWS) {
       const native = stockShowV2ById(entry.id)!
       expect(native.zones, entry.id).toEqual(entry.show.zones)
       expect(native.zoneLayouts, entry.id).toEqual(entry.show.routingLayouts)
@@ -85,7 +85,7 @@ describe.each(NATIVE_CASES)('native v2 stock Show %s', (id, record) => {
   })
 
   it('carries the legacy Scene arc as ordered chapter Markers', () => {
-    const legacy = stockShowById(id)!
+    const legacy = v1StockShowById(id)!
     const scenes = projectShowTimeline(legacy.show).scenes
     const chapters = showChaptersV2(record)
     if (SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS.has(id)) {
@@ -101,7 +101,7 @@ describe.each(NATIVE_CASES)('native v2 stock Show %s', (id, record) => {
   })
 
   it('matches the converted pinned legacy record apart from the volatile stamp and conversion provenance', () => {
-    const legacy = stockShowById(id)!
+    const legacy = v1StockShowById(id)!
     const converted = convertShowRecordV1ToV2(legacy.show)
     expect(converted.status).toBe('converted')
     if (converted.status !== 'converted') return
@@ -154,7 +154,7 @@ const RETIRED_SILENT_RUNTIME_SHOWS = new Set([
 
 it('censuses the same resources as the pinned legacy catalogue, apart from the accepted retirements', () => {
   const differing: string[] = []
-  for (const entry of STOCK_SHOWS) {
+  for (const entry of V1_STOCK_SHOWS) {
     const native = stockShowV2ById(entry.id)!
     const prepared = prepareShowV2ForCompile(native, nativeStockSourceLookupV2(native), { libraries: LIBRARIES })
     expect(prepared.status, entry.id).toBe('ready')

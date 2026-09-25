@@ -16,7 +16,7 @@ import { projectShowTimeline, showRecordToCompileRecipe, type ShowCompileRecipeS
 import { convertShowRecordV1ToV2, type ShowV1ToV2Report } from '@/engine/showRecordV1ToV2'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
-import { STOCK_SHOWS, stockShowById } from '@/pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS, v1StockShowById } from '@/test/v1StockShowsFixture'
 
 const REPORT_PATH = resolve('docs/plans/show-v2-parity-report.json')
 const STEP_MS = 16
@@ -81,11 +81,11 @@ interface CorpusEntry {
 
 function censusInputs(): Array<{ corpus: CorpusEntry['corpus']; corpusId: string; show: ShowRecord; fixture?: BaselineFixture }> {
   return [
-    ...STOCK_SHOWS.map(item => ({ corpus: 'stock' as const, corpusId: item.id, show: structuredClone(item.show) })),
+    ...V1_STOCK_SHOWS.map(item => ({ corpus: 'stock' as const, corpusId: item.id, show: structuredClone(item.show) })),
     ...BASELINE_FIXTURES.map(fixture => ({
       corpus: 'agent-baseline' as const,
       corpusId: fixture.id as string,
-      show: resolveBaselineFixtureRecord(fixture, id => stockShowById(id)?.show),
+      show: resolveBaselineFixtureRecord(fixture, id => v1StockShowById(id)?.show),
       fixture,
     })),
   ]
@@ -133,7 +133,7 @@ export async function main(): Promise<void> {
       silentRuntimePolicy: 'Retire v1 placements wholly inside intervals where their Zone is absent; do not infer activation from future Clip IDs or Layout gaps.',
     },
     corpus: {
-      stock: { expected: 40, observed: STOCK_SHOWS.length },
+      stock: { expected: 40, observed: V1_STOCK_SHOWS.length },
       agentBaseline: { expected: 7, observed: BASELINE_FIXTURES.length },
       personalExports: { status: 'unavailable', observed: 0, reason: 'Jon confirmed on 2026-09-14 that no personal authored Show exports exist.' },
     },
@@ -141,7 +141,7 @@ export async function main(): Promise<void> {
     summary: summarize(records),
     records,
   }
-  if (STOCK_SHOWS.length !== 40 || BASELINE_FIXTURES.length !== 7) throw new Error('The pinned #1034 corpus census changed; review the inventory before updating expected counts.')
+  if (V1_STOCK_SHOWS.length !== 40 || BASELINE_FIXTURES.length !== 7) throw new Error('The pinned #1034 corpus census changed; review the inventory before updating expected counts.')
   if (records.some(record => record.unaccountedSourcePaths.length > 0)) throw new Error(`Unaccounted source leaves: ${JSON.stringify(records.filter(record => record.unaccountedSourcePaths.length > 0).map(record => ({ id: record.corpusId, paths: record.unaccountedSourcePaths })))}`)
   const unexpectedParityFailures = records.filter(record => record.parity && (!record.parity.fast.matched || !record.parity.precise.matched) && !record.acceptedSemanticDifference)
   if (unexpectedParityFailures.length > 0) {

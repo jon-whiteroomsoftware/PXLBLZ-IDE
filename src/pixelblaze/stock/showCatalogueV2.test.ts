@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { STOCK_SHOWS, type StockShow } from './shows'
+import { V1_STOCK_SHOWS, type V1StockShowFixtureEntry } from '@/test/v1StockShowsFixture'
 import { STOCK_SHOWS_V2, stockShowV2ById } from './showsV2'
 import { STOCK_SHOW_CATALOGUE, stockShowCatalogueById } from './showCatalogueV2'
 
 // This independent v1 projection is deleted when Phase 4 removes shows.ts.
-function legacyMetadataProjection(entry: StockShow) {
+function legacyMetadataProjection(entry: V1StockShowFixtureEntry) {
   const { show, patternSlots, reference, ...metadata } = entry
   const projectSlot = ({ instanceIds }: { instanceIds: readonly string[] }) => ({ instanceIds })
   return {
@@ -43,8 +43,8 @@ describe('v2 stock Show metadata catalogue', () => {
   })
 
   it('preserves every legacy metadata value and optional field', () => {
-    expect(STOCK_SHOW_CATALOGUE).toHaveLength(STOCK_SHOWS.length)
-    for (const entry of STOCK_SHOWS) {
+    expect(STOCK_SHOW_CATALOGUE).toHaveLength(V1_STOCK_SHOWS.length)
+    for (const entry of V1_STOCK_SHOWS) {
       expect(stockShowCatalogueById(entry.id), entry.id).toEqual(legacyMetadataProjection(entry))
     }
   })

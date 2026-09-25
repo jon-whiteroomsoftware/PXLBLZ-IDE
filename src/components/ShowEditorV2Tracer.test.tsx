@@ -5169,8 +5169,8 @@ describe('v2 Zone Layouts lane split cell (#1066 slice 9a)', () => {
 
 describe('v2 boundary scalar ramp edits (#1066 slice 9c2a)', () => {
   it('turns Animate split position on through the transition-edit door', async () => {
-    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const { V1_STOCK_SHOWS } = await import('@/test/v1StockShowsFixture')
+    const stock = V1_STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
     const record = convertForTest(structuredClone(stock.show) as ShowRecord)
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} />)
@@ -5214,8 +5214,8 @@ describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
   }
 
   it("reads each section's repeat scale in the cells for the same Show", async () => {
-    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const { V1_STOCK_SHOWS } = await import('@/test/v1StockShowsFixture')
+    const stock = V1_STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
     renderV2(structuredClone(stock.show) as ShowRecord)
 
     // Cells recorded from the v1 render before the v1 backing was removed.
@@ -5224,8 +5224,8 @@ describe('v2 sample repeat lane (#1066 slice 9c1)', () => {
   })
 
   it('draws a boundary button for every boundary Transition, and selecting it opens that boundary (#1066 slice 9c2b)', async () => {
-    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const { V1_STOCK_SHOWS } = await import('@/test/v1StockShowsFixture')
+    const stock = V1_STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
     renderV2(structuredClone(stock.show) as ShowRecord)
     const buttons = () => Array.from(screen.getByRole('group', { name: 'Sample repeat lane' }).querySelectorAll('button'))
       .map((button) => `${button.getAttribute('aria-label')}|${button.style.gridColumn}|${button.textContent}|${button.getAttribute('data-show-selection-key')}`)
@@ -6456,10 +6456,10 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
 describe('v2 lesson Live strip (#1066 11c2a)', () => {
   async function renderLessonV2(id: string, withNote = true) {
     const { stockShowCatalogueById } = await import('@/pixelblaze/stock/showCatalogueV2')
-    const { stockShowById } = await import('@/pixelblaze/stock/shows')
+    const { v1StockShowById } = await import('@/test/v1StockShowsFixture')
     const { stockShowV2ById } = await import('@/pixelblaze/stock/showsV2')
     const stock = stockShowCatalogueById(id)!
-    const legacyStock = stockShowById(id)!
+    const legacyStock = v1StockShowById(id)!
     const record = structuredClone(stockShowV2ById(id)!)
     const editor = openV2EditorForRecord(record)
     const builtInContext = withNote
@@ -8479,8 +8479,8 @@ describe('v2 panel refusal feedback (#1098)', () => {
   })
 
   it('names a boundary Split Position animation whose end no Layout covers', async () => {
-    const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const { V1_STOCK_SHOWS } = await import('@/test/v1StockShowsFixture')
+    const stock = V1_STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
     const record = convertForTest(structuredClone(stock.show) as ShowRecord)
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} />)
@@ -8530,8 +8530,8 @@ describe('v2 panel refusal feedback (#1098)', () => {
 // so it shows the stored value again, and every refusal names a reason.
 
 async function openLastPropertyAnimationBoundary(id: string): Promise<{ editor: OpenV2Editor; record: ShowRecordV2 }> {
-  const { STOCK_SHOWS } = await import('@/pixelblaze/stock/shows')
-  const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+  const { V1_STOCK_SHOWS } = await import('@/test/v1StockShowsFixture')
+  const stock = V1_STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
   const record = convertForTest(structuredClone(stock.show) as ShowRecord)
   record.id = id
   const editor = openV2EditorForRecord(record)

@@ -26,7 +26,7 @@ import { addShowZone, createDefaultShow, type ShowCompileRecipeSourceLookup } fr
 import { stockMapSpec } from './maps'
 import { projectFlatShowToCompositionV1 } from './showCompositionModel'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
-import { STOCK_SHOWS, stockShowById } from '../pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS, v1StockShowById } from '../test/v1StockShowsFixture'
 import { censusLoweringInputs } from '../../scripts/show-v2-parity'
 
 // Corpus mirror of scripts/show-v2-parity.ts censusInputs()/censusLoweringInputs()
@@ -34,11 +34,11 @@ import { censusLoweringInputs } from '../../scripts/show-v2-parity'
 // convertible list scripts/show-v2-parity.test.ts pins, not a new selection.
 function corpusShows(): Array<{ corpus: string; corpusId: string; show: ShowRecord; fixture?: BaselineFixture }> {
   return [
-    ...STOCK_SHOWS.map(item => ({ corpus: 'stock', corpusId: item.id, show: structuredClone(item.show) })),
+    ...V1_STOCK_SHOWS.map(item => ({ corpus: 'stock', corpusId: item.id, show: structuredClone(item.show) })),
     ...BASELINE_FIXTURES.map(fixture => ({
       corpus: 'agent-baseline' as const,
       corpusId: fixture.id as string,
-      show: resolveBaselineFixtureRecord(fixture, id => stockShowById(id)?.show),
+      show: resolveBaselineFixtureRecord(fixture, id => v1StockShowById(id)?.show),
       fixture,
     })),
   ]

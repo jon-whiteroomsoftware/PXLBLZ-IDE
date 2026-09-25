@@ -43,7 +43,7 @@ describe('buildShowStageDiagnosticRects (#491)', () => {
 import { createShowStageDiagnostics } from './showStageDiagnostics'
 import { createDefaultShow } from './showModel'
 import { buildShowStageProjection } from './zonePreview'
-import { stockShowById } from '@/pixelblaze/stock/shows'
+import { v1StockShowById } from '@/test/v1StockShowsFixture'
 
 const square: [number, number][] = [[0, 0], [1, 0], [0, 1], [1, 1]]
 const points = square.map(point => ({ sample: point, pos: point }))
@@ -80,7 +80,7 @@ describe('Show diagnostic time ownership (#983)', () => {
   })
 
   it('uses the new Layout at exact switch boundaries and excludes Clip End', () => {
-    const show = structuredClone(stockShowById('stock-show-showcase-zone-layouts-stripes-grid')!.show)
+    const show = structuredClone(v1StockShowById('stock-show-showcase-zone-layouts-stripes-grid')!.show)
     const grid = show.composition!.scenes.find(scene => scene.sceneId === 'grid')!
     const zone = grid.zones[1]
     const frame = createShowStageDiagnostics(show, square, points, buildShowStageProjection(show.zones, 4), true,

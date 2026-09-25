@@ -60,17 +60,21 @@ relying on either axis for directional behaviour.
 
 The catalogue is authored twice until #1039 activates v2 (#1040):
 
-- `src/pixelblaze/stock/shows.ts` is the **pinned legacy v1 builder**. Production,
-  the Gallery, keyframes and every census suite still read it, and the 47-record
-  conversion report converts it. Treat it as pinned input: change it only when
+- `src/pixelblaze/stock/shows.ts` is the **pinned legacy v1 builder** until
+  #1042 slice 4-3b deletes it. Treat it as pinned input: change it only when
   production content must change, and never derive it from the native builder.
+  The v1 conversion corpus no longer reads it: its 40 entries are frozen in
+  `src/test/fixtures/v1StockShows.json` (loader `src/test/v1StockShowsFixture.ts`),
+  which the census, conversion and parity consumers read instead.
+  `v1StockShowsFixture.test.ts` fails if the builder and the fixture diverge.
 - `src/pixelblaze/stock/showsV2.ts` is the **native v2 builder**, with its
   authoring vocabulary in `showsV2Authoring.ts` and its compile inputs in
   `showsV2Compile.ts`. Every entry validates and compiles straight from native v2
   authoring, with no converter in the path.
 
 `npm run show:v2-native-parity` compares them: native-builder output against the
-converted pinned legacy record, per Show. It reports record representation,
+converted pinned legacy record, per Show. It and `show:v2-parity` read the v1
+side from the frozen fixture. It reports record representation,
 compile recipe, generated source, compile summary and deterministic Fast/Precise
 output, state and lifecycle at matched global times, and fails on any
 unclassified representation difference or any runtime divergence. Today all 40
@@ -101,6 +105,9 @@ three and fails if the set grows.
 
 Editing `src/pixelblaze/stock/shows.ts` fans out in this order:
 
+0. **`src/test/v1StockShowsFixture.test.ts`** — the builder must still equal the
+   frozen v1 fixture. The v1 consumers below (including the `show:v2-parity` and
+   `show:v2-native-parity` scripts) read the fixture, not the builder.
 1. **`shows.test.ts` census** — count, name/level/order rows, and the reference id
    list, plus doctrine tests keyed off the FOUNDATION/COMPOSITION/OUTPUT id lists.
 2. **`stockEntityOrganization.test.ts`** — rail folders derive from data; only the

@@ -1,7 +1,7 @@
 import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
 import { STOCK_SHOWS_V2, stockShowV2ById } from '@/pixelblaze/stock/showsV2'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS } from '@/test/v1StockShowsFixture'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { transitionV1Show } from '../test/showV2TracerFixture'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
@@ -1205,8 +1205,8 @@ describe('built-in Show session drafts (#363)', () => {
   // outcome is a stored v2 row or refusal (#1042 S2a). This test goes when
   // `src/pixelblaze/stock/shows.ts` is deleted.
   it('has a native v2 lesson for every v1 stock Show id', () => {
-    const ids = [...new Set(STOCK_SHOWS.flatMap(({ id, show }) => [id, show.id]))]
-    expect(ids).toHaveLength(STOCK_SHOWS.length)
+    const ids = [...new Set(V1_STOCK_SHOWS.flatMap(({ id, show }) => [id, show.id]))]
+    expect(ids).toHaveLength(V1_STOCK_SHOWS.length)
     expect(ids.filter((id) => !stockShowV2ById(id))).toEqual([])
   })
 

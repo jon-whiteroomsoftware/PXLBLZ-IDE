@@ -20,10 +20,10 @@
 // qualified subject: CompassRose at the lesson clock with the historical
 // speed control, and one clone per column so every example keeps its twin.
 import type { ShowRecord } from './personalContentRecords'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS } from '../test/v1StockShowsFixture'
 
 export function createPropertySlotQualificationShow(): ShowRecord {
-  const stock = STOCK_SHOWS.find((entry) => entry.id === 'stock-show-reference-property-animation')
+  const stock = V1_STOCK_SHOWS.find((entry) => entry.id === 'stock-show-reference-property-animation')
   if (!stock) throw new Error('Property Animation reference Show is missing.')
   const show = structuredClone(stock.show)
   const composition = show.composition

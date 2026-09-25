@@ -20,7 +20,7 @@ import { prepareShowV2ForCompile } from '@/engine/showCompositionLoweringV2'
 import { validateShowRecordV2, type ShowRecordV2 } from '@/engine/showCompositionV2'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { LIBRARIES } from '@/pixelblaze/libs'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS } from '@/test/v1StockShowsFixture'
 import { STOCK_SHOWS_V2, stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
 import { runtimeParity, sha256, stableJson, type RuntimeParity } from './show-v2-parity'
@@ -163,7 +163,7 @@ type NativeComparison = {
 }
 
 export async function main(): Promise<void> {
-  const records = STOCK_SHOWS.map(compareEntry)
+  const records = V1_STOCK_SHOWS.map(compareEntry)
   const report = {
     schemaVersion: 1,
     issue: 1040,
@@ -176,7 +176,7 @@ export async function main(): Promise<void> {
       runtime: { comparison: 'native-prepared versus converted-prepared, one lowering route each', modes: ['fast', 'fidelity'], mapPoints: 8 },
       note: 'RuntimeParity residual labels read source = native and converted = converted-legacy.',
     },
-    corpus: { stock: { expected: 40, observed: STOCK_SHOWS.length, native: STOCK_SHOWS_V2.length } },
+    corpus: { stock: { expected: 40, observed: V1_STOCK_SHOWS.length, native: STOCK_SHOWS_V2.length } },
     summary: {
       total: records.length,
       byOutcome: countBy(records.map(record => record.outcome)),
@@ -190,7 +190,7 @@ export async function main(): Promise<void> {
     records,
   }
 
-  if (STOCK_SHOWS.length !== 40 || STOCK_SHOWS_V2.length !== STOCK_SHOWS.length) {
+  if (V1_STOCK_SHOWS.length !== 40 || STOCK_SHOWS_V2.length !== V1_STOCK_SHOWS.length) {
     throw new Error('The native and pinned legacy stock censuses disagree; review the catalogue before updating expected counts.')
   }
   const failed = records.filter(record => record.outcome !== 'compared')
@@ -217,7 +217,7 @@ export async function main(): Promise<void> {
   console.log(`Native stock parity report matches: ${records.length} compared Shows.`)
 }
 
-function compareEntry(entry: (typeof STOCK_SHOWS)[number]): NativeComparison {
+function compareEntry(entry: (typeof V1_STOCK_SHOWS)[number]): NativeComparison {
   const native = stockShowV2ById(entry.id)
   const conversion = convertShowRecordV1ToV2(structuredClone(entry.show))
   const base = {

@@ -5,7 +5,7 @@ import { projectFlatShowToCompositionV1WithCellOrigins } from '../engine/showCom
 import { projectShowGroupRuntimePatternInstances } from '../engine/showGroupModel'
 import type { ShowCompileRecipeSourceLookup } from '../engine/showModel'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
-import { STOCK_SHOWS, stockShowById } from '../pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS, v1StockShowById } from './v1StockShowsFixture'
 
 export interface ShowV2CorpusEntry {
   corpus: 'stock' | 'agent-baseline'
@@ -27,15 +27,15 @@ export interface ShowV2CorpusEntry {
  */
 export function showV2ViewModelCorpus(): ShowV2CorpusEntry[] {
   const entries: ShowV2CorpusEntry[] = [
-    ...STOCK_SHOWS.map((item) => buildEntry('stock', item.id, structuredClone(item.show))),
+    ...V1_STOCK_SHOWS.map((item) => buildEntry('stock', item.id, structuredClone(item.show))),
     ...BASELINE_FIXTURES.map((fixture) => buildEntry(
       'agent-baseline',
       fixture.id,
-      resolveBaselineFixtureRecord(fixture, (id) => stockShowById(id)?.show),
+      resolveBaselineFixtureRecord(fixture, (id) => v1StockShowById(id)?.show),
       fixture,
     )),
   ]
-  if (STOCK_SHOWS.length !== 40 || BASELINE_FIXTURES.length !== 7) {
+  if (V1_STOCK_SHOWS.length !== 40 || BASELINE_FIXTURES.length !== 7) {
     throw new Error('The pinned corpus census changed; review the inventory before updating expected counts.')
   }
   return entries

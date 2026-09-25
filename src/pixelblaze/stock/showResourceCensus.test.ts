@@ -6,7 +6,7 @@
 import { writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
-import { STOCK_SHOWS } from './shows'
+import { V1_STOCK_SHOWS } from '@/test/v1StockShowsFixture'
 
 interface CensusRow {
   id: string
@@ -30,7 +30,7 @@ interface CensusRow {
 }
 
 function buildCensus(): CensusRow[] {
-  return STOCK_SHOWS.map((item) => {
+  return V1_STOCK_SHOWS.map((item) => {
     const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     expect(compiled.error, item.id).toBeNull()
     expect(compiled.artifactBlocker ?? null, item.id).toBeNull()
@@ -69,7 +69,7 @@ function buildCensus(): CensusRow[] {
 describe('stock Show resource census (#716)', () => {
   it('keeps every stock Show artifact-clean on both budget axes and reports the census', () => {
     const rows = buildCensus()
-    expect(rows).toHaveLength(STOCK_SHOWS.length)
+    expect(rows).toHaveLength(V1_STOCK_SHOWS.length)
     const columns = [
       'id', 'track', 'pixelCount', 'renderTargetWords', 'memberPatternWords', 'routingWords',
       'planWords', 'auxiliaryCacheWords', 'totalWords', 'remainingWords',

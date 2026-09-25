@@ -13,7 +13,7 @@
 // Local D1 only, like the migration command itself.
 import { createD1Show } from '@/cloudflare/shows'
 import { BASELINE_FIXTURES, resolveBaselineFixtureRecord } from '@/agent-harness/baseline/fixtures'
-import { STOCK_SHOWS, stockShowById } from '@/pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS, v1StockShowById } from '@/test/v1StockShowsFixture'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import { openLocalD1, resolveLocalD1File } from './show-v2-migrate-lib'
 
@@ -36,11 +36,11 @@ async function main(): Promise<void> {
     }
 
     const records: ShowRecord[] = [
-      ...STOCK_SHOWS.map(item => structuredClone(item.show)),
+      ...V1_STOCK_SHOWS.map(item => structuredClone(item.show)),
       // A baseline fixture derived from a stock Show keeps that Show's id, so
       // the seeded row is namespaced to stay a distinct personal row.
       ...BASELINE_FIXTURES.map(fixture => {
-        const record = resolveBaselineFixtureRecord(fixture, id => stockShowById(id)?.show)
+        const record = resolveBaselineFixtureRecord(fixture, id => v1StockShowById(id)?.show)
         return { ...record, id: `baseline-${fixture.id}`, name: `Baseline ${fixture.id}` }
       }),
     ]

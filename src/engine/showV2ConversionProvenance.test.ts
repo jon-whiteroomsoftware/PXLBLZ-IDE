@@ -179,8 +179,8 @@ describe('conversion metadata is inert', () => {
   it('compiles a Show that authors a repeat scale to the identical program with and without the metadata (#1066)', async () => {
     // No oracle corpus case authors sampleTargets.repeatScale, so the stock
     // Show that does carries the fourth provenance field through this oracle.
-    const { STOCK_SHOWS } = await import('../pixelblaze/stock/shows')
-    const source = structuredClone(STOCK_SHOWS.find(candidate => candidate.id === 'stock-show-reference-property-animation')!.show) as ShowRecord
+    const { V1_STOCK_SHOWS } = await import('../test/v1StockShowsFixture')
+    const source = structuredClone(V1_STOCK_SHOWS.find(candidate => candidate.id === 'stock-show-reference-property-animation')!.show) as ShowRecord
     const converted = convert(source)
     expect(converted.composition.sampleRemap.origin).toBe('converted-authored-repeat-scale')
     const stripped = withoutConversionMetadata(converted)

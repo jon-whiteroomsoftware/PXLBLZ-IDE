@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS } from '@/test/v1StockShowsFixture'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import type { ShowRecord } from './personalContentRecords'
 import type { ShowTransitionChanges } from './showTransitionAuthoring'
@@ -19,7 +19,7 @@ import { cloneValidShowRecordV2 } from './showDocument'
  * must be deep-equal.
  */
 function stockV1(): ShowRecord {
-  return structuredClone(STOCK_SHOWS.find(candidate => candidate.id === 'stock-show-reference-property-animation')!.show) as ShowRecord
+  return structuredClone(V1_STOCK_SHOWS.find(candidate => candidate.id === 'stock-show-reference-property-animation')!.show) as ShowRecord
 }
 
 function convert(show: ShowRecord): ShowRecordV2 {

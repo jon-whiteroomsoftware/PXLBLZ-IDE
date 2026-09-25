@@ -8,7 +8,7 @@ import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '../pixelblaze/libs'
-import { stockShowById } from '../pixelblaze/stock/shows'
+import { v1StockShowById } from '../test/v1StockShowsFixture'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { auditShowV1ToV2Accounting, convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { showV2ClipCount } from './showV2ClipDeletePlanning'
@@ -417,7 +417,7 @@ describe('convertShowRecordV1ToV2', () => {
   })
 
   it('preserves a real stock Group record with complete source accounting', () => {
-    const source = stockShowById('stock-show-205-groups-linked-reuse')?.show
+    const source = v1StockShowById('stock-show-205-groups-linked-reuse')?.show
     expect(source).toBeTruthy()
     if (!source) return
 

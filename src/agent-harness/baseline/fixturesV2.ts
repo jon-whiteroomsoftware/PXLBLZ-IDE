@@ -13,7 +13,7 @@
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import type { PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
-import { stockShowById } from '@/pixelblaze/stock/shows'
+import { v1StockShowById } from '@/test/v1StockShowsFixture'
 import { stockPatternSource } from '../shows/stockCatalogue.js'
 import { resolveBaselineFixtureRecord, type BaselineFixture } from './fixtures.js'
 
@@ -51,6 +51,6 @@ export function convertBaselineRecord(
 
 /** The version-2 record the agent baseline opens for one fixture. */
 export function baselineFixtureRecordV2(fixture: BaselineFixture): ShowRecordV2 {
-  const legacy = resolveBaselineFixtureRecord(fixture, (id) => stockShowById(id)?.show)
+  const legacy = resolveBaselineFixtureRecord(fixture, (id) => v1StockShowById(id)?.show)
   return convertBaselineRecord(legacy, `baseline fixture ${fixture.id}`, fixture.patterns ?? [])
 }

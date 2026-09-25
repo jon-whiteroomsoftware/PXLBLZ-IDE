@@ -4,7 +4,7 @@ import type { ShowRecord } from '@/engine/personalContentRecords'
 import { createShowWithOutputContract } from '@/engine/showModel'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
-import { stockShowById } from '@/pixelblaze/stock/shows'
+import { v1StockShowById } from '@/test/v1StockShowsFixture'
 import { convertibleV1Show } from '@/test/showV2TracerFixture'
 
 const OUTPUT = resolve('e2e/fixtures/showEditorEquivalence.json')
@@ -36,7 +36,7 @@ export function buildShowEditorEquivalenceFixtures() {
     compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
   }, 1)
   const fromStock = (id: string, fixtureId: string, name: string): ShowRecord => {
-    const stock = stockShowById(id)?.show
+    const stock = v1StockShowById(id)?.show
     if (!stock) throw new Error(`Missing stock Show ${id}.`)
     return { ...structuredClone(stock), id: fixtureId, name, updatedAt: 1 }
   }

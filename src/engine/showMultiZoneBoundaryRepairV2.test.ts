@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import type { ShowRecord } from './personalContentRecords'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
+import { V1_STOCK_SHOWS } from '../test/v1StockShowsFixture'
 import { removeShowBoundaryTransition, updateShowBoundaryTransition } from './showModel'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
@@ -18,7 +18,7 @@ import { convertedBoundaryRepairSpecV2, editShowTransitionV2 } from './showTrans
 const BOUNDARIES = ['transition-effect-parameter', 'transition-split-position'] as const
 
 function twoZoneV1(): ShowRecord {
-  let show = structuredClone(STOCK_SHOWS.find(candidate => candidate.id === 'stock-show-reference-property-animation')!.show) as ShowRecord
+  let show = structuredClone(V1_STOCK_SHOWS.find(candidate => candidate.id === 'stock-show-reference-property-animation')!.show) as ShowRecord
   for (const id of BOUNDARIES) show = updateShowBoundaryTransition(show, id, { propertyTransitions: undefined })
   return show
 }

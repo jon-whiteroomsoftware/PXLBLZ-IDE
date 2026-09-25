@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { stockShowById } from '@/pixelblaze/stock/shows'
+import { v1StockShowById } from '@/test/v1StockShowsFixture'
 import { showLoopDurationMs } from '@/engine/showModel'
 import { BASELINE_FIXTURES, resolveBaselineFixtureRecord, type BaselineFixtureFeature } from '../baseline/fixtures.js'
 import { canonicalJson, evidenceDifferences, recordSha256, type BaselineFixtureEvidence } from '../baseline/evidence.js'
@@ -45,7 +45,7 @@ describe('baseline fixtures', () => {
 
   it('resolves every record and carries the feature it claims', () => {
     for (const fixture of BASELINE_FIXTURES) {
-      const record = resolveBaselineFixtureRecord(fixture, (id) => stockShowById(id)?.show)
+      const record = resolveBaselineFixtureRecord(fixture, (id) => v1StockShowById(id)?.show)
       expect(record.id, fixture.id).toBeTruthy()
       const composition = record.composition
       if (fixture.features.includes('groups')) expect(composition?.groupDefinitions?.length ?? 0).toBeGreaterThan(0)

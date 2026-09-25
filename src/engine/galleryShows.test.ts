@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { showLoopDurationMs } from './showModel'
-import { stockShowById } from '@/pixelblaze/stock/shows'
+import { v1StockShowById } from '@/test/v1StockShowsFixture'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { captureShowStageEditV2 } from './showPreparedStageV2'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
@@ -27,7 +27,7 @@ describe('Gallery Shows catalogue', () => {
   // Delete this v1 projection test when shows.ts is deleted.
   it('keeps facts and geometry equal to the pinned v1 Gallery Shows', () => {
     for (const show of GALLERY_SHOWS) {
-      const legacy = stockShowById(show.id)!
+      const legacy = v1StockShowById(show.id)!
       const expectedLoopMs = showLoopDurationMs(legacy.show)
       expect(galleryShowFacts(show), show.id).toEqual({
         title: legacy.name,
@@ -119,18 +119,18 @@ describe('Gallery Shows catalogue', () => {
   it('keeps the Coronal Mass Ejection remix general Markers out of its chapter list', () => {
     const remix = GALLERY_SHOWS.find(show => show.slug === 'coronal-mass-ejection-remix')!
     expect(galleryShowChapters(remix).map(chapter => chapter.name)).toEqual(['Intro', 'Gesture'])
-    const markers = stockShowById(remix.id)!.show.composition!.markers ?? []
+    const markers = v1StockShowById(remix.id)!.show.composition!.markers ?? []
     expect(markers.length).toBeGreaterThan(2)
   })
 
   it('resolves installation Shows at their contract count and portable Shows at the Gallery count', () => {
     for (const show of GALLERY_SHOWS) {
-      const contract = stockShowById(show.id)!.show.outputContract
+      const contract = v1StockShowById(show.id)!.show.outputContract
       const expected = contract?.kind === 'installation' ? contract.pixelCount : GALLERY_SHOW_PIXEL_COUNT
       expect(galleryShowPixelCount(show)).toBe(expected)
       expect(resolveGalleryShowGeometry(show).mapPoints.length).toBe(expected)
     }
-    expect(GALLERY_SHOWS.some((show) => stockShowById(show.id)!.show.outputContract?.kind === 'installation')).toBe(true)
+    expect(GALLERY_SHOWS.some((show) => v1StockShowById(show.id)!.show.outputContract?.kind === 'installation')).toBe(true)
   })
 
   it('keeps a wide stage wide and a 3D stage square', () => {

@@ -6,7 +6,7 @@ import { createFastReplayRuntime } from '@/engine/fastReplay'
 import { nativeDimension } from '@/engine/loadPattern'
 import { projectShowTimeline } from '@/engine/showModel'
 import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
-import { STOCK_SHOWS } from './shows'
+import { V1_STOCK_SHOWS } from '@/test/v1StockShowsFixture'
 import { DEMOS } from './patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { bundledPatternSliderNames } from '@/engine/showPatternControls'
@@ -23,7 +23,7 @@ import { bundledPatternSliderNames } from '@/engine/showPatternControls'
 // note the #841 upgrade path.
 describe('stock deterministic-loop census (#823)', () => {
   it('wraps every stamped Show back to its exact loop-one state', { timeout: 300_000 }, () => {
-    const stamped = STOCK_SHOWS.filter((item) => (
+    const stamped = V1_STOCK_SHOWS.filter((item) => (
       item.show.composition?.executionModel === 'deterministic-loop'
     ))
     expect(stamped.length).toBeGreaterThan(0)
@@ -75,7 +75,7 @@ describe('stock deterministic-loop census (#823)', () => {
     // The wrap census proves the AUTHORED cast; a slot projection can swap
     // in a Pattern whose state the loop reset cannot reconstruct (105's
     // water slot accepts IceFloes2D, the exact voice the census removed).
-    const stamped = STOCK_SHOWS.filter((item) => (
+    const stamped = V1_STOCK_SHOWS.filter((item) => (
       item.show.composition?.executionModel === 'deterministic-loop'
       && (item.patternSlots?.length ?? 0) > 0
       && item.patternSlots!.some((group) => group.instanceIds.length > 0)
@@ -94,7 +94,7 @@ describe('stock deterministic-loop census (#823)', () => {
   })
 
   it('forfeits the stamp on permanent reassignment and restores it on unwind (#823 review)', () => {
-    const item = STOCK_SHOWS.find((entry) => (
+    const item = V1_STOCK_SHOWS.find((entry) => (
       entry.show.composition?.executionModel === 'deterministic-loop'
       && entry.patternSlots?.some((group) => group.instanceIds.length > 0)
     ))!
