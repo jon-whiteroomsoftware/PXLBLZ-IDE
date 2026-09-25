@@ -983,47 +983,47 @@ function transformEffectsShowcaseV2(): ShowRecordV2 {
     propertyTracks: [
       propertyTrack('track-effect-2-affine-translate-translateX', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-translate', effectKind: 'translate', parameterId: 'translateX' }, 3_000, 5_000, [
         propertyKey('track-effect-2-affine-translate-translateX-start', 3_000, 0),
-        propertyKey('track-effect-2-affine-translate-translateX-end', 4_000, 0.18, LINEAR),
+        propertyKey('track-effect-2-affine-translate-translateX-end', 6_000, 0.18, LINEAR),
       ]),
       propertyTrack('track-effect-2-affine-translate-translateY', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-translate', effectKind: 'translate', parameterId: 'translateY' }, 3_000, 5_000, [
         propertyKey('track-effect-2-affine-translate-translateY-start', 3_000, 0),
-        propertyKey('track-effect-2-affine-translate-translateY-end', 4_000, -0.12, LINEAR),
+        propertyKey('track-effect-2-affine-translate-translateY-end', 6_000, -0.12, LINEAR),
       ]),
       propertyTrack('track-effect-3-affine-scale-scaleX', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-scale', effectKind: 'scale', parameterId: 'scaleX' }, 8_000, 4_000, [
         propertyKey('track-effect-3-affine-scale-scaleX-start', 8_000, 1),
-        propertyKey('track-effect-3-affine-scale-scaleX-end', 9_000, 0.68, LINEAR),
+        propertyKey('track-effect-3-affine-scale-scaleX-end', 11_000, 0.68, LINEAR),
       ]),
       propertyTrack('track-effect-3-affine-scale-scaleY', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-scale', effectKind: 'scale', parameterId: 'scaleY' }, 8_000, 4_000, [
         propertyKey('track-effect-3-affine-scale-scaleY-start', 8_000, 1),
-        propertyKey('track-effect-3-affine-scale-scaleY-end', 9_000, 0.82, LINEAR),
+        propertyKey('track-effect-3-affine-scale-scaleY-end', 11_000, 0.82, LINEAR),
       ]),
       propertyTrack('track-effect-3-affine-translate-translateX', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-translate', effectKind: 'translate', parameterId: 'translateX' }, 8_000, 4_000, [
         propertyKey('track-effect-3-affine-translate-translateX-start', 8_000, 0.18),
-        propertyKey('track-effect-3-affine-translate-translateX-end', 9_000, 0, LINEAR),
+        propertyKey('track-effect-3-affine-translate-translateX-end', 11_000, 0, LINEAR),
       ]),
       propertyTrack('track-effect-3-affine-translate-translateY', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-translate', effectKind: 'translate', parameterId: 'translateY' }, 8_000, 4_000, [
         propertyKey('track-effect-3-affine-translate-translateY-start', 8_000, -0.12),
-        propertyKey('track-effect-3-affine-translate-translateY-end', 9_000, 0, LINEAR),
+        propertyKey('track-effect-3-affine-translate-translateY-end', 11_000, 0, LINEAR),
       ]),
       propertyTrack('track-effect-4-affine-rotate-turns', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-rotate', effectKind: 'rotate', parameterId: 'turns' }, 12_000, 4_000, [
         propertyKey('track-effect-4-affine-rotate-turns-start', 12_000, 0),
-        propertyKey('track-effect-4-affine-rotate-turns-end', 13_000, 0.125, LINEAR),
+        propertyKey('track-effect-4-affine-rotate-turns-end', 15_000, 0.125, LINEAR),
       ]),
       propertyTrack('track-effect-4-affine-scale-scaleX', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-scale', effectKind: 'scale', parameterId: 'scaleX' }, 12_000, 4_000, [
         propertyKey('track-effect-4-affine-scale-scaleX-start', 12_000, 0.68),
-        propertyKey('track-effect-4-affine-scale-scaleX-end', 13_000, 1, LINEAR),
+        propertyKey('track-effect-4-affine-scale-scaleX-end', 15_000, 1, LINEAR),
       ]),
       propertyTrack('track-effect-4-affine-scale-scaleY', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-scale', effectKind: 'scale', parameterId: 'scaleY' }, 12_000, 4_000, [
         propertyKey('track-effect-4-affine-scale-scaleY-start', 12_000, 0.82),
-        propertyKey('track-effect-4-affine-scale-scaleY-end', 13_000, 1, LINEAR),
+        propertyKey('track-effect-4-affine-scale-scaleY-end', 15_000, 1, LINEAR),
       ]),
       propertyTrack('track-effect-5-affine-rotate-turns', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-rotate', effectKind: 'rotate', parameterId: 'turns' }, 16_000, 4_000, [
         propertyKey('track-effect-5-affine-rotate-turns-start', 16_000, 0.125),
-        propertyKey('track-effect-5-affine-rotate-turns-end', 17_000, 0, LINEAR),
+        propertyKey('track-effect-5-affine-rotate-turns-end', 19_000, 0, LINEAR),
       ]),
       propertyTrack('track-effect-5-affine-shear-shearX', { kind: 'clip-effect', clipId: 'clip-affine-effects', effectId: 'affine-shear', effectKind: 'shear', parameterId: 'shearX' }, 16_000, 4_000, [
         propertyKey('track-effect-5-affine-shear-shearX-start', 16_000, 0),
-        propertyKey('track-effect-5-affine-shear-shearX-end', 17_000, 0.28, LINEAR),
+        propertyKey('track-effect-5-affine-shear-shearX-end', 19_000, 0.28, LINEAR),
       ]),
     ],
     markers: [

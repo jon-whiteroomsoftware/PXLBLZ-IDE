@@ -1852,7 +1852,7 @@ describe('stock Show curriculum (#363)', () => {
     ])
     // The glides live on destination-span placement-effect Property tracks
     // (#823): each junction is an explicit Cut and the affine parameters
-    // ramp, eased, over the first second of the arriving span.
+    // ramp, eased, over the first three seconds of the arriving span.
     expect(affineTransitions.every((transition) => transition.kind === 'cut')).toBe(true)
     const affineScenes = item.show.composition!.scenes.slice(1, 5)
     expect(affineScenes.every((scene) => (scene.propertyTracks ?? [])
@@ -1861,7 +1861,7 @@ describe('stock Show curriculum (#363)', () => {
       .filter((track) => track.target.kind === 'placement-effect'))
     expect(affineTracks.every((track) => (
       track.keyframes[0].timeMs === 0
-      && track.keyframes[track.keyframes.length - 1].timeMs === 1_000
+      && track.keyframes[track.keyframes.length - 1].timeMs === 3_000
       && track.keyframes.every((frame) => frame.easing !== undefined)
     ))).toBe(true)
 

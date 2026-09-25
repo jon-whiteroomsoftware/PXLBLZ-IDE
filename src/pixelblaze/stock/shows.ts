@@ -2796,7 +2796,7 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
             },
             keyframes: [
               { id: `${trackId}-start`, timeMs: 0, value: from, easing: SINE_IN_OUT },
-              { id: `${trackId}-end`, timeMs: 1_000, value: to, easing: LINEAR },
+              { id: `${trackId}-end`, timeMs: 3_000, value: to, easing: LINEAR },
             ],
           })
           if (next === composition) throw new Error(`Transform Effect track rejected: ${trackId}`)
