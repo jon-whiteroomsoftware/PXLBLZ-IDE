@@ -1,31 +1,35 @@
 # Show state, history, and persistence
 
-The Show store owns the editable Show record and its session undo/redo history.
-Personal Shows save through the personal-content provider; stock Show edits
-remain in in-memory drafts. A visible edit and a durable save are distinct
-states, and callers must handle that distinction when reporting success.
+The Show store owns the editable version-2 Show record (`showV2Pilots`) and its
+session undo/redo history (`showV2Histories`). Personal Shows save through the
+personal-content provider's version-2 boundary; built-in lesson edits remain in
+in-memory drafts. A visible edit and a durable save are distinct states, and
+callers must handle that distinction when reporting success. The version-1
+editing chain (`updateShow`, its convenience mutators, `undoShow`/`redoShow`,
+stock drafts and the version-1 save failure) was deleted in #1042 S2a.
 
 ## Adoption and history
 
-`updateShow(id, next)` adopts a normalized replacement, assigns it the next
-single-client `updatedAt` ordering stamp, and records the preceding Show in
+`updateShowV2Pilot(id, next)` validates a complete replacement, assigns it the
+next single-client `updatedAt` ordering stamp, and records the preceding Show in
 history before awaiting personal persistence. The store assigns that stamp as
 `max(Date.now(), current.updatedAt + 1)`; a captured manual or agent timestamp
 never controls adoption order. The stamp is not a document revision. A new edit
-clears redo and retires an older failure notice for that Show. An absent target,
-an identical record object, or a Show being deleted is a no-op. Callers must
-supply an unaliased replacement for the intended Show and preserve its id; this
-primitive is not a general validation or identity-admission boundary.
+clears redo and retires an older failure notice for that Show. An absent working
+copy, an identical record object, or a replacement with another id is a no-op.
+Callers must supply an unaliased replacement for the intended Show; this
+primitive is not an identity-admission boundary.
 
 One adopted replacement produces one history entry, regardless of how many
 private operations produced it. Update, undo, and redo use the same personal
-replacement settlement policy. Undo and redo restore normalized snapshots
+replacement settlement policy. Undo and redo restore validated snapshots
 while moving through the same store history. History is session state, not a
-second durable workspace. Hydration reconciles it with the loaded record;
-callers cannot assume history survives a reload or an externally changed Show.
+second durable workspace. Workspace reload retires personal working copies with
+their history; callers cannot assume history survives a reload or an externally
+changed Show.
 
-Stock drafts and their history stay in memory until an explicit save-as or
-other persistence operation creates personal content. Editing a draft therefore
+Lesson drafts and their history stay in memory until an explicit copy
+(`duplicateShowV2Row`) creates personal content. Editing a draft therefore
 does not prove that a durable personal Show exists.
 
 ## Preview and delivery publication
@@ -65,8 +69,8 @@ departure. Store navigation away and Show creation retire the current session;
 the gated diagnostic editor bridge uses this API.
 
 Document revisions advance independently of persistence timestamps. Personal
-and stock updates, undo/redo, recovery rollback, creation, deletion start and
-stock draft reset invalidate earlier whole-Show requests. Successful hydration
+and lesson-draft updates, undo/redo, recovery rollback, creation, deletion start
+and lesson draft reset invalidate earlier whole-Show requests. Successful hydration
 conservatively advances known Show revisions even when it retains an equal or
 queued record. Revisions survive identity removal, so delete/recreate and
 edit/undo cannot restore old eligibility. Same-reference updates, exhausted
@@ -74,16 +78,16 @@ history, unchanged rename, absent draft reset and notice dismissal do not
 advance revisions. Equal-content replacement objects retain the existing manual
 update behavior.
 
-The whole-Show callback admission checks the whole Show revision, evaluates a
-private clone through trusted synchronous engine callbacks, normalizes the
-candidate, requires a synchronous final-validation success, and checks
-eligibility again before adoption. The operation receipt is registered before
-the one history entry is published; no persistence await separates those steps.
-Invalid identity, validation failure, cancellation, retirement, stale revision
-and duplicate delivery cannot replace the document or add history/provider
-writes. A callback returning no candidate or its original input identity
-produces a no-candidate refusal. Command-specific no-change semantics remain in
-the command registry.
+Whole-Show candidate admission (`deliverShowV2EditCandidate`) checks the whole
+Show revision and that the delivery's prepared capture is still the open record,
+validates a private clone's structure, domain and authoring rules, prepares its
+Stage, and checks eligibility again before adoption. The operation receipt is
+registered before the one history entry is published; no persistence await
+separates those steps. Invalid identity, validation failure, cancellation,
+retirement, stale revision and duplicate delivery cannot replace the document or
+add history/provider writes. A candidate that authors no change produces a
+no-candidate refusal. Command-specific no-change semantics remain in the command
+registry.
 
 The internal completed-candidate wait path defers whole-Show admission and
 qualified exact resize while explicit drag/dirty owners remain active. Manual
@@ -130,7 +134,7 @@ current-revision checks.
 Applied receipts distinguish saving from settlement. The existing personal
 write queue reports saved when that adoption is still current at successful
 settlement, superseded when a later state owns the outcome, and rolled-back
-when current-write failure restores its durable record/history pair. Stock
+when current-write failure restores its durable record/history pair. Lesson-draft
 admission reports draft immediately. Receipt lookup is session-only; an adopted
 save still settles normally after retirement without recreating lost receipts.
 These outcomes use the existing recovery policy, not a second persistence queue.
@@ -164,8 +168,8 @@ the failed call resolves without restoring its predecessor or publishing a
 failure notice. If the failed record is still current, the store restores the
 last known durable record together with its matching history, records the
 failed candidate for recovery, and rejects the replacement settlement. With no
-durable baseline it restores the preceding record and history. Convenience
-mutation actions may consume that rejection; the store's failure state remains
+durable baseline it restores the preceding record and history. Callers may
+consume that rejection; the store's failure state (`showV2SaveFailure`) remains
 the UI's recovery surface. Undo and redo return `false` only when their current
 replacement rolls back, also used for exhausted history. A superseded undo or
 redo failure returns `true` because the later accepted edit owns the visible and
@@ -176,15 +180,13 @@ removes the failure notice. Accepting a later edit retires the older retry befor
 that edit's save settles. Retry is not a merge or an operation-id-based
 exactly-once protocol. Callers must not interpret a resolved update promise as
 proof that that specific candidate is the current durable record: superseded
-failures also resolve, and stock edits have no personal save.
+failures also resolve, and lesson-draft edits have no personal save.
 
-Hydration preserves a queued local replacement when its ordering stamp is at
-least the provider snapshot's stamp. A provider record with a newer stamp wins
-and clears incompatible session history. When hydration observes the exact
-record being saved, the store retains that record's matching history. Personal
-deletion is queued behind prior writes for the same Show, then removes the
-record, history, durable baseline, active selection, and failure notice; a late
-write cannot recreate the deleted provider record.
+Workspace reload retires every personal version-2 working copy, its history,
+durable baseline and failure notice; the Show reopens from its stored bytes with
+an empty history. Personal deletion is queued behind prior writes for the same
+Show, then removes the record, history, durable baseline, active selection, and
+failure notice; a late write cannot recreate the deleted provider record.
 
 ## Write, reload, and reset inventory
 
@@ -194,27 +196,24 @@ store revisions; existing manual replacement callers retain their original API.
 - Personal creation: `createNewShowV2`, `createShowFromController`, `.pxlshow`
   import of either version, and `duplicateShowV2Row` converge on
   `addImportedShowV2` and provider `createShowV2`. Creation waits for an
-  in-flight hydration before writing. Since #1042 Phase 1b the v1 creators
-  (`createNewShow`, `addShow`, `addImportedShow`, `duplicateShow`) and provider
-  `createShow` are unreachable from the UI; the remote provider's `createShow`
-  throws `show-v1-retired`. Phase 2 deletes them.
-- Personal replacement (version 1): `updateShow` and every convenience editor
-  action, `undoShow`, `redoShow`, and `retryShowSaveFailure` converge on the
-  store's one adoption/settlement policy and the per-Show provider `updateShow`
-  queue. No personal version-1 record reaches the store since #1042 Phase 1b,
-  and the remote provider's `updateShow` throws `show-v1-retired` instead of
-  calling the retired PATCH route.
+  in-flight hydration before writing. The store's version-1 creators were
+  deleted in #1042 S2a; the remote provider's `createShow` throws
+  `show-v1-retired`.
+- Personal replacement: `updateShowV2Pilot`, `renameShowV2Pilot`,
+  `undoShowV2Pilot`, `redoShowV2Pilot`, `retryShowV2SaveFailure` and
+  `deliverShowV2EditCandidate` converge on the store's one adoption/settlement
+  policy and the per-Show provider `replaceShowV2` queue. `renameShow` renames a
+  listed row that is not open by replacing its stored bytes on the same queue;
+  any other id is a no-op. The version-1 replacement actions were deleted in
+  #1042 S2a.
 - Personal deletion: `removeShow` adds provider `deleteShow` to that same
   per-Show queue before clearing all local state for the identity.
-- Reload: `loadShows` obtains provider `listShows`, normalizes each record,
-  reconciles queued local replacements by ordering stamp, resets incompatible
-  histories, and replaces the durable-baseline inventory. Since #1042 Phase 1b
-  the remote provider refuses `listShows` with `ShowV1RetiredError`, which
-  hydration reads as no version-1 rows; the version-1 half of this path runs
-  only against test providers until Phase 2 deletes it.
-- Stock draft write/reset: `updateShow`, `undoShow`, and `redoShow` change only
-  the in-memory draft/history pair; `resetStockShowDraft` removes both and
-  exposes the pristine stock fixture again. Provider methods are never called.
+- Reload: `loadShows` retires personal version-2 working copies, lists
+  version-2 rows, and obtains provider `listShows`, normalizing each record and
+  keeping a queued local replacement whose ordering stamp is at least the
+  snapshot's. The remote provider refuses `listShows` with `ShowV1RetiredError`
+  since #1042 Phase 1b, which hydration reads as no version-1 rows; the
+  version-1 list half runs only against test providers.
 - Lesson draft write/reset (v2): a built-in lesson opens from its native v2 copy
   (`stockShowV2ById`) as a session-only in-memory draft. Lesson-draft
   membership is explicit store state, never inferred from the id, so a personal
@@ -231,7 +230,7 @@ store revisions; existing manual replacement callers retain their original API.
   empty history and an advanced revision. Built-in Shows still open on the
   version-1 editor until the slice 11c routing switch, so this capability has
   no user-visible surface yet.
-- Notice reset: `dismissShowSaveFailure` removes only the recovery notice. It
+- Notice reset: `dismissShowV2SaveFailure` removes only the recovery notice. It
   changes no record, history, queued operation, or durable baseline.
 
 ## The version-2 route, and what a still-version-1 row does
@@ -391,7 +390,7 @@ defines its conversion, history, persistence, artifact, and migration oracles.
 - Durable-baseline ordering uses store-assigned `updatedAt` ordering stamps.
   They are not server revisions or a cross-client conflict protocol; clock skew
   can still misorder records from different clients. #802 owns that boundary.
-- The manual `updateShow` API accepts complete records without comparing an
+- The manual `updateShowV2Pilot` API accepts complete records without comparing an
   expected base revision. It remains an internal manual-owner primitive; the
   diagnostic bridge uses checked admission instead.
 
@@ -404,17 +403,18 @@ ordinary-update recovery guarantee or claim that shared editing is safe.
 write ordering, failure notices, and retry.
 [Personal-content provider](../../../src/engine/personalContentProvider.ts)
 owns the storage seam.
-[Store tests](../../../src/store/showStore.test.ts) cover grouped history,
-stable composition ids through undo/redo, queued writes, superseded ordinary,
-undo, and redo failures, stale candidate stamps, consecutive failures,
+[Store tests](../../../src/store/showStore.test.ts) and
+[v2 pilot tests](../../../src/store/showV2PilotStore.test.ts) cover grouped
+history, stable composition ids through undo/redo, queued writes, superseded
+ordinary, undo, and redo failures, stale candidate stamps, consecutive failures,
 hydration races, retry supersession, in-flight deletion, and complete in-memory
-stock history/reset behavior. The browser baseline's green sequence E proves
+lesson history/reset behavior. The browser baseline's green sequence E proves
 the delayed agent-save failure and reopen surface from an unsandboxed host run.
 Together those cases establish bounded single-client recovery; they do not
 prove general collaborative editing or clock-skew safety.
 
-[Admission tests](../../../src/store/showEditAdmission.test.ts) cover the internal
+[Admission tests](../../../src/store/showV2CandidateAdmission.test.ts) cover the internal
 request seam with complete record/history and provider oracles, including
-stale revisions, hydration/reset/deletion, session retirement, duplicates,
-capacity, rollback/supersession and stock drafts. These tests qualify the internal owner. The diagnostic browser baseline covers
+stale revisions, deletion, session retirement and departure, duplicates,
+capacity, rollback/supersession and lesson drafts. These tests qualify the internal owner. The diagnostic browser baseline covers
 live whole-Show admission; qualified Layer independence has separate C1 evidence.

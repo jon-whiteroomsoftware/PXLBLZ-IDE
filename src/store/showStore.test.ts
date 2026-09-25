@@ -1,10 +1,11 @@
 import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
 import { STOCK_SHOWS_V2, stockShowV2ById } from '@/pixelblaze/stock/showsV2'
+import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { transitionV1Show } from '../test/showV2TracerFixture'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
-import { createDefaultShow, splitShowAtTime } from '@/engine/showModel'
+import { createDefaultShow } from '@/engine/showModel'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { validateShowRecordV2, type ShowRecordV2 } from '@/engine/showCompositionV2'
 import {
@@ -1030,37 +1031,6 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toEqual(['show-first', 'show-second'])
   })
 
-  it('removes a Show clip through the persistence provider', async () => {
-    const show = createDefaultShow('show-clip-delete', 'Clip deletion', 1)
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-
-    await useShowStore.getState().removeClip(show.id, show.cells[0].id)
-
-    expect(useShowStore.getState().shows[0].cells.map((clip) => clip.id)).toEqual([show.cells[1].id])
-  })
-
-  it('places a replacement clip and persists it through the provider (#430)', async () => {
-    const show = createDefaultShow('show-430-place', 'Clip placement', 1)
-    const provider = memoryProvider([show])
-    setPersonalContentProvider(provider)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-
-    await useShowStore.getState().removeClip(show.id, 'cell-1')
-    const placed = await useShowStore.getState().placeClip(show.id, 'zone-1', 'scene-1', {
-      pattern: { kind: 'stock', id: 'TestPattern2D' },
-      patternName: 'TestPattern2D',
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(placed).toMatchObject({ id: 'cell-3', zoneId: 'zone-1', sceneId: 'scene-1' })
-    expect(useShowStore.getState().shows[0].cells).toContainEqual(expect.objectContaining({
-      id: 'cell-3',
-      patternName: 'TestPattern2D',
-    }))
-  })
-
   it.each([
     ['exact-zero time scale', { timeScale: 0 }],
     ['full-clip light shutter', { lightShutter: { rateHz: 12, duty: 0.4, phase: 0.2, clockBehavior: 'freeze' } }],
@@ -1088,359 +1058,38 @@ describe('showStore (#318)', () => {
     if (reopened.status !== 'ready') throw new Error('v2 Show did not reopen')
     expect(reopened.record.composition.patternInstances[0].time).toMatchObject(patch)
   })
-  it('normalizes legacy entry state and persists split Continue/Restart choices (#415)', async () => {
-    const legacy = createDefaultShow('show-1', 'Split Show', 1)
-    legacy.cells = legacy.cells.map(({ restartOnEntry: _restartOnEntry, ...cell }) => cell)
-    const provider = memoryProvider([legacy])
-    setPersonalContentProvider(provider)
 
-    await useShowStore.getState().loadShows()
-    expect(useShowStore.getState().shows[0].cells.every((cell) => cell.restartOnEntry === false)).toBe(true)
-
-    await useShowStore.getState().updateShow(
-      legacy.id,
-      splitShowAtTime(useShowStore.getState().shows[0], 10_000),
-    )
-    const destination = useShowStore.getState().shows[0].cells.find((cell) => cell.sceneId === 'scene-3')!
-    expect(destination.restartOnEntry).toBe(false)
-
-    await useShowStore.getState().updateCellRestartOnEntry(legacy.id, destination.id, true)
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-    expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === destination.id)?.restartOnEntry).toBe(true)
-  })
-
-  it('persists first-class transition boundary edits by id (#416)', async () => {
-    const show = createDefaultShow('show-1', 'Boundary edits', 1)
-    const provider = memoryProvider([show])
-    setPersonalContentProvider(provider)
-
-    await useShowStore.getState().loadShows()
-    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
-      id: 'transition-scene-1',
-      kind: 'crossfade',
-      easing: { curve: 'linear' },
-    })
-
-    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
-      kind: 'wipe',
-      durationMs: 2500,
-      easing: { curve: 'quadratic', direction: 'out' },
-      feather: 0.25,
-      propertyTransitions: {
-        timeScale: { fromByCellId: { 'cell-2': 1.5 }, durationMs: 1500, easing: { curve: 'quadratic', direction: 'in' } },
-        brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 800, easing: { curve: 'quadratic', direction: 'out' } },
-      },
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
-      id: 'transition-scene-1',
-      kind: 'wipe',
-      durationMs: 2500,
-      easing: { curve: 'quadratic', direction: 'out' },
-      feather: 0.25,
-      propertyTransitions: {
-        timeScale: {
-          fromByCellId: { 'cell-2': 1.5 },
-          durationMs: 1500,
-          easing: { curve: 'quadratic', direction: 'in' },
-        },
-        brightness: {
-          fromByCellId: { 'cell-2': 1 },
-          durationMs: 800,
-          easing: { curve: 'quadratic', direction: 'out' },
-        },
-      },
-    })
-  })
-
-  it('persists public Pattern control targets and their shared boundary curve (#419)', async () => {
-    const show = createDefaultShow('show-419', 'Control persistence', 1)
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateCellControlTarget(show.id, 'cell-1', 'sliderSpeed', 0.2)
-    await useShowStore.getState().updateCellControlTarget(show.id, 'cell-2', 'sliderSpeed', 0.8)
-    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
-      propertyTransitions: {
-        controls: { sliderSpeed: { fromByCellId: { 'cell-2': 0.2 }, durationMs: 1200, easing: { curve: 'quadratic', direction: 'in' } } },
-      },
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    const loaded = useShowStore.getState().shows[0]
-    expect(loaded.cells.map((cell) => cell.controlTargets?.sliderSpeed)).toEqual([0.2, 0.8])
-    expect(loaded.transitions?.[0].propertyTransitions?.controls?.sliderSpeed).toEqual({
-      fromByCellId: { 'cell-2': 0.2 },
-      durationMs: 1200,
-      easing: { curve: 'quadratic', direction: 'in' },
-    })
-  })
-
-  it('persists and reloads an ordered headless Effect stack (#444)', async () => {
-    const show = createDefaultShow('show-444', 'Effect persistence', 1)
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateCellEffects(show.id, 'cell-1', [
-      { id: 'move', kind: 'translate', x: 0.25, y: -0.1 },
-      { id: 'fade', kind: 'opacity', opacity: 0.6 },
-      { id: 'wrap', kind: 'wrap' },
-    ])
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].cells[0].effects).toEqual([
-      { id: 'move', kind: 'translate', x: 0.25, y: -0.1 },
-      { id: 'fade', kind: 'opacity', opacity: 0.6 },
-      { id: 'wrap', kind: 'wrap' },
-    ])
-  })
-
-  it('persists and reloads a Fade-through-color boundary (#445)', async () => {
-    const show = createDefaultShow('show-445', 'Fade color persistence', 1)
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
-      kind: 'fade-color',
-      durationMs: 1700,
-      easing: { curve: 'sine', direction: 'in-out' },
-      color: '#F0A020',
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
-      kind: 'fade-color',
-      durationMs: 1700,
-      easing: { curve: 'sine', direction: 'in-out' },
-      color: '#f0a020',
-    })
-  })
-
-  it('persists and reloads a directional Wipe boundary (#446)', async () => {
-    const show = { ...createDefaultShow('show-446', 'Directional wipe persistence', 1), stageMapId: 'plane' }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
-      kind: 'wipe',
-      durationMs: 1500,
-      easing: { curve: 'cubic', direction: 'in-out' },
-      direction: 1.875,
-      feather: 0.12,
-      edgePolicy: 'dither',
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
-      kind: 'wipe', direction: 0.875, feather: 0.12, edgePolicy: 'dither',
-    })
-  })
-
-  it('persists and reloads a Block Dissolve boundary (#447)', async () => {
-    const show = createDefaultShow('show-447', 'Block dissolve persistence', 1)
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
-      kind: 'dither', durationMs: 1800,
-      easing: { curve: 'quadratic', direction: 'out' },
-      dissolveVariant: 'block', seed: 1234, blockSize: 12, edgePolicy: 'dither',
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
-      kind: 'dither', dissolveVariant: 'block', seed: 1234, blockSize: 12, edgePolicy: 'dither',
-    })
-  })
-
-  it('persists and reloads an explicit Box reveal mode (#448)', async () => {
-    const show = { ...createDefaultShow('show-448', 'Box reveal persistence', 1), stageMapId: 'plane' }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
-      kind: 'portal', durationMs: 1900,
-      revealMode: 'shrink-outgoing', shape: 'box', aspect: 1.75, rotation: 0.125,
-      centerX: 0.4, centerY: 0.6, scale: 1.2, feather: 0.1, edgePolicy: 'blend',
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
-      kind: 'portal', revealMode: 'shrink-outgoing',
-      shape: 'box', aspect: 1.75, rotation: 0.125, edgePolicy: 'blend',
-    })
-  })
-
-  it('persists and reloads a Content Shrink motion transition (#449)', async () => {
-    const show = { ...createDefaultShow('show-449', 'Motion persistence', 1), stageMapId: 'plane' }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
-      kind: 'motion', durationMs: 1700, motionVariant: 'content-shrink',
-      anchorX: 0.2, anchorY: 0.8, contentScale: 0.3,
-      addressPolicy: 'wrap', edgePolicy: 'blend',
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
-      kind: 'motion', motionVariant: 'content-shrink', anchorX: 0.2, anchorY: 0.8,
-      contentScale: 0.3, addressPolicy: 'wrap', edgePolicy: 'blend',
-    })
-  })
-
-  it('persists and reloads a Clock Wipe variant (#450)', async () => {
-    const show = { ...createDefaultShow('show-450', 'Clock wipe persistence', 1), stageMapId: 'plane' }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
-      kind: 'wipe', durationMs: 1400, wipeVariant: 'clock',
-      centerX: 0.3, centerY: 0.7, phase: 0.125, clockwise: false,
-      feather: 0.08, edgePolicy: 'dither',
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
-      kind: 'wipe', wipeVariant: 'clock', centerX: 0.3, centerY: 0.7,
-      phase: 0.125, clockwise: false, edgePolicy: 'dither',
-    })
-  })
-
-  it('persists and reloads a Soft Threshold Dissolve (#451)', async () => {
-    const show = { ...createDefaultShow('show-451', 'Soft dissolve persistence', 1), stageMapId: 'plane' }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
-      kind: 'dither', durationMs: 1600, dissolveVariant: 'soft-threshold',
-      seed: 29, scale: 7.5, softness: 0.18, edgePolicy: 'blend',
-    })
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
-      kind: 'dither', dissolveVariant: 'soft-threshold', seed: 29,
-      scale: 7.5, softness: 0.18, edgePolicy: 'blend',
-    })
-  })
-
-  it('persists a wipe feather width through the provider', async () => {
-    const show = createDefaultShow('show-1', 'Opening wash', 1)
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateTransition(show.id, 'scene-1', 'wipe', 2000, 0.3)
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions[0]).toMatchObject({
-      kind: 'wipe',
-      feather: 0.3,
-    })
-  })
-
-  it('persists portal geometry and feather policy through the provider', async () => {
-    const show = { ...createDefaultShow('show-1', 'Portal', 1), stageMapId: 'plane' }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], showsLoaded: true })
-
-    await useShowStore.getState().updateTransition(
-      show.id,
-      'scene-1',
-      'portal',
-      3000,
-      0.2,
-      { centerX: 0.4, centerY: 0.6, revealMode: 'grow-incoming', featherPolicy: 'dither' },
-    )
-    useShowStore.setState(showInitialState)
-    await useShowStore.getState().loadShows()
-
-    expect(useShowStore.getState().shows[0].transitions[0]).toMatchObject({
-      kind: 'portal',
-      feather: 0.2,
-      centerX: 0.4,
-      centerY: 0.6,
-      revealMode: 'grow-incoming',
-      featherPolicy: 'dither',
-    })
-  })
-
-  it('preserves rapid partial portal edits', async () => {
-    const show = { ...createDefaultShow('show-1', 'Portal', 1), stageMapId: 'plane' }
-    show.transitions[0] = {
-      id: 'transition-scene-1',
-      afterSceneId: 'scene-1',
-      kind: 'portal',
-      durationMs: 2000,
-      easing: { curve: 'linear' },
-      feather: 0.12,
-      centerX: 0.5,
-      centerY: 0.5,
-      revealMode: 'grow-incoming',
-      featherPolicy: 'dither',
-    }
-    setPersonalContentProvider(memoryProvider([show]))
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
-
-    const first = useShowStore.getState().updateTransition(show.id, 'scene-1', 'portal', 2000, 0.12, { centerX: 0.35 })
-    const second = useShowStore.getState().updateTransition(show.id, 'scene-1', 'portal', 2000, 0.12, { featherPolicy: 'blend' })
-    const third = useShowStore.getState().updateTransition(show.id, 'scene-1', 'portal', 2000, 0.12, { revealMode: 'shrink-outgoing' })
-    await Promise.all([first, second, third])
-
-    expect(useShowStore.getState().shows[0].transitions[0]).toMatchObject({
-      centerX: 0.35,
-      centerY: 0.5,
-      revealMode: 'shrink-outgoing',
-      featherPolicy: 'blend',
-    })
-  })
-
-  it('edits show-local zones and creates a show from controller zones', async () => {
+  /* #1042 S2a deletions (V1-ONLY): each test drove a deleted v1 store mutator through the v1
+   * sparse `updateShow` PATCH (`showPersistenceChanges`, also deleted), and asserted that the
+   * authored field survived that field list. No product code calls these mutators (S1,
+   * 3c510bfd); v2 persists whole validated records through `replaceShowV2`, whose save/reopen
+   * round trip is asserted by 'persists v2 instance %s through the provider' above. Nearest v2
+   * authoring coverage per test:
+   * - removes a Show clip through the persistence provider -> src/store/showV2ClipDeleteAdmission.test.ts:24
+   * - places a replacement clip and persists it through the provider (#430) -> src/store/showV2ClipDeleteAdmission.test.ts:24, src/store/showV2ClipTimingAdmission.test.ts:56 (no single delete+place+reopen test)
+   * - normalizes legacy entry state and persists split Continue/Restart choices (#415) -> src/store/showV2ClipTimingAdmission.test.ts:38 (split), src/components/ShowEditorV2Tracer.test.tsx:4337 (Restart, store state only)
+   * - persists first-class transition boundary edits by id (#416) -> src/store/showV2TransitionEditAdmission.test.ts:81, src/engine/showV2TransitionEditorModel.test.ts:57 (ramps, engine)
+   * - persists public Pattern control targets and their shared boundary curve (#419) -> src/components/ShowEditorV2Tracer.test.tsx:3629; Transition control ramps are not offered on v2 (docs/plans/scene-retirement-specification.md:766, src/engine/showV2TransitionEditorModel.test.ts:152)
+   * - persists and reloads an ordered headless Effect stack (#444) -> src/store/showV2AppearanceAdmission.test.ts:89
+   * - persists and reloads a Fade-through-color boundary (#445) -> src/store/showV2TransitionEditAdmission.test.ts:81
+   * - persists and reloads a directional Wipe boundary (#446) -> src/engine/showV2TransitionEditorModel.test.ts:502
+   * - persists and reloads a Block Dissolve boundary (#447) -> src/components/ShowEditorV2Tracer.test.tsx:1453, src/engine/showV2TransitionEditorModel.test.ts:795
+   * - persists and reloads an explicit Box reveal mode (#448) -> src/engine/showV2TransitionEditorModel.test.ts:795 (status only)
+   * - persists and reloads a Content Shrink motion transition (#449) -> src/engine/showV2TransitionEditorModel.test.ts:222, :795 (status only)
+   * - persists and reloads a Clock Wipe variant (#450) -> src/engine/showV2TransitionEditorModel.test.ts:795 (status only)
+   * - persists and reloads a Soft Threshold Dissolve (#451) -> src/engine/showV2TransitionEditorModel.test.ts:795 (status only)
+   * - persists a wipe feather width through the provider -> src/engine/showV2TransitionLaneEditorModel.test.ts (feather, engine)
+   * - persists portal geometry and feather policy through the provider -> src/engine/showGroupCreationV2.test.ts:88 (partial)
+   * - preserves rapid partial portal edits -> 'serializes full-record persistence so rapid inspector edits cannot land out of order' above
+   * - the v1 half of 'edits show-local zones and creates a show from controller zones' (Scenes are
+   *   retired in v2; Zone add -> src/store/showV2ZoneLayoutAdmission.test.ts:66; Zone spans have no v2 owner)
+   */
+  it('creates a show from controller zones', async () => {
     const provider = memoryProvider()
     const createShow = vi.spyOn(provider, 'createShow')
     const createShowV2 = vi.fn(async (_record: ShowRecordV2) => {})
     provider.createShowV2 = createShowV2
     setPersonalContentProvider(provider)
-
-    const show = await useShowStore.getState().createNewShow({
-      outputContract: createPortableShowOutputContract({ referenceMapId: null, referencePixelCount: 60 }),
-    })
-    await useShowStore.getState().addScene(show.id)
-    expect(useShowStore.getState().shows[0].scenes).toHaveLength(3)
-
-    await useShowStore.getState().removeScene(show.id, 'scene-3')
-    expect(useShowStore.getState().shows[0].scenes.map((scene) => scene.id)).toEqual(['scene-1', 'scene-2'])
-
-    await useShowStore.getState().addZone(show.id)
-    const withZone = useShowStore.getState().shows[0]
-    const addedZone = withZone.zones[1]
-
-    await useShowStore.getState().updateZone(show.id, addedZone.id, {
-      name: 'doorframe',
-      nominalPixelCount: 24,
-    })
-    await useShowStore.getState().spanCellZones(show.id, show.cells[0].id, 2)
-
-    expect(useShowStore.getState().shows[0].zones[1]).toMatchObject({
-      name: 'doorframe',
-      nominalPixelCount: 24,
-    })
-    expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === show.cells[0].id)).toMatchObject({
-      zoneSpan: 2,
-    })
-    createShow.mockClear()
 
     const seeded = await useShowStore.getState().createShowFromController({
       id: 'controller-1',
@@ -1470,7 +1119,7 @@ describe('showStore (#318)', () => {
     expect(createShowV2).toHaveBeenCalledExactlyOnceWith(seeded)
     expect(createShow).not.toHaveBeenCalled()
     expect(useShowStore.getState().showV2Rows.map((row) => row.id)).toContain(seeded.id)
-    expect(useShowStore.getState().shows.map((row) => row.id)).toEqual([show.id])
+    expect(useShowStore.getState().shows).toEqual([])
     expect(useShowStore.getState().activeShowId).toBeNull()
   })
 
@@ -1564,6 +1213,24 @@ describe('showStore (#318)', () => {
 
 describe('built-in Show session drafts (#363)', () => {
   const STOCK_ID = 'stock-show-101-clips-cuts-blank-time'
+
+  // openShowV2Pilot opens every built-in Show as a lesson, so its only other
+  // outcome is a stored v2 row or refusal (#1042 S2a). This test goes when
+  // `src/pixelblaze/stock/shows.ts` is deleted.
+  it('has a native v2 lesson for every v1 stock Show id', () => {
+    const ids = [...new Set(STOCK_SHOWS.flatMap(({ id, show }) => [id, show.id]))]
+    expect(ids).toHaveLength(STOCK_SHOWS.length)
+    expect(ids.filter((id) => !stockShowV2ById(id))).toEqual([])
+  })
+
+  it('refuses a non-built-in id with no stored v2 row', async () => {
+    memoryProviderV2()
+    await expect(useShowStore.getState().openShowV2Pilot('show-not-stored')).resolves.toEqual({
+      status: 'refused',
+      issues: [{ code: 'invalid-v1', path: 'id', message: 'Show "show-not-stored" is unavailable.' }],
+    })
+    expect(useShowStore.getState().showV2Pilots['show-not-stored']).toBeUndefined()
+  })
 
   it('keeps complete stock draft records and history paired across stale-stamped edits (#948)', async () => {
     memoryProviderV2()

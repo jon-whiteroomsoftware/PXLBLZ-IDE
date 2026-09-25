@@ -224,24 +224,6 @@ vi.mock('@/engine/showGroupModel', async (importOriginal) => legacy.observe(
   await importOriginal<typeof import('@/engine/showGroupModel')>(),
   ['deleteShowGroupOccurrence'],
 ))
-/**
- * The legacy owners the store itself exposes as editor commands. They are
- * wrapped on the live store rather than through a module mock, because the
- * editor reads them out of store state.
- */
-const STORE_OWNERS = ['cloneClip', 'removeBoundaryTransition', 'removeZone'] as const
-const realStoreOwners = Object.fromEntries(
-  STORE_OWNERS.map((owner) => [owner, useShowStore.getState()[owner]]),
-) as { [K in typeof STORE_OWNERS[number]]: ReturnType<typeof useShowStore.getState>[K] }
-function observeStoreOwners(): void {
-  useShowStore.setState(Object.fromEntries(STORE_OWNERS.map((owner) => [
-    owner,
-    (...args: unknown[]) => {
-      legacy.calls.push(owner)
-      return (realStoreOwners[owner] as (...input: unknown[]) => unknown)(...args)
-    },
-  ])) as Partial<ReturnType<typeof useShowStore.getState>>)
-}
 
 /** The clip-temporal submissions one gesture made, in order. */
 function temporalSubmissions() {
@@ -306,7 +288,6 @@ function expectNoWrite(before: EditorState, after: EditorState): void {
   expect(after.v2Writes).toBe(0)
   expect(after.legacyWrites).toBe(0)
   expect(after.legacyShows).toEqual([])
-  expect(after.legacyHistories).toEqual({})
 }
 
 // ── Gesture surface ──────────────────────────────────────────────────────────
@@ -407,7 +388,6 @@ beforeEach(() => {
   useShowEditorSessionStore.setState(showEditorSessionInitialState)
   useControllerStore.setState(controllerInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
-  observeStoreOwners()
   resetControllerProvider()
 })
 
@@ -418,10 +398,11 @@ afterEach(() => {
 
 describe('legacy owner observation (#1065)', () => {
   it('records a legacy owner that silently no-ops with no legacy row open', async () => {
-    // The instrument's own oracle. Both owners below run their real
-    // implementation, change nothing and persist nothing - which is exactly why
-    // a save count or a provider spy cannot see them, and why the unconnected
-    // command tests assert on this seam instead.
+    // The instrument's own oracle. The owner below runs its real
+    // implementation, changes nothing and persists nothing - which is exactly
+    // why a save count or a provider spy cannot see it, and why the unconnected
+    // command tests assert on this seam instead. The store's own legacy owners
+    // were deleted in #1042 S2a, so only module owners remain observable.
     const source = resizeBoundaryShow('tracer-owner-seam')
     const composition = source.composition!
     const unchanged = duplicateShowClipAfter(source, composition, {
@@ -430,9 +411,8 @@ describe('legacy owner observation (#1065)', () => {
       newInstanceId: 'copy-instance',
     })
     expect(unchanged).toBe(composition)
-    await expect(useShowStore.getState().cloneClip('missing-show', 'missing-clip')).resolves.toBeNull()
 
-    expect(legacy.calls).toEqual(['duplicateShowClipAfter', 'cloneClip'])
+    expect(legacy.calls).toEqual(['duplicateShowClipAfter'])
   })
 })
 
@@ -532,7 +512,6 @@ describe('v2 tracer settlement routing (#1065)', () => {
     // The legacy door stays shut, and no legacy backing appears under this id.
     expect(after.legacyWrites).toBe(0)
     expect(after.legacyShows).toEqual([])
-    expect(after.legacyHistories).toEqual({})
   })
 
   it('duplicates a Clip on an Alt drag as a linked copy', async () => {
@@ -894,7 +873,6 @@ describe('v2 tracer history routing (#1065)', () => {
       expect(after.record).toEqual({ ...preimage, updatedAt: expect.any(Number) })
       expect(after.history.past).toEqual([])
       expect(after.history.future).toHaveLength(1)
-      expect(after.legacyHistories).toEqual({})
       expect(after.legacyWrites).toBe(0)
     },
   )
@@ -2378,7 +2356,6 @@ function expectOneEdit(before: EditorState, after: EditorState): void {
   expect(after.v2Writes).toBe(before.v2Writes + 1)
   expect(after.legacyWrites).toBe(0)
   expect(after.legacyShows).toEqual([])
-  expect(after.legacyHistories).toEqual({})
   expect(legacy.calls).toEqual([])
 }
 
@@ -6880,7 +6857,6 @@ describe('v2 lesson Reset built-in Show (#1066 t54)', () => {
     expect(v2Writes).not.toHaveBeenCalled()
     expect(legacyWrites).not.toHaveBeenCalled()
     expect(useShowStore.getState().shows).toEqual([])
-    expect(useShowStore.getState().stockShowDrafts[id]).toBeUndefined()
   })
 })
 

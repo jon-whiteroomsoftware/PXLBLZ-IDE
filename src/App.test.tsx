@@ -341,7 +341,6 @@ describe('App smoke test', () => {
       await waitFor(() => {
         expect(useShowStore.getState().showV2Pilots[id]?.version).toBe(2)
       })
-      expect(useShowStore.getState().stockShowDrafts[id]).toBeUndefined()
       reload = useShowStore.getState().loadShows()
       expect(useShowStore.getState().showV2Pilots[id]?.version).toBe(2)
     } finally {

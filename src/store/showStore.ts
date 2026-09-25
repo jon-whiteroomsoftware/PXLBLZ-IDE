@@ -1,64 +1,20 @@
 import { create } from 'zustand'
 import { trackEntityCreated } from '@/analytics'
 import {
-  addShowRoutingLayout,
-  addShowScene,
-  addShowZone,
-  createShowWithOutputContract,
-  cloneShowCellAfter,
-  duplicateShowScene,
-  extendShowCell,
   importedStageMapIdForController,
-  moveShowCellToSlot,
   normalizeShowEntryState,
   normalizeShowTransitionState,
-  placeShowClip,
-  removeShowClip,
-  removeShowScene,
-  removeShowRoutingLayout,
-  removeShowZone,
-  spanShowCellZones,
-  removeShowBoundaryTransition,
-  updateShowCellZoneMode,
-  updateShowBoundaryTransition,
-  updateShowZone,
-  updateShowCellAdaptations,
-  updateShowCellEffects,
-  updateShowCellControlTarget,
-  updateShowCellPattern,
-  updateShowCellRestartOnEntry,
-  updateShowScene,
-  updateShowRoutingLayout,
-  updateShowRoutingSwitch,
-  updateShowTransition,
-  showCellAtSlot,
-  forfeitShowExecutionModelOnCastChange,
-  reconcileShowExecutionModelOnCastReturn,
 } from '@/engine/showModel'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { ShowV1RetiredError } from '@/engine/remotePersonalContentProvider'
-import type {
-  ShowCell,
-  ShowCellAdaptations,
-  ShowClipEffect,
-  ShowBoundaryTransition,
-  ShowRecord,
-  ShowOutputContract,
-  ShowPortalSettings,
-  ShowRoutingLayout,
-  ShowScene,
-  ShowTransitionKind,
-  ShowZone,
-} from '@/engine/personalContentRecords'
+import type { ShowRecord, ShowOutputContract } from '@/engine/personalContentRecords'
 import { type ControllerProfile } from '@/engine/controllerProfile'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 import { useMapStore } from '@/store/mapStore'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
 import { normalizeShowComposition } from '@/engine/showCompositionModel'
-import { stockShowById } from '@/pixelblaze/stock/shows'
 import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
-import { stockShowCatalogueById } from '@/pixelblaze/stock/showCatalogueV2'
 import {
   createShowEditSession,
   type ShowEditIntent,
@@ -69,13 +25,13 @@ import {
 } from '@/engine/showEditAdmission'
 import { createShowV2CandidateAdmission, type ShowV2CandidateDelivery } from './showV2CandidateAdmission'
 import { createShowInputWait, type ShowEditActivity, type ShowInputWaitReceipt } from '@/engine/showInputWait'
-import { isShowEditDiagnosticInput, retainShowEditDiagnostic, type ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
+import type { ShowEditDiagnosticInput } from '@/engine/showEditDiagnostic'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { cloneValidShowRecordV2 } from '@/engine/showDocument'
 import { applyShowCommandV2 } from '@/engine/showCommandsV2/registry'
 import { createShowV2WithOutputContract } from '@/engine/showCreationV2'
 import { isShowV2RouteEnabled } from '@/engine/showV2RouteGate'
-import { convertShowRecordV1ToV2, type ShowV1ToV2Issue } from '@/engine/showRecordV1ToV2'
+import type { ShowV1ToV2Issue } from '@/engine/showRecordV1ToV2'
 import {
   editedHistory,
   hasQueuedShowPersistence,
@@ -86,93 +42,32 @@ import {
   type DocumentHistory,
 } from './showReplacementPolicy'
 
-export type ShowEditValidationResult = boolean | {
-  readonly valid: boolean
-  readonly diagnostic?: ShowEditDiagnosticInput
-}
-
-type ParsedShowEditValidation =
-  | { readonly valid: true }
-  | { readonly valid: false; readonly diagnostic?: ShowEditDiagnosticInput }
-
-const admissionUnavailableDiagnostic = (): ShowEditDiagnosticInput => ({
-  stage: 'unexpected-admission-failure',
-  issues: [{ code: 'admission-unavailable' }],
-})
-
-const validatorUnavailableDiagnostic = (): ShowEditDiagnosticInput => ({
-  stage: 'unexpected-validator-failure',
-  issues: [{ code: 'validation-unavailable' }],
-})
-
-const ephemeralInvalidCandidate = (request: ShowEditRequest, diagnostic?: ShowEditDiagnosticInput): ShowEditReceipt => {
-  const retained = retainShowEditDiagnostic(diagnostic)
-  return { request, status: 'refused', reason: 'invalid-candidate', ...(retained ? { diagnostic: retained } : {}) }
-}
-
-function parseShowEditValidationResult(value: unknown): ParsedShowEditValidation {
-  try {
-    if (value === true) return { valid: true }
-    if (value === false) return { valid: false }
-    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) {
-      return { valid: false, diagnostic: admissionUnavailableDiagnostic() }
-    }
-    const keys = Object.keys(value)
-    const result = value as { valid?: unknown; diagnostic?: unknown }
-    if (result.valid === true && keys.length === 1 && keys[0] === 'valid') return { valid: true }
-    if (result.valid === false && keys.length === 1 && keys[0] === 'valid') return { valid: false }
-    if (result.valid === false && keys.length === 2 && keys.includes('valid') && keys.includes('diagnostic') && isShowEditDiagnosticInput(result.diagnostic)) {
-      return { valid: false, diagnostic: result.diagnostic }
-    }
-  } catch {
-    return { valid: false, diagnostic: admissionUnavailableDiagnostic() }
-  }
-  return { valid: false, diagnostic: admissionUnavailableDiagnostic() }
-}
-
 const showsPendingDeletion = new Set<string>()
 // The in-flight loadShows, so record creation can wait for hydration to
 // apply instead of racing a stale list snapshot (#794).
 let showsHydration: Promise<void> | null = null
-// The last record each Show is known to hold durably, paired with the undo
+// The last record each v2 Show is known to hold durably, paired with the undo
 // history that belongs to it (#792): rollback after a failed write restores
 // this pair, never an unpersisted optimistic intermediate or a history that
 // could replay one.
-const lastPersistedShowRecords = new Map<string, { record: ShowRecord; history: ShowHistory }>()
 const lastPersistedShowV2Pilots = new Map<string, { record: ShowRecordV2; history: ShowV2History }>()
 // The Show ids whose v2 pilot was opened as a built-in lesson (#1066
 // slice 11a). Membership is explicit state, never inferred from the id: a
 // pilot placed directly under a built-in id (as agent tests do for channel
 // authority) is personal content and still saves. Lesson pilots are
-// session-only in-memory drafts, exactly as v1 stock drafts are.
+// session-only in-memory drafts.
 const showV2LessonDraftIds = new Set<string>()
 let showV2WorkspaceGeneration = 0
 
 // Advance the durable baseline for a completed write, but never behind the
-// latest ordering stamp observed by this client. An equal stamp means
-// loadShows observed this same write and reset its history; the just-persisted
-// record with its richer history wins.
+// latest ordering stamp observed by this client.
 //
 // updatedAt is only a single-client ordering stamp, not a document revision.
 // Cross-client revisions and clock-skew-safe ordering remain #802.
-function advanceDurableBaseline(id: string, record: ShowRecord, history: ShowHistory): void {
-  const baseline = lastPersistedShowRecords.get(id)
-  if (!baseline || baseline.record.updatedAt <= record.updatedAt) {
-    lastPersistedShowRecords.set(id, { record, history })
-  }
-}
-
 function advanceDurableShowV2Baseline(id: string, record: ShowRecordV2, history: ShowV2History): void {
   const baseline = lastPersistedShowV2Pilots.get(id)
   if (!baseline || baseline.record.updatedAt <= record.updatedAt) {
     lastPersistedShowV2Pilots.set(id, { record, history })
-  }
-}
-
-function replacementWithNextOrderingStamp(previous: ShowRecord, replacement: ShowRecord): ShowRecord {
-  return {
-    ...normalizeShowRecord(replacement),
-    updatedAt: nextShowOrderingStamp(previous.updatedAt),
   }
 }
 
@@ -184,21 +79,11 @@ interface ShowState {
   readShowEdit: (sessionId: string, operationId: string) => ShowEditReceipt | undefined
   completeShowEdit: (request: ShowEditRequest, completion: import('@/engine/showEditAdmission').ShowEditCompletion) => ShowEditReceipt
   cancelShowEdit: (sessionId: string, operationId: string) => ShowEditReceipt | undefined
-  admitShowEdit: (
-    request: ShowEditRequest,
-    evaluate: (current: ShowRecord) => ShowRecord | null,
-    validate: (candidate: ShowRecord, current: ShowRecord) => ShowEditValidationResult,
-  ) => ShowEditReceipt
   /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
   shows: ShowRecord[]
   showsLoaded: boolean
   activeShowId: string | null
   showCreation: { previousShowId: string | null } | null
-  showHistories: Record<string, ShowHistory>
-  stockShowDrafts: Record<string, ShowRecord>
-  // The most recent persistence write that failed and rolled back (#792).
-  // Holds the rejected record so the notice can offer a retry.
-  showSaveFailure: { showId: string; record: ShowRecord } | null
   showV2Pilots: Record<string, ShowRecordV2>
   showV2Histories: Record<string, ShowV2History>
   showV2SaveFailure: { showId: string; record: ShowRecordV2 } | null
@@ -219,8 +104,6 @@ interface ShowState {
   redoShowV2Pilot: (showId: string) => Promise<boolean>
   reloadShowV2Pilot: (showId: string) => Promise<ShowRecordV2 | null>
   loadShows: () => Promise<void>
-  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
-  createNewShow: (input: { name?: string; outputContract: ShowOutputContract }) => Promise<ShowRecord>
   createShowFromController: (profile: ControllerProfile) => Promise<ShowRecordV2>
   beginShowCreation: () => void
   cancelShowCreation: () => void
@@ -232,34 +115,16 @@ interface ShowState {
    * a session that belongs to the row being deselected (#1039).
    */
   clearActiveShowSelection: () => void
-  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
-  addShow: (record: ShowRecord) => Promise<void>
-  /** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
-  addImportedShow: (record: ShowRecord) => Promise<void>
   renameShow: (id: string, name: string) => Promise<void>
   removeShow: (id: string) => Promise<void>
   /**
-   * Persists a copy of a personal Show or of a built-in's current session
-   * draft under a fresh identity (#794). Callers displaying a transient
-   * projection (built-in Pattern-slot selections) pass it as sourceRecord so
-   * the copy keeps what the user sees. Resolves null when the source is
-   * unknown or the create fails.
-   * @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2
-   */
-  duplicateShow: (sourceId: string, sourceRecord?: ShowRecord) => Promise<ShowRecord | null>
-  /**
    * Persists a copy of one stored v2 row under a fresh identity and a free
-   * name (#1039), the v2 counterpart of `duplicateShow`. Callers displaying a
+   * name (#1039). Callers displaying a
    * transient projection (lesson Try with Pattern selections) pass it as
    * sourceRecord so the copy keeps what the user sees. Resolves null when the
    * row is unknown, the workspace cannot store v2 Shows, or the create fails.
    */
   duplicateShowV2Row: (sourceId: string, sourceRecord?: ShowRecordV2) => Promise<ShowRecordV2 | null>
-  updateShow: (id: string, next: ShowRecord) => Promise<void>
-  // Resolves the record an edit operation should start from: a personal
-  // record, an in-memory built-in draft, or the pristine built-in fixture.
-  resolveEditableShow: (id: string) => ShowRecord | undefined
-  resetStockShowDraft: (id: string) => void
   /**
    * Re-seed one lesson's session-only v2 draft from its built-in copy (#1066
    * slice 11a). A no-op unless the id names a built-in lesson, the pilot was
@@ -275,69 +140,11 @@ interface ShowState {
    * content and reads false.
    */
   isShowV2LessonDraft: (id: string) => boolean
-  updateStageMap: (showId: string, stageMapId: string | null) => Promise<void>
-  addScene: (showId: string) => Promise<void>
-  duplicateScene: (showId: string, sceneId: string) => Promise<void>
-  cloneClip: (showId: string, cellId: string) => Promise<ShowCell | null>
-  moveClip: (showId: string, cellId: string, zoneId: string, sceneId: string) => Promise<boolean>
-  removeScene: (showId: string, sceneId: string) => Promise<void>
-  updateScene: (showId: string, sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => Promise<void>
-  updateTransition: (
-    showId: string,
-    sceneId: string,
-    kind: ShowTransitionKind,
-    durationMs: number,
-    feather?: number,
-    portal?: Partial<ShowPortalSettings>,
-  ) => Promise<void>
-  removeClip: (showId: string, clipId: string) => Promise<void>
-  placeClip: (
-    showId: string,
-    zoneId: string,
-    sceneId: string,
-    patch: Pick<ShowCell, 'pattern' | 'patternName'>,
-  ) => Promise<ShowCell | null>
-  updateCellAdaptations: (
-    showId: string,
-    cellId: string,
-    changes: Partial<ShowCellAdaptations>,
-  ) => Promise<void>
-  updateCellEffects: (showId: string, cellId: string, effects: ShowClipEffect[]) => Promise<void>
-  updateCellPattern: (
-    showId: string,
-    cellId: string,
-    patch: Pick<ShowCell, 'pattern' | 'patternName'>,
-  ) => Promise<void>
-  updateCellControlTarget: (showId: string, cellId: string, exportName: string, value: number | undefined) => Promise<void>
-  updateCellRestartOnEntry: (showId: string, cellId: string, restartOnEntry: boolean) => Promise<void>
-  updateBoundaryTransition: (
-    showId: string,
-    transitionId: string,
-    changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>,
-  ) => Promise<void>
-  removeBoundaryTransition: (showId: string, transitionId: string) => Promise<void>
-  extendCell: (showId: string, cellId: string, sceneSpan: number) => Promise<void>
-  spanCellZones: (showId: string, cellId: string, zoneSpan: number) => Promise<void>
-  updateCellZoneMode: (showId: string, cellId: string, zoneMode: NonNullable<ShowCell['zoneMode']>) => Promise<void>
-  addZone: (showId: string) => Promise<void>
-  updateZone: (showId: string, zoneId: string, changes: Partial<Omit<ShowZone, 'id'>>) => Promise<void>
-  removeZone: (showId: string, zoneId: string) => Promise<void>
-  /** Resolves with the new Zone Layout's id so callers can select what they just defined. */
-  addRoutingLayout: (showId: string, sourceLayoutId?: string) => Promise<string | null>
-  updateRoutingLayout: (showId: string, layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => Promise<void>
-  removeRoutingLayout: (showId: string, layoutId: string) => Promise<void>
-  updateRoutingSwitch: (showId: string, afterSceneId: string, layoutId: string | null) => Promise<void>
-  undoShow: (showId: string) => Promise<boolean>
-  redoShow: (showId: string) => Promise<boolean>
-  dismissShowSaveFailure: () => void
-  /** Re-applies the rolled-back record; a still-failing write keeps the notice without rejecting. */
-  retryShowSaveFailure: () => Promise<void>
   dismissShowV2SaveFailure: () => void
   /** Re-applies the rolled-back v2 record; a still-failing write keeps the notice without rejecting. */
   retryShowV2SaveFailure: () => Promise<void>
   acquireShowEditActivity: (sessionId: string, showId: string, kind: ShowEditActivity['kind']) => ShowEditActivity | undefined
   releaseShowEditActivity: (token: ShowEditActivity) => void
-  deliverShowEditCandidate: (request: ShowEditRequest, candidate: unknown, validate: (candidate: ShowRecord, current: ShowRecord) => ShowEditValidationResult, validateRaw?: (candidate: unknown) => ShowEditValidationResult) => ShowInputWaitReceipt
   /**
    * Deliver one complete caller-supplied `ShowRecordV2` candidate (#1039). The
    * v2 route's own edits adopt through `showV2PreparedEditAdmission`, which
@@ -349,7 +156,6 @@ interface ShowState {
   readShowEditCandidate: (sessionId: string, operationId: string) => ShowInputWaitReceipt | undefined
 }
 
-export type ShowHistory = DocumentHistory<ShowRecord>
 export type ShowV2History = DocumentHistory<ShowRecordV2>
 
 /**
@@ -376,32 +182,10 @@ export const showInitialState = {
   showsLoaded: false,
   activeShowId: null as string | null,
   showCreation: null as { previousShowId: string | null } | null,
-  showHistories: {} as Record<string, ShowHistory>,
-  // Session-only working copies of built-in Shows. Never persisted: a reload
-  // resets every built-in to its pristine catalogue definition.
-  stockShowDrafts: {} as Record<string, ShowRecord>,
-  showSaveFailure: null as { showId: string; record: ShowRecord } | null,
   showV2Pilots: {} as Record<string, ShowRecordV2>,
   showV2Histories: {} as Record<string, ShowV2History>,
   showV2SaveFailure: null as { showId: string; record: ShowRecordV2 } | null,
   showV2Rows: [] as ShowV2ListRow[],
-}
-
-// Convenience mutators resolve quietly when persistence fails (#792): the
-// rollback plus showSaveFailure already report the failure, and their UI
-// callers discard the promise or gate on a returned value. Only the
-// updateShow primitive keeps rejecting, for callers that await it directly.
-async function updateShowQuietly(
-  updateShow: (id: string, next: ShowRecord) => Promise<void>,
-  id: string,
-  next: ShowRecord,
-): Promise<boolean> {
-  try {
-    await updateShow(id, next)
-    return true
-  } catch {
-    return false
-  }
 }
 
 export const useShowStore = create<ShowState>()((set, get) => {
@@ -481,7 +265,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
   ): Promise<void> => {
     // A lesson draft is session-only: the same synchronous state update as a
     // personal adoption, but no provider check, no queued persistence and no
-    // rollback path. The settlement reports the draft, as v1 stock drafts do.
+    // rollback path. The settlement reports the draft.
     const lessonDraft = showV2LessonDraftIds.has(id)
     const provider = getPersonalContentProvider()
     const workspaceGeneration = showV2WorkspaceGeneration
@@ -513,7 +297,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
         return
       }
       // A failed v2 save invalidates any candidate still waiting on active
-      // input, exactly as the v1 adoption path does.
+      // input.
       inputWait.invalidate(id)
       let rolledBack = false
       set(state => {
@@ -544,133 +328,12 @@ export const useShowStore = create<ShowState>()((set, get) => {
     const previousHistory = get().showV2Histories[showId] ?? { past: [], future: [] }
     await adoptShowV2PilotReplacement(showId, next, editedHistory(previousHistory, previous), { record: previous, history: previousHistory }, onSettlement)
   }
-  // All personal replacement paths use this one adoption and recovery policy.
-  // The ordering stamp is assigned here, where V2 accepts the replacement;
-  // manual and agent callers cannot accidentally retain a captured stamp.
-  const adoptPersonalShowReplacement = async (
-    id: string,
-    replacement: ShowRecord,
-    history: ShowHistory,
-    fallback: { record: ShowRecord; history: ShowHistory },
-    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving' | 'draft'>) => void,
-  ): Promise<void> => {
-    const adopted = replacementWithNextOrderingStamp(fallback.record, replacement)
-    set((state) => ({
-      ...revisionPatch(state, id),
-      shows: replaceShowRecord(state.shows, adopted),
-      showHistories: { ...state.showHistories, [id]: history },
-      ...(state.showSaveFailure?.showId === id ? { showSaveFailure: null } : {}),
-    }))
-    try {
-      await persistShowRecord(adopted)
-      advanceDurableBaseline(id, adopted, history)
-      set((state) => ({
-        // A hydration that observed this exact ordering stamp may have reset
-        // its session history. Restore the matching pair only while no later
-        // accepted replacement has superseded it.
-        ...(state.showHistories[id] === undefined
-          && state.shows.find((show) => show.id === id)?.updatedAt === adopted.updatedAt
-          ? { showHistories: { ...state.showHistories, [id]: history } }
-          : {}),
-      }))
-      onSettlement?.(get().shows.find((show) => show.id === id)?.updatedAt === adopted.updatedAt ? 'saved' : 'superseded')
-    } catch (cause) {
-      inputWait.invalidate(id)
-      let rolledBack = false
-      set((state) => {
-        const current = state.shows.find((show) => show.id === id)
-        // Within this client every accepted replacement receives a strictly
-        // increasing stamp. Equality identifies the failed adoption without
-        // treating the timestamp as a cross-client document revision (#802).
-        if (current?.updatedAt !== adopted.updatedAt) return state
-        rolledBack = true
-        const durable = lastPersistedShowRecords.get(id)
-        return {
-          ...revisionPatch(state, id),
-          shows: replaceShowRecord(state.shows, durable?.record ?? fallback.record),
-          showHistories: { ...state.showHistories, [id]: durable?.history ?? fallback.history },
-          showSaveFailure: { showId: id, record: adopted },
-        }
-      })
-      onSettlement?.(rolledBack ? 'rolled-back' : 'superseded')
-      if (rolledBack) throw cause
-    }
-  }
-
-  const updateShowRecord = async (
-    id: string,
-    next: ShowRecord,
-    onSettlement?: (settlement: Exclude<ShowEditSettlement, 'saving'>) => void,
-  ): Promise<void> => {
-    if (stockShowCatalogueById(id)) {
-      const previousRecord = get().resolveEditableShow(id)
-      if (!previousRecord || next === previousRecord) return
-      next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
-      const previous = normalizeShowRecord(previousRecord)
-      const adopted = replacementWithNextOrderingStamp(previous, next)
-      const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
-      set((state) => ({
-        ...revisionPatch(state, id),
-        stockShowDrafts: { ...state.stockShowDrafts, [id]: adopted },
-        showHistories: {
-          ...state.showHistories,
-          [id]: editedHistory(previousHistory, previous),
-        },
-      }))
-      onSettlement?.('draft')
-      return
-    }
-    if (showsPendingDeletion.has(id)) return
-    const previousRecord = get().shows.find((show) => show.id === id)
-    if (!previousRecord || next === previousRecord) return
-    next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
-    const previous = normalizeShowRecord(previousRecord)
-    const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
-    const optimisticHistory = editedHistory(previousHistory, previous)
-    await adoptPersonalShowReplacement(id, next, optimisticHistory, {
-      record: previous,
-      history: previousHistory,
-    }, onSettlement)
-  }
 
   return {
   ...showInitialState,
   acquireShowEditActivity: (sessionId, showId, kind) => inputWait.acquire(sessionId, showId, kind),
   releaseShowEditActivity: token => inputWait.releaseActivity(token),
   readShowEditCandidate: (sessionId, id) => editSession?.sessionId === sessionId ? inputWait.read(id) : undefined,
-  deliverShowEditCandidate: (request, candidate, validate, validateRaw) => {
-    const arrivedAt = performance.now()
-    const capturedRequest = structuredClone(request)
-    const capturedSession = editSession
-    let capturedCandidate: ShowRecord
-    let identity: string
-    try {
-      capturedCandidate = structuredClone(candidate) as ShowRecord
-      identity = JSON.stringify(capturedCandidate) ?? 'undefined'
-    } catch {
-      return ephemeralInvalidCandidate(request, admissionUnavailableDiagnostic())
-    }
-    return inputWait.deliver(capturedRequest, identity, arrivedAt,
-      timing => get().admitShowEdit(capturedRequest, () => capturedCandidate, (next, current) => {
-        const valid = validate(next, current)
-        if (timing.kind === 'after-active-input' && performance.now() >= timing.deadline) capturedSession?.refuse(capturedRequest.operationId, 'interaction-timeout')
-        return valid
-      }),
-      () => {
-        const checked = editSession!.check(capturedRequest, { sessionId: editSession!.sessionId, showId: editSession!.showId, revision: get().showRevisions[capturedRequest.showId] ?? 0 })
-        if (checked.status !== 'pending') return checked
-        if (!capturedCandidate || capturedCandidate.id !== capturedRequest.showId) return editSession!.refuse(capturedRequest.operationId, 'invalid-candidate')!
-        if (validateRaw) {
-          let validation: unknown
-          try { validation = validateRaw(capturedCandidate) } catch {
-            return editSession!.refuse(capturedRequest.operationId, 'invalid-candidate', validatorUnavailableDiagnostic())!
-          }
-          const parsed = parseShowEditValidationResult(validation)
-          if (!parsed.valid) return editSession!.refuse(capturedRequest.operationId, 'invalid-candidate', parsed.diagnostic)!
-        }
-        return checked
-      })
-  },
   deliverShowV2EditCandidate: delivery => v2CandidateAdmission.deliver(delivery),
   invalidateShowEditCandidate: (request, diagnostic) => {
     const session = editSession
@@ -698,9 +361,8 @@ export const useShowStore = create<ShowState>()((set, get) => {
       return { status: 'retired', request: { ...intent, targets: [...intent.targets], sessionId, showId: '', baseRevision: -1 } }
     }
     const result = editSession.begin(intent, get().showRevisions[editSession.showId] ?? 0)
-    // A session belongs to whichever record version the editor holds for this
-    // Show: the v1 collection, or the open v2 working copy (#1039).
-    const present = get().resolveEditableShow(editSession.showId) ?? get().showV2Pilots[editSession.showId]
+    // A session belongs to the open v2 working copy of its Show (#1039, #1042).
+    const present = get().showV2Pilots[editSession.showId]
     if (result.status === 'pending' && (!present || showsPendingDeletion.has(editSession.showId))) {
       return editSession.refuse(intent.operationId, 'missing-show') ?? result
     }
@@ -711,49 +373,6 @@ export const useShowStore = create<ShowState>()((set, get) => {
     if (editSession?.sessionId !== sessionId) return undefined
     inputWait.release(operationId)
     return editSession.cancel(operationId)
-  },
-  admitShowEdit: (request, evaluate, validate) => {
-    const session = editSession
-    if (!session || session.sessionId !== request.sessionId) return { request, status: 'retired' }
-    if (inputWait.owns(request.operationId)) return { request, status: 'refused', reason: 'invalid-candidate' }
-    const eligibility = () => ({ sessionId: session.sessionId, showId: session.showId, revision: get().showRevisions[session.showId] ?? 0 })
-    const checked = session.check(request, eligibility())
-    if (checked.status !== 'pending') return checked
-    const current = get().resolveEditableShow(request.showId)
-    if (!current || showsPendingDeletion.has(request.showId)) return session.refuse(request.operationId, 'missing-show')!
-    let candidate: ShowRecord
-    try {
-      const privateCurrent = structuredClone(current)
-      const evaluated = evaluate(privateCurrent)
-      if (!evaluated || evaluated === privateCurrent) return session.refuse(request.operationId, 'no-candidate')!
-      candidate = normalizeShowRecord(reconcileShowExecutionModelOnCastReturn(current, forfeitShowExecutionModelOnCastChange(current, structuredClone(evaluated))))
-    } catch {
-      return session.refuse(request.operationId, 'invalid-candidate', admissionUnavailableDiagnostic())!
-    }
-    if (candidate.id !== request.showId) return session.refuse(request.operationId, 'invalid-candidate')!
-    let validationCandidate: ShowRecord
-    let validationCurrent: ShowRecord
-    try {
-      validationCandidate = structuredClone(candidate)
-      validationCurrent = structuredClone(current)
-    } catch {
-      return session.refuse(request.operationId, 'invalid-candidate', admissionUnavailableDiagnostic())!
-    }
-    let validation: unknown
-    try { validation = validate(validationCandidate, validationCurrent) } catch {
-      return session.refuse(request.operationId, 'invalid-candidate', validatorUnavailableDiagnostic())!
-    }
-    const parsed = parseShowEditValidationResult(validation)
-    if (!parsed.valid) return session.refuse(request.operationId, 'invalid-candidate', parsed.diagnostic)!
-    // Recheck after trusted synchronous callbacks in case they reentered the store.
-    if (editSession !== session) return { request, status: 'retired' }
-    const rechecked = session.check(request, eligibility())
-    if (rechecked.status !== 'pending') return rechecked
-    const adopted = session.adopted(request.operationId, stockShowCatalogueById(request.showId) ? 'draft' : 'saving')
-    void updateShowRecord(request.showId, candidate, (settlement) => {
-      if (settlement !== 'draft') session.settle(request.operationId, settlement)
-    }).catch(() => { /* Store recovery notice and receipt own the failure. */ })
-    return adopted
   },
   completeShowEdit: (request, completion) => {
     const session = editSession
@@ -771,7 +390,7 @@ export const useShowStore = create<ShowState>()((set, get) => {
     // reload so a same-id record from the previous account cannot satisfy the
     // next route before its provider has been consulted. Lesson drafts are
     // session-only copies of built-in Shows, so retain them and their history
-    // across a reload, as v1 stockShowDrafts do.
+    // across a reload.
     showV2WorkspaceGeneration += 1
     lastPersistedShowV2Pilots.clear()
     set(state => ({
@@ -821,14 +440,6 @@ export const useShowStore = create<ShowState>()((set, get) => {
     } finally {
       if (showsHydration === hydration) showsHydration = null
     }
-  },
-
-  createNewShow: async (input) => {
-    const id = newPersonalContentId()
-    const name = uniquePatternName(input?.name?.trim() || 'Untitled Show', get().shows.map((show) => show.name))
-    const show = createShowWithOutputContract(id, name, input.outputContract)
-    await get().addShow(show)
-    return show
   },
 
   createNewShowV2: async (input) => {
@@ -919,31 +530,11 @@ export const useShowStore = create<ShowState>()((set, get) => {
     getPersonalContentProvider().setLastActive({ type: 'show', id }).catch(() => {})
   },
 
-  addShow: async (record) => {
-    // A stale list snapshot resolving after this create would drop the new
-    // record from state; wait for the hydration to apply first (#794).
-    if (showsHydration) await showsHydration.catch(() => {})
-    await getPersonalContentProvider().createShow(record)
-    lastPersistedShowRecords.set(record.id, { record: normalizeShowRecord(record), history: { past: [], future: [] } })
-    trackEntityCreated('show')
-    set((state) => ({ ...revisionPatch(state, record.id), shows: [record, ...state.shows], showsLoaded: true }))
-  },
-
-  addImportedShow: async (record) => {
-    await get().addShow(record)
-  },
-
   renameShow: async (id, name) => {
-    // The rail is one list of personal Shows; a v2 row renames through its own
-    // owner rather than through the v1 record path (#1039).
-    if (isPersonalShowV2Row(id)) {
-      await renameShowV2Row(id, name)
-      return
-    }
-    const existing = get().resolveEditableShow(id)
-    if (!existing || existing.name === name) return
-    const next = { ...existing, name, updatedAt: Date.now() }
-    await updateShowQuietly(get().updateShow, id, next)
+    // The rail lists only personal v2 rows, and each renames through its own
+    // owner (#1039). Any other id, including a built-in Show (which is copied,
+    // never renamed in place), returns without effect (#1042).
+    if (isPersonalShowV2Row(id)) await renameShowV2Row(id, name)
   },
 
   removeShow: async (id) => {
@@ -955,12 +546,9 @@ export const useShowStore = create<ShowState>()((set, get) => {
       // One delete serves both versions: the stored row is addressed by id and
       // the session state a v2 Show holds is forgotten with the v1 state.
       await deletePersistedShow(id)
-      lastPersistedShowRecords.delete(id)
       lastPersistedShowV2Pilots.delete(id)
       showV2LessonDraftIds.delete(id)
       set((state) => {
-        const showHistories = { ...state.showHistories }
-        delete showHistories[id]
         const showV2Pilots = { ...state.showV2Pilots }
         delete showV2Pilots[id]
         const showV2Histories = { ...state.showV2Histories }
@@ -971,8 +559,6 @@ export const useShowStore = create<ShowState>()((set, get) => {
           showV2Pilots,
           showV2Histories,
           activeShowId: state.activeShowId === id ? null : state.activeShowId,
-          showHistories,
-          ...(state.showSaveFailure?.showId === id ? { showSaveFailure: null } : {}),
           ...(state.showV2SaveFailure?.showId === id ? { showV2SaveFailure: null } : {}),
         }
       })
@@ -1008,31 +594,6 @@ export const useShowStore = create<ShowState>()((set, get) => {
     return record
   },
 
-  duplicateShow: async (sourceId, sourceRecord) => {
-    if (showsHydration) await showsHydration.catch(() => {})
-    const source = sourceRecord ?? get().resolveEditableShow(sourceId)
-    if (!source) return null
-    const record = {
-      ...source,
-      id: newPersonalContentId(),
-      name: uniquePatternName(`${source.name} copy`, get().shows.map((show) => show.name)),
-      updatedAt: Date.now(),
-    }
-    try {
-      await get().addShow(record)
-    } catch {
-      return null
-    }
-    return record
-  },
-
-  resolveEditableShow: (id) => {
-    const state = get()
-    return state.shows.find((show) => show.id === id)
-      ?? state.stockShowDrafts[id]
-      ?? stockShowById(id)?.show
-  },
-
   isShowV2LessonDraft: (id) => showV2LessonDraftIds.has(id),
 
   resetShowV2LessonDraft: (id) => {
@@ -1048,27 +609,6 @@ export const useShowStore = create<ShowState>()((set, get) => {
         showV2Histories: { ...state.showV2Histories, [id]: { past: [], future: [] } },
       }
     })
-  },
-
-  resetStockShowDraft: (id) => set((state) => {
-    inputWait.invalidate(id)
-    if (!(id in state.stockShowDrafts)) return state
-    const stockShowDrafts = { ...state.stockShowDrafts }
-    delete stockShowDrafts[id]
-    const showHistories = { ...state.showHistories }
-    delete showHistories[id]
-    return { ...revisionPatch(state, id), stockShowDrafts, showHistories }
-  }),
-
-  updateShow: (id, next) => updateShowRecord(id, next),
-
-  dismissShowSaveFailure: () => set({ showSaveFailure: null }),
-
-  retryShowSaveFailure: async () => {
-    const failure = get().showSaveFailure
-    if (!failure) return
-    // A still-failing write re-records showSaveFailure; the notice stays up.
-    await updateShowQuietly(get().updateShow, failure.showId, { ...failure.record, updatedAt: Date.now() })
   },
 
   dismissShowV2SaveFailure: () => set({ showV2SaveFailure: null }),
@@ -1132,24 +672,9 @@ export const useShowStore = create<ShowState>()((set, get) => {
           result = { status: 'ready', record }
           return
         }
-        const source = get().resolveEditableShow(showId)
-        if (!source) {
-          result = { status: 'refused', issues: [{ code: 'invalid-v1', path: 'id', message: `Show "${showId}" is unavailable.` }] }
-          return
-        }
-        const converted = convertShowRecordV1ToV2(source)
-        if (converted.status === 'refused') {
-          result = converted
-          return
-        }
-        const record = cloneValidShowRecordV2(converted.record)
-        const history = { past: [], future: [] }
-        lastPersistedShowV2Pilots.set(showId, { record, history })
-        set(state => ({
-          showV2Pilots: { ...state.showV2Pilots, [showId]: record },
-          showV2Histories: { ...state.showV2Histories, [showId]: history },
-        }))
-        result = { status: 'ready', record }
+        // Every built-in Show opened above as a lesson; an id with no stored
+        // v2 row has nothing to open (#1042).
+        result = { status: 'refused', issues: [{ code: 'invalid-v1', path: 'id', message: `Show "${showId}" is unavailable.` }] }
       })
       return result ?? {
         status: 'refused',
@@ -1223,289 +748,26 @@ export const useShowStore = create<ShowState>()((set, get) => {
       })
       return reloaded
     },
-
-  updateStageMap: async (showId, stageMapId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, { ...show, stageMapId, updatedAt: Date.now() })
-  },
-
-  addScene: async (showId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, addShowScene(show))
-  },
-
-  duplicateScene: async (showId, sceneId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, duplicateShowScene(show, sceneId))
-  },
-
-  cloneClip: async (showId, cellId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return null
-    const next = cloneShowCellAfter(show, cellId)
-    if (next === show) return null
-    if (!(await updateShowQuietly(get().updateShow, showId, next))) return null
-    return next.cells.find((cell) => !show.cells.some((previous) => previous.id === cell.id)) ?? null
-  },
-
-  moveClip: async (showId, cellId, zoneId, sceneId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return false
-    const next = moveShowCellToSlot(show, cellId, zoneId, sceneId)
-    if (next === show) return false
-    return updateShowQuietly(get().updateShow, showId, next)
-  },
-
-  removeScene: async (showId, sceneId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, removeShowScene(show, sceneId))
-  },
-
-  updateScene: async (showId, sceneId, changes) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowScene(show, sceneId, changes))
-  },
-
-  updateTransition: async (showId, sceneId, kind, durationMs, feather, portal) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowTransition(show, sceneId, kind, durationMs, feather, portal))
-  },
-
-  removeClip: async (showId, clipId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, removeShowClip(show, clipId))
-  },
-
-  placeClip: async (showId, zoneId, sceneId, patch) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return null
-    const next = placeShowClip(show, zoneId, sceneId, patch)
-    if (next === show) return null
-    if (!(await updateShowQuietly(get().updateShow, showId, next))) return null
-    return showCellAtSlot(next, zoneId, sceneId) ?? null
-  },
-
-  updateCellAdaptations: async (showId, cellId, changes) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowCellAdaptations(show, cellId, changes))
-  },
-
-  updateCellEffects: async (showId, cellId, effects) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowCellEffects(show, cellId, effects))
-  },
-
-  updateCellControlTarget: async (showId, cellId, exportName, value) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowCellControlTarget(show, cellId, exportName, value))
-  },
-
-  updateCellPattern: async (showId, cellId, patch) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowCellPattern(show, cellId, patch))
-  },
-
-  updateCellRestartOnEntry: async (showId, cellId, restartOnEntry) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowCellRestartOnEntry(show, cellId, restartOnEntry))
-  },
-
-  updateBoundaryTransition: async (showId, transitionId, changes) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowBoundaryTransition(show, transitionId, changes))
-  },
-
-  removeBoundaryTransition: async (showId, transitionId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, removeShowBoundaryTransition(show, transitionId))
-  },
-
-  extendCell: async (showId, cellId, sceneSpan) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, extendShowCell(show, cellId, sceneSpan))
-  },
-
-  spanCellZones: async (showId, cellId, zoneSpan) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, spanShowCellZones(show, cellId, zoneSpan))
-  },
-
-  updateCellZoneMode: async (showId, cellId, zoneMode) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowCellZoneMode(show, cellId, zoneMode))
-  },
-
-  addZone: async (showId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, addShowZone(show))
-  },
-
-  updateZone: async (showId, zoneId, changes) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowZone(show, zoneId, changes))
-  },
-
-  removeZone: async (showId, zoneId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, removeShowZone(show, zoneId))
-  },
-
-  addRoutingLayout: async (showId, sourceLayoutId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return null
-    const next = addShowRoutingLayout(show, undefined, sourceLayoutId)
-    if (!(await updateShowQuietly(get().updateShow, showId, next))) return null
-    return next.routingLayouts[next.routingLayouts.length - 1]?.id ?? null
-  },
-
-  updateRoutingLayout: async (showId, layoutId, changes) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowRoutingLayout(show, layoutId, changes))
-  },
-
-  removeRoutingLayout: async (showId, layoutId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, removeShowRoutingLayout(show, layoutId))
-  },
-
-  updateRoutingSwitch: async (showId, afterSceneId, layoutId) => {
-    const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await updateShowQuietly(get().updateShow, showId, updateShowRoutingSwitch(show, afterSceneId, layoutId))
-  },
-
-  undoShow: async (showId) => {
-    if (showsPendingDeletion.has(showId)) return false
-    const show = get().resolveEditableShow(showId)
-    const history = get().showHistories[showId]
-    if (!show || !history) return false
-    const transition = undoHistory(history, normalizeShowRecord(show))
-    if (!transition) return false
-    const replacement = normalizeShowRecord(transition.replacement)
-    const nextHistory = transition.history
-    if (stockShowCatalogueById(showId)) {
-      const next = replacementWithNextOrderingStamp(show, replacement)
-      set((state) => ({
-        ...revisionPatch(state, showId),
-        stockShowDrafts: { ...state.stockShowDrafts, [showId]: next },
-        showHistories: { ...state.showHistories, [showId]: nextHistory },
-      }))
-      return true
-    }
-    try {
-      await adoptPersonalShowReplacement(showId, replacement, nextHistory, { record: show, history })
-      return true
-    } catch {
-      return false
-    }
-  },
-
-  redoShow: async (showId) => {
-    if (showsPendingDeletion.has(showId)) return false
-    const show = get().resolveEditableShow(showId)
-    const history = get().showHistories[showId]
-    if (!show || !history) return false
-    const transition = redoHistory(history, normalizeShowRecord(show))
-    if (!transition) return false
-    const replacement = normalizeShowRecord(transition.replacement)
-    const nextHistory = transition.history
-    if (stockShowCatalogueById(showId)) {
-      const next = replacementWithNextOrderingStamp(show, replacement)
-      set((state) => ({
-        ...revisionPatch(state, showId),
-        stockShowDrafts: { ...state.stockShowDrafts, [showId]: next },
-        showHistories: { ...state.showHistories, [showId]: nextHistory },
-      }))
-      return true
-    }
-    try {
-      await adoptPersonalShowReplacement(showId, replacement, nextHistory, { record: show, history })
-      return true
-    } catch {
-      return false
-    }
-  },
   }
 })
 
-function replaceShowRecord(shows: ShowRecord[], next: ShowRecord): ShowRecord[] {
-  return shows
-    .map((show) => show.id === next.id ? next : show)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-}
-
-function reconcileHydratedShows(
-  state: Pick<ShowState, 'shows' | 'showHistories'>,
-  hydrated: ShowRecord[],
-): Pick<ShowState, 'shows' | 'showHistories'> {
-  const staleHistoryIds = new Set<string>()
+function reconcileHydratedShows(state: Pick<ShowState, 'shows'>, hydrated: ShowRecord[]): Pick<ShowState, 'shows'> {
   const hydratedIds = new Set(hydrated.map((show) => show.id))
-  const nextBaselines = new Map<string, { record: ShowRecord; history: ShowHistory }>()
-
   const shows = hydrated.map((show) => {
-    const existing = lastPersistedShowRecords.get(show.id)
     const current = state.shows.find((candidate) => candidate.id === show.id)
-    const currentHistory = state.showHistories[show.id] ?? { past: [], future: [] }
     const keepPending = hasQueuedShowPersistence(show.id)
       && current !== undefined
       && current.updatedAt >= show.updatedAt
-    const baselineHistory = keepPending && current?.updatedAt === show.updatedAt
-      ? currentHistory
-      : existing?.record.updatedAt === show.updatedAt
-        ? existing.history
-        : { past: [], future: [] }
-    nextBaselines.set(show.id, { record: show, history: baselineHistory })
-
-    if (keepPending) return current!
-    if (!existing || existing.record.updatedAt !== show.updatedAt) staleHistoryIds.add(show.id)
-    return show
+    return keepPending ? current! : show
   })
 
   // A list snapshot may omit a record whose local write has not reached the
   // provider yet. Keep that accepted replacement until its queued outcome is
-  // known. Non-pending personal records omitted by hydration lose stale
-  // history; stock draft histories are not members of state.shows and remain.
+  // known.
   for (const current of state.shows) {
-    if (hydratedIds.has(current.id)) continue
-    if (hasQueuedShowPersistence(current.id)) {
-      shows.push(current)
-      const existing = lastPersistedShowRecords.get(current.id)
-      if (existing) nextBaselines.set(current.id, existing)
-    } else {
-      staleHistoryIds.add(current.id)
-    }
+    if (!hydratedIds.has(current.id) && hasQueuedShowPersistence(current.id)) shows.push(current)
   }
-
-  lastPersistedShowRecords.clear()
-  for (const [id, baseline] of nextBaselines) lastPersistedShowRecords.set(id, baseline)
-  return {
-    shows: shows.sort((a, b) => b.updatedAt - a.updatedAt),
-    showHistories: Object.fromEntries(
-      Object.entries(state.showHistories).filter(([id]) => !staleHistoryIds.has(id)),
-    ),
-  }
+  return { shows: shows.sort((a, b) => b.updatedAt - a.updatedAt) }
 }
 
 function normalizeShowRecord(show: ShowRecord): ShowRecord {
@@ -1515,34 +777,9 @@ function normalizeShowRecord(show: ShowRecord): ShowRecord {
     : withoutComposition(normalized)
 }
 
-function showPersistenceChanges(next: ShowRecord): Partial<Omit<ShowRecord, 'id'>> {
-  return {
-    name: next.name,
-    scenes: next.scenes,
-    zones: next.zones,
-    cells: next.cells,
-    routingLayouts: next.routingLayouts,
-    transitions: next.transitions,
-    composition: next.composition ?? null,
-    outputEffects: next.outputEffects,
-    targetControllerProfileId: next.targetControllerProfileId,
-    stageMapId: next.stageMapId ?? null,
-    outputContract: next.outputContract,
-    importMetadata: next.importMetadata,
-    updatedAt: next.updatedAt,
-  }
-}
-
 function withoutComposition(show: ShowRecord): ShowRecord {
   const { composition: _composition, ...flat } = show
   return flat
-}
-
-/** @deprecated v1: unreachable from the UI since #1042 Phase 1b; deleted in Phase 2 */
-async function persistShowRecord(next: ShowRecord): Promise<void> {
-  await queueShowPersistence(next.id, () => (
-    getPersonalContentProvider().updateShow(next.id, showPersistenceChanges(next))
-  ))
 }
 
 async function deletePersistedShow(id: string): Promise<void> {

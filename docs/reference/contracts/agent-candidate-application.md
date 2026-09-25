@@ -97,7 +97,7 @@ applied/saving from saved, rolled-back, superseded and stock draft settlement.
 [Show state, history, and persistence](show-state-history-persistence.md#internal-request-admission)
 defines lifetime, revision inventory and the configurable entry
 cap. [Pure policy tests](../../../src/engine/showEditAdmission.test.ts) and
-[store admission tests](../../../src/store/showEditAdmission.test.ts) exercise
+[store admission tests](../../../src/store/showV2CandidateAdmission.test.ts) exercise
 full records/history, provider writes, revision ABA, retirement, deduplication
 and delayed persistence outcomes.
 
@@ -105,14 +105,16 @@ The diagnostic bridge uses this foundation conservatively. Existing shared text/
 
 ## Internal bounded active-input wait
 
-`deliverShowEditCandidate` is an internal store path for completed whole-Show
-candidates. It snapshots the request and candidate, checks registered identity
+`deliverShowV2EditCandidate` is the internal store path for completed whole-Show
+`ShowRecordV2` candidates; the version-1 `deliverShowEditCandidate` was deleted
+in #1042 S2a. It snapshots the request and candidate, checks registered identity
 and known whole-Show eligibility, then either admits synchronously or waits for
 explicit session/Show-bound `drag` and `dirty-field` ownership tokens. Focus alone
 is not activity. `readShowEditCandidate` projects a typed `waiting` status over
 the existing pending operation; terminal outcomes remain in the session table.
-The diagnostic bridge uses this path with raw structural and authoring validation
-inside the delivery-time boundary, followed by final normalized validation.
+Admission validates the candidate's structure, domain and authoring rules and
+prepares its Stage inside the store-owned boundary, then rechecks eligibility
+before adoption.
 Metadata changes terminate waiting promptly without clearing activity tokens.
 `DraftTextField`, `useNumberFieldDraft`/`NumberField`, and `BoundedNumberField`
 (including Time, Domain, Percentage and Angle wrappers) register their existing

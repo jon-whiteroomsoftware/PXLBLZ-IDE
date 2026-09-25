@@ -19,7 +19,6 @@ export interface EditorState {
   v2Writes: number
   legacyWrites: number
   legacyShows: readonly ShowRecord[]
-  legacyHistories: Record<string, unknown>
 }
 
 export interface OpenV2Editor {
@@ -68,7 +67,6 @@ export function openV2EditorForRecord(record: ShowRecordV2): OpenV2Editor {
         v2Writes: v2Writes.mock.calls.length,
         legacyWrites: legacyWrites.mock.calls.length,
         legacyShows: store.shows,
-        legacyHistories: store.showHistories,
       }
     },
   }

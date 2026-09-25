@@ -167,62 +167,6 @@ it.each([['placement', false], ['effect', false], ['placement', true], ['effect'
   expect(active).toBe(0)
 })
 
-import { afterEach } from 'vitest'
-import { createDefaultShow } from '@/engine/showModel'
-import { showInitialState, useShowStore } from '@/store/showStore'
-import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
-const state = () => useShowStore.getState()
-const snapshot = () => structuredClone({ shows: state().shows, histories: state().showHistories, failure: state().showSaveFailure })
-let sessionToRetire: string | undefined
-afterEach(() => { if (sessionToRetire) state().retireShowEditSession(sessionToRetire); sessionToRetire = undefined; resetPersonalContentProvider() })
-
-// V1-ONLY (#1042): v2 has no ShowClipPlacementPad candidate path; deleted with deliverShowEditCandidate.
-it.each(['before-move', 'preview-cancel', 'manual-up', 'manual-cancel'] as const)('settles placement candidate from complete records/history/provider writes: %s', async mode => {
-  useShowStore.setState(showInitialState)
-  const show = createDefaultShow(`placement-${mode}`, 'Original')
-  const writes = vi.fn(async () => {})
-  setPersonalContentProvider({ listShows: async () => [show], updateShow: writes } as unknown as PersonalContentProvider)
-  await state().loadShows()
-  const session = state().beginShowEditSession(show.id)
-  sessionToRetire = session
-  const scope = createFieldActivityScope()
-  scope.bind(() => {
-    const token = state().acquireShowEditActivity(session, show.id, 'drag')!
-    return () => { state().releaseShowEditActivity(token) }
-  })
-  const request = state().beginShowEdit(session, { operationId: 'rename', payloadKey: 'rename', referenceContext: '', targets: [] }).request
-  const before = snapshot()
-  const mounted = render(<FieldActivityContext.Provider value={scope}><ShowClipPlacementPad
-    transform={NEUTRAL_SHOW_CLIP_TRANSFORM} viewport={DEFAULT_SHOW_CLIP_VIEWPORT}
-    onPreview={vi.fn()} onChange={patch => state().updateShow(show.id, { ...show, cells: show.cells.map((cell, index) => index ? cell : { ...cell, ...patch }) })}
-  /></FieldActivityContext.Provider>)
-  const target = screen.getByLabelText('Move content')
-  vi.spyOn(screen.getByRole('application'), 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 384, height: 384 } as DOMRect)
-  fireEvent.pointerDown(target, { pointerId: 7, clientX: 192, clientY: 192 })
-  if (mode !== 'before-move') fireEvent.pointerMove(target, { pointerId: 7, clientX: 250, clientY: 250 })
-  act(() => { expect(state().deliverShowEditCandidate(request, { ...show, name: 'Agent' }, () => true).status).toBe('waiting') })
-  expect(snapshot()).toEqual(before)
-  expect(writes).not.toHaveBeenCalled()
-  if (mode === 'preview-cancel') fireEvent.lostPointerCapture(target, { pointerId: 7 })
-  else fireEvent[mode === 'manual-cancel' ? 'pointerCancel' : 'pointerUp'](target, { pointerId: 7 })
-  await act(async () => {})
-  const manual = mode.startsWith('manual')
-  expect(state().readShowEditCandidate(session, 'rename')).toMatchObject(manual ? { status: 'refused', reason: 'revision-conflict' } : { status: 'applied' })
-  expect(writes).toHaveBeenCalledTimes(1)
-  expect(state().showHistories[show.id]).toEqual({ past: [show], future: [] })
-  const current = state().shows[0]
-  if (manual) {
-    expect(current.cells[0].transform).not.toEqual(show.cells[0].transform)
-    expect(current).toEqual({ ...show, cells: [{ ...show.cells[0], transform: current.cells[0].transform }, ...show.cells.slice(1)], updatedAt: current.updatedAt })
-  } else expect(current).toEqual({ ...show, name: 'Agent', updatedAt: current.updatedAt })
-  const { id, ...persisted } = current
-  expect(writes).toHaveBeenCalledWith(id, { ...persisted, composition: current.composition ?? null })
-  const done = snapshot()
-  fireEvent.pointerUp(target, { pointerId: 7 })
-  expect(snapshot()).toEqual(done)
-  mounted.unmount()
-})
-
 it('ignores a retired local Effect payload after source reappearance and preserves external fallback', () => {
   const change = vi.fn()
   const mounted = render(<ShowEffectStack effects={effects} onChange={change} onAdd={vi.fn()} />)

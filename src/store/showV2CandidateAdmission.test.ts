@@ -327,6 +327,43 @@ it('refuses an unknown v2 completion value without consuming the pending operati
   expect(context.write).not.toHaveBeenCalled()
 })
 
+// Ported from showEditAdmission.test.ts when the v1 whole-Show admission was
+// deleted (#1042 S2a): session, departure and identity refusals are
+// version-independent.
+it.each(['cancel', 'retire', 'departure', 'remount', 'wrong-session', 'wrong-show', 'payload', 'unknown', 'capacity'] as const)('preserves the record, history and provider for a %s v2 candidate', async mode => {
+  const context = setup()
+  const store = () => useShowStore.getState()
+  const sessionId = mode === 'capacity' ? store().beginShowEditSession(context.record.id, 1) : context.sessionId
+  const intent = (operationId: string) => ({ operationId, payloadKey: `payload-${operationId}`, referenceContext: 'context', targets: [context.record.id] })
+  let request = store().beginShowEdit(sessionId, intent('op-1')).request
+  if (mode === 'cancel') store().cancelShowEdit(sessionId, 'op-1')
+  if (mode === 'retire') store().retireShowEditSession(sessionId)
+  if (mode === 'departure') {
+    // Explicit departure retires the session; a same-id reopen cannot revive it.
+    await store().openShow(null)
+    store().beginShowEditSession(context.record.id)
+  }
+  if (mode === 'remount') store().beginShowEditSession(context.record.id)
+  if (mode === 'wrong-session') request = { ...request, sessionId: 'other' }
+  if (mode === 'wrong-show') request = { ...request, showId: 'other' }
+  if (mode === 'payload') request = { ...request, payloadKey: 'other' }
+  if (mode === 'unknown') request = { ...request, operationId: 'unknown' }
+  if (mode === 'capacity') {
+    const refused = store().beginShowEdit(sessionId, intent('overflow'))
+    expect(refused.reason).toBe('capacity')
+    request = refused.request
+  }
+  const before = context.current()
+  const result = context.deliver(context.edited(), request.operationId, { request })
+  expect(['refused', 'cancelled', 'retired']).toContain(result.status)
+  await settled()
+  expect(context.current()).toBe(before)
+  expect(context.history().past).toEqual([])
+  expect(store().showV2SaveFailure).toBeNull()
+  expect(context.write).not.toHaveBeenCalled()
+  expect(context.readSaved()).toEqual(context.record)
+})
+
 it('refuses an old v2 candidate after deletion recreates the same Show identity', async () => {
   const context = setup()
   const request = context.begin()
