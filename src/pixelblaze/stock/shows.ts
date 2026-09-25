@@ -37,35 +37,19 @@ import {
 import { addShowPropertyKeyframe, addShowPropertyTrack } from '@/engine/showPropertyAnimation'
 import { DEFAULT_SHOW_CLIP_CORNER_RADIUS } from '@/engine/showClipViewport'
 import { DEMOS } from './patterns'
+import type { StockShowCollection, StockShowNote, StockShowTrack } from './showCatalogueV2'
+export type { StockShowCollection, StockShowNote, StockShowTrack } from './showCatalogueV2'
 import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolkitPresentation'
 import {
   createInstallationShowOutputContract,
   createPortableShowOutputContract,
 } from '@/engine/showOutputContract'
 
-export type StockShowTrack = 'portable' | 'installation'
-export type StockShowCollection = 'learn' | 'showcases' | 'portable-shows' | 'installations'
-
 const STOCK_SHOW_COLLECTION_LABELS: Record<StockShowCollection, string> = {
   learn: 'Learn',
   showcases: 'Showcases',
   'portable-shows': 'Portable Shows',
   installations: 'Installations',
-}
-
-export interface StockShowNote {
-  label: string
-  number?: string
-  title: string
-  purpose: string
-  notice: string
-  prompts: readonly [string, string]
-  guide: {
-    documentId: 'show-visual-toolkit' | 'keyboard-shortcuts'
-    heading: string
-    label: string
-  }
-  defaultOpen: boolean
 }
 
 export interface StockShow {
