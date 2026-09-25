@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1122",
+  "route": "/PXLBLZ-IDE/studio/shows/proof-1122-missing-map-boundary",
+  "operation": "On the proof Show whose Stage map is gone (banner: 'The saved stage map is gone'), opened the boundary Transition, clicked Change and chose Linear. The Transition properties inspector shows Duration, Easing, Edge and Feather only; no Direction control (0 Direction-labelled controls in the panel).",
+  "captures": [".wrsp/ui-proof/1122-no-map-linear-inspector.png"],
+  "capturedAtCommit": "bb45b7a48a5259d39c04507a5b528ad71d20b1de"
+}
