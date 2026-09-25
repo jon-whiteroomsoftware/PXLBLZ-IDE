@@ -1,5 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "generator": {
+    "nodeMajor": 24
+  },
   "issue": 1042,
   "corpus": {
     "stock": 40,

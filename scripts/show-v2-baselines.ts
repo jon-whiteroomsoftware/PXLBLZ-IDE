@@ -9,6 +9,7 @@
 //
 //   npm run show:v2-baselines            (check, the default)
 //   npm run show:v2-baselines -- --write
+// A check on a different Node major still checks non-runtime evidence and exits 3.
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -31,6 +32,7 @@ import { nativeStockStageDimensionV2 } from '@/pixelblaze/stock/showsV2Compile'
 
 export const BASELINE_DIR = resolve('docs/reference/evidence/issue-1042-v2-baselines')
 export const BASELINES_PATH = resolve(BASELINE_DIR, 'baselines.json')
+export const FRAMES_PATH = resolve(BASELINE_DIR, 'runtime-frames.json')
 const FIXTURE_DIR = resolve(BASELINE_DIR, 'fixtures')
 
 /** Fixed export stamps, so the export hashes are functions of the record alone. */
@@ -61,10 +63,23 @@ export type RecordBaseline = {
 }
 
 export type Baselines = {
-  schemaVersion: 1
+  schemaVersion: 2
+  generator: { nodeMajor: number }
   issue: 1042
   corpus: { stock: number; fixture: number }
   records: RecordBaseline[]
+}
+
+export type RuntimeFrames = { sampledMs: number[]; frames: number[][] }
+export type FramesFile = { schemaVersion: 1; records: Record<string, RuntimeFrames> }
+type ComputedBaselines = { baselines: Baselines; runtimeFrames: FramesFile }
+
+export function runtimeComparability(generatorNodeMajor: number, nodeVersion: string):
+  { comparable: true } | { comparable: false; reason: string } {
+  const runningMajor = Number(nodeVersion.split('.')[0])
+  return generatorNodeMajor === runningMajor
+    ? { comparable: true }
+    : { comparable: false, reason: `runtime frames not compared: generated on Node ${generatorNodeMajor}, running Node ${runningMajor}` }
 }
 
 export function baselineInputs(): BaselineInput[] {
@@ -78,21 +93,30 @@ export function baselineInputs(): BaselineInput[] {
   return [...stock, ...fixtures]
 }
 
-export async function computeBaselines(inputs: BaselineInput[] = baselineInputs()): Promise<Baselines> {
+export async function computeBaselines(inputs: BaselineInput[] = baselineInputs()): Promise<ComputedBaselines> {
   const records: RecordBaseline[] = []
-  for (const input of inputs) records.push(await baselineFor(input))
+  const frameEntries: Array<[string, RuntimeFrames]> = []
+  for (const input of inputs) {
+    const { baseline, runtimeFrames } = await baselineFor(input)
+    records.push(baseline)
+    if (runtimeFrames) frameEntries.push([`${input.corpus}:${input.id}`, runtimeFrames])
+  }
   return {
-    schemaVersion: 1,
-    issue: 1042,
-    corpus: {
-      stock: inputs.filter(input => input.corpus === 'stock').length,
-      fixture: inputs.filter(input => input.corpus === 'fixture').length,
+    baselines: {
+      schemaVersion: 2,
+      generator: { nodeMajor: Number(process.versions.node.split('.')[0]) },
+      issue: 1042,
+      corpus: {
+        stock: inputs.filter(input => input.corpus === 'stock').length,
+        fixture: inputs.filter(input => input.corpus === 'fixture').length,
+      },
+      records,
     },
-    records,
+    runtimeFrames: { schemaVersion: 1, records: Object.fromEntries(frameEntries.sort(([a], [b]) => a.localeCompare(b))) },
   }
 }
 
-async function baselineFor(input: BaselineInput): Promise<RecordBaseline> {
+async function baselineFor(input: BaselineInput): Promise<{ baseline: RecordBaseline; runtimeFrames?: RuntimeFrames }> {
   const { record } = input
   const libraries = compileLibraries(LIBRARIES, input.libraries)
   const prepared = prepareShowV2ForCompile(record, sourceLookup(record, input.patterns), { libraries })
@@ -105,20 +129,24 @@ async function baselineFor(input: BaselineInput): Promise<RecordBaseline> {
     pxlshowPayloadSha256: sha256(pxlshowPayload),
   }
   if (prepared.status !== 'ready') {
-    return {
+    return { baseline: {
       ...base,
       preparation: { status: 'refused', codes: prepared.issues.map(issue => `${issue.path}: ${issue.message}`) },
       epe: { status: 'refused', code: 'preparation-refused' },
-    }
+    } }
   }
   const artifact = compileShow(prepared.recipe, libraries)
   const epe = buildShowEpeExportV2(record, artifact.code, { stampedAt: EXPORT_STAMP.exportedAt, id: EPE_ID })
+  const runtime = runtimeFingerprint(record, artifact)
   return {
-    ...base,
-    preparation: { status: 'ready' },
-    compiled: { sourceSha256: sha256(artifact.code), sourceBytes: artifact.code.length },
-    epe: epe.status === 'exported' ? { status: 'exported', sha256: sha256(epe.text) } : { status: 'refused', code: epe.code },
-    runtime: runtimeFingerprint(record, artifact),
+    baseline: {
+      ...base,
+      preparation: { status: 'ready' },
+      compiled: { sourceSha256: sha256(artifact.code), sourceBytes: artifact.code.length },
+      epe: epe.status === 'exported' ? { status: 'exported', sha256: sha256(epe.text) } : { status: 'refused', code: epe.code },
+      runtime: { mode: 'fast', sampledMs: runtime.sampledMs, framesSha256: runtime.framesSha256 },
+    },
+    runtimeFrames: { sampledMs: runtime.sampledMs, frames: runtime.frames },
   }
 }
 
@@ -161,7 +189,7 @@ export function runtimeSampleTimes(record: ShowRecordV2): number[] {
   return unique.slice(0, MAX_RUNTIME_SAMPLES).sort((a, b) => a - b)
 }
 
-function runtimeFingerprint(record: ShowRecordV2, artifact: GeneratedShowArtifact): RecordBaseline['runtime'] {
+function runtimeFingerprint(record: ShowRecordV2, artifact: GeneratedShowArtifact): RuntimeFrames & { framesSha256: string } {
   const dimension = nativeDimension(artifact.metadata.renderFns) as 1 | 2 | 3
   const runtime = createFastReplayRuntime({
     code: artifact.code, fxCode: artifact.fxCode, metadata: artifact.metadata, dimension,
@@ -174,7 +202,7 @@ function runtimeFingerprint(record: ShowRecordV2, artifact: GeneratedShowArtifac
       : runtime.advanceTo(timeMs, { stepMs: STEP_MS, forceFullIntermediateRender: true })
     frames.push(Array.from(result.frame))
   }
-  return { mode: 'fast', sampledMs, framesSha256: sha256(JSON.stringify(frames)) }
+  return { sampledMs, frames, framesSha256: sha256(JSON.stringify(frames)) }
 }
 
 function mapPoints(dimension: 1 | 2 | 3): MapPoint[] {
@@ -185,11 +213,34 @@ function mapPoints(dimension: 1 | 2 | 3): MapPoint[] {
   })
 }
 
+/** The first changed sample and pixel value, if the committed and fresh frames differ. */
+export function firstDifferentRuntimeFrame(key: string, committed: RuntimeFrames, fresh: RuntimeFrames): string | undefined {
+  const samples = Math.max(committed.frames.length, fresh.frames.length)
+  for (let sample = 0; sample < samples; sample++) {
+    const before = committed.frames[sample] ?? []
+    const after = fresh.frames[sample] ?? []
+    for (let index = 0; index < Math.max(before.length, after.length); index++) {
+      if (Object.is(before[index], after[index])) continue
+      const a = before[index]
+      const b = after[index]
+      const ms = committed.sampledMs[sample] ?? fresh.sampledMs[sample]
+      return `${key} runtime frame at ${ms} ms, value ${index}: committed ${a}, now ${b} (|Δ| ${Math.abs(a - b)})`
+    }
+  }
+  return undefined
+}
+
 /** Every record and field where the fresh baselines differ from the committed ones. */
-export function diffBaselines(committed: Baselines, fresh: Baselines): string[] {
+export function diffBaselines(
+  committed: Baselines,
+  fresh: Baselines,
+  options: { compareRuntime?: boolean; committedFrames?: FramesFile; freshFrames?: FramesFile } = {},
+): string[] {
   const differences: string[] = []
-  if (stableJson(committed.corpus) !== stableJson(fresh.corpus)) {
-    differences.push(`corpus: committed ${stableJson(committed.corpus)}, now ${stableJson(fresh.corpus)}`)
+  if (committed.schemaVersion !== fresh.schemaVersion) differences.push(`schemaVersion: committed ${committed.schemaVersion}, now ${fresh.schemaVersion}`)
+  if (committed.issue !== fresh.issue) differences.push(`issue: committed ${committed.issue}, now ${fresh.issue}`)
+  if (options.compareRuntime !== false && stableJson(committed.generator) !== stableJson(fresh.generator)) {
+    differences.push(`generator: committed ${stableJson(committed.generator)}, now ${stableJson(fresh.generator)}`)
   }
   const key = (record: RecordBaseline) => `${record.corpus}:${record.id}`
   const freshByKey = new Map(fresh.records.map(record => [key(record), record]))
@@ -202,8 +253,17 @@ export function diffBaselines(committed: Baselines, fresh: Baselines): string[] 
     }
     const fields = [...new Set([...Object.keys(record), ...Object.keys(now)])] as Array<keyof RecordBaseline>
     for (const field of fields) {
+      if (field === 'runtime' && options.compareRuntime === false) continue
       if (stableJson(record[field]) !== stableJson(now[field])) {
         differences.push(`${key(record)} ${field}: committed ${stableJson(record[field])}, now ${stableJson(now[field])}`)
+        if (field === 'runtime' && record.runtime?.framesSha256 !== now.runtime?.framesSha256) {
+          const before = options.committedFrames?.records[key(record)]
+          const after = options.freshFrames?.records[key(record)]
+          if (before && after) {
+            const first = firstDifferentRuntimeFrame(key(record), before, after)
+            if (first) differences.push(first)
+          }
+        }
       }
     }
   }
@@ -217,31 +277,68 @@ export function serializeBaselines(baselines: Baselines): string {
   return `${JSON.stringify(baselines, null, 2)}\n`
 }
 
-/** Returns the differences; empty means the committed file is byte-identical. */
-export async function checkBaselines(): Promise<string[]> {
+export function serializeRuntimeFrames(frames: FramesFile): string {
+  return `${JSON.stringify(frames, null, 2)}\n`
+}
+
+/** A different Node major yields a partial check, never a full-pass result. */
+export async function checkBaselines(options: { nodeVersion?: string } = {}): Promise<{
+  differences: string[]
+  runtime: { comparable: true } | { comparable: false; reason: string }
+}> {
   const fresh = await computeBaselines()
   const text = readFileSync(BASELINES_PATH, 'utf8')
-  const differences = diffBaselines(JSON.parse(text) as Baselines, fresh)
-  if (differences.length === 0 && text !== serializeBaselines(fresh)) {
-    differences.push('baselines.json: bytes differ from the serialized baselines although every field matches')
+  const frameText = readFileSync(FRAMES_PATH, 'utf8')
+  const committed = JSON.parse(text) as Baselines
+  const committedFrames = JSON.parse(frameText) as FramesFile
+  const runtime = runtimeComparability(committed.generator.nodeMajor, options.nodeVersion ?? process.versions.node)
+  const differences = diffBaselines(committed, fresh.baselines, {
+    compareRuntime: runtime.comparable,
+    committedFrames,
+    freshFrames: fresh.runtimeFrames,
+  })
+  const comparableBaselines = runtime.comparable ? fresh.baselines : {
+    ...fresh.baselines,
+    generator: committed.generator,
+    records: fresh.baselines.records.map(record => ({
+      ...record,
+      runtime: committed.records.find(item => item.corpus === record.corpus && item.id === record.id)?.runtime,
+    })),
   }
-  return differences
+  if (differences.length === 0 && text !== serializeBaselines(comparableBaselines)) {
+    differences.push('baselines.json: bytes differ from the serialized baselines although every compared field matches')
+  }
+  const comparableFrames = runtime.comparable ? fresh.runtimeFrames : {
+    ...fresh.runtimeFrames,
+    records: Object.fromEntries(Object.keys(fresh.runtimeFrames.records).map(key => [key, committedFrames.records[key]])),
+  }
+  if (frameText !== serializeRuntimeFrames(comparableFrames)) {
+    differences.push('runtime-frames.json: bytes differ from the serialized runtime frames')
+  }
+  return { differences, runtime }
 }
 
 export async function main(): Promise<void> {
   if (process.argv.includes('--write')) {
-    const baselines = await computeBaselines()
+    const { baselines, runtimeFrames } = await computeBaselines()
     writeFileSync(BASELINES_PATH, serializeBaselines(baselines))
-    console.log(`wrote ${BASELINES_PATH}: ${baselines.records.length} records`)
+    writeFileSync(FRAMES_PATH, serializeRuntimeFrames(runtimeFrames))
+    console.log(`wrote ${BASELINES_PATH} and ${FRAMES_PATH}: ${baselines.records.length} records`)
     return
   }
-  const differences = await checkBaselines()
+  const { differences, runtime } = await checkBaselines()
   if (differences.length > 0) {
     console.error(`v2 baselines drifted (${differences.length}):\n${differences.map(line => `  ${line}`).join('\n')}`)
     process.exitCode = 1
     return
   }
-  console.log(`v2 baselines match: ${JSON.parse(readFileSync(BASELINES_PATH, 'utf8')).records.length} records.`)
+  const count = (JSON.parse(readFileSync(BASELINES_PATH, 'utf8')) as Baselines).records.length
+  if (!runtime.comparable) {
+    console.log(`v2 baselines match: ${count} records; ${runtime.reason}.`)
+    process.exitCode = 3
+    return
+  }
+  console.log(`v2 baselines match: ${count} records.`)
 }
 
 function stableJson(value: unknown): string {

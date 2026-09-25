@@ -5,7 +5,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { posix, relative, resolve } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
-import { checkBaselines } from '../../scripts/show-v2-baselines'
+import { checkBaselines, firstDifferentRuntimeFrame, runtimeComparability } from '../../scripts/show-v2-baselines'
 
 /**
  * The v1-only authoring modules #1042 removes (inventory §1), plus the whole v1
@@ -41,12 +41,15 @@ const repoRoot = resolve(__dirname, '../..')
 /**
  * SHA-256 of the committed baseline set, byte for byte. `--write` would
  * re-baseline silently and the check would still pass, so the files are pinned
- * here too. The only legitimate change is deleting the whole set, and this
- * constant with it, when #1042 closes, with Jon's say.
+ * here too. The set may also change for #1128's schema change (Jon,
+ * 2026-09-24); otherwise it is deleted only when #1042 closes, with Jon's say.
  */
 const BASELINE_DIR = 'docs/reference/evidence/issue-1042-v2-baselines'
+const committedBaselines = JSON.parse(readFileSync(resolve(repoRoot, BASELINE_DIR, 'baselines.json'), 'utf8')) as { generator: { nodeMajor: number } }
+const comparable = runtimeComparability(committedBaselines.generator.nodeMajor, process.versions.node).comparable
 const PINNED_DIGESTS: Record<string, string> = {
-  'baselines.json': '054808a652ec1d13f775591823539f4ad78442ee91a6f8ee73d2f062aa2d9cb0',
+  'baselines.json': '442750047c5a68cbc1de6e477b7318fdd218100c3bd427b943ea851aeb6e74fa',
+  'runtime-frames.json': 'e3023892912eb421b4b887cdcb85bd4edb28069e90dd5007eb17e3eb8afe0e72',
   'fixtures/animation.json': '5fe5e38c50a73ca5ff25305a93063a3f50f673d676c5f78bd38de1b51eb2c5e7',
   'fixtures/groups.json': 'be4db1bb8ba11efba0f1864642c32ffcfee22aabc8de2415a7c839ff6a15e505',
   'fixtures/long-timeline.json': '31ae99370a863d0c9d0afb341ca94c74a6352c49c0b1ea42ee4831a91dbb262d',
@@ -135,13 +138,35 @@ describe('#1042 v2 baselines', () => {
 
   it('the committed baselines still hash to their pinned digests', () => {
     const fixtures = readdirSync(resolve(repoRoot, BASELINE_DIR, 'fixtures')).filter(name => name.endsWith('.json')).sort()
-    const files = ['baselines.json', ...fixtures.map(name => `fixtures/${name}`)]
+    const files = ['baselines.json', 'runtime-frames.json', ...fixtures.map(name => `fixtures/${name}`)]
     const digests = Object.fromEntries(files.map(file => [file, createHash('sha256').update(readFileSync(resolve(repoRoot, BASELINE_DIR, file))).digest('hex')]))
     expect(digests).toEqual(PINNED_DIGESTS)
   })
 
-  it('every pinned record still matches the committed baselines', async () => {
-    const differences = await checkBaselines()
+  it('every pinned record still matches the committed baselines, runtime aside', async () => {
+    const { differences } = await checkBaselines({ nodeVersion: `${committedBaselines.generator.nodeMajor + 1}.0.0` })
     expect(differences, differences.join('\n')).toEqual([])
   }, 120_000)
+
+  it.skipIf(!comparable)("the runtime frames match on the generator's Node major (#1128)", async () => {
+    const { differences, runtime } = await checkBaselines()
+    expect(runtime).toEqual({ comparable: true })
+    expect(differences, differences.join('\n')).toEqual([])
+  }, 120_000)
+
+  it('compares runtime only on the generator Node major', () => {
+    expect(runtimeComparability(24, '24.14.0')).toEqual({ comparable: true })
+    expect(runtimeComparability(24, '22.23.3')).toEqual({
+      comparable: false,
+      reason: 'runtime frames not compared: generated on Node 24, running Node 22',
+    })
+  })
+
+  it('names the first changed sample and pixel value', () => {
+    expect(firstDifferentRuntimeFrame(
+      'stock:sample',
+      { sampledMs: [0, 250], frames: [[1, 2], [3, 4]] },
+      { sampledMs: [0, 250], frames: [[1, 2], [3, 4.25]] },
+    )).toBe('stock:sample runtime frame at 250 ms, value 1: committed 4, now 4.25 (|Δ| 0.25)')
+  })
 })
