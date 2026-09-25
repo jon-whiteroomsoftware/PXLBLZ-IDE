@@ -4,5 +4,5 @@
   "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
   "operation": "Opened the built-in v2 Show in the authenticated Playwright harness, connected a fake Controller with the fake Controller helper, and opened its Controller popover with Run enabled for that Show.",
   "captures": [".wrsp/ui-proof/1114-v2-controller-popover.png"],
-  "capturedAtCommit": "73f2e6a031344c2ae433f1729d3e1ab67633061a"
+  "capturedAtCommit": "93d76fab68ade1b3e523b052297a6c9450f40428"
 }

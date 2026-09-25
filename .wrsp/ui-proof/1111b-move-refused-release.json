@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1111",
+  "route": "/PXLBLZ-IDE/studio/shows/show-1111b2-preview-proof",
+  "operation": "On the converted v2 Show with Snap disabled, dispatched a plain Clip dragover at 5 seconds over the 8-second obstruction; no move preview appeared and the drop effect was none. Dispatched dragend without drop: the dragged Clip showed 'Space taken', the stored Show was unchanged, and zero Show write requests occurred.",
+  "captures": [".wrsp/ui-proof/1111b-move-refused-release.png"],
+  "capturedAtCommit": "93d76fab68ade1b3e523b052297a6c9450f40428"
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1111",
+  "route": "/PXLBLZ-IDE/studio/shows/show-1111a2-destination-speed-proof",
+  "operation": "On the converted v2 Boundary speed target Show, selected the Layer Transition and changed its incoming destination speed from 0.25x to 0.5x. The destination CometLoom Clip inspector then read 0.5x.",
+  "captures": [
+    ".wrsp/ui-proof/1111a2-destination-speed-before.png",
+    ".wrsp/ui-proof/1111a2-destination-speed-after.png"
+  ],
+  "capturedAtCommit": "93d76fab68ade1b3e523b052297a6c9450f40428"
+}

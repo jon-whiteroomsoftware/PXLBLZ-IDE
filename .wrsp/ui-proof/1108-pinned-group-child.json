@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1108",
+  "route": "/PXLBLZ-IDE/studio/shows/issue-1108-pinned-group-child-proof",
+  "operation": "Pinned the Detail for a Group child on the second Zone, then deleted that Zone in the Zone Map. The Group child Detail closed while the first Zone remained.",
+  "captures": [
+    ".wrsp/ui-proof/1108-pinned-group-child-before.png",
+    ".wrsp/ui-proof/1108-pinned-group-child-after.png"
+  ],
+  "capturedAtCommit": "93d76fab68ade1b3e523b052297a6c9450f40428"
+}

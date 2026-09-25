@@ -4,5 +4,5 @@
   "route": "/PXLBLZ-IDE/studio/shows/show-1111e-delete-proof?show-v2-editor=1",
   "operation": "Opened a converted v2 Show whose only logical Clip spans two Scenes, selected its first projected placement, and focused the disabled Entity Detail Delete button to show its reason.",
   "captures": [".wrsp/ui-proof/1111e-spanning-delete.png"],
-  "capturedAtCommit": "e9d0c895ceffeed3adb53de5f3046cb8fdefd3f3"
+  "capturedAtCommit": "93d76fab68ade1b3e523b052297a6c9450f40428"
 }

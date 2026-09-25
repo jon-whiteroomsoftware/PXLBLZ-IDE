@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1111",
+  "route": "/PXLBLZ-IDE/studio/shows/show-1111b3-duplicate-occupied-proof",
+  "operation": "On a v2 Show with two adjacent Clips on one Layer, dispatched an Alt-drag of Drop Contract onto the occupied range of Drop Obstruction and released. The dragged Clip showed 'Space taken'; the Show's stored record was identical before and after, with zero Show write requests.",
+  "captures": [".wrsp/ui-proof/1111b3-duplicate-occupied.png"],
+  "capturedAtCommit": "93d76fab68ade1b3e523b052297a6c9450f40428"
+}

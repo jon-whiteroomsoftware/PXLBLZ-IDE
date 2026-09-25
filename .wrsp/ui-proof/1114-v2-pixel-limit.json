@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1114",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time",
+  "operation": "Opened the authenticated Portable v2 Show with a fake Controller reporting 2,500 pixels, then opened its Controller popover. Run was disabled; the editor said: Output blocked: Target Controller reports 2,500 pixels; compiled Shows support at most 2,000. Reduce the Controller pixel count before Run or Save.",
+  "captures": [".wrsp/ui-proof/1114-v2-pixel-limit.png"],
+  "capturedAtCommit": "93d76fab68ade1b3e523b052297a6c9450f40428"
+}
