@@ -1,18 +1,46 @@
 import { describe, expect, it } from 'vitest'
 import { compilerVintageOptions } from './showCompilerVintages'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
-import { compileShowForArtifact } from './showPreviewArtifact'
+import { compileShow } from './showCompiler'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import type { ShowRecordV2 } from './showCompositionV2'
+import { LIBRARIES } from '../pixelblaze/libs'
+import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '../pixelblaze/stock/showsV2Compile'
 
 // The 2026-08-02 repartition split the twenty-boundary Motion reference into
 // the all-motion Slide (6 boundaries) and Zoom and Spin (7 boundaries)
 // references; both remain fully motion-family sequences and keep the shared
 // kernels. The frozen-vintage pins are re-measured against them.
-const motionReference = (id = 'stock-show-reference-zoom-spin-transitions') => {
-  const fixture = STOCK_SHOWS.find((candidate) => candidate.id === id)
-  if (!fixture) throw new Error(`Motion reference Show ${id} is missing.`)
-  return fixture.show
+const motionReference = (id = 'stock-show-reference-zoom-spin-transitions'): ShowRecordV2 => {
+  const record = stockShowV2ById(id)
+  if (!record) throw new Error('Motion reference Show ' + id + ' is missing.')
+  return record
+}
+
+function compileMotionV2(show: ShowRecordV2, options: { motionTransitionSharing?: 'none' | 'structure' | 'exact' }) {
+  const prepared = prepareShowV2ForCompile(show, nativeStockSourceLookupV2(show), { libraries: LIBRARIES })
+  if (prepared.status !== 'ready') throw new Error(show.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+  return { artifact: compileShow(prepared.recipe, LIBRARIES, { ...compilerVintageOptions('motion-transition-sharing'), ...options }), error: null as string | null }
+}
+
+function boundarySampleTimesMsV2(record: ShowRecordV2): number[] {
+  const clips = new Map(record.composition.clips.map((clip) => [clip.id, clip]))
+  const times: number[] = []
+  for (const transition of record.composition.transitions) {
+    if (transition.durationMs <= 0) continue
+    const wholeOutputStart = transition.wholeOutput?.startMs
+    if (wholeOutputStart !== undefined) {
+      times.push(wholeOutputStart + 1, wholeOutputStart + transition.durationMs / 2, wholeOutputStart + transition.durationMs - 1)
+      continue
+    }
+    const from = clips.get(transition.participants[0]?.fromClipId ?? '')
+    if (!from) continue
+    const startMs = from.startMs + from.durationMs
+    times.push(startMs + 1, startMs + transition.durationMs / 2, startMs + transition.durationMs - 1)
+  }
+  return times
 }
 
 describe('shared routed motion-transition emission (#525)', () => {
@@ -22,22 +50,10 @@ describe('shared routed motion-transition emission (#525)', () => {
   ] as const)('fits the two-instance %s under the activation budget', (id, pins) => {
     // Historical #525 boundary: pin passes that postdate its pinned bytes.
     // Re-pinned 2026-08-22 when the references dropped their backdrop (#63).
-    const baseline = compileShowForArtifact(motionReference(id), [], undefined, {}, {
-      stageDimension: 2,
-      motionTransitionSharing: 'none',
-      ...compilerVintageOptions('motion-transition-sharing'),
-    })
-    const selected = compileShowForArtifact(motionReference(id), [], undefined, {}, {
-      stageDimension: 2,
-      motionTransitionSharing: 'exact',
-      ...compilerVintageOptions('motion-transition-sharing'),
-    })
-    const structural = compileShowForArtifact(motionReference(id), [], undefined, {}, {
-      stageDimension: 2,
-      motionTransitionSharing: 'structure',
-      ...compilerVintageOptions('motion-transition-sharing'),
-    })
-    const production = compileShowForArtifact(motionReference(id), [], undefined, {}, { stageDimension: 2, ...compilerVintageOptions('motion-transition-sharing') })
+    const baseline = compileMotionV2(motionReference(id), { motionTransitionSharing: 'none' })
+    const selected = compileMotionV2(motionReference(id), { motionTransitionSharing: 'exact' })
+    const structural = compileMotionV2(motionReference(id), { motionTransitionSharing: 'structure' })
+    const production = compileMotionV2(motionReference(id), {})
 
     expect(baseline.artifact?.summary.clipCount).toBe(2)
     expect(baseline.artifact?.summary.artifactBytes).toBe(pins.none)
@@ -69,26 +85,14 @@ describe('shared routed motion-transition emission (#525)', () => {
   ] as const)('matches every %s boundary in Fast and Precise playback', (id) => {
     const show = motionReference(id)
     const compile = (motionTransitionSharing: 'none' | 'structure' | 'exact') => {
-      const result = compileShowForArtifact(show, [], undefined, {}, {
-        stageDimension: 2,
-        motionTransitionSharing,
-      })
-      if (!result.artifact) throw new Error(result.error ?? 'Motion Transitions did not compile.')
-      return result.artifact
+      const prepared = prepareShowV2ForCompile(show, nativeStockSourceLookupV2(show), { libraries: LIBRARIES })
+      if (prepared.status !== 'ready') throw new Error(show.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+      return compileShow(prepared.recipe, LIBRARIES, { motionTransitionSharing })
     }
     const baseline = compile('none')
     const structural = compile('structure')
     const selected = compile('exact')
-    const transitionByScene = new Map((show.transitions ?? []).map((transition) => [transition.afterSceneId, transition]))
-    let cursorMs = 0
-    const sampleTimesMs = show.scenes.flatMap((scene) => {
-      cursorMs += scene.durationMs
-      const transition = transitionByScene.get(scene.id)
-      if (!transition || transition.durationMs <= 0) return []
-      const startMs = cursorMs
-      cursorMs += transition.durationMs
-      return [startMs + 1, startMs + transition.durationMs / 2, cursorMs - 1]
-    })
+    const sampleTimesMs = boundarySampleTimesMsV2(show)
     const mapPoints = Array.from({ length: 64 }, (_, index) => ({
       sample: [(index % 8) / 7, Math.floor(index / 8) / 7],
     }))
@@ -112,20 +116,16 @@ describe('shared routed motion-transition emission (#525)', () => {
 
   it('falls back to unrolled emission when a sequence mixes motion and non-motion boundaries', () => {
     const show = structuredClone(motionReference())
-    show.transitions![0] = {
-      ...show.transitions![0],
+    const firstTransition = show.composition.transitions[0]
+    if (!firstTransition) throw new Error('Motion reference has no transitions.')
+    show.composition.transitions[0] = {
+      ...firstTransition,
       kind: 'wipe',
     }
 
-    const baseline = compileShowForArtifact(show, [], undefined, {}, {
-      stageDimension: 2,
-      motionTransitionSharing: 'none',
-    })
-    const production = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2 })
-    const forced = compileShowForArtifact(show, [], undefined, {}, {
-      stageDimension: 2,
-      motionTransitionSharing: 'exact',
-    })
+    const baseline = compileMotionV2(show, { motionTransitionSharing: 'none' })
+    const production = compileMotionV2(show, {})
+    const forced = compileMotionV2(show, { motionTransitionSharing: 'exact' })
 
     expect(production.artifact?.summary.artifactBytes).toBe(baseline.artifact?.summary.artifactBytes)
     expect(forced.artifact?.summary.artifactBytes).toBe(baseline.artifact?.summary.artifactBytes)
@@ -165,26 +165,17 @@ describe('shared routed motion-transition emission (#525)', () => {
 
     for (const offset of [0, 20]) {
       const show = structuredClone(motionReference())
-      ;(show.transitions ?? []).forEach((transition, index) => {
+      show.composition.transitions.forEach((transition, index) => {
         Object.assign(transition, configurations[(offset + index) % configurations.length])
       })
       const compile = (motionTransitionSharing: 'none' | 'exact') => {
-        const result = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2, motionTransitionSharing })
-        if (!result.artifact) throw new Error(result.error ?? 'Motion policy sweep did not compile.')
-        return result.artifact
+        const prepared = prepareShowV2ForCompile(show, nativeStockSourceLookupV2(show), { libraries: LIBRARIES })
+        if (prepared.status !== 'ready') throw new Error(show.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+        return compileShow(prepared.recipe, LIBRARIES, { motionTransitionSharing })
       }
       const baseline = compile('none')
       const selected = compile('exact')
-      const transitionByScene = new Map((show.transitions ?? []).map((transition) => [transition.afterSceneId, transition]))
-      let cursorMs = 0
-      const sampleTimesMs = show.scenes.flatMap((scene) => {
-        cursorMs += scene.durationMs
-        const transition = transitionByScene.get(scene.id)
-        if (!transition || transition.durationMs <= 0) return []
-        const startMs = cursorMs
-        cursorMs += transition.durationMs
-        return [startMs + 1, startMs + transition.durationMs / 2, cursorMs - 1]
-      })
+      const sampleTimesMs = boundarySampleTimesMsV2(show)
       const checksums = (artifact: typeof baseline, fidelity: 'fast' | 'fidelity') => {
         const runtime = createFastReplayRuntime({
           code: artifact.code,

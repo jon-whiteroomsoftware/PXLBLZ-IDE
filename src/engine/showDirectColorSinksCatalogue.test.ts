@@ -3,33 +3,19 @@
 // byte-for-byte identically to a directColorSinks:false build, and the set of
 // Shows that do change is pinned here so a reviewer sees exactly which
 // artifacts moved and why.
-import { installationPhysicalZones } from './showInstallationCoverage'
 import { compileShow, type ShowRecipe } from './showCompiler'
-import { showRecordToCompileRecipe } from './showModel'
-import { sourceForShowCell, sourceForShowPatternRef } from './showPreviewArtifact'
-import { projectShowGroupRuntimePatternInstances } from './showGroupModel'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { LIBRARIES } from '../pixelblaze/libs'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '../pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '../pixelblaze/stock/showsV2Compile'
 
-function stockRecipe(stock: (typeof STOCK_SHOWS)[number]): ShowRecipe {
-  return showRecordToCompileRecipe(stock.show, {
-    byCellId: Object.fromEntries(stock.show.cells.map((cell) => [
-      cell.id,
-      sourceForShowCell(cell, []),
-    ])),
-    // Group occurrences materialize occurrence-local runtime instances (205
-    // Groups and Linked Reuse), so the lookup mirrors the production artifact
-    // path and includes them alongside the authored instances.
-    byPatternInstanceId: Object.fromEntries([
-      ...(stock.show.composition?.patternInstances ?? []),
-      ...(stock.show.composition ? projectShowGroupRuntimePatternInstances(stock.show.composition) : []),
-    ].map((instance) => [
-      instance.id,
-      sourceForShowPatternRef(instance.pattern, []),
-    ])),
-    controllerZones: installationPhysicalZones(stock.show),
-    stageDimension: 2,
-  })
+function stockRecipe(stock: (typeof STOCK_SHOWS_V2)[number]): ShowRecipe {
+  // Group occurrences materialize occurrence-local runtime instances (205
+  // Groups and Linked Reuse), so the lookup mirrors the production artifact
+  // path and includes them alongside the authored instances.
+  const prepared = prepareShowV2ForCompile(stock, nativeStockSourceLookupV2(stock), { libraries: LIBRARIES })
+  if (prepared.status !== 'ready') throw new Error(stock.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+  return prepared.recipe
 }
 
 describe('direct color sinks across the stock Show catalogue (#557)', () => {
@@ -37,7 +23,7 @@ describe('direct color sinks across the stock Show catalogue (#557)', () => {
   // size and casting, so it gets an explicit generous timeout.
   it('keeps every ineligible stock Show byte-for-byte unchanged and pins the eligible set', { timeout: 30_000 }, () => {
     const eligible: string[] = []
-    for (const stock of STOCK_SHOWS) {
+    for (const stock of STOCK_SHOWS_V2) {
       const recipe = stockRecipe(stock)
       const withSinks = compileShow(recipe, LIBRARIES)
       const withoutSinks = compileShow(recipe, LIBRARIES, { directColorSinks: false })

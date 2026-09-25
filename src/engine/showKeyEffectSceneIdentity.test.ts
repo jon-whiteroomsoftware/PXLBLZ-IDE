@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { normalizeShowClipEffects, showEffectsAreIdentity } from './showEffects'
-import { compileShowForArtifact } from './showPreviewArtifact'
+import { compileShow, type GeneratedShowArtifact } from './showCompiler'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import { LIBRARIES } from '../pixelblaze/libs'
+import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '../pixelblaze/stock/showsV2Compile'
 
 // #820: a member whose effect union includes luma/chroma keys must not be
 // keyed in scenes that author no key. identityShowEffect had no case for the
@@ -29,7 +32,7 @@ interface FrameStats {
   checksum: string
 }
 
-function sceneStats(timeMs: number, artifact: NonNullable<ReturnType<typeof compileShowForArtifact>['artifact']>): FrameStats {
+function sceneStats(timeMs: number, artifact: GeneratedShowArtifact): FrameStats {
   const runtime = createFastReplayRuntime({
     code: artifact.code,
     fxCode: artifact.fxCode,
@@ -54,12 +57,12 @@ function sceneStats(timeMs: number, artifact: NonNullable<ReturnType<typeof comp
 }
 
 describe('key effects stay scene-local in shared member stages (#820)', () => {
-  const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-compositing-key-effects')!
+  const fixture = stockShowV2ById('stock-show-showcase-compositing-key-effects')!
 
   it('compiles the Compositing and Key Effects showcase with every beat distinct', () => {
-    const compiled = compileShowForArtifact(fixture.show, [], undefined, {}, { stageDimension: 2 })
-    expect(compiled.error).toBeNull()
-    const artifact = compiled.artifact!
+    const prepared = prepareShowV2ForCompile(fixture, nativeStockSourceLookupV2(fixture), { libraries: LIBRARIES })
+    if (prepared.status !== 'ready') throw new Error(fixture.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+    const artifact = compileShow(prepared.recipe, LIBRARIES)
 
     // Rebuilt beats (#821), stack finale restored on black keys (#833):
     // Reference 0-3s, Layer Opacity 3-6s, Animated Opacity 6-9s, Luma Key

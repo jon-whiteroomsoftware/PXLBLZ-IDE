@@ -5,10 +5,11 @@ import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import type { MapPoint } from './maps/types'
 import { compileShow, type GeneratedShowArtifact, type ShowRecipe } from './showCompiler'
-import { compileShowForArtifact } from './showPreviewArtifact'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2, stockShowV2ById } from '@/pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 
 const SIDE = 16
 const MAP_POINTS: MapPoint[] = Array.from({ length: SIDE * SIDE }, (_, index) => ({
@@ -64,24 +65,27 @@ describe('spatial hold-and-lerp compile option (#937)', () => {
   })
 
   it('returns the ordinary direct-sink artifact when the hold is declined', () => {
-    const portable = STOCK_SHOWS.find((item) => item.id === 'stock-show-105-portable-zones')!
-    const plain = compileShowForArtifact(portable.show, [], undefined, {}, { stageDimension: 2 }).artifact!
-    const declined = compileShowForArtifact(portable.show, [], undefined, {}, { stageDimension: 2, spatialHold: { stride: 2, mode: 'lerp' } }).artifact!
+    const record = stockShowV2ById('stock-show-105-portable-zones')!
+    const prepared = prepareShowV2ForCompile(record, nativeStockSourceLookupV2(record), { libraries: LIBRARIES })
+    if (prepared.status !== 'ready') throw new Error(record.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+    const plain = compileShow(prepared.recipe, LIBRARIES)
+    const declined = compileShow(prepared.recipe, LIBRARIES, { spatialHold: { stride: 2, mode: 'lerp' } })
     expect(declined.summary.specializations.spatialHold).toMatchObject({ selected: false, reason: 'coordinate-routed' })
     expect(declined.code).toBe(plain.code)
   })
 
   it('wraps or declines every stock Show with a recorded reason', () => {
     const reasons: Record<string, number> = {}
-    for (const item of STOCK_SHOWS) {
-      const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2, spatialHold: { stride: 2, mode: 'lerp' } })
-      if (!compiled.artifact) throw new Error(`${item.id}: ${compiled.error}`)
-      const summary = compiled.artifact.summary.specializations.spatialHold
+    for (const item of STOCK_SHOWS_V2) {
+      const itemPrepared = prepareShowV2ForCompile(item, nativeStockSourceLookupV2(item), { libraries: LIBRARIES })
+      if (itemPrepared.status !== 'ready') throw new Error(item.id + ': ' + itemPrepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+      const artifact = compileShow(itemPrepared.recipe, LIBRARIES, { spatialHold: { stride: 2, mode: 'lerp' } })
+      const summary = artifact.summary.specializations.spatialHold
       reasons[summary.reason] = (reasons[summary.reason] ?? 0) + 1
-      expect(compiled.artifact.summary.resources.blockers, item.id).toEqual([])
+      expect(artifact.summary.resources.blockers, item.id).toEqual([])
       if (summary.selected) {
         // Total latch coverage: the entry's blend is the only native paint.
-        expect((compiled.artifact.expandedCode.match(/\brgb\(/g) ?? []).length, item.id).toBe(1)
+        expect((artifact.expandedCode.match(/\brgb\(/g) ?? []).length, item.id).toBe(1)
       }
     }
     console.log('#937 stock catalogue reasons', JSON.stringify(reasons))

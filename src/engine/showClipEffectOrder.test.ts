@@ -4,12 +4,16 @@
 // emitted Color & output chain took its sequence from whichever placement was
 // seen first. Both placements rendered the same picture with no error.
 import { describe, expect, it } from 'vitest'
-import type { ShowClipEffect, ShowRecord } from './personalContentRecords'
+import type { ShowClipEffect } from './personalContentRecords'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
-import { compileShowForArtifact } from './showPreviewArtifact'
+import { compileShow, type GeneratedShowArtifact } from './showCompiler'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import type { ShowRecordV2 } from './showCompositionV2'
 import { showEffectOrderBaseInstanceId, showEffectOrderVariantClipId } from './showEffects'
-import { stockShowById } from '@/pixelblaze/stock/shows'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
 
 const DIM_ID = 'shared-dim'
 const CUTOFF_ID = 'shared-cutoff'
@@ -17,31 +21,23 @@ const dim: ShowClipEffect = { id: DIM_ID, kind: 'brightness', brightness: 0.25 }
 const cutoff: ShowClipEffect = { id: CUTOFF_ID, kind: 'threshold', threshold: 0.2, amount: 1 }
 
 /**
- * 104's shape - one instance, four placements on one Zone - with the two
- * ordered Clips deliberately sharing Effect ids.
+ * 104's shape - one instance, four Clips on one Zone - with two opposite
+ * Effect orders authored natively (learn104V2 in showsV2.ts): a
+ * threshold-only Clip, a brightness-then-threshold Clip and a
+ * threshold-then-brightness Clip.
  */
-function sharedIdOrderingShow(): ShowRecord {
-  const base = stockShowById('stock-show-104-effects-and-ordering')!.show
-  const composition = base.composition!
-  const zone = composition.scenes[0].zones[0]
-  const main = zone.main.map((placement, index) => {
-    if (index === 2) return { ...placement, effects: [dim, cutoff] }
-    if (index === 3) return { ...placement, effects: [cutoff, dim] }
-    return placement
-  })
-  return {
-    ...base,
-    composition: {
-      ...composition,
-      scenes: [{ ...composition.scenes[0], zones: [{ ...zone, main }] }],
-    },
-  }
+function sharedIdOrderingShow(): ShowRecordV2 {
+  return structuredClone(stockShowV2ById('stock-show-104-effects-and-ordering')!)
 }
 
-function checksumAt(show: ShowRecord, timeMs: number): string {
-  const compiled = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2 })
-  expect(compiled.error).toBeNull()
-  const artifact = compiled.artifact!
+function compileOrderingShow(show: ShowRecordV2): GeneratedShowArtifact {
+  const prepared = prepareShowV2ForCompile(show, nativeStockSourceLookupV2(show), { libraries: LIBRARIES })
+  if (prepared.status !== 'ready') throw new Error(show.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+  return compileShow(prepared.recipe, LIBRARIES)
+}
+
+function checksumAt(show: ShowRecordV2, timeMs: number): string {
+  const artifact = compileOrderingShow(show)
   const side = 44
   const mapPoints = Array.from({ length: side * side }, (_, index) => ({
     sample: [(index % side) / (side - 1), Math.floor(index / side) / (side - 1)] as [number, number],
@@ -97,83 +93,57 @@ describe('Effect order conflict detection (#363)', () => {
 describe('Clip Effect ordering across placements of one instance (#363)', () => {
   it('renders two orders of the same Effect ids differently', () => {
     const show = sharedIdOrderingShow()
-    // Clip 3 is Dim then Cutoff, which destroys the picture. Clip 4 is Cutoff
-    // then Dim, which keeps it. They cannot be the same frame.
+    // clip-brightness-threshold is Dim then Cutoff, which destroys the picture.
+    // clip-threshold-brightness is Cutoff then Dim, which keeps it. They cannot
+    // be the same frame.
     expect(checksumAt(show, 10_000)).not.toBe(checksumAt(show, 14_000))
   })
 
   it('emits one Color & output chain per distinct Effect order', () => {
-    const compiled = compileShowForArtifact(sharedIdOrderingShow(), [], undefined, {}, { stageDimension: 2 })
-    expect(compiled.error).toBeNull()
+    const artifact = compileOrderingShow(sharedIdOrderingShow())
     // Each emitted chain computes luma once, so the coefficient counts chains.
-    const chains = compiled.artifact!.code.split('0.2126').length - 1
+    const chains = artifact.code.split('0.2126').length - 1
     expect(chains, 'Cutoff-only, Dim-then-Cutoff, and Cutoff-then-Dim are three orders')
       .toBeGreaterThanOrEqual(3)
   })
 
   it('still shares one chain when placements only differ by Effect values', () => {
-    // The merge exists so placements can vary constants, and a subset of the
-    // Effects, without paying for a second chain. Only a genuine order conflict
-    // should split them.
-    const base = stockShowById('stock-show-104-effects-and-ordering')!.show
-    const composition = base.composition!
-    const zone = composition.scenes[0].zones[0]
-    const main = zone.main.map((placement, index) => (
-      index >= 2
-        ? { ...placement, effects: [{ ...dim, brightness: index === 2 ? 0.25 : 0.6 }, cutoff] }
-        : placement
-    ))
-    const show: ShowRecord = {
-      ...base,
-      composition: {
-        ...composition,
-        scenes: [{ ...composition.scenes[0], zones: [{ ...zone, main }] }],
-      },
+    // Clips can vary constants without paying for a second chain. Only a
+    // genuine order conflict should split them.
+    const show = structuredClone(stockShowV2ById('stock-show-104-effects-and-ordering')!)
+    for (const clip of show.composition.clips) {
+      const key = clip.appearance.keys[0]
+      if (!key) throw new Error('104 clip has no appearance key.')
+      if (clip.id === 'clip-brightness-threshold') key.value.effects = [{ ...dim, brightness: 0.25 }, cutoff]
+      if (clip.id === 'clip-threshold-brightness') key.value.effects = [{ ...dim, brightness: 0.6 }, cutoff]
     }
-    const compiled = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2 })
-    expect(compiled.error).toBeNull()
-    const chains = compiled.artifact!.code.split('0.2126').length - 1
+    const artifact = compileOrderingShow(show)
+    const chains = artifact.code.split('0.2126').length - 1
     expect(chains, 'one Cutoff-only chain plus one shared Dim-then-Cutoff chain').toBe(2)
   })
 
   it('keeps a split placement bound to its instance for Property tracks', () => {
-    // Splitting gives the placement a variant clip id. Instance-scoped tracks
-    // resolve through the base id, so animation still reaches it.
+    // Instance-scoped tracks resolve through the instance id, so animation
+    // still reaches every Clip that shares it.
     const variant = showEffectOrderVariantClipId('garden', 1)
     expect(variant).not.toBe('garden')
     expect(showEffectOrderBaseInstanceId(variant)).toBe('garden')
     expect(showEffectOrderBaseInstanceId('garden')).toBe('garden')
 
-    const base = stockShowById('stock-show-104-effects-and-ordering')!.show
-    const composition = base.composition!
-    const zone = composition.scenes[0].zones[0]
-    const main = zone.main.map((placement, index) => {
-      if (index === 2) return { ...placement, effects: [dim, cutoff] }
-      if (index === 3) return { ...placement, effects: [cutoff, dim] }
-      return placement
-    })
-    const show: ShowRecord = {
-      ...base,
-      composition: {
-        ...composition,
-        scenes: [{
-          ...composition.scenes[0],
-          propertyTracks: [{
-            id: 'track-instance-speed',
-            target: { kind: 'instance-time-scale', instanceId: 'garden' },
-            keyframes: [
-              { id: 'a', timeMs: 0, value: 0.1, easing: { curve: 'linear' } },
-              { id: 'b', timeMs: 16_000, value: 0.9, easing: { curve: 'linear' } },
-            ],
-          }],
-          zones: [{ ...zone, main }],
-        }],
-      },
-    }
-    // The split member must still resolve its instance, or emission throws
-    // trying to bind the track to a clip it no longer recognizes.
-    const compiled = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2 })
-    expect(compiled.error).toBeNull()
-    expect(compiled.artifact!.code.split('0.2126').length - 1).toBeGreaterThanOrEqual(3)
+    const show = sharedIdOrderingShow()
+    show.composition.propertyTracks = [{
+      id: 'track-instance-speed',
+      target: { kind: 'instance-time-scale', instanceId: 'garden' },
+      activeStartMs: 0,
+      activeDurationMs: 16_000,
+      keyframes: [
+        { id: 'a', timeMs: 0, value: 0.1, easing: { curve: 'linear' } },
+        { id: 'b', timeMs: 16_000, value: 0.9, easing: { curve: 'linear' } },
+      ],
+    }]
+    // Every Clip must still resolve its instance, or emission throws trying
+    // to bind the track to a Clip it no longer recognizes.
+    const artifact = compileOrderingShow(show)
+    expect(artifact.code.split('0.2126').length - 1).toBeGreaterThanOrEqual(3)
   })
 })

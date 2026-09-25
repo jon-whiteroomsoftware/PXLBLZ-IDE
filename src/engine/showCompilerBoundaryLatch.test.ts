@@ -11,9 +11,11 @@ import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import type { MapPoint } from './maps/types'
 import type { GeneratedShowArtifact } from './showCompiler'
-import { compileShowForArtifact } from './showPreviewArtifact'
 import { LIBRARIES } from '@/pixelblaze/libs'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2, stockShowV2ById } from '@/pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import { compileShow } from './showCompiler'
 import { loadCachedWordCompiler } from '../../test/perf-harness/bytecodeOracle'
 import { compareVisualDrift } from '../../test/perf-harness/benchCore'
 
@@ -33,17 +35,17 @@ function checksums(artifact: Pick<GeneratedShowArtifact, 'code' | 'fxCode' | 'me
   return CHECKSUM_TIMES_MS.map((timeMs) => replay.advanceTo(timeMs, { stepMs: 250 }).checksum)
 }
 
-const compileStock = (item: (typeof STOCK_SHOWS)[number], boundaryLatchedDecode: boolean) => {
-  const compiled = compileShowForArtifact(item.show, [], undefined, LIBRARIES, { stageDimension: 2, boundaryLatchedDecode })
-  if (!compiled.artifact) throw new Error(`${item.id}: ${compiled.error}`)
-  return compiled.artifact
+const compileStock = (item: (typeof STOCK_SHOWS_V2)[number], boundaryLatchedDecode: boolean) => {
+  const prepared = prepareShowV2ForCompile(item, nativeStockSourceLookupV2(item), { libraries: LIBRARIES })
+  if (prepared.status !== 'ready') throw new Error(item.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+  return compileShow(prepared.recipe, LIBRARIES, { boundaryLatchedDecode })
 }
 
 describe('boundary-latched decode (#936)', () => {
   it('is exact across the stock catalogue in both preview modes and latches every shared cut-scene dispatcher', () => {
     const latched: string[] = []
     const reasons = new Map<string, number>()
-    for (const item of STOCK_SHOWS) {
+    for (const item of STOCK_SHOWS_V2) {
       const off = compileStock(item, false)
       const on = compileStock(item, true)
       const summary = on.summary.specializations.boundaryLatch
@@ -76,7 +78,7 @@ describe('boundary-latched decode (#936)', () => {
   }, 600_000)
 
   it('is detected by a shuffled render order: the order contract is load-bearing', () => {
-    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')!
+    const item = stockShowV2ById('stock-show-showcase-redline-installation')!
     const off = compileStock(item, false)
     const on = compileStock(item, true)
     const shuffle = (code: string) => code.replace('export function render2D(index, x, y) {', 'export function render2D(__i, x, y) {\n  var index = (__i * 7) % pixelCount')
@@ -94,17 +96,17 @@ describe('boundary-latched decode (#936)', () => {
   it('compiles on the Controller compiler (offline cache) when the cache is present', () => {
     const compiler = loadCachedWordCompiler()
     if (!compiler) return
-    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')!
+    const item = stockShowV2ById('stock-show-showcase-redline-installation')!
     const on = compileStock(item, true)
     expect(() => compiler(on.code)).not.toThrow()
   })
 
   it('stays exact under the spatial hold, whose stride-spaced visits step over zone boundaries (301, stride 4)', () => {
-    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-301-installation-mapping')!
+    const item = stockShowV2ById('stock-show-301-installation-mapping')!
     const compileHeld = (boundaryLatchedDecode: boolean) => {
-      const compiled = compileShowForArtifact(item.show, [], undefined, LIBRARIES, { stageDimension: 2, boundaryLatchedDecode, spatialHold: { stride: 4, mode: 'lerp' } })
-      if (!compiled.artifact) throw new Error(`${item.id}: ${compiled.error}`)
-      return compiled.artifact
+      const prepared = prepareShowV2ForCompile(item, nativeStockSourceLookupV2(item), { libraries: LIBRARIES })
+      if (prepared.status !== 'ready') throw new Error(item.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+      return compileShow(prepared.recipe, LIBRARIES, { boundaryLatchedDecode, spatialHold: { stride: 4, mode: 'lerp' } })
     }
     const off = compileHeld(false)
     const on = compileHeld(true)

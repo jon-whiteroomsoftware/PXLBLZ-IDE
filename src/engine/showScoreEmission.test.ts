@@ -1,37 +1,52 @@
 import { describe, expect, it } from 'vitest'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
-import { compileShowForArtifact } from './showPreviewArtifact'
+import { compileShow, type GeneratedShowArtifact } from './showCompiler'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
+import type { ShowRecordV2 } from './showCompositionV2'
+import { LIBRARIES } from '../pixelblaze/libs'
+import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '../pixelblaze/stock/showsV2Compile'
 
-function reference(id: string) {
-  const fixture = STOCK_SHOWS.find((candidate) => candidate.id === id)
-  if (!fixture) throw new Error(`Missing stock Show ${id}`)
-  return fixture.show
+function reference(id: string): ShowRecordV2 {
+  const record = stockShowV2ById(id)
+  if (!record) throw new Error('Missing stock Show ' + id)
+  return record
 }
 
-type CompiledArtifact = NonNullable<ReturnType<typeof compileShowForArtifact>['artifact']>
+function compileShowForArtifactV2(record: ShowRecordV2, showScoreSharing: 'none' | 'force') {
+  const prepared = prepareShowV2ForCompile(record, nativeStockSourceLookupV2(record), { libraries: LIBRARIES })
+  if (prepared.status !== 'ready') throw new Error(record.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+  return { artifact: compileShow(prepared.recipe, LIBRARIES, { showScoreSharing }), error: null as string | null }
+}
+
+type CompiledArtifact = GeneratedShowArtifact
 
 const SCORE_MAP_POINTS = Array.from({ length: 64 }, (_, index) => ({
   sample: [(index % 8) / 7, Math.floor(index / 8) / 7],
 }))
 
-function boundarySampleTimesMs(show: ReturnType<typeof reference>): number[] {
-  const transitionByScene = new Map((show.transitions ?? []).map((transition) => [transition.afterSceneId, transition]))
-  let cursorMs = 0
-  return show.scenes.flatMap((scene) => {
-    cursorMs += scene.durationMs
-    const transition = transitionByScene.get(scene.id)
-    if (!transition || transition.durationMs <= 0) return []
-    const startMs = cursorMs
-    cursorMs += transition.durationMs
-    return [startMs + 1, startMs + transition.durationMs / 2, cursorMs - 1]
-  })
+function boundarySampleTimesMs(record: ShowRecordV2): number[] {
+  const clips = new Map(record.composition.clips.map((clip) => [clip.id, clip]))
+  const times: number[] = []
+  for (const transition of record.composition.transitions) {
+    if (transition.durationMs <= 0) continue
+    const wholeOutputStart = transition.wholeOutput?.startMs
+    if (wholeOutputStart !== undefined) {
+      times.push(wholeOutputStart + 1, wholeOutputStart + transition.durationMs / 2, wholeOutputStart + transition.durationMs - 1)
+      continue
+    }
+    const from = clips.get(transition.participants[0]?.fromClipId ?? '')
+    if (!from) continue
+    const startMs = from.startMs + from.durationMs
+    times.push(startMs + 1, startMs + transition.durationMs / 2, startMs + transition.durationMs - 1)
+  }
+  return times
 }
 
 function boundaryChecksums(
   artifact: CompiledArtifact,
-  show: ReturnType<typeof reference>,
+  record: ShowRecordV2,
   fidelity: 'fast' | 'fidelity',
 ): string[] {
   const runtime = createFastReplayRuntime({
@@ -40,20 +55,14 @@ function boundaryChecksums(
     metadata: artifact.metadata,
     dimension: nativeDimension(artifact.metadata.renderFns),
   }, { mapPoints: SCORE_MAP_POINTS, randomSeed: 542, fidelity })
-  return boundarySampleTimesMs(show).map((timeMs) => runtime.advanceTo(timeMs, { stepMs: 100 }).checksum)
+  return boundarySampleTimesMs(record).map((timeMs) => runtime.advanceTo(timeMs, { stepMs: 100 }).checksum)
 }
 
 describe('table-driven routed Show score emission (#542)', () => {
   it('compiles the Easing reference as two stacks, one kernel, and frame-time easing data', () => {
     const show = reference('stock-show-reference-easing')
-    const baseline = compileShowForArtifact(show, [], undefined, {}, {
-      stageDimension: 2,
-      showScoreSharing: 'none',
-    })
-    const candidate = compileShowForArtifact(show, [], undefined, {}, {
-      stageDimension: 2,
-      showScoreSharing: 'force',
-    })
+    const baseline = compileShowForArtifactV2(show, 'none')
+    const candidate = compileShowForArtifactV2(show, 'force')
 
     expect(baseline.error).toBeNull()
     // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566),
@@ -80,14 +89,8 @@ describe('table-driven routed Show score emission (#542)', () => {
 
   it('leaves incompatible Property Animation byte-for-byte on the unrolled emitter', () => {
     const show = reference('stock-show-reference-property-animation')
-    const baseline = compileShowForArtifact(show, [], undefined, {}, {
-      stageDimension: 2,
-      showScoreSharing: 'none',
-    })
-    const forced = compileShowForArtifact(show, [], undefined, {}, {
-      stageDimension: 2,
-      showScoreSharing: 'force',
-    })
+    const baseline = compileShowForArtifactV2(show, 'none')
+    const forced = compileShowForArtifactV2(show, 'force')
 
     expect(forced.artifact?.code).toBe(baseline.artifact?.code)
     expect(forced.artifact?.summary.specializations.showScore).toMatchObject({
@@ -100,10 +103,7 @@ describe('table-driven routed Show score emission (#542)', () => {
   it('matches the unrolled emitter at every Easing boundary in Fast and Precise playback', () => {
     const show = reference('stock-show-reference-easing')
     const compile = (showScoreSharing: 'none' | 'force') => {
-      const result = compileShowForArtifact(show, [], undefined, {}, {
-        stageDimension: 2,
-        showScoreSharing,
-      })
+      const result = compileShowForArtifactV2(show, showScoreSharing)
       if (!result.artifact) throw new Error(result.error ?? 'Easing reference did not compile.')
       return result.artifact
     }
@@ -130,14 +130,8 @@ describe('table-driven routed Show score emission (#542)', () => {
     // the paced references pay unrolled bytes and must still fit the
     // activation ceiling.
     const show = reference(id)
-    const baseline = compileShowForArtifact(show, [], undefined, {}, {
-      stageDimension: 2,
-      showScoreSharing: 'none',
-    })
-    const forced = compileShowForArtifact(show, [], undefined, {}, {
-      stageDimension: 2,
-      showScoreSharing: 'force',
-    })
+    const baseline = compileShowForArtifactV2(show, 'none')
+    const forced = compileShowForArtifactV2(show, 'force')
 
     expect(forced.artifact?.code).toBe(baseline.artifact?.code)
     expect(forced.artifact?.summary.specializations.showScore).toMatchObject({

@@ -6,9 +6,12 @@ import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import type { MapPoint } from './maps/types'
 import { GENERATED_FRAME_CONSTANT_PREFIX } from './showGeneratedFrameConstantHoisting'
-import { compileShowForArtifact } from './showPreviewArtifact'
 import { PIXELBLAZE_MAX_PERSISTENT_GLOBALS } from './showVmResourceLedger'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { compileShow } from './showCompiler'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import { STOCK_SHOWS_V2, stockShowV2ById } from '@/pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 
 const MAP_SIDE = 16
 const MAP_POINTS: MapPoint[] = Array.from({ length: MAP_SIDE * MAP_SIDE }, (_, index) => ({
@@ -17,14 +20,11 @@ const MAP_POINTS: MapPoint[] = Array.from({ length: MAP_SIDE * MAP_SIDE }, (_, i
 const CHECKSUM_TIMES_MS = [0, 2_500, 9_000, 17_500]
 
 function compileStock(id: string, hoist: boolean) {
-  const item = STOCK_SHOWS.find((candidate) => candidate.id === id)
-  if (!item) throw new Error(`missing stock Show ${id}`)
-  const compiled = compileShowForArtifact(item.show, [], undefined, {}, {
-    stageDimension: 2,
-    generatedFrameConstantHoisting: hoist,
-  })
-  if (!compiled.artifact) throw new Error(`${id}: ${compiled.error}`)
-  return compiled.artifact
+  const record = stockShowV2ById(id)
+  if (!record) throw new Error('missing stock Show ' + id)
+  const prepared = prepareShowV2ForCompile(record, nativeStockSourceLookupV2(record), { libraries: LIBRARIES })
+  if (prepared.status !== 'ready') throw new Error(id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+  return compileShow(prepared.recipe, LIBRARIES, { generatedFrameConstantHoisting: hoist })
 }
 
 function renderBody(code: string): string {
@@ -67,7 +67,7 @@ describe('generated frame-constant hoisting in compiled Shows (#928)', () => {
     let before = 0
     let after = 0
     const residual: string[] = []
-    for (const item of STOCK_SHOWS) {
+    for (const item of STOCK_SHOWS_V2) {
       const off = compileStock(item.id, false)
       const on = compileStock(item.id, true)
       const offSites = perPixelSiteCount(off.expandedCode)

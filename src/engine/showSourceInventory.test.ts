@@ -1,12 +1,16 @@
 import { compileShow, type ShowSourceInventoryCategory } from './showCompiler'
-import { compileShowForArtifact, compileShowForPreview } from './showPreviewArtifact'
+import { compileShowForArtifact } from './showPreviewArtifact'
 import {
   buildDeliveredShowSourceInventory,
   buildShowArtifactInventoryModel,
   describeShowArtifactPatterns,
   type DeliveredShowSourceInventory,
 } from './showSourceInventory'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { describeShowArtifactPatternsV2 } from './showV2RouteDelivery'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { createDefaultShow } from './showModel'
 
 describe('Show source inventory', () => {
@@ -383,16 +387,17 @@ describe('Show source inventory', () => {
   })
 
   it('explains Overture Pattern totals without treating compiled machines as simultaneous (#878)', () => {
-    const show = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-remix-overture')!.show
-    const compiled = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2 })
-    const artifact = compiled.artifact!
+    const record = stockShowV2ById('stock-show-remix-overture')!
+    const prepared = prepareShowV2ForCompile(record, nativeStockSourceLookupV2(record), { libraries: LIBRARIES })
+    if (prepared.status !== 'ready') throw new Error(record.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+    const artifact = compileShow(prepared.recipe, LIBRARIES)
     const inventory = buildDeliveredShowSourceInventory(
       artifact.summary.sourceInventory,
       artifact.code,
       artifact.code,
     )
     const model = buildShowArtifactInventoryModel(inventory, {
-      patterns: describeShowArtifactPatterns(show, inventory),
+      patterns: describeShowArtifactPatternsV2(record, inventory),
       budgetBytes: artifact.summary.measuredDeviceBudgetBytes,
     })
     const marquee = model.rows.find((row) => row.id === 'pattern:stock:LumaMarquee')!
@@ -484,9 +489,10 @@ describe('Show source inventory', () => {
     // routing-render-plans chunks. Stack-wrapper interning shares those
     // wrappers, so the category now aggregates without scene owners and the
     // marginal cost of one more scene is table rows plus a dispatch branch.
-    const wipe = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-transitions')!
-    const compiled = compileShowForPreview(wipe.show, [], undefined, {})
-    const inventory = compiled.artifact!.summary.sourceInventory
+    const wipe = stockShowV2ById('stock-show-reference-wipe-transitions')!
+    const wipePrepared = prepareShowV2ForCompile(wipe, nativeStockSourceLookupV2(wipe), { libraries: LIBRARIES })
+    if (wipePrepared.status !== 'ready') throw new Error(wipe.id + ': ' + wipePrepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+    const inventory = compileShow(wipePrepared.recipe, LIBRARIES).summary.sourceInventory
     const sceneChunks = inventory.chunks.filter((chunk) => (
       chunk.category === 'routing-render-plans' && /^scene-\d+$/.test(chunk.ownerId ?? '')
     ))
@@ -500,9 +506,10 @@ describe('Show source inventory', () => {
   })
 
   it('keeps table-driven score and Transition source in stable named categories (#545)', () => {
-    const easing = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-easing')!
-    const compiled = compileShowForPreview(easing.show, [], undefined, {})
-    const inventory = compiled.artifact!.summary.sourceInventory
+    const easing = stockShowV2ById('stock-show-reference-easing')!
+    const easingPrepared = prepareShowV2ForCompile(easing, nativeStockSourceLookupV2(easing), { libraries: LIBRARIES })
+    if (easingPrepared.status !== 'ready') throw new Error(easing.id + ': ' + easingPrepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+    const inventory = compileShow(easingPrepared.recipe, LIBRARIES).summary.sourceInventory
     const bytesByCategory = inventory.chunks.reduce<Partial<Record<ShowSourceInventoryCategory, number>>>(
       (totals, chunk) => ({
         ...totals,

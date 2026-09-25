@@ -6,10 +6,11 @@ import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import type { MapPoint } from './maps/types'
 import { compileShow, type GeneratedShowArtifact, type ShowRecipe } from './showCompiler'
-import { compileShowForArtifact } from './showPreviewArtifact'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '@/pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 
 const MAP_SIDE = 16
 const MAP_POINTS: MapPoint[] = Array.from({ length: MAP_SIDE * MAP_SIDE }, (_, index) => ({
@@ -80,11 +81,11 @@ describe('member loop unrolling in compiled Shows (#931)', () => {
 
   it('is exact across the stock catalogue in both preview modes', () => {
     let changed = 0
-    for (const item of STOCK_SHOWS) {
+    for (const item of STOCK_SHOWS_V2) {
       const compile = (loopUnrolling: boolean) => {
-        const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2, loopUnrolling })
-        if (!compiled.artifact) throw new Error(`${item.id}: ${compiled.error}`)
-        return compiled.artifact
+        const prepared = prepareShowV2ForCompile(item, nativeStockSourceLookupV2(item), { libraries: LIBRARIES })
+        if (prepared.status !== 'ready') throw new Error(item.id + ': ' + prepared.issues.map((issue) => issue.path + ': ' + issue.message).join('; '))
+        return compileShow(prepared.recipe, LIBRARIES, { loopUnrolling })
       }
       const off = compile(false)
       const on = compile(true)
