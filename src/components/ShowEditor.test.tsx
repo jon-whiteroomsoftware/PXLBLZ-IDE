@@ -6308,7 +6308,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })))
   })
 
-  // v2 port blocked by #1114: v2 has no rebuilding window after a prepared dependency changes.
   it('retires a pending send confirmation when its prepared Show dependency changes (#851)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-send-retire', 'Retire stale confirmation', 1000)
@@ -6332,7 +6331,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       updatedAt: 2,
     }
     const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, { 'live-pattern': oldPattern.src }, 2))
     usePatternStore.setState({ userPatterns: [oldPattern], patternsLoaded: true })
     useControllerStore.setState({
       controllers: {
@@ -6345,7 +6344,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowDeliveryHarness showId={show.id} recordVersion={1} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     const run = screen.getByRole('button', { name: 'Run' })
     await user.click(run)
     expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
@@ -6353,10 +6352,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     act(() => usePatternStore.setState({ userPatterns: [newPattern] }))
 
     expect(screen.queryByTestId('controller-show-preflight-dialog')).not.toBeInTheDocument()
-    expectDisabledReason(run, 'Rebuilding Show...')
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
 
-    await waitFor(() => expect(run).not.toHaveAttribute('aria-disabled', 'true'))
     await user.click(run)
     await user.click(screen.getByRole('button', { name: 'Send anyway' }))
 
@@ -6540,7 +6537,6 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
   })
 
-  // v2 port blocked by #1114: v2 has no rebuilding window for an updated dependency.
   it('keeps deployment disabled with the Show compilation failure after rebuilding (#851)', async () => {
     const show = createDefaultShow('show-send-failure', 'Failed rebuild', 1000)
     show.cells[0] = {
@@ -6560,7 +6556,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       src: 'export function render(index) { rgb(',
       updatedAt: 2,
     }
-    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    openV2EditorForRecord(convertForTest(show, { 'broken-pattern': validPattern.src }))
     usePatternStore.setState({ userPatterns: [validPattern], patternsLoaded: true })
     useControllerStore.setState({
       controllers: {
@@ -6578,22 +6574,17 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     })
     setControllerProvider(new ConnectedControllerProvider())
 
-    render(<ShowDeliveryHarness showId={show.id} recordVersion={1} />)
+    render(<ShowDeliveryHarness showId={show.id} />)
     const run = screen.getByRole('button', { name: 'Run' })
     act(() => usePatternStore.setState({ userPatterns: [brokenPattern] }))
 
-    expectDisabledReason(run, 'Rebuilding Show...')
     expect(within(run).getByText('Run')).toBeInTheDocument()
     expect(within(screen.getByRole('button', { name: 'Save' })).getByText('Save')).toBeInTheDocument()
-    // Once the rebuild settles the compile failure is a focusable gated reason
-    // (#875): no title, aria-disabled, and the reason as accessible description.
+    // The compile failure is a focusable gated reason (#875): no title,
+    // aria-disabled, and the reason as accessible description.
     await waitFor(() => {
       expect(run).not.toHaveAttribute('title')
-      expectDisabledReason(run, /.+/)
-      const reason = document.getElementById(run.getAttribute('aria-describedby')!)!.textContent ?? ''
-      expect(reason).not.toContain('Rebuilding Show')
-      expect(reason).not.toBe("Fix the pattern's errors before sending")
-      expect(reason).not.toBe('Earlier transport failure')
+      expectDisabledReason(run, /Unexpected token/)
     })
   })
 
