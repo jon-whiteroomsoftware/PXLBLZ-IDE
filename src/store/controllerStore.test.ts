@@ -756,6 +756,127 @@ describe('controllerStore (keyed)', () => {
     })
   })
 
+  it('skips an Installation v2 Show whose contract names no map, even on a present installed map (#1129)', async () => {
+    const record = convertForTest(createShowWithOutputContract(
+      'show-installation',
+      'Installed wall',
+      createInstallationShowOutputContract({ outputMapId: null, pixelCount: 8 }),
+      1,
+    ))
+    setControllerProfiles([{ ...managedShowProfile(), lastKnownPixelCount: 8 }], [record])
+    const provider = await connectInstallationController(squareMapAt(8))
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({ status: 'present' })
+
+    await store().reconcileControllerProfile('profile-1')
+
+    expect(provider.saved).toEqual([])
+    expect(provider.compiledSources).toEqual([])
+    expect(store().controllerReconciliations['profile-1']).toMatchObject({
+      managedCount: 0,
+      unmanagedCount: 1,
+    })
+  })
+
+  describe('installed map re-checked at write time (#1129)', () => {
+    // The executor asks shouldContinue, which lists profiles, before each job;
+    // once the plan is running, that read is the interleaving point.
+    function interleaveOnContinue(
+      profile: ControllerProfile,
+      shows: ShowRecordV2[],
+      onRunning: () => void,
+    ): void {
+      setPersonalContentProvider({
+        ...demoPersonalContentProvider,
+        id: 'controller-profile-test',
+        listControllerProfiles: async () => {
+          if (store().controllerReconciliations[profile.id]?.phase === 'running') onRunning()
+          return [profile]
+        },
+        listShowDocumentsV2: async () => shows,
+      })
+    }
+
+    function replaceInstalledMapFingerprint(): void {
+      useControllerStore.setState((state) => {
+        const entry = state.controllers['10.0.0.5']
+        if (entry.installedMap?.status !== 'present') return state
+        return {
+          controllers: {
+            ...state.controllers,
+            '10.0.0.5': { ...entry, installedMap: { ...entry.installedMap, fingerprint: 'changed-map' } },
+          },
+        }
+      })
+    }
+
+    it('fails an Installation v2 Show job when the installed map changes after planning', async () => {
+      const profile = { ...managedShowProfile(), lastKnownPixelCount: 8 }
+      interleaveOnContinue(profile, [installationShowV2()], replaceInstalledMapFingerprint)
+      const provider = await connectInstallationController(squareMapAt(8))
+
+      await store().reconcileControllerProfile('profile-1')
+
+      expect(provider.saved).toEqual([])
+      expect((await getPushRecords())['10.0.0.5']['show:show-installation']).toMatchObject({
+        profileSignature: 'old-signature',
+        artifactHash: 'old-hash',
+      })
+      const reconciliation = store().controllerReconciliations['profile-1']
+      expect(reconciliation.phase).toBe('attention')
+      expect(reconciliation.programs).toEqual([
+        expect.objectContaining({
+          programId: 'SHOW0002',
+          state: 'failed',
+          message: expect.stringContaining('installed map changed'),
+        }),
+      ])
+    })
+
+    it('saves an Installation v2 Show job when the installed map is unchanged', async () => {
+      const profile = { ...managedShowProfile(), lastKnownPixelCount: 8 }
+      interleaveOnContinue(profile, [installationShowV2()], () => {})
+      const provider = await connectInstallationController(squareMapAt(8))
+
+      await store().reconcileControllerProfile('profile-1')
+
+      expect(provider.saved.map((write) => write.opts.id)).toEqual(['SHOW0002'])
+      expect(store().controllerReconciliations['profile-1']).toMatchObject({ phase: 'current' })
+    })
+
+    it('still saves a later Portable v2 Show job in the same plan after the map changes', async () => {
+      const profile = { ...managedShowProfile(), lastKnownPixelCount: 8 }
+      interleaveOnContinue(profile, [installationShowV2(), portableShowV2()], replaceInstalledMapFingerprint)
+      const provider = await connectInstallationController(squareMapAt(8))
+      await setControllerBindings({
+        '10.0.0.5': { 'show:show-installation': 'SHOW0002', 'show:show-portable': 'SHOW0001' },
+      })
+      await setPushRecords({
+        '10.0.0.5': {
+          ...(await getPushRecords())['10.0.0.5'],
+          'show:show-portable': {
+            transforms: [],
+            profileSignature: 'old-signature',
+            artifactHash: 'old-hash',
+            stampedAt: '2026-07-12T00:00:00.000Z',
+            name: 'Portable arena',
+          },
+        },
+      })
+      provider.programs = [
+        { id: 'SHOW0002', name: 'Installed wall' },
+        { id: 'SHOW0001', name: 'Portable arena' },
+      ]
+
+      await store().reconcileControllerProfile('profile-1')
+
+      const programs = store().controllerReconciliations['profile-1'].programs
+      expect(programs.map((program) => program.programId)).toEqual(['SHOW0002', 'SHOW0001'])
+      expect(programs[0]).toMatchObject({ state: 'failed' })
+      expect(programs[1]).toMatchObject({ state: 'current' })
+      expect(provider.saved.map((write) => write.opts.id)).toEqual(['SHOW0001'])
+    })
+  })
+
   it('reconciles a Portable v2 Show while the installed map is still loading (#1129)', async () => {
     setControllerProfiles([{ ...managedShowProfile(), lastKnownPixelCount: 1_024 }], [portableShowV2()])
     await bindManagedShow('old-signature')
