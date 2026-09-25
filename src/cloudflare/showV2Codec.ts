@@ -1,6 +1,6 @@
 import { Validator } from '@cfworker/json-schema'
-import showRecordV1SchemaText from '../../schemas/show-record.schema.json?raw'
-import showRecordV2SchemaText from '../../schemas/show-record-v2.provisional.schema.json?raw'
+import showRecordV1Schema from '../../schemas/show-record.schema.json'
+import showRecordV2Schema from '../../schemas/show-record-v2.provisional.schema.json'
 import {
   validateShowRecordV2Domain,
   type ShowCompositionV2ValidationIssue,
@@ -12,9 +12,9 @@ let structuralValidator: Validator | undefined
 
 function validator(): Validator {
   if (!structuralValidator) {
-    structuralValidator = new Validator(JSON.parse(showRecordV2SchemaText), '2020-12', false)
+    structuralValidator = new Validator(structuredClone(showRecordV2Schema), '2020-12', false)
     structuralValidator.addSchema(
-      JSON.parse(showRecordV1SchemaText),
+      structuredClone(showRecordV1Schema),
       'https://pxlblz.dev/schemas/show-record.schema.json',
     )
   }

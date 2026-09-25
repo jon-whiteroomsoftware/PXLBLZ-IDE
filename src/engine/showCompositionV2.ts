@@ -1,9 +1,9 @@
 import { groupDefinitionAsRecord, groupDuration, groupOccurrenceDuration, materializeShowGroupsV2 } from './showGroupsV2'
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv'
 import Ajv2020 from 'ajv/dist/2020'
-import draft07MetaSchemaText from 'ajv/dist/refs/json-schema-draft-07.json?raw'
-import showRecordV1SchemaText from '../../schemas/show-record.schema.json?raw'
-import showRecordV2SchemaText from '../../schemas/show-record-v2.provisional.schema.json?raw'
+import draft07MetaSchema from 'ajv/dist/refs/json-schema-draft-07.json'
+import showRecordV1Schema from '../../schemas/show-record.schema.json'
+import showRecordV2Schema from '../../schemas/show-record-v2.provisional.schema.json'
 import type {
   ShowBoundaryTransition,
   ShowClipBlink,
@@ -677,7 +677,7 @@ let cachedV2StructuralValidator: ValidateFunction | undefined
 export function validateShowRecordV1Structure(record: unknown): ShowCompositionV2ValidationIssue[] {
   if (!cachedV1StructuralValidator) {
     cachedV1StructuralValidator = new Ajv({ allErrors: true, strict: false, strictNumbers: true })
-      .compile(JSON.parse(showRecordV1SchemaText))
+      .compile(structuredClone(showRecordV1Schema))
   }
   return structuralIssues(cachedV1StructuralValidator, record)
 }
@@ -685,9 +685,9 @@ export function validateShowRecordV1Structure(record: unknown): ShowCompositionV
 function v2StructuralValidator(): ValidateFunction {
   if (!cachedV2StructuralValidator) {
     const ajv = new Ajv2020({ allErrors: true, strict: false, strictNumbers: true })
-    ajv.addMetaSchema(JSON.parse(draft07MetaSchemaText))
-    ajv.addSchema(JSON.parse(showRecordV1SchemaText), 'https://pxlblz.dev/schemas/show-record.schema.json')
-    cachedV2StructuralValidator = ajv.compile(JSON.parse(showRecordV2SchemaText))
+    ajv.addMetaSchema(structuredClone(draft07MetaSchema))
+    ajv.addSchema(structuredClone(showRecordV1Schema), 'https://pxlblz.dev/schemas/show-record.schema.json')
+    cachedV2StructuralValidator = ajv.compile(structuredClone(showRecordV2Schema))
   }
   return cachedV2StructuralValidator
 }
