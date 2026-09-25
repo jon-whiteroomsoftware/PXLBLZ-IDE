@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1042",
+  "route": "/PXLBLZ-IDE/studio/shows/70d195e9-992c-4f43-ab6b-c78211178b2c?agent=1",
+  "operation": "Opened the personal Show with the Agent drawer at 1440x900 and sent an utterance absent from the local scripted bridge catalogue, producing a visible service-refused activity row. Captured the settled drawer at 1440x900 and 390x844; both runs asserted no agent-chat-retry element or Retry button, and the narrow capture asserted the drawer was open.",
+  "captures": [
+    ".wrsp/ui-proof/1042-p3-agent-drawer-failure-desktop.png",
+    ".wrsp/ui-proof/1042-p3-agent-drawer-failure-narrow.png"
+  ],
+  "capturedAtCommit": "043ce95a2310b41fa965c1ccd60f2b05fc2c1623"
+}
