@@ -2392,6 +2392,8 @@ export function ShowEditor({
     ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === backingStageMapId)
     : undefined
   const stageDimension = savedStageMap?.dim
+  // A Show with no Stage map authors Transitions as 1D until a map is chosen (#1122).
+  const transitionStageDimension = (stageDimension ?? 1) as 1 | 2 | 3
   const savedStageFixedCount = savedStageMap
     ? 'generator' in savedStageMap
       ? savedStageMap.generator === 'custom' ? savedStageMap.points?.length : undefined
@@ -3628,10 +3630,10 @@ export function ShowEditor({
           {transitionPaletteId && boundaryTransitionsV2?.[transitionPaletteId] !== undefined && (
             <ShowTransitionPalette
               paletteKey={savedShowV2?.id ?? ''}
-              stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
+              stageDimensions={transitionStageDimension}
               onPreviewItem={(item, presetId) => {
                 if (!savedShowV2) return
-                const candidate = v2PaletteCandidate(transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
+                const candidate = v2PaletteCandidate(transitionPaletteId, item, presetId, transitionStageDimension)
                 if (!candidate) {
                   useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
                   return
@@ -3652,7 +3654,7 @@ export function ShowEditor({
                 useShowTransportStore.getState().requestSeek(savedShowV2.id, transitionPaletteReturnMsRef.current)
               }}
               onApplyItem={(item, presetId) => {
-                const applied = commitV2BoundaryPaletteApply(transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
+                const applied = commitV2BoundaryPaletteApply(transitionPaletteId, item, presetId, transitionStageDimension)
                 if (applied && savedShowV2) useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
                 return applied
               }}
@@ -3661,7 +3663,7 @@ export function ShowEditor({
           )}
           {(layerTransitionTarget?.v2Cut || layerTransitionTarget?.v2GroupCut) && layerTransitionPlan && (
             <ShowLayerTransitionPalette
-              stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
+              stageDimensions={transitionStageDimension}
               maxDurationMs={layerTransitionPlan.maxDurationMs}
               disabledReason={layerTransitionPlan.enabled ? undefined : layerTransitionPlan.reason}
               applyError={layerTransitionApplyError}
@@ -3682,7 +3684,7 @@ export function ShowEditor({
                       crossfadePolicy: 'live-live',
                     },
                     newPersonalContentId,
-                    (stageDimension ?? 2) as 1 | 2 | 3,
+                    transitionStageDimension,
                   )
                   if (v2CutPlan.status !== 'ready') {
                     setLayerTransitionApplyError(

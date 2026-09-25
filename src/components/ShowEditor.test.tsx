@@ -2754,6 +2754,37 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.queryByRole('dialog', { name: 'Choose Transition' })).not.toBeInTheDocument()
   })
 
+  it('offers only 1D Transition variants when the Show has no Stage map (#1122)', async () => {
+    const user = userEvent.setup()
+    const noMapSource = createDefaultShow('show-no-map-palette-1122', 'No map palette', 1000)
+    const noMapEditor = openV2EditorForRecord(convertForTest(noMapSource))
+    useShowTransportStore.getState().openShow(noMapSource.id, 62_000)
+    const noMapView = render(<ShowEditor showId={noMapEditor.showId} />)
+    await user.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await user.click(within(screen.getByRole('region', { name: 'Transition properties' }))
+      .getByRole('button', { name: /Change$/ }))
+    const palette = screen.getByRole('dialog', { name: 'Choose Transition' })
+    expect(within(palette).queryByRole('button', { name: 'Use Star Transition' })).not.toBeInTheDocument()
+    expect(within(palette).queryByRole('button', { name: 'Use Split Transition' })).not.toBeInTheDocument()
+    expect(within(palette).getByRole('button', { name: 'Use Linear Transition' })).toBeInTheDocument()
+    noMapView.unmount()
+
+    const mappedSource = { ...createDefaultShow('show-2d-map-palette-1122', '2D map palette', 1000), stageMapId: 'plane' }
+    const mappedEditor = openV2EditorForRecord(convertForTest(mappedSource))
+    useShowTransportStore.getState().openShow(mappedSource.id, 62_000)
+    render(<ShowEditor showId={mappedEditor.showId} />)
+    await user.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await user.click(within(screen.getByRole('region', { name: 'Transition properties' }))
+      .getByRole('button', { name: /Change$/ }))
+    const mappedPalette = screen.getByRole('dialog', { name: 'Choose Transition' })
+    expect(within(mappedPalette).getByRole('button', { name: 'Use Star Transition' })).toBeInTheDocument()
+    expect(within(mappedPalette).getByRole('button', { name: 'Use Split Transition' })).toBeInTheDocument()
+  })
+
   it('edits the incoming Clip brightness from the boundary destination row (#1111-A2)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-v2-boundary-brightness-target', 'Boundary brightness target', 1000)
