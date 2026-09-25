@@ -2,19 +2,17 @@
 // Run with: npx tsx test/perf-harness/issue514.ts
 
 import { bundle } from '../../src/engine/bundle'
-import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
 import { compileShow } from '../../src/engine/showCompiler'
 import { compilerVintageOptions } from '../../src/engine/showCompilerVintages'
-import { compileShowForPreview } from '../../src/engine/showPreviewArtifact'
 import {
   buildShowVmResourceLedger,
   countShowPersistentGlobals,
   type ShowVmResourceLedger,
 } from '../../src/engine/showVmResourceLedger'
 import { LIBRARIES } from '../../src/pixelblaze/libs'
-import { SOURCE_STOCK_MAPS } from '../../src/pixelblaze/stock/maps/stockCatalogue'
 import { DEMOS } from '../../src/pixelblaze/stock/patterns'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '../../src/pixelblaze/stock/showsV2'
+import { compileStockShowV2State } from './showV2Fixture'
 
 type CensusCaseKind =
   | 'stock-pattern'
@@ -95,28 +93,18 @@ function stockPatternCases(): ShowVmHeadroomCase[] {
 }
 
 function savedShowCases(): ShowVmHeadroomCase[] {
-  return STOCK_SHOWS.filter((stockShow) => (
-    stockShow.show.outputContract?.kind === 'portable-2d'
-    || stockShow.show.outputContract?.pixelCount === 2_000
+  return STOCK_SHOWS_V2.filter((record) => (
+    record.outputContract.kind === 'portable-2d'
+    || (record.outputContract.kind === 'installation' && record.outputContract.pixelCount === 2_000)
   )).map((stockShow) => {
-    const show = stockShow.show
-    const map = show.stageMapId
-      ? SOURCE_STOCK_MAPS.find((candidate) => candidate.id === show.stageMapId)
-      : undefined
-    const compiled = compileShowForPreview(
-      show,
-      [],
-      installationPhysicalZones(show),
-      {},
-      { stageDimension: map?.dim ?? 2, ...compilerVintageOptions('issue-514-resource-census') },
-    )
+    const compiled = compileStockShowV2State(stockShow.id, compilerVintageOptions('issue-514-resource-census'))
     if (!compiled.artifact) {
       return {
         id: `show:${stockShow.id}`,
         name: stockShow.name,
         kind: 'saved-show' as const,
         representative: true,
-        memberCount: show.composition?.patternInstances.length ?? show.cells.length,
+        memberCount: stockShow.composition.patternInstances.length,
         pixelCount: 2_000,
         memberAllocationCount: 0,
         unboundedAllocationCount: 0,

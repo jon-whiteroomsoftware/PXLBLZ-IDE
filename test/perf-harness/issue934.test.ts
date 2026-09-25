@@ -5,12 +5,12 @@
 import { describe, expect, it } from 'vitest'
 import { bundle } from '../../src/engine/bundle'
 import { approximateShowMemberTranscendentals } from '../../src/engine/showMemberTranscendentalApproximation'
-import { compileShowForArtifact } from '../../src/engine/showPreviewArtifact'
 import { LIBRARIES } from '../../src/pixelblaze/libs'
 import { DEMOS } from '../../src/pixelblaze/stock/patterns'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '../../src/pixelblaze/stock/showsV2'
 import { compareVisualDrift } from './benchCore'
 import { issue934Fixtures } from './issue934'
+import { compileStockShowV2State } from './showV2Fixture'
 
 describe('approximate transcendentals census (#934)', () => {
   it('rewrites the expected stock Patterns and declines the rest with reasons', () => {
@@ -50,9 +50,9 @@ describe('approximate transcendentals census (#934)', () => {
 
   it('leaves every stock Show byte-identical with the option off and changes only member-bearing artifacts with it on', () => {
     const changed: string[] = []
-    for (const item of STOCK_SHOWS) {
+    for (const item of STOCK_SHOWS_V2) {
       const compile = (on?: boolean) => {
-        const compiled = compileShowForArtifact(item.show, [], undefined, LIBRARIES, { stageDimension: 2, ...(on === undefined ? {} : { memberTranscendentalApproximation: on }) })
+        const compiled = compileStockShowV2State(item.id, on === undefined ? {} : { memberTranscendentalApproximation: on })
         if (!compiled.artifact) throw new Error(`${item.id}: ${compiled.error}`)
         return compiled.artifact
       }

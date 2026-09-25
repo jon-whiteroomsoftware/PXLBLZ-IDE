@@ -19,11 +19,9 @@
 
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
-import { installationPhysicalZones } from '@/engine/showInstallationCoverage'
-import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
-import { LIBRARIES } from '@/pixelblaze/libs'
+import { STOCK_SHOWS_V2 } from '@/pixelblaze/stock/showsV2'
 import { wave2Fixtures } from './issue555'
+import { compileStockShowV2State } from './showV2Fixture'
 
 const CONTENTION_REASONS = new Set([
   'explicit-conflict',
@@ -78,14 +76,8 @@ describe('render-target plane contention census (#718)', () => {
       }
     }
 
-    for (const stock of STOCK_SHOWS) {
-      const compiled = compileShowForArtifact(
-        stock.show,
-        [],
-        installationPhysicalZones(stock.show),
-        LIBRARIES,
-        { stageDimension: 2 },
-      )
+    for (const stock of STOCK_SHOWS_V2) {
+      const compiled = compileStockShowV2State(stock.id, {})
       expect(compiled.error, stock.id).toBeNull()
       record(stock.id, compiled.artifact!.summary.renderTargetPlan)
     }

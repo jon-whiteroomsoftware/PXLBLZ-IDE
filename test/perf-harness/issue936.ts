@@ -15,10 +15,7 @@
 // `floor(b / A)` produce, so the divisions that follow see identical
 // operands and the checksum holds), and dispatches on the latched
 // placement with the arms grouped by identical per-pixel body.
-import { compileShowForArtifact } from '../../src/engine/showPreviewArtifact'
-import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
-import { LIBRARIES } from '../../src/pixelblaze/libs'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
+import { compileStockShowV2 } from './showV2Fixture'
 
 export const ISSUE936_PIXEL_COUNTS = [256, 500] as const
 
@@ -42,11 +39,7 @@ export function issue936Candidates(): Issue936Candidates {
   // The spike's string surgery expects the per-pixel dispatcher, so the
   // exact artifact is compiled with the shipped latch off; the build's own
   // emission is qualified in showCompilerBoundaryLatch.test.ts.
-  const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')
-  if (!item) throw new Error('Redline stock Show missing')
-  const compiled = compileShowForArtifact(item.show, [], installationPhysicalZones(item.show), LIBRARIES, { stageDimension: 2, boundaryLatchedDecode: false })
-  if (!compiled.artifact) throw new Error(`Redline: ${compiled.error}`)
-  const exact = compiled.artifact.code
+  const exact = compileStockShowV2('stock-show-showcase-redline-installation', { boundaryLatchedDecode: false }).code
   return { exact, ...latchRedline(exact) }
 }
 

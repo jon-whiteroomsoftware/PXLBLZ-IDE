@@ -14,22 +14,16 @@
 // under test first with a >= 20 s hold.
 
 import { bundle } from '../../src/engine/bundle'
-import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
 import type { ShowRecipe } from '../../src/engine/showCompiler'
-import { showRecordToCompileRecipe } from '../../src/engine/showModel'
-import {
-  sourceForShowCell,
-  sourceForShowPatternRef,
-} from '../../src/engine/showPreviewArtifact'
 import { LIBRARIES } from '../../src/pixelblaze/libs'
 import { DEMOS } from '../../src/pixelblaze/stock/patterns'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
 import { acceptanceRecipe } from './issue520'
 import { effectTaxRecipe, hsvSteadyStateRecipe, mirrorRecipe, WAVE2_MASTER_PIXEL_COUNT } from './issue555'
 import {
   buildShowAttributionArtifacts,
   type ShowAttributionArtifacts,
 } from './showAttribution'
+import { stockShowV2Recipe } from './showV2Fixture'
 
 export const ISSUE924_PIXEL_COUNTS = [256, 500] as const
 export const ISSUE924_MASTER_PIXEL_COUNT = WAVE2_MASTER_PIXEL_COUNT
@@ -99,25 +93,6 @@ export function heavySteadyRecipe(
   }
 }
 
-function stockShowRecipe(id: string, routing: 'index' | 'coordinate'): ShowRecipe {
-  const item = STOCK_SHOWS.find((candidate) => candidate.id === id)
-  if (!item) throw new Error(`Stock Show ${id} is missing.`)
-  return showRecordToCompileRecipe(item.show, {
-    byCellId: Object.fromEntries(item.show.cells.map((cell) => [
-      cell.id,
-      sourceForShowCell(cell, []),
-    ])),
-    byPatternInstanceId: Object.fromEntries(
-      (item.show.composition?.patternInstances ?? []).map((instance) => [
-        instance.id,
-        sourceForShowPatternRef(instance.pattern, []),
-      ]),
-    ),
-    ...(routing === 'index' ? { controllerZones: installationPhysicalZones(item.show) } : {}),
-    stageDimension: 2,
-  })
-}
-
 function fixture(
   id: Issue924FixtureId,
   routing: Issue924Fixture['routing'],
@@ -151,7 +126,7 @@ export function issue924Fixtures(): Issue924Fixture[] {
     fixture(
       'redline-reference',
       'index',
-      stockShowRecipe('stock-show-showcase-redline-installation', 'index'),
+      stockShowV2Recipe('stock-show-showcase-redline-installation'),
       'Stock Redline Installation: five index-routed zones; at 256/500 px only zone 0 renders.',
     ),
     fixture(
@@ -206,13 +181,13 @@ export function issue924Fixtures(): Issue924Fixture[] {
     fixture(
       'portable-zones',
       'coordinate',
-      stockShowRecipe('stock-show-105-portable-zones', 'coordinate'),
+      stockShowV2Recipe('stock-show-105-portable-zones'),
       'Stock Portable zones Show: coordinate-predicate routing with per-pixel square-fill index synthesis.',
     ),
     fixture(
       'aperture-shapes',
       'coordinate',
-      stockShowRecipe('stock-show-reference-aperture-shapes', 'coordinate'),
+      stockShowV2Recipe('stock-show-reference-aperture-shapes'),
       'Stock aperture-shapes reference: the densest per-pixel ceil(sqrt(...)) census hit (10 sites).',
     ),
     fixture(

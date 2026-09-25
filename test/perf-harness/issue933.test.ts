@@ -9,13 +9,13 @@
 // exact one in both modes (max 8-bit channel delta 0 over the window).
 import { describe, expect, it } from 'vitest'
 import { bundle } from '../../src/engine/bundle'
-import { compileShowForArtifact } from '../../src/engine/showPreviewArtifact'
 import { lowerShowMemberPow } from '../../src/engine/showMemberPowLowering'
 import { LIBRARIES } from '../../src/pixelblaze/libs'
 import { DEMOS } from '../../src/pixelblaze/stock/patterns'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
+import { STOCK_SHOWS_V2 } from '../../src/pixelblaze/stock/showsV2'
 import { qualifyDisplayExact } from './benchCore'
 import { issue933Candidates } from './issue933'
+import { compileStockShowV2State } from './showV2Fixture'
 
 describe('integer-pow lowering census (#933)', () => {
   it('classifies every pow site in the stock Patterns; the eligible set is pinned', () => {
@@ -37,14 +37,14 @@ describe('integer-pow lowering census (#933)', () => {
     expect(Object.keys(census).length).toBeGreaterThanOrEqual(12)
   })
 
-  const compileStock = (item: (typeof STOCK_SHOWS)[number], memberPowLowering?: boolean) => {
-    const compiled = compileShowForArtifact(item.show, [], undefined, LIBRARIES, { stageDimension: 2, ...(memberPowLowering === undefined ? {} : { memberPowLowering }) })
+  const compileStock = (item: (typeof STOCK_SHOWS_V2)[number], memberPowLowering?: boolean) => {
+    const compiled = compileStockShowV2State(item.id, memberPowLowering === undefined ? {} : { memberPowLowering })
     if (!compiled.artifact) throw new Error(`${item.id}: ${compiled.error}`)
     return compiled.artifact
   }
 
   it('leaves every stock Show artifact byte-identical with the option off (the default)', () => {
-    for (const item of STOCK_SHOWS) {
+    for (const item of STOCK_SHOWS_V2) {
       const exact = compileStock(item)
       const explicit = compileStock(item, false)
       expect(explicit.code).toBe(exact.code)
@@ -54,7 +54,7 @@ describe('integer-pow lowering census (#933)', () => {
 
   it('changes only artifacts with eligible member sites, and each is display-exact in both modes', () => {
     const changed: string[] = []
-    for (const item of STOCK_SHOWS) {
+    for (const item of STOCK_SHOWS_V2) {
       const exact = compileStock(item)
       const lowered = compileStock(item, true)
       const summary = lowered.summary.specializations.powLowering

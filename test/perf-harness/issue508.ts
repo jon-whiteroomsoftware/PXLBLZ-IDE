@@ -8,15 +8,14 @@
 import { performance } from 'node:perf_hooks'
 import { createFastReplayRuntime } from '../../src/engine/fastReplay'
 import { nativeDimension } from '../../src/engine/loadPattern'
-import { compileShowForPreview } from '../../src/engine/showPreviewArtifact'
-import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
+import { buildShowStageOccurrenceProjectionV2 } from '../../src/engine/showStagePresentationV2'
 import {
   applyShowStageMaskPacked,
-  buildShowStageProjection,
   createShowStageMaskPlan,
 } from '../../src/engine/zonePreview'
 import { SOURCE_STOCK_MAPS } from '../../src/pixelblaze/stock/maps/stockCatalogue'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
+import { stockShowV2ById } from '../../src/pixelblaze/stock/showsV2'
+import { compileStockShowV2 } from './showV2Fixture'
 
 interface Summary {
   mean: number
@@ -41,33 +40,34 @@ function summarize(samples: number[]): Summary {
 const frames = 180
 const warmupFrames = 30
 const deltaMs = 1000 / 60
-const redline = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')
+const redline = stockShowV2ById('stock-show-showcase-redline-installation')
 if (!redline) throw new Error('Redline Installation fixture is missing.')
 const map = SOURCE_STOCK_MAPS.find((candidate) => candidate.id === 'redline-stage-2d')
 if (!map) throw new Error('Redline Stage map is missing.')
 
 const mapPoints = map.resolve(2_000)
 const compileStarted = performance.now()
-const compiled = compileShowForPreview(redline.show, [], installationPhysicalZones(redline.show), {}, {
-  stageDimension: 2,
-})
+const artifact = compileStockShowV2(redline.id, {})
 const compileMs = performance.now() - compileStarted
-if (!compiled.artifact) throw new Error(compiled.error ?? 'Redline Show did not compile.')
 
 const runtimeStarted = performance.now()
 const runtime = createFastReplayRuntime({
-  code: compiled.artifact.code,
-  fxCode: compiled.artifact.fxCode,
-  metadata: compiled.artifact.metadata,
-  dimension: nativeDimension(compiled.artifact.metadata.renderFns),
+  code: artifact.code,
+  fxCode: artifact.fxCode,
+  metadata: artifact.metadata,
+  dimension: nativeDimension(artifact.metadata.renderFns),
 }, {
   mapPoints,
   randomSeed: 508,
   fidelity: 'fast',
 })
 const runtimeInitializationMs = performance.now() - runtimeStarted
-const projection = buildShowStageProjection(redline.show.zones, mapPoints.length, {
-  controllerZones: installationPhysicalZones(redline.show),
+// The Stage mask follows the Layout occurrence active at zero, as the v2 Stage picks it.
+const initialOccurrence = redline.composition.layoutOccurrences.find((occurrence) => occurrence.startMs === 0)
+if (!initialOccurrence) throw new Error('Redline has no Layout occurrence at zero.')
+const projection = buildShowStageOccurrenceProjectionV2(redline, initialOccurrence.layoutId, {
+  mapPoints,
+  splitPosition: 0,
 })
 const maskPlan = createShowStageMaskPlan(projection, mapPoints.length)
 
