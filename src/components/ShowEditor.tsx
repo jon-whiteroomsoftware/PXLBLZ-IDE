@@ -66,7 +66,6 @@ import {
   formatShowRoutingRanges,
   parseShowRoutingRanges,
   showLoopDurationMs,
-  projectShowTimeline,
   transitionCost,
   ZONE_COLORS,
   showRoutingLayoutKindLabel,
@@ -84,7 +83,6 @@ import { type ShowPropertyLaneProjection } from '@/engine/showPropertyLaneProjec
 import { installationCoverageBlockingMessage, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { validateInstallationCoverageV2 } from '@/engine/showInstallationCoverageV2'
 import { showV2DeliveryRefusal } from '@/engine/showV2RouteDelivery'
-import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { resolveBundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
   projectResolvedShowClipSummary,
@@ -127,9 +125,6 @@ import {
   type ShowTimelineViewModel,
 } from '@/engine/showTimelineViewModel'
 import {
-  type ShowUnifiedTimelineJunctionProjection,
-} from '@/engine/showUnifiedTimelineProjection'
-import {
   nextShowTimelineTraversalTarget,
   projectShowTimelineViewTraversalTargets,
   showTimelineTraversalTargetKey,
@@ -145,19 +140,12 @@ import {
   planShowV2ClipAtTopmostAvailableLayer,
 } from '@/engine/showV2ClipAddPlacement'
 import {
-  insertShowLayerTransition,
-  planShowGroupLayerTransitionInsertion,
-  planShowLayerTransitionInsertion,
-  resizeShowLayerTransition,
-  resetShowLayerTransitionToCut,
   showLayerTransitionsConnectedToClip,
 } from '@/engine/showLayerTransitionAuthoring'
 import { deleteShowClipInShow, type ShowClipDeletionResult } from '@/engine/showClipDeletion'
 import {
   deleteShowGroupOccurrence,
-  insertShowGroupLayerTransition,
   projectShowGroupRuntimePatternInstances,
-  resizeShowGroupLayerTransition,
   type ShowGroupSelection,
 } from '@/engine/showGroupModel'
 import { type ShowEpeExport, type ShowEpeExportOptions } from '@/engine/showEpeExport'
@@ -195,7 +183,6 @@ import { planShowV2BoundaryPaletteApply, planShowV2BoundaryTransitionChanges, pl
 import { planShowV2GroupLayerTransitionInsertion, planShowV2LayerTransitionInsertion, planShowV2LayerTransitionInsertionForClip } from '@/engine/showV2LayerTransitionInsertion'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import {
-  replaceShowBoundaryTransition,
   showBoundaryTransitionParameterChanges,
   showBoundaryTransitionPresentationKey,
   showTransitionChangesForPresentation,
@@ -349,7 +336,6 @@ import type {
   ShowCell,
   ShowClipTransform,
   ShowCompositionV1,
-  ShowLayerTransition,
   ShowRecord,
   ShowPatternRef,
   ShowRoutingDirection,
@@ -716,14 +702,7 @@ type ShowPatternOption = {
   group: PatternComboboxOption['group']
 }
 
-/**
- * The junction whose Layer Transition popover is open (#1065).
- *
- * `settings` is what the popover draws, and both backings supply it. `legacy`
- * is v1's own junction record, which still owns insertion, resize and Reset to
- * Cut; the authored-v2 backing carries none, so those commands resolve as
- * no-change results there instead of reaching a legacy owner.
- */
+/** The junction whose Layer Transition popover is open. */
 type ShowLayerTransitionTarget = {
   settings: { kind: ShowTransitionKind; durationMs: number } | null
   fromName: string
@@ -732,7 +711,6 @@ type ShowLayerTransitionTarget = {
   groupOccurrenceId?: string
   groupTransitionId?: string
   transitionId?: string
-  legacy?: ShowUnifiedTimelineJunctionProjection
   v2Cut?: { junctionKey: string }
   v2GroupCut?: { occurrenceId: string; fromClipId: string; toClipId: string }
 }
@@ -1183,7 +1161,6 @@ export function ShowEditor({
   const showV2SaveFailure = useShowStore((state) => state.showV2SaveFailure)
   const dismissShowV2SaveFailure = useShowStore((state) => state.dismissShowV2SaveFailure)
   const retryShowV2SaveFailure = useShowStore((state) => state.retryShowV2SaveFailure)
-  const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
   const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
   const removeZone = useShowStore((state) => state.removeZone)
   const showNoteOpen = useShowEditorSessionStore((state) => (
@@ -1338,24 +1315,6 @@ export function ShowEditor({
   // Where the transport returns when a palette preview is restored. The palette
   // itself no longer owns a record, so its caller captures this as it opens.
   const transitionPaletteReturnMsRef = useRef(0)
-  // v1's candidate snapshot: the Show built for a hovered catalogue item is
-  // kept and reused when that same item is applied, so Apply persists exactly
-  // the record the Stage previewed rather than a second computation of it.
-  const transitionPaletteCandidateRef = useRef<{ key: string; show: ShowRecord } | null>(null)
-  const legacyPaletteCandidate = (
-    show: ShowRecord,
-    transitionId: string,
-    item: ShowToolkitPresentationItem,
-    presetId?: string,
-    stageDimensions: 1 | 2 | 3 = 2,
-  ): ShowRecord => {
-    const key = `${transitionId}:${item.key}:${presetId ?? ''}:${stageDimensions}`
-    const cached = transitionPaletteCandidateRef.current
-    if (cached?.key === key) return cached.show
-    const changed = replaceShowBoundaryTransition(show, transitionId, item, presetId, stageDimensions)
-    transitionPaletteCandidateRef.current = { key, show: changed }
-    return changed
-  }
   // Slice 5c live preview: the candidate a hovered catalogue item would apply,
   // planned exactly as commitV2BoundaryPaletteApply plans it. Cached per
   // transition:item:preset key so a re-hover reuses the record; the cache
@@ -1392,9 +1351,9 @@ export function ShowEditor({
   // still-active trial is re-published. The ref guards the clear path so a
   // palette candidate is never mistaken for this effect's publication.
   const lessonStagePublishedV2Ref = useRef<ShowRecordV2 | null>(null)
-  const v2PalettePreviewActive = recordVersion === 2 && transitionPaletteId !== null
+  const v2PalettePreviewActive = transitionPaletteId !== null
   useEffect(() => {
-    if (recordVersion === 2 && !v2PalettePreviewActive) {
+    if (!v2PalettePreviewActive) {
       const store = useShowPreviewOverrideStore.getState()
       if (lessonProjectionV2 && savedShowV2 && lessonProjectionV2 !== savedShowV2) {
         lessonStagePublishedV2Ref.current = lessonProjectionV2
@@ -1412,7 +1371,7 @@ export function ShowEditor({
       const store = useShowPreviewOverrideStore.getState()
       if (published && store.showV2 === published) store.clear(published.id)
     }
-  }, [lessonProjectionV2, recordVersion, savedShowV2, v2PalettePreviewActive])
+  }, [lessonProjectionV2, savedShowV2, v2PalettePreviewActive])
   const [layerTransitionTarget, setLayerTransitionTarget] = useState<ShowLayerTransitionTarget | null>(null)
   // A refused insertion used to return silently, so choosing a Transition did
   // nothing at all: no change, no error, no closed panel (#363).
@@ -2803,9 +2762,7 @@ export function ShowEditor({
     document.addEventListener('pointerdown', handleOutsidePointerDown, true)
     return () => document.removeEventListener('pointerdown', handleOutsidePointerDown, true)
   }, [closeDetailPanel, detailPanelOpen, selection])
-  // The Stage map belongs to whichever record backs the editor; Place is offered
-  // on a 2D Stage either way (#1065).
-  const backingStageMapId = recordVersion === 2 ? savedShowV2?.stageMapId : activeShow?.stageMapId
+  const backingStageMapId = savedShowV2?.stageMapId
   const savedStageMap = backingStageMapId
     ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === backingStageMapId)
     : undefined
@@ -2815,10 +2772,8 @@ export function ShowEditor({
       ? savedStageMap.generator === 'custom' ? savedStageMap.points?.length : undefined
       : savedStageMap.bakedCount
     : undefined
-  const spatialRoutingLayout = recordVersion === 2
-    ? savedShowV2?.zoneLayouts.find((candidate) => !candidate.logical)
-    : activeShow?.routingLayouts.find((candidate) => !candidate.logical)
-  const spatialBackingContract = recordVersion === 2 ? savedShowV2?.outputContract : activeShow?.outputContract
+  const spatialRoutingLayout = savedShowV2?.zoneLayouts.find((candidate) => !candidate.logical)
+  const spatialBackingContract = savedShowV2?.outputContract
   const spatialSelectionUnavailableReason = spatialBackingContract?.kind === 'installation'
     ? !spatialRoutingLayout
       ? 'Spatial selection needs a physical routing layout.'
@@ -3154,20 +3109,9 @@ export function ShowEditor({
   const zoneMapV2 = useMemo(() => (
     recordVersion === 2 && lessonProjectionV2 ? projectShowEditorZoneMapV2(lessonProjectionV2) : null
   ), [recordVersion, lessonProjectionV2])
-  const layerTransitionPlan = activeShow && timelineComposition && layerTransitionTarget?.legacy
-    ? layerTransitionTarget.groupOccurrenceId
-      ? planShowGroupLayerTransitionInsertion(activeShow, timelineComposition, {
-          occurrenceId: layerTransitionTarget.groupOccurrenceId,
-          fromPlacementId: layerTransitionTarget.legacy.fromPlacementId,
-          toPlacementId: layerTransitionTarget.legacy.toPlacementId,
-        })
-      : planShowLayerTransitionInsertion(activeShow, timelineComposition, {
-          fromPlacementId: layerTransitionTarget.legacy.fromPlacementId,
-          toPlacementId: layerTransitionTarget.legacy.toPlacementId,
-        })
-    : recordVersion === 2 && layerTransitionTarget?.v2Cut && savedShowV2
+  const layerTransitionPlan = layerTransitionTarget?.v2Cut && savedShowV2
       ? planShowV2LayerTransitionInsertion(preparedV2Capture?.record ?? savedShowV2, layerTransitionTarget.v2Cut.junctionKey)
-      : recordVersion === 2 && layerTransitionTarget?.v2GroupCut && savedShowV2
+      : layerTransitionTarget?.v2GroupCut && savedShowV2
         ? planShowV2GroupLayerTransitionInsertion(
             preparedV2Capture?.record ?? savedShowV2,
             layerTransitionTarget.v2GroupCut.occurrenceId,
@@ -3568,7 +3512,7 @@ export function ShowEditor({
     downloadBrowserFile(filename, Uint8Array.from(bytes), 'application/gzip')
   }
 
-  if (recordVersion === 2 && savedShowV2 && spatialZoneSelection && savedShowV2.outputContract.kind === 'installation' && savedStageMap?.dim === 2) {
+  if (savedShowV2 && spatialZoneSelection && savedShowV2.outputContract.kind === 'installation' && savedStageMap?.dim === 2) {
     const zone = savedShowV2.zones.find((candidate) => candidate.id === spatialZoneSelection.zoneId)
     const map = resolveMap(savedStageMap.id, userMaps)
     const resolved = applyNormalizeMode(map.resolve(savedShowV2.outputContract.pixelCount), 'contain')
@@ -3588,41 +3532,6 @@ export function ShowEditor({
             points={points}
             onCancel={() => setSpatialZoneSelection(null)}
             onCommit={(indexes) => { commitV2ZonePlan((record) => planShowV2PhysicalZoneSelection(record, spatialZoneSelection.layoutId, zone.id, indexes)); setSpatialZoneSelection(null) }}
-          />
-        </FieldActivityContext.Provider>
-      )
-    }
-  }
-
-  if (legacyShow && spatialZoneSelection && legacyShow.outputContract?.kind === 'installation' && savedStageMap?.dim === 2) {
-    const zone = legacyShow.zones.find((candidate) => candidate.id === spatialZoneSelection.zoneId)
-    const map = resolveMap(savedStageMap.id, userMaps)
-    const resolved = applyNormalizeMode(map.resolve(legacyShow.outputContract.pixelCount), 'contain')
-    if (zone && resolved.length === legacyShow.outputContract.pixelCount) {
-      const points = resolved.map((point) => {
-        const raw = point.pos ?? point.sample
-        return { x: raw[0] ?? 0.5, y: raw[1] ?? 0.5 }
-      })
-      return (
-        <FieldActivityContext.Provider value={fieldActivity}>
-          <ShowZoneSpatialSelector
-            key={JSON.stringify([legacyShow.id, spatialZoneSelection.layoutId, zone.id, savedStageMap.id])}
-            show={legacyShow}
-            zone={zone}
-            layoutId={spatialZoneSelection.layoutId}
-            mapName={savedStageMap.name}
-            points={points}
-            onCancel={() => setSpatialZoneSelection(null)}
-            onCommit={(indexes) => {
-              const next = updateShowPhysicalZoneSelection(
-                legacyShow,
-                spatialZoneSelection.layoutId,
-                zone.id,
-                indexes,
-              )
-              updateShowInBackground(legacyShow.id, next)
-              setSpatialZoneSelection(null)
-            }}
           />
         </FieldActivityContext.Provider>
       )
@@ -3914,7 +3823,7 @@ export function ShowEditor({
                 timeColumnsOverride={timeColumnsV2}
                 transitionSettingsOverride={transitionSettingsV2}
                 boundaryTransitionIdsOverride={boundaryTransitionIdsV2}
-                zoneLayoutsOverride={recordVersion === 2 ? savedShowV2?.zoneLayouts ?? null : null}
+                zoneLayoutsOverride={savedShowV2?.zoneLayouts ?? null}
                 sampleRepeatAtOverride={sampleRepeatAtV2}
                 boundaryTransitionsOverride={boundaryTransitionsV2}
                 clipSummarySourcesOverride={clipSummarySourcesV2}
@@ -4253,7 +4162,6 @@ export function ShowEditor({
                   onUpdateGroupClipPatternV2={commitV2GroupClipPattern}
                   onOpenTransitions={(transitionId) => {
                     transitionPaletteReturnMsRef.current = useShowTransportStore.getState().positionMs
-                    transitionPaletteCandidateRef.current = null
                     transitionPaletteCandidateV2Ref.current = null
                     setTransitionPaletteId(transitionId)
                   }}
@@ -4294,38 +4202,12 @@ export function ShowEditor({
             </ShowEntityDetailPanel>
             )
           })}
-          {transitionPaletteId && (legacyShow
-            ? legacyShow.transitions?.some((transition) => (
-                transition.id === transitionPaletteId && transition.kind !== 'routing'
-              ))
-            : boundaryTransitionsV2?.[transitionPaletteId] !== undefined) && (
+          {transitionPaletteId && boundaryTransitionsV2?.[transitionPaletteId] !== undefined && (
             <ShowTransitionPalette
-              // v1 owned this lifecycle by Show id, and still does. A palette
-              // is mounted for one boundary at a time, so this also keeps the
-              // captured return position and candidate snapshot for its life.
-              paletteKey={(legacyShow ?? savedShowV2)?.id ?? ''}
+              paletteKey={savedShowV2?.id ?? ''}
               stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
-              // v1 keeps every owner the palette used to hold itself: the
-              // candidate record, the preview override and the transport seek.
-              // The v2 preview builds the same candidate Apply plans and shows
-              // it on the Stage without admission, history or save (#1066
-              // slice 5c); Apply writes through the transition-edit door
-              // (#1066 slice 5b).
               onPreviewItem={(item, presetId) => {
-                if (legacyShow) {
-                  const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
-                  useShowPreviewOverrideStore.getState().preview(changed)
-                  const boundary = projectShowTimeline(changed).boundaryTransitions
-                    .find((entry) => entry.id === transitionPaletteId)
-                  if (boundary) {
-                    useShowTransportStore.getState().requestSeek(
-                      legacyShow.id,
-                      boundary.startMs + (boundary.endMs - boundary.startMs) / 2,
-                    )
-                  }
-                  return
-                }
-                if (recordVersion !== 2 || !savedShowV2) return
+                if (!savedShowV2) return
                 const candidate = v2PaletteCandidate(transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
                 if (!candidate) {
                   useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
@@ -4342,39 +4224,19 @@ export function ShowEditor({
                 }
               }}
               onRestorePreview={() => {
-                if (legacyShow) {
-                  useShowPreviewOverrideStore.getState().clear(legacyShow.id)
-                  useShowTransportStore.getState().requestSeek(legacyShow.id, transitionPaletteReturnMsRef.current)
-                  return
-                }
-                if (recordVersion !== 2 || !savedShowV2) return
+                if (!savedShowV2) return
                 useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
                 useShowTransportStore.getState().requestSeek(savedShowV2.id, transitionPaletteReturnMsRef.current)
               }}
               onApplyItem={(item, presetId) => {
-                if (!legacyShow) {
-                  const applied = commitV2BoundaryPaletteApply(transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
-                  if (applied && savedShowV2) useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
-                  return applied
-                }
-                const changed = legacyPaletteCandidate(legacyShow, transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
-                const transition = changed.transitions?.find((entry) => entry.id === transitionPaletteId)
-                if (!transition) return false
-                const { id, afterSceneId: _afterSceneId, ...changes } = transition
-                // A key the candidate drops (direction on a 1D Stage) must clear the stored value (#1077).
-                const current = legacyShow.transitions?.find((entry) => entry.id === transitionPaletteId)
-                const cleared: Record<string, undefined> = {}
-                for (const key of Object.keys(current ?? {})) {
-                  if (key !== 'id' && key !== 'afterSceneId' && !(key in transition)) cleared[key] = undefined
-                }
-                void updateBoundaryTransition(legacyShow.id, id, { ...cleared, ...changes })
-                useShowPreviewOverrideStore.getState().clear(legacyShow.id)
-                return true
+                const applied = commitV2BoundaryPaletteApply(transitionPaletteId, item, presetId, (stageDimension ?? 2) as 1 | 2 | 3)
+                if (applied && savedShowV2) useShowPreviewOverrideStore.getState().clear(savedShowV2.id)
+                return applied
               }}
               onClose={() => setTransitionPaletteId(null)}
             />
           )}
-          {(layerTransitionTarget?.legacy?.kind === 'cut' || layerTransitionTarget?.v2Cut || layerTransitionTarget?.v2GroupCut) && layerTransitionPlan && (
+          {(layerTransitionTarget?.v2Cut || layerTransitionTarget?.v2GroupCut) && layerTransitionPlan && (
             <ShowLayerTransitionPalette
               stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
               maxDurationMs={layerTransitionPlan.maxDurationMs}
@@ -4386,7 +4248,7 @@ export function ShowEditor({
                 if (layerTransitionTarget.v2Cut) {
                   if (!layerTransitionPlan || !layerTransitionPlan.enabled) return
                   const capture = preparedV2CaptureRef.current
-                  if (recordVersion !== 2 || !savedShowV2 || readOnly || !capture || capture.prepared.status === 'refused') return
+                  if (!savedShowV2 || readOnly || !capture || capture.prepared.status === 'refused') return
                   const v2CutPlan = planShowV2TransitionEdit(
                     capture.record,
                     {
@@ -4446,41 +4308,6 @@ export function ShowEditor({
                   }).catch(() => {})
                   return
                 }
-                if (!legacyShow || !timelineComposition || !layerTransitionPlan.enabled) return
-                const legacyJunction = layerTransitionTarget.legacy
-                if (!legacyJunction) return
-                const changes = showTransitionChangesForPresentation(item, undefined, (stageDimension ?? 2) as 1 | 2 | 3)
-                const { kind, durationMs: _catalogueDuration, ...parameters } = changes
-                if (!kind || kind === 'cut' || kind === 'routing') return
-                const transition: ShowLayerTransition = {
-                  ...parameters,
-                  id: newPersonalContentId(),
-                  fromPlacementId: legacyJunction.fromPlacementId,
-                  toPlacementId: legacyJunction.toPlacementId,
-                  kind,
-                  durationMs: Math.min(durationMs, layerTransitionPlan.maxDurationMs),
-                  easing: changes.easing ?? { curve: 'linear' },
-                  ...(kind === 'crossfade' ? { crossfadePolicy: 'live-live' } : {}),
-                }
-                const nextComposition = layerTransitionTarget.groupOccurrenceId
-                  ? insertShowGroupLayerTransition(legacyShow, timelineComposition, {
-                      occurrenceId: layerTransitionTarget.groupOccurrenceId,
-                      transition,
-                    })
-                  : insertShowLayerTransition(legacyShow, timelineComposition, transition)
-                if (nextComposition === timelineComposition) {
-                  setLayerTransitionApplyError(
-                    `${item.label} could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.`,
-                  )
-                  return
-                }
-                setLayerTransitionApplyError(null)
-                setLayerTransitionTarget(null)
-                updateShowInBackground(legacyShow.id, {
-                  ...legacyShow,
-                  composition: nextComposition,
-                  updatedAt: Date.now(),
-                })
               }}
               onClose={() => {
                 setLayerTransitionApplyError(null)
@@ -4498,7 +4325,6 @@ export function ShowEditor({
               toName={layerTransitionTarget.toName}
               anchor={layerTransitionTarget.anchor}
               onDurationChange={(durationMs) => {
-                if (recordVersion === 2) {
                   // Every refusal, including these early returns, names a reason (#1098).
                   if (!savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
                   const capture = preparedV2CaptureRef.current
@@ -4533,32 +4359,8 @@ export function ShowEditor({
                     if (applied) setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
                     return undefined
                   }, () => undefined)
-                }
-                // Layer Transition resize is not connected for the v2 backing
-                // in this tracer; it resolves here before any legacy owner.
-                if (!legacyShow || !timelineComposition || !layerTransitionTarget.legacy) return
-                const nextComposition = layerTransitionTarget.groupOccurrenceId
-                  ? resizeShowGroupLayerTransition(legacyShow, timelineComposition, {
-                      occurrenceId: layerTransitionTarget.groupOccurrenceId,
-                      transitionId: layerTransitionTarget.legacy.id,
-                      durationMs,
-                    })
-                  : resizeShowLayerTransition(
-                      legacyShow,
-                      timelineComposition,
-                      layerTransitionTarget.legacy.id,
-                      durationMs,
-                    )
-                if (nextComposition === timelineComposition) return
-                setLayerTransitionTarget(null)
-                updateShowInBackground(legacyShow.id, {
-                  ...legacyShow,
-                  composition: nextComposition,
-                  updatedAt: Date.now(),
-                })
               }}
               onResetToCut={() => {
-                if (recordVersion === 2) {
                   // Every refusal, including these early returns, names a reason (#1098).
                   if (!savedShowV2 || readOnly) return panelRefusal(PANEL_UNAVAILABLE)
                   const capture = preparedV2CaptureRef.current
@@ -4582,28 +4384,6 @@ export function ShowEditor({
                     if (outcome.status === 'applied') setLayerTransitionTarget((current) => (current?.transitionId === transitionId ? null : current))
                     return panelCommitRefusal(outcome)
                   }, () => undefined)
-                }
-                // Reset to Cut is unconnected for the v2 backing, exactly as
-                // resize is: the control stays offered and changes nothing.
-                if (!legacyShow || !timelineComposition || !layerTransitionTarget.legacy) return
-                const nextComposition = layerTransitionTarget.groupOccurrenceId
-                  ? resizeShowGroupLayerTransition(legacyShow, timelineComposition, {
-                      occurrenceId: layerTransitionTarget.groupOccurrenceId,
-                      transitionId: layerTransitionTarget.legacy.id,
-                      durationMs: 0,
-                    })
-                  : resetShowLayerTransitionToCut(
-                      legacyShow,
-                      timelineComposition,
-                      layerTransitionTarget.legacy.id,
-                    )
-                if (nextComposition === timelineComposition) return
-                setLayerTransitionTarget(null)
-                updateShowInBackground(legacyShow.id, {
-                  ...legacyShow,
-                  composition: nextComposition,
-                  updatedAt: Date.now(),
-                })
               }}
               onClose={() => setLayerTransitionTarget(null)}
             />
