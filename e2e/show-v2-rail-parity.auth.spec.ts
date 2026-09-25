@@ -32,7 +32,7 @@ async function createFreshShow(page: Page): Promise<string> {
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
-  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?/)
+  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
   return new URL(page.url()).pathname.split('/').at(-1)!
 }
 
