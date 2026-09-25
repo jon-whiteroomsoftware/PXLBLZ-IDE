@@ -5474,6 +5474,24 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     input.remove()
   })
 
+  it('resets the preview speed to 1x when a different Show opens (#1097)', () => {
+    const firstShow = createDefaultShow('show-speed-first', 'Speed first', 1000)
+    const secondShow = createDefaultShow('show-speed-second', 'Speed second', 1000)
+    const editor = openV2EditorForRecord(convertForTest(firstShow))
+    useShowStore.setState((state) => ({
+      showV2Pilots: { ...state.showV2Pilots, [secondShow.id]: convertForTest(secondShow) },
+    }))
+    const view = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+
+    fireEvent.keyDown(document, { key: '3' })
+    expect(usePreviewStore.getState().speed).toBe(3)
+    view.rerender(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    expect(usePreviewStore.getState().speed).toBe(3)
+
+    view.rerender(<ShowEditor showId={secondShow.id} recordVersion={2} />)
+    expect(usePreviewStore.getState().speed).toBe(1)
+  })
+
   it('traverses Clips in timeline order with Tab and Shift-Tab and wraps (#588)', () => {
     const show = createDefaultShow('show-keyboard-traversal', 'Keyboard traversal', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
@@ -5612,8 +5630,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('removes Show shortcuts when the Show editor closes (#439)', () => {
     const show = createDefaultShow('show-shortcut-scope', 'Shortcut scope', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    usePreviewStore.setState({ isRunning: false, speed: 4 })
+    usePreviewStore.setState({ isRunning: false })
     const view = render(<ShowEditor showId={editor.showId} recordVersion={2} />)
+    // The mount resets the speed (#1097); this test's subject is that no shortcut fires after unmount.
+    act(() => usePreviewStore.setState({ speed: 4 }))
     act(() => useShowTransportStore.getState().setPosition(show.id, 5_000))
 
     view.unmount()

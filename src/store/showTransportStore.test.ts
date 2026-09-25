@@ -1,3 +1,4 @@
+import { usePreviewStore } from './previewStore'
 import { canAdvanceShowPlayback, resolveShowPlaybackStep, showTransportInitialState, useShowTransportStore } from './showTransportStore'
 
 beforeEach(() => {
@@ -43,6 +44,17 @@ describe('showTransportStore (#414)', () => {
 
     useShowTransportStore.getState().cancelSeek(requestId)
     expect(useShowTransportStore.getState()).toMatchObject({ seekStatus: 'idle', seekRequest: null })
+  })
+
+  it('resets the preview speed only when a different Show opens (#1097)', () => {
+    useShowTransportStore.getState().openShow('show-a', 10_000)
+    usePreviewStore.getState().setSpeed(3)
+
+    useShowTransportStore.getState().openShow('show-a', 20_000)
+    expect(usePreviewStore.getState().speed).toBe(3)
+
+    useShowTransportStore.getState().openShow('show-b', 20_000)
+    expect(usePreviewStore.getState().speed).toBe(1)
   })
 
   it('keeps Scene-local transport inside its playback window', () => {

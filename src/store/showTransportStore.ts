@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { usePreviewStore } from './previewStore'
 
 export type ShowSeekStatus = 'idle' | 'rebuilding'
 
@@ -83,27 +84,31 @@ function normalizePlaybackWindow(window: ShowPlaybackWindow, durationMs: number)
 
 export const useShowTransportStore = create<ShowTransportState>()((set, get) => ({
   ...showTransportInitialState,
-  openShow: (showId, rawDurationMs) => set((state) => {
-    const durationMs = finiteDuration(rawDurationMs)
-    if (state.showId !== showId) {
-      return {
-        showId,
-        durationMs,
-        positionMs: 0,
-        playbackWindow: null,
-        seekStatus: 'idle',
-        seekRequest: null,
+  openShow: (showId, rawDurationMs) => {
+    // A different Show starts at 100% preview speed (#1097).
+    if (get().showId !== showId) usePreviewStore.getState().setSpeed(1)
+    set((state) => {
+      const durationMs = finiteDuration(rawDurationMs)
+      if (state.showId !== showId) {
+        return {
+          showId,
+          durationMs,
+          positionMs: 0,
+          playbackWindow: null,
+          seekStatus: 'idle',
+          seekRequest: null,
+        }
       }
-    }
-    const playbackWindow = state.playbackWindow
-      ? normalizePlaybackWindow(state.playbackWindow, durationMs)
-      : null
-    return {
-      durationMs,
-      playbackWindow,
-      positionMs: clampPosition(state.positionMs, durationMs, playbackWindow),
-    }
-  }),
+      const playbackWindow = state.playbackWindow
+        ? normalizePlaybackWindow(state.playbackWindow, durationMs)
+        : null
+      return {
+        durationMs,
+        playbackWindow,
+        positionMs: clampPosition(state.positionMs, durationMs, playbackWindow),
+      }
+    })
+  },
   setPosition: (showId, positionMs) => set((state) => (
     state.showId === showId
       ? { positionMs: clampPosition(positionMs, state.durationMs, state.playbackWindow) }
