@@ -46,6 +46,7 @@ import type { ShowRecord } from '@/engine/personalContentRecords'
 import { transitionV1Show } from '@/test/showV2TracerFixture'
 import type { ShowRecordV2 } from '@/engine/showCompositionV2'
 import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
+import { stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { queueShowPersistence } from '@/store/showReplacementPolicy'
 
 const authSessionMock = vi.hoisted(() => ({
@@ -505,7 +506,6 @@ describe('App smoke test', () => {
     expect(window.location.pathname).toBe('/docs')
   })
 
-  // v2 port blocked by #1116: selectStudioPlace resolves the Shows place target from the v1 shows store (src/App.tsx), so with v2-only rows choosing Shows lands on /studio/shows instead of the remembered row. No section-10 row covers it.
   it('shows and restores the active Pattern and Show remembered across reference routes (#965)', async () => {
     const pattern: PatternRecord = {
       id: 'remembered-pattern',
@@ -524,7 +524,7 @@ describe('App smoke test', () => {
     setStudioLocation(`/studio/patterns/${pattern.id}`)
     seedSignedInWorkspace()
     usePatternStore.setState({ userPatterns: [pattern, starter], patternsLoaded: true, activePatternId: pattern.id })
-    useShowStore.setState({ shows: [show, hydratedShow], showsLoaded: true, activeShowId: show.id })
+    seedStoredV2Shows([show, hydratedShow])
     render(<App />)
 
     await waitFor(() => expect(useStudioPlaceStore.getState().remembered.patterns).toBe(pattern.id))
@@ -549,6 +549,20 @@ describe('App smoke test', () => {
     await choosePlace('Docs')
     await choosePlace('Patterns')
     expect(window.location.pathname).toBe(`/studio/patterns/${pattern.id}`)
+  })
+
+  it('names a remembered stock v2 Show in the Places listbox (#1116)', async () => {
+    const stock = stockShowV2ById('stock-show-101-clips-cuts-blank-time')!
+    setStudioLocation(`/studio/shows/${stock.id}`)
+    seedSignedInWorkspace()
+    seedStoredV2Shows([])
+    render(<App />)
+
+    await waitFor(() => expect(useStudioPlaceStore.getState().remembered.shows).toBe(stock.id))
+    await choosePlace('Docs')
+    await userEvent.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Docs' }))
+    const places = screen.getByRole('listbox', { name: 'Places' })
+    expect(within(places).getByRole('option', { name: /^Shows/ })).toHaveTextContent(stock.name)
   })
 
   it('reopens a remembered personal v2 Show from the Shows place (#1116)', async () => {

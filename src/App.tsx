@@ -516,7 +516,10 @@ function StudioApp() {
     }
     const showId = rememberedPlaces.shows
     if (showId) {
-      const show = shows.find((candidate) => candidate.id === showId) ?? stockShowById(showId)
+      const show = shows.find((candidate) => candidate.id === showId)
+        ?? showV2Rows.find((candidate) => candidate.id === showId)
+        ?? stockShowById(showId)
+        ?? stockShowV2ById(showId)
       if (show) details.shows = show.name
     }
     const mapId = rememberedPlaces.maps
@@ -543,7 +546,7 @@ function StudioApp() {
       else if (LIBRARIES[libraryId]) details.libraries = libraryId
     }
     return details
-  }, [controllerProfiles, rememberedPlaces, shows, userLibraries, userMaps, userMixins, userPatterns])
+  }, [controllerProfiles, rememberedPlaces, showV2Rows, shows, userLibraries, userMaps, userMixins, userPatterns])
   useEffect(() => {
     // Not in the Gallery grid, where no single preview has focus.
     if (route.kind !== 'studio' && route.kind !== 'pattern-detail') return
