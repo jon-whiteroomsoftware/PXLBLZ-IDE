@@ -836,7 +836,10 @@ stored signatures in today's terms (drop `role`, promote to the version-1
 envelope) and returns unrecognized bytes verbatim - the safe direction, which
 can cost one re-push but can never read stale data as current. Reconciliation
 runs serially through the per-Controller write queue, updates the active
-program last, and stops cleanly on newer edits or disable.
+program last, and stops cleanly on newer edits or disable. Unattended
+reconciliation keeps Patterns and Portable Shows current, while Installation
+Shows are sent only explicitly from the editor, because the Controller's
+installed map cannot be verified atomically at write time (#1129).
 
 ## 18. Map push, read-back, and fingerprints
 

@@ -33,7 +33,6 @@ import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
 import type { ControllerPhase } from '@/engine/controllerPillView'
 import { pushPattern } from '@/engine/pushPattern'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
-import { verifiedInstallationMapMatch } from '@/engine/installationMapMatch'
 import { artifactHash, type ArtifactStampMeta } from '@/engine/artifactStamp'
 import {
   getControllerBindings,
@@ -1200,10 +1199,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
             live.installedMap,
             STOCK_MAPS,
           )
-          // An Installation Show is delivered unattended only against a
-          // verified map fingerprint, re-checked before its write (#1129).
-          const installationMapFingerprints = new Map<string, string>()
+          // Unattended reconciliation never writes an Installation Show: the
+          // installed map cannot be verified atomically at write time, so it
+          // reaches a Controller only by an explicit editor send (#1129).
           const showArtifacts = showRecords.flatMap((record) => {
+            if (record.outputContract.kind === 'installation') return []
             let delivery: ShowV2ControllerDelivery
             try {
               delivery = prepareShowV2ControllerDelivery({
@@ -1226,13 +1226,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
               return []
             }
             if (delivery.status !== 'ready') return []
+            if (delivery.artifactStamp.showOutputContract?.kind === 'installation') return []
             const bindingKey = `show:${record.id}`
-            const contract = delivery.artifactStamp.showOutputContract
-            if (contract?.kind === 'installation') {
-              const fingerprint = verifiedInstallationMapMatch(contract, live.installedMap)
-              if (!fingerprint) return []
-              installationMapFingerprints.set(bindingKey, fingerprint)
-            }
             return [{
               bindingKey,
               name: record.name,
@@ -1391,13 +1386,6 @@ export const useControllerStore = create<ControllerConnectionState>()(
                     ])],
                   }
                 : undefined
-              const plannedFingerprint = installationMapFingerprints.get(job.bindingKey)
-              if (plannedFingerprint) {
-                const currentMap = get().controllers[live.ip]?.installedMap
-                if (currentMap?.status !== 'present' || currentMap.fingerprint !== plannedFingerprint) {
-                  throw new Error('The installed map changed since this update was planned; the Installation Show was not written.')
-                }
-              }
               invalidateRendererState(live.ip)
               if (activate) retainRendererResumeRecovery(live.ip)
               await queueControllerDeviceWrite(live.ip, () => pushPattern({

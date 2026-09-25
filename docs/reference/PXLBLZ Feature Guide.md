@@ -331,7 +331,9 @@ reboot because it is Controller configuration.
   row keeps its Studio Pattern and re-arms **Save**, while deleting an Other
   Pattern warns that PXLBLZ has no recovery copy unless you import it first.
   **Keep Patterns up to date** rewrites only managed artifacts after an edit
-  that changes generated code.
+  that changes generated code. It keeps Patterns and Portable Shows current;
+  Installation Shows are sent only explicitly from the editor, because the
+  Controller's installed map cannot be verified atomically at write time.
 
 Two built-in diagnostics earn their keep here: **AnalogWiggleFinder** finds
 which analog pin a pot is on, and **View generated artifact** shows exactly
