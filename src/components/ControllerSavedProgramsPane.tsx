@@ -807,7 +807,6 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const reconcileControllerProfile = useControllerStore((state) => state.reconcileControllerProfile)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const showV2Rows = useShowStore((state) => state.showV2Rows)
-  const stockShowDrafts = useShowStore((state) => state.stockShowDrafts)
   const addPattern = usePatternStore((state) => state.addPattern)
   const navigate = useRouterStore((state) => state.navigate)
   const profileController = controllerForProfile(profile, controllers)
@@ -982,7 +981,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         return [item.id, ...(item.legacySourceIds ?? [])].map((sourceId) => ({
           bindingKey: `show:${sourceId}`,
           routeId: `show:${item.id}`,
-          name: stockShowDrafts[item.id]?.name ?? item.name,
+          name: item.name,
         }))
       }),
       // An exact personal Show id wins over a built-in's legacy source alias.

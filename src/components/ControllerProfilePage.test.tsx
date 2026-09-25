@@ -54,7 +54,6 @@ import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
-import { stockShowById } from '@/pixelblaze/stock/shows'
 import {
   __resetControllerDeviceWriteQueue,
   queueControllerDeviceWrite,
@@ -2252,50 +2251,6 @@ describe('ControllerProfilePage', () => {
     expect(useRouterStore.getState().route).toEqual({
       kind: 'studio',
       entity: { kind: 'shows', id: personalShow.id },
-    })
-  })
-
-  it('resolves an edited built-in Installation Show through the same Show source path', async () => {
-    const profile = seedProfile()
-    const showId = 'stock-show-showcase-redline-installation'
-    const pristine = stockShowById(showId)!.show
-    useShowStore.setState({
-      stockShowDrafts: {
-        [showId]: { ...pristine, name: 'Redline Installation - tuned' },
-      },
-    })
-    renderLiveProgramInventory(profile, {
-      storageId: 'built-in-installation-inventory-test',
-      programs: [{ id: 'REDLINE1', name: 'Redline Installation' }],
-      bindings: { [`show:${showId}`]: 'REDLINE1' },
-      pushRecords: {
-        [`show:${showId}`]: {
-          transforms: [],
-          artifactHash: 'redline-hash',
-          stampedAt: '2026-08-07T00:00:00.000Z',
-          name: 'Redline Installation - tuned',
-          showOutputContract: {
-            version: 1,
-            kind: 'installation',
-            pixelCount: 2_000,
-            outputMap: {
-              kind: 'custom',
-              name: 'Redline stage',
-              fingerprint: '22222222',
-            },
-          },
-        },
-      },
-    })
-
-    const showLink = await screen.findByRole('button', { name: 'Redline Installation - tuned' })
-    expect(screen.getByText('Show output · Installation · 2000 px')).toBeInTheDocument()
-
-    fireEvent.click(showLink)
-
-    expect(useRouterStore.getState().route).toEqual({
-      kind: 'studio',
-      entity: { kind: 'shows', id: showId },
     })
   })
 

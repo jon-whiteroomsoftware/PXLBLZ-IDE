@@ -44,7 +44,7 @@ import {
   profileMatchesLive,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
-import { personalShowIds, useShowStore, type ShowRecord } from '@/store/showStore'
+import { personalShowIds, useShowStore } from '@/store/showStore'
 import { useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -128,7 +128,6 @@ export function PatternList({
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
   const removeControllerProfile = useControllerProfileStore((s) => s.removeProfile)
   const renameControllerProfile = useControllerStore((s) => s.renameControllerProfile)
-  const userShows = useShowStore((s) => s.shows)
   // Stored v2 rows the list offers behind the one route gate (#1056 slice 6).
   const userShowsV2 = useShowStore((s) => s.showV2Rows)
   const duplicateShowV2Row = useShowStore((s) => s.duplicateShowV2Row)
@@ -198,7 +197,7 @@ export function PatternList({
   }, [])
 
   const patternIdsKey = userPatterns.map((pattern) => pattern.id).join('\0')
-  const showIdsKey = [...userShows.map((show) => show.id), ...userShowsV2.map((show) => show.id)].join('\0')
+  const showIdsKey = userShowsV2.map((show) => show.id).join('\0')
   const mapIdsKey = userMaps.map((map) => map.id).join('\0')
   const controllerIdsKey = controllerProfiles.map((profile) => profile.id).join('\0')
   const mixinIdsKey = userMixins.map((mixin) => mixin.id).join('\0')
@@ -213,10 +212,10 @@ export function PatternList({
     if (!showOrganizationLoaded) return
     void mutateOrganization(
       'shows',
-      [...userShows.map((show) => show.id), ...userShowsV2.map((show) => show.id)],
+      userShowsV2.map((show) => show.id),
       (organization) => organization,
     )
-  }, [mutateOrganization, showIdsKey, showOrganizationLoaded, userShows, userShowsV2])
+  }, [mutateOrganization, showIdsKey, showOrganizationLoaded, userShowsV2])
 
   useEffect(() => {
     if (!mapOrganizationLoaded) return
@@ -303,10 +302,7 @@ export function PatternList({
       const bundle = acceptV2
         ? await parseShowFileBundle(new Uint8Array(buffer), { acceptV2: true })
         : await parseShowFileBundle(new Uint8Array(buffer))
-      const showNames = [
-        ...useShowStore.getState().shows.map((show) => show.name),
-        ...useShowStore.getState().showV2Rows.map((row) => row.name),
-      ]
+      const showNames = useShowStore.getState().showV2Rows.map((row) => row.name)
       const plan = bundle.version === 2
         ? planShowImportV2(bundle, {
             patterns: usePatternStore.getState().userPatterns,
@@ -478,7 +474,6 @@ export function PatternList({
     userMixins.length,
     userLibraries.length,
     controllerProfiles.length,
-    userShows.length,
     showStockPatterns,
     showStockMaps,
     showStockMixins,
@@ -566,7 +561,8 @@ export function PatternList({
           mapIds: useMapStore.getState().userMaps.map((map) => map.id),
           mixinIds: useMixinStore.getState().userMixins.map((mixin) => mixin.id),
           libraryIds: useLibraryStore.getState().userLibraries.map((library) => library.id),
-          showIds: useShowStore.getState().shows.map((show) => show.id),
+          // v1 Show rows are retired; the v1 list is always empty (#1042).
+          showIds: [],
           controllerIds: useControllerProfileStore.getState().profiles.map((profile) => profile.id),
         }).catch((error) => {
           console.warn('Could not finish new-workspace starter creation', error)
@@ -912,17 +908,6 @@ export function PatternList({
     })
   }
 
-  function openUserShow(show: ShowRecord) {
-    requestBufferReplacement(() => {
-      closeMapEditor()
-      closeMixinEditor()
-      closeLibraryEditor()
-      closeDocs()
-      openShow(show.id)
-      navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
-    })
-  }
-
   function openStockShowRoute(item: StockShowCatalogueEntry) {
     requestBufferReplacement(() => {
       closeMapEditor()
@@ -1248,7 +1233,6 @@ export function PatternList({
         {railMode === 'shows' && (
           <ShowsRailSection
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
-            userShows={userShows}
             userShowsV2={userShowsV2}
             onOpenShowV2={(id) => { openShowV2Route(id); onEntityChosen?.() }}
             activeShowId={activePersonalShowId}
@@ -1263,7 +1247,6 @@ export function PatternList({
             onCreateShow={handleCreateShow}
             onImportShow={() => showFileInputRef.current?.click()}
             onCreateShowFromController={() => void handleCreateShowFromController()}
-            onOpenShow={(show) => { openUserShow(show); onEntityChosen?.() }}
             onOpenStockShow={(show) => { openStockShowRoute(show); onEntityChosen?.() }}
             onToggleStockShows={() => setShowStockShows((visible) => !visible)}
             onRenameShow={renameShow}
@@ -1273,7 +1256,7 @@ export function PatternList({
             personalOrganization={showOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
               'shows',
-              [...userShows.map((show) => show.id), ...userShowsV2.map((show) => show.id)],
+              userShowsV2.map((show) => show.id),
               () => organization,
             )}
           />

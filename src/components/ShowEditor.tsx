@@ -987,7 +987,6 @@ export function ShowEditor({
     && showV2History !== undefined && (showV2History.past.length > 0 || showV2History.future.length > 0)
   const resetShowV2LessonDraft = useShowStore((state) => state.resetShowV2LessonDraft)
   const duplicateShowV2Row = useShowStore((state) => state.duplicateShowV2Row)
-  const openShow = useShowStore((state) => state.openShow)
   const routerNavigate = useRouterStore((state) => state.navigate)
   const personalWorkspaceAuthenticated = useWorkspaceStore((state) => state.personalWorkspaceAuthenticated)
   const agentCapabilities = useWorkspaceStore((state) => state.agentCapabilities)
@@ -3052,7 +3051,6 @@ export function ShowEditor({
         const clone = duplicateShowV2Row(showId, lessonProjectionV2 ?? savedShowV2 ?? undefined)
         void clone.then((copy) => {
           if (!copy) return
-          void openShow(copy.id)
           routerNavigate({ kind: 'studio', entity: { kind: 'shows', id: copy.id } })
         }).finally(() => setSavingBuiltInCopy(false))
       }
@@ -4814,7 +4812,7 @@ function ShowTimelineWorkspace({
     : 0
   const runLayoutAction = (action: () => Promise<boolean>) => {
     setLayoutActionError(null)
-    const failureBefore = useShowStore.getState().showSaveFailure
+    const failureBefore = useShowStore.getState().showV2SaveFailure
     void action().then((changed) => {
       if (changed) {
         setLayoutActionsOpen(false)
@@ -4822,7 +4820,7 @@ function ShowTimelineWorkspace({
       }
       // A fresh save failure means persistence refused the edit, not the
       // timeline structure; the rollback notice owns that report (#792).
-      const failureAfter = useShowStore.getState().showSaveFailure
+      const failureAfter = useShowStore.getState().showV2SaveFailure
       if (failureAfter && failureAfter !== failureBefore) return
       setLayoutActionError('That operation is not available at this time. Move the playhead outside a Transition and leave enough room to split occupied Clips.')
     }).catch(() => {})

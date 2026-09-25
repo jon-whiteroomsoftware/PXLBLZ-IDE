@@ -1,5 +1,4 @@
 import { useRef, useState, type RefObject } from 'react'
-import type { ShowRecord } from '@/store/showStore'
 import type { StockShowCatalogueEntry } from '@/pixelblaze/stock/showCatalogueV2'
 import { searchEntityOrganization, type EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { stockShowOrganization } from '@/engine/stockEntityOrganization'
@@ -16,7 +15,6 @@ import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from '@/com
 
 export function ShowsRailSection({
   personalWorkspaceAuthenticated,
-  userShows,
   userShowsV2 = [],
   onOpenShowV2,
   activeShowId,
@@ -31,7 +29,6 @@ export function ShowsRailSection({
   onCreateShow,
   onImportShow,
   onCreateShowFromController,
-  onOpenShow,
   onOpenStockShow,
   onToggleStockShows,
   onRenameShow,
@@ -43,7 +40,6 @@ export function ShowsRailSection({
   onCollapse,
 }: {
   personalWorkspaceAuthenticated: boolean
-  userShows: ShowRecord[]
   /**
    * Stored version-2 rows, listed beside the v1 ones behind the route gate
    * (#1056 slice 6). They are a separate prop because `shows` stays v1-typed
@@ -63,7 +59,6 @@ export function ShowsRailSection({
   onCreateShow: () => void
   onImportShow: () => void
   onCreateShowFromController: () => void
-  onOpenShow: (show: ShowRecord) => void
   onOpenStockShow: (show: StockShowCatalogueEntry) => void
   onToggleStockShows: () => void
   onRenameShow: (id: string, name: string) => void
@@ -77,7 +72,6 @@ export function ShowsRailSection({
   const [builtInOrganization, setBuiltInOrganization] = useState(() => stockShowOrganization(stockShows))
   const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
   const personalNames = Object.fromEntries([
-    ...userShows.map((show) => [show.id, show.name] as const),
     ...userShowsV2.map((show) => [show.id, show.name] as const),
   ])
   const stockNames = Object.fromEntries(stockShows.map((show) => [show.id, show.name]))
@@ -119,12 +113,6 @@ export function ShowsRailSection({
               ref={personalTreeRef}
               organization={personalOrganization}
               items={[
-                // A version-2 row is the ordinary personal Show since #1039, so
-                // the list marks the exception instead: a row storage still
-                // holds as v1 opens on the previous editor, with the previous
-                // command vocabulary, until the operator conversion rewrites
-                // it. Both kinds rename, duplicate and trash the same way.
-                ...userShows.map((show) => ({ id: show.id, name: show.name, meta: 'v1' })),
                 ...userShowsV2.map((show) => ({ id: show.id, name: show.name })),
               ]}
               activeEntityId={activeShowId}
@@ -133,9 +121,7 @@ export function ShowsRailSection({
               sectionLabel="Shows"
               emptyMessage="No shows yet"
               onSelect={(id) => {
-                const show = userShows.find((candidate) => candidate.id === id)
-                if (show) onOpenShow(show)
-                else if (userShowsV2.some((candidate) => candidate.id === id)) onOpenShowV2?.(id)
+                if (userShowsV2.some((candidate) => candidate.id === id)) onOpenShowV2?.(id)
               }}
               onRenameEntity={onRenameShow}
               onDuplicateEntity={onDuplicateShow}

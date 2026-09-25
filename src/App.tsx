@@ -417,7 +417,6 @@ function StudioApp() {
   const liveControllers = useControllerStore((s) => s.controllers)
   const renameControllerProfile = useControllerStore((s) => s.renameControllerProfile)
   const activeShowId = useShowStore((s) => s.activeShowId)
-  const shows = useShowStore((s) => s.shows)
   const showsLoaded = useShowStore((s) => s.showsLoaded)
   const showV2Pilots = useShowStore((s) => s.showV2Pilots)
   const showV2Rows = useShowStore((s) => s.showV2Rows)
@@ -511,8 +510,7 @@ function StudioApp() {
     }
     const showId = rememberedPlaces.shows
     if (showId) {
-      const show = shows.find((candidate) => candidate.id === showId)
-        ?? showV2Rows.find((candidate) => candidate.id === showId)
+      const show = showV2Rows.find((candidate) => candidate.id === showId)
         ?? stockShowCatalogueById(showId)
         ?? stockShowV2ById(showId)
       if (show) details.shows = show.name
@@ -541,7 +539,7 @@ function StudioApp() {
       else if (LIBRARIES[libraryId]) details.libraries = libraryId
     }
     return details
-  }, [controllerProfiles, rememberedPlaces, showV2Rows, shows, userLibraries, userMaps, userMixins, userPatterns])
+  }, [controllerProfiles, rememberedPlaces, showV2Rows, userLibraries, userMaps, userMixins, userPatterns])
   useEffect(() => {
     // Not in the Gallery grid, where no single preview has focus.
     if (route.kind !== 'studio' && route.kind !== 'pattern-detail') return
@@ -1064,11 +1062,10 @@ function StudioApp() {
     const id = place === 'patterns'
       ? (userPatterns.some((pattern) => pattern.id === remembered) || (remembered ? Boolean(DEMOS[remembered]) : false) ? remembered : null)
       : place === 'shows'
-        ? (shows.some((show) => show.id === remembered)
-            || showV2Rows.some((row) => row.id === remembered)
+        ? (showV2Rows.some((row) => row.id === remembered)
             || (remembered ? Boolean(stockShowCatalogueById(remembered) ?? stockShowV2ById(remembered)) : false)
             ? remembered
-            : (showV2Rows[0]?.id ?? shows[0]?.id ?? null))
+            : (showV2Rows[0]?.id ?? null))
         : place === 'maps'
           ? (userMaps.some((map) => map.id === remembered) || STOCK_MAP_ITEMS.some((map) => map.id === remembered) ? remembered : null)
           : place === 'controllers'
@@ -1095,7 +1092,6 @@ function StudioApp() {
     personalWorkspaceResolved,
     rememberedPlaces,
     route.kind,
-    shows,
     showV2Rows,
     studioWelcomeAcknowledged,
     toggleApi,
@@ -1415,9 +1411,6 @@ function StudioApp() {
                       onRename={activeShowV2PilotId
                         ? (nextName) => renameShowV2Pilot(activeShowV2PilotId, nextName)
                         : undefined}
-                      takenNames={shows
-                        .filter((show) => show.id !== activeShowV2Pilot?.id)
-                        .map((show) => show.name)}
                     />
                     {routedStockShow?.note && (
                       <span ref={setShowHeaderGuideTarget} className="show-header-guide flex shrink-0 items-center" />
