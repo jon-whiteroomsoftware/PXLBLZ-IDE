@@ -31,14 +31,17 @@ publication policy](show-state-history-persistence.md#preview-and-delivery-publi
   does not abort its containing batch
   ([`registry.ts:366-371`](../../../src/engine/showCommandsV2/registry.ts));
   only a refusal aborts a transaction.
-- Clip, marker, and transition ids identify existing targets. Moving or resizing a Clip retains its
-  identity; creation and removal follow their command's semantics. Names,
-  selection, and timeline positions do not replace those ids. Overlay layers
-  are addressed by index; each descriptor defines the target convention.
+- Stable identities from `read_show` address existing targets, Layers
+  included (`layer_id`). Moving or resizing a Clip retains its identity;
+  creation and removal follow their command's semantics. Names, selection,
+  timeline positions and stacking indices do not replace those identities
+  ([`census.test.ts`](../../../src/engine/showCommandsV2/census.test.ts)
+  rule 1).
 - A transaction evaluates commands in order against successive candidate
   records. The first refusal returns its zero-based step and issues, without
   returning a partially accepted record. Earlier successful steps do not
-  mutate the caller's original record.
+  mutate the caller's original record
+  ([`registry.ts:373-389`](../../../src/engine/showCommandsV2/registry.ts)).
 - A successful transaction returns one candidate and its accumulated changes.
   Persisting that candidate once is the caller's responsibility and is what
   gives the batch one editor history entry. Evaluation itself writes no store
@@ -47,12 +50,15 @@ publication policy](show-state-history-persistence.md#preview-and-delivery-publi
 ## Limits callers must preserve
 
 The registry validates invocation shape and delegates domain acceptance to the
-command. It does not establish a universal final-document validation pass or
+command ([`registry.ts:349-366`](../../../src/engine/showCommandsV2/registry.ts)).
+It does not establish a universal final-document validation pass or
 hardware delivery readiness. Each command still applies its own preconditions
 inside a transaction; a batch cannot assume every temporarily invalid
 intermediate state is permitted.
 
-The descriptor's `touches` paths describe possible writes. They are not a read
+The descriptor's `touches` paths
+([`registry.ts:164-165`](../../../src/engine/showCommandsV2/registry.ts))
+describe possible writes. They are not a read
 set or a proof that two commands commute. This interface supplies no document
 revision comparison, concurrent merge, cancellation, or persistence guarantee.
 See [Show state, history, and persistence](show-state-history-persistence.md)
@@ -60,120 +66,119 @@ for adoption and save behavior.
 
 ### Bounded final-state bulk exception
 
-`create_clips`, `create_layers`, and `update_clips` use the versioned
-[Clip and Layer authoring vocabulary](../agent-clip-layer-authoring.md). Each
-command forms one private candidate and validates only its final arrangement;
-ordinary command transactions retain their sequential validation contract.
-This bounded exception permits ordinary Clip swaps, rotations, combined
-move/resize, and cross-Layer exchange without publishing or validating a
-temporary collision. Every target and destination Layer resolves against the
-same original snapshot, and payload order cannot choose the result.
-Projected overlay indices map to stable authored Layer IDs in every covered
-Scene. A Group-only implicit Layer shell is not a direct Clip owner and refuses
-as unsupported topology instead of retargeting an adjacent authored Layer.
+`create_clips`, `create_layers`, and `update_clips` take their items in the
+shape published by the
+[versioned authoring reference](../../../src/engine/showCommandsV2/authoringReference.ts)
+and [`clipSpec.ts`](../../../src/engine/showCommandsV2/clipSpec.ts). The v2
+registry has no final-state exception: each command applies its items in
+payload order as one atomic candidate, and each item passes through its owner,
+which validates its own result against the candidate so far
+([`support.ts:99-125`](../../../src/engine/showCommandsV2/support.ts)). A swap
+or rotation whose intermediate arrangement collides therefore refuses; order
+the items so every step is valid. `update_clips` checks every Clip identity
+against the original record, refuses a Clip patched twice, and fills omitted
+placement fields from the original Clip
+([`clips.ts:100-120`](../../../src/engine/showCommandsV2/clips.ts)).
 
-The operation remains all-or-nothing through caller adoption. Exact timing
-does not clamp, ripple, extend Show End, or cross a visual Transition window.
-Unsupported Group, connected Transition, segmented-presentation, and animation
-ownership topologies refuse explicitly. Property application uses existing
-inspector normalization and metadata admission; shared-instance leaf writes
-coalesce by canonical requested meaning and conflicts report every input path.
-The 128-item bound is part of the generated schema and refuses rather than
-truncating.
+The operation remains all-or-nothing through caller adoption. `create_clips`
+timing is exact: nothing clamps and Show End never grows
+([`clips.ts:42`](../../../src/engine/showCommandsV2/clips.ts)). `update_clips`
+moves a Transition-connected Clip's whole connected component rigidly; a Zone
+or Layer change refuses for a Transition participant, an occupied destination
+Layer, or a destination Zone missing from the active Layout
+([`clips.ts:89`](../../../src/engine/showCommandsV2/clips.ts),
+[`showClipTemporalV2.ts:99-121`](../../../src/engine/showClipTemporalV2.ts)).
+Instance values affect every Clip sharing that runtime and are reported in the
+affected set. The 128-item bound is part of the schema and refuses with
+`batch-too-large` rather than truncating
+([`registry.ts:252-253`](../../../src/engine/showCommandsV2/registry.ts)).
 
-One successful bulk command returns at most one aggregate change. Its details
-carry input mappings, direct and linked logical Clip IDs, final destination and
-timing, distinct changed paths, and per-input status. A valid full no-op returns
-the original record and no change, so callers create no activity, timestamp,
-history, adoption, or save entry.
+One successful bulk command returns exactly one aggregate change whose details
+merge every item's affected collections
+([`support.ts:122-124`](../../../src/engine/showCommandsV2/support.ts)). A
+valid full no-op returns the original record and no change, so callers create
+no activity, timestamp, history, adoption, or save entry.
 
 ## Exact timeline markers
 
-`add_marker`, `update_marker` and `remove_marker` share
-[one marker owner](../../../src/engine/showMarkersV2.ts) with the
-manual callbacks and legacy timeline helper entrypoints. There is no separate
-move command: `update_marker` moves a Marker through its `at_ms` field.
-Structured `at_ms`
-values are nonnegative safe integers; fractional, nonfinite, negative and unsafe
-values refuse before any rounding or clamping. Times beyond Show End remain
-supported. Marker edits preserve every unrelated authored record and reference,
-including composition ordering. Only the marker collection is sorted by time
-then id; removing its final member leaves an empty collection.
+`add_marker`, `update_marker` and `remove_marker`
+([`markers.ts`](../../../src/engine/showCommandsV2/markers.ts)) share
+[one Marker owner](../../../src/engine/showMarkersV2.ts) with the editor's
+prepared-edit admission
+([`showV2PreparedEditAdmission.ts:154-155`](../../../src/store/showV2PreparedEditAdmission.ts)).
+There is no separate move command: `update_marker` moves a Marker through its
+`at_ms` field. `at_ms` is a schema-bounded nonnegative safe integer
+([`support.ts:175-177`](../../../src/engine/showCommandsV2/support.ts));
+fractional, nonfinite, negative and unsafe values refuse before the owner runs,
+and nothing rounds or clamps. Times beyond Show End remain supported; such a
+Marker stays dormant. Marker edits preserve every unrelated authored record and
+reference, including composition ordering and the edited Marker's conversion
+provenance. Only the Marker collection is sorted by time then id; removing its
+final member leaves an empty collection
+([`showMarkersV2.ts:64-74`](../../../src/engine/showMarkersV2.ts)).
 
-Missing targets, duplicate marker identities and empty structured updates
-refuse. A valid same-value update returns the original record and zero
-changes, without a timestamp, adoption, history entry or save. Input and marker
-identity validation precede that result. Name and color remain optional strings
-with no new color restriction. `role` is the one nullable public input: it
-accepts `chapter`, and `null` clears the chapter role.
+A missing target refuses with `unknown-id` and the current Marker identities
+([`markers.ts:69-71`](../../../src/engine/showCommandsV2/markers.ts)); the owner
+refuses a duplicate Marker identity, and an `update_marker` naming none of
+`name`, `color`, `at_ms` and `role` refuses by schema. A valid same-value update
+returns the original record and zero changes, without a timestamp, adoption,
+history entry or save. Input and Marker identity validation precede that result.
+Name and color are optional strings of at most 200 and 64 characters. `role` is
+the one nullable input: it accepts `chapter`, and `null` clears the chapter
+role.
 
-Manual controls retain their existing time conversion and rounding, generated
-names and colors, name trimming, and explicit undefined name clearing. The
-manual adapter converts time before exact evaluation; the editor skips saving
-successful no-ops. Marker edits do not normalize the whole composition: that
-would change unrelated authored ordering. Legacy marker helpers forward to the
-shared owner rather than retaining another mutation implementation.
-
-The diagnostic adapter
-derives schemas from the canonical descriptors and retains diagnostic ID
-minting. Existing whole-Show admission and final authoring validation remain
-responsible for the candidate; markers acquire no narrow concurrency authority.
-[Engine tests](../../../src/engine/showMarkersV2.test.ts),
-adapter tests and
-[the evidence packet](../evidence/issue-951-exact-markers/README.md) record
-preservation, protocol, history and browser qualification.
+Marker edits do not normalize the whole composition: that would change
+unrelated authored ordering. The owner validates both the input record and the
+candidate ([`showMarkersV2.ts:39-40, 75-76`](../../../src/engine/showMarkersV2.ts));
+markers acquire no narrow concurrency authority.
+[Owner tests](../../../src/engine/showMarkersV2.test.ts) and the Marker case in
+[`commands.test.ts:630`](../../../src/engine/showCommandsV2/commands.test.ts)
+record preservation, ordering, clearing and the chapter role.
 
 ## Internal exact Clip resize
 
-`resizeShowClipExactly` accepts a resolved logical Clip id and safe integer global
-milliseconds: exactly one duration or end time, with an optional start time.
-It returns a changed composition, a valid already-satisfied no-op, or a typed
-refusal. All outcomes preserve the supplied Show and composition. A no-op
-requires a valid composition and supported target before checking the requested
-range; an unchanged low-level engine result is never sufficient evidence.
+`resize_clip` takes `clip_id` and exactly one of `end_ms`, `duration_ms` and
+`start_ms` ([`clips.ts:257-281`](../../../src/engine/showCommandsV2/clips.ts)).
+`end_ms` or `duration_ms` is a trailing resize that keeps the start fixed;
+`start_ms` is a leading resize that keeps the end fixed. The command sends the
+new range to the temporal owner `editShowClipTemporalV2` as a trim when it lies
+inside the current Clip and as an extension otherwise
+([`clips.ts:63-68`](../../../src/engine/showCommandsV2/clips.ts)). The owner
+returns a changed record, a valid already-satisfied no-op, or a typed refusal;
+all outcomes preserve the supplied record. It validates the input record and its
+Layout availability before judging the range, which must be positive, in safe
+integer milliseconds, and inside Show End
+([`showClipTemporalV2.ts:64-87`](../../../src/engine/showClipTemporalV2.ts)).
 
-The operation selects ordinary or Layer-Transition-connected resize centrally.
-Accepted results retain the named Clip's exact requested range and logical id,
-including supported spans across Scenes. Connected successors move as required
-by the existing authoring engine; unrelated Clips remain fixed. The result
-reports changed and moved logical Clip ids. Fixed-start requests beyond the
-same-Layer neighbor or Show-end capacity refuse with that range, accounting for
-the downstream chain. Other engine constraints can also refuse an arrangement.
+A trailing resize ripples the successors of the Clip's one outgoing Transition
+by the end delta and preserves Transition durations. A leading resize changes
+the one incoming Transition's duration by the same delta and retimes its
+Property ramps. When `start_ms` reaches or passes that Transition's window
+start, the Clip extends to `start_ms` and the Transition is removed in place;
+nothing ripples and Show End stays fixed. Removing a Transition that carries
+Property ramps other than Clip value ramps needs a projection plan that
+`resize_clip` never supplies, so it refuses `unsupported-property-carrier`. A
+Clip with more than one incoming or outgoing Transition, or one sharing a common
+Transition window, refuses `invalid-topology`. A Transition converted from a
+retired v1 Scene boundary (history) cannot be extended into; shrinking away from
+it commits that boundary's cut-and-reclaim repair
+([`showClipTemporalV2.ts:182-245`](../../../src/engine/showClipTemporalV2.ts)).
 
-Transitions retain their identities and visual settings. Explicit leading-edge
-resize that keeps the Clip's end fixed may adjust incoming Transition duration;
-the result reports its previous and new duration. Segment endpoint references
-follow the logical Clip when Scene coverage changes. Group-owned Clips,
-Transition removal, and edits that would remove a visual Scene-boundary
-Transition refuse. The manual exceptions below do not broaden the agent operation.
-Resize retains each surviving physical segment's authored static opacity,
-Transform and Viewport/Aperture at its source-global Scene ownership. Trimming
-within a segment and extending that same segment inside its Scene retain its
-record. Growth into a new Scene is supported for a uniform presentation; a
-divergent logical Clip refuses when no source segment owns the new Scene.
+Unrelated Clips remain fixed and Transitions retain their identities and
+visual settings. Held appearance keys are retained inside the new range and
+Clip-owned tracks are remapped from the preimage. The candidate is validated
+whole, then for Layout availability and Transition placement restrictions; an
+occupied range refuses
+([`showClipTemporalV2.ts:231-255`](../../../src/engine/showClipTemporalV2.ts)).
+The change details report affected Clips, Transitions and tracks through the
+shared affected-entity vocabulary.
 
-The registry `resize_clip` descriptor owns `clip_id`, exactly one safe-integer
-`duration_ms`/`end_ms`, and optional safe-integer `start_ms`. The diagnostic
-adapter derives its argument leaves from this definition and delegates raw
-validation and evaluation to the registry. Both return exact/no-op/refused
-outcomes; capacity refusals carry `availableRange`. Changed results include the
-actual target range, changed/moved logical Clip ids and Transition duration
-adjustments. No duplicate overlap or time-conversion policy lives in either
-adapter. The historical `resize_connected_clip` diagnostic spelling is retired;
-`resize_clip` owns connected Clip resizing through the same semantic owner.
-
-Boundary comparison normalizes both the original and planned Show through the
-same existing Transition normalizer, so materializing an implicit Cut does not
-falsely count as visual Transition removal. The returned Show retains every
-original authored Transition, including explicit Cut identity and easing.
-
-The operation requires a valid input composition. Registry transactions and
-private grammar sessions accept no-op before/after a changed step. Wholly no-op
-private work creates no history entry or candidate. The existing valid-intermediate
-move-B then resize-A sequence is qualified. The separate private two-Clip
-qualification below permits its retained pair to overlap; arbitrary temporarily
-invalid intermediates remain outside the contract. Broad diagnostic requests retain whole-Show
-admission rather than the internal qualified Layer guard.
+The operation requires a valid input record. A registry transaction accepts a
+no-op before or after a changed step; arbitrary temporarily invalid
+intermediates remain outside the contract.
+[`commands.test.ts:470-540`](../../../src/engine/showCommandsV2/commands.test.ts)
+covers trailing, leading and Transition-closing resize and the occupied-range
+refusal.
 
 ## Private two-Clip rearrangement
 
@@ -201,267 +206,287 @@ cover complete records, history, refusal and private lifecycle behavior.
 
 ## Logical Clip splitting (#951)
 
-`split_clip(clip_id, at_ms)` and manual **Split at playhead** share
-`splitShowClipAtGlobalTime`. Global milliseconds retain `Math.round` execution:
-a fractional request must round inside one existing Scene segment. Exact Clip
-edges, exact internal Scene boundaries (including Cut), hidden Transition gaps,
-missing/malformed owners, Group children and fresh-ID collisions refuse without
-changing the input. This operation does not split Groups.
+`split_clip(clip_id, at_ms)`
+([`clips.ts:283-300`](../../../src/engine/showCommandsV2/clips.ts)) and the
+manual split
+([`showV2ClipTemporalPlanning.ts:396-406`](../../../src/engine/showV2ClipTemporalPlanning.ts))
+send the same `split` intent to the temporal owner. `at_ms` is a safe-integer
+global millisecond strictly inside the Clip; nothing rounds. Exact Clip edges,
+an invalid input record and fresh-identity collisions refuse without changing
+the input ([`showClipTemporalV2.ts:63-85`](../../../src/engine/showClipTemporalV2.ts)).
+A Group child is not an authored Clip, so the command refuses it as an unknown
+identity and the manual split refuses it before the owner. This operation does
+not split Groups.
 
-The left logical Clip keeps its identity; a caller-local fresh ID identifies the
-right Clip. Both retain their original Pattern-instance linkage, settings and
-shared instance animation. Placement curves are copied with derived IDs onto
-the applicable halves, not cropped or resampled. Incoming Transitions remain on
-the left root; outgoing endpoints reference the final right segment. Transition
-IDs, duration, easing and other visual parameters remain unchanged.
-Each split segment copies the source-global physical segment it intersects. A
-split inside one physical segment therefore gives both adjacent halves that
-segment's exact authored opacity, Transform and Viewport/Aperture, while physical
-segments on either side keep their own records.
+The left Clip keeps its identity and its incoming Transition endpoints; the
+command mints the right Clip's identity
+([`clips.ts:295`](../../../src/engine/showCommandsV2/clips.ts)). The right Clip
+shares the same Pattern instance, takes entry policy `continue`, and does not
+inherit conversion provenance. Held appearance keys divide at the split time,
+with derived identities on the right. Clip-owned tracks split through the
+Property owner. Outgoing participant endpoints, whole-output sources and
+outgoing Clip-value ramps retarget to the right Clip; Transition identities,
+durations and parameters remain unchanged
+([`showClipTemporalV2.ts:160-180`](../../../src/engine/showClipTemporalV2.ts)).
 
-The split changes only the target placements, their placement tracks and attached
-Transition endpoint references. Unrelated Scene/Layer ordering, Groups, markers
-and other authored values survive without whole-composition normalization. The
-store and file importer retain their separate normalization boundaries. Receipts
-name both Clip IDs, the actual rounded split time and changed Transition endpoints;
-`touches` includes those endpoint writes. The diagnostic adapter derives its
-schema and outcome from the canonical descriptor, while retaining its local
-fresh-ID policy.
+The split changes only the target Clip, its tracks and attached Transition
+endpoint references. Unrelated Layer ordering, Groups, Markers and other
+authored values survive without whole-composition normalization, and the
+candidate is validated whole
+([`showClipTemporalV2.ts:249-255`](../../../src/engine/showClipTemporalV2.ts)).
+The store and file importer retain their separate normalization boundaries.
 
-Owner tests,
-adapter/export tests
-and [MCP tests](../../../src/agent-harness/test/grammarMcp.e2e.test.ts) qualify
-complete records, refusal, parity, split-then-edit/move and export/Undo/Redo.
+[`commands.test.ts:326`](../../../src/engine/showCommandsV2/commands.test.ts),
+[owner tests](../../../src/engine/showClipsV2.test.ts) and the `SC951` rows in
+[the agent baseline](../../../e2e/agent-baseline.auth.spec.ts) exercise complete
+records, refusal and split-then-edit.
 
 
 ## Logical Clip duplication (#951)
 
-`duplicate_clip(clip_id, start_ms, zone_id?, layer_id?, independent?)` and
-manual **Clone** share the duplication owner in `showClipsV2`. Manual Clone
-places the copy immediately after the source Clip, on its Zone and Layer, with
-the same duration; the command places it at `start_ms`, defaulting Zone and
-Layer to the source's. The copy shares the source Pattern instance, minting no
-runtime of its own, and carries the source's entry policy. Manual Clone always
-shares; the command shares unless `independent: true` is supplied, which then
-gives the copy a fresh Pattern instance with copied controls and instance
-tracks. Clip-owned property tracks and appearance keys are copied in
-either mode, with fresh identities and times shifted by the copy's offset.
-Original curves remain unchanged.
+`duplicate_clip(clip_id, start_ms, zone_id?, layer_id?, independent?)`
+([`clips.ts:302-364`](../../../src/engine/showCommandsV2/clips.ts)) and
+manual **Clone**
+([`ShowEditor.tsx:1441-1464`](../../../src/components/ShowEditor.tsx)) share
+the duplication owner in
+[`showClipsV2.ts`](../../../src/engine/showClipsV2.ts). Manual Clone places the
+copy immediately after the source Clip, on its Zone and Layer, with the same
+duration; the command places it at `start_ms`, defaulting Zone and Layer to the
+source's. The copy shares the source Pattern instance, minting no runtime of its
+own, and carries the source's entry policy. Manual Clone always shares; the
+command shares unless `independent: true` is supplied, which then gives the copy
+a fresh Pattern instance with copied controls and eligible instance tracks
+([`clips.ts:351-397`](../../../src/engine/showCommandsV2/clips.ts)). Clip-owned
+property tracks and appearance keys are copied in either mode, with fresh
+identities and times shifted by the copy's offset. Original curves remain
+unchanged.
 
-Free tails, internal Cuts and supported multi-Scene spans retain their existing
-semantics. Multi-Scene placement animation, and independent multi-Scene instance
-animation, remain unsupported. Occupied/protected/out-of-Show tails, full Scene
-Transition-gap crossings, Group children, invalid owners and identity collisions
-refuse atomically. Every accepted result validates without normalizing unrelated
-authored records. Existing Transition identities and parameters, Groups, ordering,
-explicit empty collections and surviving shared users remain unchanged; no
-attached Transition is copied.
-For a divergent static presentation, each copied Scene slice must map by the
-copy's global offset to exactly one complete source physical segment, and every
-distinct source presentation must remain represented. Otherwise duplication
-refuses atomically; it never flattens the copy to its root segment.
+The copy must lie in safe-integer milliseconds inside Show End. It may land in
+another Layout occurrence; a destination Zone unavailable in a Layout occurrence
+the copy covers refuses, as do an occupied destination, a Transition placement
+restriction, and an incomplete or colliding identity plan. Conversion provenance
+is not copied. Every accepted result validates without normalizing unrelated
+authored records; existing Transitions, Groups, ordering and shared users remain
+unchanged, and no attached Transition is copied
+([`showClipsV2.ts:126-239`](../../../src/engine/showClipsV2.ts)).
 
-The diagnostic adapter derives its invocation schema and receipt from the
-canonical descriptor, while preserving diagnostic ID minting. Manual destination
-drag uses the same bounded copy primitive with an explicit destination; it is a
-separate duplicate-and-move composition, not tail equivalence. Store/file
+The command mints every fresh identity the owner requires
+([`clips.ts:318-340`](../../../src/engine/showCommandsV2/clips.ts)). Store/file
 normalization and whole-Show admission retain their existing ownership.
-Owner tests and
-adapter/import tests
-cover full records, linkage, refusal and copy-then-edit/move. The `DC951` browser
-case covers one adoption/save, actual export/import, Undo and stale/duplicate
-response handling; it does not qualify paid inference or new concurrency scope.
+[`commands.test.ts:239`](../../../src/engine/showCommandsV2/commands.test.ts)
+and [`showClipsV2.test.ts`](../../../src/engine/showClipsV2.test.ts) (including
+the cross-Layout case at line 691 and the attached-Transition case at line 660)
+cover full records, linkage and refusal; the `DC951` row in
+[the agent baseline](../../../e2e/agent-baseline.auth.spec.ts) exercises
+independent duplication through the bridge.
 
 ## Descriptor adapters and parity
 
-The descriptor adapter derives diagnostic fields, validation, descriptions, touches and outcome translation. Family registration retains existing identity factories and the private move wrapper. The historical `resize_connected_clip` diagnostic spelling is retired; `resize_clip` handles connected Clips through its existing owner.
+Each descriptor owns its name, description, typed fields, `exactlyOne`,
+`atLeastOne` and `atMostOne` groups, touch paths and `apply`
+([`registry.ts:157-170`](../../../src/engine/showCommandsV2/registry.ts)). The
+MCP catalogue
+([`agentMcpRouting.ts:57-58`](../../../src/worker/agent/agentMcpRouting.ts))
+and the harness grammar
+([`catalogue.ts:1-49`](../../../src/agent-harness/grammar/operations/catalogue.ts))
+derive their schemas from `SHOW_COMMANDS_V2` and convert only transport shape:
+neither allocates identity nor restates a domain rule. Commands mint the
+identities their owners require and pass owner refusal codes through
+([`support.ts:79-125`](../../../src/engine/showCommandsV2/support.ts)).
 
-Normalization belongs at the store/file boundary. Command owners preserve
-unrelated authored fields and order. Layer Transition insertion, resizing and
-reset, connected resizing, and their shared timeline helpers return validated
-authored drafts. Moved entities retain required destination insertion order and
-logical roots omit their segment-only identity field; existing siblings are not
-sorted. `moveShowConnectedClipAtGlobalTime` still normalizes its output as existing
-behavior outside this migration. Split's `restoreOrder` remains in place.
+Normalization belongs at the store/file boundary. Command owners edit a copy of
+the record, preserve unrelated authored fields and order, and validate the
+candidate rather than normalizing the whole composition.
+[`commands.test.ts:185`](../../../src/engine/showCommandsV2/commands.test.ts)
+compares a command's record and affected set with the manual owner's result for
+the same intent, and
+[`census.test.ts`](../../../src/engine/showCommandsV2/census.test.ts) enforces
+the catalogue rules.
 
-The golden-run oracle
-checks existing id-bearing entities independently of nested entities and excludes
-the Show envelope. Unnamed entity-owned fields and relative sibling order must
-remain equal. Permissions come from request/receipt identities and explicit
-preimage ownership: logical Clip segments, their placement/sole-instance tracks,
-attached Transitions, affected timeline positions and layout occurrence members.
-Deleting a permitted parent permits disappearance of its nested references.
-Observed diffs and descriptor touch patterns never grant identity permissions.
-Focused fault cases qualify unrelated values, nested keyframes, deletion,
-undefined-field materialization and ordering, including a child insertion that
-must not authorize changing its parent track's target.
+`create_clips`, `make_clip_pattern_independent` and
+`rejoin_clip_pattern_instance` delegate to the Clip creation and identity
+owners. Independence mints the fresh instance and copied track identities in
+the command
+([`clips.ts:367-397`](../../../src/engine/showCommandsV2/clips.ts)). Rejoin
+collects the vacated runtime and its tracks only when nothing references them
+([`clips.ts:461`](../../../src/engine/showCommandsV2/clips.ts)).
 
-The shared parity rows
-compare complete canonical, diagnostic and existing manual-owner results before
-normalization, preserve raw inputs, and reopen exported Shows. Stable importer
-inputs account for legacy entry defaults and implicit Cuts; owner parity is
-checked separately on the original authored fixtures. Refusal partitions and
-private service/transaction sequences remain in the same test file.
+`insert_time(at_ms, duration_ms)` delegates to `insertShowTimeV2`. Content at
+or after the point moves later, a Clip strictly spanning it extends with a fresh
+held appearance key, a spanning Property track gains a hold key, a crossed Group
+occurrence gains a Group-local hold, Layout coverage extends and Show End grows
+by the duration. Insertion strictly inside a visual Transition or a timed Layout
+transfer refuses ([`show.ts:214-229`](../../../src/engine/showCommandsV2/show.ts)).
 
-Add Clip, make Pattern independent, rejoin Pattern instance, Insert Time and
-Set Show End use that same descriptor adapter. Timeline receipts retain stable targets: `at-<rounded milliseconds>`
-for Insert Time and `show-end` for Set Show End. The latter includes `before`
-and `after` duration values reflecting the actual clamped result, plus removed
-Scene ids and whether authored content clamped the request. Add and independence retain
-caller-local fresh IDs. Fresh instances take their former lexical insertion
-position on ordered input without reordering existing siblings. Add preserves
-optional-field presence through the validated authored-edit helper. Rejoin
-removes the source instance and its tracks only when the last user leaves,
-including preserving unrelated explicitly empty track arrays.
+`set_show_end(end_ms)` delegates to the Layout interval owner
+([`show.ts:198-212`](../../../src/engine/showCommandsV2/show.ts)). Extending
+stretches the final Layout occurrence and leaves authored content unchanged.
+Shortening refuses `protected-content`, naming the protecting entity, when a Clip
+contribution, Group contribution, Property activation or timed Layout transfer
+would be cut; it never clamps. Otherwise it removes the Layout occurrences that
+start at or after the new end and truncates the one containing it. Setting the
+current Show End is a no-op
+([`showLayoutIntervalsV2.ts:278-308`](../../../src/engine/showLayoutIntervalsV2.ts)).
+Change targets are `insert-time` and `show-end`. The `AC951`, `IC951`, `RJ951`,
+`IT951` and `SE951` rows in
+[the agent baseline](../../../e2e/agent-baseline.auth.spec.ts) exercise these
+commands through the bridge.
 
-Insert Time and Set Show End validate their results without whole-composition
-normalization. Insertion orders newly created hold keys within the affected
-curve and places each fresh split half beside its source; unrelated track and
-instance order remain authored. Set Show End may remove one or more trailing
-Scenes only when every removed Scene is composition-empty and every removed
-Boundary is an ordinary Cut. It removes those Scenes and their flat compatibility
-cells together, clamps a retained flat cell only when its span crossed the removed
-suffix, and leaves Pattern instances, Markers and other unrelated authored fields
-unchanged. Every retained Scene keeps a positive safe-integer duration.
+## Property tracks and keyframes
 
-A request that would remove meaningful visual choreography, routing, a Group
-occurrence, Scene-local track, placement, routing target or sample target refuses
-atomically with `unsupported-topology` and blocker ids. Visual-boundary refusals
-explain that the user may explicitly reset that Boundary to Cut; other blockers
-receive remedies for their own owner. Existing millisecond rounding, authored-
-content clamping, Transition/Group refusal and Show End no-change behavior remain.
-The shared rows cover manual/canonical/diagnostic parity and identity collisions;
-`AC951`, `IC951`, `RJ951`, `IT951` and `SE951` in the existing admission table
-cover saved records, file reopen, Undo and stale/duplicate delivery.
+`add_property_tracks`, `update_property_track`, `edit_property_keyframes` and
+`remove_property_tracks`
+([`animation.ts`](../../../src/engine/showCommandsV2/animation.ts)) are Show
+property tracks keyed by v2 target identity. They share the Property owner
+`editShowPropertyV2` with the editor's prepared-edit admission
+([`showV2PreparedEditAdmission.ts:171`](../../../src/store/showV2PreparedEditAdmission.ts)).
+Tracks use global time with an explicit activation window
+`[active_start_ms, active_start_ms + active_duration_ms)`. A valid
+already-satisfied edit returns no changes after owner validation
+([`showPropertyEditsV2.ts:91-93`](../../../src/engine/showPropertyEditsV2.ts)).
 
-## Scene property tracks and keyframes
+A command target names one of the short kinds `opacity`, `view-brightness`,
+`view-phase`, each `transform-*` and `aperture-*` scalar, `effect`, `control`,
+`time-scale`, `layout-split-position` and `show-repeat-scale`, and resolves it
+into the persisted target union: Clip opacity, view, Transform, Aperture and
+Effect parameter; instance control and time scale; Layout occurrence split
+position; and Show repeat scale. Clip kinds need `clip_id`; `control` and
+`time-scale` need `instance_id`; `effect` also needs an `effect_id` present on
+the Clip and a `parameter`; `layout-split-position` needs `interval_id`. A
+missing or unknown identity refuses with the track index
+([`animation.ts:74-129`](../../../src/engine/showCommandsV2/animation.ts)).
 
-`add_property_track`, `edit_property_keyframes`, `add_keyframe`,
-`update_keyframe`, `delete_keyframe` and `delete_property_track` share their
-descriptors and pure animation owners with the diagnostic and production MCP
-adapters. `move_keyframe` is retired; a time-only `update_keyframe` preserves
-the keyframe's value, easing and identity. A valid already-satisfied update
-returns no changes after owner validation.
+`add_property_tracks` takes 1 to 128 tracks. Each gives exactly one of
+`keyframes` (2 to 128 `{ at_ms, value, easing? }` entries) or a constant
+`initial_value`, which seeds keys at both ends of the activation. Activation
+defaults to the Clip span for a Clip target, the union of user spans for an
+instance target, the interval for a split position, and the whole Show for
+repeat scale; an instance with no Clip users needs explicit activation
+([`animation.ts:131-220`](../../../src/engine/showCommandsV2/animation.ts)).
+Easing normalizes once; values are not clamped. Two tracks that would own the
+same instance target over overlapping activation refuse atomically.
+`update_property_track` changes only the activation window: keyframes keep their
+global times and must stay inside it
+([`animation.ts:222-248`](../../../src/engine/showCommandsV2/animation.ts)).
 
-Track targets retain all seven persisted kinds: instance time scale and control;
-placement opacity, view, transform, viewport and Effect parameter. Short target
-names resolve `opacity`, view brightness/phase, each Transform and Viewport
-scalar, `effect`, `time-scale`, and `control` from a single-Scene ordinary Clip
-into that same union. Effect selectors must resolve the exact placed Effect and
-one numeric animatable parameter. Control selectors require both an existing
-authored control target and a slider in exact captured Pattern source; they never
-seed either. Selectors valid for one shortcut refuse on other shortcuts and on
-persisted targets. Group and multi-Scene Clips refuse. Explicit `scene_id`
-retains instance-target Scene choice; a placement target cannot name a different
-Scene. The existing dependency admission policy still governs commit.
+`edit_property_keyframes(track_id, edits)` takes at least one of `add`,
+`update` and `remove`, each 1 to 128 entries. Adds need a global time and value
+and may name easing; updates name a `keyframe_id` and at least one of `at_ms`,
+`value` and `easing`; removes name keyframe identities. Every update and remove
+identity must exist on the track before any step runs. The command applies all
+removals, then updates, then additions, each through the Property owner, which
+validates the whole candidate after every step
+([`animation.ts:290-341`](../../../src/engine/showCommandsV2/animation.ts),
+[`showPropertyEditsV2.ts:47-93`](../../../src/engine/showPropertyEditsV2.ts)).
+A time swap whose intermediate step is invalid therefore refuses; the whole
+request is still atomic. Editing an endpoint or its easing reauthors the
+adjacent segment and replaces any retained restriction descriptor.
+`remove_property_tracks` removes tracks and their keyframes by identity and
+refuses duplicate identities; Clips, appearance, Transitions and Show End stay
+fixed.
 
-Track creation accepts exactly one constant Scene-endpoint seed or an array of
-at least two strict `{ time_ms, value, easing? }` entries. Times are checked in
-the owning Scene's Show-global range before rounding, convert once into
-Scene-local milliseconds, and sort once; Scene endpoints are inclusive and
-post-rounding collisions refuse. Easing accepts legacy presets or any structured
-curve admitted by `validateShowEasing`, then normalizes once. Values pass through
-the engine target constraint without clamping. Receipts retain fresh string
-identities, ownership target, ownership, global keys, legacy curve names, lossless
-`structuredEasing`, and evaluated samples. Instance receipts also identify the
-instance and affected logical Clips in that Scene.
-
-`edit_property_keyframes(track_id, edits)` accepts one to 128 strict entries.
-Adds require global time and value and may name easing; updates require an entry
-key ID and at least one of time, value, or easing; deletes accept only an entry
-key ID. Unknown or null fields refuse with the edit index. Update/delete IDs all
-resolve against the command-entry track and each may occur once; generated add
-IDs cannot be referenced inside the same request.
-
-The pure batch owner constructs one final key set from the preimage, then sorts
-and validates the candidate once. It therefore permits time swaps and
-delete/add replacement at one time without exposing a temporarily invalid
-track. The final track retains its ID, target, Scene and at least two distinct
-keys; orphan targets, invalid dependency metadata, times, values, easing, or
-collisions refuse the whole request. An equivalent normalized update-only set
-returns the original Show identity, zero changes, and no timestamp after domain
-validation. Any add/delete remains a change. One track-targeted receipt reports
-before/after counts, persisted target and ownership, ordered per-input results,
-generated IDs, normalized global values and easing, and deleted IDs.
-
-The single-key commands remain available. Keyframe deletion retains the two-key
-minimum; deleting a track removes automation without changing its default.
-
-Animation edits preserve raw optional fields and unrelated track order. Only
-changed keyframes are sorted; a new track takes its lexical insertion position
-without sorting existing siblings. The shared parity and golden tables cover
-seven target kinds, every shortcut, raw preservation, pure owners and actual
-Show-file reopen. Admission rows `APT953`, `AK953`, `UK953`, `DK953` and
-`DPT953` continue to exercise the single-key bridge surface; the multi-key
-production admission flow covers creation, atomic revision, one save/history
-entry, Undo/Redo, stale/duplicate rejection, reopened source, and compiled
-endpoint/interior behavior.
+Animation edits preserve unrelated track order; a new track is appended, and
+only the edited track's keyframes are sorted
+([`showPropertyEditsV2.ts:74-89`](../../../src/engine/showPropertyEditsV2.ts)).
+[`commands.test.ts:737`](../../../src/engine/showCommandsV2/commands.test.ts)
+adds tracks for each target kind, edits keyframes and removes by identity. The
+`APT953`, `AK953`, `UK953`, `DK953` and `DPT953` rows in
+[the agent baseline](../../../e2e/agent-baseline.auth.spec.ts) exercise the
+same commands through the bridge.
 
 ## Clip Effect commands (#953)
 
-The five Clip Effect descriptors and diagnostic operations use the same inspector
-and stack helpers. The finite 22-kind toolkit/schema is authoritative. Toolkit
-parameter IDs and already-supported persisted-field aliases remain accepted;
-unknown names and identity patches refuse. Structured numbers must be finite and
-within their declared parameter bounds. Valid integer-like counts retain existing
-rounding. Color strings retain the existing color parser/conversion; raw color-map
-RGB components remain precise numeric inputs rather than passing through display
-hex conversion. This is a finite compatibility mapping, not arbitrary patching.
+`add_clip_effect`, `update_clip_effect`, `move_clip_effect`,
+`duplicate_clip_effect` and `remove_clip_effect`
+([`effects.ts`](../../../src/engine/showCommandsV2/effects.ts)) go through the
+appearance owner `editShowClipAppearanceV2`, which the editor's prepared-edit
+admission also calls
+([`showV2PreparedEditAdmission.ts:169`](../../../src/store/showV2PreparedEditAdmission.ts)).
+Each takes an `apply` selector: the whole Clip, or the held key at one global
+time. The finite 22-kind enum is authoritative
+([`support.ts:197-201`](../../../src/engine/showCommandsV2/support.ts)).
+Parameters are a record of numbers or color strings named as in the
+[versioned authoring reference](../../../src/engine/showCommandsV2/authoringReference.ts);
+an unknown parameter name, or an `id` or `kind` patch, refuses
+([`clipSpec.ts:185-196`](../../../src/engine/showCommandsV2/clipSpec.ts)). The
+owner validates each value; `update_clip_effect` sends each parameter as its own
+owner step and names the refused parameter
+([`effects.ts:127-156`](../../../src/engine/showCommandsV2/effects.ts)). This is
+a finite mapping, not arbitrary patching.
 
-Update preserves Effect identity and stack order. Duplicate inserts a fresh
-identity immediately after its source without copying animation references.
-Move accepts exactly one step direction or same-stage relative target with an
-optional before/after edge; cross-stage targets refuse. Satisfied updates and
-stage-edge or already-satisfied moves return the unchanged record with no changes.
-Removal prunes matching Effect animation through the existing inspector owner;
-other Effect identities, tracks and explicitly empty unrelated collections remain
-authored. Shared parity rows cover Main and overlay stacks, all declared numeric
-domains, colors, copies, ordering and reopened animation references. The existing
-admission table contains AE953/UE953/DE953/ME953/RE953 for live consumer acceptance.
+Update preserves Effect identity and stack order; the exact Effect must exist in
+every selected held stack. Duplicate inserts a fresh identity immediately after
+its source with the same parameter values. Move accepts exactly one of a step
+`direction` or a same-stage `target_effect_id` with an optional `before`/`after`
+edge; a cross-stage target refuses. Satisfied updates and stage-edge moves
+return the unchanged record with no changes. When a move leaves duplicate Effect
+identities on the Clip, the change description names the re-identified Effects.
+Adding refuses when an active Property track targeting that Effect would find a
+gap. Removal removes a Clip-owned Property track naming the Effect when an
+appearance span its activation intersects no longer carries it; a surviving
+Transition ramp refuses instead
+([`effects.ts:95-244`](../../../src/engine/showCommandsV2/effects.ts)).
+[`commands.test.ts:657-735`](../../../src/engine/showCommandsV2/commands.test.ts)
+covers the stack operations, ordering and owner refusal codes; the `AE953`,
+`UE953`, `DE953`, `ME953` and `RE953` rows in
+[the agent baseline](../../../e2e/agent-baseline.auth.spec.ts) exercise them
+through the bridge.
 
 ## Show metadata, output requirements and Layout occurrences
 
-The #954 family shares canonical descriptors with the diagnostic adapter.
+The metadata commands in
+[`show.ts`](../../../src/engine/showCommandsV2/show.ts) own their record fields
+and validate one complete candidate before returning
+([`show.ts:28-43`](../../../src/engine/showCommandsV2/show.ts)).
 `rename_show` trims a nonempty name. `update_zone` permits only the existing
-Zone id plus name, nominal pixel count and color; names trim and remain distinct,
-counts must be finite and positive before rounding, and routing and Clips remain
-unchanged. Valid already-satisfied metadata, profile, output-contract and Trails
+Zone id plus at least one of name, nominal pixel count and color; names trim and
+remain distinct (a collision refuses `duplicate-name`), counts are integers from
+1 to 100000 by schema, and routing and Clips remain unchanged
+([`show.ts:82-120`](../../../src/engine/showCommandsV2/show.ts)). Valid
+already-satisfied metadata, Stage map, profile, output-contract and Trails
 requests return the original record with zero changes and no timestamp.
 
-`set_stage_map(stage_map_id)` is an agent-only independent staging preference.
-It does not change the output contract or target controller profile.
-`set_target_controller_profile(profile_id)` remains a distinct profile-only
-command. The retained experimental diagnostic `set_stage_map` input may include
-`target_controller_profile_id`; that spelling evaluates the two independent
-owners atomically and returns their individual receipts. Invalid profile input
-discards the provisional map result. Production commands expose no combined alias.
-The manual portable-reference control remains a different combined action:
-`set_output_contract` follows that owner by aligning the Stage map with the
-selected contract map. Its Installation branch remains agent-only. Missing or
-null `map_id` clears the contract map; pixel counts remain positive integers.
+`set_stage_map(stage_map_id)` sets or clears (`null`) the Stage map without
+changing the output contract or Controller profile.
+`set_target_controller_profile(profile_id)` is a distinct profile-only command;
+`null` returns it to automatic selection. A blank identity refuses in both
+([`show.ts:62-144`](../../../src/engine/showCommandsV2/show.ts)). No command
+sets both at once. `set_output_contract` replaces the contract with
+`portable-2d` or `installation` and aligns the Stage map with the contract map.
+Missing or null `map_id` clears the contract map; pixel counts are integers from
+1 to 100000 by schema
+([`show.ts:146-171`](../../../src/engine/showCommandsV2/show.ts)).
 
 `set_output_trails` requires at least one of `enabled` and `retention`. Omitted
 `enabled` preserves the current enabled state, so retention-only while disabled
 is a successful no-op. Enabling retains the current retention or uses the
-existing default; finite retention clamps to [0, 1]. These commands edit Show
-requirements only and never request a Controller provider or send to hardware.
-Production authoring validation keeps missing maps and incomplete/incompatible
-output requirements editable. File dependency and delivery checks remain separate;
-a missing custom map still prevents file export, and Installation coverage or
-Portable compatibility still blocks delivery.
+existing default; `retention` outside [0, 1] refuses by schema rather than
+clamping ([`show.ts:173-196`](../../../src/engine/showCommandsV2/show.ts),
+[`support.ts:183-185`](../../../src/engine/showCommandsV2/support.ts)). These
+commands edit Show requirements only and never request a Controller provider or
+send to hardware. File dependency and delivery checks remain separate.
 
-`add_layout_interval` inserts an existing Layout occurrence, retaining finite
-millisecond rounding; the manual Add menu's extra Layout-copy step remains
-separate. `duplicate_layout_interval` retains the linked Layout identity; its
-optional content copy retains the existing copied Pattern-instance behavior.
-`make_layout_interval_unique` copies that occurrence's Layout and physical or
-logical Zones, remapping occurrence references without making Patterns independent.
-Existing unsupported boundary and multipart-Clip refusals remain in the owner.
+The Layout commands in
+[`layouts.ts`](../../../src/engine/showCommandsV2/layouts.ts) delegate to the
+Layout interval owner. `add_layout_interval` takes exactly one of `at_ms`, which
+inserts a switch at a strict interior time without moving content, and
+`duration_ms`, which appends after Show End and extends it; coverage stays
+exactly one interval deep. `duplicate_layout_interval` places the copy
+immediately after its source, empty by default or with its content when
+`with_content` is true; later content moves once by the source duration, Show
+End grows by it, copies share their Pattern runtimes, and content crossing the
+interval end refuses. `make_layout_interval_unique` gives one occurrence its own
+copy of the Zone Layout definition; Zone identities, Clips and Pattern runtimes
+stay shared, and an occurrence whose definition is used once is unchanged
+([`layouts.ts:31-125`](../../../src/engine/showCommandsV2/layouts.ts)). Show End
+trims or extends Layout occurrences as described for `set_show_end` above.
 
-The existing command goldens,
-shared full-record parity,
-and `RN954`, `SM954`, `CP954`, `UZ954`, `OC954`, `OT954`, `AI954`, `DI954`, `UI954`
-[admission rows](../../../e2e/agent-baseline.auth.spec.ts) cover the finite surface.
+[`commands.test.ts:33`](../../../src/engine/showCommandsV2/commands.test.ts),
+the Layout interval cases at
+[`commands.test.ts:540-627`](../../../src/engine/showCommandsV2/commands.test.ts),
+and the `RN954`, `SM954`, `CP954`, `UZ954`, `OC954`, `OT954`, `AI954`, `DI954`
+and `UI954` rows in [the agent baseline](../../../e2e/agent-baseline.auth.spec.ts)
+exercise the finite surface.
 
 ## Differences from the retired v1 registry
 
