@@ -46,7 +46,7 @@ function(pixelCount) {
   }
 
   for (var j = 0; j < haloCount; j++) {
-    var angle = (j + 0.5) / haloCount * 2 * Math.PI
+    var angle = j / haloCount * 2 * Math.PI
     coords.push([haloRadius * Math.sin(angle), haloRadius * Math.cos(angle)])
   }
 

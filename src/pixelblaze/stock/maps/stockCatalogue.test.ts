@@ -293,13 +293,21 @@ describe('source regeneration', () => {
     expect(halo).toHaveLength(90)
     expect(points.every((point) => point.sample.length === 2 && point.pos?.length === 2)).toBe(true)
 
-    // The halo's circle fixes a square frame centred on the dome apex.
+    // The halo's circle fixes a square frame centred on the dome apex. Its 90
+    // LEDs hit six and twelve o'clock but fall 2 degrees either side of three
+    // and nine, so the frame spans the circle exactly in y and to within
+    // 1 - cos 2 degrees in x; the ring's mean is its true centre.
     const xs = points.map((point) => point.sample[0])
     const ys = points.map((point) => point.sample[1])
-    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(1, 6)
-    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(0.999)
-    expect(Math.abs(dome[0].sample[0] - 0.5)).toBeLessThan(0.01)
-    expect(Math.abs(dome[0].sample[1] - 0.5)).toBeLessThan(0.01)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(1, 6)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0.999)
+    const centre = [0, 1].map((axis) => halo.reduce((total, point) => total + point.sample[axis], 0) / halo.length)
+    expect(Math.abs(centre[0] - 0.5)).toBeLessThan(1e-3)
+    expect(centre[1]).toBeCloseTo(0.5, 6)
+    // The first LED sits half a 30 LED/m pitch along the strip from the apex,
+    // so no farther than that from the centre as seen from the front.
+    const halfPitch = 100 / 30 / 2 / (2 * 47.7)
+    expect(Math.hypot(dome[0].sample[0] - centre[0], dome[0].sample[1] - centre[1])).toBeLessThan(halfPitch)
 
     // Dome: radius 26.6 cm inside a 47.7 cm halo, wired apex to rim, so the
     // frontal radius only grows along the strip and reaches the rim at the end.
@@ -326,8 +334,8 @@ describe('source regeneration', () => {
     // Halo: on the outer circle, starting at six o'clock and running
     // counterclockwise as seen, so the next LED lies toward three o'clock.
     for (const point of halo) expect(radius(point)).toBeCloseTo(0.5, 2)
-    expect(halo[0].sample[1]).toBeGreaterThan(0.99)
-    expect(Math.abs(halo[0].sample[0] - 0.5)).toBeLessThan(0.02)
+    expect(halo[0].sample[1]).toBeCloseTo(1, 6)
+    expect(halo[0].sample[0]).toBeCloseTo(centre[0], 6)
     expect(halo[1].sample[0]).toBeGreaterThan(halo[0].sample[0])
     expect(halo[22].sample[0]).toBeGreaterThan(0.99)
   })
