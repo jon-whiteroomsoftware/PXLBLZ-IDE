@@ -1,5 +1,10 @@
 # #1039 row-conversion rehearsal
 
+**Outcome (2026-09-25, #1105).** The remote conversion described here was never
+run. Production's six v1 `personal_shows` rows were backed up off-repository
+and deleted instead; `SELECT COUNT(*) FROM personal_shows` returned 0. The D1
+conversion tool was then retired (#1042 Phase 5b).
+
 The section 10 migration runbook, rehearsed end to end against a real local D1
 store. Local only: there is no remote backend, and no push, deploy or remote
 migration was attempted. The remote pass stays blocked on the recorded

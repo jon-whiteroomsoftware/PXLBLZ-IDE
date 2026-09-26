@@ -947,7 +947,8 @@ and [the Zone owner contract](contracts/show-v2-zone-layout-owners.md).
 **Row storage.** Personal Show rows store one version-2 document in `record_json`;
 migration 0029 removed the twelve version-1 columns. `src/cloudflare/shows.ts`
 ignores a row whose `record_json` is NULL. #1105 converted local rows with the
-since-retired D1 tool; see the
+since-retired D1 tool. Production held no rows to convert, because its six v1
+rows were deleted on 2026-09-25 (#1105). See the
 [cutover rehearsal](evidence/issue-1039-cutover/rehearsal.md).
 
 `ShowRecordV2` holds Zones, routing Layouts, the output contract, and a

@@ -321,7 +321,8 @@ A version-1 `.pxlshow` import resolves dependencies and calls
 `convertAppliedShowImportV1` before any write. The converter resolves Pattern
 sources and the Stage map exactly against imported and workspace records; it
 refuses an unresolved source instead of guessing. The #1039 rehearsal and
-#1105 local conversion used the since-retired D1 tool; see the
+#1105 local conversion used the since-retired D1 tool. Production held no rows
+to convert, because its six v1 rows were deleted on 2026-09-25 (#1105). See the
 [cutover rehearsal](../evidence/issue-1039-cutover/rehearsal.md) for the
 recorded conversion and recovery evidence.
 
