@@ -501,7 +501,7 @@ accepted v2 clauses.
 ## Restriction ledger
 
 The [completed measured ledger](show-v2-tracer-evidence.md#measured-restriction-ledger)
-supersedes the initial dispositions below and links their positive/negative proof.
+supersedes the initial dispositions below and links their positive/negative proof. The ledger was re-verified against the post-#1042 code on 2026-09-26 (#1043); see the [Handoff to #1045](show-v2-tracer-evidence.md#handoff-to-1045).
 
 #1034 owns the measured ledger. Each row must name the current enforcing source,
 smallest positive and negative fixtures, consumer evidence, current scope,
