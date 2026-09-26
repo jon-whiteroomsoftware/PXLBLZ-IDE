@@ -95,7 +95,8 @@ tool I originally wished for. I was not dreaming big enough.
 
 ## The rest of the tour
 
-- **Gallery** — built-in Patterns rendered live in the IDE.
+- **Gallery** — built-in Patterns rendered live in the IDE, with built-in Shows
+  playing among them.
 - **Editor** — rich editing for the Pixelblaze language: symbol completion,
   hover help, inline errors, quiet auto-save, and exported controls beside
   the preview.
