@@ -152,6 +152,13 @@ describe('Black Sun Installation show (#1137)', () => {
   }
 
   it('closes the iris in four beat-locked steps', () => {
+    for (const [startMs, radius] of [[52_000, 0.3], [54_000, 0.225], [56_000, 0.15], [58_000, 0.075]]) {
+      for (let k = 0; k < 8; k++) {
+        const timeMs = startMs + 250 * k
+        const shown = litDome(frameAt(timeMs))
+        expect.soft(shown.every(({ point }) => rel(point) >= radius - 0.03), `${timeMs} ms`).toBe(true)
+      }
+    }
     for (const timeMs of [53_000, 57_000, 60_000]) {
       const pixels = frameAt(timeMs)
       const shown = litDome(pixels)
@@ -165,7 +172,7 @@ describe('Black Sun Installation show (#1137)', () => {
       }
       expectHaloViolet(pixels, timeMs)
     }
-  })
+  }, 15_000)
 
   it('closes on an all-white hit at 62.1 s', () => {
     const timeMs = 62_100
