@@ -2433,7 +2433,7 @@ function blackSunInstallationV2(): ShowRecordV2 {
   const hole: ShowClipViewport = { enabled: true, ...eclipseDisc(0.3), aperture: 'ellipse', edge: 'hard', invert: true }
   const steps: ShowStructuredEasing = { curve: 'steps', steps: 4, position: 'end' }
   const iris = (id: string, property: 'x' | 'y' | 'width' | 'height') =>
-    eclipseTrack(id, { kind: 'clip-aperture', clipId: 'spiral', property }, [[52_000, eclipseDisc(0.3)[property], steps], [60_000, eclipseDisc(0)[property]]])
+    eclipseTrack(id, { kind: 'clip-aperture', clipId: 'spiral', property }, [[52_000, eclipseDisc(0.3)[property], steps], [60_000, eclipseDisc(0)[property]], [62_000, eclipseDisc(0)[property]]])
   const main = mainLayerId(ECLIPSE_ZONE)
   const haloLayer = overlayLayerId(ECLIPSE_ZONE, 1)
   return eclipseDomeShowV2({

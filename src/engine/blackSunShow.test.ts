@@ -172,6 +172,10 @@ describe('Black Sun Installation show (#1137)', () => {
       }
       expectHaloViolet(pixels, timeMs)
     }
+    for (const timeMs of [60_500, 61_000, 61_750]) {
+      const shown = litDome(frameAt(timeMs))
+      expect.soft(shown.some(({ point }) => rel(point) < 0.13), `${timeMs} ms`).toBe(true)
+    }
   }, 15_000)
 
   it('closes on an all-white hit at 62.1 s', () => {
