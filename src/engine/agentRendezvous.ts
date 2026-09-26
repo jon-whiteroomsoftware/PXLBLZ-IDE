@@ -1,5 +1,6 @@
 /** Coordination metadata only: no documents, candidates, transcripts or operation receipts. */
 export const REGISTRATION_TTL_MS = 300_000
+export const PENDING_CALL_TTL_MS = 30_000
 export const CONTACT_LOST_MS = 45_000
 export const MAX_REGISTRATIONS = 8
 export interface EditorRegistration {
@@ -58,7 +59,7 @@ export function expireRendezvous(previous: RendezvousState, now: number): Rendez
   return state
 }
 
-export function transitionRendezvous(previous: RendezvousState, command: RendezvousCommand, now: number): { state: RendezvousState; result: RendezvousResult } {
+export function transitionRendezvous(previous: RendezvousState, command: RendezvousCommand, now: number, pendingTtlMs: number = PENDING_CALL_TTL_MS): { state: RendezvousState; result: RendezvousResult } {
   const state = expireRendezvous(previous, now)
   const result = (code: string, contact?: 'live' | 'lost') => ({ state, result: { code, ...(contact ? { contact } : {}) } })
   const exactRegistration = (identity: WindowIdentity) => state.registrations.find(item => item.registrationId === identity.registrationId && item.sessionId === identity.sessionId && item.showId === identity.showId)
@@ -79,7 +80,7 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
     }
     if (command.type === 'resolve-external') return result('no_live_editor')
     if (command.agentKind !== 'external') return result('invalid_request')
-    return transitionRendezvous(state, { ...command, type: 'claim' }, now)
+    return transitionRendezvous(state, { ...command, type: 'claim' }, now, pendingTtlMs)
   }
   // A read of the bound editor only (#1039): the MCP server asks which record
   // version it is describing tools for. It consumes no move notice, changes no
@@ -158,7 +159,7 @@ export function transitionRendezvous(previous: RendezvousState, command: Rendezv
     }
     if (command.window) return result('invalid_request')
     if (!state.slot) {
-      state.slot = { kind: 'pending', expiresAt: now + 30_000, agentKind: command.agentKind, agentId: command.agentId, agentName: command.agentName, callId: command.callId, bindingId: command.bindingId }
+      state.slot = { kind: 'pending', expiresAt: now + pendingTtlMs, agentKind: command.agentKind, agentId: command.agentId, agentName: command.agentName, callId: command.callId, bindingId: command.bindingId }
       return result('pending')
     }
     if (state.slot.kind !== 'armed') return result('occupied')

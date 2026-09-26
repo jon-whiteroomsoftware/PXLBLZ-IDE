@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, expect, it, vi } from 'vitest'
-import { AgentAccount } from './AgentAccount'
+import { PENDING_CALL_TTL_MS } from '../../engine/agentRendezvous'
+import { AgentAccount, pendingCallTtl } from './AgentAccount'
 
 afterEach(() => vi.restoreAllMocks())
 it('an old alarm observes renewed liveness and only retires the current expired generation', async () => {
@@ -66,6 +68,45 @@ it('holds a new external call for the full30 seconds and never recreates its exp
     await send({ type: 'answer', ...window, callId: 'fresh' })
     expect(await fresh).toMatchObject({ code: 'bound', claim: { callId: 'fresh', bindingId: 'fresh-binding' } })
   } finally { vi.useRealTimers() }
+})
+
+it('expires an injected external call exactly at its 1000 ms boundary', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0)
+  const values = new Map<string, unknown>()
+  const storage: ConstructorParameters<typeof AgentAccount>[0]['storage'] = {
+    async get<T>(key: string) { return structuredClone(values.get(key)) as T | undefined },
+    async put<T>(key: string, value: T) { values.set(key, structuredClone(value)) },
+    async delete(key: string) { return values.delete(key) },
+    async setAlarm() {}, async deleteAlarm() {}, async transaction(callback) { return callback(storage) },
+  }
+  const owner = new AgentAccount({ storage }, { AGENT_PENDING_CALL_TTL_MS: '1000' })
+  const send = async (body: object) => (await owner.fetch(new Request('https://internal', { method: 'POST', body: JSON.stringify(body) }))).json()
+  const window = { registrationId: 'r', sessionId: 's', showId: 'show' }
+  const identity = { agentKind: 'external', agentId: 'grant', agentName: 'Client', callId: 'call', bindingId: 'binding' }
+  try {
+    await send({ type: 'register', ...window })
+    let finished = false
+    const call = send({ type: 'external-tool-connect', agentId: identity.agentId, agentName: identity.agentName, nextCallId: identity.callId, nextBindingId: identity.bindingId }).then(result => { finished = true; return result })
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(999)
+    expect(finished).toBe(false)
+    expect(await send({ type: 'inspect', ...identity })).toEqual({ code: 'pending' })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(await call).toEqual({ code: 'no_live_editor' })
+  } finally { vi.useRealTimers() }
+})
+
+it.each([
+  [undefined, 30_000], ['', 30_000], ['0', 30_000], ['-5', 30_000],
+  ['abc', 30_000], ['1.5', 30_000], ['30001', 30_000],
+  ['1', 1], ['1000', 1000], ['30000', 30_000],
+] as const)('accepts only a shorter positive decimal pending TTL (%s)', (value, expected) => {
+  expect(pendingCallTtl(value)).toBe(expected)
+})
+
+it('keeps the production pending TTL at 30 seconds without an override binding', () => {
+  expect(PENDING_CALL_TTL_MS).toBe(30_000)
+  expect(readFileSync(new URL('../../../wrangler.jsonc', import.meta.url), 'utf8')).not.toContain('AGENT_PENDING_CALL_TTL_MS')
 })
 
 it('keeps agent and control windows independent while liveness and cleanup remain exempt', async () => {

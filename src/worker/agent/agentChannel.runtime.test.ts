@@ -11,10 +11,12 @@ interface RuntimeNamespace {
   get(id: unknown): { fetch(url: string, init: RequestInit): Promise<Response> }
 }
 let runtime: Miniflare
+let workerScript: string
 let cookie: string
 beforeAll(async () => {
   const bundle = await build({ entryPoints: ['src/worker/index.ts'], external: ['cloudflare:workers'], bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022' })
-  runtime = new Miniflare(convertV4MiniflareOptions({ modules: true, script: bundle.outputFiles[0].text, compatibilityDate: '2026-06-30',
+  workerScript = bundle.outputFiles[0].text
+  runtime = new Miniflare(convertV4MiniflareOptions({ modules: true, script: workerScript, compatibilityDate: '2026-06-30',
     bindings: { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: '1', AGENT_ACCOUNT_ALLOWLIST: 'account-a,account-b,account-c,account-move' },
     d1Databases: ['PXLBLZ_DB'], durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } },
   }))
@@ -182,16 +184,22 @@ it('cannot reuse a registration capability in another authenticated account', as
   const response = await requestAs('account-b', { type: 'poll', sessionId: 'scope-session', showId: 'show-b', registrationId: registration.registrationId })
   expect(await response.json()).toEqual({ code: 'retired' })
 })
-it('expires an incoming call on the real runtime clock without an automatic new claim', async () => {
-  const namespace = await runtime.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
-  const stub = namespace.get(namespace.idFromName('expiry-account'))
-  const identity = { agentKind: 'external', agentId: 'expiry-agent', agentName: 'Expiry Agent', callId: 'expiry-call', bindingId: 'expiry-binding' }
-  const pending = await stub.fetch('https://internal/claim', { method: 'POST', body: JSON.stringify({ type: 'claim', ...identity }) })
-  expect(await pending.json()).toEqual({ code: 'pending' })
-  await new Promise((resolve) => setTimeout(resolve, 30_100))
-  const expired = await stub.fetch('https://internal/inspect', { method: 'POST', body: JSON.stringify({ type: 'inspect', ...identity }) })
-  expect(await expired.json()).toEqual({ code: 'no_live_editor' })
-}, 40_000)
+it('expires an incoming call on the real runtime clock at the configured lifetime without an automatic new claim', async () => {
+  const expiryRuntime = new Miniflare(convertV4MiniflareOptions({ modules: true, script: workerScript, compatibilityDate: '2026-06-30',
+    bindings: { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: '1', AGENT_ACCOUNT_ALLOWLIST: 'account-a,account-b,account-c,account-move', AGENT_PENDING_CALL_TTL_MS: '1000' },
+    d1Databases: ['PXLBLZ_DB'], durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true } },
+  }))
+  try {
+    const namespace = await expiryRuntime.getDurableObjectNamespace('AGENT_ACCOUNTS') as unknown as RuntimeNamespace
+    const stub = namespace.get(namespace.idFromName('expiry-account'))
+    const identity = { agentKind: 'external', agentId: 'expiry-agent', agentName: 'Expiry Agent', callId: 'expiry-call', bindingId: 'expiry-binding' }
+    const send = async (type: 'claim' | 'inspect') => (await stub.fetch(`https://internal/${type}`, { method: 'POST', body: JSON.stringify({ type, ...identity }) })).json()
+    expect(await send('claim')).toEqual({ code: 'pending' })
+    expect(await send('inspect')).toEqual({ code: 'pending' })
+    await new Promise((resolve) => setTimeout(resolve, 1_100))
+    expect(await send('inspect')).toEqual({ code: 'no_live_editor' })
+  } finally { await expiryRuntime.dispose() }
+}, 15_000)
 
 it.each([
   { service: '0', allowlist: 'account-a', refusal: 'service_disabled' },

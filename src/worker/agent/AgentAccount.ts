@@ -1,4 +1,4 @@
-import { emptyRendezvous, transitionRendezvous, windowRendezvousView, REGISTRATION_TTL_MS, type RendezvousCommand, type RendezvousState, type WindowIdentity, type AgentClaim, type WindowCommand, type EditorRegistration, type ExternalMoveNotice } from '../../engine/agentRendezvous'
+import { emptyRendezvous, transitionRendezvous, windowRendezvousView, REGISTRATION_TTL_MS, PENDING_CALL_TTL_MS, type RendezvousCommand, type RendezvousState, type WindowIdentity, type AgentClaim, type WindowCommand, type EditorRegistration, type ExternalMoveNotice } from '../../engine/agentRendezvous'
 import { agentResponse } from '../../cloudflare/agentAccess'
 import { AgentRelay, type AgentDeliveryInput, type AgentEditorQuery, type AgentRelayMessage, type ExternalAgentDeliveryInput } from './agentRelay'
 import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
@@ -20,6 +20,11 @@ interface StoredAccount {
   controlThrottle?: RateWindow
 }
 interface RateWindow { start: number; count: number }
+export function pendingCallTtl(value: string | undefined): number {
+  if (value === undefined || !/^[1-9][0-9]*$/.test(value)) return PENDING_CALL_TTL_MS
+  const parsed = Number(value)
+  return parsed <= PENDING_CALL_TTL_MS ? parsed : PENDING_CALL_TTL_MS
+}
 export interface AgentAccountNamespace {
   idFromName(name: string): unknown
   get(id: unknown): { fetch(request: Request): Promise<Response> }
@@ -44,12 +49,18 @@ interface AccountRead { body: AccountBody; status: number; state: RendezvousStat
 /** Private binding only. Never mount this fetch handler at a public Worker URL. */
 export class AgentAccount {
   private readonly storage: AccountStorage
+  private readonly pendingTtlMs: number
   private relay?: AgentRelay
   private changeEpoch = {}
   private heldCalls = 0
   private coordination: Promise<void> = Promise.resolve()
   private readonly waiting = new Map<string, (reason: 'changed' | 'timeout' | 'superseded') => void>()
-  constructor(ctx: { storage: AccountStorage }) { this.storage = ctx.storage }
+  // This binding only lets the Miniflare runtime test expire calls in milliseconds;
+  // it only shortens the lifetime and production sets no such var (#1148).
+  constructor(ctx: { storage: AccountStorage }, env?: { AGENT_PENDING_CALL_TTL_MS?: string }) {
+    this.storage = ctx.storage
+    this.pendingTtlMs = pendingCallTtl(env?.AGENT_PENDING_CALL_TTL_MS)
+  }
 
   async fetch(request: Request): Promise<Response> {
     const command = await request.json() as AccountCommand
@@ -143,7 +154,7 @@ export class AgentAccount {
    */
   private async inspectExternalToolBinding(agentId: string): Promise<Response> {
     const stored = await this.storage.get<StoredAccount>('account')
-    const state = stored ? transitionRendezvous(stored.rendezvous, { type: 'inspect-external-tool-binding', agentId }, Date.now()) : undefined
+    const state = stored ? transitionRendezvous(stored.rendezvous, { type: 'inspect-external-tool-binding', agentId }, Date.now(), this.pendingTtlMs) : undefined
     const slot = state?.state.slot
     const target = state?.result.code === 'bound' && slot?.kind === 'bound'
       ? state.state.registrations.find(item => item.registrationId === slot.registrationId)
@@ -170,7 +181,7 @@ export class AgentAccount {
       const throttle = accounting === 'agent' ? agentThrottle : accounting === 'control' ? controlThrottle : undefined
       if (throttle && throttle.count >= 240) return { body: { code: 'throttled', retry_after_ms: Math.max(0, Math.ceil(throttle.start + 60_000 - now)) }, status: 429, state: stored.rendezvous }
       if (throttle) throttle.count += 1
-      const { state, result } = transitionRendezvous(stored.rendezvous, command, now)
+      const { state, result } = transitionRendezvous(stored.rendezvous, command, now, this.pendingTtlMs)
       const ending = command.type === 'leave' || command.type === 'disconnect' || command.type === 'disarm' || command.type === 'retirement-ack' || command.type === 'retire-grant' || command.type === 'disconnect-forget'
       await storage.put('account', { rendezvous: state, agentThrottle, controlThrottle })
       await scheduleExpiry(storage, state, Math.max(agentThrottle.start, controlThrottle.start) + 60_000)
@@ -232,7 +243,7 @@ export class AgentAccount {
         const stored = await storage.get<StoredAccount>('account')
         if (!stored) return
         const now = Date.now()
-        const { state } = transitionRendezvous(stored.rendezvous, { type: 'expire' }, now)
+        const { state } = transitionRendezvous(stored.rendezvous, { type: 'expire' }, now, this.pendingTtlMs)
         const agentExpiry = (stored.agentThrottle ?? stored.throttle ?? { start: now, count: 0 }).start + 60_000
         const controlExpiry = (stored.controlThrottle ?? stored.throttle ?? { start: now, count: 0 }).start + 60_000
         if (!state.registrations.length && !state.slot && now >= Math.max(agentExpiry, controlExpiry)) {
