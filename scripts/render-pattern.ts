@@ -62,6 +62,26 @@ const HIDE_IDE_CHROME_CSS = `
   [data-testid="preview-pane"] { display: flex !important; width: 100vw !important; min-width: 0 !important; }
 `
 
+// The Show route has no preview pane (#967): the Stage is a strip under the
+// timeline inside editor-pane, its canvas frame beside a controls rail. Lift
+// the strip over the viewport, drop the rail, and let the frame's own
+// aspect-ratio style set its height from the full viewport width, so the
+// canvas fits by width rather than by the strip's height (#1142).
+const SHOW_STAGE_CANVAS = '[data-testid="show-stage-canvas-frame"] canvas'
+const HIDE_SHOW_CHROME_CSS = `
+  [data-testid="top-bar"], [data-testid="left-pane"], [data-testid="show-timeline-pane"],
+  [data-testid="agent-chat-panel"] { display: none !important; }
+  [data-testid="show-stage-strip"] {
+    position: fixed !important; inset: 0 !important; z-index: 2147483647 !important;
+    width: 100vw !important; height: 100vh !important;
+  }
+  [data-testid="show-stage-preview"] > :not([data-testid="show-stage-canvas-frame"]) { display: none !important; }
+  [data-testid="show-stage-canvas-frame"] {
+    align-self: flex-start !important; width: 100vw !important; max-width: none !important;
+    height: auto !important; border: 0 !important;
+  }
+`
+
 function fail(message: string): never {
   console.error(`render-pattern: ${message}`)
   process.exit(1)
@@ -151,9 +171,9 @@ async function renderFrames(config: RenderConfig): Promise<number> {
     await page.routeWebSocket(/./, () => undefined)
     await page.goto(url, { waitUntil: 'domcontentloaded' })
 
-    // Strip the IDE chrome so the preview pane (and its canvas, whose width
-    // tracks the container) owns the whole viewport width.
-    await page.addStyleTag({ content: HIDE_IDE_CHROME_CSS })
+    // Strip the IDE chrome so the preview (and its canvas, whose width tracks
+    // the container) owns the whole viewport width.
+    await page.addStyleTag({ content: config.show ? HIDE_SHOW_CHROME_CSS : HIDE_IDE_CHROME_CSS })
 
     // Awaited inside the try so the finally does not close the browser early.
     if (config.show) return await renderShowFrames(page, config, frames, url)
@@ -266,9 +286,8 @@ async function renderShowFrames(
   url: string,
 ): Promise<number> {
   await page.waitForFunction(
-    () => Boolean(window.__pxlblzShow) &&
-      Boolean(document.querySelector('[data-testid="preview-pane"] canvas')),
-    undefined,
+    (selector) => Boolean(window.__pxlblzShow) && Boolean(document.querySelector(selector)),
+    SHOW_STAGE_CANVAS,
     { timeout: 30_000 },
   ).catch((error: unknown) => fail(
     `stage preview did not come up for Show "${config.show}" — check the show id and that the route loaded (${url}). ${String(error)}`,
@@ -282,14 +301,15 @@ async function renderShowFrames(
       })
     }, { diffusion: config.diffusion, lightSize: config.lightSize })
   }
-  // The stage sits inside the pane's own padding, so its canvas lands a few
-  // px short of the viewport; gate with that slack rather than exactly.
+  // With the frame lifted to the viewport the canvas fills --width to within
+  // fit rounding (a 1:1 Stage measured 1200 and 1199 at 1200); the slack
+  // absorbs that.
   await page.waitForFunction(
-    (expected) => {
-      const canvas = document.querySelector('[data-testid="preview-pane"] canvas') as HTMLCanvasElement | null
+    ({ selector, expected }) => {
+      const canvas = document.querySelector(selector) as HTMLCanvasElement | null
       return Boolean(canvas && canvas.width >= expected - 24)
     },
-    config.width,
+    { selector: SHOW_STAGE_CANVAS, expected: config.width },
     { timeout: 15_000 },
   ).catch(() => fail(
     `stage canvas never reached the requested ${config.width}px width — the IDE-chrome override did not apply.`,

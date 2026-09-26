@@ -243,15 +243,18 @@ npm run render -- --demo <Name> --start 12 --seconds 4
 sits at `start + K/fps` and is byte-identical to frame `start*fps + K` of a
 t=0 render at the same fps. `--show` opens `studio/shows/<id>?capture`
 signed in as the synthetic local developer session (`npm run dev:session`
-mints the same cookie), hides the IDE chrome, and drives
+mints the same cookie), lifts the Stage strip (`show-stage-canvas-frame`)
+over the viewport with the timeline, controls rail, and IDE chrome hidden
+(#1142; the Show route has no `preview-pane` since #967), and drives
 `window.__pxlblzShow.captureSequence` on `ShowStagePreview`: pause, seek the
 transport to 0 for a fresh runtime, pre-roll with `advanceTo`, then step
 recorded frames with `advanceLive` (the editor's post-seek playback path) and
 save each from inside `paintFastFrame`. Stock Shows work unauthenticated to
 the API; personal Shows are out of scope. `--width` must exceed 980 or the
-Show workspace hides the stage pane. The stage canvas lands a few px short of
-`--width` because of pane padding. The runtime keeps advancing past the loop
-point rather than rewinding, matching the compiled Pattern on hardware.
+Show workspace hides the stage pane. The stage canvas fills `--width` to
+within fit rounding (1199 or 1200 at 1200 on 1:1 Stages). The runtime keeps
+advancing past the loop point rather than rewinding, matching the compiled
+Pattern on hardware.
 
 Both capture paths take over an armed 3D auto-orbit for the duration
 (`src/dev/captureOrbit.ts`): reset to the canonical view, disarm the wall-clock
