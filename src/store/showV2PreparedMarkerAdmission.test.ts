@@ -11,7 +11,7 @@ import { createCustomMap } from '../engine/maps'
 import { qualifyShowV2PilotArtifacts } from '../engine/showV2Pilot'
 import { parseShowFileBundle } from '../engine/showFileBundle'
 import { showInitialState, useShowStore } from './showStore'
-import { admitShowV2PilotMarkerEdit } from './showV2MarkerAdmission'
+import { admitShowV2PilotMarkerEdit } from './showV2PreparedEditAdmission'
 
 beforeEach(() => { useShowStore.setState(showInitialState); resetPersonalContentProvider() })
 afterEach(() => resetPersonalContentProvider())

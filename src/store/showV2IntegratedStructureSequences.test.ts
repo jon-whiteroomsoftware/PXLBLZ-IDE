@@ -4,7 +4,6 @@ import { exportedScalar, nativeShowV2Artifacts, openIntegratedShowV2Pilot } from
 import { resetPersonalContentProvider } from '../engine/personalContentProvider'
 import { materializeShowGroupsV2 } from '../engine/showGroupsV2'
 import { planShowV2LayoutEdit } from '../engine/showV2LayoutEditorModel'
-import { createShowV2LayerAtTopIntent, reorderShowV2LayerIntent } from '../engine/showV2LayerEditorModel'
 import { planShowV2GroupOccurrenceEdit } from '../engine/showV2GroupOccurrenceEditorModel'
 import { showInitialState, useShowStore } from './showStore'
 import {
@@ -116,17 +115,18 @@ it('runs empty named Layer, reorder, Group rebinding and removal as one admitted
   const allocate = () => `layer-${++allocated}`
 
   // 1. An empty named Layer is a first-class owner with a stable identity.
-  const add = createShowV2LayerAtTopIntent(pilot.current(), zoneId, 'Guides', allocate)
-  if (add.status !== 'ready') throw Error(add.message)
-  expect((await admitShowV2PilotLayerEdit({ ...pilot.context(), intent: add.intent })).status).toBe('applied')
-  const freshLayerId = add.intent.layer.id
+  const freshLayerId = allocate()
+  const ranks = pilot.current().composition.layers.filter(layer => layer.zoneId === zoneId).map(layer => layer.rank)
+  const topRank = ranks.length ? Math.max(...ranks) + 1 : 0
+  expect((await admitShowV2PilotLayerEdit({ ...pilot.context(), intent: { kind: 'add', layer: { id: freshLayerId, zoneId, name: 'Guides', rank: topRank } } })).status).toBe('applied')
   expect(pilot.current().composition.layers.find(layer => layer.id === freshLayerId)).toMatchObject({ name: 'Guides', zoneId })
   expect(materializeShowGroupsV2(pilot.current()).composition.clips.some(clip => clip.layerId === freshLayerId)).toBe(false)
 
   // 2. Reordering changes stacking only; Clip and Group identities are stable.
-  const reorder = reorderShowV2LayerIntent(pilot.current(), freshLayerId, 'down')
-  if (!reorder) throw Error('reorder intent')
-  expect((await admitShowV2PilotLayerEdit({ ...pilot.context(), intent: reorder })).status).toBe('applied')
+  const layerIds = pilot.current().composition.layers.filter(layer => layer.zoneId === zoneId).sort((a, b) => a.rank - b.rank).map(layer => layer.id)
+  const index = layerIds.indexOf(freshLayerId)
+  ;[layerIds[index - 1], layerIds[index]] = [layerIds[index], layerIds[index - 1]]
+  expect((await admitShowV2PilotLayerEdit({ ...pilot.context(), intent: { kind: 'reorder', zoneId, layerIds } })).status).toBe('applied')
   const ranksAfter = pilot.current().composition.layers.map(layer => [layer.id, layer.rank] as const)
   expect(ranksAfter.map(([id]) => id).sort()).toEqual([...ranksBefore.map(([id]) => id), freshLayerId].sort())
   expect(ranksAfter).not.toEqual([...ranksBefore, [freshLayerId, ranksBefore.length] as const])
