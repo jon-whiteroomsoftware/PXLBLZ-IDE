@@ -37,6 +37,18 @@ census test in `test/perf-harness/issue718.test.ts` has a 10 s budget approved
 in [WRSP #42](https://github.com/jon-whiteroomsoftware/whiteroom-software-process/issues/42).
 See also [PXLBLZ-IDE #1146](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1146).
 
+### Runner worker sizing (#1152)
+
+The defaults are 4 for `WRSP_HOST_VITEST_WORKERS`, 4 for
+`WRSP_HOST_PLAYWRIGHT_PUBLIC_WORKERS`, 4 for
+`WRSP_HOST_PLAYWRIGHT_AUTH_WORKERS`, and 2 for
+`WRSP_HOST_PLAYWRIGHT_SHOWS_WORKERS`. The runner host sets these names in its
+WRSP `suite-env.json` (WRSP #142) only after M5 calibration (WRSP #144);
+laptops may export the same names. Authenticated Playwright refuses a Shows
+worker count above the authenticated worker count before reserving a runtime.
+Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
+worker count grows.
+
 ## WRSP 0.19.0 adoption (#1145)
 
 This adoption updates the executable package from 0.18.0. Source release is

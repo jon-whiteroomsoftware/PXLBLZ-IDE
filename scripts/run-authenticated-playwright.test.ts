@@ -5,7 +5,56 @@ import { agentOAuthConfig } from '../src/worker/agent/agentOAuthConfig'
 import {
   authenticatedPlaywrightEnvironment,
   authenticatedPlaywrightSeedSql,
+  resolveAuthenticatedWorkers,
 } from './run-authenticated-playwright'
+
+const showsToken = '--workers-env=WRSP_HOST_PLAYWRIGHT_SHOWS_WORKERS:2'
+
+describe('authenticated Playwright worker selection', () => {
+  it('keeps arguments and uses the auth pool when no worker token is present', () => {
+    const args = ['e2e/shows.auth.spec.ts']
+    expect(resolveAuthenticatedWorkers(args, {}, 4)).toEqual({
+      args,
+      workers: 4,
+      line: 'Authenticated Playwright workers: 4 (default)',
+    })
+  })
+
+  it('keeps an explicit worker argument', () => {
+    expect(resolveAuthenticatedWorkers(['e2e/capture.auth.spec.ts', '--workers=1'], {}, 4)).toEqual({
+      args: ['e2e/capture.auth.spec.ts', '--workers=1'],
+      workers: 1,
+      line: 'Authenticated Playwright workers: 1 (argument)',
+    })
+  })
+
+  it('replaces an unset shows worker token with its default', () => {
+    expect(resolveAuthenticatedWorkers(['e2e/shows.auth.spec.ts', showsToken], {}, 4)).toEqual({
+      args: ['e2e/shows.auth.spec.ts', '--workers=2'],
+      workers: 2,
+      line: 'Authenticated Playwright workers: 2 (default)',
+    })
+  })
+
+  it.each(['3', '4'])('accepts shows count %s within a four-worker pool', (raw) => {
+    expect(resolveAuthenticatedWorkers([showsToken], { WRSP_HOST_PLAYWRIGHT_SHOWS_WORKERS: raw }, 4))
+      .toEqual({
+        args: [`--workers=${raw}`],
+        workers: Number(raw),
+        line: `Authenticated Playwright workers: ${raw} (WRSP_HOST_PLAYWRIGHT_SHOWS_WORKERS)`,
+      })
+  })
+
+  it('refuses more shows workers than the auth pool can seed', () => {
+    expect(() => resolveAuthenticatedWorkers([showsToken], { WRSP_HOST_PLAYWRIGHT_SHOWS_WORKERS: '5' }, 4))
+      .toThrow('Authenticated Playwright was asked for 5 workers but its account pool is sized for 4; set WRSP_HOST_PLAYWRIGHT_AUTH_WORKERS to at least 5.')
+  })
+
+  it('names the shows variable when its count is invalid', () => {
+    expect(() => resolveAuthenticatedWorkers([showsToken], { WRSP_HOST_PLAYWRIGHT_SHOWS_WORKERS: 'x' }, 4))
+      .toThrow(/WRSP_HOST_PLAYWRIGHT_SHOWS_WORKERS/)
+  })
+})
 
 describe('authenticated Playwright runtime', () => {
   it('binds the isolated server and enables external MCP without production credentials', () => {

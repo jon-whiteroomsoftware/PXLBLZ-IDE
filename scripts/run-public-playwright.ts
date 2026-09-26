@@ -13,6 +13,7 @@ import { mkdirSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { RuntimeAssignment } from './dev-runtime-core'
+import { readWorkerCount, workerCountLine } from './worker-count-env'
 import {
   loadPlaywrightManifest,
   portIsAvailable,
@@ -76,6 +77,8 @@ export function verifyServedIdentity(
 }
 
 async function main(): Promise<void> {
+  const workerName = 'WRSP_HOST_PLAYWRIGHT_PUBLIC_WORKERS'
+  console.log(workerCountLine('Public Playwright', process.env, workerName, readWorkerCount(process.env, workerName, 4)))
   const testArgs = process.argv.slice(2)
   const context = repositoryContext(process.cwd())
 

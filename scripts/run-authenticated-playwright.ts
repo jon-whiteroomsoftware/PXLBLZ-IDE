@@ -3,7 +3,8 @@ import { mkdirSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { RuntimeAssignment } from './dev-runtime-core'
-import { authenticatedPlaywrightSeedSql } from './authenticated-playwright-user'
+import { authenticatedPlaywrightSeedSql, authenticatedPlaywrightWorkerCount } from './authenticated-playwright-user'
+import { readWorkerCount, workerCountLine } from './worker-count-env'
 import {
   acquirePlaywrightDevVars,
   loadPlaywrightManifest,
@@ -37,8 +38,51 @@ export function authenticatedPlaywrightEnvironment(
 
 export { authenticatedPlaywrightSeedSql }
 
+export function resolveAuthenticatedWorkers(
+  args: string[],
+  env: Record<string, string | undefined>,
+  poolWorkers: number,
+): { args: string[]; workers: number; line: string } {
+  const authName = 'WRSP_HOST_PLAYWRIGHT_AUTH_WORKERS'
+  let sourceName: string | null = authName
+  let workers = poolWorkers
+  const resolvedArgs = args.map((arg) => {
+    if (arg.startsWith('--workers-env=')) {
+      const token = arg.slice('--workers-env='.length)
+      const colon = token.lastIndexOf(':')
+      if (colon <= 0) throw new Error(`Invalid authenticated Playwright worker token: ${arg}`)
+      const name = token.slice(0, colon)
+      const fallback = readWorkerCount({ [name]: token.slice(colon + 1) }, name, poolWorkers)
+      workers = readWorkerCount(env, name, fallback)
+      sourceName = name
+      return `--workers=${workers}`
+    }
+    if (arg.startsWith('--workers=')) {
+      workers = readWorkerCount({ argument: arg.slice('--workers='.length) }, 'argument', poolWorkers)
+      sourceName = null
+    }
+    return arg
+  })
+  if (workers > poolWorkers) {
+    throw new Error(`Authenticated Playwright was asked for ${workers} workers but its account pool is sized for ${poolWorkers}; set ${authName} to at least ${workers}.`)
+  }
+  const line = sourceName === null
+    ? `Authenticated Playwright workers: ${workers} (argument)`
+    : workerCountLine('Authenticated Playwright', env, sourceName, workers)
+  return { args: resolvedArgs, workers, line }
+}
+
 async function main(): Promise<void> {
-  const testFiles = process.argv.slice(2)
+  let resolvedWorkers: ReturnType<typeof resolveAuthenticatedWorkers>
+  try {
+    resolvedWorkers = resolveAuthenticatedWorkers(process.argv.slice(2), process.env, authenticatedPlaywrightWorkerCount)
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+    return
+  }
+  console.log(resolvedWorkers.line)
+  const testFiles = resolvedWorkers.args
   if (testFiles.length === 0) {
     console.error('Authenticated Playwright requires at least one test file.')
     process.exitCode = 1

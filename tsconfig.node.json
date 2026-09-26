@@ -27,6 +27,7 @@
     "scripts/local-session-cookie.ts",
     "scripts/run-authenticated-playwright.ts",
     "scripts/run-public-playwright.ts",
+    "scripts/worker-count-env.ts",
     "scripts/with-suite-lock.ts"
   ]
 }

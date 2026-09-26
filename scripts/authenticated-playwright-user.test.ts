@@ -20,6 +20,13 @@ describe('authenticated Playwright synthetic identities', () => {
     expect(authenticatedPlaywrightUser(1)).toEqual(authenticatedPlaywrightUser(1))
   })
 
+  it('bounds account indices by the selected worker count', () => {
+    expect(authenticatedPlaywrightAccountIndex(5, 0, 6)).toBe(320)
+    expect(() => authenticatedPlaywrightAccountIndex(6, 0, 6)).toThrow(/out of range/)
+    expect(authenticatedPlaywrightAccountIndex(3, 0)).toBe(192)
+    expect(() => authenticatedPlaywrightAccountIndex(4, 0)).toThrow(/out of range/)
+  })
+
   it('seeds every requested test account without including the persistent development identity', () => {
     const sql = authenticatedPlaywrightSeedSql(123, 2)
 
@@ -28,5 +35,12 @@ describe('authenticated Playwright synthetic identities', () => {
     expect(sql.match(/'workspaceStarterState'/g)).toHaveLength(2)
     expect(sql).not.toContain('beta_access')
     expect(sql).not.toContain('github:local-dev')
+  })
+
+  it('seeds exactly six worker pools when six workers are requested', () => {
+    const sql = authenticatedPlaywrightSeedSql(123, 6 * 64)
+    expect(sql).toContain('playwright-worker-383')
+    expect(sql).not.toContain('playwright-worker-384')
+    expect(sql.match(/INSERT INTO users/g)).toHaveLength(384)
   })
 })

@@ -1,10 +1,12 @@
+import { readWorkerCount } from './worker-count-env'
+
 export const authenticatedPlaywrightProbeId = '__playwright_local_d1_owner_probe__'
 
-export const authenticatedPlaywrightWorkerCount = 4
+export const authenticatedPlaywrightWorkerCount = readWorkerCount(process.env, 'WRSP_HOST_PLAYWRIGHT_AUTH_WORKERS', 4)
 export const authenticatedPlaywrightAccountsPerWorker = 64
 
-export function authenticatedPlaywrightAccountIndex(workerIndex: number, sequence: number): number {
-  if (!Number.isSafeInteger(workerIndex) || workerIndex < 0 || workerIndex >= authenticatedPlaywrightWorkerCount) throw new Error('Authenticated Playwright worker index is out of range.')
+export function authenticatedPlaywrightAccountIndex(workerIndex: number, sequence: number, workerCount = authenticatedPlaywrightWorkerCount): number {
+  if (!Number.isSafeInteger(workerIndex) || workerIndex < 0 || workerIndex >= workerCount) throw new Error('Authenticated Playwright worker index is out of range.')
   if (!Number.isSafeInteger(sequence) || sequence < 0 || sequence >= authenticatedPlaywrightAccountsPerWorker) throw new Error('Authenticated Playwright exhausted its per-worker account pool (worker restarts consume fresh accounts, so widen the pool rather than reusing).')
   return workerIndex * authenticatedPlaywrightAccountsPerWorker + sequence
 }
