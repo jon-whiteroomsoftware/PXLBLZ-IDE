@@ -226,10 +226,6 @@ claiming a model success or paying for automatic retry.
 
 The diagnostic turn requires an explicit completion object:
 `{ intent: 'apply' | 'ask' | 'refuse' | 'incomplete', reply?: string }`.
-This shape belongs to the diagnostic harness only. The production built-in
-agent's `finish_turn` takes a strict `{ outcome, message }` object with the
-same four values and a required message
-([`builtinTools.ts`](../../../src/worker/agent/builtinTools.ts)).
 Both `finish_turn` and the final operation's `finish_turn_reply` accept that
 object. Explicit `finish_turn` also accepts an optional top-level `session_id`
 transport field: a supplied value must be a string matching the current session,
@@ -240,6 +236,10 @@ may return the same typed completion; plain text alone fails closed as
 `missing-finish`. Unknown intent, invalid reply type, extra keys or a
 contradictory returned intent cannot authorize a candidate. Fake corpus scripts
 record explicit intent; historical paid transcripts retain their original format.
+
+The production built-in agent does not use this shape. Its `finish_turn` takes
+a strict `{ outcome, message }` object with the same four values and a required
+message ([`builtinTools.ts`](../../../src/worker/agent/builtinTools.ts)).
 
 Apply validates the private working copy and stages completion. Ask, refuse and
 incomplete discard pending work. Apply with no changes yields `nothing-applied`
