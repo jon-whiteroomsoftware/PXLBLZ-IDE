@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { parsePxlblzBanner } from './artifactStamp'
 import { compileShowForPreview } from './showPreviewArtifact'
 import { parseEpe } from './epeImport'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { createAdaptivePatternPrismShow, createPatternPrismShow } from './patternPrismShow'
 import { loadPattern } from './loadPattern'
 import { createShim } from './shim'
@@ -68,7 +68,7 @@ describe('Pattern Prism catalog Show (#401)', () => {
     // cheapest as an array literal.
     expect(compiled.artifact?.expandedCode).toContain('var __pxlblz_show_route_pixels = [')
 
-    const exported = buildShowEpeExport(show, compiled.artifact!.code, {
+    const exported = exportShowEpeV2ForTest({ ...convertibleV2Record(), id: show.id, name: show.name }, compiled.artifact!.code, {
       id: 'pxb401PatternPrsm',
       preview: '/9j/pattern-prism-preview',
       stampedAt: '2026-07-10T21:00:00.000Z',
@@ -77,9 +77,7 @@ describe('Pattern Prism catalog Show (#401)', () => {
     expect(exported.filename).toBe('pattern-prism-one-pattern-many-layouts.epe')
     expect(parsed.name).toBe(show.name)
     expect(parsed.src).toContain('Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/')
-    expect(parsed.src).toContain('Ribbon Loom [stock:RibbonLoom]')
-    expect(parsed.src).toContain('Routing Layouts: Full panel -> Four quadrants -> Alternating vertical strips -> Pinwheel interleave')
-    expect(parsed.src).toContain('15.0: switch to Pinwheel interleave')
+    expect(parsed.src).toContain(compiled.artifact!.code)
   })
 
   it('keeps the reviewed Electromage artifact importable', () => {

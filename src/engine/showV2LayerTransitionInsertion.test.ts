@@ -16,13 +16,22 @@ import type { ShowRecordV2, ShowTransitionV2 } from './showCompositionV2'
 import { validateShowRecordV2 } from './showCompositionV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
-import { projectShowUnifiedTimeline, type ShowUnifiedTimelineJunctionProjection } from './showUnifiedTimelineProjection'
+import type { ShowUnifiedTimelineJunctionProjection } from './showUnifiedTimelineProjection'
 import { addShowZone, createDefaultShow, type ShowCompileRecipeSourceLookup } from './showModel'
 import { stockMapSpec } from './maps'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { V1_STOCK_SHOWS, v1StockShowById } from '../test/v1StockShowsFixture'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { censusLoweringInputs } from '../../scripts/show-v2-parity'
+import v1CutJunctions from '../test/fixtures/v1CutJunctions.json'
+
+const cutJunctionsByCorpus: Record<string, Array<{
+  fromPlacementId: string
+  toPlacementId: string
+  startMs: number
+  leftGroupOccurrenceId: string | null
+  rightGroupOccurrenceId: string | null
+}>> = v1CutJunctions
 
 // Shape of the deleted v1 Clip insertion plan, read from the frozen v1 outputs.
 type ShowLayerTransitionClipTarget = {
@@ -138,17 +147,11 @@ describe('v2 Layer Transition insertion plan (#1075 G4b-2a)', () => {
         continue
       }
       converted.push(`${input.corpus}:${input.corpusId}`)
-      const { show } = input
-      const composition = show.composition ?? frozenV1Output<ShowCompositionV1>(`showV2LayerTransitionInsertion.test.ts::flat projection::${input.corpus}:${input.corpusId}`)
       const record = conversion.record
-      const projection = projectShowUnifiedTimeline(show, composition)
-      for (const zone of projection.zones) {
-        for (const layer of zone.layers) {
-          for (const junction of layer.junctions) {
-            if (junction.kind !== 'cut') continue
-            const left = layer.clips.find(clip => clip.id === junction.leftClipId)!
-            const right = layer.clips.find(clip => clip.id === junction.rightClipId)!
-            if (left.groupOccurrenceId ?? right.groupOccurrenceId) continue
+      const junctions = cutJunctionsByCorpus[`${input.corpus}:${input.corpusId}`]
+      expect(junctions, `captured cuts for ${input.corpus}:${input.corpusId}`).toBeDefined()
+      for (const junction of junctions) {
+            if (junction.leftGroupOccurrenceId ?? junction.rightGroupOccurrenceId) continue
             const v1plan = frozenV1Output<ShowLayerTransitionInsertionPlan>(`showV2LayerTransitionInsertion.test.ts::offers room up to the next logical obstruction (#1075 ruling)::${input.corpus}:${input.corpusId}::${junction.fromPlacementId}→${junction.toPlacementId}@${junction.startMs}`)
             let fromClipId: string
             let toClipId: string
@@ -199,8 +202,6 @@ describe('v2 Layer Transition insertion plan (#1075 G4b-2a)', () => {
                 violations.push(`${label}: v2 disabled ${JSON.stringify(v2plan)} !== v1 ${JSON.stringify(v1plan)}`)
               }
             }
-          }
-        }
       }
       showsCompared += 1
     }

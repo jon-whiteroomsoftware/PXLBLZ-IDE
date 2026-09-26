@@ -8,7 +8,7 @@ import { compileShow } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
 import { createFastReplayRuntime } from './fastReplay'
 import { parseEpe } from './epeImport'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { evaluateShowScalarRampBaselineV2, lowerShowScalarPropertyTracksV2 } from './showScalarPropertyTrackLoweringV2'
 
 const code = 'export var elapsed = 0; export function beforeRender(delta) { elapsed += delta } export function render2D(index, x, y) { rgb(x, y, elapsed / 1000) }'
@@ -45,7 +45,7 @@ it.each(([{ fidelity: 'fast', retained: false }, { fidelity: 'fidelity', retaine
   expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   if (prepared.status !== 'ready') return
   const artifact = compileShow(prepared.recipe, LIBRARIES)
-  const epe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'repeat-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const epe = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'repeat-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
   const sampleX = from === 2 ? 0.3 : 0.125
   const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [sampleX, 0.25], pos: [sampleX, 0.25] }] })
   for (const time of [125, 250, 375, 500, 625, 750, 875]) {
@@ -101,7 +101,7 @@ it.each(['fast', 'fidelity'] as const)('restores independent baseline changes af
     sceneSequence: { scenes: [{ clipId: 'first', holdMs: 500, transitionOut: { kind: 'cut', durationMs: 0 } }, { clipId: 'second', holdMs: 500 }] },
     samplePropertyRamps: { repeatScale: lowered.value },
   }, LIBRARIES)
-  const epe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'baseline', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const epe = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'baseline', stampedAt: '2026-09-16T00:00:00Z' }).text)
   const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.125, 0.25], pos: [0.125, 0.25] }] })
   for (const [time, scale] of [[125, 2], [250, 4], [375, 4], [500, 5], [625, 6], [750, 3], [875, 4]]) {
     const frame = runtime.advanceTo(time, { stepMs: 125, forceFullIntermediateRender: true }).frame
@@ -126,7 +126,7 @@ it.each(['fast', 'fidelity'] as const)('activation end preserves same-time posit
       expect(evaluateShowScalarRampBaselineV2(lowered.value, time), `boundary@${time}`).toBe(expected)
     }
     const artifact = compileShow({ clips: ['first', 'second'].map(id => ({ id, source: 'export function render2D(i,x,y){rgb(x,y,0)}' })), sceneSequence: { scenes: [{ clipId: 'first', holdMs: 500, transitionOut: { kind: 'cut', durationMs: 0 } }, { clipId: 'second', holdMs: 500 }] }, samplePropertyRamps: { repeatScale: lowered.value } }, LIBRARIES)
-    const epe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'baseline-end', stampedAt: '2026-09-16T00:00:00Z' }).text)
+    const epe = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'baseline-end', stampedAt: '2026-09-16T00:00:00Z' }).text)
     const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.125, 0.25], pos: [0.125, 0.25] }] })
     for (const time of [625, 750, 812.5, 875, 937.5]) {
       const progress = (time - 750) / 125

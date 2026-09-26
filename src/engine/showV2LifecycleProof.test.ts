@@ -10,7 +10,7 @@ import { runtimeParity } from '../../scripts/show-v2-parity'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { parseEpe } from './epeImport'
-import { buildShowEpeExport } from './showEpeExport'
+import { exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 
 const code = 'export var calls=0; export var elapsed=0; export function beforeRender(delta){calls++;elapsed+=delta/1000} export function render2D(index,x,y){rgb(x,elapsed,calls/100)}'
 const lookup = { byCellId: {}, byPatternInstanceId: { instance: code }, stageDimension: 2 as const }
@@ -36,7 +36,7 @@ it.each(['gap', 'strobe', 'trails', 'rolling-refresh'] as const)('preserves %s l
   const b = compileShow(prepared.recipe, LIBRARIES)
   expect(prepared.recipe.clips.filter(clip => !clip.compilerOwnedEmpty)).toHaveLength(1)
   expect(b.summary.clips.map(clip => clip.id).sort()).toEqual(a.summary.clips.map(clip => clip.id).sort())
-  const exported = buildShowEpeExport(source, b.code, { id: 'show-v2-lifecycle-proof', stampedAt: '2026-09-15T00:00:00.000Z' })
+  const exported = exportShowEpeV2ForTest(converted.record, b.code, { id: 'show-v2-lifecycle-proof', stampedAt: '2026-09-15T00:00:00.000Z' })
   const epe = parseEpe(exported.text)
   expect(epe).toMatchObject({ name: source.name, stamp: { kind: 'show' } })
   expect(epe.src).toContain(b.code)

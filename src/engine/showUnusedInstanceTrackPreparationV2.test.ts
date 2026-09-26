@@ -6,7 +6,7 @@ import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validat
 import { defaultGroupRuntimeIdV2, materializeShowGroupsV2 } from './showGroupsV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { compileShow } from './showCompiler'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { LIBRARIES } from '../pixelblaze/libs'
@@ -70,7 +70,7 @@ function runtime(record: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
   expect(result.status, JSON.stringify(result)).toBe('ready')
   if (result.status !== 'ready') throw new Error('Preparation refused')
   const artifact = compileShow(result.recipe, LIBRARIES)
-  const opened = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'unused-track-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const opened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'unused-track-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
   expect(opened.stamp?.kind).toBe('show')
   return { result, artifact, code: opened.src, replay: createFastReplayRuntime({ ...artifact, code: opened.src, dimension: 2 }, {
     fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }],
@@ -96,7 +96,8 @@ describe('unused instance animation at v2 compile preparation', () => {
     // Independent dc9d public-adapter baseline, with this same first-use
     // schedule. Intentional compiler changes can requalify these two digests.
     expect(createHash('sha256').update(JSON.stringify(compiled.result.recipe)).digest('hex')).toBe('3f5aa41117ec7aa4d35b18b7b2719f310bd412d536dc3af9e9b94da502f7073c')
-    expect(createHash('sha256').update(compiled.code).digest('hex')).toBe('1e64efbdc8626af2207bce5257dbd61669c02155c3531e925b4211fb44f1bdc4')
+    expect(createHash('sha256').update(compiled.code).digest('hex')).toBe('dedd8a73971233d3e9701e630de80e65ac818d3d8442643ce394b325a4e33d7f')
+    expect(compiled.code).toContain(compiled.artifact.code)
     expect(Object.values(compiled.result.provenance.runtimeInstanceIdByClipId)).toEqual(['instance', 'unused'])
     expect(compiled.result.recipe.clips.filter(member => !member.compilerOwnedEmpty).map(member => member.id)).toEqual(['instance', 'unused'])
     const prefix = compiled.artifact.summary.clips.find(member => member.id === 'unused')!.prefix

@@ -8,7 +8,7 @@ import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { parseEpe } from './epeImport'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 
@@ -71,7 +71,7 @@ function runtime(record: ShowRecordV2, fidelity: 'fast' | 'fidelity', code = con
   expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   if (prepared.status !== 'ready') throw new Error('Preparation refused')
   const artifact = compileShow(prepared.recipe, LIBRARIES)
-  const reopened = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'identity-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const reopened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'identity-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
   expect(reopened.stamp?.kind).toBe('show')
   return { artifact, replay: createFastReplayRuntime({ ...artifact, code: reopened.src, dimension: 2 }, {
     fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }],

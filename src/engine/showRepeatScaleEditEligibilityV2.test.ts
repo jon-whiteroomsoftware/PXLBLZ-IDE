@@ -78,7 +78,7 @@ it.each([{ curve: 'back' as const, direction: 'out' as const, overshoot: 1.70158
 it.each(['fast', 'fidelity'] as const)('reopened admitted1→8 Insert Time holds exact curve and keeps runtime advancing in%s', async fidelity => {
   const { compileShow } = await import('./showCompiler')
   const { createFastReplayRuntime } = await import('./fastReplay')
-  const { buildShowEpeExport } = await import('./showEpeExport')
+  const { convertibleV2Record, exportShowEpeV2ForTest } = await import('../test/showEpeV2TestSupport')
   const { parseEpe } = await import('./epeImport')
   const { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2 } = await import('./showCompositionV2')
   const { evaluateShowPropertyTrackV2 } = await import('./showPropertyAnimationV2')
@@ -96,7 +96,7 @@ it.each(['fast', 'fidelity'] as const)('reopened admitted1→8 Insert Time holds
   if (prepared.status !== 'ready' || before.status !== 'ready') throw new Error('Preparation refused')
   const artifact = compileShow(prepared.recipe, LIBRARIES)
   expect(artifact.summary.clips.map(member => member.id)).toEqual(compileShow(before.recipe, LIBRARIES).summary.clips.map(member => member.id))
-  const epe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'range-insert', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const epe = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'range-insert', stampedAt: '2026-09-16T00:00:00Z' }).text)
   const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.125, 0.25], pos: [0.125, 0.25] }] })
   for (const time of [125, 250, 375, 500, 625, 750, 875, 1000, 1125, 1250]) {
     const frame = runtime.advanceTo(time, { stepMs: 125, forceFullIntermediateRender: true })
@@ -134,7 +134,7 @@ it.each([
 it.each(['fast', 'fidelity'] as const)('reopened%s playback preserves untouched outside kernels before and after an exact-key hold', async fidelity => {
   const { compileShow } = await import('./showCompiler')
   const { createFastReplayRuntime } = await import('./fastReplay')
-  const { buildShowEpeExport } = await import('./showEpeExport')
+  const { convertibleV2Record, exportShowEpeV2ForTest } = await import('../test/showEpeV2TestSupport')
   const { parseEpe } = await import('./epeImport')
   const { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2 } = await import('./showCompositionV2')
   for (const partition of [
@@ -153,7 +153,7 @@ it.each(['fast', 'fidelity'] as const)('reopened%s playback preserves untouched 
     if (before.status !== 'ready' || after.status !== 'ready') throw new Error('Preparation refused')
     for (const [recipe, held] of [[before.recipe, false], [after.recipe, true]] as const) {
       const artifact = compileShow(recipe, LIBRARIES)
-      const epe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'local-range', stampedAt: '2026-09-16T00:00:00Z' }).text)
+      const epe = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'local-range', stampedAt: '2026-09-16T00:00:00Z' }).text)
       const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.125, 0.25], pos: [0.125, 0.25] }] })
       for (const time of [125, 250, 375, 500, 625, 750, 875]) {
         const original = !held || time < partition.at ? time : time < partition.at + 125 ? partition.at : time - 125

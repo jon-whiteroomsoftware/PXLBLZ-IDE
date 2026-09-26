@@ -6,7 +6,7 @@ import { parseEpe } from './epeImport'
 import { fx } from './fixedpoint'
 import { nativeDimension } from './loadPattern'
 import { createFxShim, createShim } from './shim'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { createDefaultShow, showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import { lowerShowCompositionV2ForCompile, prepareShowV2ForCompile } from './showCompositionLoweringV2'
@@ -94,7 +94,7 @@ function reopenedRestartScheduler(
   withHiddenGap = false,
 ) {
   const artifact = restartSchedulerArtifact(policy, restartEvents, withHiddenGap)
-  const reopened = parseEpe(buildShowEpeExport(flatV1Show(false), artifact.code).text)
+  const reopened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code).text)
   const runtime = createFastReplayRuntime({
     code: reopened.src,
     fxCode: artifact.fxCode,
@@ -571,7 +571,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
     expect(Object.keys(lowered).sort()).toEqual(['lookup', 'show'])
     if (prepared.status !== 'ready') return
     const artifact = compileShow(prepared.recipe, LIBRARIES)
-    const exported = buildShowEpeExport(source, artifact.code, {
+    const exported = exportShowEpeV2ForTest(converted.record, artifact.code, {
       id: 'show-v2-tracer',
       stampedAt: '2026-09-14T00:00:00.000Z',
     })
@@ -598,7 +598,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
     expect(prepared.recipe.restartEvents).toEqual([{ atMs: 400, clipId: outgoing.instanceId }])
     const artifact = compileShow(prepared.recipe, LIBRARIES, { patternSlotSharing: 'none' })
     expect(artifact.summary.clips).toHaveLength(1)
-    const reopened = parseEpe(buildShowEpeExport(transitionV1Show('crossfade', 'live-live'), artifact.code).text)
+    const reopened = parseEpe(exportShowEpeV2ForTest(converted.record, artifact.code).text)
     const preparedReplay = {
       code: reopened.src,
       fxCode: artifact.fxCode,
@@ -660,7 +660,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
         restartEvents: [{ atMs: 400, clipId: 'restarted' }],
         loopDurationMs: transition === 'cut' ? 500 : 600,
       }, LIBRARIES, { patternSlotSharing: 'none' })
-      const reopened = parseEpe(buildShowEpeExport(flatV1Show(false), artifact.code).text)
+      const reopened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code).text)
       const result = createFastReplayRuntime({
         code: reopened.src,
         fxCode: artifact.fxCode,
@@ -695,7 +695,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
         loopDurationMs: 200,
         deterministicLoopReset: true,
       }, LIBRARIES, { patternSlotSharing: 'none' })
-      const reopened = parseEpe(buildShowEpeExport(flatV1Show(false), artifact.code).text)
+      const reopened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code).text)
       const preparedReplay = {
         code: reopened.src,
         fxCode: artifact.fxCode,
@@ -745,7 +745,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
 
   it('reopens an .epe and makes progress through 6.7 short Restart loops', { timeout: 5_000 }, async () => {
     const artifact = restartSchedulerArtifact('continuous', [50], false, 100)
-    const reopened = parseEpe(buildShowEpeExport(flatV1Show(false), artifact.code).text)
+    const reopened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code).text)
     const prefix = artifact.summary.clips[0].prefix
     const sampleName = `${prefix}_sample`
     const elapsedName = '__pxlblz_show_elapsed_s'

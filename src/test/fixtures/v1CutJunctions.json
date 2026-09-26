@@ -1,0 +1,1518 @@
+{
+  "agent-baseline:animation": [
+    {
+      "fromPlacementId": "placement-animation-speed-a",
+      "toPlacementId": "placement-pattern-control-a",
+      "startMs": 5000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-pattern-control-a",
+      "toPlacementId": "placement-brightness-a",
+      "startMs": 10000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-brightness-a",
+      "toPlacementId": "placement-clip-transform-a",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-clip-transform-a",
+      "toPlacementId": "placement-clip-viewport-a",
+      "startMs": 20000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-clip-viewport-a",
+      "toPlacementId": "placement-overlay-opacity-a",
+      "startMs": 25000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-overlay-opacity-a",
+      "toPlacementId": "placement-effect-parameter-a",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-animation-speed-b",
+      "toPlacementId": "placement-pattern-control-b",
+      "startMs": 5000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-pattern-control-b",
+      "toPlacementId": "placement-brightness-b",
+      "startMs": 10000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-brightness-b",
+      "toPlacementId": "placement-clip-transform-b",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-clip-transform-b",
+      "toPlacementId": "placement-clip-viewport-b",
+      "startMs": 20000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-clip-viewport-b",
+      "toPlacementId": "placement-overlay-opacity-b",
+      "startMs": 25000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-overlay-opacity-b",
+      "toPlacementId": "placement-effect-parameter-b",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "agent-baseline:groups": [],
+  "agent-baseline:long-timeline": [],
+  "agent-baseline:personal-base": [
+    {
+      "fromPlacementId": "placement-c1-s1",
+      "toPlacementId": "placement-c2-s2",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "agent-baseline:personal-library-pattern": [
+    {
+      "fromPlacementId": "placement-c1-s1",
+      "toPlacementId": "placement-c2-s2",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "agent-baseline:routing": [
+    {
+      "fromPlacementId": "clip-full-loom",
+      "toPlacementId": "clip-split-loom",
+      "startMs": 5000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-split-loom",
+      "toPlacementId": "clip-rings-loom",
+      "startMs": 11000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-split-water",
+      "toPlacementId": "clip-rings-water",
+      "startMs": 11000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "agent-baseline:stock-draft": [
+    {
+      "fromPlacementId": "clip-ribbons",
+      "toPlacementId": "clip-garden",
+      "startMs": 5000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-100-getting-around": [
+    {
+      "fromPlacementId": "clip-ribbons",
+      "toPlacementId": "clip-garden",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-101-clips-cuts-blank-time": [
+    {
+      "fromPlacementId": "clip-ribbons",
+      "toPlacementId": "clip-garden",
+      "startMs": 5000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-102-transitions-values": [],
+  "stock:stock-show-103-clip-transform": [
+    {
+      "fromPlacementId": "clip-reference",
+      "toPlacementId": "clip-position",
+      "startMs": 3000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-position",
+      "toPlacementId": "clip-rotation",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-rotation",
+      "toPlacementId": "clip-scale",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-scale",
+      "toPlacementId": "clip-mirror",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-104-effects-and-ordering": [
+    {
+      "fromPlacementId": "clip-plain",
+      "toPlacementId": "clip-threshold",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-threshold",
+      "toPlacementId": "clip-brightness-threshold",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-brightness-threshold",
+      "toPlacementId": "clip-threshold-brightness",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-105-portable-zones": [
+    {
+      "fromPlacementId": "clip-split-ribbons",
+      "toPlacementId": "clip-rings-ribbons",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-rings-ribbons",
+      "toPlacementId": "clip-pinwheel-ribbons",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-split-water",
+      "toPlacementId": "clip-rings-water",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-rings-water",
+      "toPlacementId": "clip-pinwheel-water",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-106-built-from-basics": [],
+  "stock:stock-show-201-layers-property-animation": [],
+  "stock:stock-show-202-content-clip-viewport": [
+    {
+      "fromPlacementId": "clip-full",
+      "toPlacementId": "clip-frame",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-frame",
+      "toPlacementId": "clip-frame-move",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-frame-move",
+      "toPlacementId": "clip-content-pan",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-203-pattern-instance-lifecycle": [
+    {
+      "fromPlacementId": "clip-opening",
+      "toPlacementId": "clip-continued",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-continued",
+      "toPlacementId": "clip-duplicate",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-duplicate",
+      "toPlacementId": "clip-rejoined",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-204-presentation-modes": [
+    {
+      "fromPlacementId": "clip-live",
+      "toPlacementId": "clip-freeze",
+      "startMs": 3000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-freeze",
+      "toPlacementId": "clip-strobe",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-strobe",
+      "toPlacementId": "clip-blink",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-blink",
+      "toPlacementId": "clip-stutter",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-205-groups-linked-reuse": [],
+  "stock:stock-show-206-changing-zone-layouts": [
+    {
+      "fromPlacementId": "clip-full-loom",
+      "toPlacementId": "clip-split-loom",
+      "startMs": 5000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-split-loom",
+      "toPlacementId": "clip-rings-loom",
+      "startMs": 11000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-split-water",
+      "toPlacementId": "clip-rings-water",
+      "startMs": 11000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-207-aperture-shapes-edges": [
+    {
+      "fromPlacementId": "clip-rectangle",
+      "toPlacementId": "clip-ellipse",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-ellipse",
+      "toPlacementId": "clip-star",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-star",
+      "toPlacementId": "clip-ring",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-ring",
+      "toPlacementId": "clip-ring-hard",
+      "startMs": 16000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-301-installation-mapping": [
+    {
+      "fromPlacementId": "clip-floor-garden",
+      "toPlacementId": "clip-floor-rose",
+      "startMs": 7000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-towers-rose",
+      "toPlacementId": "clip-towers-garden",
+      "startMs": 7000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-302-installation-composition": [
+    {
+      "fromPlacementId": "hero-render",
+      "toPlacementId": "hero-windows",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "hero-windows",
+      "toPlacementId": "hero-answer",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "satellite-1-render",
+      "toPlacementId": "satellite-1-window",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "satellite-1-window",
+      "toPlacementId": "satellite-1-answer",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "satellite-2-render",
+      "toPlacementId": "satellite-2-window",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "satellite-2-window",
+      "toPlacementId": "satellite-2-answer",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "satellite-3-render",
+      "toPlacementId": "satellite-3-window",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "satellite-3-window",
+      "toPlacementId": "satellite-3-answer",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "satellite-4-render",
+      "toPlacementId": "satellite-4-window",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "satellite-4-window",
+      "toPlacementId": "satellite-4-answer",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-303-compile-simplify-deliver": [
+    {
+      "fromPlacementId": "clip-loom",
+      "toPlacementId": "clip-garden",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-reference-aperture-icons": [
+    {
+      "fromPlacementId": "subject-heart",
+      "toPlacementId": "subject-star",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-star",
+      "toPlacementId": "subject-crescent",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-crescent",
+      "toPlacementId": "subject-cloud",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-cloud",
+      "toPlacementId": "subject-cat-head",
+      "startMs": 11000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-cat-head",
+      "toPlacementId": "subject-cat-side-profile",
+      "startMs": 13000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-cat-side-profile",
+      "toPlacementId": "subject-bastet",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-bastet",
+      "toPlacementId": "subject-star-rotated",
+      "startMs": 17000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-star-rotated",
+      "toPlacementId": "subject-cloud-cut-out",
+      "startMs": 20000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-heart",
+      "toPlacementId": "bed-star",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-star",
+      "toPlacementId": "bed-crescent",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-crescent",
+      "toPlacementId": "bed-cloud",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-cloud",
+      "toPlacementId": "bed-cat-head",
+      "startMs": 11000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-cat-head",
+      "toPlacementId": "bed-cat-side-profile",
+      "startMs": 13000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-cat-side-profile",
+      "toPlacementId": "bed-bastet",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-bastet",
+      "toPlacementId": "bed-star-rotated",
+      "startMs": 17000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-star-rotated",
+      "toPlacementId": "bed-cloud-cut-out",
+      "startMs": 20000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-reference-aperture-shapes": [
+    {
+      "fromPlacementId": "subject-rectangle",
+      "toPlacementId": "subject-ellipse",
+      "startMs": 3000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-ellipse",
+      "toPlacementId": "subject-diamond",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-diamond",
+      "toPlacementId": "subject-rounded-box",
+      "startMs": 10000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-rounded-box",
+      "toPlacementId": "subject-rounded-box-wide",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-rounded-box-wide",
+      "toPlacementId": "subject-cross",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-cross",
+      "toPlacementId": "subject-polygon",
+      "startMs": 16000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-polygon",
+      "toPlacementId": "subject-ring-soft",
+      "startMs": 18000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-ring-soft",
+      "toPlacementId": "subject-ring-hard",
+      "startMs": 22000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-ring-hard",
+      "toPlacementId": "subject-ring-dither",
+      "startMs": 24000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-rectangle",
+      "toPlacementId": "bed-ellipse",
+      "startMs": 3000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-ellipse",
+      "toPlacementId": "bed-diamond",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-diamond",
+      "toPlacementId": "bed-rounded-box",
+      "startMs": 10000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-rounded-box",
+      "toPlacementId": "bed-rounded-box-wide",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-rounded-box-wide",
+      "toPlacementId": "bed-cross",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-cross",
+      "toPlacementId": "bed-polygon",
+      "startMs": 16000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-polygon",
+      "toPlacementId": "bed-ring-soft",
+      "startMs": 18000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-ring-soft",
+      "toPlacementId": "bed-ring-hard",
+      "startMs": 22000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-ring-hard",
+      "toPlacementId": "bed-ring-dither",
+      "startMs": 24000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-reference-blend-fade-transitions": [
+    {
+      "fromPlacementId": "placement-reference-content-1",
+      "toPlacementId": "placement-reference-content-2",
+      "startMs": 3000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-reference-dissolve-transitions": [],
+  "stock:stock-show-reference-easing": [],
+  "stock:stock-show-reference-property-animation": [
+    {
+      "fromPlacementId": "placement-animation-speed-a",
+      "toPlacementId": "placement-pattern-control-a",
+      "startMs": 5000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-pattern-control-a",
+      "toPlacementId": "placement-brightness-a",
+      "startMs": 10000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-brightness-a",
+      "toPlacementId": "placement-clip-transform-a",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-clip-transform-a",
+      "toPlacementId": "placement-clip-viewport-a",
+      "startMs": 20000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-clip-viewport-a",
+      "toPlacementId": "placement-overlay-opacity-a",
+      "startMs": 25000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-overlay-opacity-a",
+      "toPlacementId": "placement-effect-parameter-a",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-animation-speed-b",
+      "toPlacementId": "placement-pattern-control-b",
+      "startMs": 5000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-pattern-control-b",
+      "toPlacementId": "placement-brightness-b",
+      "startMs": 10000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-brightness-b",
+      "toPlacementId": "placement-clip-transform-b",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-clip-transform-b",
+      "toPlacementId": "placement-clip-viewport-b",
+      "startMs": 20000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-clip-viewport-b",
+      "toPlacementId": "placement-overlay-opacity-b",
+      "startMs": 25000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "placement-overlay-opacity-b",
+      "toPlacementId": "placement-effect-parameter-b",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-reference-shape-reveal-figures": [],
+  "stock:stock-show-reference-shape-reveal-transitions": [],
+  "stock:stock-show-reference-slide-transitions": [],
+  "stock:stock-show-reference-wipe-transitions": [],
+  "stock:stock-show-reference-zoom-spin-transitions": [],
+  "stock:stock-show-remix-coronal-mass-ejection": [
+    {
+      "fromPlacementId": "placement-cell-1-scene-1",
+      "toPlacementId": "placement-cell-1-scene-2",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-remix-overture": [
+    {
+      "fromPlacementId": "stage-anticipation",
+      "toPlacementId": "stage-velvet",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "house-velvet",
+      "toPlacementId": "ghost-lamp",
+      "startMs": 43125,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "arch-ignition",
+      "toPlacementId": "arch-reversed",
+      "startMs": 7500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "arch-reversed",
+      "toPlacementId": "arch-steady",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "arch-steady",
+      "toPlacementId": "arch-blip",
+      "startMs": 21094,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "arch-blip",
+      "toPlacementId": "arch-redchase",
+      "startMs": 22500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "cols-canon",
+      "toPlacementId": "cols-forward",
+      "startMs": 7500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "cols-forward",
+      "toPlacementId": "cols-reversed",
+      "startMs": 11250,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "cols-reversed",
+      "toPlacementId": "cols-hold",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "cols-hold",
+      "toPlacementId": "cols-ember",
+      "startMs": 22500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "cols-ember",
+      "toPlacementId": "surge-colA-bolt",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-remix-quadrille": [
+    {
+      "fromPlacementId": "bands-first-light",
+      "toPlacementId": "bands-four-mirrors-nw",
+      "startMs": 6400,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-showcase-color-adjustment-effects": [
+    {
+      "fromPlacementId": "clip-color-adjustment-effect-1",
+      "toPlacementId": "clip-color-adjustment-effect-2",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-color-adjustment-effect-2",
+      "toPlacementId": "clip-color-adjustment-effect-3",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-color-adjustment-effect-3",
+      "toPlacementId": "clip-color-adjustment-effect-4",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-color-adjustment-effect-4",
+      "toPlacementId": "clip-color-adjustment-effect-5",
+      "startMs": 10000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-color-adjustment-effect-5",
+      "toPlacementId": "clip-color-adjustment-effect-6",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-color-adjustment-effect-6",
+      "toPlacementId": "clip-color-adjustment-effect-7",
+      "startMs": 14000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-color-adjustment-effect-7",
+      "toPlacementId": "clip-color-adjustment-effect-8",
+      "startMs": 16000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-color-adjustment-effect-8",
+      "toPlacementId": "clip-color-adjustment-effect-9",
+      "startMs": 18000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-color-adjustment-effect-9",
+      "toPlacementId": "clip-color-adjustment-effect-10",
+      "startMs": 20000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-showcase-compositing-key-effects": [
+    {
+      "fromPlacementId": "subject-1",
+      "toPlacementId": "subject-2",
+      "startMs": 3000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-2",
+      "toPlacementId": "subject-3",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-3",
+      "toPlacementId": "subject-4",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-4",
+      "toPlacementId": "subject-5",
+      "startMs": 12500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-5",
+      "toPlacementId": "subject-6",
+      "startMs": 16000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-6",
+      "toPlacementId": "subject-7",
+      "startMs": 19000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "subject-7",
+      "toPlacementId": "subject-8",
+      "startMs": 24000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-1",
+      "toPlacementId": "bed-2",
+      "startMs": 3000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-2",
+      "toPlacementId": "bed-3",
+      "startMs": 6000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-3",
+      "toPlacementId": "bed-4",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-4",
+      "toPlacementId": "bed-5",
+      "startMs": 12500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-5",
+      "toPlacementId": "bed-6",
+      "startMs": 16000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-6",
+      "toPlacementId": "bed-7",
+      "startMs": 19000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "bed-7",
+      "toPlacementId": "bed-8",
+      "startMs": 24000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-showcase-distortion-effects": [
+    {
+      "fromPlacementId": "clip-distortion-effect-1",
+      "toPlacementId": "clip-distortion-effect-2",
+      "startMs": 3000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-distortion-effect-2",
+      "toPlacementId": "clip-distortion-effect-3",
+      "startMs": 7000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-distortion-effect-3",
+      "toPlacementId": "clip-distortion-effect-4",
+      "startMs": 9500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-distortion-effect-4",
+      "toPlacementId": "clip-distortion-effect-5",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-distortion-effect-5",
+      "toPlacementId": "clip-distortion-effect-6",
+      "startMs": 14500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-showcase-luma-sources": [
+    {
+      "fromPlacementId": "luma-clip-1",
+      "toPlacementId": "luma-clip-2",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "luma-clip-2",
+      "toPlacementId": "luma-clip-3",
+      "startMs": 8000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "luma-clip-3",
+      "toPlacementId": "luma-clip-4",
+      "startMs": 12000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "luma-clip-4",
+      "toPlacementId": "luma-clip-5",
+      "startMs": 16000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "luma-clip-5",
+      "toPlacementId": "luma-clip-6",
+      "startMs": 20000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "luma-clip-6",
+      "toPlacementId": "luma-clip-7",
+      "startMs": 24000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "luma-clip-7",
+      "toPlacementId": "luma-clip-8",
+      "startMs": 28000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-showcase-redline-installation": [
+    {
+      "fromPlacementId": "ignition-center",
+      "toPlacementId": "first-lift-center",
+      "startMs": 7500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-lift-center",
+      "toPlacementId": "countermotion-center",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "countermotion-center",
+      "toPlacementId": "first-drop-center",
+      "startMs": 22500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-drop-center",
+      "toPlacementId": "vacuum-center",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "vacuum-center",
+      "toPlacementId": "rebuild-center",
+      "startMs": 37500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "rebuild-center",
+      "toPlacementId": "compression-center",
+      "startMs": 45000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "compression-center",
+      "toPlacementId": "peak-release-center",
+      "startMs": 52500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-lift-target-1",
+      "toPlacementId": "countermotion-target-1",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "countermotion-target-1",
+      "toPlacementId": "first-drop-target-1",
+      "startMs": 22500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-drop-target-1",
+      "toPlacementId": "vacuum-target-1",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "vacuum-target-1",
+      "toPlacementId": "rebuild-target-1",
+      "startMs": 37500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "rebuild-target-1",
+      "toPlacementId": "compression-target-1",
+      "startMs": 45000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "compression-target-1",
+      "toPlacementId": "peak-release-target-1",
+      "startMs": 52500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-lift-target-2",
+      "toPlacementId": "countermotion-target-2",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "countermotion-target-2",
+      "toPlacementId": "first-drop-target-2",
+      "startMs": 22500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-drop-target-2",
+      "toPlacementId": "vacuum-target-2",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "rebuild-target-2",
+      "toPlacementId": "compression-target-2",
+      "startMs": 45000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "compression-target-2",
+      "toPlacementId": "peak-release-target-2",
+      "startMs": 52500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-lift-target-3",
+      "toPlacementId": "countermotion-target-3",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "countermotion-target-3",
+      "toPlacementId": "first-drop-target-3",
+      "startMs": 22500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-drop-target-3",
+      "toPlacementId": "vacuum-target-3",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "rebuild-target-3",
+      "toPlacementId": "compression-target-3",
+      "startMs": 45000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "compression-target-3",
+      "toPlacementId": "peak-release-target-3",
+      "startMs": 52500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-lift-target-4",
+      "toPlacementId": "countermotion-target-4",
+      "startMs": 15000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "countermotion-target-4",
+      "toPlacementId": "first-drop-target-4",
+      "startMs": 22500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "first-drop-target-4",
+      "toPlacementId": "vacuum-target-4",
+      "startMs": 30000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "rebuild-target-4",
+      "toPlacementId": "compression-target-4",
+      "startMs": 45000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "compression-target-4",
+      "toPlacementId": "peak-release-target-4",
+      "startMs": 52500,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-showcase-transform-effects": [
+    {
+      "fromPlacementId": "clip-affine-effects--span-effect-5",
+      "toPlacementId": "clip-wrap-effect",
+      "startMs": 20000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-showcase-zone-layouts-radial": [
+    {
+      "fromPlacementId": "clip-full-garden",
+      "toPlacementId": "clip-rings-garden",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-rings-garden",
+      "toPlacementId": "clip-wave-garden",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-wave-garden",
+      "toPlacementId": "clip-pinwheel-garden",
+      "startMs": 13000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-full-ember",
+      "toPlacementId": "clip-rings-ember",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-rings-ember",
+      "toPlacementId": "clip-wave-ember",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-wave-ember",
+      "toPlacementId": "clip-pinwheel-ember",
+      "startMs": 13000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-showcase-zone-layouts-splits": [
+    {
+      "fromPlacementId": "clip-full-garden",
+      "toPlacementId": "clip-moving-split-garden",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-moving-split-garden",
+      "toPlacementId": "clip-soft-split-garden",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-soft-split-garden",
+      "toPlacementId": "clip-checker-garden",
+      "startMs": 13000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-full-ember",
+      "toPlacementId": "clip-moving-split-ember",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-moving-split-ember",
+      "toPlacementId": "clip-soft-split-ember",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-soft-split-ember",
+      "toPlacementId": "clip-checker-ember",
+      "startMs": 13000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ],
+  "stock:stock-show-showcase-zone-layouts-stripes-grid": [
+    {
+      "fromPlacementId": "clip-full-garden",
+      "toPlacementId": "clip-stripes-garden",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-stripes-garden",
+      "toPlacementId": "clip-grid-garden",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-full-ember",
+      "toPlacementId": "clip-stripes-ember",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-stripes-ember",
+      "toPlacementId": "clip-grid-ember",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-full-tide",
+      "toPlacementId": "clip-stripes-tide",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-stripes-tide",
+      "toPlacementId": "clip-grid-tide",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-full-rain",
+      "toPlacementId": "clip-stripes-rain",
+      "startMs": 4000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    },
+    {
+      "fromPlacementId": "clip-stripes-rain",
+      "toPlacementId": "clip-grid-rain",
+      "startMs": 9000,
+      "leftGroupOccurrenceId": null,
+      "rightGroupOccurrenceId": null
+    }
+  ]
+}

@@ -8,7 +8,7 @@ import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { effectiveShowInstanceUseCountV2 } from './showGroupsV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { insertShowTimeV2 } from './showTimelineV2'
 
 function record(shared = true): ShowRecordV2 {
@@ -39,7 +39,7 @@ function consumer(source: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
   expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared.issues))
   const artifact = compileShow(prepared.recipe, LIBRARIES)
-  const opened = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'sampling-corrective', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const opened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'sampling-corrective', stampedAt: '2026-09-16T00:00:00Z' }).text)
   const replay = createFastReplayRuntime({ ...artifact, code: opened.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [0.1, 0.4, 0.6, 0.9].map(x => ({ sample: [x, 0.5], pos: [x, 0.5] })) })
   return { prepared, artifact, replay }
 }

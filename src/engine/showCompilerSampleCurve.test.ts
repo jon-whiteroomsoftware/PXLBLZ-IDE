@@ -2,8 +2,7 @@ import { expect, it } from 'vitest'
 import { compileShow, type ShowRecipe } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { parseEpe } from './epeImport'
-import { buildShowEpeExport } from './showEpeExport'
-import { convertibleV1Show } from '../test/showV2TracerFixture'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 
 it.each(['fast', 'fidelity'] as const)('reopened sample descriptor preserves original kernel, exact right key, activation resume and wrap in %s', fidelity => {
   const recipe: ShowRecipe = {
@@ -16,7 +15,7 @@ it.each(['fast', 'fidelity'] as const)('reopened sample descriptor preserves ori
     ] } },
   }
   const artifact = compileShow(recipe, {})
-  const epe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'descriptor-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const epe = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'descriptor-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
   const runtime = createFastReplayRuntime({ ...artifact, code: epe.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.3, 0.25], pos: [0.3, 0.25] }] })
   for (const time of [125, 250, 375, 500, 625, 750, 875, 1125, 1250, 1375]) {
     const phase = time % 1000

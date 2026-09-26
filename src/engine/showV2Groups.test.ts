@@ -7,7 +7,7 @@ import { showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { parseEpe } from './epeImport'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertedV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { materializeShowGroupOccurrences } from './showGroupModel'
 import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
@@ -271,7 +271,7 @@ it('compiles and replays a held Group against an independently authored ordinary
   if (preparedHeld.status !== 'ready' || preparedExpected.status !== 'ready') return
   const heldArtifact = compileShow(preparedHeld.recipe, LIBRARIES)
   const expectedArtifact = compileShow(preparedExpected.recipe, LIBRARIES)
-  const reopenedArtifact = parseEpe(buildShowEpeExport(groupShow(), heldArtifact.code, {
+  const reopenedArtifact = parseEpe(exportShowEpeV2ForTest(convertedV2Record(groupShow()), heldArtifact.code, {
     id: 'issue-1038-group-hold', stampedAt: '2026-09-15T00:00:00.000Z',
   }).text)
   expect(reopenedArtifact).toMatchObject({ stamp: { kind: 'show' } })

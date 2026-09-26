@@ -5,7 +5,7 @@ import { defaultGroupRuntimeIdV2, groupRuntimeBindings, materializeShowGroupsV2 
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { parseEpe } from './epeImport'
 import { LIBRARIES } from '../pixelblaze/libs'
 import { buildDeliveredShowSourceInventory } from './showSourceInventory'
@@ -184,7 +184,7 @@ function runtime(source: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
   expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   if (prepared.status !== 'ready') throw new Error('Preparation refused')
   const artifact = compileShow(prepared.recipe, LIBRARIES)
-  const opened = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'group-replace', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const opened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'group-replace', stampedAt: '2026-09-16T00:00:00Z' }).text)
   expect(opened.stamp?.kind).toBe('show')
   const inventory = buildDeliveredShowSourceInventory(artifact.summary.sourceInventory, artifact.code, opened.src)
   const bytes = new TextEncoder().encode(opened.src)

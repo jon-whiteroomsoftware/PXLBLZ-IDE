@@ -1,18 +1,12 @@
 import {
-  stampArtifact,
   type ArtifactMapCompatibility,
   type ArtifactPreferredMap,
   type ArtifactShowOutputContract,
 } from './artifactStamp'
-import { makeProgramId } from './bytecodePush'
-import { showEasingOptionId } from './showEasing'
 import { STOCK_MAP_SPECS } from './maps'
-import type { MapRecord, ShowBoundaryTransition, ShowRecord, ShowOutputContract, ShowRoutingLayout } from './personalContentRecords'
-import { normalizeShowTransitionState, projectShowTimeline, showVisualTransitionAfter } from './showModel'
-import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
-import { formatShowBoundaryIdentity, formatShowClipIdentity } from './showClipIdentity'
+import type { MapRecord, ShowBoundaryTransition, ShowOutputContract, ShowRoutingLayout } from './personalContentRecords'
 import { buildStudioMapFingerprintCandidates } from './mapFingerprint'
-import { buildShowPatternCreditLines, PXLBLZ_AUTHOR, type ShowArtifactAttribution, type ShowPatternAttribution } from './patternAttribution'
+import type { ShowArtifactAttribution } from './patternAttribution'
 
 export interface ShowEpeExport {
   filename: string
@@ -26,152 +20,6 @@ export interface ShowEpeExportOptions {
   stampedAt?: Date | string
   userMaps?: readonly MapRecord[]
   attribution?: ShowArtifactAttribution
-}
-
-export function buildShowEpeExport(
-  show: ShowRecord,
-  generatedCode: string,
-  options: ShowEpeExportOptions = {},
-): ShowEpeExport {
-  show = normalizeShowTransitionState(show)
-  const name = show.name.trim() || 'Untitled Show'
-  const hasSpatialTransitions = show.transitions.some((transition) => transition.kind === 'portal')
-  const mapMetadata = deriveShowArtifactMapMetadata(show, options.userMaps ?? [])
-  const documentedSource = `${showArtifactHeader(show, mapMetadata, options.attribution)}\n${generatedCode}`
-  const source = stampArtifact(documentedSource, {
-    kind: 'show',
-    id: show.id,
-    name,
-    transforms: [
-      'show',
-      ...(show.routingLayouts.length > 1 ? ['routing-layouts'] : []),
-      ...(hasSpatialTransitions ? ['spatial-transitions'] : []),
-    ],
-    preferredMap: mapMetadata.preferredMap,
-    compatibility: mapMetadata.compatibility,
-    showOutputContract: mapMetadata.showOutputContract,
-    stampedAt: options.stampedAt,
-  })
-  return {
-    filename: `${epeFilenameStem(name)}.epe`,
-    text: JSON.stringify({
-      name,
-      id: options.id ?? makeProgramId(),
-      sources: { main: source },
-      preview: options.preview ?? '',
-    }, null, 2),
-    source,
-  }
-}
-
-function showArtifactHeader(
-  show: ShowRecord,
-  mapMetadata: ReturnType<typeof deriveShowArtifactMapMetadata>,
-  attribution?: ShowArtifactAttribution,
-): string {
-  const uniquePatterns = new Map<string, { kind: string; id: string; name: string }>()
-  for (const cell of show.cells) {
-    const key = `${cell.pattern.kind}:${cell.pattern.id}`
-    if (!uniquePatterns.has(key)) {
-      uniquePatterns.set(key, {
-        kind: cell.pattern.kind,
-        id: cell.pattern.id,
-        name: cell.patternName,
-      })
-    }
-  }
-  for (const instance of show.composition?.patternInstances ?? []) {
-    const key = `${instance.pattern.kind}:${instance.pattern.id}`
-    if (!uniquePatterns.has(key)) {
-      uniquePatterns.set(key, {
-        kind: instance.pattern.kind,
-        id: instance.pattern.id,
-        name: instance.patternName,
-      })
-    }
-  }
-  const attributionByKey = new Map((attribution?.patterns ?? []).map((pattern) => [
-    `${pattern.kind}:${pattern.id}`,
-    pattern,
-  ]))
-  const creditedPatterns: ShowPatternAttribution[] = [...uniquePatterns.values()].map((pattern) => ({
-    kind: pattern.kind === 'user' ? 'user' : 'stock',
-    id: pattern.id,
-    name: pattern.name,
-    authors: attributionByKey.get(`${pattern.kind}:${pattern.id}`)?.authors ?? [],
-  }))
-  const routingTransitionByScene = new Map(show.transitions.flatMap((transition) => (
-    transition.kind === 'routing' ? [[transition.afterSceneId, transition] as const] : []
-  )))
-  const layoutName = new Map(show.routingLayouts.map((layout) => [layout.id, layout.name]))
-  const timeline = projectShowTimeline(show)
-  const clipSchedule = show.composition
-    ? projectShowUnifiedTimeline(show, show.composition).zones.flatMap((zone) => (
-        zone.layers.flatMap((layer) => layer.clips.map((clip) => ({
-          id: clip.id,
-          startMs: clip.startMs,
-          patternName: clip.patternName,
-        })))
-      ))
-    : timeline.rows.flatMap((row) => row.cells.map((cell) => ({
-        id: cell.id,
-        startMs: cell.startMs,
-        patternName: cell.patternName,
-      })))
-  const uniqueClipSchedule = [...new Map(clipSchedule.map((clip) => [clip.id, clip])).values()]
-    .sort((left, right) => left.startMs - right.startMs || left.patternName.localeCompare(right.patternName) || left.id.localeCompare(right.id))
-  const boundaryFacts = show.scenes.slice(0, -1).flatMap((scene) => {
-    const routingTransition = routingTransitionByScene.get(scene.id)
-    const destinationId = routingTransition?.layoutId
-    const routingNote = destinationId
-      ? routingTransition.durationMs > 0
-        ? `transfer ${routingTransition.routingDirection ?? 'forward'} to ${commentText(layoutName.get(destinationId) ?? destinationId)} over ${formatSeconds(routingTransition.durationMs)} (${showEasingOptionId(routingTransition.easing)})`
-        : `switch to ${commentText(layoutName.get(destinationId) ?? destinationId)}`
-      : null
-    const transition = showVisualTransitionAfter(show, scene.id)
-    const transitionNote = transition && transition.kind !== 'cut' ? describeTransition(transition) : null
-    const facts = [transitionNote, routingNote].filter((fact): fact is string => Boolean(fact))
-    if (facts.length === 0) return []
-    const atMs = timeline.boundaryTransitions.find((boundary) => boundary.afterSceneId === scene.id)?.startMs
-      ?? timeline.scenes.find((range) => range.sceneId === scene.id)?.endMs
-      ?? 0
-    return [` * - ${formatShowBoundaryIdentity(atMs, [])}: ${facts.join('; ')}`]
-  })
-  const lines = [
-    '/*',
-    ` * Compiled PXLBLZ Show: ${commentText(show.name.trim() || 'Untitled Show')}`,
-    ` * By: ${(attribution?.by?.length ? attribution.by : [PXLBLZ_AUTHOR]).map(commentText).join('; ')}`,
-    ' *',
-    ' * Source Patterns:',
-    ...creditedPatterns.map((pattern) => {
-      const line = buildShowPatternCreditLines([pattern])[0] ?? `- ${commentText(pattern.name)}`
-      return ` * ${line} [${pattern.kind}:${commentText(pattern.id)}]`
-    }),
-    ...(creditedPatterns.some((pattern) => pattern.authors.length > 0)
-      ? [' *   Pattern authors are carried as structured IDE metadata so comments may be stripped safely.']
-      : [
-          ' *   Pattern author metadata was not recorded for these sources.',
-          ' *   If original comments are stripped later, this exported Show cannot recover missing author names.',
-        ]
-    ),
-    ' *',
-    ` * Routing Layouts: ${show.routingLayouts.map((layout) => commentText(layout.name)).join(' -> ') || 'Default'}`,
-    ...(mapMetadata.preferredMap
-      ? [` * Preferred map: ${commentText(mapMetadata.preferredMap.name)} [${preferredMapReference(mapMetadata.preferredMap)}].`]
-      : [' * Preferred map: none recorded.']),
-    ` * Compatibility: ${describeMapCompatibility(mapMetadata.compatibility)}`,
-    ...(mapMetadata.showOutputContract
-      ? [` * Output contract: ${describeShowOutputContract(mapMetadata.showOutputContract)}`]
-      : []),
-    ' * Clip schedule:',
-    ...uniqueClipSchedule.map((clip) => ` * - ${formatShowClipIdentity(clip.startMs, commentText(clip.patternName))}`),
-    ...(boundaryFacts.length > 0 ? [' *', ' * Boundaries:', ...boundaryFacts] : []),
-    ' *',
-    ' * Generated orchestration follows; member bindings are isolated with collision-safe prefixes.',
-    ' * This file is an ordinary standalone Pixelblaze Pattern after compilation.',
-    ' */',
-  ]
-  return lines.join('\n')
 }
 
 export interface ShowEpeMapMetadataInput {

@@ -8,7 +8,7 @@ import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { editShowMarkerV2, type ShowMarkerEditIntentV2 } from './showMarkersV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 
 function record(): ShowRecordV2 {
   const converted = convertShowRecordV1ToV2(convertibleV1Show())
@@ -194,7 +194,7 @@ it.each(['fast', 'fidelity'] as const)('reopens Marker CRUD with unchanged playb
   if (initial.status !== 'ready') throw new Error(JSON.stringify(initial.issues))
   const artifact = compileShow(initial.recipe, LIBRARIES)
   const exportOptions = { id: 'markers', stampedAt: '2026-09-16T00:00:00.000Z' }
-  const initialEpe = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, exportOptions).text)
+  const initialEpe = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, exportOptions).text)
   let candidate = source
   for (const intent of [
     { kind: 'add', marker: { id: 'dormant', timeMs: 10000, name: 'Guide' } },
@@ -210,7 +210,7 @@ it.each(['fast', 'fidelity'] as const)('reopens Marker CRUD with unchanged playb
     if (prepared.status !== 'ready') return
     const currentArtifact = compileShow(prepared.recipe, LIBRARIES)
     expect(currentArtifact.code).toBe(artifact.code)
-    const opened = parseEpe(buildShowEpeExport(convertibleV1Show(), currentArtifact.code, exportOptions).text)
+    const opened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), currentArtifact.code, exportOptions).text)
     expect(opened.src).toBe(initialEpe.src)
     const left = createFastReplayRuntime({ ...artifact, dimension: 1 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.25], pos: [0.25, 0.5] }, { sample: [0.75], pos: [0.75, 0.5] }] })
     const right = createFastReplayRuntime({ ...currentArtifact, code: opened.src, dimension: 1 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.25], pos: [0.25, 0.5] }, { sample: [0.75], pos: [0.75, 0.5] }] })

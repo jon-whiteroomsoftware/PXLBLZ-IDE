@@ -10,7 +10,7 @@ import { deleteShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGr
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { deriveShowRestartEventsV2 } from './showPropertyAnimationV2'
 import { isValidatedEmptyShowV2 } from './showMarkerRouteModel'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 
 function fixture(): ShowRecordV2 {
@@ -69,7 +69,7 @@ function delivered(source: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
   expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   if (prepared.status !== 'ready') throw new Error('Preparation refused')
   const artifact = compileShow(prepared.recipe, LIBRARIES)
-  const exported = buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'group-delete', stampedAt: '2026-09-16T00:00:00Z' })
+  const exported = exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'group-delete', stampedAt: '2026-09-16T00:00:00Z' })
   const reopened = parseEpe(exported.text)
   expect(reopened.stamp?.kind).toBe('show')
   return { artifact, replay: createFastReplayRuntime({ ...artifact, code: reopened.src, dimension: 2 }, { fidelity, randomSeed: 1038,

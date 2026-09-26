@@ -4,7 +4,6 @@ import type {
   ShowCompositionV1,
   ShowPatternInstance,
 } from '@/engine/personalContentRecords'
-import type { ShowUnifiedTimelineProjection } from '@/engine/showUnifiedTimelineProjection'
 import {
   expectAcceptedShowAuthoringEdit,
   expectRefusedShowAuthoringEdit,
@@ -42,14 +41,8 @@ function compositionWithClip(
   }
 }
 
-function acceptedOracles(
-  expectedStartMs: number,
-  expectedPatternName = instance.patternName,
-) {
+function acceptedOracles(expectedPatternName = instance.patternName) {
   return {
-    assertProjection: vi.fn((projection: ShowUnifiedTimelineProjection) => {
-      expect(projection.zones[0].layers[0].clips[0].startMs).toBe(expectedStartMs)
-    }),
     assertReferences: vi.fn((result: ShowCompositionV1) => {
       expect(result.patternInstances[0].patternName).toBe(expectedPatternName)
       expect(result.scenes[0].zones[0].main[0].instanceId).toBe(instance.id)
@@ -58,7 +51,7 @@ function acceptedOracles(
 }
 
 describe('Show authoring edit contract harness (#595)', () => {
-  it('accepts a valid edit after running projection and reference oracles', () => {
+  it('accepts a valid edit after running reference oracles', () => {
     const show = createDefaultShow('show-contract-accepted', 'Contract accepted', 1_000)
     const composition = compositionWithClip(show)
     const edit = vi.fn((input: ShowCompositionV1) => {
@@ -66,7 +59,7 @@ describe('Show authoring edit contract harness (#595)', () => {
       result.scenes[0].zones[0].main[0].startMs = 2_000
       return result
     })
-    const oracles = acceptedOracles(2_000)
+    const oracles = acceptedOracles()
 
     const result = expectAcceptedShowAuthoringEdit({
       show,
@@ -77,7 +70,6 @@ describe('Show authoring edit contract harness (#595)', () => {
 
     expect(result.scenes[0].zones[0].main[0].startMs).toBe(2_000)
     expect(edit).toHaveBeenCalledOnce()
-    expect(oracles.assertProjection).toHaveBeenCalledOnce()
     expect(oracles.assertReferences).toHaveBeenCalledOnce()
   })
 
@@ -93,7 +85,7 @@ describe('Show authoring edit contract harness (#595)', () => {
       show,
       composition,
       edit,
-      ...acceptedOracles(1_000),
+      ...acceptedOracles(),
     })).toThrow()
     expect(edit).toHaveBeenCalledOnce()
   })
@@ -110,7 +102,7 @@ describe('Show authoring edit contract harness (#595)', () => {
       show,
       composition,
       edit,
-      ...acceptedOracles(1_000, 'Mutated input'),
+      ...acceptedOracles('Mutated input'),
     })).toThrow()
     expect(edit).toHaveBeenCalledOnce()
   })
@@ -124,7 +116,7 @@ describe('Show authoring edit contract harness (#595)', () => {
       show,
       composition,
       edit,
-      ...acceptedOracles(1_000),
+      ...acceptedOracles(),
     })).toThrow()
     expect(edit).toHaveBeenCalledOnce()
   })
@@ -142,7 +134,7 @@ describe('Show authoring edit contract harness (#595)', () => {
       show,
       composition,
       edit,
-      ...acceptedOracles(1_000),
+      ...acceptedOracles(),
     })).toThrow()
     expect(edit).toHaveBeenCalledOnce()
   })
@@ -160,32 +152,9 @@ describe('Show authoring edit contract harness (#595)', () => {
       show,
       composition,
       edit,
-      ...acceptedOracles(1_000),
+      ...acceptedOracles(),
     })).toThrow()
     expect(edit).toHaveBeenCalledOnce()
-  })
-
-  it('runs the operation-specific unified projection oracle', () => {
-    const show = createDefaultShow('show-contract-projection', 'Contract projection', 1_000)
-    const composition = compositionWithClip(show)
-    const edit = vi.fn((input: ShowCompositionV1) => {
-      const result = structuredClone(input)
-      result.scenes[0].zones[0].main[0].startMs = 2_000
-      return result
-    })
-    const assertProjection = vi.fn((projection: ShowUnifiedTimelineProjection) => {
-      expect(projection.zones[0].layers[0].clips[0].startMs).toBe(3_000)
-    })
-
-    expect(() => expectAcceptedShowAuthoringEdit({
-      show,
-      composition,
-      edit,
-      assertProjection,
-      assertReferences: acceptedOracles(2_000).assertReferences,
-    })).toThrow()
-    expect(edit).toHaveBeenCalledOnce()
-    expect(assertProjection).toHaveBeenCalledOnce()
   })
 
   it('runs the operation-specific durable-reference oracle', () => {
@@ -200,7 +169,6 @@ describe('Show authoring edit contract harness (#595)', () => {
       show,
       composition,
       edit,
-      assertProjection: acceptedOracles(1_000).assertProjection,
       assertReferences,
     })).toThrow()
     expect(edit).toHaveBeenCalledOnce()

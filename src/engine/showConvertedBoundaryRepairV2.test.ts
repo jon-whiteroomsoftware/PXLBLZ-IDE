@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { LIBRARIES } from '../pixelblaze/libs'
-import { convertibleV1Show, transitionV1Show } from '../test/showV2TracerFixture'
+import { transitionV1Show } from '../test/showV2TracerFixture'
 import { compileShow } from './showCompiler'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { layoutOccurrencesBlockedV2 } from './showBoundaryScopeV2'
@@ -68,7 +68,7 @@ function playback(record: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
   expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   if (prepared.status !== 'ready') throw new Error('Preparation refused')
   const artifact = compileShow(prepared.recipe, LIBRARIES)
-  const reopened = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'boundary-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const reopened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'boundary-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
   expect(reopened.stamp?.kind).toBe('show')
   if (reopened.stamp?.kind !== 'show') throw new Error('EPE reopen refused')
   return {

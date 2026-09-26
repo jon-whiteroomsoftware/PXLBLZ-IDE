@@ -9,7 +9,6 @@ import { editShowTransitionV2 } from '@/engine/showTransitionsV2'
 import { createDefaultShow } from '@/engine/showModel'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { validateShowRecordV2, type ShowRecordV2 } from '@/engine/showCompositionV2'
-import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
 import { expectAcceptedShowAuthoringEdit } from '@/test/showAuthoringContract'
 import {
   createInstallationShowOutputContract,
@@ -159,8 +158,6 @@ function deferred(): {
   })
   return { promise, resolve, reject }
 }
-
-void projectShowUnifiedTimeline;
 
 beforeEach(() => {
   resetPersonalContentProvider()
@@ -809,13 +806,6 @@ describe('showStore (#318)', () => {
       show,
       composition: authored,
       edit: () => frozenV1Output<ShowCompositionV1>('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::1'),
-      assertProjection: (projection) => {
-        const layers = projection.zones[0].layers
-        expect(layers[layers.length - 1]?.clips[0]).toMatchObject({
-          id: 'logical-root',
-          startMs: 27_000,
-        })
-      },
       assertReferences: (result, original) => {
         expect(result.patternInstances).toEqual(original.patternInstances)
       },
@@ -824,14 +814,6 @@ describe('showStore (#318)', () => {
       show,
       composition: moved,
       edit: () => frozenV1Output<ShowCompositionV1>('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::2'),
-      assertProjection: (projection) => {
-        const layers = projection.zones[0].layers
-        expect(layers[layers.length - 1]?.clips[0]).toMatchObject({
-          id: 'logical-root',
-          startMs: 27_000,
-          endMs: 35_000,
-        })
-      },
       assertReferences: (result, original) => {
         expect(result.patternInstances).toEqual(original.patternInstances)
       },
@@ -840,12 +822,6 @@ describe('showStore (#318)', () => {
       show,
       composition: resized,
       edit: () => frozenV1Output<ShowCompositionV1>('showStore.test.ts::persists and reloads a multi-Scene logical Clip edit sequence (#596)::3'),
-      assertProjection: (projection) => {
-        expect(projection.zones[0].layers
-          .flatMap((layer) => layer.clips)
-          .map((clip) => clip.id)
-          .sort()).toEqual(['logical-right', 'logical-root'])
-      },
       assertReferences: (result, original) => {
         expect(result.patternInstances).toEqual(original.patternInstances)
       },

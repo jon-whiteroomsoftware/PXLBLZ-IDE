@@ -1,7 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import * as showCompiler from './showCompiler'
 import * as showLowering from './showCompositionLoweringV2'
-import * as legacyExport from './showEpeExport'
 import { qualifyShowV2PilotArtifacts } from './showV2Pilot'
 import { parseShowFileBundle } from './showFileBundle'
 import * as showFiles from './showFileBundle'
@@ -51,7 +50,6 @@ it('qualifies the exact captured native artifact and authored bytes without lowe
   if (prepared.status !== 'ready') throw new Error(prepared.status)
   const compiler = vi.spyOn(showCompiler, 'compileShow')
   const lowerer = vi.spyOn(showLowering, 'lowerShowCompositionV2ForCompile')
-  const legacyExporter = vi.spyOn(legacyExport, 'buildShowEpeExport')
   try {
     const result = await qualifyShowV2PilotArtifacts(prepared.bundle, { appVersion: 'native-test', exportedAt: '2026-09-16T00:00:00.000Z' })
     const file = await parseShowFileBundle(result.pxlshowBytes, { acceptV2: true })
@@ -62,8 +60,7 @@ it('qualifies the exact captured native artifact and authored bytes without lowe
     expect(result).not.toHaveProperty('previewShow')
     expect(compiler).not.toHaveBeenCalled()
     expect(lowerer).not.toHaveBeenCalled()
-    expect(legacyExporter).not.toHaveBeenCalled()
-  } finally { compiler.mockRestore(); lowerer.mockRestore(); legacyExporter.mockRestore() }
+  } finally { compiler.mockRestore(); lowerer.mockRestore() }
 })
 
 it('keeps delivered assets and import planning on the same capture through delayed serialization', async () => {

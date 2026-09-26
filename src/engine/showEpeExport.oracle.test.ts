@@ -2,7 +2,7 @@
  * Exported-artifact oracle for the `.epe` deliverable (#940).
  *
  * The exporter mirrors ShowEditor's download path: compile the Show for its
- * artifact, then stamp it with `buildShowEpeExport` (a fixed preview string
+ * artifact, then stamp it with the v2 exporter (a fixed preview string
  * stands in for the canvas-rendered JPEG, which is the only browser-bound
  * input). The importer is PatternList's `.epe` file input: `parseEpe`, whose
  * banner parse drives preferred-map resolution. Every assertion runs against
@@ -18,10 +18,11 @@ import { artifactHash } from './artifactStamp'
 import { parseEpe } from './epeImport'
 import { extractPatternAuthors } from './patternAttribution'
 import type { MapRecord, PatternRecord } from './personalContentRecords'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertedV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { createDefaultShow } from './showModel'
 import { createInstallationShowOutputContract } from './showOutputContract'
 import { compileShowForArtifact } from './showPreviewArtifact'
+import { showV1ConversionSources } from './showV2MigrationQualification'
 
 const authoredPattern: PatternRecord = {
   id: 'pattern-voltage-squiggles',
@@ -69,7 +70,7 @@ describe('exported .epe reopened by the Pattern importer (#940)', () => {
     const report = await runArtifactOracle({
       name: 'show-epe',
       exportArtifact: () => {
-        const exported = buildShowEpeExport(show, artifact.code, {
+        const exported = exportShowEpeV2ForTest(convertedV2Record(show, showV1ConversionSources(show, [authoredPattern], [authoredMap])), artifact.code, {
           id: 'pxb940oracle00000',
           preview: '',
           stampedAt: new Date(show.updatedAt),

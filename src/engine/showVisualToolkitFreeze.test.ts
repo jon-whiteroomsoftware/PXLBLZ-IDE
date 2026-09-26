@@ -5,7 +5,7 @@ import {
   measureShowVisualToolkitFreeze,
 } from './showVisualToolkitFreeze'
 import { compileShow } from './showCompiler'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { parseEpe } from './epeImport'
 import {
   captureShowToolkitFixture,
@@ -83,7 +83,7 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
   it('exports and reloads a compiled catalogue artifact through the standard EPE envelope', () => {
     const fixture = allShowVisualToolkitFixtures().find((candidate) => candidate.id === 'effect-distortion-animated')!
     const capture = captureShowToolkitFixture(fixture)
-    const exported = buildShowEpeExport(fixture.persistedRecord, capture.generatedCode, {
+    const exported = exportShowEpeV2ForTest({ ...convertibleV2Record(), id: fixture.persistedRecord.id, name: fixture.persistedRecord.name }, capture.generatedCode, {
       id: 'pxb45900000000000',
       preview: '/9j/freeze-preview',
       stampedAt: '2026-07-14T09:00:00.000Z',

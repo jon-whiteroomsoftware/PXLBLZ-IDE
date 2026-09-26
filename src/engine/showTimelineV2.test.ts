@@ -1,10 +1,9 @@
 import { LIBRARIES } from '../pixelblaze/libs'
-import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { compileShow } from './showCompiler'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { createFastReplayRuntime } from './fastReplay'
 import { parseEpe } from './epeImport'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { effectiveShowInstanceUseCountV2, materializeShowGroupsV2 } from './showGroupsV2'
 import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
 import { describe, expect, it } from 'vitest'
@@ -295,7 +294,7 @@ function consumer(recordValue: ShowRecordV2, fidelity: 'fast' | 'fidelity', patt
   expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared.issues))
   const artifact = compileShow(prepared.recipe, LIBRARIES)
-  const reopened = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'insert-time', stampedAt: '2026-09-16T00:00:00.000Z' }).text)
+  const reopened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'insert-time', stampedAt: '2026-09-16T00:00:00.000Z' }).text)
   expect(reopened).toMatchObject({ stamp: { kind: 'show' } })
   const runtime = createFastReplayRuntime({ ...artifact, code: reopened.src, dimension: 2 }, {
     randomSeed: 1038, fidelity,

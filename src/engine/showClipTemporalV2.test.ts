@@ -3,7 +3,7 @@ import { LIBRARIES } from '../pixelblaze/libs'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { compileShow } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { parseEpe } from './epeImport'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2, projectShowTransitionPropertyRampsV2, type ShowTransitionRampProjectionV2 } from './showPropertyAnimationV2'
@@ -225,7 +225,7 @@ function playback(record: ShowRecordV2, fidelity: 'fast' | 'fidelity') {
   expect(prepared.status, JSON.stringify(prepared)).toBe('ready')
   if (prepared.status !== 'ready') throw new Error('Preparation refused')
   const artifact = compileShow(prepared.recipe, LIBRARIES)
-  const reopened = parseEpe(buildShowEpeExport(convertibleV1Show(), artifact.code, { id: 'temporal-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
+  const reopened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code, { id: 'temporal-proof', stampedAt: '2026-09-16T00:00:00Z' }).text)
   expect(reopened.stamp?.kind).toBe('show')
   return { artifact, runtime: createFastReplayRuntime({ ...artifact, code: reopened.src, dimension: 2 }, { fidelity, randomSeed: 1038, mapPoints: [{ sample: [0.25, 0.5], pos: [0.25, 0.5] }] }) }
 }

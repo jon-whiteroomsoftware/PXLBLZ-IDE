@@ -1,8 +1,6 @@
-import { createHash } from 'node:crypto'
 import { expect, it } from 'vitest'
 import { convertibleV1Show, continuingV1Show } from '../test/showV2TracerFixture'
 import { LIBRARIES } from '../pixelblaze/libs'
-import { buildShowEpeExport } from './showEpeExport'
 import { buildShowEpeExportV2 } from './showEpeExportV2'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { emitFixedPoint } from './fxEmit'
@@ -81,14 +79,22 @@ it.each(['stock', 'custom', 'none'] as const)('installation %s map stamp matches
   const exported = buildShowEpeExportV2(record, code, { ...options, userMaps: [customMap] })
   expect(exported.status, JSON.stringify(exported)).toBe('exported')
   if (exported.status !== 'exported') throw new Error(exported.message)
-  const legacy = convertibleV1Show()
-  legacy.stageMapId = record.stageMapId
-  legacy.outputContract = record.outputContract
-  const oldStamp = parseEpe(buildShowEpeExport(legacy, code, { ...options, userMaps: [customMap] }).text).stamp!
   const stamp = parseEpe(exported.text).stamp!
-  expect(stamp.compatibility).toEqual(oldStamp.compatibility)
-  expect(stamp.preferredMap).toEqual(oldStamp.preferredMap)
-  expect(stamp.showOutputContract).toEqual(oldStamp.showOutputContract)
+  expect(stamp.compatibility).toEqual({
+    portability: 'installation-bound',
+    dimensions: mapKind === 'none' ? [] : [2],
+    mapClasses: mapKind === 'stock' ? ['surface'] : mapKind === 'custom' ? ['custom'] : [],
+    resolution: 'fixed',
+    exactMap: true,
+  })
+  expect(stamp.preferredMap).toEqual(mapKind === 'stock'
+    ? { kind: 'stock', id: 'plane', name: 'Square' }
+    : mapKind === 'custom' ? { kind: 'custom', name: 'Studio Grid' } : undefined)
+  expect(stamp.showOutputContract).toEqual(mapKind === 'stock'
+    ? { version: 1, kind: 'installation', pixelCount: 4, outputMap: { kind: 'stock', id: 'plane', name: 'Square', fingerprint: '66df4495' } }
+    : mapKind === 'custom'
+      ? { version: 1, kind: 'installation', pixelCount: 4, outputMap: { kind: 'custom', name: 'Studio Grid', fingerprint: '66df4495' } }
+      : { version: 1, kind: 'installation', pixelCount: 4 })
   expect(stamp.showOutputContract).toMatchObject({ kind: 'installation', pixelCount: 4 })
   if (mapKind === 'custom') {
     expect(exported.source).not.toContain(customMap.id)
@@ -220,12 +226,6 @@ it.each(['fast', 'fidelity'] as const)('native ordinary EPE reopens exact genera
   provePlayback(fixture(), fidelity)
 })
 
-it('pins the unmodified legacy exporter bytes before shared utility extraction', () => {
-  const exported = buildShowEpeExport(convertibleV1Show(), code, options)
-  expect(createHash('sha256').update(exported.text).digest('hex')).toBe('48fefda3f72ad8d2cd7184a0e9efbaa79557a6579dc0fc9a63efb2ee5b26de70')
-  expect(exported.text).toContain('Convertible')
-})
-
 it.each(['fast', 'fidelity'] as const)('native whole-output Transition metadata retains actual %s choreography', fidelity => {
   const record = fixture()
   const first = record.composition.clips[0]
@@ -277,18 +277,6 @@ it.each(['stock', 'custom', 'none'] as const)('portable %s map metadata never fi
   expect(stamp.showOutputContract).toEqual({ version: 1, kind: 'portable-2d', dimensions: [2], mapClasses: ['surface'], resolution: 'variable' })
   if (mapKind === 'custom') expect(exported.source).not.toContain(customMap.id)
   if (mapKind === 'none') expect(exported.source).toContain('Preferred map: none recorded.')
-})
-
-it('pins legacy custom installation and attributed portal bytes with fixed export options', () => {
-  const installation = convertibleV1Show()
-  installation.stageMapId = customMap.id
-  installation.outputContract = createInstallationShowOutputContract({ outputMapId: customMap.id, pixelCount: 4 })
-  const custom = buildShowEpeExport(installation, code, { ...options, userMaps: [customMap] })
-  expect(createHash('sha256').update(custom.text).digest('hex')).toBe('20ed7e07f6bfa27feef1681559f8e17264ec19b12f8f3d562e6904280cfebd6e')
-  const portal = continuingV1Show()
-  portal.transitions = [{ id: 'portal', afterSceneId: 'scene-a', kind: 'portal', shape: 'ring', ringWidth: .2, durationMs: 100, easing: { curve: 'sine', direction: 'in-out' } }]
-  const credited = buildShowEpeExport(portal, code, { ...options, attribution: { by: ['Artist'], patterns: [{ kind: 'stock', id: 'TestPattern1D', name: 'TestPattern1D', authors: ['Author'] }] } })
-  expect(createHash('sha256').update(credited.text).digest('hex')).toBe('28019b0e1ffd6071af2b3770b198dec624792cdd29bfee8057b4766d32d5294b')
 })
 
 it.each(['fast', 'fidelity'] as const)('converted timed Layout transfer preserves native metadata and %s playback', fidelity => {

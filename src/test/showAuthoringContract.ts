@@ -4,10 +4,6 @@ import type {
   ShowCompositionV1,
   ShowRecord,
 } from '@/engine/personalContentRecords'
-import {
-  projectShowUnifiedTimeline,
-  type ShowUnifiedTimelineProjection,
-} from '@/engine/showUnifiedTimelineProjection'
 
 interface ShowAuthoringEditContract {
   show: ShowRecord
@@ -16,10 +12,6 @@ interface ShowAuthoringEditContract {
 }
 
 interface AcceptedShowAuthoringEditContract extends ShowAuthoringEditContract {
-  assertProjection: (
-    projection: ShowUnifiedTimelineProjection,
-    result: ShowCompositionV1,
-  ) => void
   assertReferences: (
     result: ShowCompositionV1,
     original: ShowCompositionV1,
@@ -29,14 +21,13 @@ interface AcceptedShowAuthoringEditContract extends ShowAuthoringEditContract {
 /**
  * Assert the shared contract for an accepted pure Show authoring edit.
  *
- * The supplied callbacks keep operation-specific projection and reference
+ * The supplied callback keeps operation-specific reference
  * checks next to each test while this helper owns the universal invariants.
  */
 export function expectAcceptedShowAuthoringEdit({
   show,
   composition,
   edit,
-  assertProjection,
   assertReferences,
 }: AcceptedShowAuthoringEditContract): ShowCompositionV1 {
   const showSnapshot = structuredClone(show)
@@ -49,7 +40,6 @@ export function expectAcceptedShowAuthoringEdit({
   expect(composition).toEqual(compositionSnapshot)
   expect(result).not.toBe(composition)
   expect(validateShowComposition(show, result)).toEqual([])
-  assertProjection(projectShowUnifiedTimeline(show, result), result)
   assertReferences(result, compositionSnapshot)
   return result
 }

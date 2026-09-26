@@ -32,7 +32,7 @@ import { propertyEditGroupRecord } from '../test/showV2PropertyEditsFixture'
 import type { ShowRecord } from './personalContentRecords'
 import { effectiveShowInstanceUseCountV2, groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
 import { deriveShowRestartEventsV2, evaluateShowPropertyTrackV2 } from './showPropertyAnimationV2'
-import { buildShowEpeExport } from './showEpeExport'
+import { convertibleV2Record, exportShowEpeV2ForTest } from '../test/showEpeV2TestSupport'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 
 const code = 'export var calls=0; export function beforeRender(delta){calls++} export function render2D(index,x,y){rgb(calls/100,x,y)}'
@@ -1198,10 +1198,10 @@ it.each(['fast', 'fidelity'] as const)('preserves reopened generated output and 
   expect(Object.values(preparedAfter.provenance.runtimeInstanceIdByClipId).filter(id => id === runtimeId)).toHaveLength(4)
   const artifactBefore = compileShow(preparedBefore.recipe, LIBRARIES)
   const artifactAfter = compileShow(preparedAfter.recipe, LIBRARIES)
-  const reopenedBefore = parseEpe(buildShowEpeExport(convertibleV1Show(), artifactBefore.code, {
+  const reopenedBefore = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifactBefore.code, {
     id: `ungroup-before-${fidelity}`, stampedAt: '2026-09-15T00:00:00.000Z',
   }).text)
-  const reopenedAfter = parseEpe(buildShowEpeExport(convertibleV1Show(), artifactAfter.code, {
+  const reopenedAfter = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifactAfter.code, {
     id: `ungroup-after-${fidelity}`, stampedAt: '2026-09-15T00:00:00.000Z',
   }).text)
   expect(reopenedBefore).toMatchObject({ stamp: { kind: 'show' } })
@@ -1262,7 +1262,7 @@ it.each(['fast', 'fidelity'] as const)('reopens and renders independently author
   const actualArtifact = compileShow(actualPrepared.recipe, LIBRARIES)
   const oracleArtifact = compileShow(oraclePrepared.recipe, LIBRARIES)
   expect(actualArtifact.code).toBe(oracleArtifact.code)
-  const reopenedArtifact = parseEpe(buildShowEpeExport(convertibleV1Show(), actualArtifact.code, {
+  const reopenedArtifact = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), actualArtifact.code, {
     id: `group-move-duplicate-${fidelity}`, stampedAt: '2026-09-15T00:00:00.000Z',
   }).text)
   expect(reopenedArtifact).toMatchObject({ stamp: { kind: 'show' } })
@@ -1305,10 +1305,10 @@ it.each(['fast', 'fidelity'] as const)('keeps compiled runtime sharing, held tim
   expect(preparedAfter.recipe.restartEvents).toEqual(preparedBefore.recipe.restartEvents)
   const artifactBefore = compileShow(preparedBefore.recipe, LIBRARIES)
   const artifactAfter = compileShow(preparedAfter.recipe, LIBRARIES)
-  const reopenedBefore = parseEpe(buildShowEpeExport(convertibleV1Show(), artifactBefore.code, {
+  const reopenedBefore = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifactBefore.code, {
     id: 'group-before', stampedAt: '2026-09-15T00:00:00.000Z',
   }).text)
-  const reopenedAfter = parseEpe(buildShowEpeExport(convertibleV1Show(), artifactAfter.code, {
+  const reopenedAfter = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifactAfter.code, {
     id: 'group-after', stampedAt: '2026-09-15T00:00:00.000Z',
   }).text)
   expect(reopenedBefore).toMatchObject({ stamp: { kind: 'show' } })
