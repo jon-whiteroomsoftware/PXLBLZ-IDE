@@ -1066,9 +1066,10 @@ reported capacity; release resolves the painted range against its captured sourc
 Named manual Transition-to-Cut exceptions remain distinct from exact agent
 requests. See the [manual resize contract](contracts/show-command-semantics.md#manual-resize-commits).
 
-Timeline authoring is framework-free: `showTimelineClipAuthoring.ts` (split,
-duplicate, resize, move as atomic composition updates in global time, with
-refusal by returning the input), `showClipInspectorModel.ts` (Show-global
+Timeline authoring is framework-free: `showClipTemporalV2.ts` (split, trim,
+extend, and move as atomic record updates in global time, with typed
+refusals), `showClipsV2.ts` (duplicate, and the Clip edit entry that forwards
+temporal intents), `showClipInspectorModel.ts` (Show-global
 projection of Scene-relative storage), `showClipIdentity.ts` (compact boundary
 identity like `15.0: CompassRose`), `showSpatialSelection.ts` (Installation
 spatial authoring as pure index-set operations), and `ShowZoneSpatialSelector`
@@ -1115,10 +1116,6 @@ The [versioned Clip and Layer authoring schema](agent-clip-layer-authoring.md)
 is the single recursive descriptor source for `create_clips`, `create_layers`,
 and `update_clips`; production MCP, built-in functions, diagnostic MCP, runtime
 validation, and published resources all derive their nested schemas from it.
-`showTimelineClipAuthoring.ts` owns the private final-state arrangement primitive
-that removes the named ordinary logical Clips, rebuilds them from the retained
-snapshot, and validates once. Existing sequential transactions do not acquire
-this temporary-collision exception.
 `showOverlayLayerAuthoring.ts` owns whole-Layer reorder and empty-only removal
 across internal Scenes. It admits only valid, uniform explicit target-Zone
 stacks without a target-Zone Group occurrence, preserves whole Layer objects,
@@ -1261,7 +1258,7 @@ stale isolation closes itself.
 
 **Layer Transitions.** Only positive-duration records persist; Cuts are
 derived where placements abut (`showUnifiedTimelineProjection.ts`).
-`showLayerTransitionAuthoring.ts` owns the editing algebra: creating or
+`showTransitionsV2.ts` owns the editing algebra: creating or
 growing a Transition shifts the connected successors; same-Layer moves carry
 the connected sequence; cross-Layer moves detach; a move or resize that breaks
 a Scene-boundary junction replaces it with a Cut and collapses its time.
@@ -1271,10 +1268,11 @@ may span a Transition or stay out of it, never start or stop inside it.
 **Markers, Show End, Insert Time.** The Show End handle uses a timeline-local
 overlay outside the horizontal scroller, preserving its full hit target while
 remaining clipped by the vertical timeline pane (#63).
-`showExactTimelineMarker.ts` owns shared
-Marker edits; legacy timeline helpers forward to it. The
+`showMarkersV2.ts` owns shared
+Marker edits; the Marker commands in `showCommandsV2/markers.ts` forward to it. The
 [command contract](contracts/show-command-semantics.md) defines that boundary.
-`showTimelineAuthoring.ts` owns Show End changes and Insert Time. Show End may
+`showLayoutIntervalsV2.ts` owns Show End changes and `showTimelineV2.ts` owns
+Insert Time. Show End may
 prune a composition-empty trailing Scene suffix across ordinary Cuts while
 keeping the retained Scene positive; it refuses before discarding meaningful
 visual or routing Boundaries or any Scene-owned content. Insert Time extends the

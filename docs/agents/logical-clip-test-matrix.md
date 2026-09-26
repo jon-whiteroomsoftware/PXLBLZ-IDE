@@ -6,10 +6,9 @@ validate the complete result, project the intended logical timeline, and retain
 every durable reference. Refused edits return the original composition by
 reference and leave the complete prior state unchanged.
 
-`src/engine/showAuthoringMatrix.test.ts` owns the cross-operation matrix and
-short edit sequences. Operation-specific suites retain detailed regressions for
-mechanisms that would make the central matrix unreadable. The shared assertions
-live in `src/test/showAuthoringContract.ts`.
+Operation-specific suites beside each owning engine carry the accepted,
+refused, and edit-sequence cases. The shared assertions live in
+`src/test/showAuthoringContract.ts`.
 
 ## Declared partitions
 
@@ -20,7 +19,7 @@ product.
 
 | Dimension | Partition | Representative executable coverage |
 | --- | --- | --- |
-| Time | Ordinary Scene time | Accepted move, resize, and split rows in `showAuthoringMatrix.test.ts` |
+| Time | Ordinary Scene time | Accepted move, trim/extend, and split cases in `showClipTemporalV2.test.ts` |
 | Time | Exact Scene boundary | `exact Scene start after a Transition` matrix row |
 | Time | Scene Transition gap | Refused move matrix row; `disables Split inside the hidden Scene Transition gap` |
 | Time | Fractional boundary | `fractional boundary rounded once` matrix row; `rounds one fractional logical Clip split boundary` |
@@ -46,13 +45,13 @@ matrix. More specialized regressions remain beside the owning engine.
 
 | Operation | Accepted partition | Refused partition | Primary specialized suite |
 | --- | --- | --- | --- |
-| Move | Ordinary Scene time | Scene Transition gap | `showTimelineClipAuthoring.test.ts` |
-| Resize | Ordinary Scene time | Non-positive duration | `showTimelineClipAuthoring.test.ts` |
-| Split | Ordinary Scene time | Exact Clip boundary | `showTimelineClipAuthoring.test.ts` |
-| Duplicate | Empty destination | Occupied destination | `showTimelineClipAuthoring.test.ts` |
+| Move | Ordinary Scene time | Scene Transition gap | `showClipTemporalV2.test.ts` |
+| Resize | Ordinary Scene time | Non-positive duration | `showClipTemporalV2.test.ts` |
+| Split | Ordinary Scene time | Exact Clip boundary | `showClipTemporalV2.test.ts` |
+| Duplicate | Empty destination | Occupied destination | `showClipsV2.test.ts` |
 | Delete | One of multiple Clips | Final remaining Clip | `showCompositionModel.test.ts` |
 | Inspector edit | Placement-owned property | Out-of-bounds duration | `showClipInspectorModel.test.ts` |
-| Transition edit | Isolated derived Cut | Non-positive duration | `showLayerTransitionAuthoring.test.ts` |
+| Transition edit | Isolated derived Cut | Non-positive duration | `showTransitionsV2.test.ts` |
 
 The accepted callback checks visible logical Clip identity plus the references
 specific to the operation: Pattern instances, placement or instance property

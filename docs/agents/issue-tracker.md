@@ -19,6 +19,9 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
   attached proof, and the reviewed commit reachable from local `main` are
   required before closing an implementation issue; landing alone grants no
   closure authority.
+- **Show v2 launch milestone**: every issue in the Show v2 launch migration
+  (Scene retirement, #1032–#1045 and its bug fixes) carries the **Show v2
+  launch** milestone.
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 

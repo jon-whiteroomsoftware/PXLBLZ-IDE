@@ -139,9 +139,9 @@ owner, so a malformed runtime object never reaches preparation or adoption.
 - `src/store/showV2ZoneLayoutAdmission.test.ts`: one preparation, one history
   entry and one save per accepted edit; Undo and Redo; malformed ingress before
   preparation; owner refusal and true no-op writing nothing; a stale revision.
-- `src/components/ShowV2ZoneLayoutEditor.test.tsx` and the two new cases in
-  `src/components/ShowV2ShowPropertiesEditor.test.tsx`: the surface, asserted at
-  the adopted record rather than component state.
+- `src/components/ShowEditorV2Tracer.test.tsx` (v2 Zone and Zone Layout
+  definition wiring): the production surface routes each Zone and Layout
+  definition edit through its admission door.
 - `e2e/show-editor-v2-zones-layouts.auth.spec.ts`, registered in
   `test:e2e:shows`: both flows on the production Show URL, with Fast and Precise
   Stage frames either side of a Layout switch, the reopened `.pxlshow` and

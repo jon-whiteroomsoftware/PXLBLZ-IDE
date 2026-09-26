@@ -1,8 +1,8 @@
 # Show v2 Marker route admission
 
 The gated v2 editor route's Show inspector exposes general Marker
-add/select/name/time/color/remove (`ShowV2MarkerEditor`; the pilot route that
-first hosted it retired with #1056 slice 6).
+add/select/name/time/color/remove (`ShowEditor.tsx`, through
+`admitShowV2PilotMarkerEdit`).
 The route neither authors nor clears the [chapter role](show-v2-markers.md); it
 edits a chaptered Marker's time, name and color and preserves its role exactly.
 Production v1 routing is unchanged. The pure

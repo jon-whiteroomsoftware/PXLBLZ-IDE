@@ -1,6 +1,6 @@
 # Opt-in Group occurrence controls
 
-`ShowV2GroupOccurrenceEditor` selects persisted occurrence identities only. Its
+`ShowEditor.tsx` selects persisted occurrence identities only. Its
 pure model presents each definition's name and the occurrence's effective global
 start/end, including local holds. Materialized child IDs are never selectable.
 

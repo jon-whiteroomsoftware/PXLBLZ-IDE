@@ -1,7 +1,7 @@
 # Group Clip Pattern replacement adoption
 
 The v2 route pilot exposes definition-local Group Clip Pattern replacement
-through `ShowV2GroupReplacementEditor.tsx`, the pure planner in
+through `ShowEditor.tsx`, the pure planner in
 `showV2GroupReplacementEditorModel.ts` and the closed typed admission wrapper
 `admitShowV2PilotGroupReplacementEdit`. The pure owner and its rules are the
 [definition-local replacement contract](show-v2-group-replacement.md); this

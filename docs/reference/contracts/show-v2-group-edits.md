@@ -235,7 +235,7 @@ This owner covers Make Unique, occurrence move, linked duplicate and
 selected-occurrence Ungroup and deletion. Global Insert Time and Layer authoring
 have their own owners ([timeline edits](show-v2-timeline-edits.md),
 `showLayersV2.ts`). Route adoption is landed:
-`admitShowV2PilotGroupOccurrenceEdit` and `ShowV2GroupOccurrenceEditor` drive
+`admitShowV2PilotGroupOccurrenceEdit` and `ShowEditor.tsx` drive
 these five operations through the closed prepared-edit admission path
 ([occurrence adoption](show-v2-group-occurrence-adoption.md)). These operations do
 not impose definition deletion or garbage-collection policy.

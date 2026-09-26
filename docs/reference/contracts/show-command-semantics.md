@@ -98,7 +98,7 @@ These are executable examples, not exhaustive proof over every possible Show.
 ## Exact timeline markers
 
 `add_marker`, `move_marker`, `update_marker` and `remove_marker` share
-[one marker owner](../../../src/engine/showExactTimelineMarker.ts) with the
+[one marker owner](../../../src/engine/showMarkersV2.ts) with the
 manual callbacks and legacy timeline helper entrypoints. Structured `at_ms`
 values are nonnegative safe integers; fractional, nonfinite, negative and unsafe
 values refuse before any rounding or clamping. Times beyond Show End remain
@@ -123,7 +123,7 @@ The [diagnostic adapter](../../../src/agent-harness/grammar/operations/descripto
 derives schemas from the canonical descriptors and retains diagnostic ID
 minting. Existing whole-Show admission and final authoring validation remain
 responsible for the candidate; markers acquire no narrow concurrency authority.
-[Engine tests](../../../src/engine/showExactTimelineMarker.test.ts),
+[Engine tests](../../../src/engine/showMarkersV2.test.ts),
 [adapter tests](../../../src/agent-harness/test/commandParity.test.ts) and
 [the evidence packet](../evidence/issue-951-exact-markers/README.md) record
 preservation, protocol, history and browser qualification.
@@ -483,7 +483,7 @@ complete records, refusal, parity, split-then-edit/move and export/Undo/Redo.
 ## Logical Clip duplication (#951)
 
 `duplicate_clip(clip_id, linked?)` and manual **Clone** share the duplication
-owner in `showTimelineClipAuthoring`. The copy begins immediately after the
+owner in `showClipsV2`. The copy begins immediately after the
 source's complete logical span, with the same duration and Layer. Manual Clone
 and omitted/false linkage create an independent Pattern instance; true linkage
 shares the existing instance. Independent copies retain settings, clone supported
