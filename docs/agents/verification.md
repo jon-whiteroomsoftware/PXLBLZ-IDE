@@ -260,7 +260,7 @@ Canonical execution and review-workflow guidance was deployed from the reviewed
 source artifacts; the installed native worker hook passed 14 interface cases.
 These host changes are distributed separately from the executable tarball.
 
-## Execution workers and issue classifier
+## Execution workers
 
 Execution workers follow `~/.agents/execution-policy.md`: Astra Low, then Sol
 High, then Fable High when unavailable. Opus is excluded from implementation.
@@ -270,12 +270,7 @@ approach, with deliberate Astra Medium escalation where justified. Model or
 context changes preserve the candidate lineage and review breaker. Permission
 refusals stop the affected action.
 
-The optional post-commit issue classifier remains comment-only and defaults to
-`gpt-6-astra` / `low`. Paired `WRSP_ISSUE_CLASSIFIER_MODEL` and
-`WRSP_ISSUE_CLASSIFIER_EFFORT` overrides also support `gpt-5.6-sol` / `high`.
-Partial, empty, or unsupported pairs are rejected before paid launch. Failure
-skips the optional comment; this hook adds no automatic Fable CLI fallback.
-Its invocation settings do not alter candidate reviewer routing.
+The post-commit issue classifier was retired in #1140.
 
 ## WRSP 0.8.0 adoption (#969)
 
@@ -307,8 +302,7 @@ binds the current package/configuration/tip and requires fresh final-suite resul
 ### Classifier override at adoption
 
 At #969 the classifier defaulted to Sol High, with an explicitly authorized
-Astra Low override. Current selection is described in
-[Execution workers and issue classifier](#execution-workers-and-issue-classifier).
+Astra Low override. The classifier was retired in #1140.
 
 ## Gate ownership
 

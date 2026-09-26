@@ -145,7 +145,6 @@ export default {
         exact: [
           '.husky/pre-commit',
           '.husky/pre-push',
-          '.husky/scripts/update-issues.sh',
           'dev-runtime.json',
           'playwright.config.ts',
           'playwright.auth.config.ts',
@@ -186,7 +185,6 @@ export default {
           'scripts/run-public-playwright.test.ts',
           'scripts/with-suite-lock.test.ts',
           'scripts/vitest-discovery.test.ts',
-          'scripts/update-issues.test.ts',
           'scripts/show-authoring-mutation.test.ts',
           'scripts/wrsp-ui-proof-gate.test.ts',
           'scripts/wrsp-artifact-oracle-gate.test.ts',

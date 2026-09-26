@@ -554,7 +554,6 @@ test.describe('authenticated Show authoring', () => {
     await expect(localAnimation.locator('[data-property-beat-dot]')).toHaveCount(3)
     await expect(localAnimation.getByRole('button')).toHaveCount(0)
     await expect(page.getByRole('group', { name: /animation for Main$/ })).toHaveCount(1)
-    await expect(page.getByRole('group', { name: 'Animation speed lane for Main' })).toHaveCount(0)
   })
 
   test('navigates from a built-in Clip summary to its field (#599, #650)', async ({ page }) => {

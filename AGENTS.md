@@ -141,6 +141,12 @@ serving UI, `/api`, and the shared local D1 (#900). Run `npm run dev:main` to
 migrate, provision, and recover it; never stop it during ordinary task
 cleanup.
 
+In a new worktree, run `npx husky` after provisioning `node_modules/` (cloned
+or installed) and before the first commit. Git resolves `core.hooksPath`
+(`.husky/_`) inside each worktree, and husky generates that directory only
+during `npm ci`; without it, commits silently run no hooks
+(whiteroom-software-process#137). `npx husky` needs no network.
+
 Run `npm run preflight -- worktree` before the first edit in a new worktree
 and `npm run preflight -- port <n>` before starting any server outside the
 registry. Before claiming GitHub authentication or the network as a blocker,
@@ -182,6 +188,7 @@ npm run dev:main            # migrate/provision/recover persistent main
 npm run dev:issue -- --issue <number> --description "<description>" --profile <shared|isolated>
 npm run dev:status
 npm run dev:release -- --issue <number>
+npx husky                                # install git hooks in a new worktree
 npm run preflight -- worktree            # refuse the shared checkout
 npm run preflight -- port <port>         # name the owner of an occupied port
 npm run preflight -- blocker gh-auth --host   # host verdict only from an unsandboxed shell
@@ -348,8 +355,8 @@ check the local D1 schema first.
   and one purpose label per work item; reuse suitable issues before creating.
   Load canonical shared skills from `~/.agents/skills/`, not local copies.
   `📦 implemented` means identified commits claim the issue's full scope; the
-  coordinator applies and removes it, the post-commit hook only comments, and
-  it never implies review, landing, release, or closure. Attach a `Proof:`
+  coordinator applies and removes it, and it never implies review, landing,
+  release, or closure. Attach a `Proof:`
   line before closing an implementation issue with Jon's explicit authorization;
   `npm run check:issue-proof` audits for it.
 - Use `docs/agents/domain.md` when preparing issues, plans, or architectural
